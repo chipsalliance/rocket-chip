@@ -4,14 +4,17 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.util.{Irrevocable, IrrevocableIO}
+import diplomacy._
 import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 {
+  // Because we stall the request while sending beats, atomics can overlap => minLatency=0
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => c },
-    managerFn = { case Seq(m) => m.copy(beatBytes = innerBeatBytes) })
+    clientFn  = { case Seq(c) => c.copy(minLatency = 0) },
+    managerFn = { case Seq(m) => m.copy(minLatency = 0, beatBytes = innerBeatBytes) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -19,7 +22,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val out = node.bundleOut
     }
 
-    def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def merge[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = outBytes / inBytes
@@ -30,11 +33,12 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val mask = Cat(edgeIn.mask(in.bits), rmask)
       val size = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
-      val addr_lo = in.bits match {
+      val addr_all = in.bits match {
         case x: TLAddrChannel => edgeIn.address(x)
         case _ => UInt(0)
       }
-      val addr = addr_lo >> log2Ceil(outBytes)
+      val addr_hi = edgeOut.addr_hi(addr_all)
+      val addr_lo = edgeOut.addr_lo(addr_all)
 
       val count = RegInit(UInt(0, width = log2Ceil(ratio)))
       val first = count === UInt(0)
@@ -62,7 +66,8 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
 
       val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else dataMux(size)
-      val maskOut = maskMux(size) & edgeOut.mask(addr_lo, size)
+      val maskFull = edgeOut.mask(addr_lo, size)
+      val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
 
       in.ready := out.ready || !last
       out.valid := in.valid && last
@@ -70,9 +75,9 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
-        case a: TLBundleA => a.addr_hi := addr; a.mask := maskOut
-        case b: TLBundleB => b.addr_hi := addr; b.mask := maskOut
-        case c: TLBundleC => c.addr_hi := addr; c.addr_lo := addr_lo
+        case a: TLBundleA => a.addr_hi := addr_hi; a.mask := maskOut
+        case b: TLBundleB => b.addr_hi := addr_hi; b.mask := maskOut
+        case c: TLBundleC => c.addr_hi := addr_hi; c.addr_lo := addr_lo
         case d: TLBundleD => ()
           // addr_lo gets padded with 0s on D channel, the only lossy transform in this core
           // this should be safe, because we only care about addr_log on D to determine which
@@ -81,7 +86,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
     }
 
-    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def split[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = inBytes / outBytes
@@ -131,7 +136,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       // addr_lo gets truncated automagically
     }
     
-    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
       if (edgeIn.manager.beatBytes == edgeOut.manager.beatBytes) {
         // nothing to do; pass it through
         out <> in
@@ -171,10 +176,34 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 
 object TLWidthWidget
 {
-  // applied to the TL source node; connect (WidthWidget(x.node, 16) -> y.node)
-  def apply(x: TLBaseNode, innerBeatBytes: Int)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := WidthWidget(x.node, 16)
+  def apply(innerBeatBytes: Int)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
-    lazyModule.connect(x -> widget.node)
+    widget.node := x
     widget.node
   }
+}
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMWidthWidget(first: Int, second: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(4, 256)(
+                if (first == second ) { TLWidthWidget(first)(model.node) }
+                else {
+                  TLWidthWidget(second)(
+                    TLWidthWidget(first)(model.node))})
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMWidthWidgetTest(little: Int, big: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big)).module).io.finished
 }

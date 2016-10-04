@@ -7,7 +7,7 @@ import uncore.tilelink._
 import uncore.agents._
 import uncore.converters._
 import uncore.devices._
-import Util._
+import util._
 import cde.{Parameters, Field}
 
 case object BuildRoCC extends Field[Seq[RoccParameters]]
@@ -22,20 +22,35 @@ case class RoccParameters(
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
 
+case class TileBundleConfig(
+  nCachedTileLinkPorts: Int,
+  nUncachedTileLinkPorts: Int,
+  xLen: Int,
+  hasSlavePort: Boolean)
+
+class TileIO(c: TileBundleConfig)(implicit p: Parameters) extends Bundle {
+  val cached = Vec(c.nCachedTileLinkPorts, new ClientTileLinkIO)
+  val uncached = Vec(c.nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
+  val hartid = UInt(INPUT, c.xLen)
+  val interrupts = new TileInterrupts().asInput
+  val slave = c.hasSlavePort.option(new ClientUncachedTileLinkIO().flip)
+  val resetVector = UInt(INPUT, c.xLen)
+
+  override def cloneType = new TileIO(c).asInstanceOf[this.type]
+}
+
 abstract class Tile(clockSignal: Clock = null, resetSignal: Bool = null)
     (implicit p: Parameters) extends Module(Option(clockSignal), Option(resetSignal)) {
   val nCachedTileLinkPorts = p(NCachedTileLinkPorts)
   val nUncachedTileLinkPorts = p(NUncachedTileLinkPorts)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
+  val bc = TileBundleConfig(
+    nCachedTileLinkPorts = nCachedTileLinkPorts,
+    nUncachedTileLinkPorts = nUncachedTileLinkPorts,
+    xLen = p(XLen),
+    hasSlavePort = p(DataScratchpadSize) > 0)
 
-  class TileIO extends Bundle {
-    val cached = Vec(nCachedTileLinkPorts, new ClientTileLinkIO)
-    val uncached = Vec(nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
-    val prci = new PRCITileIO().flip
-    val slave = (p(DataScratchpadSize) > 0).option(new ClientUncachedTileLinkIO().flip)
-  }
-
-  val io = new TileIO
+  val io = new TileIO(bc)
 }
 
 class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
@@ -54,8 +69,10 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   val uncachedArbPorts = collection.mutable.ArrayBuffer(icache.io.mem)
   val uncachedPorts = collection.mutable.ArrayBuffer[ClientUncachedTileLinkIO]()
   val cachedPorts = collection.mutable.ArrayBuffer(dcache.mem)
-  core.io.prci <> io.prci
+  core.io.interrupts := io.interrupts
+  core.io.hartid := io.hartid
   icache.io.cpu <> core.io.imem
+  icache.io.resetVector := io.resetVector
 
   val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)))
   fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)

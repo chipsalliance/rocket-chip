@@ -1,12 +1,16 @@
 // See LICENSE for license details.
 
+`ifndef RESET_DELAY
+ `define RESET_DELAY 777.7
+`endif
+
 module TestDriver;
 
-  reg clk   = 1'b0;
+  reg clock = 1'b0;
   reg reset = 1'b1;
 
-  always #(`CLOCK_PERIOD/2.0) clk = ~clk;
-  initial #777.7 reset = 0;
+  always #(`CLOCK_PERIOD/2.0) clock = ~clock;
+  initial #(`RESET_DELAY) reset = 0;
 
   // Read input arguments and initialize
   reg verbose = 1'b0;
@@ -17,6 +21,12 @@ module TestDriver;
   reg [1023:0] vcdfile = 0;
   initial
   begin
+    // do not delete the line below
+    // $random function needs to be called with the seed once
+    // to affect all the downstream $random functions within the
+    // Chisel-generated Verilog code
+    $fdisplay(stderr, "seed %0d, testing $random %0x", unsigned'($get_initial_random_seed), $random($get_initial_random_seed));
+
     $value$plusargs("max-cycles=%d", max_cycles);
     verbose = $test$plusargs("verbose");
 `ifdef DEBUG
@@ -48,7 +58,7 @@ module TestDriver;
   reg failure = 1'b0;
   wire success;
   integer stderr = 32'h80000002;
-  always @(posedge clk)
+  always @(posedge clock)
   begin
 `ifdef GATE_LEVEL
     if (verbose)
@@ -88,7 +98,7 @@ module TestDriver;
   end
 
   TestHarness testHarness(
-    .clk(clk),
+    .clock(clock),
     .reset(reset),
     .io_success(success)
   );

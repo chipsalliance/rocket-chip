@@ -61,7 +61,7 @@ class BasicCrossbar[T <: Data](conf: CrossbarConfig[T]) extends AbstractCrossbar
 
 abstract class LogicalNetwork extends Module
 
-class LogicalHeader(implicit p: Parameters) extends junctions.ParameterizedBundle()(p) {
+class LogicalHeader(implicit p: Parameters) extends util.ParameterizedBundle()(p) {
   val src = UInt(width = p(LNHeaderBits))
   val dst = UInt(width = p(LNHeaderBits))
 }

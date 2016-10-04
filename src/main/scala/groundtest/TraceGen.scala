@@ -22,6 +22,7 @@ import uncore.constants._
 import uncore.devices.NTiles
 import junctions._
 import rocket._
+import util.{Timer, DynamicTimer}
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -59,6 +60,7 @@ case object AddressBag extends Field[List[BigInt]]
 
 trait HasTraceGenParams {
   implicit val p: Parameters
+  val pAddrBits           = p(PAddrBits)
   val numGens             = p(NTiles)
   val numBitsInId         = log2Up(numGens)
   val numReqsPerGen       = p(GeneratorKey).maxRequests
@@ -176,12 +178,18 @@ class TagMan(val logNumTags : Int) extends Module {
 
 class TraceGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p)
-                                with HasTraceGenParams {
+                                with HasAddrMapParameters
+                                with HasTraceGenParams
+                                with HasGroundTestParameters {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val timeout = Bool(OUTPUT)
     val mem = new HellaCacheIO
   }
+
+  val totalNumAddrs = addressBag.size + numExtraAddrs
+  val initCount = Reg(init = UInt(0, log2Up(totalNumAddrs)))
+  val initDone = Reg(init = Bool(false))
 
   val reqTimer = Module(new Timer(8192, maxTags))
   reqTimer.io.start.valid := io.mem.req.fire()
@@ -197,13 +205,11 @@ class TraceGenerator(id: Int)
   // Address bag, shared by all cores, taken from module parameters.
   // In addition, there is a per-core random selection of extra addresses.
 
-  val addrHashMap = p(GlobalAddrMap)
-  val baseAddr = addrHashMap("mem").start + 0x01000000
+  val bagOfAddrs = addressBag.map(x => UInt(memStart + x, pAddrBits))
 
-  val bagOfAddrs = addressBag.map(x => UInt(x, numBitsInWord))
-
-  val extraAddrs = (0 to numExtraAddrs-1).
-                   map(i => Reg(UInt(width = 16)))
+  val extraAddrs = Seq.fill(numExtraAddrs) {
+    UInt(memStart + Random.nextInt(1 << 16) * numBytesInWord, pAddrBits)
+  }
 
   // A random index into the address bag.
 
@@ -219,6 +225,9 @@ class TraceGenerator(id: Int)
 
   // Random address from the address bag or the extra addresses.
 
+  val extraAddrIndices = (0 to numExtraAddrs-1)
+                          .map(i => UInt(i, logNumExtraAddrs))
+
   val randAddr =
         if (! genExtraAddrs) {
           randAddrFromBag
@@ -229,10 +238,6 @@ class TraceGenerator(id: Int)
           val randExtraAddrIndex = LCG(logNumExtraAddrs)
 
           // A random address from the extra addresses.
-
-          val extraAddrIndices = (0 to numExtraAddrs-1).
-                                 map(i => UInt(i, logNumExtraAddrs))
-  
           val randAddrFromExtra = Cat(UInt(0),
                 MuxLookup(randExtraAddrIndex, UInt(0),
                   extraAddrIndices.zip(extraAddrs)), UInt(0, 3))
@@ -241,6 +246,12 @@ class TraceGenerator(id: Int)
             (1, randAddrFromBag),
             (1, randAddrFromExtra)))
         }
+
+  val allAddrs = extraAddrs ++ bagOfAddrs
+  val allAddrIndices = (0 until totalNumAddrs)
+    .map(i => UInt(i, log2Ceil(totalNumAddrs)))
+  val initAddr = MuxLookup(initCount, UInt(0),
+    allAddrIndices.zip(allAddrs))
 
   // Random opcodes
   // --------------
@@ -351,7 +362,7 @@ class TraceGenerator(id: Int)
     // No-op
     when (currentOp === opNop) {
       // Move on to a new operation
-      currentOp := randOp
+      currentOp := Mux(initDone, randOp, opStore)
     }
 
     // Fence
@@ -395,7 +406,7 @@ class TraceGenerator(id: Int)
           currentOp === opSwap) {
       when (canSendFreshReq) {
         // Set address
-        reqAddr := randAddr
+        reqAddr := Mux(initDone, randAddr, initAddr)
         // Set command
         when (currentOp === opLoad) {
           reqCmd := M_XRD
@@ -407,7 +418,13 @@ class TraceGenerator(id: Int)
         // Send request
         sendFreshReq := Bool(true)
         // Move on to a new operation
-        currentOp := randOp
+        when (!initDone && initCount =/= UInt(totalNumAddrs - 1)) {
+          initCount := initCount + UInt(1)
+          currentOp := opStore
+        } .otherwise {
+          currentOp := randOp
+          initDone := Bool(true)
+        }
       }
     }
   
@@ -547,7 +564,8 @@ class TraceGenerator(id: Int)
 
 class NoiseGenerator(implicit val p: Parameters) extends Module
     with HasTraceGenParams
-    with HasTileLinkParameters {
+    with HasTileLinkParameters
+    with HasGroundTestParameters {
   val io = new Bundle {
     val mem = new ClientUncachedTileLinkIO
     val finished = Bool(INPUT)
@@ -582,7 +600,7 @@ class NoiseGenerator(implicit val p: Parameters) extends Module
   val tlBlockOffset = tlBeatAddrBits + tlByteAddrBits
   val addr_idx = LCG(logAddressBagLen, io.mem.acquire.fire())
   val addr_bag = Vec(addressBag.map(
-    addr => UInt(addr >> tlBlockOffset, tlBlockAddrBits)))
+    addr => UInt(memStartBlock + (addr >> tlBlockOffset), tlBlockAddrBits)))
   val addr_block = addr_bag(addr_idx)
   val addr_beat = LCG(tlBeatAddrBits, io.mem.acquire.fire())
   val acq_select = LCG(1, io.mem.acquire.fire())

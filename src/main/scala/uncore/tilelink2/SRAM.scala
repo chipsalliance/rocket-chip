@@ -3,16 +3,21 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
 
-class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
+class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
 {
-  val node = TLManagerNode(beatBytes, TLManagerParameters(
-    address            = List(address),
-    regionType         = RegionType.UNCACHED,
-    supportsGet        = TransferSizes(1, beatBytes),
-    supportsPutPartial = TransferSizes(1, beatBytes),
-    supportsPutFull    = TransferSizes(1, beatBytes),
-    fifoId             = Some(0))) // requests are handled in order
+  val node = TLManagerNode(TLManagerPortParameters(
+    Seq(TLManagerParameters(
+      address            = List(address),
+      regionType         = RegionType.UNCACHED,
+      executable         = executable,
+      supportsGet        = TransferSizes(1, beatBytes),
+      supportsPutPartial = TransferSizes(1, beatBytes),
+      supportsPutFull    = TransferSizes(1, beatBytes),
+      fifoId             = Some(0))), // requests are handled in order
+    beatBytes  = beatBytes,
+    minLatency = 1)) // no bypass needed for this device
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
@@ -72,4 +77,24 @@ class TLRAM(address: AddressSet, beatBytes: Int = 4) extends LazyModule
     in.c.ready := Bool(true)
     in.e.ready := Bool(true)
   }
+}
+
+/** Synthesizeable unit testing */
+import unittest._
+
+class TLRAMSimple(ramBeatBytes: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
+
+  model.node := fuzz.node
+  ram.node := model.node
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMSimpleTest(ramBeatBytes: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMSimple(ramBeatBytes)).module).io.finished
 }

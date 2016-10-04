@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 extern bool verbose;
+extern bool done_reset;
 
 class VerilatedVcdFILE : public VerilatedVcdFile {
  public:

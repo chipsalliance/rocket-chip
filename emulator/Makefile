@@ -6,17 +6,14 @@ generated_dir_debug = $(abspath ./generated-src-debug)
 sim_dir = .
 output_dir = $(sim_dir)/output
 
-BACKEND = c
-CONFIG ?= DefaultConfig
-
 include $(base_dir)/Makefrag
 
 CXXSRCS := emulator SimDTM
 CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include -I$(base_dir)/csrc
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L$(abspath $(sim_dir)) -lfesvr -lpthread
 
-emu = emulator-$(MODEL)-$(CONFIG)
-emu_debug = emulator-$(MODEL)-$(CONFIG)-debug
+emu = emulator-$(PROJECT)-$(CONFIG)
+emu_debug = emulator-$(PROJECT)-$(CONFIG)-debug
 
 include $(sim_dir)/Makefrag-verilator
 
@@ -26,17 +23,14 @@ debug: $(emu_debug)
 clean:
 	rm -rf *.o *.a emulator-* $(generated_dir) $(generated_dir_debug) DVEfiles $(output_dir)
 
-test:
-	cd $(base_dir) && $(SBT) "~make $(CURDIR) run-fast $(CHISEL_ARGS)"
-
-.PHONY: default all debug clean test
+.PHONY: default all debug clean
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks
 #--------------------------------------------------------------------
 
 ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
--include $(generated_dir)/$(MODEL).$(CONFIG).d
+-include $(generated_dir)/$(long_name).d
 endif
 
 $(output_dir)/%.run: $(output_dir)/% $(emu)

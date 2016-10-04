@@ -4,11 +4,12 @@ package uncore.agents
 
 import Chisel._
 import cde.{Parameters, Field}
-import junctions._
+import junctions.PAddrBits
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._
 import uncore.util._
+import util._
 
 case object NReleaseTransactors extends Field[Int]
 case object NProbeTransactors extends Field[Int]
@@ -41,7 +42,7 @@ trait HasCoherenceAgentParameters {
 
 abstract class CoherenceAgentModule(implicit val p: Parameters) extends Module
   with HasCoherenceAgentParameters
-abstract class CoherenceAgentBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+abstract class CoherenceAgentBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
    with HasCoherenceAgentParameters
 
 trait HasCoherenceAgentWiringHelpers {
@@ -138,7 +139,7 @@ abstract class ManagerCoherenceAgent(implicit p: Parameters) extends CoherenceAg
     with HasCoherenceAgentWiringHelpers {
   val io = new ManagerTLIO
   def innerTL = io.inner
-  def outerTL = TileLinkIOWrapper(io.outer)(p.alterPartial({case TLId => p(OuterTLId)}))
+  def outerTL = TileLinkIOWrapper(io.outer)
   def incoherent = io.incoherent
 }
 

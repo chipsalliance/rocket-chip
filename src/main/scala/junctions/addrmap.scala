@@ -7,13 +7,12 @@ import cde.{Parameters, Field}
 import scala.collection.mutable.HashMap
 
 case object PAddrBits extends Field[Int]
-case object GlobalAddrMap extends Field[AddrMap]
 
 trait HasAddrMapParameters {
   implicit val p: Parameters
 
   val paddrBits = p(PAddrBits)
-  val addrMap = p(GlobalAddrMap)
+  def addrMap = p(rocketchip.GlobalAddrMap)
 }
 
 case class MemAttr(prot: Int, cacheable: Boolean = false)
@@ -76,6 +75,8 @@ class AddrMap(
     var prot = 0
     var cacheable = true
     for (AddrMapEntry(name, r) <- entriesIn) {
+      require (!mapping.contains(name))
+
       if (r.start != 0) {
         base = r.start
       } else {
@@ -126,7 +127,7 @@ class AddrMap(
       val brEnd = br.start + br.size
       val abOverlaps = ar.start < brEnd && br.start < arEnd
       require(!abOverlaps,
-        "region $an@0x${ar.start.toString(16)} overlaps region $bn@0x${br.start.toString(16)}")
+        s"region $an@0x${ar.start.toString(16)} overlaps region $bn@0x${br.start.toString(16)}")
   }
 
   def toRange: MemRange = MemRange(start, size, attr)

@@ -5,6 +5,7 @@ import uncore.tilelink._
 import uncore.constants._
 import junctions._
 import rocket._
+import util.Timer
 import scala.util.Random
 import cde.{Parameters, Field}
 
@@ -335,10 +336,17 @@ class ComparatorSink(implicit val p: Parameters) extends Module
       base.addr_beat === g.addr_beat || !g.hasData(),
       base.data === g.data || !g.hasData())
 
+    // TL1 likes to duplicate 32-bits into both halves of a 64-bit value
+    // TL2 doesn't do this, so they compare differently when they are the same
+    def isDupd(x: UInt) = if (tlDataBytes != 8) Bool(false) else x(31, 0) === x(63, 32)
+    def safeCompare(x: UInt, y: UInt) =
+      Mux(!isDupd(x) && !isDupd(y), x === y, x(63,32) === y(63,32) || x(31,0) === y(31,0))
+
     assert (g.is_builtin_type, "grant not builtin")
     assert (base.g_type === g.g_type, "g_type mismatch")
-    assert (base.addr_beat === g.addr_beat || !g.hasData(), "addr_beat mismatch")
-    assert (base.data === g.data || !g.hasData(), "data mismatch")
+    assert (base.addr_beat === g.addr_beat || !g.hasMultibeatData(), "addr_beat mismatch")
+    assert (base.data === g.data || !g.hasMultibeatData(), "multibeat data mismatch")
+    assert (safeCompare(base.data, g.data) || !g.hasData(),  "singlebeat data mismatch")
 
     assert_conds.zipWithIndex.foreach { case (cond, i) =>
       when (!cond) {

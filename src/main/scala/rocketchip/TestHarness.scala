@@ -4,14 +4,19 @@ package rocketchip
 
 import Chisel._
 import cde.{Parameters, Field}
-import rocket.Util._
 import junctions._
+import junctions.NastiConstants._
+import util.LatencyPipe
 
-class TestHarness(implicit p: Parameters) extends Module {
+case object BuildExampleTop extends Field[Parameters => ExampleTop]
+case object SimMemLatency extends Field[Int]
+
+class TestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = Module(new Top(p))
+  val dut = q(BuildExampleTop)(q).module
+  implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
   require(dut.io.mem_clk.isEmpty)
@@ -24,16 +29,21 @@ class TestHarness(implicit p: Parameters) extends Module {
   require(dut.io.mmio_rst.isEmpty)
   require(dut.io.mmio_ahb.isEmpty)
   require(dut.io.mmio_tl.isEmpty)
-  require(dut.io.extra.elements.isEmpty)
 
   for (int <- dut.io.interrupts)
-    int := false
+    int := Bool(false)
 
   if (dut.io.mem_axi.nonEmpty) {
     val memSize = p(GlobalAddrMap)("mem").size
     require(memSize % dut.io.mem_axi.size == 0)
-    for (axi <- dut.io.mem_axi)
-      Module(new SimAXIMem(memSize / dut.io.mem_axi.size)).io.axi <> axi
+    for (axi <- dut.io.mem_axi) {
+      val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
+      mem.io.axi.ar <> axi.ar
+      mem.io.axi.aw <> axi.aw
+      mem.io.axi.w  <> axi.w
+      axi.r <> LatencyPipe(mem.io.axi.r, p(SimMemLatency))
+      axi.b <> LatencyPipe(mem.io.axi.b, p(SimMemLatency))
+    }
   }
 
   if (!p(IncludeJtagDTM)) {
@@ -64,7 +74,7 @@ class TestHarness(implicit p: Parameters) extends Module {
 
 }
 
-class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
+class SimAXIMem(size: BigInt)(implicit p: Parameters) extends NastiModule()(p) {
   val io = new Bundle {
     val axi = new NastiIO().flip
   }
@@ -72,17 +82,17 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
   val rValid = Reg(init = Bool(false))
   val ar = RegEnable(io.axi.ar.bits, io.axi.ar.fire())
   io.axi.ar.ready := !rValid
-  when (io.axi.ar.fire()) { rValid := true }
+  when (io.axi.ar.fire()) { rValid := Bool(true) }
   when (io.axi.r.fire()) {
     assert(ar.burst === NastiConstants.BURST_INCR)
     ar.addr := ar.addr + (UInt(1) << ar.size)
-    ar.len := ar.len - 1
-    when (ar.len === UInt(0)) { rValid := false }
+    ar.len := ar.len - UInt(1)
+    when (ar.len === UInt(0)) { rValid := Bool(false) }
   }
 
   val w = io.axi.w.bits
-  require((size * 8) % w.data.getWidth == 0)
-  val depth = (size * 8) / w.data.getWidth
+  require((size * 8) % nastiXDataBits == 0)
+  val depth = (size * 8) / nastiXDataBits
   val mem = Mem(depth.toInt, w.data)
 
   val wValid = Reg(init = Bool(false))
@@ -90,18 +100,18 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
   val aw = RegEnable(io.axi.aw.bits, io.axi.aw.fire())
   io.axi.aw.ready := !wValid && !bValid
   io.axi.w.ready := wValid
-  when (io.axi.b.fire()) { bValid := false }
-  when (io.axi.aw.fire()) { wValid := true }
+  when (io.axi.b.fire()) { bValid := Bool(false) }
+  when (io.axi.aw.fire()) { wValid := Bool(true) }
   when (io.axi.w.fire()) {
     assert(aw.burst === NastiConstants.BURST_INCR)
     aw.addr := aw.addr + (UInt(1) << aw.size)
-    aw.len := aw.len - 1
+    aw.len := aw.len - UInt(1)
     when (aw.len === UInt(0)) {
-      wValid := false
-      bValid := true
+      wValid := Bool(false)
+      bValid := Bool(true)
     }
 
-    def row = mem((aw.addr >> log2Ceil(w.data.getWidth/8))(log2Ceil(depth)-1, 0))
+    def row = mem((aw.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
     val mask = FillInterleaved(8, w.strb)
     val newData = mask & w.data | ~mask & row
     row := newData
@@ -109,12 +119,12 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends Module {
 
   io.axi.b.valid := bValid
   io.axi.b.bits.id := aw.id
-  io.axi.b.bits.resp := UInt(0)
+  io.axi.b.bits.resp := RESP_OKAY
 
   io.axi.r.valid := rValid
   io.axi.r.bits.id := ar.id
-  io.axi.r.bits.data := mem((ar.addr >> log2Ceil(w.data.getWidth/8))(log2Ceil(depth)-1, 0))
-  io.axi.r.bits.resp := UInt(0)
+  io.axi.r.bits.data := mem((ar.addr >> log2Ceil(nastiXDataBits/8))(log2Ceil(depth)-1, 0))
+  io.axi.r.bits.resp := RESP_OKAY
   io.axi.r.bits.last := ar.len === UInt(0)
 }
 
@@ -127,14 +137,14 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
   }
 
   def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.DebugBusIO,
-      dutsuccess: Option[Bool], tbsuccess: Bool) = {
+      dutsuccess: Bool, tbsuccess: Bool) = {
     io.clk := tbclk
     io.reset := tbreset
     dutio <> io.debug
 
-    tbsuccess := dutsuccess.getOrElse(io.exit === 1)
-    when (io.exit >= 2) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1)
+    tbsuccess := dutsuccess || io.exit === UInt(1)
+    when (io.exit >= UInt(2)) {
+      printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
       stop(1)
     }
   }

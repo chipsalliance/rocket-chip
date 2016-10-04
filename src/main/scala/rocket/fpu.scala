@@ -4,16 +4,16 @@ package rocket
 
 import Chisel._
 import Instructions._
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
-import uncore.util._
 import cde.{Parameters, Field}
 
 case class FPUConfig(
   divSqrt: Boolean = true,
-  sfmaLatency: Int = 2,
-  dfmaLatency: Int = 3
+  sfmaLatency: Int = 3,
+  dfmaLatency: Int = 4
 )
 
 object FPConstants

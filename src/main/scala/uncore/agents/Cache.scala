@@ -4,12 +4,14 @@ package uncore.agents
 
 import Chisel._
 import scala.reflect.ClassTag
-import junctions._
+import junctions.PAddrBits
+import util.ParameterizedBundle
 import uncore.util.AMOALU
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.util._
+import util._
 import cde.{Parameters, Field}
 
 case object CacheName extends Field[String]

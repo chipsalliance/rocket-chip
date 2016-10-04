@@ -4,8 +4,12 @@ $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
 MODEL ?= TestHarness
-PROJECT := rocketchip
-CFG_PROJECT := $(PROJECT)
+PROJECT ?= rocketchip
+CFG_PROJECT ?= $(PROJECT)
+CONFIG ?= DefaultConfig
+# TODO: For now must match rocketchip.Generator
+long_name = $(PROJECT).$(CONFIG)
+
 CXX ?= g++
 CXXFLAGS := -O1
 
@@ -20,8 +24,6 @@ FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Drive
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 	touch $(FIRRTL_JAR)
-
-CHISEL_ARGS := --targetDir $(generated_dir)
 
 src_path = src/main/scala
 default_submodules = . hardfloat context-dependent-environments chisel3
@@ -51,20 +53,21 @@ bootrom_img = $(base_dir)/bootrom/bootrom.img
 # Constants Header Files
 #---------------------------------------------------------------------
 
-params_file = $(generated_dir)/$(MODEL).$(CONFIG).prm
+# sed uses -E (instead of -r) for BSD support
+params_file = $(generated_dir)/$(long_name).prm
 consts_header = $(generated_dir)/consts.$(CONFIG).h
 $(consts_header): $(params_file)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
+	sed -E 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
 	echo "#endif // __CONST_H__" >> $@
 
-params_file_debug = $(generated_dir_debug)/$(MODEL).$(CONFIG).prm
+params_file_debug = $(generated_dir_debug)/$(long_name).prm
 consts_header_debug = $(generated_dir_debug)/consts.$(CONFIG).h
 $(consts_header_debug): $(params_file_debug)
 	echo "#ifndef __CONST_H__" > $@
 	echo "#define __CONST_H__" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
+	sed -E 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
 	echo "#endif // __CONST_H__" >> $@
 
 clean-run-output:

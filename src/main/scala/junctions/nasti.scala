@@ -4,6 +4,7 @@ package junctions
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
+import util._
 import cde.{Parameters, Field}
 
 case object NastiKey extends Field[NastiParameters]
@@ -134,6 +135,17 @@ object NastiConstants {
   val RESP_EXOKAY = UInt("b01")
   val RESP_SLVERR = UInt("b10")
   val RESP_DECERR = UInt("b11")
+
+  val CACHE_DEVICE_NOBUF = UInt("b0000")
+  val CACHE_DEVICE_BUF   = UInt("b0001")
+  val CACHE_NORMAL_NOCACHE_NOBUF = UInt("b0010")
+  val CACHE_NORMAL_NOCACHE_BUF   = UInt("b0011")
+
+  def AXPROT(instruction: Bool, nonsecure: Bool, privileged: Bool): UInt =
+    Cat(instruction, nonsecure, privileged)
+
+  def AXPROT(instruction: Boolean, nonsecure: Boolean, privileged: Boolean): UInt =
+    AXPROT(Bool(instruction), Bool(nonsecure), Bool(privileged))
 }
 
 import NastiConstants._
@@ -149,8 +161,8 @@ object NastiWriteAddressChannel {
     aw.size := size
     aw.burst := burst
     aw.lock := Bool(false)
-    aw.cache := UInt("b0000")
-    aw.prot := UInt("b000")
+    aw.cache := CACHE_DEVICE_NOBUF
+    aw.prot := AXPROT(false, false, false)
     aw.qos := UInt("b0000")
     aw.region := UInt("b0000")
     aw.user := UInt(0)
@@ -169,8 +181,8 @@ object NastiReadAddressChannel {
     ar.size := size
     ar.burst := burst
     ar.lock := Bool(false)
-    ar.cache := UInt(0)
-    ar.prot := UInt(0)
+    ar.cache := CACHE_DEVICE_NOBUF
+    ar.prot := AXPROT(false, false, false)
     ar.qos := UInt(0)
     ar.region := UInt(0)
     ar.user := UInt(0)
@@ -213,60 +225,6 @@ object NastiWriteResponseChannel {
     b.user := UInt(0)
     b
   }
-}
-
-class MemIONastiIOConverter(cacheBlockOffsetBits: Int)(implicit p: Parameters) extends MIFModule
-    with HasNastiParameters {
-  val io = new Bundle {
-    val nasti = (new NastiIO).flip
-    val mem = new MemIO
-  }
-
-  require(mifDataBits == nastiXDataBits, "Data sizes between LLC and MC don't agree")
-  val (mif_cnt_out, mif_wrap_out) = Counter(io.mem.resp.fire(), mifDataBeats)
-
-  assert(!io.nasti.aw.valid || io.nasti.aw.bits.size === UInt(log2Up(mifDataBits/8)),
-    "Nasti data size does not match MemIO data size")
-  assert(!io.nasti.ar.valid || io.nasti.ar.bits.size === UInt(log2Up(mifDataBits/8)),
-    "Nasti data size does not match MemIO data size")
-  assert(!io.nasti.aw.valid || io.nasti.aw.bits.len === UInt(mifDataBeats - 1),
-    "Nasti length does not match number of MemIO beats")
-  assert(!io.nasti.ar.valid || io.nasti.ar.bits.len === UInt(mifDataBeats - 1),
-    "Nasti length does not match number of MemIO beats")
-
-  // according to the spec, we can't send b until the last transfer on w
-  val b_ok = Reg(init = Bool(true))
-  when (io.nasti.aw.fire()) { b_ok := Bool(false) }
-  when (io.nasti.w.fire() && io.nasti.w.bits.last) { b_ok := Bool(true) }
-
-  val id_q = Module(new Queue(UInt(width = nastiWIdBits), 2))
-  id_q.io.enq.valid := io.nasti.aw.valid && io.mem.req_cmd.ready
-  id_q.io.enq.bits := io.nasti.aw.bits.id
-  id_q.io.deq.ready := io.nasti.b.ready && b_ok
-
-  io.mem.req_cmd.bits.addr := Mux(io.nasti.aw.valid, io.nasti.aw.bits.addr, io.nasti.ar.bits.addr) >>
-                                UInt(cacheBlockOffsetBits)
-  io.mem.req_cmd.bits.tag := Mux(io.nasti.aw.valid, io.nasti.aw.bits.id, io.nasti.ar.bits.id)
-  io.mem.req_cmd.bits.rw := io.nasti.aw.valid
-  io.mem.req_cmd.valid := (io.nasti.aw.valid && id_q.io.enq.ready) || io.nasti.ar.valid
-  io.nasti.ar.ready := io.mem.req_cmd.ready && !io.nasti.aw.valid
-  io.nasti.aw.ready := io.mem.req_cmd.ready && id_q.io.enq.ready
-
-  io.nasti.b.valid := id_q.io.deq.valid && b_ok
-  io.nasti.b.bits.id := id_q.io.deq.bits
-  io.nasti.b.bits.resp := UInt(0)
-
-  io.nasti.w.ready := io.mem.req_data.ready
-  io.mem.req_data.valid := io.nasti.w.valid
-  io.mem.req_data.bits.data := io.nasti.w.bits.data
-  assert(!io.nasti.w.valid || io.nasti.w.bits.strb.andR, "MemIO must write full cache line")
-
-  io.nasti.r.valid := io.mem.resp.valid
-  io.nasti.r.bits.data := io.mem.resp.bits.data
-  io.nasti.r.bits.last := mif_wrap_out
-  io.nasti.r.bits.id := io.mem.resp.bits.tag
-  io.nasti.r.bits.resp := UInt(0)
-  io.mem.resp.ready := io.nasti.r.ready
 }
 
 class NastiArbiterIO(arbN: Int)(implicit p: Parameters) extends Bundle {
@@ -388,7 +346,7 @@ class NastiErrorSlave(implicit p: Parameters) extends NastiModule {
   io.aw.ready := b_queue.io.enq.ready && !draining
   io.b.valid := b_queue.io.deq.valid && !draining
   io.b.bits.id := b_queue.io.deq.bits
-  io.b.bits.resp := Bits("b11")
+  io.b.bits.resp := RESP_DECERR
   b_queue.io.deq.ready := io.b.ready && !draining
 }
 
@@ -449,7 +407,7 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
   io.master.w.ready := w_ready || err_slave.io.w.ready
 
   val b_arb = Module(new RRArbiter(new NastiWriteResponseChannel, nSlaves + 1))
-  val r_arb = Module(new JunctionsPeekingArbiter(
+  val r_arb = Module(new HellaPeekingArbiter(
     new NastiReadDataChannel, nSlaves + 1,
     // we can unlock if it's the last beat
     (r: NastiReadDataChannel) => r.last))
@@ -541,197 +499,33 @@ class NastiRecursiveInterconnect(val nMasters: Int, addrMap: AddrMap)
   }
 }
 
-class ChannelHelper(nChannels: Int)
-    (implicit val p: Parameters) extends HasNastiParameters {
+object AsyncNastiCrossing {
+  // takes from_source from the 'from' clock domain to the 'to' clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3) = {
+    val to_sink = Wire(new NastiIO()(from_source.p))
 
-  val dataBytes = p(MIFDataBits) * p(MIFDataBeats) / 8
-  val chanSelBits = log2Ceil(nChannels)
-  val selOffset = log2Up(dataBytes)
-  val blockOffset = selOffset + chanSelBits
+    to_sink.aw <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.aw, to_clock, to_reset, depth, sync)
+    to_sink.ar <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.ar, to_clock, to_reset, depth, sync)
+    to_sink.w  <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.w,  to_clock, to_reset, depth, sync)
+    from_source.b <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.b, from_clock, from_reset, depth, sync)
+    from_source.r <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.r, from_clock, from_reset, depth, sync)
 
-  def getSelect(addr: UInt) =
-    if (nChannels > 1) addr(blockOffset - 1, selOffset) else UInt(0)
-
-  def getAddr(addr: UInt) =
-    if (nChannels > 1)
-      Cat(addr(nastiXAddrBits - 1, blockOffset), addr(selOffset - 1, 0))
-    else addr
-}
-
-class NastiMemoryInterconnect(
-    nBanksPerChannel: Int, nChannels: Int)
-    (implicit p: Parameters) extends NastiInterconnect()(p) {
-
-  val nBanks = nBanksPerChannel * nChannels
-  val nMasters = nBanks
-  val nSlaves = nChannels
-
-  val chanHelper = new ChannelHelper(nChannels)
-  def connectChannel(outer: NastiIO, inner: NastiIO) {
-    outer <> inner
-    outer.ar.bits.addr := chanHelper.getAddr(inner.ar.bits.addr)
-    outer.aw.bits.addr := chanHelper.getAddr(inner.aw.bits.addr)
-  }
-
-  for (i <- 0 until nChannels) {
-    /* Bank assignments to channels are strided so that consecutive banks
-     * map to different channels. That way, consecutive cache lines also
-     * map to different channels */
-    val banks = (i until nBanks by nChannels).map(j => io.masters(j))
-
-    val channelArb = Module(new NastiArbiter(nBanksPerChannel))
-    channelArb.io.master <> banks
-    connectChannel(io.slaves(i), channelArb.io.slave)
-  }
-}
-
-/** Allows users to switch between various memory configurations.  Note that
-  * this is a dangerous operation: not only does switching the select input to
-  * this module violate Nasti, it also causes the memory of the machine to
-  * become garbled.  It's expected that select only changes at boot time, as
-  * part of the memory controller configuration. */
-class NastiMemorySelectorIO(val nBanks: Int, val maxMemChannels: Int, nConfigs: Int)
-                           (implicit p: Parameters)
-                           extends NastiInterconnectIO(nBanks, maxMemChannels) {
-  val select  = UInt(INPUT, width = log2Up(nConfigs))
-  override def cloneType =
-    new NastiMemorySelectorIO(nMasters, nSlaves, nConfigs).asInstanceOf[this.type]
-}
-
-class NastiMemorySelector(nBanks: Int, maxMemChannels: Int, configs: Seq[Int])
-                         (implicit p: Parameters)
-                         extends NastiInterconnect()(p) {
-  val nMasters = nBanks
-  val nSlaves  = maxMemChannels
-  val nConfigs = configs.size
-
-  override lazy val io = new NastiMemorySelectorIO(nBanks, maxMemChannels, nConfigs)
-
-  def muxOnSelect(up: DecoupledIO[Bundle], dn: DecoupledIO[Bundle], active: Bool): Unit = {
-    when (active) { dn.bits  := up.bits  }
-    when (active) { up.ready := dn.ready }
-    when (active) { dn.valid := up.valid }
-  }
-
-  def muxOnSelect(up: NastiIO, dn: NastiIO, active: Bool): Unit = {
-    muxOnSelect(up.aw, dn.aw, active)
-    muxOnSelect(up.w,  dn.w,  active)
-    muxOnSelect(dn.b,  up.b,  active)
-    muxOnSelect(up.ar, dn.ar, active)
-    muxOnSelect(dn.r,  up.r,  active)
-  }
-
-  def muxOnSelect(up: Vec[NastiIO], dn: Vec[NastiIO], active: Bool) : Unit = {
-    for (i <- 0 until up.size)
-      muxOnSelect(up(i), dn(i), active)
-  }
-
-  /* Disconnects a vector of Nasti ports, which involves setting them to
-   * invalid.  Due to Chisel reasons, we need to also set the bits to 0 (since
-   * there can't be any unconnected inputs). */
-  def disconnectSlave(slave: Vec[NastiIO]) = {
-    slave.foreach{ m =>
-      m.aw.valid := Bool(false)
-      m.aw.bits  := m.aw.bits.fromBits( UInt(0) )
-      m.w.valid  := Bool(false)
-      m.w.bits   := m.w.bits.fromBits( UInt(0) )
-      m.b.ready  := Bool(false)
-      m.ar.valid := Bool(false)
-      m.ar.bits  := m.ar.bits.fromBits( UInt(0) )
-      m.r.ready  := Bool(false)
-    }
-  }
-
-  def disconnectMaster(master: Vec[NastiIO]) = {
-    master.foreach{ m =>
-      m.aw.ready := Bool(false)
-      m.w.ready  := Bool(false)
-      m.b.valid  := Bool(false)
-      m.b.bits   := m.b.bits.fromBits( UInt(0) )
-      m.ar.ready := Bool(false)
-      m.r.valid  := Bool(false)
-      m.r.bits   := m.r.bits.fromBits( UInt(0) )
-    }
-  }
-
-  /* Provides default wires on all our outputs. */
-  disconnectMaster(io.masters)
-  disconnectSlave(io.slaves)
-
-  /* Constructs interconnects for each of the layouts suggested by the
-   * configuration and switches between them based on the select input. */
-  configs.zipWithIndex.foreach{ case (nChannels, select) =>
-    val nBanksPerChannel = nBanks / nChannels
-    val ic = Module(new NastiMemoryInterconnect(nBanksPerChannel, nChannels))
-    disconnectMaster(ic.io.slaves)
-    disconnectSlave(ic.io.masters)
-    muxOnSelect(   io.masters, ic.io.masters, io.select === UInt(select))
-    muxOnSelect(ic.io.slaves,     io.slaves,  io.select === UInt(select))
-  }
-}
-
-class NastiMemoryDemux(nRoutes: Int)(implicit p: Parameters) extends NastiModule()(p) {
-  val io = new Bundle {
-    val master = (new NastiIO).flip
-    val slaves = Vec(nRoutes, new NastiIO)
-    val select = UInt(INPUT, log2Up(nRoutes))
-  }
-
-  def connectReqChannel[T <: Data](idx: Int, out: DecoupledIO[T], in: DecoupledIO[T]) {
-    out.valid := in.valid && io.select === UInt(idx)
-    out.bits := in.bits
-    when (io.select === UInt(idx)) { in.ready := out.ready }
-  }
-
-  def connectRespChannel[T <: Data](idx: Int, out: DecoupledIO[T], in: DecoupledIO[T]) {
-    when (io.select === UInt(idx)) { out.valid := in.valid }
-    when (io.select === UInt(idx)) { out.bits := in.bits }
-    in.ready := out.ready && io.select === UInt(idx)
-  }
-
-  io.master.ar.ready := Bool(false)
-  io.master.aw.ready := Bool(false)
-  io.master.w.ready := Bool(false)
-  io.master.r.valid := Bool(false)
-  io.master.r.bits := NastiReadDataChannel(id = UInt(0), data = UInt(0))
-  io.master.b.valid := Bool(false)
-  io.master.b.bits := NastiWriteResponseChannel(id = UInt(0))
-
-  io.slaves.zipWithIndex.foreach { case (slave, i) =>
-    connectReqChannel(i, slave.ar, io.master.ar)
-    connectReqChannel(i, slave.aw, io.master.aw)
-    connectReqChannel(i, slave.w, io.master.w)
-    connectRespChannel(i, io.master.r, slave.r)
-    connectRespChannel(i, io.master.b, slave.b)
+    to_sink // is now to_source
   }
 }
 
 object AsyncNastiTo {
-  // source(master) is in our clock domain, output is in the 'to' clock domain
-  def apply[T <: Data](to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
-    val sink = Wire(new NastiIO)
-
-    sink.aw <> AsyncDecoupledTo(to_clock, to_reset, source.aw, depth, sync)
-    sink.ar <> AsyncDecoupledTo(to_clock, to_reset, source.ar, depth, sync)
-    sink.w  <> AsyncDecoupledTo(to_clock, to_reset, source.w,  depth, sync)
-    source.b <> AsyncDecoupledFrom(to_clock, to_reset, sink.b, depth, sync)
-    source.r <> AsyncDecoupledFrom(to_clock, to_reset, sink.r, depth, sync)
-
-    sink
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply(to_clock: Clock, to_reset: Bool, source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
+    val scope = AsyncScope()
+    AsyncNastiCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
 }
 
 object AsyncNastiFrom {
-  // source(master) is in the 'from' clock domain, output is in our clock domain
-  def apply[T <: Data](from_clock: Clock, from_reset: Bool, source: NastiIO, depth: Int = 3, sync: Int = 2)(implicit p: Parameters): NastiIO = {
-    val sink = Wire(new NastiIO)
-
-    sink.aw <> AsyncDecoupledFrom(from_clock, from_reset, source.aw, depth, sync)
-    sink.ar <> AsyncDecoupledFrom(from_clock, from_reset, source.ar, depth, sync)
-    sink.w  <> AsyncDecoupledFrom(from_clock, from_reset, source.w,  depth, sync)
-    source.b <> AsyncDecoupledTo(from_clock, from_reset, sink.b, depth, sync)
-    source.r <> AsyncDecoupledTo(from_clock, from_reset, sink.r, depth, sync)
-
-    sink
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: NastiIO, depth: Int = 8, sync: Int = 3): NastiIO = {
+    val scope = AsyncScope()
+    AsyncNastiCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }

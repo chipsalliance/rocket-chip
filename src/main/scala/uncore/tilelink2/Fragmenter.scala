@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 import scala.math.{min,max}
 
 // minSize: minimum size of transfers supported by all outward managers
@@ -34,7 +35,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsLogical    = expandTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet),
     supportsPutFull    = expandTransfer(m.supportsPutFull),
-    supportsPutPartial = expandTransfer(m.supportsPutPartial))
+    supportsPutPartial = expandTransfer(m.supportsPutPartial),
+    supportsHint       = expandTransfer(m.supportsHint))
   def mapClient(c: TLClientParameters) = c.copy(
     sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits),
     // since we break Acquires, none of these work either:
@@ -44,11 +46,12 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsGet        = TransferSizes.none,
     supportsPutFull    = TransferSizes.none,
     supportsPutPartial = TransferSizes.none,
-    supportsHint       = false)
+    supportsHint       = TransferSizes.none)
 
+  // Because the Fragmenter stalls inner A while serving outer, it can wipe away inner latency
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c.copy(clients = c.clients.map(mapClient)) },
-    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager)) })
+    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager), minLatency = 0) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -145,7 +148,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val dFragnum = out.d.bits.source(fragmentBits-1, 0)
     val dFirst = acknum === UInt(0)
     val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
-    val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Ceil(maxDownSize))
+    val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Up(maxDownSize))
     val dHasData = edgeOut.hasData(out.d.bits)
 
     // calculate new acknum
@@ -163,10 +166,11 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     }
 
     // Swallow up non-data ack fragments
-    val drop = (out.d.bits.opcode === TLMessages.AccessAck) && (dFragnum =/= UInt(0))
+    val drop = !dHasData && (dFragnum =/= UInt(0))
     out.d.ready := in.d.ready || drop
     in.d.valid  := out.d.valid && !drop
     in.d.bits   := out.d.bits // pass most stuff unchanged
+    in.d.bits.addr_lo := out.d.bits.addr_lo & ~dsizeOH1
     in.d.bits.source := out.d.bits.source >> fragmentBits
     in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
@@ -188,7 +192,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
     // If this is infront of a single manager, these become constants
-    val find = manager.find(edgeIn.address(in.a.bits))
+    val find = manager.findFast(edgeIn.address(in.a.bits))
     val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
     val maxLgLogical     = Mux1H(find, maxLgLogicals)
     val maxLgGet         = Mux1H(find, maxLgGets)
@@ -208,7 +212,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val aOrig = in.a.bits.size
     val aFrag = Mux(aOrig > limit, limit, aOrig)
     val aOrigOH1 = UIntToOH1(aOrig, log2Ceil(maxSize))
-    val aFragOH1 = UIntToOH1(aFrag, log2Ceil(maxDownSize))
+    val aFragOH1 = UIntToOH1(aFrag, log2Up(maxDownSize))
     val aHasData = node.edgesIn(0).hasData(in.a.bits)
     val aMask = Mux(aHasData, UInt(0), aFragOH1)
 
@@ -240,10 +244,31 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
 object TLFragmenter
 {
-  // applied to the TL source node; connect (TLFragmenter(x.node, 256, 4) -> y.node)
-  def apply(x: TLBaseNode, minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := TLFragmenter(x.node, 256, 4)
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin))
-    lazyModule.connect(x -> fragmenter.node)
+    fragmenter.node := x
     fragmenter.node
   }
 }
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(ramBeatBytes, maxSize)(model.node)
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize)).module).io.finished
+}
+

@@ -36,6 +36,7 @@ env:
     - SUITE=RocketSuite
     - SUITE=GroundtestSuite
     - SUITE=BOOMSuite
+    - SUITE=UnittestSuite
 
 # blacklist private branches
 branches:

@@ -6,7 +6,8 @@ import Chisel._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.agents.CacheName
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
 
 case object RoccMaxTaggedMemXacts extends Field[Int]

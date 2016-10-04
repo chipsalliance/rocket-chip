@@ -2,9 +2,11 @@ package uncore.devices
 
 import Chisel._
 import cde.{Parameters, Field}
+import unittest.UnitTest
 import junctions._
 import uncore.tilelink._
 import uncore.util._
+import util._
 import HastiConstants._
 
 class BRAMSlave(depth: Int)(implicit val p: Parameters) extends Module
@@ -158,4 +160,25 @@ class TileLinkTestRAM(depth: Int)(implicit val p: Parameters) extends Module
   when (io.acquire.fire() && acq.hasData()) {
     ram(acq_addr) := (old_data & ~wmask) | (result & wmask)
   }
+}
+
+class TileLinkRAMTest(implicit val p: Parameters)
+    extends UnitTest with HasTileLinkParameters {
+
+  val depth = 2 * tlDataBeats
+  val ram = Module(new TileLinkTestRAM(depth))
+  val driver = Module(new DriverSet(
+    (driverParams: Parameters) => {
+      implicit val p = driverParams
+      Seq(
+        Module(new PutSweepDriver(depth)),
+        Module(new PutMaskDriver),
+        Module(new PutAtomicDriver),
+        Module(new PutBlockSweepDriver(depth / tlDataBeats)),
+        Module(new PrefetchDriver),
+        Module(new GetMultiWidthDriver))
+    }))
+  ram.io <> driver.io.mem
+  driver.io.start := io.start
+  io.finished := driver.io.finished
 }

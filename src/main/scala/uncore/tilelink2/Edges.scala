@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 
 class TLEdge(
   client:  TLClientPortParameters,
@@ -47,7 +48,9 @@ class TLEdge(
     Cat(helper(lgBytes).map(_._1).reverse)
   }
 
-  def addr_lo(mask: UInt): UInt = {
+  // !!! make sure to align addr_lo for PutPartials with 0 masks
+  def addr_lo(mask: UInt, lgSize: UInt): UInt = {
+    val sizeOH1 = UIntToOH1(lgSize, log2Up(manager.beatBytes))
     // Almost OHToUInt, but bits set => bits not set
     def helper(mask: UInt, width: Int): UInt = {
       if (width <= 1) {
@@ -61,7 +64,11 @@ class TLEdge(
         Cat(!lo.orR, helper(hi | lo, mid))
       }
     }
-    helper(mask, bundle.dataBits/8)
+    helper(mask, bundle.dataBits/8) & ~sizeOH1
+  }
+
+  def full_mask(imask: UInt, lgSize: UInt): UInt = {
+    mask(addr_lo(imask, lgSize), lgSize)
   }
 
   def staticHasData(bundle: TLChannel): Option[Boolean] = {
@@ -165,22 +172,43 @@ class TLEdge(
     }
   }
 
+  def full_mask(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => full_mask(a.mask, a.size)
+      case b: TLBundleB => full_mask(b.mask, b.size)
+      case c: TLBundleC => mask(c.addr_lo, c.size)
+      case d: TLBundleD => mask(d.addr_lo, d.size)
+    }
+  }
+
   def addr_lo(x: TLDataChannel): UInt = {
     x match {
-      case a: TLBundleA => addr_lo(a.mask)
-      case b: TLBundleB => addr_lo(b.mask)
+      case a: TLBundleA => addr_lo(a.mask, a.size)
+      case b: TLBundleB => addr_lo(b.mask, b.size)
       case c: TLBundleC => c.addr_lo
       case d: TLBundleD => d.addr_lo
     }
   }
 
-  def address(x: TLAddrChannel): UInt = {
-    val hi = x match {
+  def addr_hi(x: TLAddrChannel): UInt = {
+    x match {
       case a: TLBundleA => a.addr_hi
       case b: TLBundleB => b.addr_hi
       case c: TLBundleC => c.addr_hi
     }
+  }
+
+  def address(x: TLAddrChannel): UInt = {
+    val hi = addr_hi(x)
     if (manager.beatBytes == 1) hi else Cat(hi, addr_lo(x))
+  }
+
+  def addr_lo(x: UInt): UInt = {
+    if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
+  }
+
+  def addr_hi(x: UInt): UInt = {
+    x >> log2Ceil(manager.beatBytes)
   }
 
   def numBeats(x: TLChannel): UInt = {
@@ -192,7 +220,21 @@ class TLEdge(
         val cutoff = log2Ceil(manager.beatBytes)
         val small = if (manager.maxTransfer <= manager.beatBytes) Bool(true) else size <= UInt(cutoff)
         val decode = UIntToOH(size, maxLgSize+1) >> cutoff
-        Mux(!hasData || small, UInt(1), decode)
+        Mux(hasData, decode | small.asUInt, UInt(1))
+      }
+    }
+  }
+
+  def numBeats1(x: TLChannel): UInt = {
+    x match {
+      case _: TLBundleE => UInt(0)
+      case bundle: TLDataChannel => {
+        if (maxLgSize == 0) {
+          UInt(0)
+        } else {
+          val decode = UIntToOH1(size(bundle), maxLgSize) >> log2Ceil(manager.beatBytes)
+          Mux(hasData(bundle), decode, UInt(0))
+        }
       }
     }
   }
@@ -206,13 +248,13 @@ class TLEdgeOut(
   // Transfers
   def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
     require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquire(toAddress, lgSize)
+    val legal = manager.supportsAcquireFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Acquire
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := SInt(-1).asUInt
     a.data    := UInt(0)
     (legal, a)
@@ -220,14 +262,14 @@ class TLEdgeOut(
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt) = {
     require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquire(toAddress, lgSize)
+    val legal = manager.supportsAcquireFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.Release
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := Bool(false)
     (legal, c)
@@ -235,14 +277,14 @@ class TLEdgeOut(
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt, data: UInt) = {
     require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquire(toAddress, lgSize)
+    val legal = manager.supportsAcquireFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ReleaseData
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := data
     c.error   := Bool(false)
     (legal, c)
@@ -254,8 +296,8 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -267,8 +309,8 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := data
     c.error   := Bool(false)
     c
@@ -283,13 +325,13 @@ class TLEdgeOut(
   // Accesses
   def Get(fromSource: UInt, toAddress: UInt, lgSize: UInt) = {
     require (manager.anySupportGet)
-    val legal = manager.supportsGet(toAddress, lgSize)
+    val legal = manager.supportsGetFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Get
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -297,13 +339,13 @@ class TLEdgeOut(
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt) = {
     require (manager.anySupportPutFull)
-    val legal = manager.supportsPutFull(toAddress, lgSize)
+    val legal = manager.supportsPutFullFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.PutFullData
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -311,13 +353,13 @@ class TLEdgeOut(
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, mask : UInt) = {
     require (manager.anySupportPutPartial)
-    val legal = manager.supportsPutPartial(toAddress, lgSize)
+    val legal = manager.supportsPutPartialFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.PutPartialData
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask
     a.data    := data
     (legal, a)
@@ -325,13 +367,13 @@ class TLEdgeOut(
 
   def Arithmetic(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, atomic: UInt) = {
     require (manager.anySupportArithmetic)
-    val legal = manager.supportsArithmetic(toAddress, lgSize)
+    val legal = manager.supportsArithmeticFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.ArithmeticData
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -339,13 +381,13 @@ class TLEdgeOut(
 
   def Logical(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, atomic: UInt) = {
     require (manager.anySupportLogical)
-    val legal = manager.supportsLogical(toAddress, lgSize)
+    val legal = manager.supportsLogicalFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.LogicalData
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -353,13 +395,13 @@ class TLEdgeOut(
 
   def Hint(fromSource: UInt, toAddress: UInt, lgSize: UInt, param: UInt) = {
     require (manager.anySupportHint)
-    val legal = manager.supportsHint(toAddress)
+    val legal = manager.supportsHintFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Hint
     a.param   := param
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
+    a.addr_hi := addr_hi(toAddress)
     a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -374,8 +416,8 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := error
     c
@@ -390,8 +432,8 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := data
     c.error   := error
     c
@@ -404,8 +446,8 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := toAddress >> log2Ceil(manager.beatBytes)
-    c.addr_lo := toAddress
+    c.addr_hi := addr_hi(toAddress)
+    c.addr_lo := addr_lo(toAddress)
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -420,13 +462,13 @@ class TLEdgeIn(
   // Transfers
   def Probe(fromAddress: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {
     require (client.anySupportProbe)
-    val legal = client.supportsProbe(fromAddress, lgSize)
+    val legal = client.supportsProbe(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Probe
     b.param   := capPermissions
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := SInt(-1).asUInt
     b.data    := UInt(0)
     (legal, b)
@@ -440,7 +482,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := error
     d
@@ -454,7 +496,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := data
     d.error   := error
     d
@@ -467,7 +509,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := Bool(false)
     d
@@ -482,7 +524,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -496,7 +538,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -510,7 +552,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask
     b.data    := data
     (legal, b)
@@ -524,7 +566,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -538,7 +580,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -546,13 +588,13 @@ class TLEdgeIn(
 
   def Hint(fromAddress: UInt, toSource: UInt, lgSize: UInt, param: UInt) = {
     require (client.anySupportHint)
-    val legal = client.supportsHint(toSource)
+    val legal = client.supportsHint(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Hint
     b.param   := param
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := fromAddress >> log2Ceil(manager.beatBytes)
+    b.addr_hi := addr_hi(fromAddress)
     b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -568,7 +610,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := error
     d
@@ -584,13 +626,13 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := data
     d.error   := error
     d
   }
 
-  def HintAck(a: TLBundleA, sink: UInt = UInt(0)): TLBundleD = HintAck(address(a), sink, a.source, a.size)
+  def HintAck(a: TLBundleA, fromSink: UInt): TLBundleD = HintAck(address(a), fromSink, a.source, a.size)
   def HintAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.HintAck
@@ -598,7 +640,7 @@ class TLEdgeIn(
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := fromAddress
+    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := Bool(false)
     d

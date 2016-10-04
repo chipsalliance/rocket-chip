@@ -3,9 +3,9 @@
 package uncore.devices
 
 import Chisel._
-import uncore.tilelink._
-import uncore.util._
 import junctions._
+import uncore.tilelink._
+import util._
 import cde.{Parameters, Config, Field}
 
 // *****************************************
@@ -475,16 +475,23 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val ramWrEn   = Wire(Bool())
 
   val dbRamAddr   = Wire(UInt(width=dbRamAddrWidth))
+  val dbRamAddrValid   = Wire(Bool())
   val dbRamRdData = Wire (UInt(width=dbRamDataWidth))
   val dbRamWrData = Wire(UInt(width=dbRamDataWidth))
   val dbRamWrEn   = Wire(Bool())
   val dbRamRdEn   = Wire(Bool())
+  val dbRamWrEnFinal   = Wire(Bool())
+  val dbRamRdEnFinal   = Wire(Bool())
 
   val sbRamAddr   = Wire(UInt(width=sbRamAddrWidth))
+  val sbRamAddrValid = Wire(Bool())
   val sbRamRdData = Wire (UInt(width=sbRamDataWidth))
   val sbRamWrData = Wire(UInt(width=sbRamDataWidth))
   val sbRamWrEn   = Wire(Bool())
   val sbRamRdEn   = Wire(Bool())
+  val sbRamWrEnFinal   = Wire(Bool())
+  val sbRamRdEnFinal   = Wire(Bool())
+
 
   val sbRomRdData       = Wire(UInt(width=tlDataBits))
   val sbRomAddrOffset   = log2Up(tlDataBits/8)
@@ -624,8 +631,18 @@ class DebugModule ()(implicit val p:cde.Parameters)
   //                                  0x40 - 0x6F Not Implemented
   dbRamAddr   := dbReq.addr( dbRamAddrWidth-1 , 0)
   dbRamWrData := dbReq.data
+  dbRamAddrValid := Bool(true)
+  if (dbRamAddrWidth < 4){
+    dbRamAddrValid := (dbReq.addr(3, dbRamAddrWidth) === UInt(0))
+  }
+
   sbRamAddr   := sbAddr(sbRamAddrWidth + sbRamAddrOffset - 1, sbRamAddrOffset)   
   sbRamWrData := sbWrData
+  sbRamAddrValid := Bool(true)
+  // From Specification: Debug RAM is 0x400 - 0x4FF
+  if ((sbRamAddrWidth + sbRamAddrOffset) < 8){
+    sbRamAddrValid := (sbAddr(7, sbRamAddrWidth + sbRamAddrOffset) === UInt(0))
+  }
 
   require (dbRamAddrWidth >= ramAddrWidth)    // SB accesses less than 32 bits Not Implemented.
   val dbRamWrMask = Wire(init=Vec.fill(1 << (dbRamAddrWidth - ramAddrWidth)){Fill(dbRamDataWidth, UInt(1, width=1))})
@@ -661,7 +678,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   ramRdData := ramMem(ramAddr)
   when (ramWrEn) { ramMem(ramAddr) := ramWrData }
 
-  ramWrEn := sbRamWrEn | dbRamWrEn
+  ramWrEn := sbRamWrEnFinal | dbRamWrEnFinal
   
   //--------------------------------------------------------------
   // Debug Bus Access
@@ -680,11 +697,15 @@ class DebugModule ()(implicit val p:cde.Parameters)
   CONTROLWrData := new CONTROLFields().fromBits(dbReq.data)
   RAMWrData     := new RAMFields().fromBits(dbReq.data)
 
-  dbRamWrEn  := Bool(false)
-  CONTROLWrEn := Bool(false)
-  when ((dbReq.addr >> 4) === Bits(0)) {                   // 0x00 - 0x0F Debug RAM
+  dbRamWrEn       := Bool(false)
+  dbRamWrEnFinal  := Bool(false)
+  CONTROLWrEn     := Bool(false)
+  when ((dbReq.addr >> 4) === Bits(0)) {  // 0x00 - 0x0F Debug RAM
     dbRamWrEn := dbWrEn
-   }.elsewhen (dbReq.addr === DMCONTROL) {
+    when (dbRamAddrValid) {
+      dbRamWrEnFinal := dbWrEn
+    }
+  }.elsewhen (dbReq.addr === DMCONTROL) {
     CONTROLWrEn  := dbWrEn
   }.otherwise {
     //Other registers/RAM are Not Implemented.
@@ -739,10 +760,14 @@ class DebugModule ()(implicit val p:cde.Parameters)
     }
   }
 
-  dbRamRdEn := Bool(false)
-  when ((dbReq.addr >> 4) === Bits(0)) {       // 0x00 - 0x0F Debug RAM
-    dbRdData  := RAMRdData.asUInt
+  dbRamRdEn      := Bool(false)
+  dbRamRdEnFinal := Bool(false)
+  when ((dbReq.addr >> 4) === Bits(0)) { // 0x00 - 0x0F Debug RAM
     dbRamRdEn := dbRdEn
+    when (dbRamAddrValid) {
+      dbRdData  := RAMRdData.asUInt
+      dbRamRdEnFinal := dbRdEn
+    }
   }.elsewhen (dbReq.addr === DMCONTROL) {
     dbRdData := CONTROLRdData.asUInt
   }.elsewhen (dbReq.addr === DMINFO) {
@@ -849,6 +874,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   // SB Access Write Decoder
 
   sbRamWrEn  := Bool(false)
+  sbRamWrEnFinal := Bool(false)
   SETHALTNOTWrEn := Bool(false)
   CLEARDEBINTWrEn := Bool(false)
 
@@ -858,6 +884,10 @@ class DebugModule ()(implicit val p:cde.Parameters)
     when (sbAddr(11, 8)   === UInt(4)){ // 0x400-0x4ff is Debug RAM
       sbRamWrEn := sbWrEn
       sbRamRdEn := sbRdEn
+      when (sbRamAddrValid) {
+        sbRamWrEnFinal := sbWrEn
+        sbRamRdEnFinal := sbRdEn
+      }
     }.elsewhen (sbAddr === SETHALTNOT){
       SETHALTNOTWrEn := sbWrEn
     }.elsewhen (sbAddr === CLEARDEBINT){
@@ -880,6 +910,10 @@ class DebugModule ()(implicit val p:cde.Parameters)
     when (sbAddr(11,8) === UInt(4)){ //0x400-0x4ff is Debug RAM
       sbRamWrEn := sbWrEn
       sbRamRdEn := sbRdEn
+      when (sbRamAddrValid){
+        sbRamWrEnFinal := sbWrEn
+        sbRamRdEnFinal := sbRdEn
+      }
     }
 
     SETHALTNOTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop + 1) === SETHALTNOT(sbAddrWidth-1, sbWrSelTop + 1) &&
@@ -896,12 +930,15 @@ class DebugModule ()(implicit val p:cde.Parameters)
   // SB Access Read Mux
  
   sbRdData := UInt(0)
-  sbRamRdEn := Bool(false)
+  sbRamRdEn      := Bool(false)
+  sbRamRdEnFinal := Bool(false)
 
-  dbRamRdEn := Bool(false)
   when (sbAddr(11, 8) === UInt(4)) {                                 //0x400-0x4FF Debug RAM
-    sbRdData  := sbRamRdData
     sbRamRdEn := sbRdEn
+    when (sbRamAddrValid) {
+      sbRdData  := sbRamRdData
+      sbRamRdEnFinal := sbRdEn
+    }
   }.elsewhen (sbAddr(11,8).isOneOf(UInt(8), UInt(9))){ //0x800-0x9FF Debug ROM
     if (cfg.hasDebugRom) {
       sbRdData := sbRomRdData
@@ -982,22 +1019,28 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
 }
 
+object AsyncDebugBusCrossing {
+  // takes from_source from the 'from' clock domain to the 'to' clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, to_clock: Clock, to_reset: Bool, depth: Int = 1, sync: Int = 3) = {
+    val to_sink = Wire(new DebugBusIO()(from_source.p))
+    to_sink.req <> AsyncDecoupledCrossing(from_clock, from_reset, from_source.req, to_clock, to_reset, depth, sync)
+    from_source.resp <> AsyncDecoupledCrossing(to_clock, to_reset, to_sink.resp, from_clock, from_reset, depth, sync)
+    to_sink // is now to_source
+  }
+}
+
 object AsyncDebugBusFrom { // OutsideClockDomain
-  def apply(from_clock: Clock, from_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2)(implicit p: Parameters): DebugBusIO = {
-    val sink = Wire(new DebugBusIO)
-    sink.req <> AsyncDecoupledFrom(from_clock, from_reset, source.req)
-    source.resp <> AsyncDecoupledTo(from_clock, from_reset, sink.resp)
-    sink
+  // takes from_source from the 'from' clock domain and puts it into your clock domain
+  def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, depth: Int = 1, sync: Int = 3): DebugBusIO = {
+    val scope = AsyncScope()
+    AsyncDebugBusCrossing(from_clock, from_reset, from_source, scope.clock, scope.reset, depth, sync)
   }
 }
 
 object AsyncDebugBusTo { // OutsideClockDomain
-  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 0, sync: Int = 2)(implicit p: Parameters): DebugBusIO = {
-    val sink = Wire(new DebugBusIO)
-    sink.req <> AsyncDecoupledTo(to_clock, to_reset, source.req)
-    source.resp <> AsyncDecoupledFrom(to_clock, to_reset, sink.resp)
-    sink
+  // takes source from your clock domain and puts it into the 'to' clock domain
+  def apply(to_clock: Clock, to_reset: Bool, source: DebugBusIO, depth: Int = 1, sync: Int = 3): DebugBusIO = {
+    val scope = AsyncScope()
+    AsyncDebugBusCrossing(scope.clock, scope.reset, source, to_clock, to_reset, depth, sync)
   }
 }
-
-

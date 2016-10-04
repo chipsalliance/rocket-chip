@@ -4,13 +4,15 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
 class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true) extends LazyModule
 {
+  // HintAcks can come back combinationally => minLatency=0
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => if (supportClients)  c.copy(clients  = c.clients .map(_.copy(supportsHint = true))) else c },
-    managerFn = { case Seq(m) => if (supportManagers) m.copy(managers = m.managers.map(_.copy(supportsHint = true))) else m })
+    clientFn  = { case Seq(c) => if (!supportClients)  c else c.copy(minLatency = 0, clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
+    managerFn = { case Seq(m) => if (!supportManagers) m else m.copy(minLatency = 0, managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -27,17 +29,41 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     val bce = edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe
     require (!supportClients || bce)
 
-    if (supportManagers) {
-      val handleA = if (passthrough) !edgeOut.manager.supportsHint(edgeIn.address(in.a.bits)) else Bool(true)
-      val bypassD = handleA && in.a.bits.opcode === TLMessages.Hint
+    // Does it even make sense to add the HintHandler?
+    val smartClients = edgeIn.client.clients.map(_.supportsHint.max == edgeIn.client.maxTransfer).reduce(_&&_)
+    val smartManagers = edgeOut.manager.managers.map(_.supportsHint.max == edgeOut.manager.maxTransfer).reduce(_&&_)
 
-      // Prioritize existing D traffic over HintAck
-      in.d.valid  := out.d.valid || (bypassD && in.a.valid)
-      out.d.ready := in.d.ready
-      in.d.bits   := Mux(out.d.valid, out.d.bits, edgeIn.HintAck(in.a.bits))
+    if (supportManagers && !smartManagers) {
+      // State of the Hint bypass
+      val counter = RegInit(UInt(0, width = log2Up(edgeOut.manager.maxTransfer/edgeOut.manager.beatBytes)))
+      val hintHoldsD = RegInit(Bool(false))
+      val outerHoldsD = counter =/= UInt(0)
+      // Only one of them can hold it
+      assert (!hintHoldsD || !outerHoldsD)
 
-      in.a.ready  := Mux(bypassD, in.d.ready && !out.d.valid, out.a.ready)
-      out.a.valid := in.a.valid && !bypassD
+      // Count outer D beats
+      val beats1 = edgeOut.numBeats1(out.d.bits)
+      when (out.d.fire()) { counter := Mux(outerHoldsD, counter - UInt(1), beats1) }
+
+      // Who wants what?
+      val address = edgeIn.address(in.a.bits)
+      val handleA = if (passthrough) !edgeOut.manager.supportsHintFast(address, edgeIn.size(in.a.bits)) else Bool(true)
+      val hintBitsAtA = handleA && in.a.bits.opcode === TLMessages.Hint
+      val hintWantsD = in.a.valid && hintBitsAtA
+      val outerWantsD = out.d.valid
+
+      // Prioritize existing D traffic over HintAck (and finish multibeat xfers)
+      val hintWinsD = hintHoldsD || (!outerHoldsD && !outerWantsD)
+      hintHoldsD := hintWantsD && hintWinsD && !in.d.ready
+      // Hint can only hold D b/c it still wants it from last cycle
+      assert (!hintHoldsD || hintWantsD)
+
+      in.d.valid  := Mux(hintWinsD, hintWantsD, outerWantsD)
+      in.d.bits   := Mux(hintWinsD, edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address)), out.d.bits)
+      out.d.ready := in.d.ready && !hintHoldsD
+
+      in.a.ready  := Mux(hintBitsAtA, hintWinsD && in.d.ready, out.a.ready)
+      out.a.valid := in.a.valid && !hintBitsAtA
       out.a.bits  := in.a.bits
     } else {
       out.a.valid := in.a.valid
@@ -49,17 +75,36 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       in.d.bits := out.d.bits
     }
 
-    if (supportClients) {
-      val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source) else Bool(true)
-      val bypassC = handleB && out.b.bits.opcode === TLMessages.Hint
+    if (supportClients && !smartClients) {
+      // State of the Hint bypass
+      val counter = RegInit(UInt(0, width = log2Up(edgeIn.client.maxTransfer/edgeIn.manager.beatBytes)))
+      val hintHoldsC = RegInit(Bool(false))
+      val innerHoldsC = counter =/= UInt(0)
+      // Only one of them can hold it
+      assert (!hintHoldsC || !innerHoldsC)
 
-      // Prioritize existing C traffic over HintAck
-      out.c.valid := in.c.valid || (bypassC && in.b.valid)
-      in.c.ready  := out.c.ready
-      out.c.bits  := Mux(in.c.valid, in.c.bits, edgeOut.HintAck(out.b.bits))
+      // Count inner C beats
+      val beats1 = edgeIn.numBeats1(in.c.bits)
+      when (in.c.fire()) { counter := Mux(innerHoldsC, counter - UInt(1), beats1) }
 
-      out.b.ready := Mux(bypassC, out.c.ready && !in.c.valid, in.b.ready)
-      in.b.valid  := out.b.valid && !bypassC
+      // Who wants what?
+      val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
+      val hintBitsAtB = handleB && out.b.bits.opcode === TLMessages.Hint
+      val hintWantsC = out.b.valid && hintBitsAtB
+      val innerWantsC = in.c.valid
+
+      // Prioritize existing C traffic over HintAck (and finish multibeat xfers)
+      val hintWinsC = hintHoldsC || (!innerHoldsC && !innerWantsC)
+      hintHoldsC := hintWantsC && hintWinsC && !out.c.ready
+      // Hint can only hold C b/c it still wants it from last cycle
+      assert (!hintHoldsC || hintWantsC)
+
+      out.c.valid := Mux(hintWinsC, hintWantsC, innerWantsC)
+      out.c.bits  := Mux(hintWinsC, edgeOut.HintAck(out.b.bits), in.c.bits)
+      in.c.ready  := out.c.ready && !hintHoldsC
+
+      out.b.ready := Mux(hintBitsAtB, hintWinsC && out.c.ready, in.b.ready)
+      in.b.valid  := out.b.valid && !hintBitsAtB
       in.b.bits   := out.b.bits
     } else if (bce) {
       in.b.valid := out.b.valid
@@ -90,10 +135,32 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 
 object TLHintHandler
 {
-  // applied to the TL source node; connect (TLHintHandler(x.node) -> y.node)
-  def apply(x: TLBaseNode, supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit lazyModule: LazyModule, sourceInfo: SourceInfo): TLBaseNode = {
+  // applied to the TL source node; y.node := TLHintHandler(x.node)
+  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
-    lazyModule.connect(x -> hints.node)
+    hints.node := x
     hints.node
   }
+}
+
+/** Synthesizeable unit tests */
+import unittest._
+
+//TODO ensure handler will pass through hints to clients that can handle them themselves
+
+class TLRAMHintHandler() extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(4, 256)(TLHintHandler()(model.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMHintHandlerTest extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMHintHandler).module).io.finished
 }

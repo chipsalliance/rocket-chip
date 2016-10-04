@@ -3,6 +3,7 @@ package rocketchip
 import Chisel._
 import uncore.devices.{DebugBusIO, AsyncDebugBusTo, AsyncDebugBusFrom, DebugBusReq, DebugBusResp, DMKey}
 import junctions._
+import util._
 import cde.{Parameters, Field}
 
 case object IncludeJtagDTM extends Field[Boolean]
@@ -13,29 +14,34 @@ case object IncludeJtagDTM extends Field[Boolean]
  *  This implements JTAG interface described
  *  in the RISC-V Debug Specification
  *
- * This Module is currently a 
- *  wrapper around a number of black-boxed
- *  modules. The black-boxing is due to the fact that
+ * This Module is currently a
+ *  wrapper around a JTAG implementation
+ *  of the Debug Transport Module.
+ *  This is black-boxed because
  *  Chisel doesn't currently support:
  *    - Negative Edge Clocking
  *    - Asynchronous Resets
  *   (The tristate requirements of JTAG are exported from the 
  *    Chisel domain with the DRV_TDO signal).
- *  
- *  The AsyncDebugBus parameter here is overloaded.
- *  The DebugTransportModule JTAG definately needs a synchronizer,
- *  the parameter just currently selects whether the Chisel-generated
- *  crossing is used or the black-boxed crossing is used.
- *  Although Top is also capable of generating the 
- *  Chisel sychnronizers, it is done here for consistency
- *  of keeping the synchronizers in one place when
- *  instantiating the DTM.
+ *
+ *  The 'TRST' input is used to asynchronously
+ *  reset the Debug Transport Module and the
+ *  DTM side of the synchronizer.
+ *  This design requires that TRST be
+ *  synchronized to TCK (for de-assert) outside
+ *  of this module. Your top level code should ensure
+ *  that TRST is asserted before the rocket-chip core
+ *  comes out of reset.
+ *  Note that TRST is an optional
+ *  part of the JTAG protocol, but it is not
+ *  optional for interfacing with this logic.
  * 
  */
 
-class JtagDTMWithSync(implicit val p: Parameters) extends Module {
+class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
+    extends Module {
 
-  // IO <-> [Chisel Sync?] <-> [DebugBusIO<->UInt] <-> [Black Box Sync?] <-> DTM Black Box
+  // io.DebugBusIO <-> Sync <-> DebugBusIO <-> UInt <-> DTM Black Box
 
   val io = new Bundle {
 
@@ -49,21 +55,14 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
 
   val jtag_dtm = Module (new DebugTransportModuleJtag(req_width, resp_width))
 
-  jtag_dtm.io.jtag <> io.jtag
+  jtag_dtm.io.jtag := io.jtag
 
   val dtm_req = Wire(new DecoupledIO(UInt(width = req_width)))
   val dtm_resp = Wire(new DecoupledIO(UInt(width = resp_width)))
 
   val io_debug_bus = Wire (new DebugBusIO)
 
-  // Optionally instantiate the Chisel synchronizers.
-  // These go on this side of the DebugBusIO->UInt translation
-  // because the Chisel synchronizers understand these data structures.
-  if (p(AsyncDebugBus)){
-    io.debug <> AsyncDebugBusFrom(io.jtag.TCK, io.jtag.TRST, io_debug_bus)
-  } else {
-    io.debug <> io_debug_bus
-  }
+  io.debug <> AsyncDebugBusFrom(io.jtag.TCK, io.jtag.TRST, io_debug_bus, depth, sync)
 
   // Translate from straight 'bits' interface of the blackboxes
   // into the Resp/Req data structures.
@@ -75,31 +74,8 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
   dtm_resp.bits  := io_debug_bus.resp.bits.asUInt
   io_debug_bus.resp.ready  := dtm_resp.ready
 
-  // Optionally instantiate the black-box synchronizers
-  // instead of the chisel ones.
-  // These go on this side of the DebugBusIO->UInt translation
-  // because they do not understand the DebugBusIO data structures.
-
-  if (p(AsyncDebugBus)) {
-    dtm_req <> jtag_dtm.io.dtm_req 
-    jtag_dtm.io.dtm_resp <> dtm_resp
-  } else {
-    val req_sync  = Module (new AsyncMailbox())
-    val resp_sync = Module (new AsyncMailbox())
-    req_sync.io.enq             := jtag_dtm.io.dtm_req
-    req_sync.io.enq_clock.get   := io.jtag.TCK
-    req_sync.io.enq_reset.get   := io.jtag.TRST
-    req_sync.io.deq_clock.get   := clock
-    req_sync.io.deq_reset.get   := reset
-    dtm_req                     := req_sync.io.deq
-
-    jtag_dtm.io.dtm_resp        := resp_sync.io.deq
-    resp_sync.io.deq_clock.get  := io.jtag.TCK
-    resp_sync.io.deq_reset.get  := io.jtag.TRST
-    resp_sync.io.enq_clock.get  := clock
-    resp_sync.io.enq_reset.get  := reset
-    resp_sync.io.enq            := dtm_resp
-  }
+  dtm_req := jtag_dtm.io.dtm_req
+  jtag_dtm.io.dtm_resp := dtm_resp
 }
 
 class DebugTransportModuleJtag(reqSize : Int, respSize : Int)(implicit val p: Parameters)  extends BlackBox {
@@ -121,6 +97,5 @@ class AsyncMailbox extends BlackBox {
   // this mailbox just has a fixed width of 64 bits, which is enough
   // for our specific purpose here.
 
-  val io = new Crossing(UInt(width=64), true, true)
-
+  val io = new CrossingIO(UInt(width=64))
 }

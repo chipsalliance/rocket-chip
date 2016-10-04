@@ -3,14 +3,14 @@
 package rocket
 
 import Chisel._
-import junctions._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
-import uncore.util._
 import uncore.constants._
+import uncore.util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
-import Util._
 
 case class DCacheConfig(
   nMSHRs: Int = 1,
@@ -44,7 +44,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters {
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
   with HasL1HellaCacheParameters
-abstract class L1HellaCacheBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+abstract class L1HellaCacheBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasL1HellaCacheParameters
 
 trait HasCoreMemOp extends HasCoreParameters {

@@ -3,106 +3,124 @@
 package uncore.tilelink2
 
 import Chisel._
-import scala.collection.mutable.ListBuffer
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
+import scala.collection.mutable.ListBuffer
 
-// PI = PortInputParameters
-// PO = PortOutputParameters
-// EI = EdgeInput
-// EO = EdgeOutput
-abstract class NodeImp[PO, PI, EO, EI, B <: Bundle]
+object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
-  def edgeO(po: PO, pi: PI): EO
-  def edgeI(po: PO, pi: PI): EI
-  def bundleO(eo: Seq[EO]): Vec[B]
-  def bundleI(ei: Seq[EI]): Vec[B]
-  def connect(bo: B, eo: EO, bi: B, ei: EI)(implicit sourceInfo: SourceInfo): Unit
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeOut = new TLEdgeOut(pd, pu)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeIn  = new TLEdgeIn(pd, pu)
+  def bundleO(eo: Seq[TLEdgeOut]): Vec[TLBundle] = {
+    require (!eo.isEmpty)
+    Vec(eo.size, TLBundle(eo.map(_.bundle).reduce(_.union(_))))
+  }
+  def bundleI(ei: Seq[TLEdgeIn]): Vec[TLBundle] = {
+    require (!ei.isEmpty)
+    Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
+  }
+
+  def colour = "#000000" // black
+  def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    val monitor = LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo))
+    (Some(monitor), () => {
+      bi <> bo
+      monitor.module.io.in := TLBundleSnoop(bo)
+    })
+  }
+
+  override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLClientPortParameters  =
+   pd.copy(clients  = pd.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: TLManagerPortParameters, node: InwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLManagerPortParameters =
+   pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
-class BaseNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(
-  private val oFn: Option[Seq[PO] => PO],
-  private val iFn: Option[Seq[PI] => PI],
-  private val numPO: Range.Inclusive,
-  private val numPI: Range.Inclusive)
+case class TLIdentityNode() extends IdentityNode(TLImp)
+case class TLOutputNode() extends OutputNode(TLImp)
+case class TLInputNode() extends InputNode(TLImp)
+
+case class TLClientNode(portParams: TLClientPortParameters, numPorts: Range.Inclusive = 1 to 1)
+  extends SourceNode(TLImp)(portParams, numPorts)
+case class TLManagerNode(portParams: TLManagerPortParameters, numPorts: Range.Inclusive = 1 to 1)
+  extends SinkNode(TLImp)(portParams, numPorts)
+
+object TLClientNode
 {
-  // At least 0 ports must be supported
-  require (!numPO.isEmpty)
-  require (!numPI.isEmpty)
-  require (numPO.start >= 0)
-  require (numPI.start >= 0)
+  def apply(params: TLClientParameters) =
+    new TLClientNode(TLClientPortParameters(Seq(params)), 1 to 1)
+}
 
-  val noOs = numPO.size == 1 && numPO.contains(0)
-  val noIs = numPI.size == 1 && numPI.contains(0)
+object TLManagerNode
+{
+  def apply(beatBytes: Int, params: TLManagerParameters) =
+    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, 0), 1 to 1)
+}
 
-  require (noOs || oFn.isDefined)
-  require (noIs || iFn.isDefined)
+case class TLAdapterNode(
+  clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
+  managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
+  numClientPorts:  Range.Inclusive = 1 to 1,
+  numManagerPorts: Range.Inclusive = 1 to 1)
+  extends InteriorNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
-  private val accPO = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
-  private val accPI = ListBuffer[BaseNode[PO, PI, EO, EI, B]]()
-  private var oRealized  = false
-  private var iRealized = false
+/** Synthesizeable unit tests */
+import unittest._
 
-  private lazy val oPorts = { oRealized = true; require (numPO.contains(accPO.size)); accPO.result() }
-  private lazy val iPorts = { iRealized = true; require (numPI.contains(accPI.size)); accPI.result() }
-  private lazy val oParams : Option[PO] = oFn.map(_(iPorts.map(_.oParams.get)))
-  private lazy val iParams : Option[PI] = iFn.map(_(oPorts.map(_.iParams.get)))
+class TLInputNodeTest extends UnitTest(500000) {
+  class Acceptor extends LazyModule {
+    val node = TLInputNode()
+    val tlram = LazyModule(new TLRAM(AddressSet(0x54321000, 0xfff)))
+    tlram.node := node
 
-  lazy val edgesOut = oPorts.map { n => imp.edgeO(oParams.get, n.iParams.get) }
-  lazy val edgesIn  = iPorts.map { n => imp.edgeI(n.oParams.get, iParams.get) }
-
-  lazy val bundleOut = imp.bundleO(edgesOut)
-  lazy val bundleIn  = imp.bundleI(edgesIn)
-
-  def connectOut = bundleOut
-  def connectIn = bundleIn
-
-  // source.edge(sink)
-  protected[tilelink2] def edge(x: BaseNode[PO, PI, EO, EI, B])(implicit sourceInfo: SourceInfo) = {
-    require (!noOs)
-    require (!oRealized)
-    require (!x.noIs)
-    require (!x.iRealized)
-    val i = x.accPI.size
-    val o = accPO.size
-    accPO += x
-    x.accPI += this
-    () => {
-      imp.connect(connectOut(o), edgesOut(o), x.connectIn(i), x.edgesIn(i))
+    lazy val module = new LazyModuleImp(this) {
+      val io = new Bundle {
+        val in = node.bundleIn
+      }
     }
   }
+
+  val fuzzer = LazyModule(new TLFuzzer(5000))
+  LazyModule(new Acceptor).node := TLFragmenter(4, 64)(fuzzer.node)
+
+  io.finished := Module(fuzzer.module).io.finished
 }
 
-class IdentityNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
-  extends BaseNode(imp)(Some{case Seq(x) => x}, Some{case Seq(x) => x}, 1 to 1, 1 to 1)
-
-class OutputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
+object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
-  override def connectOut = bundleOut
-  override def connectIn  = bundleOut
+  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
+  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
+  def bundleO(eo: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
+    require (eo.size == 1)
+    Vec(eo.size, new TLAsyncBundle(eo(0).bundle))
+  }
+  def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
+    require (ei.size == 1)
+    Vec(ei.size, new TLAsyncBundle(ei(0).bundle)).flip
+  }
+
+  def colour = "#ff0000" // red
+  def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    (None, () => { bi <> bo })
+  }
+
+  override def mixO(pd: TLAsyncClientPortParameters, node: OutwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncClientPortParameters  =
+   pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))
+  override def mixI(pu: TLAsyncManagerPortParameters, node: InwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncManagerPortParameters =
+   pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
-class InputNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
-{
-  override def connectOut = bundleIn
-  override def connectIn  = bundleIn
-}
+case class TLAsyncIdentityNode() extends IdentityNode(TLAsyncImp)
+case class TLAsyncOutputNode() extends OutputNode(TLAsyncImp)
+case class TLAsyncInputNode() extends InputNode(TLAsyncImp)
 
-class SourceNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
-  extends BaseNode(imp)(Some{case Seq() => po}, None, num, 0 to 0)
-{
-  require (num.end >= 1)
-}
+case class TLAsyncSourceNode() extends MixedNode(TLImp, TLAsyncImp)(
+  dFn = { case (1, s) => s.map(TLAsyncClientPortParameters(_)) },
+  uFn = { case (1, s) => s.map(_.base) },
+  numPO = 1 to 1,
+  numPI = 1 to 1)
 
-class SinkNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
-  extends BaseNode(imp)(None, Some{case Seq() => pi}, 0 to 0, num)
-{
-  require (num.end >= 1)
-}
-
-class InteriorNode[PO, PI, EO, EI, B <: Bundle](imp: NodeImp[PO, PI, EO, EI, B])
-  (oFn: Seq[PO] => PO, iFn: Seq[PI] => PI, numPO: Range.Inclusive, numPI: Range.Inclusive)
-  extends BaseNode(imp)(Some(oFn), Some(iFn), numPO, numPI)
-{
-  require (numPO.end >= 1)
-  require (numPI.end >= 1)
-}
+case class TLAsyncSinkNode(depth: Int) extends MixedNode(TLAsyncImp, TLImp)(
+  dFn = { case (1, s) => s.map(_.base) },
+  uFn = { case (1, s) => s.map(TLAsyncManagerPortParameters(depth, _)) },
+  numPO = 1 to 1,
+  numPI = 1 to 1)

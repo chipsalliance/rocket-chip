@@ -4,7 +4,8 @@ package rocket
 
 import Chisel._
 import ALU._
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 
 class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
   val fn = Bits(width = SZ_ALU_FN)

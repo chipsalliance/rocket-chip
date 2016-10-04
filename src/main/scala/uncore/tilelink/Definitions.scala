@@ -4,9 +4,9 @@ package uncore.tilelink
 import Chisel._
 import junctions._
 import uncore.coherence.CoherencePolicy
-import uncore.util._
-import scala.math.max
 import uncore.constants._
+import util._
+import scala.math.max
 import cde.{Parameters, Field}
 
 case object CacheBlockOffsetBits extends Field[Int]
@@ -90,7 +90,7 @@ trait HasTileLinkParameters {
 
 abstract class TLModule(implicit val p: Parameters) extends Module
   with HasTileLinkParameters
-abstract class TLBundle(implicit val p: Parameters) extends junctions.ParameterizedBundle()(p)
+abstract class TLBundle(implicit val p: Parameters) extends util.ParameterizedBundle()(p)
   with HasTileLinkParameters
 
 /** Base trait for all TileLink channels */

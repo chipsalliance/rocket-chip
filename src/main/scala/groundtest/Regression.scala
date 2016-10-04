@@ -4,8 +4,8 @@ import Chisel._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
-import uncore.util._
-import junctions.{ParameterizedBundle, HasAddrMapParameters, Timer}
+import util._
+import junctions.HasAddrMapParameters
 import rocket.HellaCacheIO
 import cde.{Parameters, Field}
 
@@ -71,7 +71,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.mem.grant.ready := Bool(true)
 
   io.cache.req.valid := !get_sent && started
-  io.cache.req.bits.addr := UInt(addrMap("io:int:bootrom").start)
+  io.cache.req.bits.addr := UInt(addrMap("io:pbus:TL2:bootrom").start)
   io.cache.req.bits.typ := UInt(log2Ceil(32 / 8))
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
@@ -759,7 +759,7 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   }
   when (start) { start := Bool(false) }
 
-  val timeout = Timer(5000, start, cur_finished)
+  val timeout = SimpleTimer(5000, start, cur_finished)
   assert(!timeout, "Regression timed out")
 
   io.status.finished := all_done

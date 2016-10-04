@@ -4,7 +4,7 @@ import Chisel._
 import uncore.tilelink._
 import uncore.agents._
 import uncore.coherence.{InnerTLId, OuterTLId}
-import uncore.util._
+import util._
 import junctions.HasAddrMapParameters
 import cde.Parameters
 
@@ -69,7 +69,7 @@ class BusMasterTest(implicit p: Parameters) extends GroundTest()(p)
        s_req_check :: s_resp_check :: s_done :: Nil) = Enum(Bits(), 8)
   val state = Reg(init = s_idle)
 
-  val busMasterBlock = addrMap("io:ext:busmaster").start >> p(CacheBlockOffsetBits)
+  val busMasterBlock = addrMap("io:pbus:busmaster").start >> p(CacheBlockOffsetBits)
   val start_acq = Put(
     client_xact_id = UInt(0),
     addr_block = UInt(busMasterBlock),
