@@ -18,6 +18,8 @@ import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._
 import hbwif._
 import rocketchip._
+import util._
+import dma._
 
 case object NarrowWidth extends Field[Int]
 case object HSCRFileSize extends Field[Int]
@@ -102,6 +104,59 @@ class WithTinyHbwif extends Config (
   }
 )
 
+class WithHwachaAndDma extends Config (
+  (pname, site, here) => pname match {
+    case BuildRoCC => {
+      import HwachaTestSuites._
+      TestGeneration.addSuites(rv64uv.map(_("p")))
+      TestGeneration.addSuites(rv64uv.map(_("vp")))
+      // no excep or vm in v4 yet
+      //TestGeneration.addSuites((if(site(UseVM)) List("pt","v") else List("pt")).flatMap(env => rv64uv.map(_(env))))
+      TestGeneration.addSuite(rv64sv("p"))
+      TestGeneration.addSuite(hwachaBmarks)
+      TestGeneration.addVariable("SRC_EXTENSION", "$(base_dir)/hwacha/$(src_path)/*.scala")
+      TestGeneration.addVariable("DISASM_EXTENSION", "--extension=hwacha")
+      Seq(
+        RoccParameters( // From hwacha/src/main/scala/configs.scala
+        opcodes = OpcodeSet.custom0 | OpcodeSet.custom1,
+        generator = (p: Parameters) => {
+          val h = Module(new Hwacha()(p.alterPartial({
+          case FetchWidth => 1
+          case CoreInstBits => 64
+          })))
+          if(p(DecoupledRoCC)) {
+            val decoupler = Module(new RoccBusyDecoupler(
+            Seq(HwachaInstructions.VF, HwachaInstructions.VFT), 10)(p))
+            AsyncQueueify(decoupler.clock, decoupler.reset,
+              (h.io.elements - "utl").values,
+              (decoupler.io.roccOut.elements - "utl").values,
+              h.clock, h.reset,
+              p(RoCCQueueDepth), 2)
+            // UTL port is crossed in the coreplex for now
+            decoupler.io.roccOut.utl <> h.io.utl
+
+            val twoPhaseHwacha = Wire(Bool())
+            twoPhaseHwacha := LevelSyncTo(h.clock, decoupler.io.twoPhase, 2)
+            // Hwacha takes a cycle of decode to become busy
+            // so we add another sync reg to account for this
+            decoupler.io.delayTwoPhase := LevelSyncFrom(h.clock, twoPhaseHwacha, 2+1)
+            decoupler
+          } else h
+          },
+        nMemChannels = site(HwachaNLanes),
+        nPTWPorts = 2 + site(HwachaNLanes), // icache + vru + vmus
+        useFPU = true),
+      RoccParameters( // From dma/src/main/scala/Configs.scala
+        opcodes = OpcodeSet.custom3,
+        generator = (p: Parameters) => Module(new CopyAccelerator()(p)),
+        nMemChannels = (if (site(CopyAccelShareMemChannel)) 0 else 1),
+        nPTWPorts = 1)
+      )
+    }
+    case _ => throw new CDEMatchError
+  }
+)
+
 class DefaultHUpTopConfig extends Config(new WithTinyHbwif ++ new ExampleHbwifConfig ++ new WithHUpTop ++ new DefaultConfig)
 
 class HurricaneUpstreamConfig extends Config (
@@ -116,6 +171,8 @@ class HurricaneUpstreamConfig extends Config (
   new ExampleHbwifConfig ++
   new WithHUpTop ++
   new WithJtagDTM ++
+  new WithHwachaAndDma ++
+  new WithDma ++ 
   new HwachaConfig
 )
 
