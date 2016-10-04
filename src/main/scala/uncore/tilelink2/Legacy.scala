@@ -63,12 +63,30 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     val wmask   = io.legacy.acquire.bits.wmask()
     val address = io.legacy.acquire.bits.full_addr()
 
-    val beat  = UInt(log2Ceil(tlDataBytes))
     val block = UInt(log2Ceil(tlDataBytes*tlDataBeats))
+    val size = io.legacy.acquire.bits.op_size()
+
+    // Find the operation size from the wmask
+    // Returns: (any_1, size)
+    def mask_helper(range: UInt): (Bool, UInt) = {
+      val len = range.getWidth
+      if (len == 1) {
+        (range === UInt(1), UInt(0))
+      } else {
+        val mid = len / 2
+        val lo  = range(mid-1, 0)
+        val hi  = range(len-1, mid)
+        val (lo_1, lo_s) = mask_helper(lo)
+        val (hi_1, hi_s) = mask_helper(hi)
+        val out_1 = lo_1 || hi_1
+        val out_s = Mux(lo_1, Mux(hi_1, UInt(log2Up(len)), lo_s), hi_s)
+        (out_1, out_s)
+      }
+    }
+    val wsize = mask_helper(wmask)._2
 
     // Only create atomic messages if TL2 managers support them
     val atomics = if (edge.manager.anySupportLogical) {
-      val size = io.legacy.acquire.bits.op_size()
       MuxLookup(io.legacy.acquire.bits.op_code(), Wire(new TLBundleA(edge.bundle)), Array(
         MemoryOpConstants.M_XA_SWAP -> edge.Logical(source, address, size, data, TLAtomics.SWAP)._2,
         MemoryOpConstants.M_XA_XOR  -> edge.Logical(source, address, size, data, TLAtomics.XOR) ._2,
@@ -86,9 +104,9 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     }
 
     out.a.bits := MuxLookup(io.legacy.acquire.bits.a_type, Wire(new TLBundleA(edge.bundle)), Array(
-      Acquire.getType         -> edge.Get (source, address, beat) ._2,
+      Acquire.getType         -> edge.Get (source, address, size) ._2,
       Acquire.getBlockType    -> edge.Get (source, address, block)._2,
-      Acquire.putType         -> edge.Put (source, address, beat,  data, wmask)._2,
+      Acquire.putType         -> edge.Put (source, address, wsize, data, wmask)._2,
       Acquire.putBlockType    -> edge.Put (source, address, block, data, wmask)._2,
       Acquire.getPrefetchType -> edge.Hint(source, address, block, UInt(0))._2,
       Acquire.putPrefetchType -> edge.Hint(source, address, block, UInt(1))._2,
