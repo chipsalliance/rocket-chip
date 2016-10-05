@@ -21,7 +21,7 @@ object AsyncGrayCounter {
         sink.io.d := source.io.q
         sink.io.en := Bool(true)
       }
-    syncv(0).io.d
+    sync.head.io.q
   }
 }
 
