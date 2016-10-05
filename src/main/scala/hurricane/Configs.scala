@@ -166,30 +166,54 @@ class WithHwachaAndDma extends Config (
 
 class DefaultHUpTopConfig extends Config(new WithTinyHbwif ++ new ExampleHbwifConfig ++ new WithHUpTop ++ new DefaultConfig)
 
-class HurricaneUpstreamConfig extends Config (
-  new WithNCores(2) ++
+class WithHurricaneUpstreamSizingFullParams extends Config(
+  (pname,site,here) => pname match {
+    case NTiles => 2
+    case NAcquireTransactors => 9
+    case HwachaNLanes => 2
+    case _ => throw new CDEMatchError
+  },
+  knobValues = {
+    case "L2_CAPACITY_IN_KB" => 512
+    case "NBANKS_PER_MEM_CHANNEL" => 1
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+    case _ => throw new CDEMatchError
+  })
+
+class WithHurricaneUpstreamSizingTinyParams extends Config(
+  (pname,site,here) => pname match {
+    case NTiles => 2
+    case NAcquireTransactors => 3
+    case HwachaNLanes => 2
+    case HwachaConfPrec => false
+    case HwachaNPredRFEntries => 128
+    case _ => throw new CDEMatchError
+  },
+  knobValues = {
+    case "L2_CAPACITY_IN_KB" => 64
+    case "NBANKS_PER_MEM_CHANNEL" => 1
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+    case _ => throw new CDEMatchError
+  })
+
+class HurricaneUpstreamFeatureConfig extends Config (
   new PMUConfig ++
-  new WithNLanes(2) ++
-  new WithNL2AcquireXacts(9) ++
-  new WithL2Capacity(512) ++
-  new WithNBanksPerMemChannel(1) ++
-  new WithNMemoryChannels(8) ++
   new Process28nmConfig ++
   new ExampleHbwifConfig ++
   new WithHUpTop ++
   new WithJtagDTM ++
   new WithHwachaAndDma ++
-  new WithDma ++ 
+  new WithDma ++
   new HwachaConfig
+)
+class HurricaneUpstreamConfig extends Config (
+  new WithHurricaneUpstreamSizingFullParams ++
+  new HurricaneUpstreamFeatureConfig
 )
 
 class HurricaneUpstreamTinyConfig extends Config (
-  new WithoutConfPrec ++
-  new WithSmallPredRF ++
-  new WithNLanes(2) ++
-  new WithNL2AcquireXacts(3) ++
-  new WithL2Capacity(64) ++
-  new HurricaneUpstreamConfig
+  new WithHurricaneUpstreamSizingFullParams ++
+  new HurricaneUpstreamFeatureConfig
 )
 
 class HurricaneUpstreamConfigNoJtag extends Config(new NoJtagDTM ++ new HurricaneUpstreamConfig)

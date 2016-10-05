@@ -176,6 +176,7 @@ class BaseCoreplexConfig extends Config (
 class WithNCores(n: Int) extends Config(
   (pname,site,here) => pname match {
     case NTiles => n
+    case _ => throw new CDEMatchError
   })
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
