@@ -537,8 +537,10 @@ class NastiFragmenter(implicit p: Parameters) extends NastiModule()(p) {
   }
 
   val nXacts = 1 << nastiXIdBits
-  val busy = Reg(init = UInt(0, nXacts))
-  val len = Reg(Vec(nXacts, UInt(width = nastiXLenBits)))
+  val writeBusy = Reg(init = UInt(0, nXacts))
+  val readBusy = Reg(init = UInt(0, nXacts))
+  val writeLen = Reg(Vec(nXacts, UInt(width = nastiXLenBits)))
+  val readLen = Reg(Vec(nXacts, UInt(width = nastiXLenBits)))
 
   val writeInflight = Reg(init = Bool(false))
   val writeId = Reg(UInt(width = nastiXIdBits))
@@ -546,7 +548,7 @@ class NastiFragmenter(implicit p: Parameters) extends NastiModule()(p) {
   val writeSize = Reg(UInt(width = nastiXSizeBits))
 
   when (io.in.aw.fire()) {
-    len(io.in.aw.bits.id) := io.in.aw.bits.len
+    writeLen(io.in.aw.bits.id) := io.in.aw.bits.len
     writeSize := io.in.aw.bits.size
     writeInflight := Bool(true)
     writeId := io.in.aw.bits.id
@@ -578,29 +580,29 @@ class NastiFragmenter(implicit p: Parameters) extends NastiModule()(p) {
     id = writeId)
 
   io.in.w.ready := writeHelper.fire(io.in.w.valid, writeInflight)
-  io.in.aw.ready := !writeInflight && !busy(io.in.aw.bits.id)
+  io.in.aw.ready := !writeInflight && !writeBusy(io.in.aw.bits.id)
 
   val bid = io.out.b.bits.id
 
   when (io.out.b.fire()) {
-    len(bid) := len(bid) - UInt(1)
+    writeLen(bid) := writeLen(bid) - UInt(1)
   }
 
-  io.in.b.valid := io.out.b.valid && len(bid) === UInt(0)
+  io.in.b.valid := io.out.b.valid && writeLen(bid) === UInt(0)
   io.in.b.bits := io.out.b.bits
-  io.out.b.ready := len(bid) =/= UInt(0) || io.in.b.ready
+  io.out.b.ready := writeLen(bid) =/= UInt(0) || io.in.b.ready
 
   val readInflight = Reg(init = Bool(false))
   val readId = Reg(UInt(width = nastiXIdBits))
   val readAddr = Reg(UInt(width = nastiXAddrBits))
-  val readLen = Reg(UInt(width = nastiXLenBits))
+  val readBeats = Reg(UInt(width = nastiXLenBits))
   val readSize = Reg(UInt(width = nastiXSizeBits))
 
   when (io.in.ar.fire()) {
-    len(io.in.ar.bits.id) := io.in.ar.bits.len
+    readLen(io.in.ar.bits.id) := io.in.ar.bits.len
     readId := io.in.ar.bits.id
     readAddr := io.in.ar.bits.addr
-    readLen := io.in.ar.bits.len
+    readBeats := io.in.ar.bits.len
     readSize := io.in.ar.bits.size
     readInflight := Bool(true)
   }
@@ -613,17 +615,17 @@ class NastiFragmenter(implicit p: Parameters) extends NastiModule()(p) {
     size = readSize)
 
   when (io.out.ar.fire()) {
-    when (readLen === UInt(0)) { readInflight := Bool(false) }
-    readLen := readLen - UInt(1)
+    when (readBeats === UInt(0)) { readInflight := Bool(false) }
+    readBeats := readBeats - UInt(1)
     readAddr := readAddr + (UInt(1) << readSize)
   }
 
-  io.in.ar.ready := !readInflight && !busy(io.in.ar.bits.id)
+  io.in.ar.ready := !readInflight && !readBusy(io.in.ar.bits.id)
 
   val rid = io.out.r.bits.id
 
   when (io.out.r.fire()) {
-    len(rid) := len(rid) - UInt(1)
+    readLen(rid) := readLen(rid) - UInt(1)
   }
 
   io.in.r.valid := io.out.r.valid
@@ -632,11 +634,13 @@ class NastiFragmenter(implicit p: Parameters) extends NastiModule()(p) {
     id = io.out.r.bits.id,
     resp = io.out.r.bits.resp,
     data = io.out.r.bits.data,
-    last = len(rid) === UInt(0))
+    last = readLen(rid) === UInt(0))
 
-  busy := (busy |
-    Mux(io.in.ar.fire(), UIntToOH(io.in.ar.bits.id), UInt(0)) |
+  writeBusy := (writeBusy |
     Mux(io.in.aw.fire(), UIntToOH(io.in.aw.bits.id), UInt(0))) &
-    ~Mux(io.in.r.fire() && io.in.r.bits.last, UIntToOH(io.in.r.bits.id), UInt(0)) &
     ~Mux(io.in.b.fire(), UIntToOH(io.in.b.bits.id), UInt(0))
+
+  readBusy := (readBusy |
+    Mux(io.in.ar.fire(), UIntToOH(io.in.ar.bits.id), UInt(0))) &
+    ~Mux(io.in.r.fire() && io.in.r.bits.last, UIntToOH(io.in.r.bits.id), UInt(0))
 }
