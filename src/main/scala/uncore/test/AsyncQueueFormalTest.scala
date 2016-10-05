@@ -49,7 +49,7 @@ class AsyncQueueFormalTest[T <: Data](gen: T, depth: Int=1, sync: Int=2) extends
   data_source.io.nd_value1 := scoreboard.nd_value1
   data_source.io.nd_value2 := scoreboard.nd_value2
   
-  out_data <> AsyncIrrevocableCrossing(in_clock, in_reset, in_data, out_clock, out_reset, depth, sync)
+//  out_data <> AsyncIrrevocableCrossing(in_clock, in_reset, in_data, out_clock, out_reset, depth, sync)
   
   class SinkScoreboard (clock_in:Clock) extends Module(_clock=clock_in) {
     val io = new Bundle {
