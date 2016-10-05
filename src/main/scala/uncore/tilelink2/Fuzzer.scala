@@ -5,6 +5,7 @@ import Chisel._
 import chisel3.util.LFSR16
 import unittest._
 import util.Pow2ClockDivider
+import uncore.test._
 
 class IDMapGenerator(numIds: Int) extends Module {
   val w = log2Up(numIds)
@@ -32,46 +33,6 @@ class IDMapGenerator(numIds: Int) extends Module {
   bitmap := (bitmap & ~clr) | set
 }
 
-object LFSR64
-{ 
-  private var counter = 0 
-  private def next: Int = {
-    counter += 1
-    counter
-  }
-  
-  def apply(increment: Bool = Bool(true), seed: Int = next): UInt =
-  { 
-    val wide = 64
-    val lfsr = RegInit(UInt((seed * 0xDEADBEEFCAFEBAB1L) >>> 1, width = wide))
-    val xor = lfsr(0) ^ lfsr(1) ^ lfsr(3) ^ lfsr(4)
-    when (increment) { lfsr := Cat(xor, lfsr(wide-1,1)) }
-    lfsr
-  }
-}
-
-trait HasNoiseMakerIO
-{
-  val io = new Bundle {
-    val inc = Bool(INPUT)
-    val random = UInt(OUTPUT)
-  }
-}
-
-class LFSRNoiseMaker(wide: Int) extends Module with HasNoiseMakerIO
-{
-  val lfsrs = Seq.fill((wide+63)/64) { LFSR64(io.inc) }
-  io.random := Cat(lfsrs)(wide-1,0)
-}
-
-object LFSRNoiseMaker {
-  def apply(wide: Int, increment: Bool = Bool(true)): UInt = {
-    val nm = Module(new LFSRNoiseMaker(wide))
-    nm.io.inc := increment
-    nm.io.random
-  }
-}
-
 /** TLFuzzer drives test traffic over TL2 links. It generates a sequence of randomized
   * requests, and issues legal ones into the DUT. TODO: Currently the fuzzer only generates
   * memory operations, not permissions transfers.
@@ -82,7 +43,7 @@ object LFSRNoiseMaker {
 class TLFuzzer(
     nOperations: Int,
     inFlight: Int = 32,
-    noiseMaker: (Int, Bool) => UInt = LFSRNoiseMaker.apply _) extends LazyModule
+    formalnoise: Boolean=false) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -137,14 +98,14 @@ class TLFuzzer(
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
-    val arth_op_3 = noiseMaker(3, inc)
+    val arth_op_3 = NoiseMaker(formalnoise, 3, inc)
     val arth_op   = Mux(arth_op_3 > UInt(4), UInt(4), arth_op_3)
-    val log_op    = noiseMaker(2, inc)
-    val amo_size  = UInt(2) + noiseMaker(1, inc) // word or dword
-    val size      = noiseMaker(sizeBits, inc)
-    val addr      = noiseMaker(addressBits, inc) & ~UIntToOH1(size, addressBits)
-    val mask      = noiseMaker(beatBytes, inc_beat) & edge.mask(addr, size)
-    val data      = noiseMaker(dataBits, inc_beat)
+    val log_op    = NoiseMaker(formalnoise, 2, inc)
+    val amo_size  = UInt(2) + NoiseMaker(formalnoise, 1, inc) // word or dword
+    val size      = NoiseMaker(formalnoise, sizeBits, inc)
+    val addr      = NoiseMaker(formalnoise, addressBits, inc, 2) & ~UIntToOH1(size, addressBits)
+    val mask      = NoiseMaker(formalnoise, beatBytes, inc_beat, 2) & edge.mask(addr, size)
+    val data      = NoiseMaker(formalnoise, dataBits, inc_beat, 2)
 
     // Actually generate specific TL messages when it is legal to do so
     val (glegal,  gbits)  = edge.Get(src, addr, size)
@@ -167,7 +128,7 @@ class TLFuzzer(
     val legal_dest = edge.manager.containsSafe(addr)
 
     // Pick a specific message to try to send
-    val a_type_sel  = noiseMaker(3, inc)
+    val a_type_sel  = NoiseMaker(formalnoise, 3, inc)
 
     val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
