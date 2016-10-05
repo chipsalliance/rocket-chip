@@ -44,7 +44,8 @@ case class CoreplexConfig(
     nMemChannels: Int,
     hasSupervisor: Boolean)
 {
-  val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
+  val nInterruptPriorities = if (nExtInterrupts <= 1) 0 else (nExtInterrupts min 7)
+  val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, nInterruptPriorities)
 }
 
 abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends LazyModule
