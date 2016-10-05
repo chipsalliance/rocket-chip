@@ -5,6 +5,7 @@ import chisel3._
 import chisel3.util._
 import junctions._
 import uncore.test._
+import diplomacy._
 
 object RandomClockGenerator {
 //  val io = new Bundle {

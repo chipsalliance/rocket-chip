@@ -5,6 +5,7 @@ import java.io.File
 import unittest._
 import uncore.test._
 import uncore.tilelink2._
+import diplomacy._
 
 case class TLFormalRAMModelParameters(
   maxOutstandingPuts : Int,
