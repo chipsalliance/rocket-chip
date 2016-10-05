@@ -1,7 +1,7 @@
 package uncore
 
 import Chisel._
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import diplomacy._
 
 package object tilelink2
 {
@@ -16,10 +16,5 @@ package object tilelink2
     def helper(s: Int, x: UInt): UInt =
       if (s >= w) x else helper(s+s, x | (x << s)(w-1,0))
     helper(1, x)
-  }
-
-  def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
-    case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
-    case _ => ""
   }
 }

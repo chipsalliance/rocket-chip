@@ -1,9 +1,10 @@
 // See LICENSE for license details.
 
-package uncore.tilelink2
+package regmapper
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO}
+import diplomacy._
+import util.{GenericParameterizedBundle}
 
 // A bus agnostic register interface to a register-based device
 
@@ -52,8 +53,8 @@ object RegMapper
     val inBits = inParams.indexBits
     assert (wordmap.keySet.max < (1 << inBits), "Register map does not fit in device")
 
-    val out = Wire(Irrevocable(new RegMapperOutput(inParams)))
-    val front = Wire(Irrevocable(new RegMapperInput(inParams)))
+    val out = Wire(Decoupled(new RegMapperOutput(inParams)))
+    val front = Wire(Decoupled(new RegMapperInput(inParams)))
     front.bits := in.bits
 
     // Must this device pipeline the control channel?

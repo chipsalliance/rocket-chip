@@ -3,8 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
+import regmapper._
 import unittest._
-import util.Pow2ClockDivider
+import util.{Pow2ClockDivider}
 
 object LFSR16Seed
 {
@@ -35,7 +37,7 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
   io.rvalid := rvalid_s
   io.wready := wready_s
 
-  io.rdata := reg
+  io.rdata := Mux(rvalid_s && io.rready, reg, UInt(0))
   when (io.wvalid && wready_s) { reg := io.wdata }
 }
 
@@ -47,10 +49,7 @@ object RRTestCombinational
 
   def random: Bool => Bool = { ready =>
     seed = seed + 1
-    val lfsr = LFSR16Seed(seed)
-    val valid = RegInit(Bool(true))
-    valid := Mux(valid, !ready, lfsr(0) && lfsr(1))
-    valid
+    LFSR16Seed(seed)(0)
   }
 
   def delay(x: Int): Bool => Bool = { ready =>
@@ -97,7 +96,7 @@ class RRTestRequest(val bits: Int,
   val rofire = io.roready && rovalid
   val wofire = io.woready && wovalid
 
-  io.rdata := reg
+  io.rdata := Mux(rofire, reg, UInt(0))
   when (wofire) { reg := wdata }
 }
 
@@ -130,14 +129,11 @@ object RRTestRequest
       val lfsr = LFSR16Seed(seed)
       val busy = RegInit(Bool(false))
       val data = Reg(UInt(width = idata.getWidth))
-      val progress = RegInit(Bool(false))
+      val progress = lfsr(0)
       val iready = progress && !busy
       val ovalid = progress && busy
       when (progress) {
         busy := Mux(busy, !oready, ivalid)
-        progress := Mux(busy, !oready, !ivalid)
-      } .otherwise {
-        progress := lfsr(0)
       }
       when (ivalid && iready) { data := idata }
       (iready, ovalid, data)

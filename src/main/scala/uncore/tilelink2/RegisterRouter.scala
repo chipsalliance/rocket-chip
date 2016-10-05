@@ -3,16 +3,20 @@
 package uncore.tilelink2
 
 import Chisel._
+import diplomacy._
+import regmapper._
 import scala.math.{min,max}
 
 class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true)
-  extends TLManagerNode(beatBytes, TLManagerParameters(
-    address            = Seq(address),
-    supportsGet        = TransferSizes(1, beatBytes),
-    supportsPutPartial = TransferSizes(1, beatBytes),
-    supportsPutFull    = TransferSizes(1, beatBytes),
-    fifoId             = Some(0)), // requests are handled in order
-    minLatency         = min(concurrency, 1)) // the Queue adds at least one cycle
+  extends TLManagerNode(TLManagerPortParameters(
+    Seq(TLManagerParameters(
+      address            = Seq(address),
+      supportsGet        = TransferSizes(1, beatBytes),
+      supportsPutPartial = TransferSizes(1, beatBytes),
+      supportsPutFull    = TransferSizes(1, beatBytes),
+      fifoId             = Some(0))), // requests are handled in order
+    beatBytes  = beatBytes,
+    minLatency = min(concurrency, 1))) // the Queue adds at least one cycle
 {
   require (address.contiguous)
 
@@ -37,8 +41,10 @@ class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int =
     in.bits.mask  := a.bits.mask
     in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)
 
-    // Invoke the register map builder
-    val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
+    // Invoke the register map builder and make it Irrevocable
+    val out = Queue.irrevocable(
+      RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*),
+      entries = 1, pipe = true, flow = true)
 
     // No flow control needed
     in.valid  := a.valid

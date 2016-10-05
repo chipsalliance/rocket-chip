@@ -2,6 +2,7 @@ package groundtest
 
 import Chisel._
 import rocket._
+import diplomacy._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
@@ -72,7 +73,7 @@ class Edge32BitMemtestConfig extends Config(
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case BuildCoreplex =>
-      (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new GroundTestCoreplex(c)(p)).module
+      (c: CoreplexConfig, p: Parameters) => LazyModule(new GroundTestCoreplex(c)(p)).module
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
@@ -105,7 +106,7 @@ class WithGroundTest extends Config(
       }
     }
     case BuildExampleTop =>
-      (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTopWithTestRAM(p))
+      (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(p))
     case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false

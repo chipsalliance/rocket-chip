@@ -45,7 +45,7 @@ class SimpleTimer(initCount: Int) extends Module {
   }
 
   val countdown = Reg(UInt(width = log2Up(initCount)))
-  val active = Reg(Bool())
+  val active = Reg(init = Bool(false))
 
   when (active) { countdown := countdown - UInt(1) }
 
