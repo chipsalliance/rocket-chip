@@ -171,12 +171,12 @@ class WithHurricaneUpstreamSizingFullParams extends Config(
     case NTiles => 2
     case NAcquireTransactors => 9
     case HwachaNLanes => 2
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
     case _ => throw new CDEMatchError
   },
   knobValues = {
     case "L2_CAPACITY_IN_KB" => 512
     case "NBANKS_PER_MEM_CHANNEL" => 1
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
     case _ => throw new CDEMatchError
   })
 
@@ -187,12 +187,12 @@ class WithHurricaneUpstreamSizingTinyParams extends Config(
     case HwachaNLanes => 2
     case HwachaConfPrec => false
     case HwachaNPredRFEntries => 128
+    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
     case _ => throw new CDEMatchError
   },
   knobValues = {
     case "L2_CAPACITY_IN_KB" => 64
     case "NBANKS_PER_MEM_CHANNEL" => 1
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
     case _ => throw new CDEMatchError
   })
 
