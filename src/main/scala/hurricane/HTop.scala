@@ -10,7 +10,7 @@ import coreplex._
 import diplomacy.LazyModule
 import uncore.tilelink._
 import uncore.agents._
-import uncore.devices.NTiles
+import uncore.devices.{NTiles, AsyncDebugBusTo}
 import uncore.converters.TileLinkWidthAdapter
 import uncore.util.TileLinkEnqueuer
 import junctions._
@@ -59,6 +59,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     with HurricaneExtraTopLevelModule
     with HurricaneIFModule
     with HbwifModule
+    with AsyncConnection
     with HardwiredResetVector {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
@@ -175,4 +176,29 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   for (i <- 0 until nMemChannels) {
     switcher.io.select(i) := scr.control(s"switcher_channel_$i")(log2Up(nMemChannels),0)
   }
+}
+
+trait AsyncConnection {
+  val coreplexIO: BaseCoreplexBundle
+  val coreplex: BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]
+
+  coreplexIO.master.mem.zip(coreplex.io.master.mem).map {
+    case(out, in) => out <> AsyncUTileLinkFrom(coreplex.clock, coreplex.reset, in)
+  }
+  coreplexIO.master.mmio <> AsyncUTileLinkFrom(coreplex.clock, coreplex.reset, coreplex.io.master.mmio)
+  coreplex.io.slave.zip(coreplexIO.slave).map {
+    case(out, in) => out <> AsyncUTileLinkTo(coreplex.clock, coreplex.reset, in)
+  }
+  coreplexIO.interrupts.zip(coreplex.io.interrupts).map {
+    case(out, in) => out <> LevelSyncFrom(coreplex.clock, in)
+  }
+  coreplex.io.debug <> AsyncDebugBusTo(coreplex.clock, coreplex.reset, coreplexIO.debug)
+  coreplex.io.clint.zip(coreplexIO.clint).map {
+    case(out, in) => {
+      out.mtip := LevelSyncTo(coreplex.clock, in.mtip)
+      out.msip := LevelSyncTo(coreplex.clock, in.msip)
+    }
+  }
+  coreplex.io.resetVector := coreplexIO.resetVector
+  coreplexIO.success := coreplex.io.success
 }
