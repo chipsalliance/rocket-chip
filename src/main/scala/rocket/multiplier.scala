@@ -4,7 +4,8 @@ package rocket
 
 import Chisel._
 import ALU._
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 
 class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
   val fn = Bits(width = SZ_ALU_FN)
@@ -147,7 +148,7 @@ class MulDiv(cfg: MulDivConfig, width: Int, nXpr: Int = 32) extends Module {
     req := io.req.bits
   }
 
-  io.resp.bits := req
+  io.resp.bits <> req
   io.resp.bits.data := Mux(halfWidth(req), Cat(Fill(w/2, remainder(w/2-1)), remainder(w/2-1,0)), remainder(w-1,0))
   io.resp.valid := state === s_done
   io.req.ready := state === s_ready

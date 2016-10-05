@@ -157,12 +157,12 @@ class FinishUnit(srcId: Int = 0, outstanding: Int = 2)(implicit p: Parameters) e
     }
     val q = Module(new FinishQueue(outstanding))
     q.io.enq.valid := io.grant.fire() && g.requiresAck() && (!g.hasMultibeatData() || done)
-    q.io.enq.bits := g.makeFinish()
+    q.io.enq.bits <> g.makeFinish()
     q.io.enq.bits.manager_id := io.grant.bits.header.src
 
     io.finish.bits.header.src := UInt(srcId)
     io.finish.bits.header.dst := q.io.deq.bits.manager_id
-    io.finish.bits.payload := q.io.deq.bits
+    io.finish.bits.payload <> q.io.deq.bits
     io.finish.valid := q.io.deq.valid
     q.io.deq.ready := io.finish.ready
 

@@ -3,6 +3,7 @@ package uncore.devices
 import Chisel._
 import unittest.UnitTest
 import junctions._
+import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.util._

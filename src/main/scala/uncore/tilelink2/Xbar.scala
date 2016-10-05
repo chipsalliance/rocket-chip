@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.IrrevocableIO
+import diplomacy._
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
 {
@@ -177,4 +178,51 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
       TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)
     }
   }
+}
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMXbar(nManagers: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val xbar = LazyModule(new TLXbar)
+
+  model.node := fuzz.node
+  xbar.node := model.node
+  (0 until nManagers) foreach { n =>
+    val ram  = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
+    ram.node := TLFragmenter(4, 256)(xbar.node)
+  }
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMXbarTest(nManagers: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMXbar(nManagers)).module).io.finished
+}
+
+class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
+  val xbar = LazyModule(new TLXbar)
+
+  val fuzzers = (0 until nClients) map { n =>
+    val fuzz = LazyModule(new TLFuzzer(5000))
+    xbar.node := fuzz.node
+    fuzz
+  }
+
+  (0 until nManagers) foreach { n =>
+    val ram  = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
+    ram.node := TLFragmenter(4, 256)(xbar.node)
+  }
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzzers.last.module.io.finished
+  }
+}
+
+class TLMulticlientXbarTest(nManagers: Int, nClients: Int) extends UnitTest(timeout = 5000000) {
+  io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients)).module).io.finished
 }

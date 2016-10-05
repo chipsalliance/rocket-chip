@@ -4,30 +4,31 @@ package rocketchip
 
 import cde.{Parameters, Dump}
 import junctions._
+import diplomacy._
 import uncore.devices._
 import rocket._
-import rocket.Util._
 import coreplex._
 import uncore.tilelink2._
+import util._
 
 import java.nio.file.{Files, Paths}
 import java.nio.{ByteBuffer, ByteOrder}
 
 class RangeManager {
   private var finalized = false
-  private val l = collection.mutable.HashMap[String, Int]()
+  private val l = collection.mutable.ListBuffer[(String, Int)]()
   def add(name: String, element: Int) = { require(!finalized); l += (name -> element) }
   def rangeMap = {
     finalized = true
-    l map {
+    (l map {
       var sum = 0
       x => { sum += x._2; (x._1 -> (sum-x._2, sum)) }
-    }
+    }).toMap
   }
   def range(name: String) = rangeMap(name)
   def print = {
-    rangeMap map { case (name, (start, end)) =>
-      println(s"${name} on port ${start}-${end-1}")
+    rangeMap.toSeq.sortBy(_._2).foreach { case (name, (start, end)) =>
+      println(s"${name} on int ${start}-${end-1}")
     }
   }
   def sum = {
@@ -56,7 +57,7 @@ object GenerateGlobalAddrMap {
     lazy val cBusIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
-      entries += AddrMapEntry("plic", MemRange(0x40000000, 0x4000000, MemAttr(AddrMapProt.RW)))
+      entries += AddrMapEntry("plic", MemRange(0x0C000000, 0x4000000, MemAttr(AddrMapProt.RW)))
       if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
         require(p(NTiles) == 1) // TODO relax this
         require(p(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM

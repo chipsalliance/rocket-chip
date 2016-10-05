@@ -7,10 +7,11 @@ import junctions._
 import uncore.tilelink._
 import uncore.agents._
 import uncore.coherence._
-import uncore.util._
 import uncore.constants._
+import uncore.util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
-import Util._
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)
@@ -79,15 +80,20 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s1_readwrite = s1_read || s1_write
   val s1_flush_valid = Reg(Bool())
 
-  val s_ready :: s_grant_wait :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 8)
-  val grant_wait = Reg(init=Bool(false))
+  val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 7)
+  val cached_grant_wait = Reg(init=Bool(false))
   val release_ack_wait = Reg(init=Bool(false))
   val release_state = Reg(init=s_ready)
   val pstore1_valid = Wire(Bool())
   val pstore2_valid = Reg(Bool())
   val inWriteback = release_state.isOneOf(s_voluntary_writeback, s_probe_rep_dirty)
   val releaseWay = Wire(UInt())
-  io.cpu.req.ready := (release_state === s_ready) && !grant_wait && !s1_nack
+  io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
+
+  // I/O MSHRs
+  val maxUncachedInFlight = (1 << io.mem.acquire.bits.client_xact_id.getWidth) - 1
+  val uncachedInFlight = Reg(init=Vec.fill(maxUncachedInFlight)(Bool(false)))
+  val uncachedReqs = Reg(Vec(maxUncachedInFlight, new HellaCacheReq))
 
   // hit initiation path
   dataArb.io.in(3).valid := io.cpu.req.valid && isRead(io.cpu.req.bits.cmd)
@@ -169,7 +175,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val s2_victim_dirty = s2_victim_state.requiresVoluntaryWriteback()
   val s2_new_hit_state = s2_hit_state.onHit(s2_req.cmd)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
-  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && io.mem.acquire.ready)
+  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && io.mem.acquire.ready && !uncachedInFlight.asUInt.andR)
   when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
 
   // exceptions
@@ -191,7 +197,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscValid) { lrscCount := lrscCount - 1 }
-  when ((s2_valid_hit && s2_sc) || io.cpu.invalidate_lr) { lrscCount := 0 }
+  when ((s2_valid_masked && lrscValid) || io.cpu.invalidate_lr) { lrscCount := 0 }
 
   // pending store buffer
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
@@ -243,12 +249,13 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(0).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
 
   // acquire
+  val xact_id = PriorityEncoder(~uncachedInFlight.asUInt)
   val cachedGetMessage = s2_hit_state.makeAcquire(
-    client_xact_id = UInt(0),
+    client_xact_id = UInt(maxUncachedInFlight - 1),
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
     op_code = s2_req.cmd)
   val uncachedGetMessage = Get(
-    client_xact_id = UInt(0),
+    client_xact_id = xact_id,
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
     addr_beat = s2_req.addr(blockOffBits-1, beatOffBits),
     addr_byte = s2_req.addr(beatOffBits-1, 0),
@@ -256,21 +263,21 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     alloc = Bool(false))
   val uncachedPutOffset = s2_req.addr.extract(beatOffBits-1, wordOffBits)
   val uncachedPutMessage = Put(
-    client_xact_id = UInt(0),
+    client_xact_id = xact_id,
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
     addr_beat = s2_req.addr(blockOffBits-1, beatOffBits),
     data = Fill(beatWords, pstore1_storegen.data),
     wmask = Some(pstore1_storegen.mask << (uncachedPutOffset << wordOffBits)),
     alloc = Bool(false))
   val uncachedPutAtomicMessage = PutAtomic(
-    client_xact_id = UInt(0),
+    client_xact_id = xact_id,
     addr_block = s2_req.addr(paddrBits-1, blockOffBits),
     addr_beat = s2_req.addr(blockOffBits-1, beatOffBits),
     addr_byte = s2_req.addr(beatOffBits-1, 0),
     atomic_opcode = s2_req.cmd,
     operand_size = s2_req.typ,
     data = Fill(beatWords, pstore1_storegen.data))
-  io.mem.acquire.valid := ((s2_valid_cached_miss && !s2_victim_dirty) || s2_valid_uncached) && fq.io.enq.ready
+  io.mem.acquire.valid := ((s2_valid_cached_miss && !s2_victim_dirty) || (s2_valid_uncached && !uncachedInFlight.asUInt.andR)) && fq.io.enq.ready
   io.mem.acquire.bits := cachedGetMessage
   when (s2_uncached) {
     if (!usingDataScratchpad)
@@ -283,24 +290,42 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       }
     }
   }
-  when (io.mem.acquire.fire()) { grant_wait := true }
+  when (io.mem.acquire.fire()) {
+    when (s2_uncached) {
+      uncachedInFlight(xact_id) := true
+      uncachedReqs(xact_id) := s2_req
+    }.otherwise {
+      cached_grant_wait := true
+    }
+  }
 
   // grant
   val grantIsRefill = io.mem.grant.bits.hasMultibeatData()
   val grantIsVoluntary = io.mem.grant.bits.isVoluntary()
   val grantIsUncached = !grantIsRefill && !grantIsVoluntary
-  when (io.mem.grant.valid) {
-    assert(grant_wait || grantIsVoluntary && release_ack_wait, "unexpected grant")
-    when (grantIsUncached) { s2_data := io.mem.grant.bits.data }
-    when (grantIsVoluntary) { release_ack_wait := false }
+  io.mem.grant.ready := true
+  when (io.mem.grant.fire()) {
+    when (grantIsRefill) { assert(cached_grant_wait) }
+    when (grantIsUncached) {
+      assert(uncachedInFlight(io.mem.grant.bits.client_xact_id))
+      uncachedInFlight(io.mem.grant.bits.client_xact_id) := false
+      s2_data := io.mem.grant.bits.data
+      val req = uncachedReqs(io.mem.grant.bits.client_xact_id)
+      s2_req.cmd := req.cmd
+      s2_req.typ := req.typ
+      s2_req.tag := req.tag
+      s2_req.addr := Cat(s1_paddr >> wordOffBits /* don't-care */, req.addr(wordOffBits-1, 0))
+    }
+    when (grantIsVoluntary) {
+      assert(release_ack_wait)
+      release_ack_wait := false
+    }
   }
   val (refillCount, refillDone) = Counter(io.mem.grant.fire() && grantIsRefill, refillCycles)
-  val grantDone = refillDone || grantIsUncached
-  when (io.mem.grant.fire() && grantDone) { grant_wait := false }
+  when (io.mem.grant.fire() && refillDone) { cached_grant_wait := false }
 
   // data refill
   dataArb.io.in(1).valid := grantIsRefill && io.mem.grant.valid
-  io.mem.grant.ready := true
   assert(dataArb.io.in(1).ready || !dataArb.io.in(1).valid)
   dataArb.io.in(1).bits.write := true
   dataArb.io.in(1).bits.addr := Cat(s2_req.addr(paddrBits-1, blockOffBits), io.mem.grant.bits.addr_beat) << beatOffBits
@@ -314,6 +339,19 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   metaWriteArb.io.in(1).bits.idx := s2_req.addr(idxMSB, idxLSB)
   metaWriteArb.io.in(1).bits.data.coh := s2_hit_state.onGrant(io.mem.grant.bits, s2_req.cmd)
   metaWriteArb.io.in(1).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
+  // don't accept uncached grants if there's a structural hazard on s2_data...
+  val blockUncachedGrant = Reg(Bool())
+  blockUncachedGrant := dataArb.io.out.valid
+  when (grantIsUncached) {
+    io.mem.grant.ready := !(blockUncachedGrant || s1_valid)
+    // ...but insert bubble to guarantee grant's eventual forward progress
+    when (io.mem.grant.valid && !io.mem.grant.ready) {
+      io.cpu.req.ready := false
+      dataArb.io.in(1).valid := true
+      dataArb.io.in(1).bits.write := false
+      blockUncachedGrant := !dataArb.io.in(1).ready
+    }
+  }
 
   // finish
   fq.io.enq.valid := io.mem.grant.fire() && io.mem.grant.bits.requiresAck() && (!grantIsRefill || refillDone)
@@ -338,7 +376,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val releaseDataBeat = Cat(UInt(0), writebackCount) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
   io.mem.release.valid := s2_release_data_valid
   io.mem.release.bits := ClientMetadata.onReset.makeRelease(probe_bits)
-  val voluntaryReleaseMessage = s2_victim_state.makeVoluntaryWriteback(UInt(0), UInt(0))
+  val voluntaryReleaseMessage = s2_victim_state.makeVoluntaryWriteback(UInt(maxUncachedInFlight - 1), UInt(0))
   val voluntaryNewCoh = s2_victim_state.onCacheControl(M_FLUSH)
   val probeResponseMessage = s2_probe_state.makeRelease(probe_bits)
   val probeNewCoh = s2_probe_state.onProbe(probe_bits)
@@ -393,13 +431,13 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   // cached response
   io.cpu.resp.valid := s2_valid_hit
-  io.cpu.resp.bits := s2_req
+  io.cpu.resp.bits <> s2_req
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false
-  io.cpu.ordered := !(s1_valid || s2_valid || grant_wait)
+  io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
   // uncached response
-  io.cpu.replay_next := io.mem.grant.valid && grantIsUncached
+  io.cpu.replay_next := io.mem.grant.fire() && grantIsUncached
   val doUncachedResp = Reg(next = io.cpu.replay_next)
   when (doUncachedResp) {
     assert(!s2_valid_hit)
@@ -436,7 +474,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
-      flushing := !release_ack_wait
+      flushing := !release_ack_wait && !uncachedInFlight.asUInt.orR
     }
   }
   s1_flush_valid := metaReadArb.io.in(0).fire() && !s1_flush_valid && !s2_flush_valid && release_state === s_ready && !release_ack_wait

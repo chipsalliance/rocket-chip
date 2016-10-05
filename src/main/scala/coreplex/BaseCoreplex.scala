@@ -3,6 +3,7 @@ package coreplex
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.coherence._
@@ -11,7 +12,7 @@ import uncore.devices._
 import uncore.util._
 import uncore.converters._
 import rocket._
-import rocket.Util._
+import util._
 
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
@@ -43,7 +44,8 @@ case class CoreplexConfig(
     nMemChannels: Int,
     hasSupervisor: Boolean)
 {
-  val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
+  val nInterruptPriorities = if (nExtInterrupts <= 1) 0 else (nExtInterrupts min 7)
+  val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, nInterruptPriorities)
 }
 
 abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends LazyModule
@@ -111,7 +113,6 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     l1tol2net.io.clients_uncached <> uncoreTileIOs.map(_.uncached).flatten ++ io.slave
     l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
 
-    // Create a converter between TileLinkIO and MemIO for each channel
     val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, c.nMemChannels)(outerMemParams))
 
     val backendBuffering = TileLinkDepths(0,0,0,0,0)
@@ -145,11 +146,11 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
 
     // connect coreplex-internal interrupts to tiles
     for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
-      tile.interrupts := io.clint(i)
+      tile.interrupts <> io.clint(i)
       tile.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
       tile.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
       tile.interrupts.debug := debugModule.io.debugInterrupts(i)
-      tile.hartid := i
+      tile.hartid := UInt(i)
       tile.resetVector := io.resetVector
     }
 

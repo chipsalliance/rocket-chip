@@ -3,11 +3,12 @@
 package uncore.devices
 
 import Chisel._
-import rocket.Util._
 import junctions._
 import junctions.NastiConstants._
+import regmapper._
 import uncore.tilelink2._
 import uncore.util._
+import util._
 import scala.math.{min,max}
 import cde.{Parameters, Field}
 
@@ -19,7 +20,7 @@ class CoreplexLocalInterrupts extends Bundle {
   val msip = Bool()
 }
 
-case class CoreplexLocalInterrupterConfig(beatBytes: Int, address: BigInt = 0x44000000) {
+case class CoreplexLocalInterrupterConfig(beatBytes: Int, address: BigInt = 0x02000000) {
   def msipOffset(hart: Int) = hart * msipBytes
   def msipAddress(hart: Int) = address + msipOffset(hart)
   def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes
@@ -52,7 +53,7 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 
   val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
   when (io.rtcTick) {
-    val newTime = time.asUInt + 1
+    val newTime = time.asUInt + UInt(1)
     for ((reg, i) <- time zip (0 until timeWidth by regWidth))
       reg := newTime >> i
   }

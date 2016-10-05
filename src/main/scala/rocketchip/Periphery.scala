@@ -6,13 +6,14 @@ import Chisel._
 import cde.{Parameters, Field}
 import junctions._
 import junctions.NastiConstants._
+import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.converters._
 import uncore.devices._
 import uncore.agents._
 import uncore.util._
-import rocket.Util._
+import util._
 import rocket.XLen
 import scala.math.max
 import coreplex._
@@ -50,6 +51,10 @@ case object RTCPeriod extends Field[Int]
 /* Specifies the periphery bus configuration */
 case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
 case object PeripheryBusKey extends Field[PeripheryBusConfig]
+
+/* Specifies the data and id width at the chip boundary */
+case object EdgeDataBits extends Field[Int]
+case object EdgeIDBits extends Field[Int]
 
 object PeripheryUtils {
   def addQueueAXI(source: NastiIO) = {

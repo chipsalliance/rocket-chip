@@ -4,6 +4,7 @@ package util
 
 import Chisel._
 import cde._
+import diplomacy.LazyModule
 import java.io.{File, FileWriter}
 
 /** Representation of the information this Generator needs to collect from external sources. */
@@ -120,7 +121,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
 
   /** Output a global LazyModule topology for documentation purposes. */
   def generateGraphML {
-    GraphMLOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.graphml", c))
+    TopModule.contents.foreach(lm => writeOutputFile(td, s"${names.configs}.graphml", lm.graphML))
   }
 }
 
@@ -128,6 +129,6 @@ object ConfigStringOutput {
   var contents: Option[String] = None
 }
 
-object GraphMLOutput {
-  var contents: Option[String] = None
+object TopModule {
+  var contents: Option[LazyModule] = None
 }

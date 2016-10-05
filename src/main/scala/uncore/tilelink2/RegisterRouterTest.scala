@@ -3,7 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
-import util.Pow2ClockDivider
+import diplomacy._
+import regmapper._
+import unittest._
+import util.{Pow2ClockDivider}
 
 object LFSR16Seed
 {
@@ -34,7 +37,7 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
   io.rvalid := rvalid_s
   io.wready := wready_s
 
-  io.rdata := reg
+  io.rdata := Mux(rvalid_s && io.rready, reg, UInt(0))
   when (io.wvalid && wready_s) { reg := io.wdata }
 }
 
@@ -46,10 +49,7 @@ object RRTestCombinational
 
   def random: Bool => Bool = { ready =>
     seed = seed + 1
-    val lfsr = LFSR16Seed(seed)
-    val valid = RegInit(Bool(true))
-    valid := Mux(valid, !ready, lfsr(0) && lfsr(1))
-    valid
+    LFSR16Seed(seed)(0)
   }
 
   def delay(x: Int): Bool => Bool = { ready =>
@@ -96,7 +96,7 @@ class RRTestRequest(val bits: Int,
   val rofire = io.roready && rovalid
   val wofire = io.woready && wovalid
 
-  io.rdata := reg
+  io.rdata := Mux(rofire, reg, UInt(0))
   when (wofire) { reg := wdata }
 }
 
@@ -129,14 +129,11 @@ object RRTestRequest
       val lfsr = LFSR16Seed(seed)
       val busy = RegInit(Bool(false))
       val data = Reg(UInt(width = idata.getWidth))
-      val progress = RegInit(Bool(false))
+      val progress = lfsr(0)
       val iready = progress && !busy
       val ovalid = progress && busy
       when (progress) {
         busy := Mux(busy, !oready, ivalid)
-        progress := Mux(busy, !oready, !ivalid)
-      } .otherwise {
-        progress := lfsr(0)
       }
       when (ivalid && iready) { data := idata }
       (iready, ovalid, data)
@@ -182,7 +179,7 @@ object RRTest0Map
   def ee(bits: Int) = combo(bits, delay(11), delay(11))
 
   // All fields must respect byte alignment, or else it won't behave like an SRAM
-  val map = Seq(
+  def map = Seq(
     0  -> Seq(aa(8), ar(8), ad(8), ae(8)),
     4  -> Seq(ra(8), rr(8), rd(8), re(8)),
     8  -> Seq(da(8), dr(8), dd(8), de(8)),
@@ -202,7 +199,7 @@ object RRTest1Map
   def bp(bits: Int) = request(bits, busy, pipe(3))
   def bb(bits: Int) = request(bits, busy, busy)
 
-  val map = RRTest0Map.map.take(6) ++ Seq(
+  def map = RRTest0Map.map.take(6) ++ Seq(
     24 -> Seq(pp(8), pb(8), bp(8), bb(8)),
     28 -> Seq(pp(3), pb(5), bp(1), bb(7), pb(5), bp(3), pp(4), bb(4)))
 }
@@ -258,3 +255,34 @@ trait RRTest1Module extends Module with HasRegMap
 class RRTest1(address: BigInt) extends TLRegisterRouter(address, 0, 32, 6, 4)(
   new TLRegBundle((), _)    with RRTest1Bundle)(
   new TLRegModule((), _, _) with RRTest1Module)
+
+class FuzzRRTest0 extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val rrtr = LazyModule(new RRTest0(0x400))
+
+  rrtr.node := TLFragmenter(4, 32)(TLBuffer()(fuzz.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRR0Test extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new FuzzRRTest0).module).io.finished
+}
+
+class FuzzRRTest1 extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val rrtr = LazyModule(new RRTest1(0x400))
+
+  rrtr.node := TLFragmenter(4, 32)(TLBuffer()(fuzz.node))
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRR1Test extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new FuzzRRTest1).module).io.finished
+}
+

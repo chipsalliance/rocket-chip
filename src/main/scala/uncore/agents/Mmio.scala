@@ -35,7 +35,7 @@ class MMIOTileLinkManager(implicit p: Parameters)
 
   io.inner.acquire.ready := io.outer.acquire.ready && xact_free
   io.outer.acquire.valid := io.inner.acquire.valid && xact_free
-  io.outer.acquire.bits  := io.inner.acquire.bits
+  io.outer.acquire.bits  <> io.inner.acquire.bits
   io.outer.acquire.bits.client_xact_id := outer_xact_id
 
   def isLastBeat[T <: TileLinkChannel with HasTileLinkBeatId](in: T): Bool =
@@ -56,7 +56,7 @@ class MMIOTileLinkManager(implicit p: Parameters)
                                   clearPendingBitOnGnt(io.inner.grant)
 
   when (io.outer.acquire.fire() && isLastBeat(io.outer.acquire.bits)) {
-    xact_buffer(outer_xact_id) := io.iacq()
+    xact_buffer(outer_xact_id) <> io.iacq()
   }
 
   when (multibeat_start) { xact_multibeat := Bool(true) }
@@ -65,7 +65,7 @@ class MMIOTileLinkManager(implicit p: Parameters)
   val gnt_xact = xact_buffer(io.ognt().client_xact_id)
   io.outer.grant.ready := io.inner.grant.ready
   io.inner.grant.valid := io.outer.grant.valid
-  io.inner.grant.bits  := io.outer.grant.bits
+  io.inner.grant.bits  <> io.outer.grant.bits
   io.inner.grant.bits.client_id := gnt_xact.client_id
   io.inner.grant.bits.client_xact_id := gnt_xact.client_xact_id
   io.inner.grant.bits.manager_xact_id := io.ognt().client_xact_id

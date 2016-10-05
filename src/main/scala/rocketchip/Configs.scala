@@ -5,12 +5,12 @@ package rocketchip
 import Chisel._
 import junctions._
 import rocket._
-import rocket.Util._
+import diplomacy._
 import uncore.agents._
 import uncore.tilelink._
-import uncore.tilelink2.{LazyModule}
 import uncore.devices._
 import uncore.converters._
+import util._
 import coreplex._
 import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
@@ -23,30 +23,24 @@ class BasePlatformConfig extends Config(
     (pname,site,here) =>  {
       type PF = PartialFunction[Any,Any]
       def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-      lazy val innerDataBits = 64
-      lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
+      lazy val edgeDataBits = site(EdgeDataBits)
+      lazy val edgeDataBeats = (8 * site(CacheBlockBytes)) / edgeDataBits
       pname match {
         //Memory Parameters
-        case MIFTagBits => Dump("MIF_TAG_BITS", 5)
-        case MIFDataBits => Dump("MIF_DATA_BITS", 64)
-        case MIFAddrBits => Dump("MIF_ADDR_BITS",
-                                 site(PAddrBits) - site(CacheBlockOffsetBits))
-        case MIFDataBeats => site(CacheBlockBytes) * 8 / site(MIFDataBits)
-        case NastiKey => {
-          Dump("MEM_STRB_BITS", site(MIFDataBits) / 8)
-          NastiParameters(
-            dataBits = Dump("MEM_DATA_BITS", site(MIFDataBits)),
-            addrBits = Dump("MEM_ADDR_BITS", site(PAddrBits)),
-            idBits = Dump("MEM_ID_BITS", site(MIFTagBits)))
-        }
+        case EdgeDataBits => 64
+        case EdgeIDBits => 5
+        case NastiKey => NastiParameters(
+          dataBits = edgeDataBits,
+          addrBits = site(PAddrBits),
+          idBits = site(EdgeIDBits))
         case TLKey("EdgetoSlave") =>
-          site(TLKey("L1toL2")).copy(dataBeats = site(MIFDataBeats))
+          site(TLKey("L1toL2")).copy(dataBeats = edgeDataBeats)
         case TLKey("MCtoEdge") =>
-          site(TLKey("L2toMC")).copy(dataBeats = site(MIFDataBeats))
+          site(TLKey("L2toMC")).copy(dataBeats = edgeDataBeats)
         case TLKey("MMIOtoEdge") =>
-          site(TLKey("L2toMMIO")).copy(dataBeats = site(MIFDataBeats))
+          site(TLKey("L2toMMIO")).copy(dataBeats = edgeDataBeats)
         case BuildCoreplex =>
-          (c: CoreplexConfig, p: Parameters) => uncore.tilelink2.LazyModule(new DefaultCoreplex(c)(p)).module
+          (c: CoreplexConfig, p: Parameters) => LazyModule(new DefaultCoreplex(c)(p)).module
         case NExtTopInterrupts => 2
         case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
         // Note that PLIC asserts that this is > 0.
@@ -67,14 +61,14 @@ class BasePlatformConfig extends Config(
         case HastiKey("Ext") =>
           HastiParameters(
             addrBits = site(PAddrBits),
-            dataBits = site(XLen))
+            dataBits = edgeDataBits)
         case AsyncMemChannels => false
         case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
         case TMemoryChannels => BusType.AXI
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case BuildExampleTop =>
-          (p: Parameters) => uncore.tilelink2.LazyModule(new ExampleTop(p))
+          (p: Parameters) => LazyModule(new ExampleTop(p))
         case SimMemLatency => 0
         case _ => throw new CDEMatchError
       }
@@ -150,16 +144,16 @@ class DualChannelDualBankL2Config extends Config(
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
-class WithMIFDataBits(n: Int) extends Config(
+class WithEdgeDataBits(dataBits: Int) extends Config(
   (pname, site, here) => pname match {
-    case MIFDataBits => Dump("MIF_DATA_BITS", n)
+    case EdgeDataBits => dataBits
     case _ => throw new CDEMatchError
   })
 
-class MIF128BitConfig extends Config(
-  new WithMIFDataBits(128) ++ new BaseConfig)
-class MIF32BitConfig extends Config(
-  new WithMIFDataBits(32) ++ new BaseConfig)
+class Edge128BitConfig extends Config(
+  new WithEdgeDataBits(128) ++ new BaseConfig)
+class Edge32BitConfig extends Config(
+  new WithEdgeDataBits(32) ++ new BaseConfig)
 
 class SmallL2Config extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
@@ -193,5 +187,17 @@ class WithJtagDTM extends Config (
   (pname, site, here) => pname match {
     case IncludeJtagDTM => true
     case _ => throw new CDEMatchError
+  }
+)
+
+class WithNoPeripheryArithAMO extends Config (
+  (pname, site, here) => pname match {
+    case PeripheryBusKey => PeripheryBusConfig(arithAMO = false, beatBytes = 4)
+  }
+)
+
+class With64BitPeriphery extends Config (
+  (pname, site, here) => pname match {
+    case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 8)
   }
 )

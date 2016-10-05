@@ -3,12 +3,11 @@
 package rocket
 
 import Chisel._
-import Util._
-import uncore.util._
 import Instructions._
 import cde.{Parameters, Field}
 import uncore.devices._
-import uncore.util._
+import util._
+import Chisel.ImplicitConversions._
 import junctions.AddrMap
 
 class MStatus extends Bundle {
@@ -261,7 +260,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val s_interrupts = Mux(!reg_debug && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & reg_mideleg, UInt(0))
   val all_interrupts = m_interrupts | s_interrupts
   val interruptMSB = BigInt(1) << (xLen-1)
-  val interruptCause = interruptMSB + PriorityEncoder(all_interrupts)
+  val interruptCause = UInt(interruptMSB) + PriorityEncoder(all_interrupts)
   io.interrupt := all_interrupts.orR && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
@@ -269,7 +268,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   // debug interrupts are only masked by being in debug mode
   when (Bool(usingDebug) && reg_dcsr.debugint && !reg_debug) {
     io.interrupt := true
-    io.interrupt_cause := interruptMSB + CSR.debugIntCause
+    io.interrupt_cause := UInt(interruptMSB) + CSR.debugIntCause
   }
 
   val system_insn = io.rw.cmd === CSR.I
@@ -602,10 +601,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       when (decoded_addr(CSRs.sbadaddr)) { reg_sbadaddr := wdata(vaddrBitsExtended-1,0) }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
-      when (decoded_addr(CSRs.mscounteren)) { reg_mscounteren := wdata & delegable_counters }
+      when (decoded_addr(CSRs.mscounteren)) { reg_mscounteren := wdata & UInt(delegable_counters) }
     }
     if (usingUser) {
-      when (decoded_addr(CSRs.mucounteren)) { reg_mucounteren := wdata & delegable_counters }
+      when (decoded_addr(CSRs.mucounteren)) { reg_mucounteren := wdata & UInt(delegable_counters) }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
@@ -624,8 +623,18 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }
   }
 
-  reg_mip := io.interrupts
+  reg_mip <> io.interrupts
   reg_dcsr.debugint := io.interrupts.debug
+
+  if (!usingVM) {
+    reg_mideleg := 0
+    reg_medeleg := 0
+    reg_mscounteren := 0
+  }
+
+  if (!usingUser) {
+    reg_mucounteren := 0
+  }
 
   reg_sptbr.asid := 0
   if (nBreakpoints <= 1) reg_tselect := 0

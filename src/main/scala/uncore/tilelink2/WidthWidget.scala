@@ -5,6 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.util.{Irrevocable, IrrevocableIO}
+import diplomacy._
 import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
@@ -176,9 +177,33 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 object TLWidthWidget
 {
   // applied to the TL source node; y.node := WidthWidget(x.node, 16)
-  def apply(innerBeatBytes: Int)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply(innerBeatBytes: Int)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
     widget.node := x
     widget.node
   }
+}
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMWidthWidget(first: Int, second: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(4, 256)(
+                if (first == second ) { TLWidthWidget(first)(model.node) }
+                else {
+                  TLWidthWidget(second)(
+                    TLWidthWidget(first)(model.node))})
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMWidthWidgetTest(little: Int, big: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big)).module).io.finished
 }

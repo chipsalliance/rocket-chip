@@ -3,6 +3,7 @@ package rocketchip
 import Chisel._
 import uncore.devices.{DebugBusIO, AsyncDebugBusTo, AsyncDebugBusFrom, DebugBusReq, DebugBusResp, DMKey}
 import junctions._
+import util._
 import cde.{Parameters, Field}
 
 case object IncludeJtagDTM extends Field[Boolean]
@@ -72,6 +73,9 @@ class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
   dtm_resp.valid := io_debug_bus.resp.valid
   dtm_resp.bits  := io_debug_bus.resp.bits.asUInt
   io_debug_bus.resp.ready  := dtm_resp.ready
+
+  dtm_req <> jtag_dtm.io.dtm_req
+  jtag_dtm.io.dtm_resp <> dtm_resp
 }
 
 class DebugTransportModuleJtag(reqSize : Int, respSize : Int)(implicit val p: Parameters)  extends BlackBox {

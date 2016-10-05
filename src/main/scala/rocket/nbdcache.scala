@@ -6,11 +6,11 @@ import Chisel._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
-import uncore.util._
 import uncore.constants._
-import util.{ParameterizedBundle, DecoupledHelper}
+import uncore.util._
+import util._
+import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
-import Util._
 
 case class DCacheConfig(
   nMSHRs: Int = 1,
@@ -926,10 +926,10 @@ class HellaCache(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCache
   when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
-      when (!lrsc_valid) { lrsc_count := lrscCycles-1 }
+      lrsc_count := lrscCycles - 1
       lrsc_addr := s2_req.addr >> blockOffBits
     }
-    when (s2_sc) {
+    when (lrsc_valid) {
       lrsc_count := 0
     }
   }

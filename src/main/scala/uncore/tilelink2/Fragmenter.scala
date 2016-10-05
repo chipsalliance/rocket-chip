@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy._
 import scala.math.{min,max}
 
 // minSize: minimum size of transfers supported by all outward managers
@@ -244,9 +245,30 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 object TLFragmenter
 {
   // applied to the TL source node; y.node := TLFragmenter(x.node, 256, 4)
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(x: TLBaseNode)(implicit sourceInfo: SourceInfo): TLBaseNode = {
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin))
     fragmenter.node := x
     fragmenter.node
   }
 }
+
+/** Synthesizeable unit tests */
+import unittest._
+
+class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
+
+  model.node := fuzz.node
+  ram.node := TLFragmenter(ramBeatBytes, maxSize)(model.node)
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize)).module).io.finished
+}
+

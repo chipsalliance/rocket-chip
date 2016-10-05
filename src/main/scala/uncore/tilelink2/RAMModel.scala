@@ -3,7 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.LFSR16
+import diplomacy._
 
 // We detect concurrent puts that put memory into an undefined state.
 // put0, put0Ack, put1, put1Ack => ok: defined
@@ -44,7 +44,7 @@ class TLRAMModel extends LazyModule
     val endAddressHi = (endAddress / beatBytes).intValue
     val maxLgBeats   = log2Up(maxTransfer/beatBytes)
     val shift        = log2Ceil(beatBytes)
-    val decTrees     = log2Ceil(maxTransfer/beatBytes)
+    val decTrees     = log2Up(maxTransfer/beatBytes)
     val addressBits  = log2Up(endAddress)
     val countBits    = log2Up(endSourceId)
     val sizeBits     = edge.bundle.sizeBits

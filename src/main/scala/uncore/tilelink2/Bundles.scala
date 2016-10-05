@@ -2,23 +2,10 @@
 
 package uncore.tilelink2
 
-import chisel3._
-import chisel3.util._
-
-abstract class GenericParameterizedBundle[T <: Object](val params: T) extends Bundle
-{
-  override def cloneType = {
-    try {
-      this.getClass.getConstructors.head.newInstance(params).asInstanceOf[this.type]
-    } catch {
-      case e: java.lang.IllegalArgumentException =>
-        throw new Exception("Unable to use GenericParameterizedBundle.cloneType on " +
-                       this.getClass + ", probably because " + this.getClass +
-                       "() takes more than one argument.  Consider overriding " +
-                       "cloneType() on " + this.getClass, e)
-    }
-  }
-}
+import Chisel._
+import chisel3.util.{Irrevocable, IrrevocableIO, ReadyValidIO}
+import diplomacy._
+import util.{AsyncQueueSource, AsyncQueueSink, GenericParameterizedBundle}
 
 abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 
@@ -190,7 +177,7 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
+final class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
 {
   val ready = Bool()
   val valid = Bool()
@@ -224,11 +211,61 @@ object TLBundleSnoop
 {
   def apply(x: TLBundle) = {
     val out = Wire(new TLBundleSnoop(x.params))
-    out.a := IrrevocableSnoop(x.a)
-    out.b := IrrevocableSnoop(x.b)
-    out.c := IrrevocableSnoop(x.c)
-    out.d := IrrevocableSnoop(x.d)
-    out.e := IrrevocableSnoop(x.e)
+    out.a <> IrrevocableSnoop(x.a)
+    out.b <> IrrevocableSnoop(x.b)
+    out.c <> IrrevocableSnoop(x.c)
+    out.d <> IrrevocableSnoop(x.d)
+    out.e <> IrrevocableSnoop(x.e)
     out
   }
+}
+
+final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
+{
+  require (isPow2(depth))
+  val ridx = UInt(width = log2Up(depth)+1).flip
+  val widx = UInt(width = log2Up(depth)+1)
+  val mem  = Vec(depth, gen)
+  override def cloneType: this.type = new AsyncBundle(depth, gen).asInstanceOf[this.type]
+}
+
+object FromAsyncBundle
+{
+  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): IrrevocableIO[T] = {
+    val sink = Module(new AsyncQueueSink(x.mem(0), x.depth, sync))
+    x.ridx := sink.io.ridx
+    sink.io.widx := x.widx
+    sink.io.mem  := x.mem
+    val out = Wire(Irrevocable(x.mem(0)))
+    out.valid := sink.io.deq.valid
+    out.bits := sink.io.deq.bits
+    sink.io.deq.ready := out.ready
+    out
+  }
+}
+
+object ToAsyncBundle
+{
+  def apply[T <: Data](x: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): AsyncBundle[T] = {
+    val source = Module(new AsyncQueueSource(x.bits, depth, sync))
+    source.io.enq.valid := x.valid
+    source.io.enq.bits := x.bits
+    x.ready := source.io.enq.ready
+    val out = Wire(new AsyncBundle(depth, x.bits))
+    source.io.ridx := out.ridx
+    out.mem := source.io.mem
+    out.widx := source.io.widx
+    out
+  }
+}
+
+class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParameterizedBundle(params)
+
+class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
+{
+  val a = new AsyncBundle(params.depth, new TLBundleA(params.base))
+  val b = new AsyncBundle(params.depth, new TLBundleB(params.base)).flip
+  val c = new AsyncBundle(params.depth, new TLBundleC(params.base))
+  val d = new AsyncBundle(params.depth, new TLBundleD(params.base)).flip
+  val e = new AsyncBundle(params.depth, new TLBundleE(params.base))
 }

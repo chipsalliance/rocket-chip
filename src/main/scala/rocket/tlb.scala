@@ -3,13 +3,13 @@
 package rocket
 
 import Chisel._
-import Util._
+import util._
+import Chisel.ImplicitConversions._
 import junctions._
 import scala.math._
 import cde.{Parameters, Field}
 import uncore.agents.PseudoLRU
 import uncore.coherence._
-import uncore.util._
 
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
@@ -134,7 +134,7 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   io.resp.ppn := Mux1H(hitsVec, ppns :+ passthrough_ppn)
 
   io.ptw.req.valid := state === s_request
-  io.ptw.req.bits := io.ptw.status
+  io.ptw.req.bits <> io.ptw.status
   io.ptw.req.bits.addr := r_refill_tag
   io.ptw.req.bits.store := r_req.store
   io.ptw.req.bits.fetch := r_req.instruction
