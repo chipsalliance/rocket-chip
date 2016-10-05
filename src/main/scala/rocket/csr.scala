@@ -623,7 +623,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }
   }
 
-  reg_mip := io.interrupts
+  reg_mip <> io.interrupts
   reg_dcsr.debugint := io.interrupts.debug
 
   if (!usingVM) {

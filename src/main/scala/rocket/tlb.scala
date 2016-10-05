@@ -134,7 +134,7 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   io.resp.ppn := Mux1H(hitsVec, ppns :+ passthrough_ppn)
 
   io.ptw.req.valid := state === s_request
-  io.ptw.req.bits := io.ptw.status
+  io.ptw.req.bits <> io.ptw.status
   io.ptw.req.bits.addr := r_refill_tag
   io.ptw.req.bits.store := r_req.store
   io.ptw.req.bits.fetch := r_req.instruction

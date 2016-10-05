@@ -431,7 +431,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   // cached response
   io.cpu.resp.valid := s2_valid_hit
-  io.cpu.resp.bits := s2_req
+  io.cpu.resp.bits <> s2_req
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false
   io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
