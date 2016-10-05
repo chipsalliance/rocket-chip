@@ -36,6 +36,7 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     topLevelSCRBuilder.addControl(s"core_${i}_rocc_reset", UInt(1))
   }
   topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
+  topLevelSCRBuilder.addControl("hbwif_reset", UInt(1))
   topLevelSCRBuilder.addControl("slow_clock_divide", UInt(0))
   for (i <- 0 until p(NMemoryChannels)) {
     topLevelSCRBuilder.addControl(s"switcher_channel_$i", UInt(0))
@@ -76,6 +77,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
   // Hbwif connections
   hbwifFastClock := clock
+  hbwifReset := scr.control("hbwif_reset")(0).toBool
 }
 
 /////
