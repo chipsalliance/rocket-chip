@@ -60,20 +60,20 @@ trait AsyncConnection {
     tile.io.roccClock := tcr.roccClock
     tile.io.roccReset := tcr.roccReset
 
-    (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> AsyncTileLinkFrom(tcr.clock, tcr.reset, t) }
+    (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> AsyncTileLinkFrom(tcr.clock, tcr.reset, t, sync = 2) }
     //rocket's uncached port
-    uncore.uncached.head <> AsyncUTileLinkFrom(tcr.clock, tcr.reset, tile.io.uncached.head)
+    uncore.uncached.head <> AsyncUTileLinkFrom(tcr.clock, tcr.reset, tile.io.uncached.head, sync = 2)
     //rocc's uncached ports
-    (uncore.uncached.drop(1) zip tile.io.uncached.drop(1)) foreach { case (u, t) => u <> AsyncUTileLinkFrom(tcr.roccClock, tcr.roccReset, t) }
-    tile.io.slave.foreach { _ <> AsyncUTileLinkTo(tcr.clock, tcr.reset, uncore.slave.get)}
+    (uncore.uncached.drop(1) zip tile.io.uncached.drop(1)) foreach { case (u, t) => u <> AsyncUTileLinkFrom(tcr.roccClock, tcr.roccReset, t, sync = 2) }
+    tile.io.slave.foreach { _ <> AsyncUTileLinkTo(tcr.clock, tcr.reset, uncore.slave.get, sync = 2)}
 
     val ti = tile.io.interrupts
     val ui = uncore.interrupts
-    ti.debug := LevelSyncTo(tcr.clock, ui.debug)
-    ti.mtip := LevelSyncTo(tcr.clock, ui.mtip)
-    ti.msip := LevelSyncTo(tcr.clock, ui.msip)
-    ti.meip := LevelSyncTo(tcr.clock, ui.meip)
-    ti.seip.foreach { _ := LevelSyncTo(tcr.clock, ui.seip.get) }
+    ti.debug := LevelSyncTo(tcr.clock, ui.debug, sync = 2)
+    ti.mtip := LevelSyncTo(tcr.clock, ui.mtip, sync = 2)
+    ti.msip := LevelSyncTo(tcr.clock, ui.msip, sync = 2)
+    ti.meip := LevelSyncTo(tcr.clock, ui.meip, sync = 2)
+    ti.seip.foreach { _ := LevelSyncTo(tcr.clock, ui.seip.get, sync = 2) }
 
     tile.io.hartid := uncore.hartid
     tile.io.resetVector := uncore.resetVector

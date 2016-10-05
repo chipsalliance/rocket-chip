@@ -183,20 +183,20 @@ trait AsyncConnection {
   val coreplex: BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]
 
   coreplexIO.master.mem.zip(coreplex.io.master.mem).map {
-    case(out, in) => out <> AsyncUTileLinkFrom(coreplex.clock, coreplex.reset, in)
+    case(out, in) => out <> AsyncUTileLinkFrom(coreplex.clock, coreplex.reset, in, sync = 2)
   }
-  coreplexIO.master.mmio <> AsyncUTileLinkFrom(coreplex.clock, coreplex.reset, coreplex.io.master.mmio)
+  coreplexIO.master.mmio <> AsyncUTileLinkFrom(coreplex.clock, coreplex.reset, coreplex.io.master.mmio, sync = 2)
   coreplex.io.slave.zip(coreplexIO.slave).map {
-    case(out, in) => out <> AsyncUTileLinkTo(coreplex.clock, coreplex.reset, in)
+    case(out, in) => out <> AsyncUTileLinkTo(coreplex.clock, coreplex.reset, in, sync = 2)
   }
   coreplexIO.interrupts.zip(coreplex.io.interrupts).map {
-    case(out, in) => out <> LevelSyncFrom(coreplex.clock, in)
+    case(out, in) => out <> LevelSyncFrom(coreplex.clock, in, sync = 2)
   }
-  coreplex.io.debug <> AsyncDebugBusTo(coreplex.clock, coreplex.reset, coreplexIO.debug)
+  coreplex.io.debug <> AsyncDebugBusTo(coreplex.clock, coreplex.reset, coreplexIO.debug, sync = 2)
   coreplex.io.clint.zip(coreplexIO.clint).map {
     case(out, in) => {
-      out.mtip := LevelSyncTo(coreplex.clock, in.mtip)
-      out.msip := LevelSyncTo(coreplex.clock, in.msip)
+      out.mtip := LevelSyncTo(coreplex.clock, in.mtip, sync = 2)
+      out.msip := LevelSyncTo(coreplex.clock, in.msip, sync = 2)
     }
   }
   coreplex.io.resetVector := coreplexIO.resetVector
