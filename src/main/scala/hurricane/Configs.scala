@@ -104,6 +104,13 @@ class WithTinyHbwif extends Config (
   }
 )
 
+class WithEightLaneHbwif extends Config (
+  (pname, site, here) => pname match {
+    case HbwifKey => HbwifParameters(numLanes = 8)
+    case _ => throw new CDEMatchError
+  }
+)
+
 class WithHwachaAndDma extends Config (
   (pname, site, here) => pname match {
     case BuildRoCC => {
