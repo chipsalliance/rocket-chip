@@ -325,8 +325,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (io.mem.grant.fire() && refillDone) { cached_grant_wait := false }
 
   // data refill
-  dataArb.io.in(1).valid := grantIsRefill && io.mem.grant.valid
-  assert(dataArb.io.in(1).ready || !dataArb.io.in(1).valid)
+  val doRefillBeat = grantIsRefill && io.mem.grant.valid
+  dataArb.io.in(1).valid := doRefillBeat
+  assert(dataArb.io.in(1).ready || !doRefillBeat)
   dataArb.io.in(1).bits.write := true
   dataArb.io.in(1).bits.addr := Cat(s2_req.addr(paddrBits-1, blockOffBits), io.mem.grant.bits.addr_beat) << beatOffBits
   dataArb.io.in(1).bits.way_en := s2_victim_way
