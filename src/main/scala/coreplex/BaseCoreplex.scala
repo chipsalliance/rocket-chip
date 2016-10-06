@@ -98,7 +98,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
 
     // Create point(s) of coherence serialization
     val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
-    managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
+    managerEndpoints.map(_.incoherent).foreach(_ <> tiles.map(_.reset))
 
     val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
         case TLId => "L1toL2"
