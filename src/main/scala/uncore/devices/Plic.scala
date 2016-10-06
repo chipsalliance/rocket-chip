@@ -140,9 +140,9 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
       else UInt(0)
     hart := enableHart
     val word =
-      if (tlDataBits >= cfg.nHarts) UInt(0)
-      else addr(log2Up((cfg.nHarts+7)/8)-1,log2Up(tlDataBytes))
-    for (i <- 0 until cfg.nHarts by tlDataBits) {
+      if (tlDataBits >= myEnables.size) UInt(0)
+      else addr(log2Ceil((myEnables.size-1)/tlDataBits+1)-1,log2Up(tlDataBytes))
+    for (i <- 0 until myEnables.size by tlDataBits) {
       when (word === i/tlDataBits) {
         rdata := Cat(myEnables.slice(i, i + tlDataBits).reverse)
         for (j <- 0 until (tlDataBits min (myEnables.size - i))) {
