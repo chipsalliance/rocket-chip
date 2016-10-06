@@ -141,7 +141,7 @@ trait HurricaneIFModule extends HasPeripheryParameters {
 
   val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(switcherParams))
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(
-    nMemChannels, numLanes+1)(switcherParams))
+    nMemChannels, numLanes+2)(switcherParams))
   val lbwif = Module(
     new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth)(lbwifParams))
 
@@ -176,7 +176,7 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   }
 
   for (i <- 0 until nMemChannels) {
-    switcher.io.select(i) := scr.control(s"switcher_channel_$i")(log2Up(nMemChannels),0)
+    switcher.io.select(i) := scr.control(s"switcher_channel_$i")(log2Up(numLanes+2),0)
   }
 }
 
