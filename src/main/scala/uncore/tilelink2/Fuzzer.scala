@@ -80,7 +80,11 @@ object LFSRNoiseMaker {
 class TLFuzzer(
     nOperations: Int,
     inFlight: Int = 32,
-    noiseMaker: (Int, Bool) => UInt = LFSRNoiseMaker.apply _) extends LazyModule
+    noiseMaker: (Int, Bool, Int) => UInt = {
+                  (wide: Int, increment: Bool, abs_values: Int) =>
+                   LFSRNoiseMaker(wide=wide, increment=increment)
+                  }
+              ) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -135,14 +139,14 @@ class TLFuzzer(
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
-    val arth_op_3 = noiseMaker(3, inc)
+    val arth_op_3 = noiseMaker(3, inc, 0)
     val arth_op   = Mux(arth_op_3 > UInt(4), UInt(4), arth_op_3)
-    val log_op    = noiseMaker(2, inc)
-    val amo_size  = UInt(2) + noiseMaker(1, inc) // word or dword
-    val size      = noiseMaker(sizeBits, inc)
-    val addr      = noiseMaker(addressBits, inc) & ~UIntToOH1(size, addressBits)
-    val mask      = noiseMaker(beatBytes, inc_beat) & edge.mask(addr, size)
-    val data      = noiseMaker(dataBits, inc_beat)
+    val log_op    = noiseMaker(2, inc, 0)
+    val amo_size  = UInt(2) + noiseMaker(1, inc, 0) // word or dword
+    val size      = noiseMaker(sizeBits, inc, 0)
+    val addr      = noiseMaker(addressBits, inc, 2) & ~UIntToOH1(size, addressBits)
+    val mask      = noiseMaker(beatBytes, inc_beat, 2) & edge.mask(addr, size)
+    val data      = noiseMaker(dataBits, inc_beat, 2)
 
     // Actually generate specific TL messages when it is legal to do so
     val (glegal,  gbits)  = edge.Get(src, addr, size)
@@ -165,7 +169,7 @@ class TLFuzzer(
     val legal_dest = edge.manager.containsSafe(addr)
 
     // Pick a specific message to try to send
-    val a_type_sel  = noiseMaker(3, inc)
+    val a_type_sel  = noiseMaker(3, inc, 0)
 
     val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
