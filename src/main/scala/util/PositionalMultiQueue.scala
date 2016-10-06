@@ -47,6 +47,9 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
     guard(io.enq.bits.pos) := Bool(true)
   }
 
+  val deq = Wire(io.deq)
+  io.deq <> deq
+
   val waySelect = UIntToOH(io.enq.bits.way, params.ways)
   for (i <- 0 until params.ways) {
     val enq = io.enq.fire() && waySelect(i)
@@ -62,22 +65,22 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
     }
 
     if (combinational) {
-      io.deq(i).valid := !empty(i) || enq
-      io.deq(i).bits.pos  := Mux(empty(i), io.enq.bits.pos, head(i))
-      io.deq(i).bits.data := Mux(empty(i), io.enq.bits.data, data(head(i)))
+      deq(i).valid := !empty(i) || enq
+      deq(i).bits.pos  := Mux(empty(i), io.enq.bits.pos, head(i))
+      deq(i).bits.data := Mux(empty(i), io.enq.bits.data, data(head(i)))
     } else {
-      io.deq(i).valid := !empty(i)
-      io.deq(i).bits.pos := head(i)
-      io.deq(i).bits.data := data(head(i))
+      deq(i).valid := !empty(i)
+      deq(i).bits.pos := head(i)
+      deq(i).bits.data := data(head(i))
     }
 
-    when (io.deq(i).fire()) {
+    when (deq(i).fire()) {
       head(i) := Mux(last, io.enq.bits.pos, next(head(i)))
-      guard(io.deq(i).bits.pos) := Bool(false)
+      guard(deq(i).bits.pos) := Bool(false)
     }
 
-    when (enq =/= io.deq(i).fire()) {
-      empty(i) := io.deq(i).fire() && last
+    when (enq =/= deq(i).fire()) {
+      empty(i) := deq(i).fire() && last
     }
   }
 }
