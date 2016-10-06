@@ -19,13 +19,13 @@ abstract class Crossing[T <: Data] extends Module {
 }
 
 class AsyncScope extends Module { val io = new Bundle }
-object AsyncScope { def apply() = Module(new AsyncScope) }
+object AsyncScope { def apply() = Module(new AsyncScope).suggestName("asyncScopeInst") }
 
 object AsyncDecoupledCrossing
 {
   // takes from_source from the 'from' clock domain and puts it into the 'to' clock domain
   def apply[T <: Data](from_clock: Clock, from_reset: Bool, from_source: ReadyValidIO[T], to_clock: Clock, to_reset: Bool, depth: Int = 8, sync: Int = 3): DecoupledIO[T] = {
-    val crossing = Module(new AsyncQueue(from_source.bits, depth, sync)).io
+    val crossing = Module(new AsyncQueue(from_source.bits, depth, sync)).suggestName("asyncQueueInst").io
     crossing.enq_clock := from_clock
     crossing.enq_reset := from_reset
     crossing.enq       <> from_source

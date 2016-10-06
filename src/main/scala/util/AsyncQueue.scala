@@ -6,7 +6,7 @@ import Chisel._
 object GrayCounter {
   def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
     val incremented = Wire(UInt(width=bits))
-    val binary = AsyncResetReg(incremented, 0)
+    val binary = AsyncResetReg(incremented, 0, "binaryInst")
     incremented := binary + increment.asUInt()
     incremented ^ (incremented >> UInt(1))
   }
@@ -14,7 +14,7 @@ object GrayCounter {
 
 object AsyncGrayCounter {
   def apply(in: UInt, sync: Int): UInt = {
-    val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
+    val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)).suggestName("asyncResetRegVecInst"))
     syncv.last.io.d := in
     syncv.last.io.en := Bool(true)
       (syncv.init zip syncv.tail).foreach { case (sink, source) =>
@@ -43,10 +43,10 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
   when (io.enq.fire() && !reset) { mem(index) := io.enq.bits }
-  val ready_reg = AsyncResetReg(ready, 0)
+  val ready_reg = AsyncResetReg(ready, 0, "ready_regInst")
   io.enq.ready := ready_reg
 
-  val widx_reg = AsyncResetReg(widx, 0)
+  val widx_reg = AsyncResetReg(widx, 0, "widx_regInst")
   io.widx := widx_reg
 
   io.mem := mem
@@ -76,9 +76,9 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   // be considered unless the asynchronously reset deq valid register is set.
   io.deq.bits  := RegEnable(io.mem(index), valid) 
     
-  io.deq.valid := AsyncResetReg(valid, 0)
+  io.deq.valid := AsyncResetReg(valid, 0, "deqValidInst")
 
-  io.ridx := AsyncResetReg(ridx, 0)
+  io.ridx := AsyncResetReg(ridx, 0, "ridxInst")
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
@@ -87,7 +87,9 @@ class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Cross
 
   val io = new CrossingIO(gen)
   val source = Module(new AsyncQueueSource(gen, depth, sync))
+  source.suggestName("sourceInst")
   val sink   = Module(new AsyncQueueSink  (gen, depth, sync))
+  sink.suggestName("sinkInst")
 
   source.clock := io.enq_clock
   source.reset := io.enq_reset
