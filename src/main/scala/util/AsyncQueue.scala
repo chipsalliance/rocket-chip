@@ -92,6 +92,8 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
   // This register does not NEED to be reset, as its contents will not
   // be considered unless the asynchronously reset deq valid register is set.
+  // It is possible that bits latches when the source domain is reset / has power cut
+  // This is safe, because isolation gates brought mem low before the zeroed widx reached us
   io.deq.bits  := RegEnable(io.mem(index), valid)
 
   val valid_reg = AsyncResetReg(valid.asUInt)(0)
