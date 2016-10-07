@@ -34,6 +34,8 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
     val ridx = UInt(INPUT,  width = bits+1)
     val widx = UInt(OUTPUT, width = bits+1)
     val mem  = Vec(depth, gen).asOutput
+    // Reset for the other side
+    val sink_reset_n = Bool().flip()
   }
 
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
@@ -43,6 +45,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
   when (io.enq.fire() && !reset) { mem(index) := io.enq.bits }
+
   val ready_reg = AsyncResetReg(ready, 0)
   io.enq.ready := ready_reg
 
@@ -61,6 +64,8 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
     val ridx = UInt(OUTPUT, width = bits+1)
     val widx = UInt(INPUT,  width = bits+1)
     val mem  = Vec(depth, gen).asInput
+    // Reset for the other side
+    val source_reset_n = Bool().flip()
   }
 
   val ridx = GrayCounter(bits+1, io.deq.fire())
@@ -95,6 +100,9 @@ class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Cross
   source.reset := io.enq_reset
   sink.clock := io.deq_clock
   sink.reset := io.deq_reset
+
+  source.io.sink_reset_n := !io.deq_reset
+  sink.io.source_reset_n := !io.enq_reset
 
   source.io.enq <> io.enq
   io.deq <> sink.io.deq
