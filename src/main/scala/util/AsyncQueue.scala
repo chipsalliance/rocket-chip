@@ -44,7 +44,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
-  when (io.enq.fire() && !reset) { mem(index) := io.enq.bits }
+  when (io.enq.fire()) { mem(index) := io.enq.bits }
 
   val ready_reg = AsyncResetReg(ready, 0)
   io.enq.ready := ready_reg
