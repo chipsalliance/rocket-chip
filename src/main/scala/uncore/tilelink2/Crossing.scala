@@ -18,16 +18,22 @@ class TLAsyncCrossingSource(sync: Int = 3) extends LazyModule
     }
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+      val sink_reset_n = out.a.sink_reset_n
       val bce = edgeIn.manager.anySupportAcquire && edgeIn.client.anySupportProbe
       val depth = edgeOut.manager.depth
 
       out.a <> ToAsyncBundle(in.a, depth, sync)
       in.d <> FromAsyncBundle(out.d, sync)
 
+      assert (!in.a.valid || sink_reset_n, "A channel request sent to a missing manager")
+
       if (bce) {
         in.b <> FromAsyncBundle(out.b, sync)
         out.c <> ToAsyncBundle(in.c, depth, sync)
         out.e <> ToAsyncBundle(in.e, depth, sync)
+
+        assert (!in.c.valid || sink_reset_n, "C channel response sent to a missing manager")
+        assert (!in.e.valid || sink_reset_n, "E channel response sent to a missing manager")
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
@@ -51,15 +57,20 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3) extends LazyModule
     }
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+      val source_reset_n = in.a.source_reset_n
       val bce = edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe
 
       out.a <> FromAsyncBundle(in.a, sync)
       in.d <> ToAsyncBundle(out.d, depth, sync)
 
+      assert (!out.d.valid || source_reset_n, "D channel respose sent to missing client")
+
       if (bce) {
         in.b <> ToAsyncBundle(out.b, depth, sync)
         out.c <> FromAsyncBundle(in.c, sync)
         out.e <> FromAsyncBundle(in.e, sync)
+
+        assert (!out.b.valid || source_reset_n, "B channel request sent to missing client")
       } else {
         in.b.widx := UInt(0)
         in.c.ridx := UInt(0)
