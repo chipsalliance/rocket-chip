@@ -29,13 +29,13 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the source domain
-    val enq  = Decoupled(gen).flip()
+    val enq  = Decoupled(gen).flip
     // These cross to the sink clock domain
     val ridx = UInt(INPUT,  width = bits+1)
     val widx = UInt(OUTPUT, width = bits+1)
     val mem  = Vec(depth, gen).asOutput
     // Reset for the other side
-    val sink_reset_n = Bool().flip()
+    val sink_reset_n = Bool().flip
   }
 
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
@@ -65,7 +65,7 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
     val widx = UInt(INPUT,  width = bits+1)
     val mem  = Vec(depth, gen).asInput
     // Reset for the other side
-    val source_reset_n = Bool().flip()
+    val source_reset_n = Bool().flip
   }
 
   val ridx = GrayCounter(bits+1, io.deq.fire())

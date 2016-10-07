@@ -25,7 +25,7 @@ class BusyRegisterCrossing(clock: Clock, reset: Bool)
 
 // RegField should support connecting to one of these
 class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
-  val request  = Decoupled(gen).flip()
+  val request  = Decoupled(gen).flip
   val response = Irrevocable(Bool()) // ignore .bits
 }
 
@@ -85,7 +85,7 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
 // RegField should support connecting to one of these
 class RegisterReadIO[T <: Data](gen: T) extends Bundle {
-  val request  = Decoupled(Bool()).flip() // ignore .bits
+  val request  = Decoupled(Bool()).flip // ignore .bits
   val response = Irrevocable(gen)
 }
 
