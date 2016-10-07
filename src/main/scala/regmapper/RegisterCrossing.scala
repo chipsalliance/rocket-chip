@@ -35,6 +35,15 @@ class BusyRegisterCrossing extends Module {
   io.master_response_valid  := (bypass    || io.crossing_request_ready) &&  busy
 }
 
+class RegisterCrossingAssertion extends Module {
+  val io = new Bundle {
+    val master_bypass = Bool(INPUT)
+    val slave_reset = Bool(INPUT)
+  }
+
+  assert (io.master_bypass || !io.slave_reset)
+}
+
 // RegField should support connecting to one of these
 class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
   val request  = Decoupled(gen).flip
@@ -101,6 +110,12 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   crossing.io.deq.ready := Bool(true)
   io.slave_valid := crossing.io.deq.valid
   io.slave_register := crossing.io.deq.bits
+
+  val assertion = Module(new RegisterCrossingAssertion)
+  assertion.clock := io.master_clock
+  assertion.reset := io.master_reset
+  assertion.io.master_bypass := io.master_bypass
+  assertion.io.slave_reset := io.slave_reset
 }
 
 // RegField should support connecting to one of these
@@ -147,6 +162,12 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
   crossing.io.enq.valid := Bool(true)
   crossing.io.enq.bits := io.slave_register
+
+  val assertion = Module(new RegisterCrossingAssertion)
+  assertion.clock := io.master_clock
+  assertion.reset := io.master_reset
+  assertion.io.master_bypass := io.master_bypass
+  assertion.io.slave_reset := io.slave_reset
 }
 
 /** Wrapper to create an
