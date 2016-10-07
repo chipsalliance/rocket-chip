@@ -141,7 +141,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
     hart := enableHart
     val word =
       if (tlDataBits >= myEnables.size) UInt(0)
-      else addr(log2Ceil((myEnables.size-1)/tlDataBits+1)-1,log2Up(tlDataBytes))
+      else addr(log2Ceil((myEnables.size-1)/tlDataBits+1) + tlByteAddrBits - 1, tlByteAddrBits)
     for (i <- 0 until myEnables.size by tlDataBits) {
       when (word === i/tlDataBits) {
         rdata := Cat(myEnables.slice(i, i + tlDataBits).reverse)
