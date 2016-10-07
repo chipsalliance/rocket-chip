@@ -229,20 +229,18 @@ trait RRTest1Module extends Module with HasRegMap
     val field = UInt(width = bits)
 
     val readCross = Module(new RegisterReadCrossing(field))
-    readCross.io.master_clock := clock
-    readCross.io.master_reset := reset
-    readCross.io.master_allow := Bool(true)
-    readCross.io.slave_clock := clocks.io.clock_out
-    readCross.io.slave_reset := reset
-    readCross.io.slave_allow := Bool(true)
+    readCross.io.master_clock  := clock
+    readCross.io.master_reset  := reset
+    readCross.io.master_bypass := Bool(false)
+    readCross.io.slave_clock   := clocks.io.clock_out
+    readCross.io.slave_reset   := reset
 
     val writeCross = Module(new RegisterWriteCrossing(field))
-    writeCross.io.master_clock := clock
-    writeCross.io.master_reset := reset
-    writeCross.io.master_allow := Bool(true)
-    writeCross.io.slave_clock := clocks.io.clock_out
-    writeCross.io.slave_reset := reset
-    writeCross.io.slave_allow := Bool(true)
+    writeCross.io.master_clock  := clock
+    writeCross.io.master_reset  := reset
+    writeCross.io.master_bypass := Bool(false)
+    writeCross.io.slave_clock   := clocks.io.clock_out
+    writeCross.io.slave_reset   := reset
 
     readCross.io.slave_register := writeCross.io.slave_register
     RegField(bits, readCross.io.master_port, writeCross.io.master_port)
