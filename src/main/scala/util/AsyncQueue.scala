@@ -58,6 +58,9 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   io.widx := widx_reg
 
   io.mem := mem
+
+  // It is a fatal error to reset half a Queue while it still has data
+  assert (reset_n || widx === ridx)
 }
 
 class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
@@ -96,6 +99,9 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
 
   val ridx_reg = AsyncResetReg(ridx)
   io.ridx := ridx_reg
+
+  // It is a fatal error to reset half a Queue while it still has data
+  assert (reset_n || widx === ridx)
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
