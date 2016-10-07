@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import diplomacy._
 
+// READ the comments in the TLIsolation object before you instantiate this module
 class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends LazyModule
 {
   val node = TLAsyncIdentityNode()
@@ -67,9 +68,10 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends
 object TLIsolation
 {
   // applied to the TL source node; y.node := TLIsolation(fOut, fIn)(x.node)
-  // f should insert an isolation gate between the input UInt and its result
-  // fOut is applied for data flowing from client to manager
-  // fIn  is applied for data flowing from manager to client
+  // f* should insert an isolation gate between the input UInt and its result
+  // fOut is applied to data flowing from client to manager
+  // fIn  is applied to data flowing from manager to client
+  // **** WARNING: the isolation functions must bring the values to 0 ****
   def apply(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(x: TLAsyncOutwardNode)(implicit sourceInfo: SourceInfo): (TLAsyncOutwardNode, () => (Bool, Bool)) = {
     val iso = LazyModule(new TLIsolation(fOut, fIn))
     iso.node := x
