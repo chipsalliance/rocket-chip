@@ -229,8 +229,8 @@ class TLFuzzRAM extends LazyModule
   xbar2.node := TLAtomicAutomata()(model.node)
   ram2.node := TLFragmenter(16, 256)(xbar2.node)
   xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
-  cross.nodeIn := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  val monitor = (ram.node := cross.nodeOut)
+  cross.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
+  val monitor = (ram.node := cross.node)
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {

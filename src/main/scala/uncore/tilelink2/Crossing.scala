@@ -107,6 +107,7 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
 {
   val nodeIn = TLInputNode()
   val nodeOut = TLOutputNode()
+  val node = NodeHandle(nodeIn, nodeOut)
 
   val source = LazyModule(new TLAsyncCrossingSource(sync))
   val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
@@ -151,8 +152,8 @@ class TLRAMCrossing extends LazyModule {
   val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
-  cross.nodeIn := TLFragmenter(4, 256)(model.node)
-  val monitor = (ram.node := cross.nodeOut)
+  cross.node := TLFragmenter(4, 256)(model.node)
+  val monitor = (ram.node := cross.node)
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
