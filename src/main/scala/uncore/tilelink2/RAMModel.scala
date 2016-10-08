@@ -110,13 +110,10 @@ class TLRAMModel extends LazyModule
     // Process A access requests
     val a = Reg(next = in.a.bits)
     val a_fire = Reg(next = in.a.fire(), init = Bool(false))
-    val a_beats1 = edge.numBeats1(a)
+    val (a_first, a_last, a_address_inc) = edge.firstlast(a, a_fire)
     val a_size = edge.size(a)
     val a_sizeOH = UIntToOH(a_size)
-    val a_counter = RegInit(UInt(0, width = maxLgBeats))
-    val a_counter1 = a_counter - UInt(1)
-    val a_first = a_counter === UInt(0)
-    val a_addr_hi = a.addr_hi | (a_beats1 & ~a_counter1)
+    val a_addr_hi = a.addr_hi | a_address_inc
     val a_base = edge.address(a)
     val a_mask = edge.mask(a_base, a_size)
     val a_fifo = edge.manager.hasFifoIdFast(a_base)
@@ -133,8 +130,6 @@ class TLRAMModel extends LazyModule
 
     when (a_fire) {
       // Record the request so we can handle it's response
-      a_counter := Mux(a_first, a_beats1, a_counter1)
-
       assert (a.opcode =/= TLMessages.Acquire)
 
       // Mark the operation as valid
@@ -199,15 +194,11 @@ class TLRAMModel extends LazyModule
     // Process D access responses
     val d = RegNext(out.d.bits)
     val d_fire = Reg(next = out.d.fire(), init = Bool(false))
-    val d_beats1 = edge.numBeats1(d)
+    val (d_first, d_last, d_address_inc) = edge.firstlast(d, d_fire)
     val d_size = edge.size(d)
     val d_sizeOH = UIntToOH(d_size)
-    val d_counter = RegInit(UInt(0, width = maxLgBeats))
-    val d_counter1 = d_counter - UInt(1)
-    val d_first = d_counter === UInt(0)
-    val d_last  = d_counter === UInt(1) || d_beats1 === UInt(0)
     val d_base = d_flight.base
-    val d_addr_hi = d_base >> shift | (d_beats1 & ~d_counter1)
+    val d_addr_hi = d_base >> shift | d_address_inc
     val d_mask = edge.mask(d_base, d_size)
     val d_fifo = edge.manager.hasFifoIdFast(d_flight.base)
 
@@ -224,8 +215,6 @@ class TLRAMModel extends LazyModule
     val d_valid = valid(d.source)
 
     when (d_fire) {
-      d_counter := Mux(d_first, d_beats1, d_counter1)
-
       // Check the response is correct
       assert (d_size === d_flight.size)
       assert (edge.manager.findIdStartFast(d_flight.base) <= d.sink)
