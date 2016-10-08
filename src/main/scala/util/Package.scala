@@ -44,7 +44,7 @@ package object util {
 
   object PopCountAtLeast {
     private def two(x: UInt): (Bool, Bool) = x.getWidth match {
-      case 1 => (Bool(true), Bool(false))
+      case 1 => (x.toBool, Bool(false))
       case n =>
         val half = x.getWidth / 2
         val (leftOne, leftTwo) = two(x(half - 1, 0))
