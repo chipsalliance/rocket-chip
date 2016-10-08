@@ -41,10 +41,10 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   // extend the sink reset to a full cycle (assertion latency <= 1 cycle)
   val catch_reset_n = AsyncResetReg(Bool(true), clock, !io.sink_reset_n)
   // reset_n has a 1 cycle shorter path to ready than ridx does
-  val reset_n = AsyncGrayCounter(catch_reset_n.asUInt, sync)(0)
+  val sink_reset_n = AsyncGrayCounter(catch_reset_n.asUInt, sync)(0)
 
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
-  val widx = GrayCounter(bits+1, io.enq.fire(), !reset_n)
+  val widx = GrayCounter(bits+1, io.enq.fire(), !sink_reset_n)
   val ridx = AsyncGrayCounter(io.ridx, sync)
   val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
 
@@ -52,7 +52,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   when (io.enq.fire()) { mem(index) := io.enq.bits }
 
   val ready_reg = AsyncResetReg(ready.asUInt)(0)
-  io.enq.ready := ready_reg && reset_n
+  io.enq.ready := ready_reg && sink_reset_n
 
   val widx_reg = AsyncResetReg(widx)
   io.widx := widx_reg
@@ -60,7 +60,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   io.mem := mem
 
   // It is a fatal error to reset half a Queue while it still has data
-  assert (reset_n || widx === ridx)
+  assert (sink_reset_n || widx === ridx)
 }
 
 class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
@@ -79,9 +79,9 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   // extend the source reset to a full cycle (assertion latency <= 1 cycle)
   val catch_reset_n = AsyncResetReg(Bool(true), clock, !io.source_reset_n)
   // reset_n has a 1 cycle shorter path to valid than widx does
-  val reset_n = AsyncGrayCounter(catch_reset_n.asUInt, sync)(0)
+  val source_reset_n = AsyncGrayCounter(catch_reset_n.asUInt, sync)(0)
 
-  val ridx = GrayCounter(bits+1, io.deq.fire(), !reset_n)
+  val ridx = GrayCounter(bits+1, io.deq.fire(), !source_reset_n)
   val widx = AsyncGrayCounter(io.widx, sync)
   val valid = ridx =/= widx
 
@@ -97,13 +97,13 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   io.deq.bits  := RegEnable(io.mem(index), valid)
 
   val valid_reg = AsyncResetReg(valid.asUInt)(0)
-  io.deq.valid := valid_reg && reset_n
+  io.deq.valid := valid_reg && source_reset_n
 
   val ridx_reg = AsyncResetReg(ridx)
   io.ridx := ridx_reg
 
   // It is a fatal error to reset half a Queue while it still has data
-  assert (reset_n || widx === ridx)
+  assert (source_reset_n || widx === ridx)
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
