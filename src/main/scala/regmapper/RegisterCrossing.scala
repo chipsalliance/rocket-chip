@@ -72,15 +72,15 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   // If the slave is not operational, just drop the write.
   val progress = crossing.io.enq.ready || !io.master_allow
 
-  val reg = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
-  reg.io.progress := progress
-  reg.io.request_valid  := io.master_port.request.valid
-  reg.io.response_ready := io.master_port.response.ready
+  val control = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
+  control.io.progress := progress
+  control.io.request_valid  := io.master_port.request.valid
+  control.io.response_ready := io.master_port.response.ready
 
   crossing.io.deq.ready := Bool(true)
-  crossing.io.enq.valid := io.master_port.request.valid && !reg.io.busy
-  io.master_port.request.ready  := progress && !reg.io.busy
-  io.master_port.response.valid := progress && reg.io.busy
+  crossing.io.enq.valid := io.master_port.request.valid && !control.io.busy
+  io.master_port.request.ready  := progress && !control.io.busy
+  io.master_port.response.valid := progress && control.io.busy
 }
 
 // RegField should support connecting to one of these
@@ -121,14 +121,14 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   // If the slave is not operational, just repeat the last value we saw.
   val progress = crossing.io.deq.valid || !io.master_allow
 
-  val reg = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
-  reg.io.progress := progress
-  reg.io.request_valid  := io.master_port.request.valid
-  reg.io.response_ready := io.master_port.response.ready
+  val control = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
+  control.io.progress := progress
+  control.io.request_valid  := io.master_port.request.valid
+  control.io.response_ready := io.master_port.response.ready
 
-  io.master_port.response.valid := progress && reg.io.busy
-  io.master_port.request.ready  := progress && !reg.io.busy
-  crossing.io.deq.ready := io.master_port.request.valid && !reg.io.busy
+  io.master_port.response.valid := progress && control.io.busy
+  io.master_port.request.ready  := progress && !control.io.busy
+  crossing.io.deq.ready := io.master_port.request.valid && !control.io.busy
   crossing.io.enq.valid := Bool(true)
 }
 
