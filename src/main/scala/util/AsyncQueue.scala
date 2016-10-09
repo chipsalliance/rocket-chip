@@ -4,19 +4,17 @@ package util
 import Chisel._
 
 object GrayCounter {
-  def apply(bits: Int, increment: Bool = Bool(true), name: String = "binary"): UInt = {
+  def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
     val incremented = Wire(UInt(width=bits))
-    val binary = AsyncResetReg(incremented, name)
+    val binary = AsyncResetReg(incremented, 0)
     incremented := binary + increment.asUInt()
     incremented ^ (incremented >> UInt(1))
   }
 }
 
 object AsyncGrayCounter {
-  def apply(in: UInt, sync: Int, name: String = "gray"): UInt = {
-    val syncv = List.tabulate(sync)(i =>
-      Module (new AsyncResetRegVec(w = in.getWidth, 0)).suggestName(s"${name}_sync_${i}")
-    )
+  def apply(in: UInt, sync: Int): UInt = {
+    val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
     syncv.last.io.d := in
     syncv.last.io.en := Bool(true)
       (syncv.init zip syncv.tail).foreach { case (sink, source) =>
@@ -39,16 +37,16 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   }
 
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
-  val widx = GrayCounter(bits+1, io.enq.fire(), "widx_bin")
-  val ridx = AsyncGrayCounter(io.ridx, sync, "ridx_gray")
+  val widx = GrayCounter(bits+1, io.enq.fire())
+  val ridx = AsyncGrayCounter(io.ridx, sync)
   val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
-  when (io.enq.fire()) { mem(index) := io.enq.bits }
-  val ready_reg = AsyncResetReg(ready, "ready")
+  when (io.enq.fire() && !reset) { mem(index) := io.enq.bits }
+  val ready_reg = AsyncResetReg(ready, 0)
   io.enq.ready := ready_reg
 
-  val widx_reg = AsyncResetReg(widx, "widx_gray")
+  val widx_reg = AsyncResetReg(widx, 0)
   io.widx := widx_reg
 
   io.mem := mem
@@ -65,8 +63,8 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
     val mem  = Vec(depth, gen).asInput
   }
 
-  val ridx = GrayCounter(bits+1, io.deq.fire(), "ridx_bin")
-  val widx = AsyncGrayCounter(io.widx, sync, "widx_gray")
+  val ridx = GrayCounter(bits+1, io.deq.fire())
+  val widx = AsyncGrayCounter(io.widx, sync)
   val valid = ridx =/= widx
 
   // The mux is safe because timing analysis ensures ridx has reached the register
@@ -76,12 +74,11 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
   // This register does not NEED to be reset, as its contents will not
   // be considered unless the asynchronously reset deq valid register is set.
-  val data = RegEnable(io.mem(index), valid)
-  io.deq.bits := data
+  io.deq.bits  := RegEnable(io.mem(index), valid) 
     
-  io.deq.valid := AsyncResetReg(valid, "valid_reg")
+  io.deq.valid := AsyncResetReg(valid, 0)
 
-  io.ridx := AsyncResetReg(ridx, "ridx_gray")
+  io.ridx := AsyncResetReg(ridx, 0)
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
