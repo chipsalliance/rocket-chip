@@ -30,6 +30,11 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends
       in .d.widx := ISOi(out.d.widx)
       in .d.mem  := ISOi(out.d.mem)
 
+      out.a.source_reset_n := ISOo(in .a.source_reset_n)
+      in .a.sink_reset_n   := ISOi(out.a.sink_reset_n)
+      out.d.sink_reset_n   := ISOo(in .d.sink_reset_n)
+      in .d.source_reset_n := ISOi(out.d.source_reset_n)
+
       if (edgeOut.manager.base.anySupportAcquire && edgeOut.client.base.anySupportProbe) {
         in .b.widx := ISOi(out.b.widx)
         in .c.ridx := ISOi(out.c.ridx)
@@ -40,6 +45,13 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends
         in .b.mem  := ISOi(out.b.mem)
         out.c.mem  := ISOo(in .c.mem)
         out.e.mem  := ISOo(in .e.mem)
+
+        out.b.sink_reset_n   := ISOo(in .b.sink_reset_n)
+        in .b.source_reset_n := ISOi(out.b.source_reset_n)
+        out.c.source_reset_n := ISOo(in .c.source_reset_n)
+        in .c.sink_reset_n   := ISOi(out.c.sink_reset_n)
+        out.e.source_reset_n := ISOo(in .e.source_reset_n)
+        in .e.sink_reset_n   := ISOi(out.e.sink_reset_n)
       } else {
         in .b.widx := UInt(0)
         in .c.ridx := UInt(0)
