@@ -4,7 +4,7 @@ package regmapper
 
 import Chisel._
 import chisel3.util.{Irrevocable}
-import util.{AsyncQueue,AsyncScope,AsyncResetRegVec}
+import util.{AsyncQueue,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing(clock: Clock, reset: Bool)
@@ -143,7 +143,10 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
 object AsyncRWSlaveRegField {
 
-  def apply(slave_clock: Clock,
+  def apply(
+    master_clock: Clock,
+    master_reset: Bool,
+    slave_clock: Clock,
     slave_reset: Bool,
     width:  Int,
     init: Int,
@@ -160,10 +163,8 @@ object AsyncRWSlaveRegField {
     val wr_crossing = Module (new RegisterWriteCrossing(UInt(width = width)))
     name.foreach(n => wr_crossing.suggestName(s"${n}_wcrossing"))
 
-    val scope = Module (new AsyncScope())
-
-    wr_crossing.io.master_clock := scope.clock
-    wr_crossing.io.master_reset := scope.reset
+    wr_crossing.io.master_clock := master_clock
+    wr_crossing.io.master_reset := master_reset
     wr_crossing.io.master_allow := master_allow
     wr_crossing.io.slave_clock  := slave_clock
     wr_crossing.io.slave_reset  := slave_reset
@@ -175,8 +176,8 @@ object AsyncRWSlaveRegField {
     val rd_crossing = Module (new RegisterReadCrossing(UInt(width = width )))
     name.foreach(n => rd_crossing.suggestName(s"${n}_rcrossing"))
 
-    rd_crossing.io.master_clock := scope.clock
-    rd_crossing.io.master_reset := scope.reset
+    rd_crossing.io.master_clock := master_clock
+    rd_crossing.io.master_reset := master_reset
     rd_crossing.io.master_allow := master_allow
     rd_crossing.io.slave_clock  := slave_clock
     rd_crossing.io.slave_reset  := slave_reset
