@@ -30,8 +30,7 @@ import cde.{Parameters}
   *  
   */
 
-abstract class AbstractBBReg extends BlackBox {
-
+class AsyncResetReg extends BlackBox {
   val io = new Bundle {
     val d = Bool(INPUT)
     val q = Bool(OUTPUT)
@@ -40,58 +39,43 @@ abstract class AbstractBBReg extends BlackBox {
     val clk = Clock(INPUT)
     val rst = Bool(INPUT)
   }
-
 }
 
-class AsyncResetReg  extends AbstractBBReg
-class AsyncSetReg extends AbstractBBReg
-
 class SimpleRegIO(val w: Int) extends Bundle{
-
   val d = UInt(INPUT, width = w)
   val q = UInt(OUTPUT, width = w)
-
   val en = Bool(INPUT)
-
 }
 
 class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
-
   val io = new SimpleRegIO(w)
 
-  val async_regs: List[AbstractBBReg] = List.tabulate(w)(
-    i => Module (
-      if (((init >> i) % 2) > 0)
-        new AsyncSetReg
-      else
-        new AsyncResetReg)
-  )
+  val async_regs = List.fill(w)(Module(new AsyncResetReg))
 
-  io.q := async_regs.map(_.io.q).asUInt
-
-  for ((reg, idx) <- async_regs.zipWithIndex) {
+  val q = for ((reg, idx) <- async_regs.zipWithIndex) yield {
+    def maybeInvert(x: Bool) = if (((init >> idx) & 1) == 1) !x else x
     reg.io.clk := clock
     reg.io.rst := reset
-    reg.io.d   := io.d(idx)
+    reg.io.d   := maybeInvert(io.d(idx))
     reg.io.en  := io.en
     reg.suggestName(s"reg_$idx")
+    maybeInvert(reg.io.q)
   }
 
+  io.q := q.asUInt
 }
 
 object AsyncResetReg {
-
   // Create Single Registers
   def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean, name: Option[String]): Bool = {
-    val reg: AbstractBBReg =
-      if (init) Module (new AsyncSetReg)
-      else Module(new AsyncResetReg)
-    reg.io.d := d
+    def maybeInvert(x: Bool) = if (init) !x else x
+    val reg = Module(new AsyncResetReg)
+    reg.io.d := maybeInvert(d)
     reg.io.clk := clk
     reg.io.rst := rst
     reg.io.en  := Bool(true)
     name.foreach(reg.suggestName(_))
-    reg.io.q
+    maybeInvert(reg.io.q)
   }
 
   def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false, None)
@@ -118,5 +102,4 @@ object AsyncResetReg {
 
   def apply(updateData: UInt): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true))
   def apply(updateData: UInt, name:String): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true), Some(name))
-
 }
