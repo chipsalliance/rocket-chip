@@ -12,7 +12,7 @@ object GrayCounter {
   }
 }
 
-object AsyncGrayCounter {
+object UIntSyncChain {
   def apply(in: UInt, sync: Int, name: String = "gray"): UInt = {
     val syncv = List.tabulate(sync) { i =>
       Module (new AsyncResetRegVec(w = in.getWidth, 0)).suggestName(s"${name}_sync_${i}")
@@ -43,11 +43,11 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   // extend the sink reset to a full cycle (assertion latency <= 1 cycle)
   val catch_reset_n = AsyncResetReg(Bool(true), clock, !io.sink_reset_n, "catch_sink_reset_n")
   // reset_n has a 1 cycle shorter path to ready than ridx does
-  val sink_reset_n = AsyncGrayCounter(catch_reset_n.asUInt, sync, "sink_reset_n")(0)
+  val sink_reset_n = UIntSyncChain(catch_reset_n.asUInt, sync, "sink_reset_n")(0)
 
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
   val widx = GrayCounter(bits+1, io.enq.fire(), !sink_reset_n, "widx_bin")
-  val ridx = AsyncGrayCounter(io.ridx, sync, "ridx_gray")
+  val ridx = UIntSyncChain(io.ridx, sync, "ridx_gray")
   val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
@@ -81,10 +81,10 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   // extend the source reset to a full cycle (assertion latency <= 1 cycle)
   val catch_reset_n = AsyncResetReg(Bool(true), clock, !io.source_reset_n, "catch_source_reset_n")
   // reset_n has a 1 cycle shorter path to valid than widx does
-  val source_reset_n = AsyncGrayCounter(catch_reset_n.asUInt, sync, "source_reset_n")(0)
+  val source_reset_n = UIntSyncChain(catch_reset_n.asUInt, sync, "source_reset_n")(0)
 
   val ridx = GrayCounter(bits+1, io.deq.fire(), !source_reset_n, "ridx_bin")
-  val widx = AsyncGrayCounter(io.widx, sync, "widx_gray")
+  val widx = UIntSyncChain(io.widx, sync, "widx_gray")
   val valid = ridx =/= widx
 
   // The mux is safe because timing analysis ensures ridx has reached the register
