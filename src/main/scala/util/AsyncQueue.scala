@@ -41,9 +41,9 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   }
 
   // extend the sink reset to a full cycle (assertion latency <= 1 cycle)
-  val catch_reset_n = AsyncResetReg(Bool(true), clock, !io.sink_reset_n, "catch_sink_reset_n")
+  val catch_sink_reset_n = AsyncResetReg(Bool(true), clock, !io.sink_reset_n, "catch_sink_reset_n")
   // reset_n has a 1 cycle shorter path to ready than ridx does
-  val sink_reset_n = UIntSyncChain(catch_reset_n.asUInt, sync, "sink_reset_n")(0)
+  val sink_reset_n = UIntSyncChain(catch_sink_reset_n.asUInt, sync, "sink_reset_n")(0)
 
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
   val widx = GrayCounter(bits+1, io.enq.fire(), !sink_reset_n, "widx_bin")
@@ -53,7 +53,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
   when (io.enq.fire()) { mem(index) := io.enq.bits }
 
-  val ready_reg = AsyncResetReg(ready.asUInt, "ready")(0)
+  val ready_reg = AsyncResetReg(ready.asUInt, "ready_reg")(0)
   io.enq.ready := ready_reg && sink_reset_n
 
   val widx_reg = AsyncResetReg(widx, "widx_gray")
@@ -79,9 +79,9 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   }
 
   // extend the source reset to a full cycle (assertion latency <= 1 cycle)
-  val catch_reset_n = AsyncResetReg(Bool(true), clock, !io.source_reset_n, "catch_source_reset_n")
+  val catch_source_reset_n = AsyncResetReg(Bool(true), clock, !io.source_reset_n, "catch_source_reset_n")
   // reset_n has a 1 cycle shorter path to valid than widx does
-  val source_reset_n = UIntSyncChain(catch_reset_n.asUInt, sync, "source_reset_n")(0)
+  val source_reset_n = UIntSyncChain(catch_source_reset_n.asUInt, sync, "source_reset_n")(0)
 
   val ridx = GrayCounter(bits+1, io.deq.fire(), !source_reset_n, "ridx_bin")
   val widx = UIntSyncChain(io.widx, sync, "widx_gray")
