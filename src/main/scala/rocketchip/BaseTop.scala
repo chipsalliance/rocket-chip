@@ -17,6 +17,8 @@ import coreplex._
 case object GlobalAddrMap extends Field[AddrMap]
 case object ConfigString extends Field[String]
 case object NCoreplexExtClients extends Field[Int]
+/** Enable or disable monitoring of Diplomatic buses */
+case object TLEmitMonitors extends Field[Bool]
 /** Function for building Coreplex */
 case object BuildCoreplex extends Field[(CoreplexConfig, Parameters) => BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]]
 
@@ -26,6 +28,8 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   val pInterrupts = new RangeManager
   val pBusMasters = new RangeManager
   val pDevices = new ResourceManager[AddrMapEntry]
+
+  TLImp.emitMonitors = q(TLEmitMonitors)
 
   // Add a peripheral bus
   val peripheryBus = LazyModule(new TLXbar)
