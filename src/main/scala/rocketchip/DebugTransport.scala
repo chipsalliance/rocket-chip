@@ -1,7 +1,7 @@
 package rocketchip
 
 import Chisel._
-import uncore.devices.{DebugBusIO, AsyncDebugBusTo, AsyncDebugBusFrom, DebugBusReq, DebugBusResp, DMKey}
+import uncore.devices.{DebugBusIO, AsyncDebugBusCrossing, DebugBusReq, DebugBusResp, DMKey}
 import junctions._
 import util._
 import cde.{Parameters, Field}
@@ -62,7 +62,7 @@ class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
 
   val io_debug_bus = Wire (new DebugBusIO)
 
-  io.debug <> AsyncDebugBusFrom(io.jtag.TCK, io.jtag.TRST, io_debug_bus, depth, sync)
+  io.debug <> AsyncDebugBusCrossing(io.jtag.TCK, io.jtag.TRST, io_debug_bus, clock, reset, depth, sync)
 
   // Translate from straight 'bits' interface of the blackboxes
   // into the Resp/Req data structures.
@@ -89,13 +89,4 @@ class DebugTransportModuleJtag(reqSize : Int, respSize : Int)(implicit val p: Pa
 
   }
 
-}
-
-class AsyncMailbox extends BlackBox {
-
-  // This Verilog module is parameterized, but until this is supported by Chisel,
-  // this mailbox just has a fixed width of 64 bits, which is enough
-  // for our specific purpose here.
-
-  val io = new CrossingIO(UInt(width=64))
 }
