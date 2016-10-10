@@ -12,7 +12,7 @@ import scala.math.{min,max}
 // alwaysMin: fragment all requests down to minSize (else fragment to maximum supported by manager)
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
-// Fragmenter breaks: Acquire (and thus cuts BCE channels)
+// Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
 class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) extends LazyModule
 {
   require (isPow2 (maxSize))
@@ -30,7 +30,6 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
     TransferSizes.none
   def mapManager(m: TLManagerParameters) = m.copy(
-    supportsAcquire    = TransferSizes.none, // this adapter breaks acquires
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = expandTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet),
@@ -38,15 +37,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsPutPartial = expandTransfer(m.supportsPutPartial),
     supportsHint       = expandTransfer(m.supportsHint))
   def mapClient(c: TLClientParameters) = c.copy(
-    sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits),
-    // since we break Acquires, none of these work either:
-    supportsProbe      = TransferSizes.none,
-    supportsArithmetic = TransferSizes.none,
-    supportsLogical    = TransferSizes.none,
-    supportsGet        = TransferSizes.none,
-    supportsPutFull    = TransferSizes.none,
-    supportsPutPartial = TransferSizes.none,
-    supportsHint       = TransferSizes.none)
+    sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits))
 
   // Because the Fragmenter stalls inner A while serving outer, it can wipe away inner latency
   val node = TLAdapterNode(
@@ -70,6 +61,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
     // We don't support fragmenting to sub-beat accesses
     require (minSize >= beatBytes)
+    // We can't support devices which are cached on both sides of us
+    require (!edgeOut.manager.anySupportAcquire || !edgeIn.client.anySupportProbe)
 
     /* The Fragmenter is a bit tricky, because there are 5 sizes in play:
      *   max  size -- the maximum transfer size possible
