@@ -44,7 +44,8 @@ case class CoreplexConfig(
     nMemChannels: Int,
     hasSupervisor: Boolean)
 {
-  val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, 0)
+  val nInterruptPriorities = if (nExtInterrupts <= 1) 0 else (nExtInterrupts min 7)
+  val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, nInterruptPriorities)
 }
 
 abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends LazyModule
@@ -145,7 +146,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
 
     // connect coreplex-internal interrupts to tiles
     for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
-      tile.interrupts := io.clint(i)
+      tile.interrupts <> io.clint(i)
       tile.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
       tile.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
       tile.interrupts.debug := debugModule.io.debugInterrupts(i)

@@ -85,7 +85,7 @@ class BaseCoreplexConfig extends Config (
       case FetchWidth => if (site(UseCompressed)) 2 else 1
       case RetireWidth => 1
       case UseVM => true
-      case UseUser => true
+      case UseUser => false
       case UseDebug => true
       case NBreakpoints => 1
       case NPerfCounters => 0
@@ -291,7 +291,6 @@ class WithSmallCores extends Config (
     case MulDivKey => Some(MulDivConfig())
     case FPUKey => None
     case UseVM => false
-    case UseUser => false
     case NTLBEntries => 4
     case BtbKey => BtbParameters(nEntries = 0)
     case NAcquireTransactors => 2
