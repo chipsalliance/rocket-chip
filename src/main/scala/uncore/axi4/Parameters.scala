@@ -52,6 +52,7 @@ case class AXI4SlavePortParameters(
 
 case class AXI4MasterParameters(
   id:       IdRange       = IdRange(0, 1),
+  aligned:  Boolean       = false,
   nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")

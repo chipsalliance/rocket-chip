@@ -12,7 +12,11 @@ import scala.math.{min, max}
 case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
   dFn = { case (1, _) =>
     // We must erase all client information, because we crush their source Ids
-    Seq(AXI4MasterPortParameters(Seq(AXI4MasterParameters(id = IdRange(0, 1 << idBits)))))
+    val masters = Seq(
+      AXI4MasterParameters(
+        id      = IdRange(0, 1 << idBits),
+        aligned = true))
+    Seq(AXI4MasterPortParameters(masters))
   },
   uFn = { case (1, Seq(AXI4SlavePortParameters(slaves, beatBytes))) =>
     val managers = slaves.zipWithIndex.map { case (s, id) =>
