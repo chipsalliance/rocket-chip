@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.util.IrrevocableIO
 import diplomacy._
 
 class TLEdge(
@@ -218,6 +219,20 @@ class TLEdge(
       }
     }
   }
+
+  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, UInt) = {
+    val beats1   = numBeats1(bits)
+    val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes)))
+    val counter1 = counter - UInt(1)
+    val first = counter === UInt(0)
+    val last  = counter === UInt(1) || beats1 === UInt(0)
+    when (fire) {
+      counter := Mux(first, beats1, counter1)
+    }
+    (first, last, beats1 & ~counter1)
+  }
+
+  def firstlast(x: IrrevocableIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
 }
 
 class TLEdgeOut(

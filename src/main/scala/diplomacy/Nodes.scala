@@ -50,8 +50,21 @@ abstract class BaseNode
   protected[diplomacy] def colour:  String
 }
 
-trait InwardNode[DI, UI, BI <: Data] extends BaseNode
+case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
+  (inward: InwardNode[DI, UI, BI], outward: OutwardNode[DO, UO, BO])
+  extends Object with InwardNodeHandle[DI, UI, BI] with OutwardNodeHandle[DO, UO, BO]
+
+trait InwardNodeHandle[DI, UI, BI <: Data]
 {
+  val inward: InwardNode[DI, UI, BI]
+  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] =
+    inward.:=(h)(sourceInfo)
+}
+
+trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, UI, BI]
+{
+  val inward = this
+
   protected[diplomacy] val numPI: Range.Inclusive
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
   require (numPI.start >= 0, s"${name} accepts a negative number of inputs${lazyModule.line}")
@@ -75,8 +88,15 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
   protected[diplomacy] def iConnect: Vec[BI]
 }
 
-trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
+trait OutwardNodeHandle[DO, UO, BO <: Data]
 {
+  val outward: OutwardNode[DO, UO, BO]
+}
+
+trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO, UO, BO]
+{
+  val outward = this
+
   protected[diplomacy] val numPO: Range.Inclusive
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
   require (numPO.start >= 0, s"${name} accepts a negative number of outputs${lazyModule.line}")
@@ -136,8 +156,9 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   def iConnect = bundleIn
 
   // connects the outward part of a node with the inward part of this node
-  def := (y: OutwardNode[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {
+  override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {
     val x = this // x := y
+    val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
     require (!LazyModule.stack.isEmpty, s"${y.name} cannot be connected to ${x.name} outside of LazyModule scope" + info)
     val i = x.iPushed
