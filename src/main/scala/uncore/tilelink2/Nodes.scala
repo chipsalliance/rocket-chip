@@ -20,12 +20,17 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
   }
 
+  var emitMonitors = true
   def colour = "#000000" // black
   def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    val monitor = LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo))
-    (Some(monitor), () => {
+    val monitor = if (emitMonitors) {
+      Some(LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo)))
+    } else {
+      None
+    }
+    (monitor, () => {
       bi <> bo
-      monitor.module.io.in := TLBundleSnoop(bo)
+      monitor.foreach { _.module.io.in := TLBundleSnoop(bo) }
     })
   }
 

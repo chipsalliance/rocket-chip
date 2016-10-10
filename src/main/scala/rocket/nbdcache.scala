@@ -926,10 +926,10 @@ class HellaCache(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCache
   when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
-      when (!lrsc_valid) { lrsc_count := lrscCycles-1 }
+      lrsc_count := lrscCycles - 1
       lrsc_addr := s2_req.addr >> blockOffBits
     }
-    when (s2_sc) {
+    when (lrsc_valid) {
       lrsc_count := 0
     }
   }

@@ -21,13 +21,13 @@ class TLAsyncCrossingSource(sync: Int = 3) extends LazyModule
       val bce = edgeIn.manager.anySupportAcquire && edgeIn.client.anySupportProbe
       val depth = edgeOut.manager.depth
 
-      out.a := ToAsyncBundle(in.a, depth, sync)
-      in.d := FromAsyncBundle(out.d, sync)
+      out.a <> ToAsyncBundle(in.a, depth, sync)
+      in.d <> FromAsyncBundle(out.d, sync)
 
       if (bce) {
-        in.b := FromAsyncBundle(out.b, sync)
-        out.c := ToAsyncBundle(in.c, depth, sync)
-        out.e := ToAsyncBundle(in.e, depth, sync)
+        in.b <> FromAsyncBundle(out.b, sync)
+        out.c <> ToAsyncBundle(in.c, depth, sync)
+        out.e <> ToAsyncBundle(in.e, depth, sync)
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
@@ -53,13 +53,13 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3) extends LazyModule
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe
 
-      out.a := FromAsyncBundle(in.a, sync)
-      in.d := ToAsyncBundle(out.d, depth, sync)
+      out.a <> FromAsyncBundle(in.a, sync)
+      in.d <> ToAsyncBundle(out.d, depth, sync)
 
       if (bce) {
-        in.b := ToAsyncBundle(out.b, depth, sync)
-        out.c := FromAsyncBundle(in.c, sync)
-        out.e := FromAsyncBundle(in.e, sync)
+        in.b <> ToAsyncBundle(out.b, depth, sync)
+        out.c <> FromAsyncBundle(in.c, sync)
+        out.e <> FromAsyncBundle(in.e, sync)
       } else {
         in.b.widx := UInt(0)
         in.c.ridx := UInt(0)

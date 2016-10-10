@@ -4,7 +4,7 @@ package regmapper
 
 import Chisel._
 import chisel3.util.{Irrevocable}
-import util.{AsyncQueue,AsyncScope,AsyncResetRegVec}
+import util.{AsyncQueue,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing(clock: Clock, reset: Bool)
@@ -72,15 +72,15 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   // If the slave is not operational, just drop the write.
   val progress = crossing.io.enq.ready || !io.master_allow
 
-  val reg = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
-  reg.io.progress := progress
-  reg.io.request_valid  := io.master_port.request.valid
-  reg.io.response_ready := io.master_port.response.ready
+  val control = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
+  control.io.progress := progress
+  control.io.request_valid  := io.master_port.request.valid
+  control.io.response_ready := io.master_port.response.ready
 
   crossing.io.deq.ready := Bool(true)
-  crossing.io.enq.valid := io.master_port.request.valid && !reg.io.busy
-  io.master_port.request.ready  := progress && !reg.io.busy
-  io.master_port.response.valid := progress && reg.io.busy
+  crossing.io.enq.valid := io.master_port.request.valid && !control.io.busy
+  io.master_port.request.ready  := progress && !control.io.busy
+  io.master_port.response.valid := progress && control.io.busy
 }
 
 // RegField should support connecting to one of these
@@ -121,14 +121,14 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   // If the slave is not operational, just repeat the last value we saw.
   val progress = crossing.io.deq.valid || !io.master_allow
 
-  val reg = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
-  reg.io.progress := progress
-  reg.io.request_valid  := io.master_port.request.valid
-  reg.io.response_ready := io.master_port.response.ready
+  val control = Module(new BusyRegisterCrossing(io.master_clock, io.master_reset))
+  control.io.progress := progress
+  control.io.request_valid  := io.master_port.request.valid
+  control.io.response_ready := io.master_port.response.ready
 
-  io.master_port.response.valid := progress && reg.io.busy
-  io.master_port.request.ready  := progress && !reg.io.busy
-  crossing.io.deq.ready := io.master_port.request.valid && !reg.io.busy
+  io.master_port.response.valid := progress && control.io.busy
+  io.master_port.request.ready  := progress && !control.io.busy
+  crossing.io.deq.ready := io.master_port.request.valid && !control.io.busy
   crossing.io.enq.valid := Bool(true)
 }
 
@@ -143,7 +143,10 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 
 object AsyncRWSlaveRegField {
 
-  def apply(slave_clock: Clock,
+  def apply(
+    master_clock: Clock,
+    master_reset: Bool,
+    slave_clock: Clock,
     slave_reset: Bool,
     width:  Int,
     init: Int,
@@ -160,10 +163,8 @@ object AsyncRWSlaveRegField {
     val wr_crossing = Module (new RegisterWriteCrossing(UInt(width = width)))
     name.foreach(n => wr_crossing.suggestName(s"${n}_wcrossing"))
 
-    val scope = Module (new AsyncScope())
-
-    wr_crossing.io.master_clock := scope.clock
-    wr_crossing.io.master_reset := scope.reset
+    wr_crossing.io.master_clock := master_clock
+    wr_crossing.io.master_reset := master_reset
     wr_crossing.io.master_allow := master_allow
     wr_crossing.io.slave_clock  := slave_clock
     wr_crossing.io.slave_reset  := slave_reset
@@ -175,8 +176,8 @@ object AsyncRWSlaveRegField {
     val rd_crossing = Module (new RegisterReadCrossing(UInt(width = width )))
     name.foreach(n => rd_crossing.suggestName(s"${n}_rcrossing"))
 
-    rd_crossing.io.master_clock := scope.clock
-    rd_crossing.io.master_reset := scope.reset
+    rd_crossing.io.master_clock := master_clock
+    rd_crossing.io.master_reset := master_reset
     rd_crossing.io.master_allow := master_allow
     rd_crossing.io.slave_clock  := slave_clock
     rd_crossing.io.slave_reset  := slave_reset

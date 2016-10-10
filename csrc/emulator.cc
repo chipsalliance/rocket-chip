@@ -61,6 +61,9 @@ int main(int argc, char** argv)
       print_cycles = true;
   }
 
+  if (verbose)
+    fprintf(stderr, "using random seed %u\n", random_seed);
+
   srand(random_seed);
   srand48(random_seed);
 

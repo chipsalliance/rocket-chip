@@ -211,11 +211,11 @@ object TLBundleSnoop
 {
   def apply(x: TLBundle) = {
     val out = Wire(new TLBundleSnoop(x.params))
-    out.a := IrrevocableSnoop(x.a)
-    out.b := IrrevocableSnoop(x.b)
-    out.c := IrrevocableSnoop(x.c)
-    out.d := IrrevocableSnoop(x.d)
-    out.e := IrrevocableSnoop(x.e)
+    out.a <> IrrevocableSnoop(x.a)
+    out.b <> IrrevocableSnoop(x.b)
+    out.c <> IrrevocableSnoop(x.c)
+    out.d <> IrrevocableSnoop(x.d)
+    out.e <> IrrevocableSnoop(x.e)
     out
   }
 }

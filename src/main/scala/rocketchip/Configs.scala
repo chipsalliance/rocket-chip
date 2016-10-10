@@ -33,6 +33,7 @@ class BasePlatformConfig extends Config(
           dataBits = edgeDataBits,
           addrBits = site(PAddrBits),
           idBits = site(EdgeIDBits))
+        case TLEmitMonitors => true
         case TLKey("EdgetoSlave") =>
           site(TLKey("L1toL2")).copy(dataBeats = edgeDataBeats)
         case TLKey("MCtoEdge") =>
@@ -199,5 +200,19 @@ class WithNoPeripheryArithAMO extends Config (
 class With64BitPeriphery extends Config (
   (pname, site, here) => pname match {
     case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 8)
+  }
+)
+
+class WithTLMonitors extends Config (
+  (pname, site, here) => pname match {
+    case TLEmitMonitors => true
+    case _ => throw new CDEMatchError
+  }
+)
+
+class WithoutTLMonitors extends Config (
+  (pname, site, here) => pname match {
+    case TLEmitMonitors => false
+    case _ => throw new CDEMatchError
   }
 )
