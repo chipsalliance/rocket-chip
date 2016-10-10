@@ -166,6 +166,13 @@ case class TLClientParameters(
   supportsHint:        TransferSizes = TransferSizes.none)
 {
   require (supportsPutFull.contains(supportsPutPartial))
+  // We only support these operations if we support Probe (ie: we're a cache)
+  require (supportsProbe.contains(supportsArithmetic))
+  require (supportsProbe.contains(supportsLogical))
+  require (supportsProbe.contains(supportsGet))
+  require (supportsProbe.contains(supportsPutFull))
+  require (supportsProbe.contains(supportsPutPartial))
+  require (supportsProbe.contains(supportsHint))
 
   val maxTransfer = List(
     supportsProbe.max,
