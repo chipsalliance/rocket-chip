@@ -17,7 +17,7 @@ class IDMapGenerator(numIds: Int) extends Module {
   io.free.ready := Bool(true)
   assert (!io.free.valid || !bitmap(io.free.bits)) // No double freeing
 
-  val select = ~(highOR(bitmap) << 1) & bitmap
+  val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
   io.alloc.valid := bitmap.orR()
 
