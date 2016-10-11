@@ -102,7 +102,7 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
     2, p(GlobalAddrMap).subMap("io:pbus:scrbus"))(scrParams))
 
   //SCR file generation
-  val scr = outer.topLevelSCRBuilder.generate(scrParams)
+  val scr = outer.topLevelSCRBuilder.generate(p(GlobalAddrMap)("io:pbus:scrbus:HSCRFile").start)(scrParams)
   scr.io.tl <> scrBus.port("HSCRFile")
   val pBusPort = TileLinkEnqueuer(pBus.port("scrbus"), 1)
   TileLinkWidthAdapter(scrBus.io.in(0), pBusPort)
