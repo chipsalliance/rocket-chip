@@ -17,6 +17,7 @@ import rocketchip.DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError, Field}
 import hwacha._
 import hbwif._
+import testchipip._
 import rocketchip._
 import util._
 import dma._
@@ -66,6 +67,7 @@ class NoJtagDTM extends Config (
 class WithHUpTop extends Config (
   (pname, site, here) => pname match {
     case NarrowWidth => Dump("NARROW_IF_WIDTH", 8)
+    case SerialInterfaceWidth => 32
     case SlowIOMaxDivide => 1024
     case HSCRFileSize => 1 << 12//rocket.HasCoreParameters.pgIdxBits
     case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
