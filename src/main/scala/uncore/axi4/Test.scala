@@ -17,7 +17,7 @@ class RRTest1(address: BigInt) extends AXI4RegisterRouter(address, 0, 32, 6, 4, 
 class AXI4LiteFuzzRAM extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("AXI4LiteFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
   val gpio  = LazyModule(new RRTest1(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
@@ -40,7 +40,7 @@ class AXI4LiteFuzzRAMTest extends UnitTest(500000) {
 class AXI4FullFuzzRAM extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("AXI4FullFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
   val gpio  = LazyModule(new RRTest0(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
