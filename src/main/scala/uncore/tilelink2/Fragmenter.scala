@@ -167,6 +167,12 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     in.d.bits.source := out.d.bits.source >> fragmentBits
     in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
+    // Combine the error flag
+    val r_error = RegInit(Bool(false))
+    val d_error = r_error | out.d.bits.error
+    when (out.d.fire()) { r_error := Mux(drop, d_error, UInt(0)) }
+    in.d.bits.error := d_error
+
     // What maximum transfer sizes do downstream devices support?
     val maxArithmetics = managers.map(_.supportsArithmetic.max)
     val maxLogicals    = managers.map(_.supportsLogical.max)
@@ -264,4 +270,3 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int) extends LazyModule {
 class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize)).module).io.finished
 }
-
