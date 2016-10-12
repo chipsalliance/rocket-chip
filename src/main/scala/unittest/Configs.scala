@@ -25,7 +25,9 @@ class WithUncoreUnitTests extends Config(
     case UnitTests => (p: Parameters) => Seq(
       Module(new uncore.devices.ROMSlaveTest()(p)),
       Module(new uncore.devices.TileLinkRAMTest()(p)),
-      Module(new uncore.tilelink2.TLFuzzRAMTest))
+      Module(new uncore.tilelink2.TLFuzzRAMTest),
+      Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
+      Module(new uncore.axi4.AXI4FullFuzzRAMTest))
     case _ => throw new CDEMatchError
   }
 )
