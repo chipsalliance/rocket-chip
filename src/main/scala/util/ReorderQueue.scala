@@ -63,7 +63,7 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     }
 
     println(s"Warning - using a CAM for ReorderQueue, tagBits: ${tagWidth} size: ${actualSize}")
-  } else {
+  } else if (tagSpaceSize == actualSize) {
     val roq_data = Mem(tagSpaceSize, dType)
     val roq_free = Reg(init = Vec.fill(tagSpaceSize)(Bool(true)))
 
@@ -78,6 +78,29 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
 
     when (io.deq.valid) {
       roq_free(io.deq.tag) := Bool(true)
+    }
+  } else {
+    require(actualSize % tagSpaceSize == 0)
+
+    val qDepth = actualSize / tagSpaceSize
+    val queues = Seq.fill(tagSpaceSize) {
+      Module(new Queue(dType, qDepth))
+    }
+
+    io.enq.ready := Bool(false)
+    io.deq.matches := Bool(false)
+    io.deq.data := dType.fromBits(UInt(0))
+
+    for ((q, i) <- queues.zipWithIndex) {
+      when (io.enq.bits.tag === UInt(i)) { io.enq.ready := q.io.enq.ready }
+      q.io.enq.valid := io.enq.valid && io.enq.bits.tag === UInt(i)
+      q.io.enq.bits  := io.enq.bits.data
+
+      when (io.deq.tag === UInt(i)) {
+        io.deq.matches := q.io.deq.valid
+        io.deq.data := q.io.deq.bits
+      }
+      q.io.deq.ready := io.deq.valid && io.deq.tag === UInt(i)
     }
   }
 }
