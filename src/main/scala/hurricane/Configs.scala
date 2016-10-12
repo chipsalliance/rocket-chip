@@ -176,6 +176,14 @@ class WithHurricaneUpstreamSizingFullParams extends Config(
     case NAcquireTransactors => 9
     case HwachaNLanes => 2
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+    case "HwI" => {
+      case NSets => 64
+      case NWays => 1
+      case RowBits => 2 * site(CoreInstBits)
+      case NTLBEntries => 8
+      case CacheIdBits => 0
+      case SplitMetadata => false
+    }:PartialFunction[Any, Any]
     case _ => throw new CDEMatchError
   },
   knobValues = {
@@ -192,6 +200,14 @@ class WithHurricaneUpstreamSizingTinyParams extends Config(
     case HwachaConfPrec => false
     case HwachaNPredRFEntries => 128
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
+    case "HwI" => {
+      case NSets => 64
+      case NWays => 1
+      case RowBits => 2 * site(CoreInstBits)
+      case NTLBEntries => 8
+      case CacheIdBits => 0
+      case SplitMetadata => false
+    }:PartialFunction[Any, Any]
     case _ => throw new CDEMatchError
   },
   knobValues = {
