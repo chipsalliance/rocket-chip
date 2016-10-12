@@ -9,8 +9,8 @@ bb_vsrcs = $(base_dir)/vsrc/DebugTransportModuleJtag.v \
 	$(base_dir)/vsrc/AsyncResetReg.v \
 	$(base_dir)/testchipip/vsrc/SimSerial.v \
 
-hbwif_vsrcs = $(base_dir)/hbwif/verilog/example_reference_generator.v \
-	$(base_dir)/hbwif/verilog/example_transceiver.v \
+hbwif_vsrcs = \
+	$(base_dir)/hbwif/verilog/example.v \
 
 sim_vsrcs = \
 	$(generated_dir)/$(long_name).v \
@@ -28,6 +28,8 @@ sim_csrcs = \
 	$(base_dir)/csrc/jtag_vpi.c \
 	$(base_dir)/csrc/HurricaneTSI.cc \
 	$(base_dir)/csrc/SimSerial.cc \
+
+scr_header = $(generated_dir)/$(CONFIG).scr.h \
 
 #--------------------------------------------------------------------
 # Build Verilog
@@ -50,6 +52,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noUI -error=PCWM-L -timescale=1ns/10ps
 	-CC "-std=c++11" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
 	-CC "-include $(consts_header)" \
+	-CC "-include $(scr_header)" \
 	$(RISCV)/lib/libfesvr.so \
 	-sverilog \
 	+incdir+$(generated_dir) \

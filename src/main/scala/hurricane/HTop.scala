@@ -37,7 +37,8 @@ class HUpTop(q: Parameters) extends BaseTop(q)
   }
   topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
   topLevelSCRBuilder.addControl("hbwif_reset", UInt(1))
-  topLevelSCRBuilder.addControl("slow_clock_divide", UInt(0))
+  //                                                         hold      divisor
+  topLevelSCRBuilder.addControl("slow_clock_divide", UInt("x00000005_00000014"))
   for (i <- 0 until p(NMemoryChannels)) {
     topLevelSCRBuilder.addControl(s"switcher_channel_$i", UInt(0))
   }
@@ -149,7 +150,7 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   switcher.io.in <> unmapper.io.out
 
   def lbwifRouteSel(addr: UInt) =
-    UIntToOH(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr))
+    Mux(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr), UInt(2), UInt(1))
 
   val lbwif_router = Module(new ClientUncachedTileLinkIORouter(
     2, lbwifRouteSel)(lbwifParams))
@@ -203,4 +204,9 @@ trait AsyncConnection {
   }
   coreplex.io.resetVector := coreplexIO.resetVector
   coreplexIO.success := coreplex.io.success
+
+  val multiClockIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
+  val multiClock = coreplex.asInstanceOf[MultiClockCoreplexModule[MultiClockCoreplex, MultiClockCoreplexBundle]]
+
+  multiClockIO.tcrs <> multiClock.io.tcrs
 }

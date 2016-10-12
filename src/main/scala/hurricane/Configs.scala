@@ -168,6 +168,8 @@ class WithHwachaAndDma extends Config (
 
 class DefaultHUpTopConfig extends Config(new WithTinyHbwif ++ new ExampleHbwifConfig ++ new WithHUpTop ++ new DefaultConfig)
 
+class DefaultHUpTopL2Config extends Config(new WithTinyHbwif ++ new ExampleHbwifConfig ++ new WithHUpTop ++ new DefaultL2Config)
+
 class WithHurricaneUpstreamSizingFullParams extends Config(
   (pname,site,here) => pname match {
     case NTiles => 2
