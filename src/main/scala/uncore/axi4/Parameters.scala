@@ -21,9 +21,10 @@ case class AXI4SlaveParameters(
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = max(supportsWrite.max, supportsRead.max)
   val maxAddress = address.map(_.max).max
+  val minAlignment = address.map(_.alignment).min
 
   // The device had better not support a transfer larger than it's alignment
-  address.foreach { case a => require (a.alignment >= maxTransfer) }
+  require (minAlignment >= maxTransfer)
 }
 
 case class AXI4SlavePortParameters(
