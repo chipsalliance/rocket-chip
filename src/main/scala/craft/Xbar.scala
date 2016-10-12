@@ -7,6 +7,7 @@ import rocketchip.{ExtMemSize, PeripheryUtils}
 
 case object InPorts extends Field[Int]
 case object OutPorts extends Field[Int]
+case object XBarQueueDepth extends Field[Int]
 
 class CraftXBar(topParams: Parameters) extends Module {
   implicit val p = topParams
@@ -24,7 +25,8 @@ class CraftXBar(topParams: Parameters) extends Module {
     AddrMapEntry(s"chan$i", MemSize(memSize / outPorts, MemAttr(AddrMapProt.RWX)))
   })
 
-  val bus = Module(new NastiRecursiveInterconnect(outPorts, addrMap))
+  val bus = Module(new NastiRecursiveInterconnect(
+    outPorts, addrMap, p(XBarQueueDepth)))
   bus.io.masters <> io.in
   io.out <> bus.io.slaves
 }

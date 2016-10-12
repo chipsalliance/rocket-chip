@@ -235,17 +235,15 @@ class NastiArbiterIO(arbN: Int)(implicit p: Parameters) extends Bundle {
 }
 
 /** Arbitrate among arbN masters requesting to a single slave */
-class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
+class NastiArbiter(val arbN: Int, queueDepth: Int = 1)(implicit p: Parameters) extends NastiModule {
   val io = new NastiArbiterIO(arbN)
 
   if (arbN > 1) {
+    require(queueDepth >= 1)
     val arbIdBits = log2Up(arbN)
 
     val ar_arb = Module(new RRArbiter(new NastiReadAddressChannel, arbN))
     val aw_arb = Module(new RRArbiter(new NastiWriteAddressChannel, arbN))
-
-    val slave_r_arb_id = io.slave.r.bits.id(arbIdBits - 1, 0)
-    val slave_b_arb_id = io.slave.b.bits.id(arbIdBits - 1, 0)
 
     val w_chosen = Reg(UInt(width = arbIdBits))
     val w_done = Reg(init = Bool(true))
@@ -259,6 +257,12 @@ class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
       w_done := Bool(true)
     }
 
+    val rroq = Module(new ReorderQueue(
+      UInt(width = arbIdBits), nastiXIdBits, Some((1 << nastiXIdBits) * queueDepth)))
+
+    val wroq = Module(new ReorderQueue(
+      UInt(width = arbIdBits), nastiXIdBits, Some((1 << nastiXIdBits) * queueDepth)))
+
     for (i <- 0 until arbN) {
       val m_ar = io.master(i).ar
       val m_aw = io.master(i).aw
@@ -269,33 +273,56 @@ class NastiArbiter(val arbN: Int)(implicit p: Parameters) extends NastiModule {
       val m_w = io.master(i).w
 
       a_ar <> m_ar
-      a_ar.bits.id := Cat(m_ar.bits.id, UInt(i, arbIdBits))
-
       a_aw <> m_aw
-      a_aw.bits.id := Cat(m_aw.bits.id, UInt(i, arbIdBits))
 
-      m_r.valid := io.slave.r.valid && slave_r_arb_id === UInt(i)
+      m_r.valid := io.slave.r.valid && rroq.io.deq.data === UInt(i)
       m_r.bits := io.slave.r.bits
-      m_r.bits.id := io.slave.r.bits.id >> UInt(arbIdBits)
 
-      m_b.valid := io.slave.b.valid && slave_b_arb_id === UInt(i)
+      m_b.valid := io.slave.b.valid && wroq.io.deq.data === UInt(i)
       m_b.bits := io.slave.b.bits
-      m_b.bits.id := io.slave.b.bits.id >> UInt(arbIdBits)
 
       m_w.ready := io.slave.w.ready && w_chosen === UInt(i) && !w_done
     }
 
-    io.slave.r.ready := io.master(slave_r_arb_id).r.ready
-    io.slave.b.ready := io.master(slave_b_arb_id).b.ready
+    io.slave.r.ready := io.master(rroq.io.deq.data).r.ready
+    io.slave.b.ready := io.master(wroq.io.deq.data).b.ready
+
+    rroq.io.deq.tag := io.slave.r.bits.id
+    rroq.io.deq.valid := io.slave.r.fire() && io.slave.r.bits.last
+    wroq.io.deq.tag := io.slave.b.bits.id
+    wroq.io.deq.valid := io.slave.b.fire()
+
+    assert(!rroq.io.deq.valid || rroq.io.deq.matches,
+      "NastiArbiter: read response mismatch")
+    assert(!wroq.io.deq.valid || wroq.io.deq.matches,
+      "NastiArbiter: write response mismatch")
 
     io.slave.w.bits := io.master(w_chosen).w.bits
     io.slave.w.valid := io.master(w_chosen).w.valid && !w_done
 
-    io.slave.ar <> ar_arb.io.out
+    val ar_helper = DecoupledHelper(
+      ar_arb.io.out.valid,
+      io.slave.ar.ready,
+      rroq.io.enq.ready)
+
+    io.slave.ar.valid := ar_helper.fire(io.slave.ar.ready)
+    io.slave.ar.bits := ar_arb.io.out.bits
+    ar_arb.io.out.ready := ar_helper.fire(ar_arb.io.out.valid)
+    rroq.io.enq.valid := ar_helper.fire(rroq.io.enq.ready)
+    rroq.io.enq.bits.tag := ar_arb.io.out.bits.id
+    rroq.io.enq.bits.data := ar_arb.io.chosen
+
+    val aw_helper = DecoupledHelper(
+      aw_arb.io.out.valid,
+      io.slave.aw.ready,
+      wroq.io.enq.ready)
 
     io.slave.aw.bits <> aw_arb.io.out.bits
-    io.slave.aw.valid := aw_arb.io.out.valid && w_done
-    aw_arb.io.out.ready := io.slave.aw.ready && w_done
+    io.slave.aw.valid := aw_helper.fire(io.slave.aw.ready, w_done)
+    aw_arb.io.out.ready := aw_helper.fire(aw_arb.io.out.valid, w_done)
+    wroq.io.enq.valid := aw_helper.fire(wroq.io.enq.ready, w_done)
+    wroq.io.enq.bits.tag := aw_arb.io.out.bits.id
+    wroq.io.enq.bits.data := aw_arb.io.chosen
 
   } else { io.slave <> io.master.head }
 }
@@ -428,7 +455,8 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
  *  @param nMasters the number of Nasti masters
  *  @param nSlaves the number of Nasti slaves
  *  @param routeSel a function selecting the slave to route an address to */
-class NastiCrossbar(nMasters: Int, nSlaves: Int, routeSel: UInt => UInt)
+class NastiCrossbar(nMasters: Int, nSlaves: Int,
+                    routeSel: UInt => UInt, queueDepth: Int = 1)
                    (implicit p: Parameters) extends NastiModule {
   val io = new Bundle {
     val masters = Vec(nMasters, new NastiIO).flip
@@ -441,7 +469,7 @@ class NastiCrossbar(nMasters: Int, nSlaves: Int, routeSel: UInt => UInt)
     io.slaves <> router.io.slave
   } else {
     val routers = Vec.fill(nMasters) { Module(new NastiRouter(nSlaves, routeSel)).io }
-    val arbiters = Vec.fill(nSlaves) { Module(new NastiArbiter(nMasters)).io }
+    val arbiters = Vec.fill(nSlaves) { Module(new NastiArbiter(nMasters, queueDepth)).io }
 
     for (i <- 0 until nMasters) {
       routers(i).master <> io.masters(i)
@@ -471,14 +499,15 @@ abstract class NastiInterconnect(implicit p: Parameters) extends NastiModule()(p
   lazy val io = new NastiInterconnectIO(nMasters, nSlaves)
 }
 
-class NastiRecursiveInterconnect(val nMasters: Int, addrMap: AddrMap)
+class NastiRecursiveInterconnect(
+    val nMasters: Int, addrMap: AddrMap, queueDepth: Int = 1)
     (implicit p: Parameters) extends NastiInterconnect()(p) {
   def port(name: String) = io.slaves(addrMap.port(name))
   val nSlaves = addrMap.numSlaves
   val routeSel = (addr: UInt) =>
     Cat(addrMap.entries.map(e => addrMap(e.name).containsAddress(addr)).reverse)
 
-  val xbar = Module(new NastiCrossbar(nMasters, addrMap.length, routeSel))
+  val xbar = Module(new NastiCrossbar(nMasters, addrMap.length, routeSel, queueDepth))
   xbar.io.masters <> io.masters
 
   io.slaves <> addrMap.entries.zip(xbar.io.slaves).flatMap {
@@ -489,7 +518,7 @@ class NastiRecursiveInterconnect(val nMasters: Int, addrMap: AddrMap)
           err_slave.io <> xbarSlave
           None
         case submap: AddrMap =>
-          val ic = Module(new NastiRecursiveInterconnect(1, submap))
+          val ic = Module(new NastiRecursiveInterconnect(1, submap, queueDepth))
           ic.io.masters.head <> xbarSlave
           ic.io.slaves
         case r: MemRange =>

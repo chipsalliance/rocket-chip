@@ -16,6 +16,7 @@ class WithCraft extends Config(
     case TLId => "XBar"
     case InPorts => 2
     case OutPorts => 2
+    case XBarQueueDepth => 2
     case ExtMemSize => 0x800L
     case _ => throw new CDEMatchError
   })
