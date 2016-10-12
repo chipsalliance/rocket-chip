@@ -217,9 +217,12 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     // Give R higher priority than B
     val r_wins = out.r.valid || r_holds_d
 
-    out.r.ready := in.d.ready
-    out_b.ready := in.d.ready && !r_wins
-    in.d.valid := Mux(r_wins, out.r.valid, out_b.valid)
+    val in_d = Wire(in.d)
+    in.d <> Queue.irrevocable(in_d, entries=1, flow=combinational)
+
+    out.r.ready := in_d.ready
+    out_b.ready := in_d.ready && !r_wins
+    in_d.valid := Mux(r_wins, out.r.valid, out_b.valid)
 
     val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
     val b_error = out_b.bits.resp =/= AXI4Parameters.RESP_OKAY
@@ -227,8 +230,8 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     val r_d = edgeIn.AccessAck(r_addr_lo, r_sink, r_source, r_size, UInt(0), r_error)
     val b_d = edgeIn.AccessAck(b_addr_lo, b_sink, b_source, b_size, b_error)
 
-    in.d.bits := Mux(r_wins, r_d, b_d)
-    in.d.bits.data := out.r.bits.data // avoid a costly Mux
+    in_d.bits := Mux(r_wins, r_d, b_d)
+    in_d.bits.data := out.r.bits.data // avoid a costly Mux
 
     // Tie off unused channels
     in.b.valid := Bool(false)
