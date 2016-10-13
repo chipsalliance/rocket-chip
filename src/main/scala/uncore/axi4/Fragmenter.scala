@@ -18,7 +18,7 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
   def mapSlave(s: AXI4SlaveParameters, beatBytes: Int) = s.copy(
     supportsWrite = expandTransfer(s.supportsWrite, beatBytes, s.minAlignment),
     supportsRead  = expandTransfer(s.supportsRead,  beatBytes, s.minAlignment),
-    interleavedId = if (lite) Some(0) else s.interleavedId) // we preserve interleaving guarantees
+    interleavedId = if (lite) Some(0) else s.interleavedId) // see AXI4FragmenterSideband for !lite case
   def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true)
 
   val node = AXI4AdapterNode(
@@ -238,29 +238,46 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
   }
 }
 
+/* We want to put barriers between the fragments of a fragmented transfer and all other transfers.
+ * This lets us use very little state to reassemble the fragments (else we need one FIFO per ID).
+ * Furthermore, because all the fragments share the same AXI ID, they come back contiguously.
+ * This guarantees that no other R responses might get mixed between fragments, ensuring that the
+ * interleavedId for the slaves remains unaffected by the fragmentation transformation.
+ * Of course, if you need to fragment, this means there is a potentially hefty serialization cost.
+ * However, this design allows full concurrency in the common no-fragmentation-needed scenario.
+ */
 class AXI4FragmenterSideband(maxInFlight: Int, flow: Boolean = false) extends Module
 {
   val io = new QueueIO(Bool(), maxInFlight)
   io.count := UInt(0)
 
-  val state = RegInit(Bool(false))
-  val count = RegInit(UInt(0, width = log2Up(maxInFlight)))
-  val idle = count === UInt(0)
+  val PASS = UInt(2, width = 2) // allow 'last=1' bits to enque, on 'last=0' if count>0 block else accept+FIND
+  val FIND = UInt(0, width = 2) // allow 'last=0' bits to enque, accept 'last=1' and switch to WAIT
+  val WAIT = UInt(1, width = 2) // block all access till count=0
 
-  io.deq.bits := state
-  io.deq.valid := !idle
+  val state = RegInit(PASS)
+  val count = RegInit(UInt(0, width = log2Up(maxInFlight)))
+  val empty = count === UInt(0)
+  val last  = count === UInt(1)
+
+  io.deq.bits := state(1) || (last && state(0)) // PASS || (last && WAIT)
+  io.deq.valid := !empty
+
+  io.enq.ready := empty || (state === FIND) || (state === PASS && io.enq.bits)
 
   if (flow) {
     when (io.enq.valid) {
       io.deq.valid := Bool(true)
-      when (idle) { io.deq.bits := io.enq.bits }
+      when (empty) { io.deq.bits := io.enq.bits }
     }
   }
 
-  io.enq.ready := idle || (state === io.enq.bits)
-  when (io.enq.fire()) { state := io.enq.bits }
-
   count := count + io.enq.fire() - io.deq.fire()
+  switch (state) {
+    is(PASS) { when (io.enq.valid && !io.enq.bits && empty) { state := FIND } }
+    is(FIND) { when (io.enq.valid &&  io.enq.bits)          { state := Mux(empty, PASS, WAIT) } }
+    is(WAIT) { when (last && io.deq.ready)                  { state := PASS } }
+  }
 }
 
 object AXI4Fragmenter
