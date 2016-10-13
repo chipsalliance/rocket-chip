@@ -386,26 +386,6 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     legalizeMultibeatD(bundle.d, edge)
   }
 
-  def legalizeIrrevocable(irr: DecoupledSnoop[TLChannel], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val last_v = RegNext(irr.valid, Bool(false))
-    val last_r = RegNext(irr.ready, Bool(false))
-    val last_b = RegNext(irr.bits)
-    val bits_changed = irr.bits.asUInt === last_b.asUInt
-
-    when (last_v && !last_r) {
-      assert(irr.valid,    s"${irr.bits.channelName} had contents that were revoked by the supplier (valid lowered)" + extra)
-      assert(bits_changed, s"${irr.bits.channelName} had contents that were revoked by the supplier (contents changed)" + extra)
-    }
-  }
-
-  def legalizeIrrevocable(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    legalizeIrrevocable(bundle.a, edge)
-    legalizeIrrevocable(bundle.b, edge)
-    legalizeIrrevocable(bundle.c, edge)
-    legalizeIrrevocable(bundle.d, edge)
-    legalizeIrrevocable(bundle.e, edge)
-  }
-
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
@@ -438,7 +418,6 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   def legalize(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeFormat     (bundle, edge)
     legalizeMultibeat  (bundle, edge)
-    legalizeIrrevocable(bundle, edge)
     legalizeSourceUnique(bundle, edge)
   }
 
