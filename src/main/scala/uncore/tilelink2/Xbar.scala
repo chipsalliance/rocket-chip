@@ -3,7 +3,6 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.IrrevocableIO
 import diplomacy._
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
@@ -141,7 +140,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
 
     // Replicate an input port to each output port
-    def fanout[T <: TLChannel](input: IrrevocableIO[T], select: Seq[Bool]) = {
+    def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool]) = {
       val filtered = Wire(Vec(select.size, input))
       for (i <- 0 until select.size) {
         filtered(i).bits := input.bits

@@ -3,7 +3,6 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.IrrevocableIO
 import diplomacy._
 
 object TLArbiter
@@ -14,7 +13,7 @@ object TLArbiter
   val lowestIndexFirst: Policy = (valids, idle) =>
     valids.scanLeft(Bool(true))(_ && !_).init
 
-  def apply[T <: Data](policy: Policy)(sink: IrrevocableIO[T], sources: (UInt, IrrevocableIO[T])*) {
+  def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*) {
     if (sources.isEmpty) {
       sink.valid := Bool(false)
     } else {

@@ -4,7 +4,6 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.util.IrrevocableIO
 import diplomacy._
 
 class TLEdge(
@@ -232,7 +231,7 @@ class TLEdge(
     (first, last, beats1 & ~counter1)
   }
 
-  def firstlast(x: IrrevocableIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
+  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
 }
 
 class TLEdgeOut(

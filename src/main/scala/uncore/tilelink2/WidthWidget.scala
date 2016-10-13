@@ -4,7 +4,6 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.util.{Irrevocable, IrrevocableIO}
 import diplomacy._
 import scala.math.{min,max}
 
@@ -22,7 +21,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val out = node.bundleOut
     }
 
-    def merge[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
+    def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = outBytes / inBytes
@@ -86,7 +85,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
     }
 
-    def split[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
+    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = inBytes / outBytes
@@ -136,7 +135,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       // addr_lo gets truncated automagically
     }
     
-    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
+    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       if (edgeIn.manager.beatBytes == edgeOut.manager.beatBytes) {
         // nothing to do; pass it through
         out <> in
