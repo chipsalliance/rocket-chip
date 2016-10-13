@@ -396,42 +396,65 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
   val ar_route = routeSel(io.master.ar.bits.addr)
   val aw_route = routeSel(io.master.aw.bits.addr)
 
-  var ar_ready = Bool(false)
-  var aw_ready = Bool(false)
-  var w_ready = Bool(false)
+  val ar_ready = Wire(init = Bool(false))
+  val aw_ready = Wire(init = Bool(false))
+  val w_ready = Wire(init = Bool(false))
+
+  // This queue holds the accepted aw_routes so that we know how to route the
+  val w_queue = Module(new Queue(aw_route, nSlaves))
+
+  val aw_helper = DecoupledHelper(
+    io.master.aw.valid,
+    w_queue.io.enq.ready,
+    aw_ready)
+
+  val w_helper = DecoupledHelper(
+    io.master.w.valid,
+    w_queue.io.deq.valid,
+    w_ready)
+
+  w_queue.io.enq.valid := aw_helper.fire(w_queue.io.enq.ready)
+  w_queue.io.enq.bits := aw_route
+  w_queue.io.deq.ready := w_helper.fire(w_queue.io.deq.valid, io.master.w.bits.last)
+
+  io.master.ar.ready := ar_ready
+  io.master.aw.ready := aw_helper.fire(io.master.aw.valid)
+  io.master.w.ready := w_helper.fire(io.master.w.valid)
+
+  val ar_valid = io.master.ar.valid
+  val aw_valid = aw_helper.fire(aw_ready)
+  val w_valid = w_helper.fire(w_ready)
+  val w_route = w_queue.io.deq.bits
 
   io.slave.zipWithIndex.foreach { case (s, i) =>
-    s.ar.valid := io.master.ar.valid && ar_route(i)
+    s.ar.valid := ar_valid && ar_route(i)
     s.ar.bits := io.master.ar.bits
-    ar_ready = ar_ready || (s.ar.ready && ar_route(i))
+    when (ar_route(i)) { ar_ready := s.ar.ready }
 
-    s.aw.valid := io.master.aw.valid && aw_route(i)
+    s.aw.valid := aw_valid && aw_route(i)
     s.aw.bits := io.master.aw.bits
-    aw_ready = aw_ready || (s.aw.ready && aw_route(i))
+    when (aw_route(i)) { aw_ready := s.aw.ready }
 
-    val chosen = Reg(init = Bool(false))
-    when (s.w.fire() && s.w.bits.last) { chosen := Bool(false) }
-    when (s.aw.fire()) { chosen := Bool(true) }
-
-    s.w.valid := io.master.w.valid && chosen
+    s.w.valid := w_valid && w_route(i)
     s.w.bits := io.master.w.bits
-    w_ready = w_ready || (s.w.ready && chosen)
+    when (w_route(i)) { w_ready := s.w.ready }
   }
 
-  val r_invalid = !ar_route.orR
-  val w_invalid = !aw_route.orR
+  val ar_noroute = !ar_route.orR
+  val aw_noroute = !aw_route.orR
+  val w_noroute  = !w_route.orR
 
   val err_slave = Module(new NastiErrorSlave)
-  err_slave.io.ar.valid := r_invalid && io.master.ar.valid
+  err_slave.io.ar.valid := ar_valid && ar_noroute
   err_slave.io.ar.bits := io.master.ar.bits
-  err_slave.io.aw.valid := w_invalid && io.master.aw.valid
+  err_slave.io.aw.valid := aw_valid && aw_noroute
   err_slave.io.aw.bits := io.master.aw.bits
-  err_slave.io.w.valid := io.master.w.valid
+  err_slave.io.w.valid := w_valid && w_noroute
   err_slave.io.w.bits := io.master.w.bits
 
-  io.master.ar.ready := ar_ready || (r_invalid && err_slave.io.ar.ready)
-  io.master.aw.ready := aw_ready || (w_invalid && err_slave.io.aw.ready)
-  io.master.w.ready := w_ready || err_slave.io.w.ready
+  when (ar_noroute) { ar_ready := err_slave.io.ar.ready }
+  when (aw_noroute) { aw_ready := err_slave.io.aw.ready }
+  when (w_noroute)  { w_ready  := err_slave.io.w.ready }
 
   val b_arb = Module(new RRArbiter(new NastiWriteResponseChannel, nSlaves + 1))
   val r_arb = Module(new HellaPeekingArbiter(
