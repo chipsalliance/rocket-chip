@@ -392,24 +392,20 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     val (_, a_last, _) = edge.firstlast(bundle.a.bits, bundle.a.fire())
     val (_, d_last, _) = edge.firstlast(bundle.d.bits, bundle.d.fire())
 
-    val bypass = bundle.a.bits.source === bundle.d.bits.source
-    val a_bypass = bypass && bundle.d.valid && d_last
-    val d_bypass = bypass && bundle.a.valid && a_last
-
     if (edge.manager.minLatency > 0) {
-      assert(!bypass || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assert(bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.a.fire()) {
       when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
-      assert(a_bypass || !inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+      assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
       when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
-      assert(d_bypass || inflight(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+      assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
