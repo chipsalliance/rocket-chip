@@ -21,10 +21,10 @@ case object BuildHTop extends Field[Parameters => HUpTop]
 
 /* Hurricane Upstream Chisel Top */
 class HUpTop(q: Parameters) extends BaseTop(q)
+    with HurricaneExtraTopLevel
     with PeripheryBootROM
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
-    with HurricaneExtraTopLevel
     with HurricaneIF
     with Hbwif {
   pDevices.add(AddrMapEntry("scrbus", new AddrMap(
@@ -51,19 +51,21 @@ class HUpTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryCoreplexLocalInterrupterBundle
     with HurricaneIFBundle
     with HbwifBundle
-//TODOHurricane: add DRAM I/Os here
 
 class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     (p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b)
-    with PeripheryBootROMModule
-    with PeripheryDebugModule
-    with PeripheryCoreplexLocalInterrupterModule
     with HurricaneExtraTopLevelModule
+    with PeripheryBootROMModule
+    with PeripheryDebugModuleMC
+    with PeripheryCoreplexLocalInterrupterModuleMC
     with HurricaneIFModule
     with HbwifModule
     with AsyncConnection
     with HardwiredResetVector {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
+
+  system_clock := clock
+  system_reset := ResetSync(reset, system_clock)
 
   coreplex.clock := clock
   coreplex.reset := ResetSync(scr.control("coreplex_reset")(0).toBool, coreplex.clock)
@@ -74,6 +76,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     tcr.roccClock := clock
     tcr.roccReset := ResetSync(scr.control(s"core_${i}_rocc_reset")(0).toBool, tcr.roccClock)
   }
+  multiClockCoreplexIO.tcrs.last.clock := system_clock
   multiClockCoreplexIO.tcrs.last.reset := scr.control(s"pmu_reset")(0).toBool
 
   // Hbwif connections
@@ -96,14 +99,17 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   val hbwifFastClock: Clock = Wire(Clock())
   val outer: HurricaneExtraTopLevel
   val pBus: TileLinkRecursiveInterconnect
+  val system_clock: Clock = Wire(Clock())
+  val system_reset: Bool = Wire(Bool())
 
   val scrParams = p.alterPartial({ case TLId => "MMIOtoSCR" })
 
   val scrBus = Module(new TileLinkRecursiveInterconnect(
-    2, p(GlobalAddrMap).subMap("io:pbus:scrbus"))(scrParams))
+    2, p(GlobalAddrMap).subMap("io:pbus:scrbus"), c = system_clock, r = system_reset)(scrParams))
 
   //SCR file generation
-  val scr = outer.topLevelSCRBuilder.generate(p(GlobalAddrMap)("io:pbus:scrbus:HSCRFile").start)(scrParams)
+  val scr = outer.topLevelSCRBuilder.generate(
+      p(GlobalAddrMap)("io:pbus:scrbus:HSCRFile").start, c = system_clock, r = system_reset)(scrParams)
   scr.io.tl <> scrBus.port("HSCRFile")
   val pBusPort = TileLinkEnqueuer(pBus.port("scrbus"), 1)
   TileLinkWidthAdapter(scrBus.io.in(0), pBusPort)

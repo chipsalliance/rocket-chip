@@ -252,15 +252,16 @@ class ClientUncachedTileLinkIOCrossbar(
   }
 }
 
-abstract class TileLinkInterconnect(implicit p: Parameters) extends TLModule()(p) {
+abstract class TileLinkInterconnect(c: Clock = null, r: Bool = null)
+    (implicit p: Parameters) extends TLModule(c,r)(p) {
   val nInner: Int
   val nOuter: Int
 
   lazy val io = new TileLinkInterconnectIO(nInner, nOuter)
 }
 
-class TileLinkRecursiveInterconnect(val nInner: Int, addrMap: AddrMap)
-    (implicit p: Parameters) extends TileLinkInterconnect()(p) {
+class TileLinkRecursiveInterconnect(val nInner: Int, addrMap: AddrMap, c: Clock = null, r: Bool = null)
+    (implicit p: Parameters) extends TileLinkInterconnect(c,r)(p) {
   def port(name: String) = io.out(addrMap.port(name))
   val nOuter = addrMap.numSlaves
   val routeSel = (addr: UInt) =>

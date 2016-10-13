@@ -38,8 +38,9 @@ case object IncludeJtagDTM extends Field[Boolean]
  * 
  */
 
-class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
-    extends Module {
+class JtagDTMWithSync(depth: Int = 1, sync: Int = 3, c: Clock = null, r: Bool = null)
+    (implicit val p: Parameters)
+    extends Module(Option(c), Option(r)) {
 
   // io.DebugBusIO <-> Sync <-> DebugBusIO <-> UInt <-> DTM Black Box
 

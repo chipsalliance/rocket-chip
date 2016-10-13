@@ -17,6 +17,7 @@ import util._
 import rocket.XLen
 import scala.math.max
 import coreplex._
+import testchipip._
 
 /** Options for memory bus interface */
 object BusType {
@@ -121,6 +122,28 @@ trait PeripheryDebugModule {
     dtm.io.jtag <> io.jtag.get
     coreplexIO.debug <> dtm.io.debug
   } else {
+    coreplexIO.debug <>
+      (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
+      else io.debug.get)
+  }
+}
+
+trait PeripheryDebugModuleMC {
+  implicit val p: Parameters
+  val outer: PeripheryDebug
+  val io: PeripheryDebugBundle
+  val coreplexIO: BaseCoreplexBundle
+  val system_clock: Clock
+  val system_reset: Bool
+
+  if (p(IncludeJtagDTM)) {
+    // JtagDTMWithSync is a wrapper which
+    // handles the synchronization as well.
+    val dtm = Module (new JtagDTMWithSync(c = system_clock, r = system_reset)(p))
+    dtm.io.jtag <> io.jtag.get
+    coreplexIO.debug <> dtm.io.debug
+  } else {
+    // [ben] Not bothering with multiclock support here since we have a JtagDTM
     coreplexIO.debug <>
       (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
       else io.debug.get)
@@ -314,6 +337,20 @@ trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
   val io: PeripheryCoreplexLocalInterrupterBundle
   val coreplexIO: BaseCoreplexBundle
 
+  outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
+  coreplexIO.clint <> outer.clint.module.io.tiles
+}
+
+trait PeripheryCoreplexLocalInterrupterModuleMC extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val outer: PeripheryCoreplexLocalInterrupter
+  val io: PeripheryCoreplexLocalInterrupterBundle
+  val coreplexIO: BaseCoreplexBundle
+  val system_clock: Clock
+  val system_reset: Bool
+
+  // TODO - this doesn't work (makes invalid FIRRTL)
+  // outer.clint.module.io.rtcTick := CounterMC(p(RTCPeriod), system_clock, system_reset).inc()
   outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
   coreplexIO.clint <> outer.clint.module.io.tiles
 }
