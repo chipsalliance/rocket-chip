@@ -120,9 +120,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else Mux1H(select, dataSlices)
       val maskOut = Mux1H(select, maskSlices)
 
-      in.ready := out.ready && last
-      out.valid := in.valid
-      out.bits := in.bits
+      out <> in
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
@@ -133,6 +131,9 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
 
       // addr_lo gets truncated automagically
+
+      // Repeat the input if we're not last
+      !last
     }
     
     def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
@@ -141,7 +142,8 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
         out <> in
       } else if (edgeIn.manager.beatBytes > edgeOut.manager.beatBytes) {
         // split input to output
-        split(edgeIn, Queue(in, 1, flow=true), edgeOut, out)
+        val repeat = Wire(Bool())
+        repeat := split(edgeIn, Repeater(in, repeat), edgeOut, out)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)

@@ -191,7 +191,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
     // Make the request Irrevocable
-    val in_a = Queue(in.a, 1, flow=true)
+    val repeat = Wire(Bool())
+    val in_a = Repeater(in.a, repeat)
 
     // If this is infront of a single manager, these become constants
     val find = manager.findFast(edgeIn.address(in_a.bits))
@@ -226,10 +227,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
     when (out.a.fire()) { gennum := new_gennum }
 
-    val delay = !aHasData && aFragnum =/= UInt(0)
-    out.a.valid := in_a.valid
-    in_a.ready := out.a.ready && !delay
-    out.a.bits := in_a.bits
+    repeat := !aHasData && aFragnum =/= UInt(0)
+    out.a <> in_a
     out.a.bits.addr_hi := in_a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
     out.a.bits.source := Cat(in_a.bits.source, aFragnum)
     out.a.bits.size := aFrag
