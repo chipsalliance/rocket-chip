@@ -141,7 +141,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
         out <> in
       } else if (edgeIn.manager.beatBytes > edgeOut.manager.beatBytes) {
         // split input to output
-        split(edgeIn, in, edgeOut, out)
+        split(edgeIn, Queue(in, 1, flow=true), edgeOut, out)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)
