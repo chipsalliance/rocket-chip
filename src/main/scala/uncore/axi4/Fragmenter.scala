@@ -76,9 +76,9 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
       val hi = addr >> lgBytes
       val alignment = hi(AXI4Parameters.lenBits-1,0)
 
-      val allSame = supportedSizes1.distinct.size == 1
-      val dynamic1 = Mux1H(slave.findFast(addr), supportedSizes1.map(s => UInt(s)))
-      val fixed1 = UInt(supportedSizes1(0))
+      val allSame = supportedSizes1.filter(_ >= 0).distinct.size <= 1
+      val dynamic1 = Mux1H(slave.findFast(addr), supportedSizes1.map(s => UInt(max(0, s))))
+      val fixed1 = UInt(supportedSizes1.filter(_ >= 0).headOption.getOrElse(0))
 
       /* We need to compute the largest transfer allowed by the AXI len.
        * len+1 is the number of beats to execute.
