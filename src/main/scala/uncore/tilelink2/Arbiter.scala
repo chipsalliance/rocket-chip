@@ -31,24 +31,24 @@ object TLArbiter
       // Arbitrate amongst the requests
       val readys = Vec(policy(valids, latch))
       // Which request wins arbitration?
-      val winners = Vec((readys zip valids) map { case (r,v) => r&&v })
+      val winner = Vec((readys zip valids) map { case (r,v) => r&&v })
 
       // Confirm the policy works properly
       require (readys.size == valids.size)
-      // Never two winners
-      val prefixOR = winners.scanLeft(Bool(false))(_||_).init
-      assert((prefixOR zip winners) map { case (p,w) => !p || !w } reduce {_ && _})
+      // Never two winner
+      val prefixOR = winner.scanLeft(Bool(false))(_||_).init
+      assert((prefixOR zip winner) map { case (p,w) => !p || !w } reduce {_ && _})
       // If there was any request, there is a winner
-      assert (!valids.reduce(_||_) || winners.reduce(_||_))
+      assert (!valids.reduce(_||_) || winner.reduce(_||_))
 
       // Track remaining beats
-      val maskedBeats = (winners zip beatsIn) map { case (w,b) => Mux(w, b, UInt(0)) }
+      val maskedBeats = (winner zip beatsIn) map { case (w,b) => Mux(w, b, UInt(0)) }
       val initBeats = maskedBeats.reduce(_ | _) // no winner => 0 beats
       beatsLeft := Mux(latch, initBeats, beatsLeft - sink.fire())
 
       // The one-hot source granted access in the previous cycle
       val state = RegInit(Vec.fill(sources.size)(Bool(false)))
-      val muxState = Mux(idle, winners, state)
+      val muxState = Mux(idle, winner, state)
       state := muxState
 
       if (sources.size > 1) {
