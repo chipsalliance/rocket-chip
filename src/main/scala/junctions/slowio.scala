@@ -3,8 +3,8 @@
 package junctions
 import Chisel._
 
-class SlowIO[T <: Data](val divisor_max: Int)(data: => T) extends Module
-{
+class SlowIO[T <: Data](val divisor_max: Int, c: Clock = null, r: Bool = null)
+    (data: => T) extends Module(Option(c), Option(r)) {
   val io = new Bundle {
     val out_fast = Decoupled(data).flip
     val out_slow = Decoupled(data)

@@ -176,10 +176,29 @@ object TileLinkWidthAdapter {
     require(out.tlDataBits * out.tlDataBeats == in.tlDataBits * in.tlDataBeats)
     out <> apply(in, out.p)
   }
+  // [ben] Code duplication is sad times.  Need to make sure this matches the above, just with clock and reset
+  def apply(in: ClientUncachedTileLinkIO, outerParams: Parameters, c: Clock, r: Bool) = {
+    val outerTLId = outerParams(TLId)
+    val outerDataBits = outerParams(TLKey(outerTLId)).dataBitsPerBeat
+    implicit val p = outerParams
+    if (outerDataBits > in.tlDataBits) {
+      val widener = Module(new TileLinkIOWidener(in.p(TLId), outerTLId, c, r))
+      widener.io.in <> in
+      widener.io.out
+    } else if (outerDataBits < in.tlDataBits) {
+      val narrower = Module(new TileLinkIONarrower(in.p(TLId), outerTLId, c, r))
+      narrower.io.in <> in
+      narrower.io.out
+    } else { in }
+  }
+  def apply(out: ClientUncachedTileLinkIO, in: ClientUncachedTileLinkIO, c: Clock, r: Bool): Unit = {
+    require(out.tlDataBits * out.tlDataBeats == in.tlDataBits * in.tlDataBeats)
+    out <> apply(in, out.p, c, r)
+  }
 }
 
-class TileLinkIOWidener(innerTLId: String, outerTLId: String)
-    (implicit p: Parameters) extends TLModule()(p) {
+class TileLinkIOWidener(innerTLId: String, outerTLId: String, c: Clock = null, r: Bool = null)
+    (implicit p: Parameters) extends TLModule(c,r)(p) {
 
   val paddrBits = p(PAddrBits)
   val innerParams = p(TLKey(innerTLId))
@@ -361,8 +380,8 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String)
   io.out.grant.ready := !returning_data && (stretch || io.in.grant.ready)
 }
 
-class TileLinkIONarrower(innerTLId: String, outerTLId: String)
-    (implicit p: Parameters) extends TLModule()(p) {
+class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, r: Bool = null)
+    (implicit p: Parameters) extends TLModule(c,r)(p) {
 
   val innerParams = p(TLKey(innerTLId))
   val outerParams = p(TLKey(outerTLId)) 

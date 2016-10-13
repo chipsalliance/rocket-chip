@@ -141,17 +141,19 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val coreplexIO: BaseCoreplexBundle
   val lbscrTL: ClientUncachedTileLinkIO
   val scr: SCRFile
+  val system_clock: Clock
+  val system_reset: Bool
   val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(outerMMIOParams)))
 
   val lbwifWidth = p(NarrowWidth)
   val lbwifParams = p.alterPartial({ case TLId => "LBWIF" })
   val switcherParams = p.alterPartial({ case TLId => "Switcher" })
 
-  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(switcherParams))
+  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels, c = system_clock, r = system_reset)(switcherParams))
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(
-    nMemChannels, numLanes+2)(switcherParams))
+    nMemChannels, numLanes+2, c = system_clock, r = system_reset)(switcherParams))
   val lbwif = Module(
-    new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth)(lbwifParams))
+    new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth, system_clock, system_reset)(lbwifParams))
 
   unmapper.io.in <> coreplexIO.master.mem
   switcher.io.in <> unmapper.io.out
@@ -160,15 +162,15 @@ trait HurricaneIFModule extends HasPeripheryParameters {
     Mux(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr), UInt(2), UInt(1))
 
   val lbwif_router = Module(new ClientUncachedTileLinkIORouter(
-    2, lbwifRouteSel)(lbwifParams))
+    2, lbwifRouteSel, c = system_clock, r = system_reset)(lbwifParams))
   val (r_start, r_end) = outer.pBusMasters.range("lbwif")
 
   lbwif.io.tl_manager <> switcher.io.out(0)
   lbwif_router.io.in <> lbwif.io.tl_client
-  TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1))
+  TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1), system_clock, system_reset)
   coreplexIO.slave(r_start) <> lbwif_router.io.out(0)
 
-  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=lbwifWidth)))
+  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide), c = system_clock, r = system_reset)(UInt(width=lbwifWidth)))
 
   lbwif.io.serial.in <> slowio_module.io.in_fast
   slowio_module.io.out_fast <> lbwif.io.serial.out

@@ -193,8 +193,9 @@ class PortedTileLinkCrossbar(
 }
 
 class ClientUncachedTileLinkIORouter(
-    nOuter: Int, routeSel: UInt => UInt)(implicit p: Parameters)
-    extends TLModule {
+    nOuter: Int, routeSel: UInt => UInt, c: Clock = null, r: Bool = null)
+    (implicit p: Parameters)
+    extends TLModule(c,r) {
 
   val io = new Bundle {
     val in = (new ClientUncachedTileLinkIO).flip
