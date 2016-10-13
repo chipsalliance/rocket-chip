@@ -47,8 +47,8 @@ class AXI4FullFuzzRAM extends LazyModule
 
   model.node := fuzz.node
   xbar.node  := model.node
-  ram.node   := AXI4Fragmenter(lite=false)(TLToAXI4(4,false)(xbar.node))
-  gpio.node  := AXI4Fragmenter(lite=false)(TLToAXI4(4,true )(xbar.node))
+  ram.node   := AXI4Fragmenter(lite=false, maxInFlight = 2)(TLToAXI4(4,false)(xbar.node))
+  gpio.node  := AXI4Fragmenter(lite=false, maxInFlight = 5)(TLToAXI4(4,true )(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished

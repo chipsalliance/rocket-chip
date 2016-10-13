@@ -257,13 +257,17 @@ class AXI4FragmenterSideband(maxInFlight: Int, flow: Boolean = false) extends Mo
 
   val state = RegInit(PASS)
   val count = RegInit(UInt(0, width = log2Up(maxInFlight)))
+  val full  = count === UInt(maxInFlight-1)
   val empty = count === UInt(0)
   val last  = count === UInt(1)
 
   io.deq.bits := state(1) || (last && state(0)) // PASS || (last && WAIT)
   io.deq.valid := !empty
 
-  io.enq.ready := empty || (state === FIND) || (state === PASS && io.enq.bits)
+  io.enq.ready := !full && (empty || (state === FIND) || (state === PASS && io.enq.bits))
+
+  // WAIT => count > 0
+  assert (state =/= WAIT || count =/= UInt(0))
 
   if (flow) {
     when (io.enq.valid) {
@@ -275,7 +279,7 @@ class AXI4FragmenterSideband(maxInFlight: Int, flow: Boolean = false) extends Mo
   count := count + io.enq.fire() - io.deq.fire()
   switch (state) {
     is(PASS) { when (io.enq.valid && !io.enq.bits && empty) { state := FIND } }
-    is(FIND) { when (io.enq.valid &&  io.enq.bits)          { state := Mux(empty, PASS, WAIT) } }
+    is(FIND) { when (io.enq.valid &&  io.enq.bits && !full) { state := Mux(empty, PASS, WAIT) } }
     is(WAIT) { when (last && io.deq.ready)                  { state := PASS } }
   }
 }
