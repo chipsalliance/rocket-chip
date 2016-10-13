@@ -129,11 +129,11 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.d.bits.source) }) })
     val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.contains(i.e.bits.sink)   }) })
 
-    val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
-    val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.b.bits) })
-    val beatsCI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.c.bits) })
-    val beatsDO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.d.bits) })
-    val beatsEI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.e.bits) })
+    val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) })
+    val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) })
+    val beatsCI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.c.bits) })
+    val beatsDO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats1(o.d.bits) })
+    val beatsEI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) })
 
     // Which pairs support support transfers
     def transpose[T](x: Seq[Seq[T]]) = Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
