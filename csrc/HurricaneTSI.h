@@ -8,6 +8,8 @@ class hurricane_tsi_t : public tsi_t {
   hurricane_tsi_t(const std::vector<std::string>& args);
   ~hurricane_tsi_t();
 
+  virtual void start() override;
+
  protected:
   virtual void reset() override;
 };
