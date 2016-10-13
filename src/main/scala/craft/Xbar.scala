@@ -27,6 +27,6 @@ class CraftXBar(topParams: Parameters) extends Module {
 
   val bus = Module(new NastiRecursiveInterconnect(
     outPorts, addrMap, p(XBarQueueDepth)))
-  bus.io.masters <> io.in
-  io.out <> bus.io.slaves
+  bus.io.masters <> io.in.map(PeripheryUtils.addQueueAXI(_))
+  io.out <> bus.io.slaves.map(PeripheryUtils.addQueueAXI(_))
 }
