@@ -190,8 +190,11 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgPutPartials = maxPutPartials.map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
+    // Make the request Irrevocable
+    val in_a = Queue(in.a, 1, flow=true)
+
     // If this is infront of a single manager, these become constants
-    val find = manager.findFast(edgeIn.address(in.a.bits))
+    val find = manager.findFast(edgeIn.address(in_a.bits))
     val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
     val maxLgLogical     = Mux1H(find, maxLgLogicals)
     val maxLgGet         = Mux1H(find, maxLgGets)
@@ -200,7 +203,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHint        = Mux1H(find, maxLgHints)
 
     val limit = if (alwaysMin) lgMinSize else 
-      MuxLookup(in.a.bits.opcode, lgMinSize, Array(
+      MuxLookup(in_a.bits.opcode, lgMinSize, Array(
         TLMessages.PutFullData    -> maxLgPutFull,
         TLMessages.PutPartialData -> maxLgPutPartial,
         TLMessages.ArithmeticData -> maxLgArithmetic,
@@ -208,11 +211,11 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
         TLMessages.Get            -> maxLgGet,
         TLMessages.Hint           -> maxLgHint))
 
-    val aOrig = in.a.bits.size
+    val aOrig = in_a.bits.size
     val aFrag = Mux(aOrig > limit, limit, aOrig)
     val aOrigOH1 = UIntToOH1(aOrig, log2Ceil(maxSize))
     val aFragOH1 = UIntToOH1(aFrag, log2Up(maxDownSize))
-    val aHasData = node.edgesIn(0).hasData(in.a.bits)
+    val aHasData = node.edgesIn(0).hasData(in_a.bits)
     val aMask = Mux(aHasData, UInt(0), aFragOH1)
 
     val gennum = RegInit(UInt(0, width = counterBits))
@@ -224,11 +227,11 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     when (out.a.fire()) { gennum := new_gennum }
 
     val delay = !aHasData && aFragnum =/= UInt(0)
-    out.a.valid := in.a.valid
-    in.a.ready := out.a.ready && !delay
-    out.a.bits := in.a.bits
-    out.a.bits.addr_hi := in.a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
-    out.a.bits.source := Cat(in.a.bits.source, aFragnum)
+    out.a.valid := in_a.valid
+    in_a.ready := out.a.ready && !delay
+    out.a.bits := in_a.bits
+    out.a.bits.addr_hi := in_a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
+    out.a.bits.source := Cat(in_a.bits.source, aFragnum)
     out.a.bits.size := aFrag
 
     // Tie off unused channels
