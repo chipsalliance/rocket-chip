@@ -53,10 +53,10 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
      *   FIXED => each beat is a new request
      *   WRAP/INCR => take xfr up to next power of two, capped by max size of target
      *
-     * On AR and AW, we fragment the requests
-     * On W we insert 'last' to match
-     * On R we surpress 'last'
-     * On B we surpress 'valid'
+     * On AR and AW, we fragment one request into many
+     * On W we set 'last' on beats which are fragment boundaries
+     * On R we clear 'last' on the fragments being reassembled
+     * On B we clear 'valid' on the responses for the injected fragments
      *
      * AR=>R and AW+W=>B are completely independent state machines.
      */
@@ -208,6 +208,8 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
     in_w.ready := out_w.ready && (!wbeats_ready || wbeats_valid)
     out_w.bits := in_w.bits
     out_w.bits.last := w_last
+    // We should also recreate the last last
+    assert (!out_w.valid || !in_w.bits.last || w_last)
 
     // R flow control
     val r_last = out_r.bits.last
