@@ -68,7 +68,7 @@ class NastiIOTileLinkIOConverterInfo(implicit p: Parameters) extends TLBundle()(
   val subblock = Bool()
 }
 
-class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
+class NastiIOTileLinkIOConverter(c: Clock = null, r: Bool = null)(implicit p: Parameters) extends TLModule(c,r)(p)
     with HasNastiParameters {
   val io = new Bundle {
     val tl = new ClientUncachedTileLinkIO().flip

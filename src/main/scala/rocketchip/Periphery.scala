@@ -67,6 +67,15 @@ object PeripheryUtils {
     source.b <> Queue(sink.b, 1)
     sink
   }
+  def addQueueAXIMC(source: NastiIO, c: Clock, r: Bool) = {
+    val sink = Wire(source)
+    sink.ar  <> QueueMC(source.ar, 1, c = c, r = r)
+    sink.aw  <> QueueMC(source.aw, 1, c = c, r = r)
+    sink.w   <> QueueMC(source.w, c = c, r = r)
+    source.r <> QueueMC(sink.r, c = c, r = r)
+    source.b <> QueueMC(sink.b, 1, c = c, r = r)
+    sink
+  }
   def convertTLtoAXI(tl: ClientUncachedTileLinkIO) = {
     val bridge = Module(new NastiIOTileLinkIOConverter()(tl.p))
     bridge.io.tl <> tl

@@ -59,8 +59,8 @@ trait HasHastiParameters {
   val hastiAlignment = log2Ceil(hastiDataBytes)
 }
 
-abstract class HastiModule(implicit val p: Parameters) extends Module
-  with HasHastiParameters
+abstract class HastiModule(c: Clock = null, r: Bool = null)(implicit val p: Parameters)
+  extends Module(Option(c), Option(r)) with HasHastiParameters
 abstract class HastiBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasHastiParameters
 
@@ -323,7 +323,8 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
   }
 }
 
-class HastiBus(amap: Seq[UInt=>Bool])(implicit p: Parameters) extends HastiModule()(p) {
+class HastiBus(amap: Seq[UInt=>Bool], c: Clock = null, r: Bool = null)
+    (implicit p: Parameters) extends HastiModule(c,r)(p) {
   val io = new Bundle {
     val master = new HastiMasterIO().flip
     val slaves = Vec(amap.size, new HastiSlaveIO).flip

@@ -388,7 +388,8 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
   assert(!io.ahb.hresp, "AHB hresp error detected and cannot be reported via TileLink")
 }
 
-class AHBBridge(supportAtomics: Boolean = true)(implicit val p: Parameters) extends Module
+class AHBBridge(supportAtomics: Boolean = true, c: Clock = null, r: Bool = null)
+    (implicit val p: Parameters) extends Module(Option(c), Option(r))
     with HasHastiParameters
     with HasTileLinkParameters
     with HasAddrMapParameters {
