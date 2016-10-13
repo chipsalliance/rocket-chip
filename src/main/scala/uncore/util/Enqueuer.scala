@@ -47,6 +47,14 @@ object TileLinkEnqueuer {
   def apply(in: ClientUncachedTileLinkIO, depth: Int): ClientUncachedTileLinkIO = {
     apply(in, UncachedTileLinkDepths(depth, depth))
   }
+  def apply(in: ClientUncachedTileLinkIO, depths: UncachedTileLinkDepths, c: Clock, r: Bool): ClientUncachedTileLinkIO = {
+    val t = Module(new ClientUncachedTileLinkEnqueuer(depths, c, r)(in.p))
+    t.io.inner <> in
+    t.io.outer
+  }
+  def apply(in: ClientUncachedTileLinkIO, depth: Int, c: Clock, r: Bool): ClientUncachedTileLinkIO = {
+    apply(in, UncachedTileLinkDepths(depth, depth), c, r)
+  }
 }
 
 class ClientTileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) extends Module {
@@ -62,7 +70,8 @@ class ClientTileLinkEnqueuer(depths: TileLinkDepths)(implicit p: Parameters) ext
   io.outer.finish  <> (if(depths.fin > 0) Queue(io.inner.finish,  depths.fin) else io.inner.finish)
 }
 
-class ClientUncachedTileLinkEnqueuer(depths: UncachedTileLinkDepths)(implicit p: Parameters) extends Module {
+class ClientUncachedTileLinkEnqueuer(depths: UncachedTileLinkDepths, c: Clock = null, r: Bool = null)
+    (implicit p: Parameters) extends Module(Option(c), Option(r)) {
   val io = new Bundle {
     val inner = new ClientUncachedTileLinkIO().flip
     val outer = new ClientUncachedTileLinkIO
