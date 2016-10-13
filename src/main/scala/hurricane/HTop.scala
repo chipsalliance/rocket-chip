@@ -26,7 +26,8 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     with PeripheryDebug
     with PeripheryCoreplexLocalInterrupter
     with HurricaneIF
-    with Hbwif {
+    with Hbwif
+    with SCRResetVector {
   pDevices.add(AddrMapEntry("scrbus", new AddrMap(
     scrDevices.get, start = BigInt(0x60000000L), collapse=true)))
 
@@ -61,7 +62,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     with HurricaneIFModule
     with HbwifModule
     with AsyncConnection
-    with HardwiredResetVector {
+    with SCRResetVectorModule {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
   system_clock := clock
@@ -215,4 +216,19 @@ trait AsyncConnection {
   val multiClock = coreplex.asInstanceOf[MultiClockCoreplexModule[MultiClockCoreplex, MultiClockCoreplexBundle]]
 
   multiClockIO.tcrs <> multiClock.io.tcrs
+}
+
+trait SCRResetVector extends LazyModule {
+  implicit val p: Parameters
+  val topLevelSCRBuilder: SCRBuilder
+
+  topLevelSCRBuilder.addControl("reset_vector", UInt(0x1000)) // boot ROM
+}
+
+trait SCRResetVectorModule extends HasPeripheryParameters {
+  implicit val p: Parameters
+  val coreplexIO: BaseCoreplexBundle
+  val scr: SCRFile
+
+  coreplexIO.resetVector := scr.control("reset_vector")
 }
