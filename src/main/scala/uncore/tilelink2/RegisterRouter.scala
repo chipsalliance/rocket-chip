@@ -41,10 +41,8 @@ class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int =
     in.bits.mask  := a.bits.mask
     in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)
 
-    // Invoke the register map builder and make it Irrevocable
-    val out = Queue.irrevocable(
-      RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*),
-      entries = 1, flow = true)
+    // Invoke the register map builder
+    val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
     // No flow control needed
     in.valid  := a.valid
