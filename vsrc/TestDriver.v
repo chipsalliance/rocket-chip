@@ -19,16 +19,23 @@ module TestDriver;
   reg [63:0] trace_count = 0;
   reg [1023:0] vcdplusfile = 0;
   reg [1023:0] vcdfile = 0;
+  int unsigned rand_value;
   initial
   begin
-    // do not delete the line below
-    // $random function needs to be called with the seed once
-    // to affect all the downstream $random functions within the
-    // Chisel-generated Verilog code
-    $fdisplay(stderr, "seed %0d, testing $random %0x", unsigned'($get_initial_random_seed), $random($get_initial_random_seed));
-
     $value$plusargs("max-cycles=%d", max_cycles);
     verbose = $test$plusargs("verbose");
+
+    // do not delete the line below.
+    // $random function needs to be called with the seed once to affect all
+    // the downstream $random functions within the Chisel-generated Verilog
+    // code.
+    // $urandom is seeded via cmdline (+ntb_random_seed in VCS) but that
+    // doesn't seed $random.
+    rand_value = $random($urandom);
+    if (verbose) begin
+      $fdisplay(stderr, "testing $random %0x", rand_value);
+    end
+
 `ifdef DEBUG
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))
     begin

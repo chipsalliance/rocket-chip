@@ -4,24 +4,26 @@ package util
 import Chisel._
 
 object GrayCounter {
-  def apply(bits: Int, increment: Bool = Bool(true)): UInt = {
+  def apply(bits: Int, increment: Bool = Bool(true), clear: Bool = Bool(false), name: String = "binary"): UInt = {
     val incremented = Wire(UInt(width=bits))
-    val binary = AsyncResetReg(incremented, 0)
-    incremented := binary + increment.asUInt()
+    val binary = AsyncResetReg(incremented, name)
+    incremented := Mux(clear, UInt(0), binary + increment.asUInt())
     incremented ^ (incremented >> UInt(1))
   }
 }
 
-object AsyncGrayCounter {
-  def apply(in: UInt, sync: Int): UInt = {
-    val syncv = List.fill(sync)(Module (new AsyncResetRegVec(w = in.getWidth, 0)))
+object UIntSyncChain {
+  def apply(in: UInt, sync: Int, name: String = "gray"): UInt = {
+    val syncv = List.tabulate(sync) { i =>
+      Module (new AsyncResetRegVec(w = in.getWidth, 0)).suggestName(s"${name}_sync_${i}")
+    }
     syncv.last.io.d := in
     syncv.last.io.en := Bool(true)
       (syncv.init zip syncv.tail).foreach { case (sink, source) =>
         sink.io.d := source.io.q
         sink.io.en := Bool(true)
       }
-    syncv(0).io.d
+    syncv.head.io.q
   }
 }
 
@@ -29,27 +31,38 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the source domain
-    val enq  = Decoupled(gen).flip()
+    val enq  = Decoupled(gen).flip
     // These cross to the sink clock domain
     val ridx = UInt(INPUT,  width = bits+1)
     val widx = UInt(OUTPUT, width = bits+1)
     val mem  = Vec(depth, gen).asOutput
+    // Reset for the other side
+    val sink_reset_n = Bool().flip
   }
 
+  // extend the sink reset to a full cycle (assertion latency <= 1 cycle)
+  val catch_sink_reset_n = AsyncResetReg(Bool(true), clock, !io.sink_reset_n, "catch_sink_reset_n")
+  // reset_n has a 1 cycle shorter path to ready than ridx does
+  val sink_reset_n = UIntSyncChain(catch_sink_reset_n.asUInt, sync, "sink_reset_n")(0)
+
   val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
-  val widx = GrayCounter(bits+1, io.enq.fire())
-  val ridx = AsyncGrayCounter(io.ridx, sync)
+  val widx = GrayCounter(bits+1, io.enq.fire(), !sink_reset_n, "widx_bin")
+  val ridx = UIntSyncChain(io.ridx, sync, "ridx_gray")
   val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
-  when (io.enq.fire() && !reset) { mem(index) := io.enq.bits }
-  val ready_reg = AsyncResetReg(ready, 0)
-  io.enq.ready := ready_reg
+  when (io.enq.fire()) { mem(index) := io.enq.bits }
 
-  val widx_reg = AsyncResetReg(widx, 0)
+  val ready_reg = AsyncResetReg(ready.asUInt, "ready_reg")(0)
+  io.enq.ready := ready_reg && sink_reset_n
+
+  val widx_reg = AsyncResetReg(widx, "widx_gray")
   io.widx := widx_reg
 
   io.mem := mem
+
+  // It is a fatal error to reset half a Queue while it still has data
+  assert (sink_reset_n || widx === ridx)
 }
 
 class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
@@ -61,10 +74,17 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
     val ridx = UInt(OUTPUT, width = bits+1)
     val widx = UInt(INPUT,  width = bits+1)
     val mem  = Vec(depth, gen).asInput
+    // Reset for the other side
+    val source_reset_n = Bool().flip
   }
 
-  val ridx = GrayCounter(bits+1, io.deq.fire())
-  val widx = AsyncGrayCounter(io.widx, sync)
+  // extend the source reset to a full cycle (assertion latency <= 1 cycle)
+  val catch_source_reset_n = AsyncResetReg(Bool(true), clock, !io.source_reset_n, "catch_source_reset_n")
+  // reset_n has a 1 cycle shorter path to valid than widx does
+  val source_reset_n = UIntSyncChain(catch_source_reset_n.asUInt, sync, "source_reset_n")(0)
+
+  val ridx = GrayCounter(bits+1, io.deq.fire(), !source_reset_n, "ridx_bin")
+  val widx = UIntSyncChain(io.widx, sync, "widx_gray")
   val valid = ridx =/= widx
 
   // The mux is safe because timing analysis ensures ridx has reached the register
@@ -74,11 +94,18 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
   // This register does not NEED to be reset, as its contents will not
   // be considered unless the asynchronously reset deq valid register is set.
-  io.deq.bits  := RegEnable(io.mem(index), valid) 
-    
-  io.deq.valid := AsyncResetReg(valid, 0)
+  // It is possible that bits latches when the source domain is reset / has power cut
+  // This is safe, because isolation gates brought mem low before the zeroed widx reached us
+  io.deq.bits  := RegEnable(io.mem(index), valid)
 
-  io.ridx := AsyncResetReg(ridx, 0)
+  val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
+  io.deq.valid := valid_reg && source_reset_n
+
+  val ridx_reg = AsyncResetReg(ridx, "ridx_gray")
+  io.ridx := ridx_reg
+
+  // It is a fatal error to reset half a Queue while it still has data
+  assert (source_reset_n || widx === ridx)
 }
 
 class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
@@ -93,6 +120,9 @@ class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Cross
   source.reset := io.enq_reset
   sink.clock := io.deq_clock
   sink.reset := io.deq_reset
+
+  source.io.sink_reset_n := !io.deq_reset
+  sink.io.source_reset_n := !io.enq_reset
 
   source.io.enq <> io.enq
   io.deq <> sink.io.deq

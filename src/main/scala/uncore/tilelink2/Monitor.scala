@@ -282,68 +282,60 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatA(a: IrrevocableSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val (a_first, _, _) = edge.firstlast(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val addr_hi = Reg(UInt())
-    when (a.valid && counter =/= UInt(0)) {
+    when (a.valid && !a_first) {
       assert (a.bits.opcode === opcode, "'A' channel opcode changed within multibeat operation" + extra)
       assert (a.bits.param  === param,  "'A' channel param changed within multibeat operation" + extra)
       assert (a.bits.size   === size,   "'A' channel size changed within multibeat operation" + extra)
       assert (a.bits.source === source, "'A' channel source changed within multibeat operation" + extra)
       assert (a.bits.addr_hi=== addr_hi,"'A' channel addr_hi changed with multibeat operation" + extra)
     }
-    when (a.fire()) {
-      counter := counter - UInt(1)
-      when (counter === UInt(0)) {
-        counter := edge.numBeats(a.bits) - UInt(1)
-        opcode  := a.bits.opcode
-        param   := a.bits.param
-        size    := a.bits.size
-        source  := a.bits.source
-        addr_hi := a.bits.addr_hi
-      }
+    when (a.fire() && a_first) {
+      opcode  := a.bits.opcode
+      param   := a.bits.param
+      size    := a.bits.size
+      source  := a.bits.source
+      addr_hi := a.bits.addr_hi
     }
   }
 
   def legalizeMultibeatB(b: IrrevocableSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val (b_first, _, _) = edge.firstlast(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val addr_hi = Reg(UInt())
-    when (b.valid && counter =/= UInt(0)) {
+    when (b.valid && !b_first) {
       assert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
       assert (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
       assert (b.bits.size   === size,   "'B' channel size changed within multibeat operation" + extra)
       assert (b.bits.source === source, "'B' channel source changed within multibeat operation" + extra)
       assert (b.bits.addr_hi=== addr_hi,"'B' channel addr_hi changed with multibeat operation" + extra)
     }
-    when (b.fire()) {
-      counter := counter - UInt(1)
-      when (counter === UInt(0)) {
-        counter := edge.numBeats(b.bits) - UInt(1)
-        opcode  := b.bits.opcode
-        param   := b.bits.param
-        size    := b.bits.size
-        source  := b.bits.source
-        addr_hi := b.bits.addr_hi
-      }
+    when (b.fire() && b_first) {
+      opcode  := b.bits.opcode
+      param   := b.bits.param
+      size    := b.bits.size
+      source  := b.bits.source
+      addr_hi := b.bits.addr_hi
     }
   }
 
   def legalizeMultibeatC(c: IrrevocableSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val (c_first, _, _) = edge.firstlast(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val addr_hi = Reg(UInt())
     val addr_lo = Reg(UInt())
-    when (c.valid && counter =/= UInt(0)) {
+    when (c.valid && !c_first) {
       assert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
       assert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
       assert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
@@ -351,29 +343,25 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (c.bits.addr_hi=== addr_hi,"'C' channel addr_hi changed with multibeat operation" + extra)
       assert (c.bits.addr_lo=== addr_lo,"'C' channel addr_lo changed with multibeat operation" + extra)
     }
-    when (c.fire()) {
-      counter := counter - UInt(1)
-      when (counter === UInt(0)) {
-        counter := edge.numBeats(c.bits) - UInt(1)
-        opcode  := c.bits.opcode
-        param   := c.bits.param
-        size    := c.bits.size
-        source  := c.bits.source
-        addr_hi := c.bits.addr_hi
-        addr_lo := c.bits.addr_lo
-      }
+    when (c.fire() && c_first) {
+      opcode  := c.bits.opcode
+      param   := c.bits.param
+      size    := c.bits.size
+      source  := c.bits.source
+      addr_hi := c.bits.addr_hi
+      addr_lo := c.bits.addr_lo
     }
   }
 
   def legalizeMultibeatD(d: IrrevocableSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
+    val (d_first, _, _) = edge.firstlast(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val sink    = Reg(UInt())
     val addr_lo = Reg(UInt())
-    when (d.valid && counter =/= UInt(0)) {
+    when (d.valid && !d_first) {
       assert (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
       assert (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
       assert (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
@@ -381,17 +369,13 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
       assert (d.bits.addr_lo=== addr_lo,"'D' channel addr_lo changed with multibeat operation" + extra)
     }
-    when (d.fire()) {
-      counter := counter - UInt(1)
-      when (counter === UInt(0)) {
-        counter := edge.numBeats(d.bits) - UInt(1)
-        opcode  := d.bits.opcode
-        param   := d.bits.param
-        size    := d.bits.size
-        source  := d.bits.source
-        sink    := d.bits.sink
-        addr_lo := d.bits.addr_lo
-      }
+    when (d.fire() && d_first) {
+      opcode  := d.bits.opcode
+      param   := d.bits.param
+      size    := d.bits.size
+      source  := d.bits.source
+      sink    := d.bits.sink
+      addr_lo := d.bits.addr_lo
     }
   }
 
@@ -425,15 +409,8 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
-    val a_counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
-    val a_beats1 = edge.numBeats1(bundle.a.bits)
-    val a_first = a_counter === UInt(0)
-    val a_last = a_counter === UInt(1) || a_beats1 === UInt(0)
-
-    val d_counter = RegInit(UInt(0, width = log2Up(edge.maxTransfer)))
-    val d_beats1 = edge.numBeats1(bundle.d.bits)
-    val d_first = d_counter === UInt(0)
-    val d_last = d_counter === UInt(1) || d_beats1 === UInt(0)
+    val (_, a_last, _) = edge.firstlast(bundle.a.bits, bundle.a.fire())
+    val (_, d_last, _) = edge.firstlast(bundle.d.bits, bundle.d.fire())
 
     val bypass = bundle.a.bits.source === bundle.d.bits.source
     val a_bypass = bypass && bundle.d.valid && d_last
@@ -445,14 +422,12 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.a.fire()) {
-      a_counter := Mux(a_first, a_beats1, a_counter - UInt(1))
       when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
       assert(a_bypass || !inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
-      d_counter := Mux(d_first, d_beats1, d_counter - UInt(1))
       when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
       assert(d_bypass || inflight(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
     }

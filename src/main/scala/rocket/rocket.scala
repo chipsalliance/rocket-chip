@@ -465,6 +465,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     wb_reg_pc := mem_reg_pc
   }
 
+  val wb_wxd = wb_reg_valid && wb_ctrl.wxd
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
@@ -479,12 +480,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
 
-  div.io.resp.ready := !(wb_reg_valid && wb_ctrl.wxd)
+  div.io.resp.ready := !wb_wxd
   val ll_wdata = Wire(init = div.io.resp.bits.data)
   val ll_waddr = Wire(init = div.io.resp.bits.tag)
   val ll_wen = Wire(init = div.io.resp.fire())
   if (usingRoCC) {
-    io.rocc.resp.ready := !(wb_reg_valid && wb_ctrl.wxd)
+    io.rocc.resp.ready := !wb_wxd
     when (io.rocc.resp.fire()) {
       div.io.resp.ready := Bool(false)
       ll_wdata := io.rocc.resp.bits.data
@@ -581,6 +582,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
+    id_ctrl.div && (!(div.io.req.ready || (div.io.resp.valid && !wb_wxd)) || div.io.req.valid) || // reduce odds of replay
     id_do_fence ||
     csr.io.csr_stall
   ctrl_killd := !ibuf.io.inst(0).valid || ibuf.io.inst(0).bits.replay || take_pc_mem_wb || ctrl_stalld || csr.io.interrupt

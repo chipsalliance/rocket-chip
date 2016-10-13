@@ -211,11 +211,11 @@ object TLBundleSnoop
 {
   def apply(x: TLBundle) = {
     val out = Wire(new TLBundleSnoop(x.params))
-    out.a := IrrevocableSnoop(x.a)
-    out.b := IrrevocableSnoop(x.b)
-    out.c := IrrevocableSnoop(x.c)
-    out.d := IrrevocableSnoop(x.d)
-    out.e := IrrevocableSnoop(x.e)
+    out.a <> IrrevocableSnoop(x.a)
+    out.b <> IrrevocableSnoop(x.b)
+    out.c <> IrrevocableSnoop(x.c)
+    out.d <> IrrevocableSnoop(x.d)
+    out.e <> IrrevocableSnoop(x.e)
     out
   }
 }
@@ -226,6 +226,9 @@ final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
   val ridx = UInt(width = log2Up(depth)+1).flip
   val widx = UInt(width = log2Up(depth)+1)
   val mem  = Vec(depth, gen)
+  val source_reset_n = Bool()
+  val sink_reset_n = Bool().flip
+
   override def cloneType: this.type = new AsyncBundle(depth, gen).asInstanceOf[this.type]
 }
 
@@ -236,6 +239,8 @@ object FromAsyncBundle
     x.ridx := sink.io.ridx
     sink.io.widx := x.widx
     sink.io.mem  := x.mem
+    sink.io.source_reset_n := x.source_reset_n
+    x.sink_reset_n := !sink.reset
     val out = Wire(Irrevocable(x.mem(0)))
     out.valid := sink.io.deq.valid
     out.bits := sink.io.deq.bits
@@ -255,6 +260,8 @@ object ToAsyncBundle
     source.io.ridx := out.ridx
     out.mem := source.io.mem
     out.widx := source.io.widx
+    source.io.sink_reset_n := out.sink_reset_n
+    out.source_reset_n := !source.reset
     out
   }
 }

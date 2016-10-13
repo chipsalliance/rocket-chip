@@ -80,7 +80,11 @@ object LFSRNoiseMaker {
 class TLFuzzer(
     nOperations: Int,
     inFlight: Int = 32,
-    noiseMaker: (Int, Bool) => UInt = LFSRNoiseMaker.apply _) extends LazyModule
+    noiseMaker: (Int, Bool, Int) => UInt = {
+                  (wide: Int, increment: Bool, abs_values: Int) =>
+                   LFSRNoiseMaker(wide=wide, increment=increment)
+                  }
+              ) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -109,19 +113,11 @@ class TLFuzzer(
 
     // Progress within each operation
     val a = out.a.bits
-    val a_beats1 = edge.numBeats1(a)
-    val a_counter = RegInit(UInt(0, width = maxLgBeats))
-    val a_counter1 = a_counter - UInt(1)
-    val a_first = a_counter === UInt(0)
-    val a_last  = a_counter === UInt(1) || a_beats1 === UInt(0)
+    val (a_first, a_last, _) = edge.firstlast(out.a)
     val req_done = out.a.fire() && a_last
 
     val d = out.d.bits
-    val d_beats1 = edge.numBeats1(d)
-    val d_counter = RegInit(UInt(0, width = maxLgBeats))
-    val d_counter1 = d_counter - UInt(1)
-    val d_first = d_counter === UInt(0)
-    val d_last  = d_counter === UInt(1) || d_beats1 === UInt(0)
+    val (d_first, d_last, _) = edge.firstlast(out.d)
     val resp_done = out.d.fire() && d_last
 
     // Source ID generation
@@ -135,14 +131,14 @@ class TLFuzzer(
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
-    val arth_op_3 = noiseMaker(3, inc)
+    val arth_op_3 = noiseMaker(3, inc, 0)
     val arth_op   = Mux(arth_op_3 > UInt(4), UInt(4), arth_op_3)
-    val log_op    = noiseMaker(2, inc)
-    val amo_size  = UInt(2) + noiseMaker(1, inc) // word or dword
-    val size      = noiseMaker(sizeBits, inc)
-    val addr      = noiseMaker(addressBits, inc) & ~UIntToOH1(size, addressBits)
-    val mask      = noiseMaker(beatBytes, inc_beat) & edge.mask(addr, size)
-    val data      = noiseMaker(dataBits, inc_beat)
+    val log_op    = noiseMaker(2, inc, 0)
+    val amo_size  = UInt(2) + noiseMaker(1, inc, 0) // word or dword
+    val size      = noiseMaker(sizeBits, inc, 0)
+    val addr      = noiseMaker(addressBits, inc, 2) & ~UIntToOH1(size, addressBits)
+    val mask      = noiseMaker(beatBytes, inc_beat, 2) & edge.mask(addr, size)
+    val data      = noiseMaker(dataBits, inc_beat, 2)
 
     // Actually generate specific TL messages when it is legal to do so
     val (glegal,  gbits)  = edge.Get(src, addr, size)
@@ -165,7 +161,7 @@ class TLFuzzer(
     val legal_dest = edge.manager.containsSafe(addr)
 
     // Pick a specific message to try to send
-    val a_type_sel  = noiseMaker(3, inc)
+    val a_type_sel  = noiseMaker(3, inc, 0)
 
     val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
@@ -195,14 +191,12 @@ class TLFuzzer(
     inc := !legal || req_done
     inc_beat := !legal || out.a.fire()
 
-    when (out.a.fire()) {
-      a_counter := Mux(a_first, a_beats1, a_counter1)
-      when(a_last) { num_reqs := num_reqs - UInt(1) }
+    when (out.a.fire() && a_last) {
+      num_reqs := num_reqs - UInt(1)
     }
 
-    when (out.d.fire()) {
-      d_counter := Mux(d_first, d_beats1, d_counter1)
-      when(d_last) { num_resps := num_resps - UInt(1) }
+    when (out.d.fire() && d_last) {
+      num_resps := num_resps - UInt(1)
     }
   }
 }
@@ -225,8 +219,8 @@ class TLFuzzRAM extends LazyModule
   xbar2.node := TLAtomicAutomata()(model.node)
   ram2.node := TLFragmenter(16, 256)(xbar2.node)
   xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
-  cross.nodeIn := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  val monitor = (ram.node := cross.nodeOut)
+  cross.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
+  val monitor = (ram.node := cross.node)
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {

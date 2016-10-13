@@ -197,7 +197,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscValid) { lrscCount := lrscCount - 1 }
-  when ((s2_valid_hit && s2_sc) || io.cpu.invalidate_lr) { lrscCount := 0 }
+  when ((s2_valid_masked && lrscValid) || io.cpu.invalidate_lr) { lrscCount := 0 }
 
   // pending store buffer
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
@@ -325,8 +325,9 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (io.mem.grant.fire() && refillDone) { cached_grant_wait := false }
 
   // data refill
-  dataArb.io.in(1).valid := grantIsRefill && io.mem.grant.valid
-  assert(dataArb.io.in(1).ready || !dataArb.io.in(1).valid)
+  val doRefillBeat = grantIsRefill && io.mem.grant.valid
+  dataArb.io.in(1).valid := doRefillBeat
+  assert(dataArb.io.in(1).ready || !doRefillBeat)
   dataArb.io.in(1).bits.write := true
   dataArb.io.in(1).bits.addr := Cat(s2_req.addr(paddrBits-1, blockOffBits), io.mem.grant.bits.addr_beat) << beatOffBits
   dataArb.io.in(1).bits.way_en := s2_victim_way
@@ -431,7 +432,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   // cached response
   io.cpu.resp.valid := s2_valid_hit
-  io.cpu.resp.bits := s2_req
+  io.cpu.resp.bits <> s2_req
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false
   io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
@@ -474,7 +475,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
-      flushing := !release_ack_wait
+      flushing := !release_ack_wait && !uncachedInFlight.asUInt.orR
     }
   }
   s1_flush_valid := metaReadArb.io.in(0).fire() && !s1_flush_valid && !s2_flush_valid && release_state === s_ready && !release_ack_wait

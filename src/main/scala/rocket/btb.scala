@@ -246,6 +246,11 @@ class BTB(implicit p: Parameters) extends BtbModule {
   io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(hitsVec, brIdx) else UInt(0))
   io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
 
+  // if multiple entries for same PC land in BTB, zap them
+  when (PopCountAtLeast(hits, 2)) {
+    isValid := isValid & ~hits
+  }
+
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
     val isBranch = !(hits & isJump).orR
