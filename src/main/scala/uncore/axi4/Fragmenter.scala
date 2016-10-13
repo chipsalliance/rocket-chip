@@ -225,7 +225,7 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
     in_b.bits := out_b.bits
 
     // Merge errors from dropped B responses
-    val r_resp = Reg(UInt(width = AXI4Parameters.respBits))
+    val r_resp = RegInit(UInt(0, width = AXI4Parameters.respBits))
     val resp = out_b.bits.resp | r_resp
     when (out_b.fire()) { r_resp := Mux(b_last, UInt(0), resp) }
     in_b.bits.resp := resp
