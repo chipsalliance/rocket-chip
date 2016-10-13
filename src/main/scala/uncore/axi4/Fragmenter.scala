@@ -96,19 +96,17 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
       // Things that cause us to degenerate to a single beat
       val fixed = a.bits.burst === AXI4Parameters.BURST_FIXED
       val narrow = a.bits.size =/= UInt(lgBytes)
-      val misaligned = lo =/= UInt(0)
-      val bad = fixed || narrow || misaligned
+      val bad = fixed || narrow
 
       // The number of beats-1 to execute
       val beats1 = Mux(bad, UInt(0), maxSupported1)
       val beats = ~(~(beats1 << 1 | UInt(1)) | beats1) // beats1 + 1
 
       val inc_addr = addr + (beats << a.bits.size) // address after adding transfer
-      val align_addr = ~(~inc_addr | UIntToOH1(a.bits.size, lgBytes)) // AXI4 increments misaligned heads to aligned
       val wrapMask = ~(~a.bits.len << a.bits.size) // only these bits may change, if wrapping
-      val mux_addr = Wire(init = align_addr)
+      val mux_addr = Wire(init = inc_addr)
       when (a.bits.burst === AXI4Parameters.BURST_WRAP) {
-        mux_addr := (align_addr & wrapMask) | ~(~a.bits.addr | wrapMask)
+        mux_addr := (inc_addr & wrapMask) | ~(~a.bits.addr | wrapMask)
       }
       when (a.bits.burst === AXI4Parameters.BURST_FIXED) {
         mux_addr := a.bits.addr
@@ -119,8 +117,14 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
       out.valid := a.valid
 
       out.bits := a.bits
-      out.bits.addr := addr
       out.bits.len := beats1
+
+      // We forcibly align every access. If the first beat was misaligned, the strb bits
+      // for the lower addresses must not have been set. Therefore, rounding the address
+      // down is harmless. We can do this after the address update algorithm, because the
+      // incremented values will be rounded down the same way. Furthermore, a subword
+      // offset cannot cause a premature wrap-around.
+      out.bits.addr := ~(~addr | UIntToOH1(a.bits.size, lgBytes))
 
       when (out.fire()) {
         busy := !last
