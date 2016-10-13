@@ -190,9 +190,10 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgPutPartials = maxPutPartials.map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
-    // Make the request Irrevocable
-    val repeat = Wire(Bool())
-    val in_a = Repeater(in.a, repeat)
+    // Make the request repeatable
+    val repeater = Module(new Repeater(in.a.bits))
+    repeater.io.enq <> in.a
+    val in_a = repeater.io.deq
 
     // If this is infront of a single manager, these become constants
     val find = manager.findFast(edgeIn.address(in_a.bits))
@@ -227,11 +228,18 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
     when (out.a.fire()) { gennum := new_gennum }
 
-    repeat := !aHasData && aFragnum =/= UInt(0)
+    repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
     out.a <> in_a
     out.a.bits.addr_hi := in_a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
     out.a.bits.source := Cat(in_a.bits.source, aFragnum)
     out.a.bits.size := aFrag
+
+    // Optimize away some of the Repeater's registers
+    assert (!repeater.io.full || !aHasData)
+    out.a.bits.data := in.a.bits.data
+    val fullMask = UInt((BigInt(1) << beatBytes) - 1)
+    assert (!repeater.io.full || in_a.bits.mask === fullMask)
+    out.a.bits.mask := Mux(repeater.io.full, fullMask, in.a.bits.mask)
 
     // Tie off unused channels
     in.b.valid := Bool(false)

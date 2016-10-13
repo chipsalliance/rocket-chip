@@ -10,6 +10,7 @@ class Repeater[T <: Data](gen: T) extends Module
 {
   val io = new Bundle {
     val repeat = Bool(INPUT)
+    val full = Bool(OUTPUT)
     val enq = Decoupled(gen).flip
     val deq = Decoupled(gen)
   }
@@ -21,6 +22,7 @@ class Repeater[T <: Data](gen: T) extends Module
   io.deq.valid := io.enq.valid || full
   io.enq.ready := io.deq.ready && !full
   io.deq.bits := Mux(full, saved, io.enq.bits)
+  io.full := full
 
   when (io.enq.fire() &&  io.repeat) { full := Bool(true); saved := io.enq.bits }
   when (io.deq.fire() && !io.repeat) { full := Bool(false) }
