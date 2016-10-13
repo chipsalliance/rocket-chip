@@ -437,7 +437,7 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
   val r_arb = Module(new HellaPeekingArbiter(
     new NastiReadDataChannel, nSlaves + 1,
     // we can unlock if it's the last beat
-    (r: NastiReadDataChannel) => r.last))
+    (r: NastiReadDataChannel) => r.last, rr = true))
 
   for (i <- 0 until nSlaves) {
     b_arb.io.in(i) <> io.slave(i).b
