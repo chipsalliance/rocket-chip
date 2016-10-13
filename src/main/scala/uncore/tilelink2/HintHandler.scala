@@ -33,38 +33,20 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     val smartClients = edgeIn.client.clients.map(_.supportsHint.max == edgeIn.client.maxTransfer).reduce(_&&_)
     val smartManagers = edgeOut.manager.managers.map(_.supportsHint.max == edgeOut.manager.maxTransfer).reduce(_&&_)
 
-    if (supportManagers && !smartManagers) {
-      // State of the Hint bypass
-      val counter = RegInit(UInt(0, width = log2Up(edgeOut.manager.maxTransfer/edgeOut.manager.beatBytes)))
-      val hintHoldsD = RegInit(Bool(false))
-      val outerHoldsD = counter =/= UInt(0)
-      // Only one of them can hold it
-      assert (!hintHoldsD || !outerHoldsD)
-
-      // Count outer D beats
-      val beats1 = edgeOut.numBeats1(out.d.bits)
-      when (out.d.fire()) { counter := Mux(outerHoldsD, counter - UInt(1), beats1) }
-
-      // Who wants what?
+    if (supportManagers && !(passthrough && smartManagers)) {
       val address = edgeIn.address(in.a.bits)
       val handleA = if (passthrough) !edgeOut.manager.supportsHintFast(address, edgeIn.size(in.a.bits)) else Bool(true)
       val hintBitsAtA = handleA && in.a.bits.opcode === TLMessages.Hint
-      val hintWantsD = in.a.valid && hintBitsAtA
-      val outerWantsD = out.d.valid
+      val hint = Wire(out.d)
 
-      // Prioritize existing D traffic over HintAck (and finish multibeat xfers)
-      val hintWinsD = hintHoldsD || (!outerHoldsD && !outerWantsD)
-      hintHoldsD := hintWantsD && hintWinsD && !in.d.ready
-      // Hint can only hold D b/c it still wants it from last cycle
-      assert (!hintHoldsD || hintWantsD)
-
-      in.d.valid  := Mux(hintWinsD, hintWantsD, outerWantsD)
-      in.d.bits   := Mux(hintWinsD, edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address)), out.d.bits)
-      out.d.ready := in.d.ready && !hintHoldsD
-
-      in.a.ready  := Mux(hintBitsAtA, hintWinsD && in.d.ready, out.a.ready)
+      hint.valid  := in.a.valid &&  hintBitsAtA
       out.a.valid := in.a.valid && !hintBitsAtA
-      out.a.bits  := in.a.bits
+      in.a.ready := Mux(hintBitsAtA, hint.ready, out.a.ready)
+
+      hint.bits := edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address))
+      out.a.bits := in.a.bits
+
+      TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats(out.d.bits), out.d), (UInt(1), hint))
     } else {
       out.a.valid := in.a.valid
       in.a.ready := out.a.ready
@@ -75,37 +57,19 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       in.d.bits := out.d.bits
     }
 
-    if (supportClients && !smartClients) {
-      // State of the Hint bypass
-      val counter = RegInit(UInt(0, width = log2Up(edgeIn.client.maxTransfer/edgeIn.manager.beatBytes)))
-      val hintHoldsC = RegInit(Bool(false))
-      val innerHoldsC = counter =/= UInt(0)
-      // Only one of them can hold it
-      assert (!hintHoldsC || !innerHoldsC)
-
-      // Count inner C beats
-      val beats1 = edgeIn.numBeats1(in.c.bits)
-      when (in.c.fire()) { counter := Mux(innerHoldsC, counter - UInt(1), beats1) }
-
-      // Who wants what?
+    if (supportClients && !(passthrough && smartClients)) {
       val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
       val hintBitsAtB = handleB && out.b.bits.opcode === TLMessages.Hint
-      val hintWantsC = out.b.valid && hintBitsAtB
-      val innerWantsC = in.c.valid
+      val hint = Wire(in.c)
 
-      // Prioritize existing C traffic over HintAck (and finish multibeat xfers)
-      val hintWinsC = hintHoldsC || (!innerHoldsC && !innerWantsC)
-      hintHoldsC := hintWantsC && hintWinsC && !out.c.ready
-      // Hint can only hold C b/c it still wants it from last cycle
-      assert (!hintHoldsC || hintWantsC)
+      hint.valid := out.b.valid &&  hintBitsAtB
+      in.b.valid := out.b.valid && !hintBitsAtB
+      out.b.ready := Mux(hintBitsAtB, hint.ready, in.b.ready)
 
-      out.c.valid := Mux(hintWinsC, hintWantsC, innerWantsC)
-      out.c.bits  := Mux(hintWinsC, edgeOut.HintAck(out.b.bits), in.c.bits)
-      in.c.ready  := out.c.ready && !hintHoldsC
+      hint.bits := edgeOut.HintAck(out.b.bits)
+      in.b.bits := out.b.bits
 
-      out.b.ready := Mux(hintBitsAtB, hintWinsC && out.c.ready, in.b.ready)
-      in.b.valid  := out.b.valid && !hintBitsAtB
-      in.b.bits   := out.b.bits
+      TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats(in.c.bits), in.c), (UInt(1), hint))
     } else if (bce) {
       in.b.valid := out.b.valid
       out.b.ready := in.b.ready

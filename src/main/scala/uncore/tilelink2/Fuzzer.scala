@@ -113,19 +113,11 @@ class TLFuzzer(
 
     // Progress within each operation
     val a = out.a.bits
-    val a_beats1 = edge.numBeats1(a)
-    val a_counter = RegInit(UInt(0, width = maxLgBeats))
-    val a_counter1 = a_counter - UInt(1)
-    val a_first = a_counter === UInt(0)
-    val a_last  = a_counter === UInt(1) || a_beats1 === UInt(0)
+    val (a_first, a_last, _) = edge.firstlast(out.a)
     val req_done = out.a.fire() && a_last
 
     val d = out.d.bits
-    val d_beats1 = edge.numBeats1(d)
-    val d_counter = RegInit(UInt(0, width = maxLgBeats))
-    val d_counter1 = d_counter - UInt(1)
-    val d_first = d_counter === UInt(0)
-    val d_last  = d_counter === UInt(1) || d_beats1 === UInt(0)
+    val (d_first, d_last, _) = edge.firstlast(out.d)
     val resp_done = out.d.fire() && d_last
 
     // Source ID generation
@@ -199,14 +191,12 @@ class TLFuzzer(
     inc := !legal || req_done
     inc_beat := !legal || out.a.fire()
 
-    when (out.a.fire()) {
-      a_counter := Mux(a_first, a_beats1, a_counter1)
-      when(a_last) { num_reqs := num_reqs - UInt(1) }
+    when (out.a.fire() && a_last) {
+      num_reqs := num_reqs - UInt(1)
     }
 
-    when (out.d.fire()) {
-      d_counter := Mux(d_first, d_beats1, d_counter1)
-      when(d_last) { num_resps := num_resps - UInt(1) }
+    when (out.d.fire() && d_last) {
+      num_resps := num_resps - UInt(1)
     }
   }
 }
@@ -229,8 +219,8 @@ class TLFuzzRAM extends LazyModule
   xbar2.node := TLAtomicAutomata()(model.node)
   ram2.node := TLFragmenter(16, 256)(xbar2.node)
   xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
-  cross.nodeIn := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  val monitor = (ram.node := cross.nodeOut)
+  cross.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
+  val monitor = (ram.node := cross.node)
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {

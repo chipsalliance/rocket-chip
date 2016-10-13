@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.util.IrrevocableIO
 import diplomacy._
 
 class TLEdge(
@@ -25,28 +26,8 @@ class TLEdge(
     }
   }
 
-  // This gets used everywhere, so make the smallest circuit possible ...
-  def mask(addr_lo: UInt, lgSize: UInt): UInt = {
-    val lgBytes = log2Ceil(manager.beatBytes)
-    val sizeOH = UIntToOH(lgSize, log2Up(manager.beatBytes))
-    def helper(i: Int): Seq[(Bool, Bool)] = {
-      if (i == 0) {
-        Seq((lgSize >= UInt(lgBytes), Bool(true)))
-      } else {
-        val sub = helper(i-1)
-        val size = sizeOH(lgBytes - i)
-        val bit = addr_lo(lgBytes - i)
-        val nbit = !bit
-        Seq.tabulate (1 << i) { j =>
-          val (sub_acc, sub_eq) = sub(j/2)
-          val eq = sub_eq && (if (j % 2 == 1) bit else nbit)
-          val acc = sub_acc || (size && eq)
-          (acc, eq)
-        }
-      }
-    }
-    Cat(helper(lgBytes).map(_._1).reverse)
-  }
+  def mask(addr_lo: UInt, lgSize: UInt): UInt =
+    maskGen(addr_lo, lgSize, manager.beatBytes)
 
   // !!! make sure to align addr_lo for PutPartials with 0 masks
   def addr_lo(mask: UInt, lgSize: UInt): UInt = {
@@ -238,6 +219,20 @@ class TLEdge(
       }
     }
   }
+
+  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, UInt) = {
+    val beats1   = numBeats1(bits)
+    val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes)))
+    val counter1 = counter - UInt(1)
+    val first = counter === UInt(0)
+    val last  = counter === UInt(1) || beats1 === UInt(0)
+    when (fire) {
+      counter := Mux(first, beats1, counter1)
+    }
+    (first, last, beats1 & ~counter1)
+  }
+
+  def firstlast(x: IrrevocableIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
 }
 
 class TLEdgeOut(
