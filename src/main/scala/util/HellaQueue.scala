@@ -23,6 +23,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   do_flow := empty && io.deq.ready
 
   val ram = SeqMem(entries, data)
+  ram.suggestName("Hbwif_ram")
   when (do_enq) { ram.write(enq_ptr, io.enq.bits) }
 
   val ren = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
