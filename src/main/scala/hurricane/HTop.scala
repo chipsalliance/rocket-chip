@@ -92,9 +92,11 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 trait HurricaneExtraTopLevel extends LazyModule {
   implicit val p: Parameters
   val scrDevices = new ResourceManager[AddrMapEntry]
+  val scrBusMasters = new RangeManager
   val topLevelSCRBuilder = new SCRBuilder("SCRTop")
 
   scrDevices.add(AddrMapEntry("HSCRFile", MemSize(BigInt(p(HSCRFileSize)), MemAttr(AddrMapProt.RW))))
+  scrBusMasters.add("pbus", 1)
 }
 
 trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
@@ -108,15 +110,15 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   val scrParams = p.alterPartial({ case TLId => "MMIOtoSCR" })
 
   val scrBus = Module(new TileLinkRecursiveInterconnect(
-    2, p(GlobalAddrMap).subMap("io:pbus:scrbus"), c = system_clock, r = system_reset)(scrParams))
+    outer.scrBusMasters.sum, p(GlobalAddrMap).subMap("io:pbus:scrbus"), c = system_clock, r = system_reset)(scrParams))
 
   //SCR file generation
   val scr = outer.topLevelSCRBuilder.generate(
       p(GlobalAddrMap)("io:pbus:scrbus:HSCRFile").start, c = system_clock, r = system_reset)(scrParams)
   scr.io.tl <> scrBus.port("HSCRFile")
   val pBusPort = TileLinkEnqueuer(pBus.port("scrbus"), 1, c = system_clock, r = system_reset)
-  TileLinkWidthAdapter(scrBus.io.in(0), pBusPort, system_clock, system_reset)
-  val lbscrTL = scrBus.io.in(1)
+  val (pBusStart, _) = outer.scrBusMasters.range("pbus")
+  TileLinkWidthAdapter(scrBus.io.in(pBusStart), pBusPort, system_clock, system_reset)
 }
 
 /////
@@ -124,8 +126,10 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
 trait HurricaneIF extends LazyModule {
   implicit val p: Parameters
   val pBusMasters: RangeManager
+  val scrBusMasters: RangeManager
 
   pBusMasters.add("lbwif", 1)
+  scrBusMasters.add("lbwif", 1)
 }
 
 trait HurricaneIFBundle extends HasPeripheryParameters {
@@ -141,8 +145,8 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val outer: HurricaneIF
   val io: HurricaneIFBundle
   val coreplexIO: BaseCoreplexBundle
-  val lbscrTL: ClientUncachedTileLinkIO
   val scr: SCRFile
+  val scrBus: TileLinkRecursiveInterconnect
   val system_clock: Clock
   val system_reset: Bool
   val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(outerMMIOParams)))
@@ -165,12 +169,14 @@ trait HurricaneIFModule extends HasPeripheryParameters {
 
   val lbwif_router = Module(new ClientUncachedTileLinkIORouter(
     2, lbwifRouteSel, c = system_clock, r = system_reset)(lbwifParams))
-  val (r_start, r_end) = outer.pBusMasters.range("lbwif")
+  val (core_start, _) = outer.pBusMasters.range("lbwif")
+  val (scr_start, _) = outer.scrBusMasters.range("lbwif")
+  val lbscrTL = scrBus.io.in(scr_start)
 
   lbwif.io.tl_manager <> switcher.io.out(0)
   lbwif_router.io.in <> lbwif.io.tl_client
   TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1), system_clock, system_reset)
-  coreplexIO.slave(r_start) <> lbwif_router.io.out(0)
+  coreplexIO.slave(core_start) <> lbwif_router.io.out(0)
 
   val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide), c = system_clock, r = system_reset)(UInt(width=lbwifWidth)))
 
