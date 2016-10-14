@@ -29,14 +29,9 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val rmask = Reg(UInt(width = (ratio-1)*inBytes))
       val data = Cat(edgeIn.data(in.bits), rdata)
       val mask = Cat(edgeIn.mask(in.bits), rmask)
+      val address = edgeIn.address(in.bits)
       val size = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
-      val addr_all = in.bits match {
-        case x: TLAddrChannel => edgeIn.address(x)
-        case _ => UInt(0)
-      }
-      val addr_hi = edgeOut.addr_hi(addr_all)
-      val addr_lo = edgeOut.addr_lo(addr_all)
 
       val count = RegInit(UInt(0, width = log2Ceil(ratio)))
       val first = count === UInt(0)
@@ -64,8 +59,8 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
 
       val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else dataMux(size)
-      val maskFull = edgeOut.mask(addr_lo, size)
-      val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
+      lazy val maskFull = edgeOut.mask(address, size)
+      lazy val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
 
       in.ready := out.ready || !last
       out.valid := in.valid && last
@@ -73,12 +68,12 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
-        case a: TLBundleA => a.addr_hi := addr_hi; a.mask := maskOut
-        case b: TLBundleB => b.addr_hi := addr_hi; b.mask := maskOut
-        case c: TLBundleC => c.addr_hi := addr_hi; c.addr_lo := addr_lo
+        case a: TLBundleA => a.mask := maskOut
+        case b: TLBundleB => b.mask := maskOut
+        case c: TLBundleC => ()
         case d: TLBundleD => ()
           // addr_lo gets padded with 0s on D channel, the only lossy transform in this core
-          // this should be safe, because we only care about addr_log on D to determine which
+          // this should be safe, because we only care about addr_lo on D to determine which
           // piece of data to extract when the D data bus is narrowed. Since we duplicated the
           // data to all locations, addr_lo still points at a valid copy.
       }
@@ -93,10 +88,6 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val size = edgeIn.size(in.bits)
       val data = edgeIn.data(in.bits)
       val mask = edgeIn.mask(in.bits)
-      val addr = in.bits match {
-        case x: TLAddrChannel => edgeIn.address(x) >> log2Ceil(outBytes)
-        case _ => UInt(0)
-      }
 
       val dataSlices = Vec.tabulate(ratio) { i => data((i+1)*outBytes*8-1, i*outBytes*8) }
       val maskSlices = Vec.tabulate(ratio) { i => mask((i+1)*outBytes  -1, i*outBytes)   }
@@ -123,13 +114,11 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
-        case a: TLBundleA => a.addr_hi := addr; a.mask := maskOut
-        case b: TLBundleB => b.addr_hi := addr; b.mask := maskOut
-        case c: TLBundleC => c.addr_hi := addr
-        case d: TLBundleD => ()
+        case a: TLBundleA => a.mask := maskOut
+        case b: TLBundleB => b.mask := maskOut
+        case c: TLBundleC => ()
+        case d: TLBundleD => () // addr_lo gets truncated automagically
       }
-
-      // addr_lo gets truncated automagically
 
       // Repeat the input if we're not last
       !last

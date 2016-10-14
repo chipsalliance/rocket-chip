@@ -103,7 +103,7 @@ final class TLBundleA(params: TLBundleParameters)
   val param   = UInt(width = 3) // amo_opcode || perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
-  val addr_hi = UInt(width = params.addrHiBits) // to
+  val address = UInt(width = params.addressBits) // to
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
@@ -118,7 +118,7 @@ final class TLBundleB(params: TLBundleParameters)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
-  val addr_hi = UInt(width = params.addrHiBits) // from
+  val address = UInt(width = params.addressBits) // from
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
@@ -133,8 +133,7 @@ final class TLBundleC(params: TLBundleParameters)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
-  val addr_hi = UInt(width = params.addrHiBits) // to
-  val addr_lo = UInt(width = params.addrLoBits) // instead of mask
+  val address = UInt(width = params.addressBits) // to
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val error   = Bool() // AccessAck[Data]

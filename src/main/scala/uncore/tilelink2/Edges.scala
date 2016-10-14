@@ -11,45 +11,15 @@ class TLEdge(
   manager: TLManagerPortParameters)
   extends TLEdgeParameters(client, manager)
 {
-  def isHiAligned(addr_hi: UInt, lgSize: UInt): Bool = {
-    if (maxLgSize == 0) Bool(true) else {
-      val mask = UIntToOH1(lgSize, maxLgSize) >> log2Ceil(manager.beatBytes)
-      (addr_hi & mask) === UInt(0)
-    }
-  }
-
-  def isLoAligned(addr_lo: UInt, lgSize: UInt): Bool = {
+  def isAligned(address: UInt, lgSize: UInt): Bool = {
     if (maxLgSize == 0) Bool(true) else {
       val mask = UIntToOH1(lgSize, maxLgSize)
-      (addr_lo & mask) === UInt(0)
+      (address & mask) === UInt(0)
     }
   }
 
-  def mask(addr_lo: UInt, lgSize: UInt): UInt =
-    maskGen(addr_lo, lgSize, manager.beatBytes)
-
-  // !!! make sure to align addr_lo for PutPartials with 0 masks
-  def addr_lo(mask: UInt, lgSize: UInt): UInt = {
-    val sizeOH1 = UIntToOH1(lgSize, log2Up(manager.beatBytes))
-    // Almost OHToUInt, but bits set => bits not set
-    def helper(mask: UInt, width: Int): UInt = {
-      if (width <= 1) {
-        UInt(0)
-      } else if (width == 2) {
-        ~mask(0, 0)
-      } else {
-        val mid = 1 << (log2Up(width)-1)
-        val hi = mask(width-1, mid)
-        val lo = mask(mid-1, 0)
-        Cat(!lo.orR, helper(hi | lo, mid))
-      }
-    }
-    helper(mask, bundle.dataBits/8) & ~sizeOH1
-  }
-
-  def full_mask(imask: UInt, lgSize: UInt): UInt = {
-    mask(addr_lo(imask, lgSize), lgSize)
-  }
+  def mask(address: UInt, lgSize: UInt): UInt =
+    maskGen(address, lgSize, manager.beatBytes)
 
   def staticHasData(bundle: TLChannel): Option[Boolean] = {
     bundle match {
@@ -147,49 +117,35 @@ class TLEdge(
     x match {
       case a: TLBundleA => a.mask
       case b: TLBundleB => b.mask
-      case c: TLBundleC => mask(c.addr_lo, c.size)
+      case c: TLBundleC => mask(c.address, c.size)
       case d: TLBundleD => mask(d.addr_lo, d.size)
     }
   }
 
   def full_mask(x: TLDataChannel): UInt = {
     x match {
-      case a: TLBundleA => full_mask(a.mask, a.size)
-      case b: TLBundleB => full_mask(b.mask, b.size)
-      case c: TLBundleC => mask(c.addr_lo, c.size)
+      case a: TLBundleA => mask(a.address, a.size)
+      case b: TLBundleB => mask(b.address, b.size)
+      case c: TLBundleC => mask(c.address, c.size)
       case d: TLBundleD => mask(d.addr_lo, d.size)
     }
   }
 
-  def addr_lo(x: TLDataChannel): UInt = {
+  def address(x: TLDataChannel): UInt = {
     x match {
-      case a: TLBundleA => addr_lo(a.mask, a.size)
-      case b: TLBundleB => addr_lo(b.mask, b.size)
-      case c: TLBundleC => c.addr_lo
+      case a: TLBundleA => a.address
+      case b: TLBundleB => b.address
+      case c: TLBundleC => c.address
       case d: TLBundleD => d.addr_lo
     }
   }
 
-  def addr_hi(x: TLAddrChannel): UInt = {
-    x match {
-      case a: TLBundleA => a.addr_hi
-      case b: TLBundleB => b.addr_hi
-      case c: TLBundleC => c.addr_hi
-    }
-  }
-
-  def address(x: TLAddrChannel): UInt = {
-    val hi = addr_hi(x)
-    if (manager.beatBytes == 1) hi else Cat(hi, addr_lo(x))
-  }
-
-  def addr_lo(x: UInt): UInt = {
+  def addr_hi(x: UInt): UInt = x >> log2Ceil(manager.beatBytes)
+  def addr_lo(x: UInt): UInt =
     if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
-  }
 
-  def addr_hi(x: UInt): UInt = {
-    x >> log2Ceil(manager.beatBytes)
-  }
+  def addr_hi(x: TLAddrChannel): UInt = addr_hi(address(x))
+  def addr_lo(x: TLDataChannel): UInt = addr_lo(address(x))
 
   def numBeats(x: TLChannel): UInt = {
     x match {
@@ -228,7 +184,7 @@ class TLEdge(
     when (fire) {
       counter := Mux(first, beats1, counter1)
     }
-    (first, last, beats1 & ~counter1)
+    (first, last, (beats1 & ~counter1) << log2Ceil(manager.beatBytes))
   }
 
   def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
@@ -248,7 +204,7 @@ class TLEdgeOut(
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := SInt(-1).asUInt
     a.data    := UInt(0)
     (legal, a)
@@ -262,8 +218,7 @@ class TLEdgeOut(
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := Bool(false)
     (legal, c)
@@ -277,8 +232,7 @@ class TLEdgeOut(
     c.param   := shrinkPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := data
     c.error   := Bool(false)
     (legal, c)
@@ -290,8 +244,7 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -303,8 +256,7 @@ class TLEdgeOut(
     c.param   := reportPermissions
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := data
     c.error   := Bool(false)
     c
@@ -325,7 +277,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -339,7 +291,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -353,7 +305,7 @@ class TLEdgeOut(
     a.param   := UInt(0)
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := mask
     a.data    := data
     (legal, a)
@@ -367,7 +319,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -381,7 +333,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := mask(toAddress, lgSize)
     a.data    := data
     (legal, a)
@@ -395,7 +347,7 @@ class TLEdgeOut(
     a.param   := param
     a.size    := lgSize
     a.source  := fromSource
-    a.addr_hi := addr_hi(toAddress)
+    a.address := toAddress
     a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
@@ -410,8 +362,7 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := error
     c
@@ -426,8 +377,7 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := data
     c.error   := error
     c
@@ -440,8 +390,7 @@ class TLEdgeOut(
     c.param   := UInt(0)
     c.size    := lgSize
     c.source  := fromSource
-    c.addr_hi := addr_hi(toAddress)
-    c.addr_lo := addr_lo(toAddress)
+    c.address := toAddress
     c.data    := UInt(0)
     c.error   := Bool(false)
     c
@@ -462,7 +411,7 @@ class TLEdgeIn(
     b.param   := capPermissions
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := SInt(-1).asUInt
     b.data    := UInt(0)
     (legal, b)
@@ -518,7 +467,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
@@ -532,7 +481,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -546,7 +495,7 @@ class TLEdgeIn(
     b.param   := UInt(0)
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := mask
     b.data    := data
     (legal, b)
@@ -560,7 +509,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -574,7 +523,7 @@ class TLEdgeIn(
     b.param   := atomic
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := mask(fromAddress, lgSize)
     b.data    := data
     (legal, b)
@@ -588,7 +537,7 @@ class TLEdgeIn(
     b.param   := param
     b.size    := lgSize
     b.source  := toSource
-    b.addr_hi := addr_hi(fromAddress)
+    b.address := fromAddress
     b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
