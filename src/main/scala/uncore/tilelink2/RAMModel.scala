@@ -20,7 +20,7 @@ import diplomacy._
 // put, get, getAck, putAck => ok: detected by getAck (it sees busy>0)		impossible for FIFO
 // If FIFO, the getAck should check data even if its validity was wiped
 
-class TLRAMModel extends LazyModule
+class TLRAMModel(log: String = "") extends LazyModule
 {
   val node = TLIdentityNode()
 
@@ -150,6 +150,7 @@ class TLRAMModel extends LazyModule
           val busy = a_inc(i) - a_dec(i) - (!a_first).asUInt
           val byte = a.data(8*(i+1)-1, 8*i)
           when (a.mask(i)) {
+            printf(log + " ")
             when (a.opcode === TLMessages.PutFullData) { printf("PF") }
             when (a.opcode === TLMessages.PutPartialData) { printf("PP") }
             when (a.opcode === TLMessages.ArithmeticData) { printf("A ") }
@@ -160,7 +161,7 @@ class TLRAMModel extends LazyModule
       }
 
       when (a.opcode === TLMessages.Get) {
-        printf("G  0x%x - 0%x\n", a_base, a_base | UIntToOH1(a_size, addressBits))
+        printf(log + " G  0x%x - 0%x\n", a_base, a_base | UIntToOH1(a_size, addressBits))
       }
     }
 
@@ -245,6 +246,7 @@ class TLRAMModel extends LazyModule
 
       when (d_flight.opcode === TLMessages.PutFullData || d_flight.opcode === TLMessages.PutPartialData) {
         assert (d.opcode === TLMessages.AccessAck)
+        printf(log + " ")
         when (d_flight.opcode === TLMessages.PutFullData) { printf("pf") }
         when (d_flight.opcode === TLMessages.PutPartialData) { printf("pp") }
         printf(" 0x%x - 0x%x\n", d_base, d_base | UIntToOH1(d_size, addressBits))
@@ -257,6 +259,7 @@ class TLRAMModel extends LazyModule
           val shadow = Wire(init = d_shadow(i))
           when (d_mask(i)) {
             val d_addr = d_addr_hi << shift | UInt(i)
+            printf(log + " ")
             when (d_flight.opcode === TLMessages.Get) { printf("g ") }
             when (d_flight.opcode === TLMessages.ArithmeticData) { printf("a ") }
             when (d_flight.opcode === TLMessages.LogicalData) { printf("l ") }

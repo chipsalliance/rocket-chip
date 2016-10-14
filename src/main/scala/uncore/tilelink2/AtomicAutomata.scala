@@ -138,8 +138,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       // Move the selected sign bit into the first byte position it will extend
       val signbit_a = ((signbits_a & signSel) << 1)(beatBytes-1, 0)
       val signbit_d = ((signbits_d & signSel) << 1)(beatBytes-1, 0)
-      val signext_a = FillInterleaved(8, highOR(signbit_a))
-      val signext_d = FillInterleaved(8, highOR(signbit_d))
+      val signext_a = FillInterleaved(8, leftOR(signbit_a))
+      val signext_d = FillInterleaved(8, leftOR(signbit_d))
       // NOTE: sign-extension does not change the relative ordering in EITHER unsigned or signed arithmetic
       val wide_mask = FillInterleaved(8, mask)
       val a_a_ext = (a_a & wide_mask) | signext_a

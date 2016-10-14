@@ -49,7 +49,7 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
     // Invoke the register map builder and make it Irrevocable
     val out = Queue.irrevocable(
       RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*),
-      entries = 1, pipe = true, flow = true)
+      entries = 1, flow = true)
 
     // No flow control needed
     out.ready := Mux(out.bits.read, r.ready, b.ready)

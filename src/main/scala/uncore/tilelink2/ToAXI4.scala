@@ -12,7 +12,11 @@ import scala.math.{min, max}
 case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
   dFn = { case (1, _) =>
     // We must erase all client information, because we crush their source Ids
-    Seq(AXI4MasterPortParameters(Seq(AXI4MasterParameters(id = IdRange(0, 1 << idBits)))))
+    val masters = Seq(
+      AXI4MasterParameters(
+        id      = IdRange(0, 1 << idBits),
+        aligned = true))
+    Seq(AXI4MasterPortParameters(masters))
   },
   uFn = { case (1, Seq(AXI4SlavePortParameters(slaves, beatBytes))) =>
     val managers = slaves.zipWithIndex.map { case (s, id) =>
@@ -52,6 +56,13 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     // All pairs of slaves must promise that they will never interleave data
     require (slaves(0).interleavedId.isDefined)
     slaves.foreach { s => require (s.interleavedId == slaves(0).interleavedId) }
+
+    // We need to ensure that a slave does not stall trying to send B while we need to receive R
+    // Since R&W have independent flow control, it is possible for a W to cut in-line and get into
+    // a slave's buffers, preventing us from getting all the R responses we need to release D for B.
+    // This risk is compounded by an AXI fragmentation. Even a slave which responds completely to
+    // AR before working on AW might have an AW slipped between two AR fragments.
+    val out_b = Queue.irrevocable(out.b, entries=edgeIn.client.endSourceId, flow=combinational)
 
     // We need to keep the following state from A => D: (addr_lo, size, sink, source)
     // All of those fields could potentially require 0 bits (argh. Chisel.)
@@ -113,7 +124,7 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
 
     val r_last = out.r.bits.last
     val r_id = out.r.bits.id
-    val b_id = out.b.bits.id
+    val b_id = out_b.bits.id
 
     if (stateBits <= idBits) { // No need for any state tracking
       r_state := r_id
@@ -148,7 +159,7 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
         q.io.enq.bits.data := a_state >> implicitBits
         q.io.enq.bits.way  := Mux(a_isPut, UInt(0), UInt(1))
         // Pop the bank's ways
-        q.io.deq(0).ready := out.b.fire() && b_bankSelect(i)
+        q.io.deq(0).ready := out_b.fire() && b_bankSelect(i)
         q.io.deq(1).ready := out.r.fire() && r_bankSelect(i) && r_last
         // The FIFOs must be valid when we're ready to pop them...
         assert (q.io.deq(0).valid || !q.io.deq(0).ready)
@@ -169,8 +180,8 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     val depth = if (combinational) 1 else 2
     val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
     val out_w = Wire(out.w)
-    out.w <> Queue.irrevocable(out_w, entries=depth, pipe=combinational, flow=combinational)
-    val queue_arw = Queue.irrevocable(out_arw, entries=depth, pipe=combinational, flow=combinational)
+    out.w <> Queue.irrevocable(out_w, entries=depth, flow=combinational)
+    val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
 
     // Fan out the ARW channel to AR and AW
     out.ar.bits := queue_arw.bits
@@ -210,18 +221,21 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     // Give R higher priority than B
     val r_wins = out.r.valid || r_holds_d
 
-    out.r.ready := in.d.ready
-    out.b.ready := in.d.ready && !r_wins
-    in.d.valid := Mux(r_wins, out.r.valid, out.b.valid)
+    val in_d = Wire(in.d)
+    in.d <> Queue.irrevocable(in_d, entries=1, flow=combinational)
+
+    out.r.ready := in_d.ready
+    out_b.ready := in_d.ready && !r_wins
+    in_d.valid := Mux(r_wins, out.r.valid, out_b.valid)
 
     val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
-    val b_error = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
+    val b_error = out_b.bits.resp =/= AXI4Parameters.RESP_OKAY
 
     val r_d = edgeIn.AccessAck(r_addr_lo, r_sink, r_source, r_size, UInt(0), r_error)
     val b_d = edgeIn.AccessAck(b_addr_lo, b_sink, b_source, b_size, b_error)
 
-    in.d.bits := Mux(r_wins, r_d, b_d)
-    in.d.bits.data := out.r.bits.data // avoid a costly Mux
+    in_d.bits := Mux(r_wins, r_d, b_d)
+    in_d.bits.data := out.r.bits.data // avoid a costly Mux
 
     // Tie off unused channels
     in.b.valid := Bool(false)
