@@ -34,8 +34,12 @@ class TestHarness(q: Parameters) extends Module {
   val serial = Module(new SimSerialWrapper(p(SerialInterfaceWidth)))
 
   val host_clock = dut.io.host_clock.asClock
-  dessert.io.serial.in <> AsyncDecoupledFrom(host_clock, reset, dut.io.serial.out)
-  dut.io.serial.in <> AsyncDecoupledTo(host_clock, reset, dessert.io.serial.out)
+  val host_clock_toggle = dut.io.host_clock =/= RegNext(dut.io.host_clock)
+  val (_, host_clock_wrap) = Counter(host_clock_toggle, 4)
+  val host_reset = Reg(init = Bool(true))
+  when(host_clock_wrap) { host_reset := Bool(false) }
+  dessert.io.serial.in <> AsyncDecoupledFrom(host_clock, host_reset, dut.io.serial.out)
+  dut.io.serial.in <> AsyncDecoupledTo(host_clock, host_reset, dessert.io.serial.out)
   sim_tl_mem.io <> dessert.io.tl_client
   dessert.io.tl_manager <> adapter.io.mem
   serial.io.serial <> adapter.io.serial
