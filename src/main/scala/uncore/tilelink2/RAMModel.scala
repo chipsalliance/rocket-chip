@@ -103,7 +103,7 @@ class TLRAMModel(log: String = "") extends LazyModule
     a_flight.size   := edge.size(in.a.bits)
     a_flight.opcode := in.a.bits.opcode
 
-    flight(in.a.bits.source) := a_flight
+    when (in.a.fire()) { flight(in.a.bits.source) := a_flight }
     val bypass = if (edge.manager.minLatency > 0) Bool(false) else in.a.valid && in.a.bits.source === out.d.bits.source
     val d_flight = RegNext(Mux(bypass, a_flight, flight(out.d.bits.source)))
 

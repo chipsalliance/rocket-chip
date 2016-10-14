@@ -281,7 +281,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
   }
 
-  def legalizeMultibeatA(a: IrrevocableSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val (a_first, _, _) = edge.firstlast(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -304,7 +304,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     }
   }
 
-  def legalizeMultibeatB(b: IrrevocableSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatB(b: DecoupledSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val (b_first, _, _) = edge.firstlast(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -327,7 +327,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     }
   }
 
-  def legalizeMultibeatC(c: IrrevocableSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatC(c: DecoupledSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val (c_first, _, _) = edge.firstlast(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -353,7 +353,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     }
   }
 
-  def legalizeMultibeatD(d: IrrevocableSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatD(d: DecoupledSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val (d_first, _, _) = edge.firstlast(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -386,50 +386,26 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     legalizeMultibeatD(bundle.d, edge)
   }
 
-  def legalizeIrrevocable(irr: IrrevocableSnoop[TLChannel], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val last_v = RegNext(irr.valid, Bool(false))
-    val last_r = RegNext(irr.ready, Bool(false))
-    val last_b = RegNext(irr.bits)
-    val bits_changed = irr.bits.asUInt === last_b.asUInt
-
-    when (last_v && !last_r) {
-      assert(irr.valid,    s"${irr.bits.channelName} had contents that were revoked by the supplier (valid lowered)" + extra)
-      assert(bits_changed, s"${irr.bits.channelName} had contents that were revoked by the supplier (contents changed)" + extra)
-    }
-  }
-
-  def legalizeIrrevocable(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    legalizeIrrevocable(bundle.a, edge)
-    legalizeIrrevocable(bundle.b, edge)
-    legalizeIrrevocable(bundle.c, edge)
-    legalizeIrrevocable(bundle.d, edge)
-    legalizeIrrevocable(bundle.e, edge)
-  }
-
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
     val (_, a_last, _) = edge.firstlast(bundle.a.bits, bundle.a.fire())
     val (_, d_last, _) = edge.firstlast(bundle.d.bits, bundle.d.fire())
 
-    val bypass = bundle.a.bits.source === bundle.d.bits.source
-    val a_bypass = bypass && bundle.d.valid && d_last
-    val d_bypass = bypass && bundle.a.valid && a_last
-
     if (edge.manager.minLatency > 0) {
-      assert(!bypass || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assert(bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.a.fire()) {
       when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
-      assert(a_bypass || !inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+      assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
       when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
-      assert(d_bypass || inflight(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+      assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
@@ -438,7 +414,6 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   def legalize(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeFormat     (bundle, edge)
     legalizeMultibeat  (bundle, edge)
-    legalizeIrrevocable(bundle, edge)
     legalizeSourceUnique(bundle, edge)
   }
 

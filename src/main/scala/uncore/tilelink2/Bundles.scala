@@ -3,7 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO, ReadyValidIO}
+import chisel3.util.{ReadyValidIO}
 import diplomacy._
 import util.{AsyncQueueSource, AsyncQueueSink, GenericParameterizedBundle}
 
@@ -165,11 +165,11 @@ final class TLBundleE(params: TLBundleParameters)
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
 {
-  val a = Irrevocable(new TLBundleA(params))
-  val b = Irrevocable(new TLBundleB(params)).flip
-  val c = Irrevocable(new TLBundleC(params))
-  val d = Irrevocable(new TLBundleD(params)).flip
-  val e = Irrevocable(new TLBundleE(params))
+  val a = Decoupled(new TLBundleA(params))
+  val b = Decoupled(new TLBundleB(params)).flip
+  val c = Decoupled(new TLBundleC(params))
+  val d = Decoupled(new TLBundleD(params)).flip
+  val e = Decoupled(new TLBundleE(params))
 }
 
 object TLBundle
@@ -177,20 +177,20 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-final class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
+final class DecoupledSnoop[+T <: Data](gen: T) extends Bundle
 {
   val ready = Bool()
   val valid = Bool()
   val bits = gen.asOutput
 
   def fire(dummy: Int = 0) = ready && valid
-  override def cloneType: this.type = new IrrevocableSnoop(gen).asInstanceOf[this.type]
+  override def cloneType: this.type = new DecoupledSnoop(gen).asInstanceOf[this.type]
 }
 
-object IrrevocableSnoop
+object DecoupledSnoop
 {
-  def apply[T <: Data](i: IrrevocableIO[T]) = {
-    val out = Wire(new IrrevocableSnoop(i.bits))
+  def apply[T <: Data](i: DecoupledIO[T]) = {
+    val out = Wire(new DecoupledSnoop(i.bits))
     out.ready := i.ready
     out.valid := i.valid
     out.bits  := i.bits
@@ -200,22 +200,22 @@ object IrrevocableSnoop
 
 class TLBundleSnoop(params: TLBundleParameters) extends TLBundleBase(params)
 {
-  val a = new IrrevocableSnoop(new TLBundleA(params))
-  val b = new IrrevocableSnoop(new TLBundleB(params))
-  val c = new IrrevocableSnoop(new TLBundleC(params))
-  val d = new IrrevocableSnoop(new TLBundleD(params))
-  val e = new IrrevocableSnoop(new TLBundleE(params))
+  val a = new DecoupledSnoop(new TLBundleA(params))
+  val b = new DecoupledSnoop(new TLBundleB(params))
+  val c = new DecoupledSnoop(new TLBundleC(params))
+  val d = new DecoupledSnoop(new TLBundleD(params))
+  val e = new DecoupledSnoop(new TLBundleE(params))
 }
 
 object TLBundleSnoop
 {
   def apply(x: TLBundle) = {
     val out = Wire(new TLBundleSnoop(x.params))
-    out.a <> IrrevocableSnoop(x.a)
-    out.b <> IrrevocableSnoop(x.b)
-    out.c <> IrrevocableSnoop(x.c)
-    out.d <> IrrevocableSnoop(x.d)
-    out.e <> IrrevocableSnoop(x.e)
+    out.a <> DecoupledSnoop(x.a)
+    out.b <> DecoupledSnoop(x.b)
+    out.c <> DecoupledSnoop(x.c)
+    out.d <> DecoupledSnoop(x.d)
+    out.e <> DecoupledSnoop(x.e)
     out
   }
 }
@@ -234,14 +234,14 @@ final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
 
 object FromAsyncBundle
 {
-  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): IrrevocableIO[T] = {
+  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): DecoupledIO[T] = {
     val sink = Module(new AsyncQueueSink(x.mem(0), x.depth, sync))
     x.ridx := sink.io.ridx
     sink.io.widx := x.widx
     sink.io.mem  := x.mem
     sink.io.source_reset_n := x.source_reset_n
     x.sink_reset_n := !sink.reset
-    val out = Wire(Irrevocable(x.mem(0)))
+    val out = Wire(Decoupled(x.mem(0)))
     out.valid := sink.io.deq.valid
     out.bits := sink.io.deq.bits
     sink.io.deq.ready := out.ready

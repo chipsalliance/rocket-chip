@@ -4,17 +4,15 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.util.{Irrevocable, IrrevocableIO}
 import diplomacy._
 import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 {
-  // Because we stall the request while sending beats, atomics can overlap => minLatency=0
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => c.copy(minLatency = 0) },
-    managerFn = { case Seq(m) => m.copy(minLatency = 0, beatBytes = innerBeatBytes) })
+    clientFn  = { case Seq(c) => c },
+    managerFn = { case Seq(m) => m.copy(beatBytes = innerBeatBytes) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -22,7 +20,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val out = node.bundleOut
     }
 
-    def merge[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
+    def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = outBytes / inBytes
@@ -86,7 +84,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
     }
 
-    def split[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
+    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = inBytes / outBytes
@@ -121,9 +119,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else Mux1H(select, dataSlices)
       val maskOut = Mux1H(select, maskSlices)
 
-      in.ready := out.ready && last
-      out.valid := in.valid
-      out.bits := in.bits
+      out <> in
       edgeOut.data(out.bits) := dataOut
 
       out.bits match {
@@ -134,15 +130,19 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       }
 
       // addr_lo gets truncated automagically
+
+      // Repeat the input if we're not last
+      !last
     }
     
-    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: IrrevocableIO[T], edgeOut: TLEdge, out: IrrevocableIO[T]) = {
+    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       if (edgeIn.manager.beatBytes == edgeOut.manager.beatBytes) {
         // nothing to do; pass it through
         out <> in
       } else if (edgeIn.manager.beatBytes > edgeOut.manager.beatBytes) {
         // split input to output
-        split(edgeIn, in, edgeOut, out)
+        val repeat = Wire(Bool())
+        repeat := split(edgeIn, Repeater(in, repeat), edgeOut, out)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)
