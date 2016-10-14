@@ -400,12 +400,26 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
   val aw_ready = Wire(init = Bool(false))
   val w_ready = Wire(init = Bool(false))
 
+  // These reorder queues remember which slave ports requests were sent on
+  // so that the responses can be sent back in-order on the master
+  val ar_queue = Module(new ReorderQueue(
+    UInt(width = log2Up(nSlaves + 1)), nastiXIdBits,
+    Some((1 << nastiXIdBits) * nSlaves), nSlaves + 1))
+  val aw_queue = Module(new ReorderQueue(
+    UInt(width = log2Up(nSlaves + 1)), nastiXIdBits,
+    Some((1 << nastiXIdBits) * nSlaves), nSlaves + 1))
   // This queue holds the accepted aw_routes so that we know how to route the
   val w_queue = Module(new Queue(aw_route, nSlaves))
+
+  val ar_helper = DecoupledHelper(
+    io.master.ar.valid,
+    ar_queue.io.enq.ready,
+    ar_ready)
 
   val aw_helper = DecoupledHelper(
     io.master.aw.valid,
     w_queue.io.enq.ready,
+    aw_queue.io.enq.ready,
     aw_ready)
 
   val w_helper = DecoupledHelper(
@@ -413,15 +427,25 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
     w_queue.io.deq.valid,
     w_ready)
 
+  def routeEncode(oh: UInt): UInt = Mux(oh.orR, OHToUInt(oh), UInt(nSlaves))
+
+  ar_queue.io.enq.valid := ar_helper.fire(ar_queue.io.enq.ready)
+  ar_queue.io.enq.bits.tag := io.master.ar.bits.id
+  ar_queue.io.enq.bits.data := routeEncode(ar_route)
+
+  aw_queue.io.enq.valid := aw_helper.fire(aw_queue.io.enq.ready)
+  aw_queue.io.enq.bits.tag := io.master.aw.bits.id
+  aw_queue.io.enq.bits.data := routeEncode(aw_route)
+
   w_queue.io.enq.valid := aw_helper.fire(w_queue.io.enq.ready)
   w_queue.io.enq.bits := aw_route
   w_queue.io.deq.ready := w_helper.fire(w_queue.io.deq.valid, io.master.w.bits.last)
 
-  io.master.ar.ready := ar_ready
+  io.master.ar.ready := ar_helper.fire(io.master.ar.valid)
   io.master.aw.ready := aw_helper.fire(io.master.aw.valid)
   io.master.w.ready := w_helper.fire(io.master.w.valid)
 
-  val ar_valid = io.master.ar.valid
+  val ar_valid = ar_helper.fire(ar_ready)
   val aw_valid = aw_helper.fire(aw_ready)
   val w_valid = w_helper.fire(w_ready)
   val w_route = w_queue.io.deq.bits
@@ -462,13 +486,23 @@ class NastiRouter(nSlaves: Int, routeSel: UInt => UInt)(implicit p: Parameters)
     // we can unlock if it's the last beat
     (r: NastiReadDataChannel) => r.last, rr = true))
 
-  for (i <- 0 until nSlaves) {
-    b_arb.io.in(i) <> io.slave(i).b
-    r_arb.io.in(i) <> io.slave(i).r
-  }
+  val all_slaves = io.slave :+ err_slave.io
 
-  b_arb.io.in(nSlaves) <> err_slave.io.b
-  r_arb.io.in(nSlaves) <> err_slave.io.r
+  for (i <- 0 to nSlaves) {
+    val b_match = aw_queue.io.deq(i).matches && aw_queue.io.deq(i).data === UInt(i)
+    b_arb.io.in(i).valid := all_slaves(i).b.valid && b_match
+    b_arb.io.in(i).bits := all_slaves(i).b.bits
+    all_slaves(i).b.ready := b_arb.io.in(i).ready && b_match
+    aw_queue.io.deq(i).valid := all_slaves(i).b.fire()
+    aw_queue.io.deq(i).tag := all_slaves(i).b.bits.id
+
+    val r_match = ar_queue.io.deq(i).matches && ar_queue.io.deq(i).data === UInt(i)
+    r_arb.io.in(i).valid := all_slaves(i).r.valid && r_match
+    r_arb.io.in(i).bits := all_slaves(i).r.bits
+    all_slaves(i).r.ready := r_arb.io.in(i).ready && r_match
+    ar_queue.io.deq(i).valid := all_slaves(i).r.fire() && all_slaves(i).r.bits.last
+    ar_queue.io.deq(i).tag := all_slaves(i).r.bits.id
+  }
 
   io.master.b <> b_arb.io.out
   io.master.r <> r_arb.io.out
