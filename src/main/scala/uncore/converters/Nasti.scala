@@ -123,14 +123,14 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
     put_id_ready)
 
   val (nasti_cnt_out, nasti_wrap_out) = Counter(
-    io.nasti.r.fire() && !roq.io.deq.data.subblock, tlDataBeats)
+    io.nasti.r.fire() && !roq.io.deq.head.data.subblock, tlDataBeats)
 
   roq.io.enq.valid := get_helper.fire(roq.io.enq.ready)
   roq.io.enq.bits.tag := io.nasti.ar.bits.id
   roq.io.enq.bits.data.addr_beat := io.tl.acquire.bits.addr_beat
   roq.io.enq.bits.data.subblock := is_subblock
-  roq.io.deq.valid := io.nasti.r.fire() && (nasti_wrap_out || roq.io.deq.data.subblock)
-  roq.io.deq.tag := io.nasti.r.bits.id
+  roq.io.deq.head.valid := io.nasti.r.fire() && (nasti_wrap_out || roq.io.deq.head.data.subblock)
+  roq.io.deq.head.tag := io.nasti.r.bits.id
 
   get_id_mapper.io.req.valid := get_helper.fire(get_id_ready)
   get_id_mapper.io.req.in_id := io.tl.acquire.bits.client_xact_id
@@ -212,14 +212,14 @@ class NastiIOTileLinkIOConverter(implicit p: Parameters) extends TLModule()(p)
   io.nasti.r.ready := gnt_arb.io.in(0).ready
   gnt_arb.io.in(0).bits := Grant(
     is_builtin_type = Bool(true),
-    g_type = Mux(roq.io.deq.data.subblock,
+    g_type = Mux(roq.io.deq.head.data.subblock,
       Grant.getDataBeatType, Grant.getDataBlockType),
     client_xact_id = get_id_mapper.io.resp.in_id,
     manager_xact_id = UInt(0),
-    addr_beat = Mux(roq.io.deq.data.subblock, roq.io.deq.data.addr_beat, tl_cnt_in),
+    addr_beat = Mux(roq.io.deq.head.data.subblock, roq.io.deq.head.data.addr_beat, tl_cnt_in),
     data = io.nasti.r.bits.data)
 
-  assert(!roq.io.deq.valid || roq.io.deq.matches,
+  assert(!roq.io.deq.head.valid || roq.io.deq.head.matches,
     "TL -> NASTI converter ReorderQueue: NASTI tag error")
   assert(!gnt_arb.io.in(0).valid || get_id_mapper.io.resp.matches,
     "TL -> NASTI ID Mapper: NASTI tag error")

@@ -275,26 +275,26 @@ class NastiArbiter(val arbN: Int, queueDepth: Int = 1)(implicit p: Parameters) e
       a_ar <> m_ar
       a_aw <> m_aw
 
-      m_r.valid := io.slave.r.valid && rroq.io.deq.data === UInt(i)
+      m_r.valid := io.slave.r.valid && rroq.io.deq.head.data === UInt(i)
       m_r.bits := io.slave.r.bits
 
-      m_b.valid := io.slave.b.valid && wroq.io.deq.data === UInt(i)
+      m_b.valid := io.slave.b.valid && wroq.io.deq.head.data === UInt(i)
       m_b.bits := io.slave.b.bits
 
       m_w.ready := io.slave.w.ready && w_chosen === UInt(i) && !w_done
     }
 
-    io.slave.r.ready := io.master(rroq.io.deq.data).r.ready
-    io.slave.b.ready := io.master(wroq.io.deq.data).b.ready
+    io.slave.r.ready := io.master(rroq.io.deq.head.data).r.ready
+    io.slave.b.ready := io.master(wroq.io.deq.head.data).b.ready
 
-    rroq.io.deq.tag := io.slave.r.bits.id
-    rroq.io.deq.valid := io.slave.r.fire() && io.slave.r.bits.last
-    wroq.io.deq.tag := io.slave.b.bits.id
-    wroq.io.deq.valid := io.slave.b.fire()
+    rroq.io.deq.head.tag := io.slave.r.bits.id
+    rroq.io.deq.head.valid := io.slave.r.fire() && io.slave.r.bits.last
+    wroq.io.deq.head.tag := io.slave.b.bits.id
+    wroq.io.deq.head.valid := io.slave.b.fire()
 
-    assert(!rroq.io.deq.valid || rroq.io.deq.matches,
+    assert(!rroq.io.deq.head.valid || rroq.io.deq.head.matches,
       "NastiArbiter: read response mismatch")
-    assert(!wroq.io.deq.valid || wroq.io.deq.matches,
+    assert(!wroq.io.deq.head.valid || wroq.io.deq.head.matches,
       "NastiArbiter: write response mismatch")
 
     io.slave.w.bits := io.master(w_chosen).w.bits

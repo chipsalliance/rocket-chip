@@ -28,11 +28,12 @@ class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
     new ReorderDequeueIO(dType, tagWidth).asInstanceOf[this.type]
 }
 
-class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
+class ReorderQueue[T <: Data](dType: T, tagWidth: Int,
+    size: Option[Int] = None, nDeq: Int = 1)
     extends Module {
   val io = new Bundle {
     val enq = new ReorderEnqueueIO(dType, tagWidth).flip
-    val deq = new ReorderDequeueIO(dType, tagWidth)
+    val deq = Vec(nDeq, new ReorderDequeueIO(dType, tagWidth))
   }
 
   val tagSpaceSize = 1 << tagWidth
@@ -44,13 +45,8 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     val roq_free = Reg(init = Vec.fill(actualSize)(Bool(true)))
 
     val roq_enq_addr = PriorityEncoder(roq_free)
-    val roq_matches = roq_tags.zip(roq_free)
-      .map { case (tag, free) => tag === io.deq.tag && !free }
-    val roq_deq_onehot = PriorityEncoderOH(roq_matches)
 
     io.enq.ready := roq_free.reduce(_ || _)
-    io.deq.data := Mux1H(roq_deq_onehot, roq_data)
-    io.deq.matches := roq_matches.reduce(_ || _)
 
     when (io.enq.valid && io.enq.ready) {
       roq_data(roq_enq_addr) := io.enq.bits.data
@@ -58,8 +54,17 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
       roq_free(roq_enq_addr) := Bool(false)
     }
 
-    when (io.deq.valid) {
-      roq_free(OHToUInt(roq_deq_onehot)) := Bool(true)
+    io.deq.foreach { deq =>
+      val roq_matches = roq_tags.zip(roq_free)
+        .map { case (tag, free) => tag === deq.tag && !free }
+      val roq_deq_onehot = PriorityEncoderOH(roq_matches)
+
+      deq.data := Mux1H(roq_deq_onehot, roq_data)
+      deq.matches := roq_matches.reduce(_ || _)
+
+      when (deq.valid) {
+        roq_free(OHToUInt(roq_deq_onehot)) := Bool(true)
+      }
     }
 
     println(s"Warning - using a CAM for ReorderQueue, tagBits: ${tagWidth} size: ${actualSize}")
@@ -68,16 +73,19 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     val roq_free = Reg(init = Vec.fill(tagSpaceSize)(Bool(true)))
 
     io.enq.ready := roq_free(io.enq.bits.tag)
-    io.deq.data := roq_data(io.deq.tag)
-    io.deq.matches := !roq_free(io.deq.tag)
 
     when (io.enq.valid && io.enq.ready) {
       roq_data(io.enq.bits.tag) := io.enq.bits.data
       roq_free(io.enq.bits.tag) := Bool(false)
     }
 
-    when (io.deq.valid) {
-      roq_free(io.deq.tag) := Bool(true)
+    io.deq.foreach { deq =>
+      deq.data := roq_data(deq.tag)
+      deq.matches := !roq_free(deq.tag)
+
+      when (deq.valid) {
+        roq_free(deq.tag) := Bool(true)
+      }
     }
   } else {
     require(actualSize % tagSpaceSize == 0)
@@ -88,21 +96,23 @@ class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     }
 
     io.enq.ready := Bool(false)
-    io.deq.matches := Bool(false)
-    io.deq.data := dType.fromBits(UInt(0))
+    io.deq.foreach(_.matches := Bool(false))
+    io.deq.foreach(_.data := dType.fromBits(UInt(0)))
 
     for ((q, i) <- queues.zipWithIndex) {
       when (io.enq.bits.tag === UInt(i)) { io.enq.ready := q.io.enq.ready }
       q.io.enq.valid := io.enq.valid && io.enq.bits.tag === UInt(i)
       q.io.enq.bits  := io.enq.bits.data
 
-      when (io.deq.tag === UInt(i)) {
-        io.deq.matches := q.io.deq.valid
-        io.deq.data := q.io.deq.bits
+      val deqReadys = Wire(Vec(nDeq, Bool()))
+      io.deq.zip(deqReadys).foreach { case (deq, rdy) =>
+        when (deq.tag === UInt(i)) {
+          deq.matches := q.io.deq.valid
+          deq.data := q.io.deq.bits
+        }
+        rdy := deq.valid && deq.tag === UInt(i)
       }
-      q.io.deq.ready := io.deq.valid && io.deq.tag === UInt(i)
+      q.io.deq.ready := deqReadys.reduce(_ || _)
     }
   }
 }
-
-

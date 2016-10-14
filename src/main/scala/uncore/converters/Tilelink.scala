@@ -112,17 +112,17 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
 
   val grant_deq_roq = io.out.grant.fire() && ognt.last()
 
-  acqRoq.io.deq.valid := acqRoq.io.deq.matches && grant_deq_roq
-  acqRoq.io.deq.tag := ognt.client_xact_id
+  acqRoq.io.deq.head.valid := acqRoq.io.deq.head.matches && grant_deq_roq
+  acqRoq.io.deq.head.tag := ognt.client_xact_id
 
-  relRoq.io.deq.valid := !acqRoq.io.deq.matches && grant_deq_roq
-  relRoq.io.deq.tag := ognt.client_xact_id
+  relRoq.io.deq.head.valid := !acqRoq.io.deq.head.matches && grant_deq_roq
+  relRoq.io.deq.head.tag := ognt.client_xact_id
 
-  assert(!grant_deq_roq || acqRoq.io.deq.matches || relRoq.io.deq.matches,
+  assert(!grant_deq_roq || acqRoq.io.deq.head.matches || relRoq.io.deq.head.matches,
     "TileLink Unwrapper: client_xact_id mismatch")
 
-  val gnt_builtin = acqRoq.io.deq.data
-  val gnt_voluntary = relRoq.io.deq.data
+  val gnt_builtin = acqRoq.io.deq.head.data
+  val gnt_voluntary = relRoq.io.deq.head.data
 
   val acq_grant = Grant(
     is_builtin_type = gnt_builtin,
@@ -142,7 +142,7 @@ class ClientTileLinkIOUnwrapper(implicit p: Parameters) extends TLModule()(p) {
     data = ognt.data)
 
   io.in.grant.valid := io.out.grant.valid
-  io.in.grant.bits := Mux(acqRoq.io.deq.matches, acq_grant, rel_grant)
+  io.in.grant.bits := Mux(acqRoq.io.deq.head.matches, acq_grant, rel_grant)
   io.out.grant.ready := io.in.grant.ready
 
   io.in.probe.valid := Bool(false)
