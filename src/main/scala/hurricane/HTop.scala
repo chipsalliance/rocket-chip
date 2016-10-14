@@ -66,9 +66,6 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     with SCRResetVectorModule {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
-  system_clock := clock
-  system_reset := ResetSync(reset, system_clock)
-
   coreplex.clock := clock
   coreplex.reset := ResetSync(scr.control("coreplex_reset")(0).toBool, coreplex.clock)
 
@@ -78,7 +75,7 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     tcr.roccClock := clock
     tcr.roccReset := ResetSync(scr.control(s"core_${i}_rocc_reset")(0).toBool, tcr.roccClock)
   }
-  multiClockCoreplexIO.tcrs.last.clock := system_clock
+  multiClockCoreplexIO.tcrs.last.clock := clock
   multiClockCoreplexIO.tcrs.last.reset := scr.control(s"pmu_reset")(0).toBool
 
   // Hbwif connections
@@ -104,21 +101,19 @@ trait HurricaneExtraTopLevelModule extends HasPeripheryParameters {
   val hbwifFastClock: Clock = Wire(Clock())
   val outer: HurricaneExtraTopLevel
   val pBus: TileLinkRecursiveInterconnect
-  val system_clock: Clock = Wire(Clock())
-  val system_reset: Bool = Wire(Bool())
 
   val scrParams = p.alterPartial({ case TLId => "MMIOtoSCR" })
 
   val scrBus = Module(new TileLinkRecursiveInterconnect(
-    outer.scrBusMasters.sum, p(GlobalAddrMap).subMap("io:pbus:scrbus"), c = system_clock, r = system_reset)(scrParams))
+    outer.scrBusMasters.sum, p(GlobalAddrMap).subMap("io:pbus:scrbus"))(scrParams))
 
   //SCR file generation
   val scr = outer.topLevelSCRBuilder.generate(
-      p(GlobalAddrMap)("io:pbus:scrbus:HSCRFile").start, c = system_clock, r = system_reset)(scrParams)
+      p(GlobalAddrMap)("io:pbus:scrbus:HSCRFile").start)(scrParams)
   scr.io.tl <> scrBus.port("HSCRFile")
-  val pBusPort = TileLinkEnqueuer(pBus.port("scrbus"), 1, c = system_clock, r = system_reset)
+  val pBusPort = TileLinkEnqueuer(pBus.port("scrbus"), 1)
   val (pBusStart, _) = outer.scrBusMasters.range("pbus")
-  TileLinkWidthAdapter(scrBus.io.in(pBusStart), pBusPort, system_clock, system_reset)
+  TileLinkWidthAdapter(scrBus.io.in(pBusStart), pBusPort)
 }
 
 /////
@@ -147,19 +142,17 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   val coreplexIO: BaseCoreplexBundle
   val scr: SCRFile
   val scrBus: TileLinkRecursiveInterconnect
-  val system_clock: Clock
-  val system_reset: Bool
   val hbwifIO = Wire(Vec(numLanes, new ClientUncachedTileLinkIO()(outerMMIOParams)))
 
   val lbwifWidth = p(NarrowWidth)
   val lbwifParams = p.alterPartial({ case TLId => "LBWIF" })
   val switcherParams = p.alterPartial({ case TLId => "Switcher" })
 
-  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels, c = system_clock, r = system_reset)(switcherParams))
+  val unmapper = Module(new ChannelAddressUnmapper(nMemChannels)(switcherParams))
   val switcher = Module(new ClientUncachedTileLinkIOSwitcher(
-    nMemChannels, numLanes+2, c = system_clock, r = system_reset)(switcherParams))
+    nMemChannels, numLanes+2)(switcherParams))
   val lbwif = Module(
-    new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth, system_clock, system_reset)(lbwifParams))
+    new ClientUncachedTileLinkIOBidirectionalSerdes(lbwifWidth)(lbwifParams))
 
   unmapper.io.in <> coreplexIO.master.mem
   switcher.io.in <> unmapper.io.out
@@ -168,17 +161,17 @@ trait HurricaneIFModule extends HasPeripheryParameters {
     Mux(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr), UInt(2), UInt(1))
 
   val lbwif_router = Module(new ClientUncachedTileLinkIORouter(
-    2, lbwifRouteSel, c = system_clock, r = system_reset)(lbwifParams))
+    2, lbwifRouteSel)(lbwifParams))
   val (core_start, _) = outer.pBusMasters.range("lbwif")
   val (scr_start, _) = outer.scrBusMasters.range("lbwif")
   val lbscrTL = scrBus.io.in(scr_start)
 
   lbwif.io.tl_manager <> switcher.io.out(0)
   lbwif_router.io.in <> lbwif.io.tl_client
-  TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1), system_clock, system_reset)
+  TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1))
   coreplexIO.slave(core_start) <> lbwif_router.io.out(0)
 
-  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide), c = system_clock, r = system_reset)(UInt(width=lbwifWidth)))
+  val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=lbwifWidth)))
 
   lbwif.io.serial.in <> slowio_module.io.in_fast
   slowio_module.io.out_fast <> lbwif.io.serial.out
