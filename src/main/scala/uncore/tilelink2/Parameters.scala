@@ -243,14 +243,14 @@ case class TLClientPortParameters(
 }
 
 case class TLBundleParameters(
-  addrHiBits: Int,
-  dataBits:   Int,
-  sourceBits: Int,
-  sinkBits:   Int,
-  sizeBits:   Int)
+  addressBits: Int,
+  dataBits:    Int,
+  sourceBits:  Int,
+  sinkBits:    Int,
+  sizeBits:    Int)
 {
   // Chisel has issues with 0-width wires
-  require (addrHiBits  >= 1)
+  require (addressBits >= 1)
   require (dataBits    >= 8)
   require (sourceBits  >= 1)
   require (sinkBits    >= 1)
@@ -258,11 +258,10 @@ case class TLBundleParameters(
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
-  val addressBits = addrHiBits + log2Ceil(dataBits/8)
 
   def union(x: TLBundleParameters) =
     TLBundleParameters(
-      max(addrHiBits,  x.addrHiBits),
+      max(addressBits, x.addressBits),
       max(dataBits,    x.dataBits),
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
@@ -273,7 +272,7 @@ object TLBundleParameters
 {
   def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
     new TLBundleParameters(
-      addrHiBits  = log2Up(manager.maxAddress + 1) - log2Ceil(manager.beatBytes),
+      addressBits = log2Up(manager.maxAddress + 1),
       dataBits    = manager.beatBytes * 8,
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),

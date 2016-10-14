@@ -36,7 +36,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
     in.d.valid := in.a.valid
     in.a.ready := in.d.ready
 
-    val index = in.a.bits.addr_hi(log2Ceil(size/beatBytes)-1,0)
+    val index = in.a.bits.address(log2Ceil(size)-1,log2Ceil(beatBytes))
     in.d.bits := edge.AccessAck(in.a.bits, UInt(0), rom(index))
 
     // Tie off unused channels

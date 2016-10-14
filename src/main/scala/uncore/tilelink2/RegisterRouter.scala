@@ -36,7 +36,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int =
     val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, addrLoEnd)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
-    in.bits.index := a.bits.addr_hi
+    in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
     in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)

@@ -229,7 +229,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
     repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
     out.a <> in_a
-    out.a.bits.addr_hi := in_a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
+    out.a.bits.address := in_a.bits.address | (~aFragnum << log2Ceil(minSize) & aOrigOH1)
     out.a.bits.source := Cat(in_a.bits.source, aFragnum)
     out.a.bits.size := aFrag
 

@@ -20,7 +20,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
 
     // Reuse these subexpressions to save some firrtl lines
     val source_ok = edge.client.contains(bundle.source)
-    val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size)
+    val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Acquire) {
@@ -85,7 +85,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
 
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
-    val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size)
+    val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Probe) {
@@ -149,7 +149,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     assert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
-    val is_aligned = edge.isHiAligned(bundle.addr_hi, bundle.size) && edge.isLoAligned(bundle.addr_lo, bundle.size)
+    val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
 
     when (bundle.opcode === TLMessages.ProbeAck) {
@@ -215,7 +215,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
-    val is_aligned = edge.isLoAligned(bundle.addr_lo, bundle.size)
+    val is_aligned = edge.isAligned(bundle.addr_lo, bundle.size)
     val sink_ok = edge.manager.containsById(bundle.sink)
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
@@ -287,20 +287,20 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
-    val addr_hi = Reg(UInt())
+    val address = Reg(UInt())
     when (a.valid && !a_first) {
       assert (a.bits.opcode === opcode, "'A' channel opcode changed within multibeat operation" + extra)
       assert (a.bits.param  === param,  "'A' channel param changed within multibeat operation" + extra)
       assert (a.bits.size   === size,   "'A' channel size changed within multibeat operation" + extra)
       assert (a.bits.source === source, "'A' channel source changed within multibeat operation" + extra)
-      assert (a.bits.addr_hi=== addr_hi,"'A' channel addr_hi changed with multibeat operation" + extra)
+      assert (a.bits.address=== address,"'A' channel address changed with multibeat operation" + extra)
     }
     when (a.fire() && a_first) {
       opcode  := a.bits.opcode
       param   := a.bits.param
       size    := a.bits.size
       source  := a.bits.source
-      addr_hi := a.bits.addr_hi
+      address := a.bits.address
     }
   }
 
@@ -310,20 +310,20 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
-    val addr_hi = Reg(UInt())
+    val address = Reg(UInt())
     when (b.valid && !b_first) {
       assert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
       assert (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
       assert (b.bits.size   === size,   "'B' channel size changed within multibeat operation" + extra)
       assert (b.bits.source === source, "'B' channel source changed within multibeat operation" + extra)
-      assert (b.bits.addr_hi=== addr_hi,"'B' channel addr_hi changed with multibeat operation" + extra)
+      assert (b.bits.address=== address,"'B' channel addresss changed with multibeat operation" + extra)
     }
     when (b.fire() && b_first) {
       opcode  := b.bits.opcode
       param   := b.bits.param
       size    := b.bits.size
       source  := b.bits.source
-      addr_hi := b.bits.addr_hi
+      address := b.bits.address
     }
   }
 
@@ -333,23 +333,20 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     val param   = Reg(UInt())
     val size    = Reg(UInt())
     val source  = Reg(UInt())
-    val addr_hi = Reg(UInt())
-    val addr_lo = Reg(UInt())
+    val address = Reg(UInt())
     when (c.valid && !c_first) {
       assert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
       assert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
       assert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
       assert (c.bits.source === source, "'C' channel source changed within multibeat operation" + extra)
-      assert (c.bits.addr_hi=== addr_hi,"'C' channel addr_hi changed with multibeat operation" + extra)
-      assert (c.bits.addr_lo=== addr_lo,"'C' channel addr_lo changed with multibeat operation" + extra)
+      assert (c.bits.address=== address,"'C' channel address changed with multibeat operation" + extra)
     }
     when (c.fire() && c_first) {
       opcode  := c.bits.opcode
       param   := c.bits.param
       size    := c.bits.size
       source  := c.bits.source
-      addr_hi := c.bits.addr_hi
-      addr_lo := c.bits.addr_lo
+      address := c.bits.address
     }
   }
 
