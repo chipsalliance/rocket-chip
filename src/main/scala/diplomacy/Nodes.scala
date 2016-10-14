@@ -42,7 +42,8 @@ abstract class BaseNode
   val index = lazyModule.nodes.size
   lazyModule.nodes = this :: lazyModule.nodes
 
-  def name = lazyModule.name + "." + getClass.getName.split('.').last
+  def nodename = getClass.getName.split('.').last
+  def name = lazyModule.name + "." + nodename
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
 
   protected[diplomacy] def outputs: Seq[BaseNode]

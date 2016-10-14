@@ -330,9 +330,8 @@ trait PeripheryBootROM extends LazyModule with HasPeripheryParameters {
 
   val address = 0x1000
   val size = 0x1000
-  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes)
-                       { override def name = "bootrom" })
-  rom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
+  val bootrom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes))
+  bootrom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryBootROMBundle {
