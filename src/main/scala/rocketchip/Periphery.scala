@@ -142,13 +142,11 @@ trait PeripheryDebugModuleMC {
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
   val coreplexIO: BaseCoreplexBundle
-  val system_clock: Clock
-  val system_reset: Bool
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
     // handles the synchronization as well.
-    val dtm = Module (new JtagDTMWithSync(c = system_clock, r = system_reset)(p))
+    val dtm = Module (new JtagDTMWithSync()(p))
     dtm.io.jtag <> io.jtag.get
     coreplexIO.debug <> dtm.io.debug
   } else {
@@ -355,11 +353,7 @@ trait PeripheryCoreplexLocalInterrupterModuleMC extends HasPeripheryParameters {
   val outer: PeripheryCoreplexLocalInterrupter
   val io: PeripheryCoreplexLocalInterrupterBundle
   val coreplexIO: BaseCoreplexBundle
-  val system_clock: Clock
-  val system_reset: Bool
 
-  // TODO - this doesn't work (makes invalid FIRRTL)
-  // outer.clint.module.io.rtcTick := CounterMC(p(RTCPeriod), system_clock, system_reset).inc()
   outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
   coreplexIO.clint <> outer.clint.module.io.tiles
 }

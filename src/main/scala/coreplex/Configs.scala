@@ -56,6 +56,8 @@ class BaseCoreplexConfig extends Config (
       //L1DataCache
       case DCacheKey => DCacheConfig(nMSHRs = site(Knob("L1D_MSHRS")))
       case DataScratchpadSize => 0
+      case DataScratchpadAddrMapKey =>
+        (tileId: Int) => s"io:cbus:dmem${tileId}"
       //L2 Memory System Params
       case AmoAluOperandBits => site(XLen)
       case NAcquireTransactors => 7

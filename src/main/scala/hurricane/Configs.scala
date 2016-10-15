@@ -26,37 +26,6 @@ case object NarrowWidth extends Field[Int]
 case object HSCRFileSize extends Field[Int]
 case object SlowIOMaxDivide extends Field[Int]
 
-class PMUConfig extends Config(
-  topDefinitions = (pname,site,here) => pname match {
-    case BuildTiles => {
-        val tileList = List.tabulate(site(NTiles)-1){ i => (r: Bool, p: Parameters) =>
-          Module(new RocketTile(resetSignal = r)(p.alterPartial({
-            case TileId => i
-            case TLId => "L1toL2"
-            case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
-          })))
-        }
-        tileList :+ { (r: Bool, p: Parameters) =>
-          Module(new RocketTile(resetSignal = r)(p.alterPartial({
-            case TileId => site(NTiles)-1
-            case TLId => "L1toL2"
-            case NUncachedTileLinkPorts => 1
-            case FPUKey => None
-            case NTLBEntries => 4
-            case BtbKey => BtbParameters(nEntries = 0)
-            case DCacheKey => DCacheConfig(nSDQ = 2, nRPQ = 2, nMSHRs = 0)
-            case MulDivKey => Some(MulDivConfig(mulUnroll = 1, mulEarlyOut = false, divEarlyOut = false))
-            // [ben] This is a hack - we'd really prefer to set these per cache ID
-            case NSets => 16
-            case NWays => 1
-            case BuildRoCC => Nil
-          })))
-        }
-      }
-    case _ => throw new CDEMatchError
-  }
-)
-
 class NoJtagDTM extends Config (
   (pname, site, here) => pname match {
     case IncludeJtagDTM => false
@@ -172,7 +141,7 @@ class DefaultHUpTopL2Config extends Config(new WithTinyHbwif ++ new ExampleHbwif
 
 class WithHurricaneUpstreamSizingFullParams extends Config(
   (pname,site,here) => pname match {
-    case NTiles => 2
+    case NTiles => 1
     case NAcquireTransactors => 9
     case HwachaNLanes => 2
     case NMemoryChannels => Dump("N_MEM_CHANNELS", 8)
@@ -194,7 +163,7 @@ class WithHurricaneUpstreamSizingFullParams extends Config(
 
 class WithHurricaneUpstreamSizingTinyParams extends Config(
   (pname,site,here) => pname match {
-    case NTiles => 2
+    case NTiles => 1
     case NAcquireTransactors => 3
     case HwachaNLanes => 2
     case HwachaConfPrec => false
@@ -217,7 +186,6 @@ class WithHurricaneUpstreamSizingTinyParams extends Config(
   })
 
 class HurricaneUpstreamFeatureConfig extends Config (
-  new PMUConfig ++
   new Process28nmConfig ++
   new ExampleHbwifConfig ++
   new WithHUpTop ++
