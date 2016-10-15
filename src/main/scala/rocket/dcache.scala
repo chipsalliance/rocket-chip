@@ -498,8 +498,16 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 }
 
 class ScratchpadSlavePort(implicit p: Parameters) extends CoreModule()(p) {
+  val spadBits = p(CacheBlockBytes) * 8
+  val spadBeats = spadBits / p(XLen)
+  val spadParams = p.alterPartial({
+    case TLId => "SPAD"
+    case TLKey("SPAD") => p(TLKey("L1toL2")).copy(
+      dataBeats = spadBeats, dataBits = spadBits)
+  })
+
   val io = new Bundle {
-    val tl = new ClientUncachedTileLinkIO().flip
+    val tl = new ClientUncachedTileLinkIO()(spadParams).flip
     val dmem = new HellaCacheIO
   }
 

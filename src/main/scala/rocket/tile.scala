@@ -146,7 +146,9 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
 
   io.slave foreach { case slavePort =>
     val adapter = Module(new ScratchpadSlavePort()(dcacheParams))
-    adapter.io.tl <> TileLinkFragmenter(slavePort)
+    val fragmenter = Module(new TileLinkFragmenter()(adapter.io.tl.p))
+    TileLinkWidthAdapter(fragmenter.io.in, slavePort)
+    adapter.io.tl <> fragmenter.io.out
     adapter.io.dmem +=: dcPorts
   }
 
