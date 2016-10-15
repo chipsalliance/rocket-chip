@@ -11,13 +11,32 @@ import diplomacy.LazyModule
 import uncore.tilelink._
 import uncore.agents._
 import uncore.devices.{NTiles, AsyncDebugBusTo}
-import uncore.converters.TileLinkWidthAdapter
-import uncore.util.TileLinkEnqueuer
+import uncore.converters.{TileLinkWidthAdapter, TileLinkIOUnwrapper}
+import uncore.util.{TileLinkEnqueuer, TileLinkDepths, UncachedTileLinkDepths}
 import junctions._
 import hbwif._
 import rocketchip._
+import rocket._
 
 case object BuildHTop extends Field[Parameters => HUpTop]
+
+trait HasSCRRouter {
+  implicit val p: Parameters
+
+  def scrRouteSel(addr: UInt) =
+    Mux(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr), UInt(2), UInt(1))
+
+  def splitSCRPort(
+      scrBusPort: ClientUncachedTileLinkIO,
+      pBusPort: ClientUncachedTileLinkIO,
+      masterPort: ClientUncachedTileLinkIO) {
+    val router = Module(
+      new ClientUncachedTileLinkIORouter(2, scrRouteSel)(masterPort.p))
+    router.io.in <> masterPort
+    TileLinkWidthAdapter(pBusPort, router.io.out(0))
+    TileLinkWidthAdapter(scrBusPort, router.io.out(1))
+  }
+}
 
 /* Hurricane Upstream Chisel Top */
 class HUpTop(q: Parameters) extends BaseTop(q)
@@ -27,16 +46,16 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     with PeripheryCoreplexLocalInterrupter
     with HurricaneIF
     with Hbwif
-    with SCRResetVector {
+    with SCRResetVector
+    with PowerManagementUnit {
   pDevices.add(AddrMapEntry("scrbus", new AddrMap(
     scrDevices.get, start = BigInt(0x60000000L), collapse=true)))
 
   topLevelSCRBuilder.addControl("coreplex_reset", UInt(1))
-  for (i <- 0 until p(NTiles) - 1) {
+  for (i <- 0 until p(NTiles)) {
     topLevelSCRBuilder.addControl(s"core_${i}_reset", UInt(1))
     topLevelSCRBuilder.addControl(s"core_${i}_rocc_reset", UInt(1))
   }
-  topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
   topLevelSCRBuilder.addControl("hbwif_reset", UInt(1))
   topLevelSCRBuilder.addControl("hbwif_reset_override", UInt(0))
   //                                                         hold      divisor
@@ -63,20 +82,19 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     with HurricaneIFModule
     with HbwifModule
     with AsyncConnection
-    with SCRResetVectorModule {
+    with SCRResetVectorModule
+    with PowerManagementUnitModule {
   val multiClockCoreplexIO = coreplexIO.asInstanceOf[MultiClockCoreplexBundle]
 
   coreplex.clock := clock
   coreplex.reset := ResetSync(scr.control("coreplex_reset")(0).toBool, coreplex.clock)
 
-  multiClockCoreplexIO.tcrs.dropRight(1).zipWithIndex foreach { case (tcr, i) =>
+  multiClockCoreplexIO.tcrs.zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
     tcr.reset := ResetSync(scr.control(s"core_${i}_reset")(0).toBool, tcr.clock)
     tcr.roccClock := clock
     tcr.roccReset := ResetSync(scr.control(s"core_${i}_rocc_reset")(0).toBool, tcr.roccClock)
   }
-  multiClockCoreplexIO.tcrs.last.clock := clock
-  multiClockCoreplexIO.tcrs.last.reset := scr.control(s"pmu_reset")(0).toBool
 
   // Hbwif connections
   hbwifFastClock := clock
@@ -133,7 +151,7 @@ trait HurricaneIFBundle extends HasPeripheryParameters {
   val host_clock = Bool(OUTPUT)
 }
 
-trait HurricaneIFModule extends HasPeripheryParameters {
+trait HurricaneIFModule extends HasPeripheryParameters with HasSCRRouter {
   implicit val p: Parameters
   val numLanes = p(HbwifKey).numLanes
 
@@ -157,19 +175,15 @@ trait HurricaneIFModule extends HasPeripheryParameters {
   unmapper.io.in <> coreplexIO.master.mem
   switcher.io.in <> unmapper.io.out
 
-  def lbwifRouteSel(addr: UInt) =
-    Mux(p(GlobalAddrMap).isInRegion("io:pbus:scrbus",addr), UInt(2), UInt(1))
-
-  val lbwif_router = Module(new ClientUncachedTileLinkIORouter(
-    2, lbwifRouteSel)(lbwifParams))
   val (core_start, _) = outer.pBusMasters.range("lbwif")
   val (scr_start, _) = outer.scrBusMasters.range("lbwif")
-  val lbscrTL = scrBus.io.in(scr_start)
+
+  splitSCRPort(
+    scrBus.io.in(scr_start),
+    coreplexIO.slave(core_start),
+    lbwif.io.tl_client)
 
   lbwif.io.tl_manager <> switcher.io.out(0)
-  lbwif_router.io.in <> lbwif.io.tl_client
-  TileLinkWidthAdapter(lbscrTL, lbwif_router.io.out(1))
-  coreplexIO.slave(core_start) <> lbwif_router.io.out(0)
 
   val slowio_module = Module(new SlowIO(p(SlowIOMaxDivide))(UInt(width=lbwifWidth)))
 
@@ -234,4 +248,70 @@ trait SCRResetVectorModule extends HasPeripheryParameters {
   val scr: SCRFile
 
   coreplexIO.resetVector := scr.control("reset_vector")
+}
+
+trait PowerManagementUnit extends LazyModule {
+  implicit val p: Parameters
+  val scrBusMasters: RangeManager
+  val pBusMasters: RangeManager
+  val pDevices: ResourceManager[AddrMapEntry]
+  val topLevelSCRBuilder: SCRBuilder 
+  val spadSize = 4096
+
+  scrBusMasters.add("pmu", 1)
+  pBusMasters.add("pmu", 2)
+  pDevices.add(AddrMapEntry("pmu", MemSize(spadSize, MemAttr(AddrMapProt.RWX))))
+  topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
+}
+
+trait PowerManagementUnitModule extends HasSCRRouter {
+  implicit val p: Parameters
+  val scr: SCRFile
+  val scrBus: TileLinkRecursiveInterconnect
+  val pBus: TileLinkRecursiveInterconnect
+  val coreplexIO: BaseCoreplexBundle
+  val outer: PowerManagementUnit
+
+  val pmu = Module(new RocketTile()(p.alterPartial({
+    case DataScratchpadSize => outer.spadSize
+    case TileId => 1
+    case TLId => "L1toL2"
+    case NUncachedTileLinkPorts => 1
+    case FPUKey => None
+    case BtbKey => BtbParameters(nEntries = 0)
+    case DCacheKey => DCacheConfig(nSDQ = 2, nRPQ = 2, nMSHRs = 0)
+    case MulDivKey => Some(MulDivConfig(mulUnroll = 1, mulEarlyOut = false, divEarlyOut = false))
+    case UseCompressed => true
+    case BuildRoCC => Nil
+    case DataScratchpadAddrMapKey => (tileId: Int) => "io:pbus:pmu"
+    case NSets => outer.spadSize / p(CacheBlockBytes)
+    case NWays => 1
+    case NTLBEntries => 4
+  })))
+
+  // Just some sanity checks
+  require(pmu.io.slave.nonEmpty)
+  require(pmu.io.cached.size == 1)
+  require(pmu.io.uncached.size == 1)
+
+  pmu.io.hartid := UInt(1)
+  pmu.io.resetVector := UInt(p(GlobalAddrMap)("io:pbus:pmu").start)
+  pmu.io.interrupts := pmu.io.interrupts.fromBits(UInt(0))
+  pmu.io.slave.get <> pBus.port("pmu")
+  pmu.reset := scr.control("pmu_reset")(0).toBool
+
+  val (scrStart, scrEnd) = outer.scrBusMasters.range("pmu")
+  val (coreStart, coreEnd) = outer.pBusMasters.range("pmu")
+
+  val tlBuffering = TileLinkDepths(1,1,2,2,0)
+  val utlBuffering = UncachedTileLinkDepths(1,2)
+  val cached = TileLinkEnqueuer(pmu.io.cached.head, tlBuffering)
+  val uncached = TileLinkEnqueuer(pmu.io.uncached.head, utlBuffering)
+  val cachedUnwrapped = TileLinkIOUnwrapper(cached)
+
+  splitSCRPort(
+    scrBus.io.in(scrStart),
+    coreplexIO.slave(coreStart),
+    cachedUnwrapped)
+  coreplexIO.slave(coreStart + 1) <> uncached
 }
