@@ -67,15 +67,6 @@ object PeripheryUtils {
     source.b <> Queue(sink.b, 1)
     sink
   }
-  def addQueueAXIMC(source: NastiIO, c: Clock, r: Bool) = {
-    val sink = Wire(source)
-    sink.ar  <> QueueMC(source.ar, 1, c = c, r = r)
-    sink.aw  <> QueueMC(source.aw, 1, c = c, r = r)
-    sink.w   <> QueueMC(source.w, c = c, r = r)
-    source.r <> QueueMC(sink.r, c = c, r = r)
-    source.b <> QueueMC(sink.b, 1, c = c, r = r)
-    sink
-  }
   def convertTLtoAXI(tl: ClientUncachedTileLinkIO) = {
     val bridge = Module(new NastiIOTileLinkIOConverter()(tl.p))
     bridge.io.tl <> tl
@@ -131,26 +122,6 @@ trait PeripheryDebugModule {
     dtm.io.jtag <> io.jtag.get
     coreplexIO.debug <> dtm.io.debug
   } else {
-    coreplexIO.debug <>
-      (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
-      else io.debug.get)
-  }
-}
-
-trait PeripheryDebugModuleMC {
-  implicit val p: Parameters
-  val outer: PeripheryDebug
-  val io: PeripheryDebugBundle
-  val coreplexIO: BaseCoreplexBundle
-
-  if (p(IncludeJtagDTM)) {
-    // JtagDTMWithSync is a wrapper which
-    // handles the synchronization as well.
-    val dtm = Module (new JtagDTMWithSync()(p))
-    dtm.io.jtag <> io.jtag.get
-    coreplexIO.debug <> dtm.io.debug
-  } else {
-    // [ben] Not bothering with multiclock support here since we have a JtagDTM
     coreplexIO.debug <>
       (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
       else io.debug.get)
@@ -339,16 +310,6 @@ trait PeripheryCoreplexLocalInterrupterBundle {
 }
 
 trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripheryCoreplexLocalInterrupter
-  val io: PeripheryCoreplexLocalInterrupterBundle
-  val coreplexIO: BaseCoreplexBundle
-
-  outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  coreplexIO.clint <> outer.clint.module.io.tiles
-}
-
-trait PeripheryCoreplexLocalInterrupterModuleMC extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryCoreplexLocalInterrupter
   val io: PeripheryCoreplexLocalInterrupterBundle

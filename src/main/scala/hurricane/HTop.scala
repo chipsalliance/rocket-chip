@@ -77,8 +77,8 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
     (p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b)
     with HurricaneExtraTopLevelModule
     with PeripheryBootROMModule
-    with PeripheryDebugModuleMC
-    with PeripheryCoreplexLocalInterrupterModuleMC
+    with PeripheryDebugModule
+    with PeripheryCoreplexLocalInterrupterModule
     with HurricaneIFModule
     with HbwifModule
     with AsyncConnection
