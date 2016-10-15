@@ -28,10 +28,21 @@ class TestHarness(q: Parameters) extends Module {
   val memBytes = p(TLKey(memParams(TLId))).dataBitsPerBeat / 8
   val memDepth = memSize / memBytes
 
+  val hbwifNumLanes = p(HbwifKey).numLanes
+
   val sim_tl_mem = Module(new TileLinkTestRAM(memDepth.toInt)(memParams))
   val dessert = Module(new ClientUncachedTileLinkIOBidirectionalSerdes(p(NarrowWidth))(memParams))
   val adapter = Module(new SerialAdapter()(memParams))
   val serial = Module(new SimSerialWrapper(p(SerialInterfaceWidth)))
+  val arbiter = Module(new ClientUncachedTileLinkIOArbiter(hbwifNumLanes+1)(memParams))
+  val fiwbh = Module(new Fiwbh)
+
+  fiwbh.io.fastClk := clock
+  fiwbh.io.loopback := Bool(false)
+  fiwbh.io.rx <> dut.io.hbwifTx
+  dut.io.hbwifRx <> fiwbh.io.tx
+  dut.io.hbwifIref.get := Bool(true)
+  arbiter.io.in.tail.zip(fiwbh.io.mem).foreach { case (h, f) => h <> f }
 
   val host_clock = dut.io.host_clock.asClock
   val host_clock_toggle = dut.io.host_clock =/= RegNext(dut.io.host_clock)
@@ -41,7 +52,8 @@ class TestHarness(q: Parameters) extends Module {
   dessert.io.serial.in <> AsyncDecoupledFrom(host_clock, host_reset, dut.io.serial.out)
   dut.io.serial.in <> AsyncDecoupledTo(host_clock, host_reset, dessert.io.serial.out)
   sim_tl_mem.io <> dessert.io.tl_client
-  dessert.io.tl_manager <> adapter.io.mem
+  dessert.io.tl_manager <> arbiter.io.out
+  arbiter.io.in.head <> adapter.io.mem
   serial.io.serial <> adapter.io.serial
 
   // We don't need this for simulation

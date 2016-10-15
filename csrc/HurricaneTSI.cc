@@ -25,11 +25,15 @@ void hurricane_tsi_t::reset()
 
   // change reset vector
   uint64_t start = 0x80000000;
+#ifdef SCRTOP_RESET_VECTOR
   write_chunk(SCRTOP_RESET_VECTOR, sizeof(uint64_t), &start);
+#endif
 
   // reset core(s)
   uint64_t zero = 0;
+#ifdef SCRTOP_PMU_RESET
   write_chunk(SCRTOP_PMU_RESET, sizeof(uint64_t), &zero);
+#endif
 #ifdef SCRTOP_CORE_0_RESET
   write_chunk(SCRTOP_CORE_0_RESET, sizeof(uint64_t), &zero);
   write_chunk(SCRTOP_CORE_0_ROCC_RESET, sizeof(uint64_t), &zero);
