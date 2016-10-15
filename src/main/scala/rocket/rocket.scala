@@ -32,6 +32,7 @@ case object NBreakpoints extends Field[Int]
 case object NPerfCounters extends Field[Int]
 case object NPerfEvents extends Field[Int]
 case object DataScratchpadSize extends Field[Int]
+case object DataScratchpadAddrMapKey extends Field[Int => String]
 
 trait HasCoreParameters extends HasAddrMapParameters {
   implicit val p: Parameters
