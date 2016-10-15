@@ -222,9 +222,11 @@ object TLBundleSnoop
 final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
 {
   require (isPow2(depth))
+  val mem  = Vec(depth, gen)
   val ridx = UInt(width = log2Up(depth)+1).flip
   val widx = UInt(width = log2Up(depth)+1)
-  val mem  = Vec(depth, gen)
+  val ridx_valid = Bool().flip
+  val widx_valid = Bool()
   val source_reset_n = Bool()
   val sink_reset_n = Bool().flip
 
@@ -236,7 +238,9 @@ object FromAsyncBundle
   def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): DecoupledIO[T] = {
     val sink = Module(new AsyncQueueSink(x.mem(0), x.depth, sync))
     x.ridx := sink.io.ridx
+    x.ridx_valid := sink.io.ridx_valid
     sink.io.widx := x.widx
+    sink.io.widx_valid := x.widx_valid
     sink.io.mem  := x.mem
     sink.io.source_reset_n := x.source_reset_n
     x.sink_reset_n := !sink.reset
@@ -257,8 +261,10 @@ object ToAsyncBundle
     x.ready := source.io.enq.ready
     val out = Wire(new AsyncBundle(depth, x.bits))
     source.io.ridx := out.ridx
+    source.io.ridx_valid := out.ridx_valid
     out.mem := source.io.mem
     out.widx := source.io.widx
+    out.widx_valid := source.io.widx_valid
     source.io.sink_reset_n := out.sink_reset_n
     out.source_reset_n := !source.reset
     out
