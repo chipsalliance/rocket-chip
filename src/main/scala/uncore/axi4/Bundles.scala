@@ -20,6 +20,13 @@ abstract class AXI4BundleA(params: AXI4BundleParameters) extends AXI4BundleBase(
   val prot   = UInt(width = params.protBits)
   val qos    = UInt(width = params.qosBits)  // 0=no QoS, bigger = higher priority
   // val region = UInt(width = 4) // optional
+
+  // Number of bytes-1 in this operation
+  def bytes1(x:Int=0) = {
+    val maxShift = 1 << params.sizeBits
+    val tail = UInt((BigInt(1) << maxShift) - 1)
+    (Cat(len, tail) << size) >> maxShift
+  }
 }
 
 // A non-standard bundle that can be both AR and AW
