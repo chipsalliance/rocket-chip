@@ -103,7 +103,7 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
       val beats = ~(~(beats1 << 1 | UInt(1)) | beats1) // beats1 + 1
 
       val inc_addr = addr + (beats << a.bits.size) // address after adding transfer
-      val wrapMask = ~(~a.bits.len << a.bits.size) // only these bits may change, if wrapping
+      val wrapMask = a.bits.bytes1() // only these bits may change, if wrapping
       val mux_addr = Wire(init = inc_addr)
       when (a.bits.burst === AXI4Parameters.BURST_WRAP) {
         mux_addr := (inc_addr & wrapMask) | ~(~a.bits.addr | wrapMask)
