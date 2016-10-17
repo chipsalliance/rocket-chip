@@ -21,9 +21,10 @@ case class AXI4SlaveParameters(
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = max(supportsWrite.max, supportsRead.max)
   val maxAddress = address.map(_.max).max
+  val minAlignment = address.map(_.alignment).min
 
   // The device had better not support a transfer larger than it's alignment
-  address.foreach { case a => require (a.alignment >= maxTransfer) }
+  require (minAlignment >= maxTransfer)
 }
 
 case class AXI4SlavePortParameters(
@@ -41,6 +42,10 @@ case class AXI4SlavePortParameters(
   // Check that the link can be implemented in AXI4
   require (maxTransfer <= beatBytes * (1 << AXI4Parameters.lenBits))
 
+  lazy val routingMask = AddressDecoder(slaves.map(_.address))
+  def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  def findFast(address: UInt) = Vec(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+
   // Require disjoint ranges for addresses
   slaves.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
@@ -51,6 +56,7 @@ case class AXI4SlavePortParameters(
 
 case class AXI4MasterParameters(
   id:       IdRange       = IdRange(0, 1),
+  aligned:  Boolean       = false,
   nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")

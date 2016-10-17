@@ -32,7 +32,9 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
     val mask = bigBits(address.mask >> log2Ceil(beatBytes))
 
     val in = io.in(0)
-    val addrBits = (mask zip in.a.bits.addr_hi.toBools).filter(_._1).map(_._2)
+    val edge = node.edgesIn(0)
+
+    val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
     val memAddress = Cat(addrBits.reverse)
     val mem = SeqMem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8)))
 
@@ -49,7 +51,6 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
     in.d.valid := d_full
     in.a.ready := in.d.ready || !d_full
 
-    val edge = node.edgesIn(0)
     in.d.bits := edge.AccessAck(d_addr, UInt(0), d_source, d_size)
     // avoid data-bus Mux
     in.d.bits.data := d_data

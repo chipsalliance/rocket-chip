@@ -22,44 +22,47 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends
     def ISOo[T <: Data](x: T): T = x.fromBits(fOut(io.iso_out, x.asUInt))
     def ISOi[T <: Data](x: T): T = x.fromBits(fIn (io.iso_in,  x.asUInt))
 
+    def ABo[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
+      x.mem            := ISOo(y.mem)
+      x.widx           := ISOo(y.widx)
+      x.widx_valid     := ISOo(y.widx_valid)
+      x.source_reset_n := ISOo(y.source_reset_n)
+      y.ridx           := ISOi(x.ridx)
+      y.ridx_valid     := ISOi(x.ridx_valid)
+      y.sink_reset_n   := ISOi(x.sink_reset_n)
+    }
+
+    def ABi[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
+      x.mem            := ISOi(y.mem)
+      x.widx           := ISOi(y.widx)
+      x.widx_valid     := ISOi(y.widx_valid)
+      x.source_reset_n := ISOi(y.source_reset_n)
+      y.ridx           := ISOo(x.ridx)
+      y.ridx_valid     := ISOo(x.ridx_valid)
+      y.sink_reset_n   := ISOo(x.sink_reset_n)
+    }
+
+    def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
+      x.widx           := UInt(0)
+      x.widx_valid     := Bool(false)
+      x.source_reset_n := Bool(false)
+      y.ridx           := UInt(0)
+      y.ridx_valid     := Bool(false)
+      y.sink_reset_n   := Bool(false)
+    }
+
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-
-      out.a.mem  := ISOo(in .a.mem)
-      out.a.widx := ISOo(in .a.widx)
-      in .a.ridx := ISOi(out.a.ridx)
-      out.d.ridx := ISOo(in .d.ridx)
-      in .d.widx := ISOi(out.d.widx)
-      in .d.mem  := ISOi(out.d.mem)
-
-      out.a.source_reset_n := ISOo(in .a.source_reset_n)
-      in .a.sink_reset_n   := ISOi(out.a.sink_reset_n)
-      out.d.sink_reset_n   := ISOo(in .d.sink_reset_n)
-      in .d.source_reset_n := ISOi(out.d.source_reset_n)
+      ABo(out.a, in .a)
+      ABi(in .d, out.d)
 
       if (edgeOut.manager.base.anySupportAcquire && edgeOut.client.base.anySupportProbe) {
-        in .b.widx := ISOi(out.b.widx)
-        in .c.ridx := ISOi(out.c.ridx)
-        in .e.ridx := ISOi(out.e.ridx)
-        out.b.ridx := ISOo(in .b.ridx)
-        out.c.widx := ISOo(in .c.widx)
-        out.e.widx := ISOo(in .e.widx)
-        in .b.mem  := ISOi(out.b.mem)
-        out.c.mem  := ISOo(in .c.mem)
-        out.e.mem  := ISOo(in .e.mem)
-
-        out.b.sink_reset_n   := ISOo(in .b.sink_reset_n)
-        in .b.source_reset_n := ISOi(out.b.source_reset_n)
-        out.c.source_reset_n := ISOo(in .c.source_reset_n)
-        in .c.sink_reset_n   := ISOi(out.c.sink_reset_n)
-        out.e.source_reset_n := ISOo(in .e.source_reset_n)
-        in .e.sink_reset_n   := ISOi(out.e.sink_reset_n)
+        ABi(in .b, out.b)
+        ABo(out.c, in .c)
+        ABo(out.e, in .e)
       } else {
-        in .b.widx := UInt(0)
-        in .c.ridx := UInt(0)
-        in .e.ridx := UInt(0)
-        out.b.ridx := UInt(0)
-        out.c.widx := UInt(0)
-        out.e.widx := UInt(0)
+        ABz(in .b, out.b)
+        ABz(out.c, in .c)
+        ABz(out.e, in .e)
       }
     }
   }

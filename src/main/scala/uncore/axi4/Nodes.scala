@@ -40,8 +40,8 @@ case class AXI4SlaveNode(portParams: AXI4SlavePortParameters, numPorts: Range.In
   extends SinkNode(AXI4Imp)(portParams, numPorts)
 
 case class AXI4AdapterNode(
-  clientFn:       Seq[AXI4MasterPortParameters]  => AXI4MasterPortParameters,
-  managerFn:      Seq[AXI4SlavePortParameters] => AXI4SlavePortParameters,
+  masterFn:       Seq[AXI4MasterPortParameters]  => AXI4MasterPortParameters,
+  slaveFn:        Seq[AXI4SlavePortParameters] => AXI4SlavePortParameters,
   numMasterPorts: Range.Inclusive = 1 to 1,
   numSlavePorts:  Range.Inclusive = 1 to 1)
-  extends InteriorNode(AXI4Imp)(clientFn, managerFn, numMasterPorts, numSlavePorts)
+  extends InteriorNode(AXI4Imp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)

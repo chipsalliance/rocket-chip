@@ -3,7 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO, ReadyValidIO}
+import chisel3.util.{ReadyValidIO}
 import diplomacy._
 import util.{AsyncQueueSource, AsyncQueueSink, GenericParameterizedBundle}
 
@@ -103,7 +103,7 @@ final class TLBundleA(params: TLBundleParameters)
   val param   = UInt(width = 3) // amo_opcode || perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
-  val addr_hi = UInt(width = params.addrHiBits) // to
+  val address = UInt(width = params.addressBits) // to
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
@@ -118,7 +118,7 @@ final class TLBundleB(params: TLBundleParameters)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
-  val addr_hi = UInt(width = params.addrHiBits) // from
+  val address = UInt(width = params.addressBits) // from
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
@@ -133,8 +133,7 @@ final class TLBundleC(params: TLBundleParameters)
   val param   = UInt(width = 3)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
-  val addr_hi = UInt(width = params.addrHiBits) // to
-  val addr_lo = UInt(width = params.addrLoBits) // instead of mask
+  val address = UInt(width = params.addressBits) // to
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val error   = Bool() // AccessAck[Data]
@@ -165,11 +164,11 @@ final class TLBundleE(params: TLBundleParameters)
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
 {
-  val a = Irrevocable(new TLBundleA(params))
-  val b = Irrevocable(new TLBundleB(params)).flip
-  val c = Irrevocable(new TLBundleC(params))
-  val d = Irrevocable(new TLBundleD(params)).flip
-  val e = Irrevocable(new TLBundleE(params))
+  val a = Decoupled(new TLBundleA(params))
+  val b = Decoupled(new TLBundleB(params)).flip
+  val c = Decoupled(new TLBundleC(params))
+  val d = Decoupled(new TLBundleD(params)).flip
+  val e = Decoupled(new TLBundleE(params))
 }
 
 object TLBundle
@@ -177,20 +176,20 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-final class IrrevocableSnoop[+T <: Data](gen: T) extends Bundle
+final class DecoupledSnoop[+T <: Data](gen: T) extends Bundle
 {
   val ready = Bool()
   val valid = Bool()
   val bits = gen.asOutput
 
   def fire(dummy: Int = 0) = ready && valid
-  override def cloneType: this.type = new IrrevocableSnoop(gen).asInstanceOf[this.type]
+  override def cloneType: this.type = new DecoupledSnoop(gen).asInstanceOf[this.type]
 }
 
-object IrrevocableSnoop
+object DecoupledSnoop
 {
-  def apply[T <: Data](i: IrrevocableIO[T]) = {
-    val out = Wire(new IrrevocableSnoop(i.bits))
+  def apply[T <: Data](i: DecoupledIO[T]) = {
+    val out = Wire(new DecoupledSnoop(i.bits))
     out.ready := i.ready
     out.valid := i.valid
     out.bits  := i.bits
@@ -200,22 +199,22 @@ object IrrevocableSnoop
 
 class TLBundleSnoop(params: TLBundleParameters) extends TLBundleBase(params)
 {
-  val a = new IrrevocableSnoop(new TLBundleA(params))
-  val b = new IrrevocableSnoop(new TLBundleB(params))
-  val c = new IrrevocableSnoop(new TLBundleC(params))
-  val d = new IrrevocableSnoop(new TLBundleD(params))
-  val e = new IrrevocableSnoop(new TLBundleE(params))
+  val a = new DecoupledSnoop(new TLBundleA(params))
+  val b = new DecoupledSnoop(new TLBundleB(params))
+  val c = new DecoupledSnoop(new TLBundleC(params))
+  val d = new DecoupledSnoop(new TLBundleD(params))
+  val e = new DecoupledSnoop(new TLBundleE(params))
 }
 
 object TLBundleSnoop
 {
   def apply(x: TLBundle) = {
     val out = Wire(new TLBundleSnoop(x.params))
-    out.a <> IrrevocableSnoop(x.a)
-    out.b <> IrrevocableSnoop(x.b)
-    out.c <> IrrevocableSnoop(x.c)
-    out.d <> IrrevocableSnoop(x.d)
-    out.e <> IrrevocableSnoop(x.e)
+    out.a <> DecoupledSnoop(x.a)
+    out.b <> DecoupledSnoop(x.b)
+    out.c <> DecoupledSnoop(x.c)
+    out.d <> DecoupledSnoop(x.d)
+    out.e <> DecoupledSnoop(x.e)
     out
   }
 }
@@ -223,9 +222,11 @@ object TLBundleSnoop
 final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
 {
   require (isPow2(depth))
+  val mem  = Vec(depth, gen)
   val ridx = UInt(width = log2Up(depth)+1).flip
   val widx = UInt(width = log2Up(depth)+1)
-  val mem  = Vec(depth, gen)
+  val ridx_valid = Bool().flip
+  val widx_valid = Bool()
   val source_reset_n = Bool()
   val sink_reset_n = Bool().flip
 
@@ -234,14 +235,16 @@ final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
 
 object FromAsyncBundle
 {
-  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): IrrevocableIO[T] = {
+  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): DecoupledIO[T] = {
     val sink = Module(new AsyncQueueSink(x.mem(0), x.depth, sync))
     x.ridx := sink.io.ridx
+    x.ridx_valid := sink.io.ridx_valid
     sink.io.widx := x.widx
+    sink.io.widx_valid := x.widx_valid
     sink.io.mem  := x.mem
     sink.io.source_reset_n := x.source_reset_n
     x.sink_reset_n := !sink.reset
-    val out = Wire(Irrevocable(x.mem(0)))
+    val out = Wire(Decoupled(x.mem(0)))
     out.valid := sink.io.deq.valid
     out.bits := sink.io.deq.bits
     sink.io.deq.ready := out.ready
@@ -258,8 +261,10 @@ object ToAsyncBundle
     x.ready := source.io.enq.ready
     val out = Wire(new AsyncBundle(depth, x.bits))
     source.io.ridx := out.ridx
+    source.io.ridx_valid := out.ridx_valid
     out.mem := source.io.mem
     out.widx := source.io.widx
+    out.widx_valid := source.io.widx_valid
     source.io.sink_reset_n := out.sink_reset_n
     out.source_reset_n := !source.reset
     out

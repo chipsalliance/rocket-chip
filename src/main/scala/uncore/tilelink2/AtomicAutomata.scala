@@ -138,8 +138,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       // Move the selected sign bit into the first byte position it will extend
       val signbit_a = ((signbits_a & signSel) << 1)(beatBytes-1, 0)
       val signbit_d = ((signbits_d & signSel) << 1)(beatBytes-1, 0)
-      val signext_a = FillInterleaved(8, highOR(signbit_a))
-      val signext_d = FillInterleaved(8, highOR(signbit_d))
+      val signext_a = FillInterleaved(8, leftOR(signbit_a))
+      val signext_d = FillInterleaved(8, leftOR(signbit_d))
       // NOTE: sign-extension does not change the relative ordering in EITHER unsigned or signed arithmetic
       val wide_mask = FillInterleaved(8, mask)
       val a_a_ext = (a_a & wide_mask) | signext_a
@@ -175,7 +175,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       source_c.bits := edgeOut.Put(a_cam_a.bits.source, edgeIn.address(a_cam_a.bits), a_cam_a.bits.size, amo_data)._2
 
       // Finishing an AMO from the CAM has highest priority
-      TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(1), source_c), (edgeOut.numBeats(in.a.bits), source_i))
+      TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(0), source_c), (edgeOut.numBeats1(in.a.bits), source_i))
 
       // Capture the A state into the CAM
       when (source_i.fire() && !a_isSupported) {

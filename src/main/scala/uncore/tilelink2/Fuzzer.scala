@@ -17,7 +17,7 @@ class IDMapGenerator(numIds: Int) extends Module {
   io.free.ready := Bool(true)
   assert (!io.free.valid || !bitmap(io.free.bits)) // No double freeing
 
-  val select = ~(highOR(bitmap) << 1) & bitmap
+  val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
   io.alloc.valid := bitmap.orR()
 
@@ -206,7 +206,7 @@ import unittest._
 
 class TLFuzzRAM extends LazyModule
 {
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("TLFuzzRAM"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
   val ram2 = LazyModule(new TLRAM(AddressSet(0, 0x3ff), beatBytes = 16))
   val gpio = LazyModule(new RRTest1(0x400))
