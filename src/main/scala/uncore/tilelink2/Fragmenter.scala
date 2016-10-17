@@ -12,7 +12,7 @@ import scala.math.{min,max}
 // alwaysMin: fragment all requests down to minSize (else fragment to maximum supported by manager)
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
-// Fragmenter breaks: Acquire (and thus cuts BCE channels)
+// Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
 class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) extends LazyModule
 {
   require (isPow2 (maxSize))
@@ -30,7 +30,6 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
     TransferSizes.none
   def mapManager(m: TLManagerParameters) = m.copy(
-    supportsAcquire    = TransferSizes.none, // this adapter breaks acquires
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = expandTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet),
@@ -38,20 +37,11 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     supportsPutPartial = expandTransfer(m.supportsPutPartial),
     supportsHint       = expandTransfer(m.supportsHint))
   def mapClient(c: TLClientParameters) = c.copy(
-    sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits),
-    // since we break Acquires, none of these work either:
-    supportsProbe      = TransferSizes.none,
-    supportsArithmetic = TransferSizes.none,
-    supportsLogical    = TransferSizes.none,
-    supportsGet        = TransferSizes.none,
-    supportsPutFull    = TransferSizes.none,
-    supportsPutPartial = TransferSizes.none,
-    supportsHint       = TransferSizes.none)
+    sourceId = IdRange(c.sourceId.start << fragmentBits, c.sourceId.end << fragmentBits))
 
-  // Because the Fragmenter stalls inner A while serving outer, it can wipe away inner latency
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => c.copy(clients = c.clients.map(mapClient)) },
-    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager), minLatency = 0) })
+    managerFn = { case Seq(m) => m.copy(managers = m.managers.map(mapManager)) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -70,6 +60,8 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
     // We don't support fragmenting to sub-beat accesses
     require (minSize >= beatBytes)
+    // We can't support devices which are cached on both sides of us
+    require (!edgeOut.manager.anySupportAcquire || !edgeIn.client.anySupportProbe)
 
     /* The Fragmenter is a bit tricky, because there are 5 sizes in play:
      *   max  size -- the maximum transfer size possible
@@ -174,6 +166,12 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     in.d.bits.source := out.d.bits.source >> fragmentBits
     in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
+    // Combine the error flag
+    val r_error = RegInit(Bool(false))
+    val d_error = r_error | out.d.bits.error
+    when (out.d.fire()) { r_error := Mux(drop, d_error, UInt(0)) }
+    in.d.bits.error := d_error
+
     // What maximum transfer sizes do downstream devices support?
     val maxArithmetics = managers.map(_.supportsArithmetic.max)
     val maxLogicals    = managers.map(_.supportsLogical.max)
@@ -191,8 +189,13 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgPutPartials = maxPutPartials.map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
     val maxLgHints       = maxHints      .map(m => if (m == 0) lgMinSize else UInt(log2Ceil(m)))
 
+    // Make the request repeatable
+    val repeater = Module(new Repeater(in.a.bits))
+    repeater.io.enq <> in.a
+    val in_a = repeater.io.deq
+
     // If this is infront of a single manager, these become constants
-    val find = manager.findFast(edgeIn.address(in.a.bits))
+    val find = manager.findFast(edgeIn.address(in_a.bits))
     val maxLgArithmetic  = Mux1H(find, maxLgArithmetics)
     val maxLgLogical     = Mux1H(find, maxLgLogicals)
     val maxLgGet         = Mux1H(find, maxLgGets)
@@ -201,7 +204,7 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
     val maxLgHint        = Mux1H(find, maxLgHints)
 
     val limit = if (alwaysMin) lgMinSize else 
-      MuxLookup(in.a.bits.opcode, lgMinSize, Array(
+      MuxLookup(in_a.bits.opcode, lgMinSize, Array(
         TLMessages.PutFullData    -> maxLgPutFull,
         TLMessages.PutPartialData -> maxLgPutPartial,
         TLMessages.ArithmeticData -> maxLgArithmetic,
@@ -209,11 +212,11 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
         TLMessages.Get            -> maxLgGet,
         TLMessages.Hint           -> maxLgHint))
 
-    val aOrig = in.a.bits.size
+    val aOrig = in_a.bits.size
     val aFrag = Mux(aOrig > limit, limit, aOrig)
     val aOrigOH1 = UIntToOH1(aOrig, log2Ceil(maxSize))
     val aFragOH1 = UIntToOH1(aFrag, log2Up(maxDownSize))
-    val aHasData = node.edgesIn(0).hasData(in.a.bits)
+    val aHasData = node.edgesIn(0).hasData(in_a.bits)
     val aMask = Mux(aHasData, UInt(0), aFragOH1)
 
     val gennum = RegInit(UInt(0, width = counterBits))
@@ -224,13 +227,18 @@ class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) exten
 
     when (out.a.fire()) { gennum := new_gennum }
 
-    val delay = !aHasData && aFragnum =/= UInt(0)
-    out.a.valid := in.a.valid
-    in.a.ready := out.a.ready && !delay
-    out.a.bits := in.a.bits
-    out.a.bits.addr_hi := in.a.bits.addr_hi | (~aFragnum << log2Ceil(minSize/beatBytes) & aOrigOH1 >> log2Ceil(beatBytes))
-    out.a.bits.source := Cat(in.a.bits.source, aFragnum)
+    repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
+    out.a <> in_a
+    out.a.bits.address := in_a.bits.address | (~aFragnum << log2Ceil(minSize) & aOrigOH1)
+    out.a.bits.source := Cat(in_a.bits.source, aFragnum)
     out.a.bits.size := aFrag
+
+    // Optimize away some of the Repeater's registers
+    assert (!repeater.io.full || !aHasData)
+    out.a.bits.data := in.a.bits.data
+    val fullMask = UInt((BigInt(1) << beatBytes) - 1)
+    assert (!repeater.io.full || in_a.bits.mask === fullMask)
+    out.a.bits.mask := Mux(repeater.io.full, fullMask, in.a.bits.mask)
 
     // Tie off unused channels
     in.b.valid := Bool(false)
@@ -271,4 +279,3 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int) extends LazyModule {
 class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize)).module).io.finished
 }
-

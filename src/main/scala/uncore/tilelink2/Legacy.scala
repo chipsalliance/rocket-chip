@@ -30,12 +30,12 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     edge.manager.managers.foreach { m =>
       // If a slave supports read at all, it must support all TL Legacy requires
       if (m.supportsGet) {
-        require (m.supportsGet.contains(TransferSizes(tlDataBytes)))
+        require (m.supportsGet.contains(TransferSizes(1, tlDataBytes)))
         require (m.supportsGet.contains(TransferSizes(tlDataBeats * tlDataBytes)))
       }
       // Likewise, any put support must mean full put support
       if (m.supportsPutPartial) {
-        require (m.supportsPutPartial.contains(TransferSizes(tlDataBytes)))
+        require (m.supportsPutPartial.contains(TransferSizes(1, tlDataBytes)))
         require (m.supportsPutPartial.contains(TransferSizes(tlDataBeats * tlDataBytes)))
       }
       // Any atomic support => must support 32-bit up to beat size of all types
@@ -66,24 +66,26 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     val block = UInt(log2Ceil(tlDataBytes*tlDataBeats))
     val size = io.legacy.acquire.bits.op_size()
 
-    // Find the operation size from the wmask
-    // Returns: (any_1, size)
-    def mask_helper(range: UInt): (Bool, UInt) = {
+    // Find the operation size and offset from the wmask
+    // Returns: (any_1, size, offset)
+    def mask_helper(range: UInt): (Bool, UInt, UInt) = {
       val len = range.getWidth
       if (len == 1) {
-        (range === UInt(1), UInt(0))
+        (range === UInt(1), UInt(0), UInt(0)) // ugh. offset has one useless bit.
       } else {
         val mid = len / 2
         val lo  = range(mid-1, 0)
         val hi  = range(len-1, mid)
-        val (lo_1, lo_s) = mask_helper(lo)
-        val (hi_1, hi_s) = mask_helper(hi)
+        val (lo_1, lo_s, lo_a) = mask_helper(lo)
+        val (hi_1, hi_s, hi_a) = mask_helper(hi)
         val out_1 = lo_1 || hi_1
         val out_s = Mux(lo_1, Mux(hi_1, UInt(log2Up(len)), lo_s), hi_s)
-        (out_1, out_s)
+        val out_a = Mux(lo_1, Mux(hi_1, UInt(0), lo_a), Cat(UInt(1), hi_a))
+        (out_1, out_s, out_a)
       }
     }
-    val wsize = mask_helper(wmask)._2
+    val (_, wsize, wlow1) = mask_helper(wmask)
+    val wlow = wlow1 >> 1
 
     // Only create atomic messages if TL2 managers support them
     val atomics = if (edge.manager.anySupportLogical) {
@@ -103,30 +105,20 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
       Wire(new TLBundleA(edge.bundle))
     }
 
-    out.a.bits := MuxLookup(io.legacy.acquire.bits.a_type, Wire(new TLBundleA(edge.bundle)), Array(
-      Acquire.getType         -> edge.Get (source, address, size) ._2,
-      Acquire.getBlockType    -> edge.Get (source, address, block)._2,
-      Acquire.putType         -> edge.Put (source, address, wsize, data, wmask)._2,
-      Acquire.putBlockType    -> edge.Put (source, address, block, data, wmask)._2,
-      Acquire.getPrefetchType -> edge.Hint(source, address, block, UInt(0))._2,
-      Acquire.putPrefetchType -> edge.Hint(source, address, block, UInt(1))._2,
-      Acquire.putAtomicType   -> atomics))
-
     val beatMask  = UInt(tlDataBytes-1)
     val blockMask = UInt(tlDataBytes*tlDataBeats-1)
-    val addressMask = MuxLookup(io.legacy.acquire.bits.a_type, beatMask, Array(
-      Acquire.getType         -> beatMask,
-      Acquire.getBlockType    -> blockMask,
-      Acquire.putType         -> beatMask,
-      Acquire.putBlockType    -> blockMask,
-      Acquire.getPrefetchType -> blockMask,
-      Acquire.putPrefetchType -> blockMask,
-      Acquire.putAtomicType   -> beatMask))
+    out.a.bits := MuxLookup(io.legacy.acquire.bits.a_type, Wire(new TLBundleA(edge.bundle)), Array(
+      Acquire.getType         -> edge.Get (source, address, size)._2,
+      Acquire.getBlockType    -> edge.Get (source, ~(~address|blockMask), block)._2,
+      Acquire.putType         -> edge.Put (source, address|wlow, wsize, data, wmask)._2,
+      Acquire.putBlockType    -> edge.Put (source, ~(~address|blockMask), block, data, wmask)._2,
+      Acquire.getPrefetchType -> edge.Hint(source, ~(~address|blockMask), block, UInt(0))._2,
+      Acquire.putPrefetchType -> edge.Hint(source, ~(~address|blockMask), block, UInt(1))._2,
+      Acquire.putAtomicType   -> atomics))
 
     // Get rid of some unneeded muxes
     out.a.bits.source  := source
     out.a.bits.data    := data
-    out.a.bits.addr_hi := ~(~address | addressMask) >> log2Ceil(tlDataBytes)
 
     // TL legacy does not support bus errors
     assert (!out.d.valid || !out.d.bits.error)

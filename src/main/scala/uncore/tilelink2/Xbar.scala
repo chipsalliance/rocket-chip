@@ -3,7 +3,6 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.IrrevocableIO
 import diplomacy._
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
@@ -130,18 +129,18 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.d.bits.source) }) })
     val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.contains(i.e.bits.sink)   }) })
 
-    val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.a.bits) })
-    val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.b.bits) })
-    val beatsCI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.c.bits) })
-    val beatsDO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats(o.d.bits) })
-    val beatsEI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats(i.e.bits) })
+    val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) })
+    val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) })
+    val beatsCI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.c.bits) })
+    val beatsDO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats1(o.d.bits) })
+    val beatsEI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) })
 
     // Which pairs support support transfers
     def transpose[T](x: Seq[Seq[T]]) = Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
     def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
 
     // Replicate an input port to each output port
-    def fanout[T <: TLChannel](input: IrrevocableIO[T], select: Seq[Bool]) = {
+    def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool]) = {
       val filtered = Wire(Vec(select.size, input))
       for (i <- 0 until select.size) {
         filtered(i).bits := input.bits

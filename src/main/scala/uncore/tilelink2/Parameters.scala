@@ -25,9 +25,7 @@ case class TLManagerParameters(
   customDTS:          Option[String]= None)
 {
   address.foreach { a => require (a.finite) }
-  address.combinations(2).foreach({ case Seq(x,y) =>
-    require (!x.overlaps(y))
-  })
+  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
   require (supportsPutFull.contains(supportsPutPartial))
 
   // Largest support transfer of all types
@@ -38,6 +36,7 @@ case class TLManagerParameters(
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
+  val maxAddress = address.map(_.max).max
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 
@@ -53,9 +52,8 @@ case class TLManagerParameters(
   }
 
   // The device had better not support a transfer larger than it's alignment
-  address.foreach({ case a =>
-    require (a.alignment >= maxTransfer)
-  })
+  val minAlignment = address.map(_.alignment).min
+  require (minAlignment >= maxTransfer)
 }
 
 case class TLManagerPortParameters(
@@ -77,7 +75,7 @@ case class TLManagerPortParameters(
 
   // Bounds on required sizes
   def endSinkId   = managers.map(_.sinkId.end).max
-  def maxAddress  = managers.map(_.address.map(_.max).max).max
+  def maxAddress  = managers.map(_.maxAddress).max
   def maxTransfer = managers.map(_.maxTransfer).max
   
   // Operation sizes supported by all outward Managers
@@ -166,6 +164,13 @@ case class TLClientParameters(
   supportsHint:        TransferSizes = TransferSizes.none)
 {
   require (supportsPutFull.contains(supportsPutPartial))
+  // We only support these operations if we support Probe (ie: we're a cache)
+  require (supportsProbe.contains(supportsArithmetic))
+  require (supportsProbe.contains(supportsLogical))
+  require (supportsProbe.contains(supportsGet))
+  require (supportsProbe.contains(supportsPutFull))
+  require (supportsProbe.contains(supportsPutPartial))
+  require (supportsProbe.contains(supportsHint))
 
   val maxTransfer = List(
     supportsProbe.max,
@@ -238,14 +243,14 @@ case class TLClientPortParameters(
 }
 
 case class TLBundleParameters(
-  addrHiBits: Int,
-  dataBits:   Int,
-  sourceBits: Int,
-  sinkBits:   Int,
-  sizeBits:   Int)
+  addressBits: Int,
+  dataBits:    Int,
+  sourceBits:  Int,
+  sinkBits:    Int,
+  sizeBits:    Int)
 {
   // Chisel has issues with 0-width wires
-  require (addrHiBits  >= 1)
+  require (addressBits >= 1)
   require (dataBits    >= 8)
   require (sourceBits  >= 1)
   require (sinkBits    >= 1)
@@ -253,11 +258,10 @@ case class TLBundleParameters(
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
-  val addressBits = addrHiBits + log2Ceil(dataBits/8)
 
   def union(x: TLBundleParameters) =
     TLBundleParameters(
-      max(addrHiBits,  x.addrHiBits),
+      max(addressBits, x.addressBits),
       max(dataBits,    x.dataBits),
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
@@ -268,7 +272,7 @@ object TLBundleParameters
 {
   def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
     new TLBundleParameters(
-      addrHiBits  = log2Up(manager.maxAddress + 1) - log2Ceil(manager.beatBytes),
+      addressBits = log2Up(manager.maxAddress + 1),
       dataBits    = manager.beatBytes * 8,
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),

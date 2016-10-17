@@ -3,18 +3,17 @@
 package uncore.tilelink2
 
 import Chisel._
-import chisel3.util.IrrevocableIO
 import diplomacy._
 
 object TLArbiter
 {
-  // (valids, idle) => readys
+  // (valids, granted) => readys
   type Policy = (Seq[Bool], Bool) => Seq[Bool]
 
-  val lowestIndexFirst: Policy = (valids, idle) =>
+  val lowestIndexFirst: Policy = (valids, granted) =>
     valids.scanLeft(Bool(true))(_ && !_).init
 
-  def apply[T <: Data](policy: Policy)(sink: IrrevocableIO[T], sources: (UInt, IrrevocableIO[T])*) {
+  def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*) {
     if (sources.isEmpty) {
       sink.valid := Bool(false)
     } else {
@@ -25,37 +24,32 @@ object TLArbiter
       // The number of beats which remain to be sent
       val beatsLeft = RegInit(UInt(0))
       val idle = beatsLeft === UInt(0)
+      val latch = idle && sink.ready // winner (if any) claims sink
 
       // Who wants access to the sink?
       val valids = sourcesIn.map(_.valid)
       // Arbitrate amongst the requests
-      val readys = Vec(policy(valids, idle))
+      val readys = Vec(policy(valids, latch))
       // Which request wins arbitration?
-      val winners = Vec((readys zip valids) map { case (r,v) => r&&v })
+      val winner = Vec((readys zip valids) map { case (r,v) => r&&v })
 
       // Confirm the policy works properly
       require (readys.size == valids.size)
-      // Never two winners
-      val prefixOR = winners.scanLeft(Bool(false))(_||_).init
-      assert((prefixOR zip winners) map { case (p,w) => !p || !w } reduce {_ && _})
+      // Never two winner
+      val prefixOR = winner.scanLeft(Bool(false))(_||_).init
+      assert((prefixOR zip winner) map { case (p,w) => !p || !w } reduce {_ && _})
       // If there was any request, there is a winner
-      assert (!valids.reduce(_||_) || winners.reduce(_||_))
+      assert (!valids.reduce(_||_) || winner.reduce(_||_))
 
       // Track remaining beats
-      val maskedBeats = (winners zip beatsIn) map { case (w,b) => Mux(w, b, UInt(0)) }
+      val maskedBeats = (winner zip beatsIn) map { case (w,b) => Mux(w, b, UInt(0)) }
       val initBeats = maskedBeats.reduce(_ | _) // no winner => 0 beats
-      val todoBeats = Mux(idle, initBeats, beatsLeft)
-      beatsLeft := todoBeats - sink.fire()
-      assert (!sink.fire() || todoBeats =/= UInt(0)) // underflow is impoosible
+      beatsLeft := Mux(latch, initBeats, beatsLeft - sink.fire())
 
       // The one-hot source granted access in the previous cycle
       val state = RegInit(Vec.fill(sources.size)(Bool(false)))
-      val muxState = Mux(idle, winners, state)
+      val muxState = Mux(idle, winner, state)
       state := muxState
-
-      val ones = Vec.fill(sources.size)(Bool(true))
-      val picked = Mux(idle, ones, state)
-      sink.valid := Mux1H(picked, valids)
 
       if (sources.size > 1) {
         val allowed = Mux(idle, readys, state)
@@ -66,6 +60,7 @@ object TLArbiter
         sourcesIn(0).ready := sink.ready
       }
 
+      sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
       sink.bits := Mux1H(muxState, sourcesIn.map(_.bits))
     }
   }

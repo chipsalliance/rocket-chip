@@ -123,24 +123,15 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 
 object AddressSet
 {
-  def misaligned(base: BigInt, size: BigInt): Seq[AddressSet] = {
-    val largestPow2 = BigInt(1) << log2Floor(size)
-    val mostZeros = (base + size - 1) & ~(largestPow2 - 1)
-    def splitLo(low: BigInt, high: BigInt, tail: Seq[AddressSet]): Seq[AddressSet] = {
-      if (low == high) tail else {
-        val toggleBits = low ^ high
-        val misalignment = toggleBits & (-toggleBits)
-        splitLo(low+misalignment, high, AddressSet(low, misalignment-1) +: tail)
-      }
+  def misaligned(base: BigInt, size: BigInt, tail: Seq[AddressSet] = Seq()): Seq[AddressSet] = {
+    if (size == 0) tail.reverse else {
+      val maxBaseAlignment = base & (-base) // 0 for infinite (LSB)
+      val maxSizeAlignment = BigInt(1) << log2Floor(size) // MSB of size
+      val step =
+        if (maxBaseAlignment == 0 || maxBaseAlignment > maxSizeAlignment)
+        maxSizeAlignment else maxBaseAlignment
+      misaligned(base+step, size-step, AddressSet(base, step-1) +: tail)
     }
-    def splitHi(low: BigInt, high: BigInt, tail: Seq[AddressSet]): Seq[AddressSet] = {
-      if (low == high) tail else {
-        val toggleBits = low ^ high
-        val misalignment = toggleBits & (-toggleBits)
-        splitHi(low, high-misalignment, AddressSet(high-misalignment, misalignment-1) +: tail)
-      }
-    }
-    splitLo(base, mostZeros, splitHi(mostZeros, base+size, Seq())).sorted
   }
 }
 
