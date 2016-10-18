@@ -40,7 +40,8 @@
 
 #include <vpi_user.h>
 
-#define RSP_SERVER_PORT	5555
+// Calling bind with port 0 will return a socket bound to an unused port.
+#define RSP_SERVER_PORT	0
 #define	XFERT_MAX_SIZE	512
 
 const char * cmd_to_string[] = {"CMD_RESET",
@@ -63,8 +64,6 @@ int init_jtag_server(int port)
 	struct sockaddr_in serv_addr;
 	int flags;
 
-	printf("Listening on port %d\n", port);
-
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
 	memset(&serv_addr, '0', sizeof(serv_addr));
 
@@ -75,6 +74,14 @@ int init_jtag_server(int port)
 	bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 
 	listen(listenfd, 10);
+
+	socklen_t socklen = sizeof(serv_addr);
+	if (getsockname(listenfd, (struct sockaddr *)&serv_addr, &socklen) == -1) {
+		perror("init_jtag_server");
+		exit(1);
+	} else {
+		printf("Listening on port %d\n", ntohs(serv_addr.sin_port));
+	}
 
 	printf("Waiting for client connection...");
 	connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
