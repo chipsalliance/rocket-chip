@@ -502,7 +502,7 @@ class ScratchpadSlavePort(implicit p: Parameters) extends CoreModule()(p) {
   val spadBeats = spadBits / p(XLen)
   val spadParams = p.alterPartial({
     case TLId => "SPAD"
-    case TLKey("SPAD") => p(TLKey("L1toL2")).copy(
+    case TLKey("SPAD") => p(TLKey(p(TLId))).copy(
       dataBeats = spadBeats, dataBits = spadBits)
   })
 
