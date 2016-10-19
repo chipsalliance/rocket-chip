@@ -25,13 +25,14 @@ module TestDriver;
     void'($value$plusargs("max-cycles=%d", max_cycles));
     verbose = $test$plusargs("verbose");
 
-    // do not delete the line below.
+    // do not delete the lines below.
     // $random function needs to be called with the seed once to affect all
     // the downstream $random functions within the Chisel-generated Verilog
     // code.
     // $urandom is seeded via cmdline (+ntb_random_seed in VCS) but that
     // doesn't seed $random.
-    rand_value = $random($urandom);
+    rand_value = $urandom;
+    rand_value = $random(rand_value);
     if (verbose) begin
       $fdisplay(stderr, "testing $random %0x", rand_value);
     end
