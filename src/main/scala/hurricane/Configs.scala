@@ -61,9 +61,12 @@ class WithHUpTop extends Config (
       val scrDataBits = 64
       val scrDataBeats = (8 * site(CacheBlockBytes)) / scrDataBits
       site(TLKey("L2toMMIO")).copy(
-        maxClientsPerPort = 2,
+        maxClientsPerPort = 3,
         dataBeats = scrDataBeats)
     }
+    case TLKey("PMU") =>
+      site(TLKey("DefaultL1toL2")).copy(
+        maxClientsPerPort = site(TLKey("L2toMMIO")).maxClientsPerPort * 2)
     case _ => throw new CDEMatchError
   }
 )
