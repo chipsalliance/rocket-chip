@@ -5,7 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import diplomacy._
-import scala.math.max
+import scala.math.{min,max}
 
 // pipe is only used if a queue has depth = 1
 class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe: Boolean = true) extends LazyModule
@@ -17,8 +17,8 @@ class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe:
   require (e >= 0)
 
   val node = TLAdapterNode(
-    clientFn  = { seq => seq(0).copy(minLatency = seq(0).minLatency + max(1,b) + max(1,c)) },
-    managerFn = { seq => seq(0).copy(minLatency = seq(0).minLatency + max(1,a) + max(1,d)) })
+    clientFn  = { seq => seq(0).copy(minLatency = seq(0).minLatency + min(1,b) + min(1,c)) },
+    managerFn = { seq => seq(0).copy(minLatency = seq(0).minLatency + min(1,a) + min(1,d)) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

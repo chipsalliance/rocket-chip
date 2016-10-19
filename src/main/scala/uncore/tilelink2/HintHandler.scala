@@ -46,7 +46,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       hint.bits := edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address))
       out.a.bits := in.a.bits
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats(out.d.bits), out.d), (UInt(1), hint))
+      TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), hint))
     } else {
       out.a.valid := in.a.valid
       in.a.ready := out.a.ready
@@ -69,7 +69,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       hint.bits := edgeOut.HintAck(out.b.bits)
       in.b.bits := out.b.bits
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats(in.c.bits), in.c), (UInt(1), hint))
+      TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats1(in.c.bits), in.c), (UInt(0), hint))
     } else if (bce) {
       in.b.valid := out.b.valid
       out.b.ready := in.b.ready

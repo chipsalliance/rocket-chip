@@ -22,7 +22,7 @@ module TestDriver;
   int unsigned rand_value;
   initial
   begin
-    $value$plusargs("max-cycles=%d", max_cycles);
+    void'($value$plusargs("max-cycles=%d", max_cycles));
     verbose = $test$plusargs("verbose");
 
     // do not delete the line below.
