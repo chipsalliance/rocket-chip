@@ -38,11 +38,17 @@ module TestDriver;
     end
 
 `ifdef DEBUG
+
     if ($value$plusargs("vcdplusfile=%s", vcdplusfile))
     begin
+`ifdef VCS
       $vcdplusfile(vcdplusfile);
       $vcdpluson(0);
       $vcdplusmemon(0);
+`else
+      $fdisplay(stderr, "Error: +vcdplusfile is VCS-only; use +vcdfile instead");
+      $fatal;
+`endif
     end
 
     if ($value$plusargs("vcdfile=%s", vcdfile))
@@ -51,7 +57,11 @@ module TestDriver;
       $dumpvars(0, testHarness);
       $dumpon;
     end
+`ifdef VCS
 `define VCDPLUSCLOSE $vcdplusclose; $dumpoff;
+`else
+`define VCDPLUSCLOSE $dumpoff;
+`endif
 `else
 `define VCDPLUSCLOSE
 `endif
