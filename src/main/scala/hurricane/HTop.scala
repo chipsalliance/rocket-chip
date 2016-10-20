@@ -51,9 +51,12 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     scrDevices.get, start = BigInt(0x60000000L), collapse=true)))
 
   topLevelSCRBuilder.addControl("coreplex_reset", UInt(1))
+  topLevelSCRBuilder.addStatus("coreplex_clock_counter")
   for (i <- 0 until p(NTiles)) {
     topLevelSCRBuilder.addControl(s"core_${i}_reset", UInt(1))
     topLevelSCRBuilder.addControl(s"core_${i}_rocc_reset", UInt(1))
+    topLevelSCRBuilder.addStatus(s"core_${i}_clock_counter")
+    topLevelSCRBuilder.addStatus(s"core_${i}_rocc_clock_counter")
   }
   topLevelSCRBuilder.addControl("hbwif_reset", UInt(1))
   topLevelSCRBuilder.addControl("hbwif_reset_override", UInt(0))
@@ -87,12 +90,15 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
   coreplex.clock := clock
   coreplex.reset := ResetSync(scr.control("coreplex_reset")(0).toBool, coreplex.clock)
+  scr.status("coreplex_clock_counter") := WideCounterModule(64, coreplex.clock, coreplex.reset)
 
   multiClockCoreplexIO.tcrs.zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
     tcr.reset := ResetSync(scr.control(s"core_${i}_reset")(0).toBool, tcr.clock)
+    scr.status(s"core_${i}_clock_counter") := WideCounterModule(64, tcr.clock, tcr.reset)
     tcr.roccClock := clock
     tcr.roccReset := ResetSync(scr.control(s"core_${i}_rocc_reset")(0).toBool, tcr.roccClock)
+    scr.status(s"core_${i}_rocc_clock_counter") := WideCounterModule(64, tcr.roccClock, tcr.roccReset)
   }
 
   // Hbwif connections
