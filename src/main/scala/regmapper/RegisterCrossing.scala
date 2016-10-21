@@ -41,7 +41,10 @@ class RegisterCrossingAssertion extends Module {
     val slave_reset = Bool(INPUT)
   }
 
-  assert (io.master_bypass || !io.slave_reset)
+  val up = RegInit(Bool(false))
+  up := !io.slave_reset
+
+  assert (io.master_bypass || !up || !io.slave_reset)
 }
 
 // RegField should support connecting to one of these
@@ -88,7 +91,7 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   val io = new RegisterWriteCrossingIO(gen)
   // The crossing must only allow one item inflight at a time
   val control = Module(new BusyRegisterCrossing)
-  val crossing = Module(new AsyncQueue(gen, 1, sync))
+  val crossing = Module(new AsyncQueue(gen, 1, sync, safe=false))
 
   control.clock := io.master_clock
   control.reset := io.master_reset
@@ -141,7 +144,7 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   val io = new RegisterReadCrossingIO(gen)
   // The crossing must only allow one item inflight at a time
   val control = Module(new BusyRegisterCrossing)
-  val crossing = Module(new AsyncQueue(gen, 1, sync))
+  val crossing = Module(new AsyncQueue(gen, 1, sync, safe=false))
 
   control.clock := io.master_clock
   control.reset := io.master_reset

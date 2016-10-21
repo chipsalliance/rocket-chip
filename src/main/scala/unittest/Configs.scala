@@ -27,7 +27,8 @@ class WithUncoreUnitTests extends Config(
       Module(new uncore.devices.TileLinkRAMTest()(p)),
       Module(new uncore.tilelink2.TLFuzzRAMTest),
       Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
-      Module(new uncore.axi4.AXI4FullFuzzRAMTest))
+      Module(new uncore.axi4.AXI4FullFuzzRAMTest),
+      Module(new uncore.axi4.AXI4BridgeTest))
     case _ => throw new CDEMatchError
   }
 )
