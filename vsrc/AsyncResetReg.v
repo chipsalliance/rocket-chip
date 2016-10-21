@@ -31,7 +31,19 @@ module AsyncResetReg (
 
                       input      clk,
                       input      rst);
-   
+`ifdef RANDOMIZE
+  reg[31:0] GEN_ASYNC;
+  initial begin
+    `ifndef verilator
+      #0.002 begin end
+    `endif
+  `ifdef RANDOMIZE_REG_INIT
+  GEN_ASYNC = {1{$random}};
+  q = GEN_ASYNC[0];
+  `endif
+  end
+`endif
+
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
