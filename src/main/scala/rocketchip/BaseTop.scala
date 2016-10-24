@@ -31,7 +31,8 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
 
   TLImp.emitMonitors = q(TLEmitMonitors)
 
-  // Add a peripheral bus
+  // Add a SoC and peripheral bus
+  val socBus = LazyModule(new TLXbar)
   val peripheryBus = LazyModule(new TLXbar)
   lazy val peripheryManagers = peripheryBus.node.edgesIn(0).manager.managers
 
@@ -54,11 +55,10 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
 
   peripheryBus.node :=
-    TLWidthWidget(legacy.tlDataBytes)(
+    TLWidthWidget(p(SOCBusKey).beatBytes)(
     TLBuffer()(
-    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
-    TLHintHandler()(
-    legacy.node))))
+    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(socBus.node)))
+  socBus.node := TLWidthWidget(legacy.tlDataBytes)(TLHintHandler()(legacy.node))
 
   TopModule.contents = Some(this)
 }
