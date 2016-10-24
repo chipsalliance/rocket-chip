@@ -34,7 +34,11 @@ module TestDriver;
     rand_value = $urandom;
     rand_value = $random(rand_value);
     if (verbose) begin
+`ifdef VCS
+      $fdisplay(stderr, "testing $random %0x seed %d", rand_value, unsigned'($get_initial_random_seed));
+`else
       $fdisplay(stderr, "testing $random %0x", rand_value);
+`endif
     end
 
 `ifdef DEBUG
