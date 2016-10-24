@@ -34,7 +34,7 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   // Add a SoC and peripheral bus
   val socBus = LazyModule(new TLXbar)
   val peripheryBus = LazyModule(new TLXbar)
-  lazy val peripheryManagers = peripheryBus.node.edgesIn(0).manager.managers
+  lazy val peripheryManagers = socBus.node.edgesIn(0).manager.managers
 
   lazy val c = CoreplexConfig(
     nTiles = q(NTiles),
