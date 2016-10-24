@@ -143,8 +143,8 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
     val writeSizes1 = slaves.map(s => s.supportsWrite.max/beatBytes-1)
 
     // Indirection variables for inputs and outputs; makes transformation application easier
-    val (in_ar, ar_last, _)       = fragment(in.ar, readSizes1)
-    val (in_aw, aw_last, w_beats) = fragment(in.aw, writeSizes1)
+    val (in_ar, ar_last, _)       = fragment(Queue.irrevocable(in.ar, 1, flow=true), readSizes1)
+    val (in_aw, aw_last, w_beats) = fragment(Queue.irrevocable(in.aw, 1, flow=true), writeSizes1)
     val in_w = in.w
     val in_r = in.r
     val in_b = in.b
