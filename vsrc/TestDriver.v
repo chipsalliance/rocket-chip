@@ -67,7 +67,15 @@ module TestDriver;
 `define VCDPLUSCLOSE $dumpoff;
 `endif
 `else
+  // No +define+DEBUG
 `define VCDPLUSCLOSE
+
+    if ($test$plusargs("vcdplusfile=") || $test$plusargs("vcdfile="))
+    begin
+      $fdisplay(stderr, "Error: +vcdfile or +vcdplusfile requested but compile did not have +define+DEBUG enabled");
+      $fatal;
+    end
+
 `endif
   end
 
