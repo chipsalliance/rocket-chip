@@ -76,7 +76,7 @@ abstract class BaseCoreplexBundle(val c: CoreplexConfig)(implicit val p: Paramet
 }
 
 abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
-    c: CoreplexConfig, l: L, b: => B)(implicit val p: Parameters) extends LazyModuleImp(l) with HasCoreplexParameters {
+    c: CoreplexConfig, l: L, b: B)(implicit val p: Parameters) extends LazyModuleImp(l) with HasCoreplexParameters {
   val outer: L = l
   val io: B = b
 

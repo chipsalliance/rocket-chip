@@ -72,10 +72,9 @@ abstract class BaseTopBundle(val p: Parameters) extends Bundle {
 }
 
 abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
-    val p: Parameters, l: L, b: => B) extends LazyModuleImp(l) {
-  val outer: L = l
-  val io: B = b
-
+    val p: Parameters,
+    val outer: L,
+    val io: B) extends LazyModuleImp(outer) {
   val coreplex = p(BuildCoreplex)(outer.c, p)
   val coreplexIO = Wire(coreplex.io)
 

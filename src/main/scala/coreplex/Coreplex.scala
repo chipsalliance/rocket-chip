@@ -34,7 +34,7 @@ class DefaultCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends BaseCor
 class DefaultCoreplexBundle(c: CoreplexConfig)(implicit p: Parameters) extends BaseCoreplexBundle(c)(p)
 
 class DefaultCoreplexModule[+L <: DefaultCoreplex, +B <: DefaultCoreplexBundle](
-    c: CoreplexConfig, l: L, b: => B)(implicit p: Parameters) extends BaseCoreplexModule(c, l, b)(p)
+    c: CoreplexConfig, l: L, b: B)(implicit p: Parameters) extends BaseCoreplexModule(c, l, b)(p)
     with DirectConnection
 
 /////
@@ -81,5 +81,5 @@ class MultiClockCoreplexBundle(c: CoreplexConfig)(implicit p: Parameters) extend
     with TileClockResetBundle
 
 class MultiClockCoreplexModule[+L <: MultiClockCoreplex, +B <: MultiClockCoreplexBundle](
-    c: CoreplexConfig, l: L, b: => B)(implicit p: Parameters) extends BaseCoreplexModule(c, l, b)(p)
+    c: CoreplexConfig, l: L, b: B)(implicit p: Parameters) extends BaseCoreplexModule(c, l, b)(p)
     with AsyncConnection

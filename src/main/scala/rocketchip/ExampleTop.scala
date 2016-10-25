@@ -29,7 +29,7 @@ class ExampleTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryMasterMMIOBundle
     with PeripherySlaveBundle
 
-class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b)
+class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: B) extends BaseTopModule(p, l, b)
     with PeripheryBootROMModule
     with PeripheryDebugModule
     with PeripheryExtInterruptsModule
@@ -49,5 +49,5 @@ class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
 class ExampleTopWithTestRAMBundle(p: Parameters) extends ExampleTopBundle(p)
     with PeripheryTestRAMBundle
 
-class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b)
+class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: B) extends ExampleTopModule(p, l, b)
     with PeripheryTestRAMModule
