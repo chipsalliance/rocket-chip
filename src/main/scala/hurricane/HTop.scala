@@ -268,6 +268,7 @@ trait PowerManagementUnit extends LazyModule {
   pBusMasters.add("pmu", 2)
   pDevices.add(AddrMapEntry("pmu", MemSize(spadSize, MemAttr(AddrMapProt.RWX))))
   topLevelSCRBuilder.addControl("pmu_reset", UInt(1))
+  topLevelSCRBuilder.addControl("pmu_reset_vector", UInt(0x1000)) // boot ROM
 }
 
 trait PowerManagementUnitModule {
@@ -292,6 +293,7 @@ trait PowerManagementUnitModule {
     case DataScratchpadAddrMapKey => (tileId: Int) => "io:pbus:pmu"
     case NSets => outer.spadSize / p(CacheBlockBytes)
     case NWays => 1
+    case RowBits => 64
     case NTLBEntries => 4
   })))
 
@@ -305,7 +307,7 @@ trait PowerManagementUnitModule {
   pmuArb.io.in(0) <> pBus.port("pmu")
 
   pmu.io.hartid := UInt(1)
-  pmu.io.resetVector := UInt(p(GlobalAddrMap)("io:pbus:pmu").start)
+  pmu.io.resetVector := scr.control("pmu_reset_vector")
   pmu.io.interrupts := pmu.io.interrupts.fromBits(UInt(0))
   pmu.io.slave.get <> pmuArb.io.out
   pmu.reset := scr.control("pmu_reset")(0).toBool
