@@ -48,7 +48,17 @@ case class CoreplexConfig(
   val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, nInterruptPriorities)
 }
 
-abstract class BaseCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends LazyModule
+abstract class BaseCoreplex(c: CoreplexConfig)(implicit val p: Parameters) extends LazyModule with HasCoreplexParameters {
+
+  val debugLegacy = LazyModule(new TLLegacy()(outerMMIOParams))
+  val debugModule = LazyModule(new TLDebugModule(p(XLen)/8))
+  debugModule.node :=
+  TLHintHandler()(
+    TLBuffer()(
+      TLFragmenter(p(XLen)/8, debugLegacy.tlDataBeats * debugLegacy.tlDataBytes)(
+        TLWidthWidget(debugLegacy.tlDataBytes)(debugLegacy.node))))
+
+}
 
 abstract class BaseCoreplexBundle(val c: CoreplexConfig)(implicit val p: Parameters) extends Bundle with HasCoreplexParameters {
   val master = new Bundle {
@@ -140,16 +150,15 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
       plic.io.devices(i) <> gateway.io.plic
     }
 
-    val debugModule = Module(new DebugModule)
-    debugModule.io.tl <> cBus.port("cbus:debug")
-    debugModule.io.db <> io.debug
+    outer.debugLegacy.module.io.legacy <> cBus.port("cbus:debug")
+    outer.debugModule.module.io.db <> io.debug
 
     // connect coreplex-internal interrupts to tiles
     for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
       tile.interrupts <> io.clint(i)
       tile.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
       tile.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
-      tile.interrupts.debug := debugModule.io.debugInterrupts(i)
+      tile.interrupts.debug := outer.debugModule.module.io.debugInterrupts(i)
       tile.hartid := UInt(i)
       tile.resetVector := io.resetVector
     }
