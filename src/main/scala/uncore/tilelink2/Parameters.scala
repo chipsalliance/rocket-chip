@@ -105,9 +105,7 @@ case class TLManagerPortParameters(
 
   // Synthesizable lookup methods
   def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
-  def findIdStartSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => UInt(m.sinkId.start)))
   def findIdStartFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.start)))
-  def findIdEndSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => UInt(m.sinkId.end)))
   def findIdEndFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.end)))
 
   // The safe version will check the entire address
@@ -116,9 +114,7 @@ case class TLManagerPortParameters(
   def findFast(address: UInt) = Vec(managers.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
 
   // Note: returns the actual fifoId + 1 or 0 if None
-  def findFifoIdSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
   def findFifoIdFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
-  def hasFifoIdSafe(address: UInt) = Mux1H(findSafe(address), managers.map(m => Bool(m.fifoId.isDefined)))
   def hasFifoIdFast(address: UInt) = Mux1H(findFast(address), managers.map(m => Bool(m.fifoId.isDefined)))
 
   // Does this Port manage this ID/address?
@@ -126,29 +122,35 @@ case class TLManagerPortParameters(
   // containsFast would be useless; it could always be true
   def containsById(id: UInt) = findById(id).reduce(_ || _)
 
-  private def safety_helper(member: TLManagerParameters => TransferSizes, select: UInt => Vec[Bool])(address: UInt, lgSize: UInt) = {
+  private def safe_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
+    val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
+    if (allSame) containsSafe(address) && member(managers(0)).containsLg(lgSize) else {
+      Mux1H(findSafe(address), managers.map(member(_).containsLg(lgSize)))
+    }
+  }
+  private def fast_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
     val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
     if (allSame) member(managers(0)).containsLg(lgSize) else {
-      Mux1H(select(address), managers.map(member(_).containsLg(lgSize)))
+      Mux1H(findFast(address), managers.map(member(_).containsLg(lgSize)))
     }
   }
 
   // Check for support of a given operation at a specific address
-  val supportsAcquireSafe    = safety_helper(_.supportsAcquire,    findSafe) _
-  val supportsArithmeticSafe = safety_helper(_.supportsArithmetic, findSafe) _
-  val supportsLogicalSafe    = safety_helper(_.supportsLogical,    findSafe) _
-  val supportsGetSafe        = safety_helper(_.supportsGet,        findSafe) _
-  val supportsPutFullSafe    = safety_helper(_.supportsPutFull,    findSafe) _
-  val supportsPutPartialSafe = safety_helper(_.supportsPutPartial, findSafe) _
-  val supportsHintSafe       = safety_helper(_.supportsHint,       findSafe) _
+  val supportsAcquireSafe    = safe_helper(_.supportsAcquire) _
+  val supportsArithmeticSafe = safe_helper(_.supportsArithmetic) _
+  val supportsLogicalSafe    = safe_helper(_.supportsLogical) _
+  val supportsGetSafe        = safe_helper(_.supportsGet) _
+  val supportsPutFullSafe    = safe_helper(_.supportsPutFull) _
+  val supportsPutPartialSafe = safe_helper(_.supportsPutPartial) _
+  val supportsHintSafe       = safe_helper(_.supportsHint) _
 
-  val supportsAcquireFast    = safety_helper(_.supportsAcquire,    findFast) _
-  val supportsArithmeticFast = safety_helper(_.supportsArithmetic, findFast) _
-  val supportsLogicalFast    = safety_helper(_.supportsLogical,    findFast) _
-  val supportsGetFast        = safety_helper(_.supportsGet,        findFast) _
-  val supportsPutFullFast    = safety_helper(_.supportsPutFull,    findFast) _
-  val supportsPutPartialFast = safety_helper(_.supportsPutPartial, findFast) _
-  val supportsHintFast       = safety_helper(_.supportsHint,       findFast) _
+  val supportsAcquireFast    = fast_helper(_.supportsAcquire) _
+  val supportsArithmeticFast = fast_helper(_.supportsArithmetic) _
+  val supportsLogicalFast    = fast_helper(_.supportsLogical) _
+  val supportsGetFast        = fast_helper(_.supportsGet) _
+  val supportsPutFullFast    = fast_helper(_.supportsPutFull) _
+  val supportsPutPartialFast = fast_helper(_.supportsPutPartial) _
+  val supportsHintFast       = fast_helper(_.supportsHint) _
 }
 
 case class TLClientParameters(
