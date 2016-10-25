@@ -28,7 +28,7 @@ abstract class LazyModule
   lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
   def moduleName = className + valName.orElse(outerName).map("_" + _).getOrElse("")
-  def instanceName = valName.orElse(outerName).map(_ + "_").getOrElse("") + className
+  def instanceName = valName.getOrElse(outerName.map(_ + "_").getOrElse("") + className)
   def name = valName.getOrElse(className)
   def line = sourceLine(info)
 
