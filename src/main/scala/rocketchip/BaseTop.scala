@@ -57,8 +57,13 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   peripheryBus.node :=
     TLWidthWidget(p(SOCBusKey).beatBytes)(
     TLBuffer()(
-    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(socBus.node)))
-  socBus.node := TLWidthWidget(legacy.tlDataBytes)(TLHintHandler()(legacy.node))
+    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    socBus.node)))
+
+  socBus.node :=
+    TLWidthWidget(legacy.tlDataBytes)(
+    TLHintHandler()(
+    legacy.node))
 
   TopModule.contents = Some(this)
 }
