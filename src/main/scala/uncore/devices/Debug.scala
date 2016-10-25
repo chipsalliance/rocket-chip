@@ -468,9 +468,9 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
 
   val ramDataWidth    = DbBusConsts.dbRamWordBits
   val ramDataBytes    = ramDataWidth / 8;
-  val ramAddrWidth    = log2Up((cfg.nDebugRamBytes * 8) / ramDataWidth)
+  val ramAddrWidth    = log2Up(cfg.nDebugRamBytes / ramDataBytes)
 
-  val ramMem    = Reg(init = Vec.fill(cfg.nDebugRamBytes)(UInt(width = 8)))
+  val ramMem    = Reg(init = Vec.fill(cfg.nDebugRamBytes){UInt(0, width = 8)})
 
   val dbRamAddr   = Wire(UInt(width=ramAddrWidth))
   val dbRamAddrValid   = Wire(Bool())
@@ -497,9 +497,6 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
 
   val rdCondWrFailure = Wire(Bool())
   val dbWrNeeded = Wire(Bool())
-
-  // --- System Bus Access 
-  val stallFromSb = Wire(Bool())
 
   //--------------------------------------------------------------
   // Interrupt Registers
@@ -614,7 +611,7 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
     dbRamAddrValid := (dbReq.addr(3, ramAddrWidth) === UInt(0))
   }
 
-  val dbRamRdDataFields = List.tabulate(1 << ramAddrWidth) { ii =>
+  val dbRamRdDataFields = List.tabulate(cfg.nDebugRamBytes / ramDataBytes) { ii =>
     val slice = ramMem.slice(ii * ramDataBytes, (ii+1)*ramDataBytes)
     slice.reduce[UInt]{ case (x: UInt, y: UInt) => Cat(y, x)}
   }
@@ -760,8 +757,8 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
 
   // -----------------------------------------
   // DB Access State Machine Decode (Combo)
-  io.db.req.ready := !stallFromSb && ((dbStateReg === s_DB_READY) ||
-    (dbStateReg === s_DB_RESP && io.db.resp.fire()))
+  io.db.req.ready := (dbStateReg === s_DB_READY) ||
+  (dbStateReg === s_DB_RESP && io.db.resp.fire())
 
   io.db.resp.valid := (dbStateReg === s_DB_RESP)
   io.db.resp.bits  := dbRespReg
