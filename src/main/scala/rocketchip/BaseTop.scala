@@ -27,7 +27,6 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   // the following variables will be refactored properly with TL2
   val pInterrupts = new RangeManager
   val pBusMasters = new RangeManager
-  val pDevices = new ResourceManager[AddrMapEntry]
 
   TLImp.emitMonitors = q(TLEmitMonitors)
 
@@ -44,10 +43,10 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
     hasSupervisor = q(UseVM)
   )
 
-  lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, pDevices.get, peripheryManagers)
+  lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, peripheryManagers)
   private val qWithMap = q.alterPartial({case GlobalAddrMap => genGlobalAddrMap})
 
-  lazy val genConfigString = GenerateConfigString(qWithMap, c, pDevices.get, peripheryManagers)
+  lazy val genConfigString = GenerateConfigString(qWithMap, c, peripheryManagers)
   implicit val p = qWithMap.alterPartial({
     case ConfigString => genConfigString
     case NCoreplexExtClients => pBusMasters.sum})

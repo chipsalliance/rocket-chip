@@ -53,7 +53,7 @@ class GlobalVariable[T] {
 }
 
 object GenerateGlobalAddrMap {
-  def apply(p: Parameters, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
+  def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
     lazy val cBusIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
@@ -90,7 +90,7 @@ object GenerateGlobalAddrMap {
       }).flatten.toList
 
     lazy val tl2AddrMap = new AddrMap(uniquelyNamedTL2Devices, collapse = true)
-    lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: (p(ExtMMIOPorts) ++ pDevicesEntries), collapse = true)
+    lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: p(ExtMMIOPorts), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
@@ -105,7 +105,7 @@ object GenerateGlobalAddrMap {
 }
 
 object GenerateConfigString {
-  def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
+  def apply(p: Parameters, c: CoreplexConfig, peripheryManagers: Seq[TLManagerParameters]) = {
     val addrMap = p(GlobalAddrMap)
     val plicAddr = addrMap("io:cbus:plic").start
     val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:pbus:TL2:clint").start)
@@ -160,13 +160,6 @@ object GenerateConfigString {
       res append  "  };\n"
     }
     res append  "};\n"
-    pDevicesEntries foreach { entry =>
-      val region = addrMap("io:pbus:" + entry.name)
-      res append s"${entry.name} {\n"
-      res append s"  addr 0x${region.start.toString(16)};\n"
-      res append s"  size 0x${region.size.toString(16)}; \n"
-      res append  "}\n"
-    }
     peripheryManagers.foreach { manager => res append manager.dts }
     res append '\u0000'
     res.toString
