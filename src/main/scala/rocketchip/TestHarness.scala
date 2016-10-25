@@ -25,10 +25,6 @@ class TestHarness(q: Parameters) extends Module {
   require(dut.io.mem_tl.isEmpty)
   require(dut.io.bus_clk.isEmpty)
   require(dut.io.bus_rst.isEmpty)
-  require(dut.io.mmio_clk.isEmpty)
-  require(dut.io.mmio_rst.isEmpty)
-  require(dut.io.mmio_ahb.isEmpty)
-  require(dut.io.mmio_tl.isEmpty)
 
   for (int <- dut.io.interrupts)
     int := Bool(false)

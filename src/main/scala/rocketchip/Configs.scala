@@ -48,11 +48,6 @@ class BasePlatformConfig extends Config(
         // Note that PLIC asserts that this is > 0.
         case AsyncDebugBus => false
         case IncludeJtagDTM => false
-        case AsyncMMIOChannels => false
-        case ExtMMIOPorts => Nil
-        case NExtMMIOAXIChannels => 0
-        case NExtMMIOAHBChannels => 0
-        case NExtMMIOTLChannels  => 0
         case AsyncBusChannels => false
         case NExtBusAXIChannels => 0
         case HastiId => "Ext"
@@ -110,17 +105,6 @@ class WithExtMemSize(n: Long) extends Config(
     case _ => throw new CDEMatchError
   }
 )
-class WithAHB extends Config(
-  (pname, site, here) => pname match {
-    case TMemoryChannels     => BusType.AHB
-    case NExtMMIOAHBChannels => 1
-  })
-
-class WithTL extends Config(
-  (pname, site, here) => pname match {
-    case TMemoryChannels     => BusType.TL
-    case NExtMMIOTLChannels  => 1
-  })
 
 class WithScratchpads extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
 

@@ -15,7 +15,7 @@ class ExampleTop(q: Parameters) extends BaseTop(q)
     with PeripheryExtInterrupts
     with PeripheryCoreplexLocalInterrupter
     with PeripheryMasterMem
-    with PeripheryMasterMMIO
+    with PeripheryMasterAXI4MMIO
     with PeripherySlave {
   override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p, this)))
 }
@@ -26,7 +26,7 @@ class ExampleTopBundle[+L <: ExampleTop](p: Parameters, l: L) extends BaseTopBun
     with PeripheryExtInterruptsBundle
     with PeripheryCoreplexLocalInterrupterBundle
     with PeripheryMasterMemBundle
-    with PeripheryMasterMMIOBundle
+    with PeripheryMasterAXI4MMIOBundle
     with PeripherySlaveBundle
 
 class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](p: Parameters, l: L, b: B) extends BaseTopModule(p, l, b)
@@ -35,7 +35,7 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](p: Parameter
     with PeripheryExtInterruptsModule
     with PeripheryCoreplexLocalInterrupterModule
     with PeripheryMasterMemModule
-    with PeripheryMasterMMIOModule
+    with PeripheryMasterAXI4MMIOModule
     with PeripherySlaveModule
     with HardwiredResetVector
     with DirectConnection

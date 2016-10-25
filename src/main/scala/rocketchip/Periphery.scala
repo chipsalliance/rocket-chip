@@ -9,6 +9,7 @@ import junctions.NastiConstants._
 import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
+import uncore.axi4._
 import uncore.converters._
 import uncore.devices._
 import uncore.agents._
@@ -29,19 +30,12 @@ object BusType {
 
 /** Memory channel controls */
 case object TMemoryChannels extends Field[BusType.EnumVal]
-/** External MMIO controls */
-case object NExtMMIOAXIChannels extends Field[Int]
-case object NExtMMIOAHBChannels extends Field[Int]
-case object NExtMMIOTLChannels  extends Field[Int]
 /** External Bus controls */
 case object NExtBusAXIChannels extends Field[Int]
 /** Async configurations */
 case object AsyncBusChannels extends Field[Boolean]
 case object AsyncDebugBus extends Field[Boolean]
 case object AsyncMemChannels extends Field[Boolean]
-case object AsyncMMIOChannels extends Field[Boolean]
-/** External address map settings */
-case object ExtMMIOPorts extends Field[Seq[AddrMapEntry]]
 /** Specifies the size of external memory */
 case object ExtMemSize extends Field[Long]
 /** Specifies the number of external interrupts */
@@ -204,55 +198,39 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryMasterMMIO extends LazyModule {
+// PeripheryMasterAXI4MMIO is an example, make your own cake pattern like this one.
+trait PeripheryMasterAXI4MMIO extends BaseTop with HasPeripheryParameters {
   implicit val p: Parameters
+
+  val mmio_axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
+    slaves = Seq(AXI4SlaveParameters(
+      address       = List(AddressSet(0x60000000L, 0x1fffffffL)),
+      executable    = true,                  // Can we run programs on this memory?
+      supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
+      supportsRead  = TransferSizes(1, 256),
+      interleavedId = Some(0))),             // slave does not interleave read responses
+    beatBytes = 8)) // 64-bit AXI interface
+
+  mmio_axi4 :=
+    // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
+    TLToAXI4(idBits = 4)(                  // use idBits = 0 for AXI4-Lite
+    TLWidthWidget(socBusConfig.beatBytes)( // convert width before attaching to socBus
+    socBus.node))
 }
 
-trait PeripheryMasterMMIOBundle extends HasPeripheryParameters {
+trait PeripheryMasterAXI4MMIOBundle extends HasPeripheryParameters {
   implicit val p: Parameters
-  val mmio_clk = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Clock(INPUT)))
-  val mmio_rst = p(AsyncMMIOChannels).option(Vec(p(NExtMMIOAXIChannels), Bool (INPUT)))
-  val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
-  val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
-  val mmio_tl = Vec(p(NExtMMIOTLChannels), new ClientUncachedTileLinkIO()(edgeMMIOParams))
+  val outer: PeripheryMasterAXI4MMIO
+
+  val mmio_axi = outer.mmio_axi4.bundleOut
 }
 
-trait PeripheryMasterMMIOModule extends HasPeripheryParameters {
+trait PeripheryMasterAXI4MMIOModule extends HasPeripheryParameters {
   implicit val p: Parameters
-  val outer: PeripheryMasterMMIO
-  val io: PeripheryMasterMMIOBundle
-  val pBus: TileLinkRecursiveInterconnect
+  val outer: PeripheryMasterAXI4MMIO
+  val io: PeripheryMasterAXI4MMIOBundle
 
-  val mmio_ports = p(ExtMMIOPorts) map { port =>
-    TileLinkWidthAdapter(pBus.port(port.name), edgeMMIOParams)
-  }
-
-  val mmio_axi_start = 0
-  val mmio_axi_end   = mmio_axi_start + p(NExtMMIOAXIChannels)
-  val mmio_ahb_start = mmio_axi_end
-  val mmio_ahb_end   = mmio_ahb_start + p(NExtMMIOAHBChannels)
-  val mmio_tl_start  = mmio_ahb_end
-  val mmio_tl_end    = mmio_tl_start  + p(NExtMMIOTLChannels)
-  require (mmio_tl_end == mmio_ports.size)
-
-  for (i <- 0 until mmio_ports.size) {
-    if (mmio_axi_start <= i && i < mmio_axi_end) {
-      val idx = i-mmio_axi_start
-      val axi_sync = PeripheryUtils.convertTLtoAXI(mmio_ports(i))
-      io.mmio_axi(idx) <> (
-        if (!p(AsyncMMIOChannels)) axi_sync
-        else AsyncNastiTo(io.mmio_clk.get(idx), io.mmio_rst.get(idx), axi_sync)
-      )
-    } else if (mmio_ahb_start <= i && i < mmio_ahb_end) {
-      val idx = i-mmio_ahb_start
-      io.mmio_ahb(idx) <> PeripheryUtils.convertTLtoAHB(mmio_ports(i), atomics = true)
-    } else if (mmio_tl_start <= i && i < mmio_tl_end) {
-      val idx = i-mmio_tl_start
-      io.mmio_tl(idx) <> TileLinkEnqueuer(mmio_ports(i), 2)
-    } else {
-      require(false, "Unconnected external MMIO port")
-    }
-  }
+  // nothing to do
 }
 
 /////

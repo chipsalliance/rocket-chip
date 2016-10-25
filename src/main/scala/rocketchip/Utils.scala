@@ -90,7 +90,7 @@ object GenerateGlobalAddrMap {
       }).flatten.toList
 
     lazy val tl2AddrMap = new AddrMap(uniquelyNamedTL2Devices, collapse = true)
-    lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: p(ExtMMIOPorts), collapse = true)
+    lazy val pBusIOAddrMap = new AddrMap(Seq(AddrMapEntry("TL2", tl2AddrMap)), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
