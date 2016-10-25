@@ -34,7 +34,11 @@ module TestDriver;
     rand_value = $urandom;
     rand_value = $random(rand_value);
     if (verbose) begin
+`ifdef VCS
+      $fdisplay(stderr, "testing $random %0x seed %d", rand_value, unsigned'($get_initial_random_seed));
+`else
       $fdisplay(stderr, "testing $random %0x", rand_value);
+`endif
     end
 
 `ifdef DEBUG
@@ -63,7 +67,15 @@ module TestDriver;
 `define VCDPLUSCLOSE $dumpoff;
 `endif
 `else
+  // No +define+DEBUG
 `define VCDPLUSCLOSE
+
+    if ($test$plusargs("vcdplusfile=") || $test$plusargs("vcdfile="))
+    begin
+      $fdisplay(stderr, "Error: +vcdfile or +vcdplusfile requested but compile did not have +define+DEBUG enabled");
+      $fatal;
+    end
+
 `endif
   end
 
