@@ -67,11 +67,13 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   TopModule.contents = Some(this)
 }
 
-abstract class BaseTopBundle(val p: Parameters) extends Bundle {
+abstract class BaseTopBundle[+L <: BaseTop](
+    val p: Parameters,
+    val outer: L) extends Bundle {
   val success = Bool(OUTPUT)
 }
 
-abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
+abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](
     val p: Parameters,
     val outer: L,
     val io: B) extends LazyModuleImp(outer) {

@@ -17,10 +17,10 @@ class ExampleTop(q: Parameters) extends BaseTop(q)
     with PeripheryMasterMem
     with PeripheryMasterMMIO
     with PeripherySlave {
-  override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p)))
+  override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p, this)))
 }
 
-class ExampleTopBundle(p: Parameters) extends BaseTopBundle(p)
+class ExampleTopBundle[+L <: ExampleTop](p: Parameters, l: L) extends BaseTopBundle(p, l)
     with PeripheryBootROMBundle
     with PeripheryDebugBundle
     with PeripheryExtInterruptsBundle
@@ -29,7 +29,7 @@ class ExampleTopBundle(p: Parameters) extends BaseTopBundle(p)
     with PeripheryMasterMMIOBundle
     with PeripherySlaveBundle
 
-class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: B) extends BaseTopModule(p, l, b)
+class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](p: Parameters, l: L, b: B) extends BaseTopModule(p, l, b)
     with PeripheryBootROMModule
     with PeripheryDebugModule
     with PeripheryExtInterruptsModule
@@ -43,11 +43,11 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, 
 /** Example Top with TestRAM */
 class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
     with PeripheryTestRAM {
-  override lazy val module = Module(new ExampleTopWithTestRAMModule(p, this, new ExampleTopWithTestRAMBundle(p)))
+  override lazy val module = Module(new ExampleTopWithTestRAMModule(p, this, new ExampleTopWithTestRAMBundle(p, this)))
 }
 
-class ExampleTopWithTestRAMBundle(p: Parameters) extends ExampleTopBundle(p)
+class ExampleTopWithTestRAMBundle[+L <: ExampleTopWithTestRAM](p: Parameters, l: L) extends ExampleTopBundle(p, l)
     with PeripheryTestRAMBundle
 
-class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: B) extends ExampleTopModule(p, l, b)
+class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle[L]](p: Parameters, l: L, b: B) extends ExampleTopModule(p, l, b)
     with PeripheryTestRAMModule
