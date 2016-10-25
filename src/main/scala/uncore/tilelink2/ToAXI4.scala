@@ -83,14 +83,7 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     val a_sink    = edgeIn.manager.findIdStartFast(a_address)
     val a_size    = edgeIn.size(in.a.bits)
     val a_isPut   = edgeIn.hasData(in.a.bits)
-
-    val a_counter = RegInit(UInt(0, width = log2Up(edgeIn.maxTransfer)))
-    val a_beats1  = edgeIn.numBeats1(in.a.bits)
-    val a_first   = a_counter === UInt(0)
-    val a_last    = a_counter === UInt(1) || a_beats1 === UInt(0)
-    when (in.a.fire()) {
-      a_counter := Mux(a_first, a_beats1, a_counter - UInt(1))
-    }
+    val (_, a_last, _) = edgeIn.firstlast(in.a)
 
     // Make sure the fields are within the bounds we assumed
     assert (a_source  < UInt(1 << sourceBits))

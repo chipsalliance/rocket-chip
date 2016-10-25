@@ -27,7 +27,15 @@ object UIntSyncChain {
   }
 }
 
-class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
+class AsyncValidSync(sync: Int, desc: String) extends Module {
+  val io = new Bundle {
+    val in = Bool(INPUT)
+    val out = Bool(OUTPUT)
+  }
+  io.out := UIntSyncChain(io.in.asUInt, sync, desc)(0)
+}
+
+class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true) extends Module {
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the source domain
@@ -36,17 +44,15 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
     val ridx = UInt(INPUT,  width = bits+1)
     val widx = UInt(OUTPUT, width = bits+1)
     val mem  = Vec(depth, gen).asOutput
-    // Reset for the other side
-    val sink_reset_n = Bool().flip
+    // Signals used to self-stabilize a safe AsyncQueue
+    val sink_reset_n = Bool(INPUT)
+    val ridx_valid = Bool(INPUT)
+    val widx_valid = Bool(OUTPUT)
   }
 
-  // extend the sink reset to a full cycle (assertion latency <= 1 cycle)
-  val catch_sink_reset_n = AsyncResetReg(Bool(true), clock, !io.sink_reset_n, "catch_sink_reset_n")
-  // reset_n has a 1 cycle shorter path to ready than ridx does
-  val sink_reset_n = UIntSyncChain(catch_sink_reset_n.asUInt, sync, "sink_reset_n")(0)
-
-  val mem = Reg(Vec(depth, gen)) //This does NOT need to be asynchronously reset.
-  val widx = GrayCounter(bits+1, io.enq.fire(), !sink_reset_n, "widx_bin")
+  val sink_ready = Wire(init = Bool(true))
+  val mem = Reg(Vec(depth, gen)) // This does NOT need to be reset at all.
+  val widx = GrayCounter(bits+1, io.enq.fire(), !sink_ready, "widx_bin")
   val ridx = UIntSyncChain(io.ridx, sync, "ridx_gray")
   val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
 
@@ -54,18 +60,33 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int) extends Module 
   when (io.enq.fire()) { mem(index) := io.enq.bits }
 
   val ready_reg = AsyncResetReg(ready.asUInt, "ready_reg")(0)
-  io.enq.ready := ready_reg && sink_reset_n
+  io.enq.ready := ready_reg && sink_ready
 
   val widx_reg = AsyncResetReg(widx, "widx_gray")
   io.widx := widx_reg
 
   io.mem := mem
 
-  // It is a fatal error to reset half a Queue while it still has data
-  assert (sink_reset_n || widx === ridx)
+  io.widx_valid := Bool(true)
+  if (safe) {
+    val source_valid = Module(new AsyncValidSync(sync+1, "source_valid"))
+    val sink_extend  = Module(new AsyncValidSync(1, "sink_extend"))
+    val sink_valid   = Module(new AsyncValidSync(sync, "sink_valid"))
+    source_valid.reset := reset || !io.sink_reset_n
+    sink_extend .reset := reset || !io.sink_reset_n
+
+    source_valid.io.in := Bool(true)
+    io.widx_valid := source_valid.io.out
+    sink_extend.io.in := io.ridx_valid
+    sink_valid.io.in := sink_extend.io.out
+    sink_ready := sink_valid.io.out
+
+    assert (io.sink_reset_n || !sink_ready || !io.enq.valid, "Enque while sink is reset and AsyncQueueSource is unprotected")
+    assert (io.sink_reset_n || widx === ridx, "Sink reset while AsyncQueueSource not empty")
+  }
 }
 
-class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
+class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true) extends Module {
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the sink domain
@@ -74,16 +95,14 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
     val ridx = UInt(OUTPUT, width = bits+1)
     val widx = UInt(INPUT,  width = bits+1)
     val mem  = Vec(depth, gen).asInput
-    // Reset for the other side
-    val source_reset_n = Bool().flip
+    // Signals used to self-stabilize a safe AsyncQueue
+    val source_reset_n = Bool(INPUT)
+    val ridx_valid = Bool(OUTPUT)
+    val widx_valid = Bool(INPUT)
   }
 
-  // extend the source reset to a full cycle (assertion latency <= 1 cycle)
-  val catch_source_reset_n = AsyncResetReg(Bool(true), clock, !io.source_reset_n, "catch_source_reset_n")
-  // reset_n has a 1 cycle shorter path to valid than widx does
-  val source_reset_n = UIntSyncChain(catch_source_reset_n.asUInt, sync, "source_reset_n")(0)
-
-  val ridx = GrayCounter(bits+1, io.deq.fire(), !source_reset_n, "ridx_bin")
+  val source_ready = Wire(init = Bool(true))
+  val ridx = GrayCounter(bits+1, io.deq.fire(), !source_ready, "ridx_bin")
   val widx = UIntSyncChain(io.widx, sync, "widx_gray")
   val valid = ridx =/= widx
 
@@ -99,22 +118,36 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int) extends Module {
   io.deq.bits  := RegEnable(io.mem(index), valid)
 
   val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
-  io.deq.valid := valid_reg && source_reset_n
+  io.deq.valid := valid_reg && source_ready
 
   val ridx_reg = AsyncResetReg(ridx, "ridx_gray")
   io.ridx := ridx_reg
 
-  // It is a fatal error to reset half a Queue while it still has data
-  assert (source_reset_n || widx === ridx)
+  io.ridx_valid := Bool(true)
+  if (safe) {
+    val sink_valid    = Module(new AsyncValidSync(sync+1, "sink_valid"))
+    val source_extend = Module(new AsyncValidSync(1, "source_extend"))
+    val source_valid  = Module(new AsyncValidSync(sync, "source_valid"))
+    sink_valid   .reset := reset || !io.source_reset_n
+    source_extend.reset := reset || !io.source_reset_n
+
+    sink_valid.io.in := Bool(true)
+    io.ridx_valid := sink_valid.io.out
+    source_extend.io.in := io.widx_valid
+    source_valid.io.in := source_extend.io.out
+    source_ready := source_valid.io.out
+
+    assert (io.source_reset_n || widx === ridx, "Source reset while AsyncQueueSink not empty")
+  }
 }
 
-class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Crossing[T] {
+class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3, safe: Boolean = true) extends Crossing[T] {
   require (sync >= 2)
   require (depth > 0 && isPow2(depth))
 
   val io = new CrossingIO(gen)
-  val source = Module(new AsyncQueueSource(gen, depth, sync))
-  val sink   = Module(new AsyncQueueSink  (gen, depth, sync))
+  val source = Module(new AsyncQueueSource(gen, depth, sync, safe))
+  val sink   = Module(new AsyncQueueSink  (gen, depth, sync, safe))
 
   source.clock := io.enq_clock
   source.reset := io.enq_reset
@@ -130,4 +163,6 @@ class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3) extends Cross
   sink.io.mem := source.io.mem
   sink.io.widx := source.io.widx
   source.io.ridx := sink.io.ridx
+  sink.io.widx_valid := source.io.widx_valid
+  source.io.ridx_valid := sink.io.ridx_valid
 }

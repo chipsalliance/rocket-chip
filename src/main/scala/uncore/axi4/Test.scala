@@ -59,3 +59,53 @@ class AXI4FullFuzzRAMTest extends UnitTest(500000) {
   val dut = Module(LazyModule(new AXI4FullFuzzRAM).module)
   io.finished := dut.io.finished
 }
+
+class AXI4FuzzMaster extends LazyModule
+{
+  val node  = AXI4OutputNode()
+  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val model = LazyModule(new TLRAMModel("AXI4FuzzMaster"))
+
+  model.node := fuzz.node
+  node := TLToAXI4(4)(model.node)
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val out = node.bundleOut
+      val finished = Bool(OUTPUT)
+    }
+
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class AXI4FuzzSlave extends LazyModule
+{
+  val node = AXI4InputNode()
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0xfff)))
+
+  ram.node := TLFragmenter(4, 16)(AXI4ToTL()(AXI4Fragmenter()(node)))
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in = node.bundleIn
+    }
+  }
+}
+
+class AXI4FuzzBridge extends LazyModule
+{
+  val master = LazyModule(new AXI4FuzzMaster)
+  val slave  = LazyModule(new AXI4FuzzSlave)
+
+  slave.node := master.node
+
+  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+    io.finished := master.module.io.finished
+  }
+}
+
+class AXI4BridgeTest extends UnitTest(500000) {
+  val dut = Module(LazyModule(new AXI4FuzzBridge).module)
+  io.finished := dut.io.finished
+}

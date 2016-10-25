@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.util.IrrevocableIO
 import diplomacy._
 import scala.math.{min,max}
-import uncore.tilelink2.{leftOR, rightOR, UIntToOH1}
+import uncore.tilelink2.{leftOR, rightOR, UIntToOH1, OH1ToOH}
 
 // lite: masters all use only one ID => reads will not be interleaved
 class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational: Boolean = true) extends LazyModule
@@ -100,10 +100,10 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
 
       // The number of beats-1 to execute
       val beats1 = Mux(bad, UInt(0), maxSupported1)
-      val beats = ~(~(beats1 << 1 | UInt(1)) | beats1) // beats1 + 1
+      val beats = OH1ToOH(beats1) // beats1 + 1
 
       val inc_addr = addr + (beats << a.bits.size) // address after adding transfer
-      val wrapMask = ~(~a.bits.len << a.bits.size) // only these bits may change, if wrapping
+      val wrapMask = a.bits.bytes1() // only these bits may change, if wrapping
       val mux_addr = Wire(init = inc_addr)
       when (a.bits.burst === AXI4Parameters.BURST_WRAP) {
         mux_addr := (inc_addr & wrapMask) | ~(~a.bits.addr | wrapMask)
@@ -143,8 +143,8 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational
     val writeSizes1 = slaves.map(s => s.supportsWrite.max/beatBytes-1)
 
     // Indirection variables for inputs and outputs; makes transformation application easier
-    val (in_ar, ar_last, _)       = fragment(in.ar, readSizes1)
-    val (in_aw, aw_last, w_beats) = fragment(in.aw, writeSizes1)
+    val (in_ar, ar_last, _)       = fragment(Queue.irrevocable(in.ar, 1, flow=true), readSizes1)
+    val (in_aw, aw_last, w_beats) = fragment(Queue.irrevocable(in.aw, 1, flow=true), writeSizes1)
     val in_w = in.w
     val in_r = in.r
     val in_b = in.b
