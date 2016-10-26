@@ -161,8 +161,12 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val edgesOut = (oPorts zip oParams).map { case ((i, n), o) => outer.edgeO(o, n.iParams(i)) }
   lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n), i) => inner.edgeI(n.oParams(o), i) }
 
-  lazy val bundleOut = outer.bundleO(edgesOut)
-  lazy val bundleIn  = inner.bundleI(edgesIn)
+  val flip = false // needed for blind nodes
+  private def flipO(b: Vec[BO]) = if (flip) b.flip else b
+  private def flipI(b: Vec[BI]) = if (flip) b      else b.flip
+
+  lazy val bundleOut = flipO(outer.bundleO(edgesOut))
+  lazy val bundleIn  = flipI(inner.bundleI(edgesIn))
 
   // connects the outward part of a node with the inward part of this node
   override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {

@@ -16,7 +16,7 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
   }
   def bundleI(ei: Seq[AXI4EdgeParameters]): Vec[AXI4Bundle] = {
     require (!ei.isEmpty)
-    Vec(ei.size, AXI4Bundle(ei.map(_.bundle).reduce(_.union(_)))).flip
+    Vec(ei.size, AXI4Bundle(ei.map(_.bundle).reduce(_.union(_))))
   }
 
   def colour = "#00ccff" // bluish

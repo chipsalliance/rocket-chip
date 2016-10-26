@@ -17,7 +17,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   }
   def bundleI(ei: Seq[TLEdgeIn]): Vec[TLBundle] = {
     require (!ei.isEmpty)
-    Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
+    Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_))))
   }
 
   var emitMonitors = true
@@ -149,7 +149,7 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
   }
   def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
     require (ei.size == 1)
-    Vec(ei.size, new TLAsyncBundle(ei(0).bundle)).flip
+    Vec(ei.size, new TLAsyncBundle(ei(0).bundle))
   }
 
   def colour = "#ff0000" // red

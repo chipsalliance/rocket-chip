@@ -58,7 +58,7 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
   }
   def bundleI(ei: Seq[IntEdge]): Vec[Vec[Bool]] = {
     require (!ei.isEmpty)
-    Vec(ei.size, Vec(ei.map(_.source.num).max, Bool())).flip
+    Vec(ei.size, Vec(ei.map(_.source.num).max, Bool()))
   }
 
   def colour = "#0000ff" // blue
