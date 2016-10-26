@@ -51,12 +51,20 @@ case class CoreplexConfig(
 abstract class BaseCoreplex(c: CoreplexConfig)(implicit val p: Parameters) extends LazyModule with HasCoreplexParameters {
 
   val debugLegacy = LazyModule(new TLLegacy()(outerMMIOParams))
-  val debugModule = LazyModule(new TLDebugModule())
-  debugModule.node :=
+  val debug = LazyModule(new TLDebugModule())
+  debug.node :=
   TLHintHandler()(
     TLBuffer()(
       TLFragmenter(p(XLen)/8, debugLegacy.tlDataBeats * debugLegacy.tlDataBytes)(
         TLWidthWidget(debugLegacy.tlDataBytes)(debugLegacy.node))))
+
+  val plicLegacy = LazyModule(new TLLegacy()(outerMMIOParams))
+  val plic = LazyModule(new TLPLIC(c.plicKey))
+  plic.node :=
+  TLHintHandler()(
+    TLBuffer()(
+      TLFragmenter(p(XLen)/8, plicLegacy.tlDataBeats * plicLegacy.tlDataBytes)(
+        TLWidthWidget(plicLegacy.tlDataBytes)(plicLegacy.node))))
 
 }
 
@@ -142,23 +150,22 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     val cBus = Module(new TileLinkRecursiveInterconnect(1, ioAddrMap))
     cBus.io.in.head <> mmio
 
-    val plic = Module(new PLIC(c.plicKey))
-    plic.io.tl <> cBus.port("cbus:plic")
+    outer.plicLegacy.module.io.legacy <> cBus.port("cbus:plic")
     for (i <- 0 until io.interrupts.size) {
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := io.interrupts(i)
-      plic.io.devices(i) <> gateway.io.plic
+      outer.plic.module.io.devices(i) <> gateway.io.plic
     }
 
     outer.debugLegacy.module.io.legacy <> cBus.port("cbus:debug")
-    outer.debugModule.module.io.db <> io.debug
+    outer.debug.module.io.db <> io.debug
 
     // connect coreplex-internal interrupts to tiles
     for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
       tile.interrupts <> io.clint(i)
-      tile.interrupts.meip := plic.io.harts(plic.cfg.context(i, 'M'))
-      tile.interrupts.seip.foreach(_ := plic.io.harts(plic.cfg.context(i, 'S')))
-      tile.interrupts.debug := outer.debugModule.module.io.debugInterrupts(i)
+      tile.interrupts.meip := outer.plic.module.io.harts(c.plicKey.context(i, 'M'))
+      tile.interrupts.seip.foreach(_ := outer.plic.module.io.harts(c.plicKey.context(i, 'S')))
+      tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
       tile.hartid := UInt(i)
       tile.resetVector := io.resetVector
     }

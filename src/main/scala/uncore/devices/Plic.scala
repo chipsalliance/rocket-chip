@@ -6,7 +6,8 @@ import Chisel._
 import Chisel.ImplicitConversions._
 
 import junctions._
-import uncore.tilelink._
+import regmapper._
+import uncore.tilelink2._
 import cde.Parameters
 
 class GatewayPLICIO extends Bundle {
@@ -27,7 +28,7 @@ class LevelGateway extends Module {
   io.plic.valid := io.interrupt && !inFlight
 }
 
-case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriorities: Int) {
+case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriorities: Int, address: BigInt = 0xC000000) {
   def contextsPerHart = if (supervisor) 2 else 1
   def nHarts = contextsPerHart * nHartsIn
   def context(i: Int, mode: Char) = mode match {
@@ -41,6 +42,7 @@ case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriori
 
   def maxDevices = 1023
   def maxHarts = 15872
+  def priorityBase = 0x0
   def pendingBase = 0x1000
   def enableBase = 0x2000
   def hartBase = 0x200000
@@ -56,15 +58,19 @@ case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriori
   require(nPriorities >= 0 && nPriorities <= nDevices)
 }
 
-/** Platform-Level Interrupt Controller */
-class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
-  val io = new Bundle {
-    val devices = Vec(cfg.nDevices, new GatewayPLICIO).flip
-    val harts = Vec(cfg.nHarts, Bool()).asOutput
-    val tl = new ClientUncachedTileLinkIO().flip
-  }
+trait HasPLICParamters {
+  val params: (PLICConfig, Parameters)
+  val cfg = params._1
+  implicit val p = params._2
+}
+
+trait PLICBundle extends Bundle with HasPLICParamters {
+  val devices = Vec(cfg.nDevices, new GatewayPLICIO).flip
+  val harts = Vec(cfg.nHarts, Bool()).asOutput
+}
+
+trait PLICModule extends Module with HasRegMap with HasPLICParamters {
+  val io: PLICBundle
 
   val priority =
     if (cfg.nPriorities > 0) Reg(Vec(cfg.nDevices+1, UInt(width=log2Up(cfg.nPriorities+1))))
@@ -87,7 +93,7 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
       val lMax = findMax(x take half)
       val rMax = findMax(x drop half)
       val useLeft = lMax._1 >= rMax._1
-      (Mux(useLeft, lMax._1, rMax._1), Mux(useLeft, lMax._2, UInt(half) + rMax._2))
+      (Mux(useLeft, lMax._1, rMax._1), Mux(useLeft, lMax._2, UInt(half) | rMax._2))
     } else (x.head, UInt(0))
   }
 
@@ -102,86 +108,45 @@ class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
     io.harts(hart) := Reg(next = maxPri) > Cat(UInt(1), threshold(hart))
   }
 
-  val acq = Queue(io.tl.acquire, 1)
-  val read = acq.fire() && acq.bits.isBuiltInType(Acquire.getType)
-  val write = acq.fire() && acq.bits.isBuiltInType(Acquire.putType)
-  assert(!acq.fire() || read || write, "unsupported PLIC operation")
-  val addr = acq.bits.full_addr()(log2Up(cfg.size)-1,0)
+  def priorityRegField(x: UInt) = if (cfg.nPriorities > 0) RegField(32, x) else RegField.r(32, x)
+  val piorityRegFields = Seq(cfg.priorityBase -> priority.map(p => priorityRegField(p)))
+  val pendingRegFields = Seq(cfg.pendingBase  -> pending .map(b => RegField.r(1, b)))
 
-  val claimant =
-    if (cfg.nHarts == 1) UInt(0)
-    else (addr - cfg.hartBase)(log2Up(cfg.hartOffset(cfg.nHarts))-1,log2Up(cfg.hartOffset(1)))
-  val hart = Wire(init = claimant)
-  val myMaxDev = maxDevs(claimant)
-  val myEnables = enables(hart)
-  val rdata = Wire(init = UInt(0, tlDataBits))
-  val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata & ~acq.bits.full_wmask())
-
-  if (cfg.nDevices > 0) when (addr >= cfg.hartBase) {
-    val word =
-      if (tlDataBytes > cfg.claimOffset) UInt(0)
-      else addr(log2Up(cfg.claimOffset),log2Up(tlDataBytes))
-    rdata := Cat(myMaxDev, UInt(0, 8*cfg.priorityBytes-threshold(0).getWidth), threshold(claimant)) >> (word * tlDataBits)
-
-    when (read && addr(log2Ceil(cfg.claimOffset))) {
-      pending(myMaxDev) := false
-    }
-    when (write) {
-      when (if (tlDataBytes > cfg.claimOffset) acq.bits.wmask()(cfg.claimOffset) else addr(log2Ceil(cfg.claimOffset))) {
-        val dev = (acq.bits.data >> ((8 * cfg.claimOffset) % tlDataBits))(log2Up(pending.size)-1,0)
-        when (myEnables(dev)) { io.devices(dev-1).complete := true }
-      }.otherwise {
-        if (cfg.nPriorities > 0) threshold(claimant) := acq.bits.data
-      }
-    }
-  }.elsewhen (addr >= cfg.enableBase) {
-    val enableHart =
-      if (cfg.nHarts > 1) (addr - cfg.enableBase)(log2Up(cfg.enableOffset(cfg.nHarts))-1,log2Up(cfg.enableOffset(1)))
-      else UInt(0)
-    hart := enableHart
-    val word =
-      if (tlDataBits >= myEnables.size) UInt(0)
-      else addr(log2Ceil((myEnables.size-1)/tlDataBits+1) + tlByteAddrBits - 1, tlByteAddrBits)
-    for (i <- 0 until myEnables.size by tlDataBits) {
-      when (word === i/tlDataBits) {
-        rdata := Cat(myEnables.slice(i, i + tlDataBits).reverse)
-        for (j <- 0 until (tlDataBits min (myEnables.size - i))) {
-          when (write) { enables(enableHart)(i+j) := masked_wdata(j) }
-        }
-      }
-    }
-  }.elsewhen (addr >= cfg.pendingBase) {
-    val word =
-      if (tlDataBytes >= pending.size) UInt(0)
-      else addr(log2Up(pending.size)-1,log2Up(tlDataBytes))
-    rdata := pending.asUInt >> (word * tlDataBits)
-  }.otherwise {
-    val regsPerBeat = tlDataBytes >> log2Up(cfg.priorityBytes)
-    val word =
-      if (regsPerBeat >= priority.size) UInt(0)
-      else addr(log2Up(priority.size*cfg.priorityBytes)-1,log2Up(tlDataBytes))
-    for (i <- 0 until priority.size by regsPerBeat) {
-      when (word === i/regsPerBeat) {
-        rdata := Cat(priority.slice(i, i + regsPerBeat).map(p => Cat(UInt(0, 8*cfg.priorityBytes-p.getWidth), p)).reverse)
-        for (j <- 0 until (regsPerBeat min (priority.size - i))) {
-          if (cfg.nPriorities > 0) when (write) { priority(i+j) := masked_wdata >> (j * 8 * cfg.priorityBytes) }
-        }
-      }
-    }
+  val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
+    cfg.enableBase + cfg.enableOffset(i) -> e.map(b => RegField(1, b))
   }
+
+  val hartRegFields = Seq.tabulate(cfg.nHarts) { i =>
+    cfg.hartBase + cfg.hartOffset(i) -> Seq(
+      priorityRegField(threshold(i)),
+      RegField(32,
+        RegReadFn { valid =>
+          when (valid) {
+            pending(maxDevs(i)) := Bool(false)
+            maxDevs(i) := UInt(0) // flush pipeline
+          }
+          (Bool(true), maxDevs(i))
+        },
+        RegWriteFn { (valid, data) =>
+          when (valid && enables(i)(data)) {
+            io.devices(data - UInt(1)).complete := Bool(true)
+          }
+          Bool(true)
+        }
+      )
+    )
+  }
+
+  regmap((piorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
   priority(0) := 0
   pending(0) := false
   for (e <- enables)
     e(0) := false
-
-  io.tl.grant.valid := acq.valid
-  acq.ready := io.tl.grant.ready
-  io.tl.grant.bits := Grant(
-    is_builtin_type = Bool(true),
-    g_type = acq.bits.getBuiltInGrantType(),
-    client_xact_id = acq.bits.client_xact_id,
-    manager_xact_id = UInt(0),
-    addr_beat = UInt(0),
-    data = rdata)
 }
+
+/** Platform-Level Interrupt Controller */
+class TLPLIC(c: PLICConfig)(implicit val p: Parameters)
+  extends TLRegisterRouter(c.address, size = c.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
+  new TLRegBundle((c, p), _)    with PLICBundle)(
+  new TLRegModule((c, p), _, _) with PLICModule)
