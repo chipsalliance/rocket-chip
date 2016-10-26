@@ -789,20 +789,11 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
   //--------------------------------------------------------------
 
   val romRegFields  =  if (cfg.hasDebugRom) {
-    // Inspired by ROMSlave
-    val romContents = cfg.debugRomContents.get
-    val romByteWidth = ramDataWidth / 8
-    val romRows = (romContents.size + romByteWidth - 1)/romByteWidth
-    List.tabulate(romRows) { ii => {
-      val slice = romContents.slice(ii*romByteWidth, (ii+1)*romByteWidth)
-      val line = UInt(slice.foldRight(BigInt(0)) { case (x,y) => ((y << 8) + (x.toInt & 0xFF))}, width = romByteWidth*8)
-      RegField.r(ramDataWidth, line)
-    }
-    }
+    cfg.debugRomContents.get.map( x => RegField.r(8, UInt(x.toInt & 0xFF)))
   } else {
-    Seq(RegField(ramDataWidth))
+    Seq(RegField(8))
   }
-  
+
   //--------------------------------------------------------------
   // System Bus Access
   //--------------------------------------------------------------
