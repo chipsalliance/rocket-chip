@@ -89,10 +89,8 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   }
 }
 
+// Nodes implemented inside modules
 case class TLIdentityNode() extends IdentityNode(TLImp)
-case class TLOutputNode() extends OutputNode(TLImp)
-case class TLInputNode() extends InputNode(TLImp)
-
 case class TLClientNode(portParams: TLClientPortParameters, numPorts: Range.Inclusive = 1 to 1)
   extends SourceNode(TLImp)(portParams, numPorts)
 case class TLManagerNode(portParams: TLManagerPortParameters, numPorts: Range.Inclusive = 1 to 1)
@@ -116,6 +114,14 @@ case class TLAdapterNode(
   numClientPorts:  Range.Inclusive = 1 to 1,
   numManagerPorts: Range.Inclusive = 1 to 1)
   extends InteriorNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
+
+// Nodes passed from an inner module
+case class TLOutputNode() extends OutputNode(TLImp)
+case class TLInputNode() extends InputNode(TLImp)
+
+// Nodes used for external ports
+case class TLBlindOutputNode(portParams: TLManagerPortParameters) extends BlindOutputNode(TLImp)(portParams)
+case class TLBlindInputNode(portParams: TLClientPortParameters) extends BlindInputNode(TLImp)(portParams)
 
 /** Synthesizeable unit tests */
 import unittest._

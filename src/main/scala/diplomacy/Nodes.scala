@@ -208,12 +208,28 @@ class SourceNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po:
   extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, num, 0 to 0)
 {
   require (num.end >= 1, s"${name} is a source which does not accept outputs${lazyModule.line}")
+  override lazy val bundleIn = { require(false, s"${name} has no bundleIn; try bundleOut?"); bundleOut }
 }
 
 class SinkNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
   extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, num)
 {
   require (num.end >= 1, s"${name} is a sink which does not accept inputs${lazyModule.line}")
+  override lazy val bundleOut = { require(false, s"${name} has no bundleOut; try bundleIn?"); bundleIn }
+}
+
+class BlindOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI)
+  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, 1 to 1)
+{
+  override val flip = true
+  override lazy val bundleOut = bundleIn
+}
+
+class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO)
+  extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, 1 to 1, 0 to 0)
+{
+  override val flip = true
+  override lazy val bundleIn = bundleOut
 }
 
 class InteriorNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])

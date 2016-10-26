@@ -30,18 +30,23 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
    pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
+// Nodes implemented inside modules
 case class AXI4IdentityNode() extends IdentityNode(AXI4Imp)
-case class AXI4OutputNode() extends OutputNode(AXI4Imp)
-case class AXI4InputNode() extends InputNode(AXI4Imp)
-
 case class AXI4MasterNode(portParams: AXI4MasterPortParameters, numPorts: Range.Inclusive = 1 to 1)
   extends SourceNode(AXI4Imp)(portParams, numPorts)
 case class AXI4SlaveNode(portParams: AXI4SlavePortParameters, numPorts: Range.Inclusive = 1 to 1)
   extends SinkNode(AXI4Imp)(portParams, numPorts)
-
 case class AXI4AdapterNode(
   masterFn:       Seq[AXI4MasterPortParameters]  => AXI4MasterPortParameters,
   slaveFn:        Seq[AXI4SlavePortParameters] => AXI4SlavePortParameters,
   numMasterPorts: Range.Inclusive = 1 to 1,
   numSlavePorts:  Range.Inclusive = 1 to 1)
   extends InteriorNode(AXI4Imp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
+
+// Nodes passed from an inner module
+case class AXI4OutputNode() extends OutputNode(AXI4Imp)
+case class AXI4InputNode() extends InputNode(AXI4Imp)
+
+// Nodes used for external ports
+case class AXI4BlindOutputNode(portParams: AXI4SlavePortParameters) extends BlindOutputNode(AXI4Imp)(portParams)
+case class AXI4BlindInputNode(portParams: AXI4MasterPortParameters) extends BlindInputNode(AXI4Imp)(portParams)
