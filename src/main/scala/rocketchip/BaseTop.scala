@@ -80,11 +80,7 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](
   val coreplex = p(BuildCoreplex)(outer.c, p)
   val coreplexIO = Wire(coreplex.io)
 
-  val pBus =
-    Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:pbus"))(
-      p.alterPartial({ case TLId => "L2toMMIO" })))
-  pBus.io.in.head <> coreplexIO.master.mmio
-  outer.legacy.module.io.legacy <> pBus.port("TL2")
+  outer.legacy.module.io.legacy <> coreplexIO.master.mmio
 
   println("Generated Address Map")
   for (entry <- p(GlobalAddrMap).flatten) {

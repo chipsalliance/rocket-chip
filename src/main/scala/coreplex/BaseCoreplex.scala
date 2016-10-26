@@ -167,7 +167,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     for ((t, m) <- (uncoreTileIOs.map(_.slave).flatten) zip (tileSlavePorts map (cBus port _)))
       t <> m
 
-    io.master.mmio <> cBus.port("pbus")
+    io.master.mmio <> cBus.port("TL2")
   }
 
   // Coreplex doesn't know when to stop running

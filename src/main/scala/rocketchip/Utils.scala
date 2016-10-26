@@ -90,15 +90,14 @@ object GenerateGlobalAddrMap {
       }).flatten.toList
 
     lazy val tl2AddrMap = new AddrMap(uniquelyNamedTL2Devices, collapse = true)
-    lazy val pBusIOAddrMap = new AddrMap(Seq(AddrMapEntry("TL2", tl2AddrMap)), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
     Dump("MEM_BASE", memBase)
 
     val cBus = AddrMapEntry("cbus", cBusIOAddrMap)
-    val pBus = AddrMapEntry("pbus", pBusIOAddrMap)
-    val io = AddrMapEntry("io", AddrMap((cBus +: (!pBusIOAddrMap.isEmpty).option(pBus).toSeq):_*))
+    val tlBus = AddrMapEntry("TL2", tl2AddrMap)
+    val io = AddrMapEntry("io", AddrMap(cBus, tlBus))
     val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
     AddrMap((io +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
   }
@@ -108,7 +107,7 @@ object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, peripheryManagers: Seq[TLManagerParameters]) = {
     val addrMap = p(GlobalAddrMap)
     val plicAddr = addrMap("io:cbus:plic").start
-    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:pbus:TL2:clint").start)
+    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:TL2:clint").start)
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"

@@ -71,7 +71,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.mem.grant.ready := Bool(true)
 
   io.cache.req.valid := !get_sent && started
-  io.cache.req.bits.addr := UInt(addrMap("io:pbus:TL2:bootrom").start)
+  io.cache.req.bits.addr := UInt(addrMap("io:TL2:bootrom").start)
   io.cache.req.bits.typ := MT_WU
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
