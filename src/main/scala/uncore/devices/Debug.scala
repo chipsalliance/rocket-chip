@@ -823,8 +823,8 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
   *  
   */
 
-class TLDebugModule(beatBytes: Int) (implicit p: Parameters)
-  extends TLRegisterRouter(0x0, beatBytes=beatBytes)(
+class TLDebugModule(address: BigInt = 0)(implicit p: Parameters)
+  extends TLRegisterRouter(address, beatBytes=p(rocket.XLen)/8)(
   new TLRegBundle(p, _ )    with DebugModuleBundle)(
   new TLRegModule(p, _, _)  with DebugModule)
 

@@ -51,7 +51,7 @@ case class CoreplexConfig(
 abstract class BaseCoreplex(c: CoreplexConfig)(implicit val p: Parameters) extends LazyModule with HasCoreplexParameters {
 
   val debugLegacy = LazyModule(new TLLegacy()(outerMMIOParams))
-  val debugModule = LazyModule(new TLDebugModule(p(XLen)/8))
+  val debugModule = LazyModule(new TLDebugModule())
   debugModule.node :=
   TLHintHandler()(
     TLBuffer()(
@@ -121,7 +121,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     // and coherence manager(s) to the other side
     l1tol2net.io.clients_cached <> uncoreTileIOs.map(_.cached).flatten
     l1tol2net.io.clients_uncached <> uncoreTileIOs.map(_.uncached).flatten ++ io.slave
-    l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
+    l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner // legacy goes here (not mmioManager)
 
     val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, c.nMemChannels)(outerMemParams))
 
