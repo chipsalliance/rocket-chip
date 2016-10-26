@@ -94,7 +94,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   protected[diplomacy] lazy val iPorts = { iRealized = true; reqI(); accPI.result() }
 
   protected[diplomacy] val iParams: Seq[UI]
-  protected[diplomacy] def iConnect: Vec[BI]
+  val bundleIn: Vec[BI]
 }
 
 trait OutwardNodeHandle[DO, UO, BO <: Data]
@@ -126,7 +126,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   protected[diplomacy] lazy val oPorts = { oRealized = true; reqO(); accPO.result() }
 
   protected[diplomacy] val oParams: Seq[DO]
-  protected[diplomacy] def oConnect: Vec[BO]
+  val bundleOut: Vec[BO]
 }
 
 class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
@@ -164,9 +164,6 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val bundleOut = outer.bundleO(edgesOut)
   lazy val bundleIn  = inner.bundleI(edgesIn)
 
-  def oConnect = bundleOut
-  def iConnect = bundleIn
-
   // connects the outward part of a node with the inward part of this node
   override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {
     val x = this // x := y
@@ -177,7 +174,7 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     val o = y.oPushed
     y.oPush(i, x)
     x.iPush(o, y)
-    val (out, binding) = inner.connect(y.oConnect(o), x.iConnect(i), x.edgesIn(i))
+    val (out, binding) = inner.connect(y.bundleOut(o), x.bundleIn(i), x.edgesIn(i))
     LazyModule.stack.head.bindings = binding :: LazyModule.stack.head.bindings
     out
   }
@@ -195,14 +192,12 @@ class IdentityNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
 
 class OutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
-  override def oConnect = bundleOut
-  override def iConnect = bundleOut
+  override lazy val bundleIn = bundleOut
 }
 
 class InputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
 {
-  override def oConnect = bundleIn
-  override def iConnect = bundleIn
+  override lazy val bundleOut = bundleIn
 }
 
 class SourceNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
