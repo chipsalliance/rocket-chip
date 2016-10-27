@@ -9,17 +9,17 @@ import coreplex._
 import rocketchip._
 
 /** Example Top with Periphery */
-class ExampleTop(q: Parameters) extends BaseTop(q)
+class ExampleTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit p: Parameters) extends BaseTop(buildCoreplex)
     with PeripheryBootROM
     with PeripheryDebug
     with PeripheryExtInterrupts
     with PeripheryMasterMem
     with PeripheryMasterAXI4MMIO
     with PeripherySlave {
-  override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p, this)))
+  override lazy val module = new ExampleTopModule(this, new ExampleTopBundle(this))
 }
 
-class ExampleTopBundle[+L <: ExampleTop](p: Parameters, l: L) extends BaseTopBundle(p, l)
+class ExampleTopBundle[+L <: ExampleTop[BaseCoreplex]](outer: L) extends BaseTopBundle(outer)
     with PeripheryBootROMBundle
     with PeripheryDebugBundle
     with PeripheryExtInterruptsBundle
@@ -27,7 +27,7 @@ class ExampleTopBundle[+L <: ExampleTop](p: Parameters, l: L) extends BaseTopBun
     with PeripheryMasterAXI4MMIOBundle
     with PeripherySlaveBundle
 
-class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](p: Parameters, l: L, b: B) extends BaseTopModule(p, l, b)
+class ExampleTopModule[+L <: ExampleTop[BaseCoreplex], +B <: ExampleTopBundle[L]](outer: L, io: B) extends BaseTopModule(outer, io)
     with PeripheryBootROMModule
     with PeripheryDebugModule
     with PeripheryExtInterruptsModule
@@ -38,13 +38,13 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](p: Parameter
     with DirectConnection
 
 /** Example Top with TestRAM */
-class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
+class ExampleTopWithTestRAM[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit p: Parameters) extends ExampleTop(buildCoreplex)
     with PeripheryTestRAM {
-  override lazy val module = Module(new ExampleTopWithTestRAMModule(p, this, new ExampleTopWithTestRAMBundle(p, this)))
+  override lazy val module = new ExampleTopWithTestRAMModule(this, new ExampleTopWithTestRAMBundle(this))
 }
 
-class ExampleTopWithTestRAMBundle[+L <: ExampleTopWithTestRAM](p: Parameters, l: L) extends ExampleTopBundle(p, l)
+class ExampleTopWithTestRAMBundle[+L <: ExampleTopWithTestRAM[BaseCoreplex]](outer: L) extends ExampleTopBundle(outer)
     with PeripheryTestRAMBundle
 
-class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle[L]](p: Parameters, l: L, b: B) extends ExampleTopModule(p, l, b)
+class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM[BaseCoreplex], +B <: ExampleTopWithTestRAMBundle[L]](outer: L, io: B) extends ExampleTopModule(outer, io)
     with PeripheryTestRAMModule

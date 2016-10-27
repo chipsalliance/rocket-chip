@@ -72,8 +72,6 @@ class Edge32BitMemtestConfig extends Config(
 /* Composable Configs to set individual parameters */
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
-    case BuildCoreplex =>
-      (c: CoreplexConfig, p: Parameters) => LazyModule(new GroundTestCoreplex(c)(p)).module
     case TLKey("L1toL2") => {
       val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
       val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
@@ -106,7 +104,7 @@ class WithGroundTest extends Config(
       }
     }
     case BuildExampleTop =>
-      (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(p))
+      (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(new GroundTestCoreplex()(_))(p))
     case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false

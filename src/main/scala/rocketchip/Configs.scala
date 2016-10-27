@@ -40,8 +40,6 @@ class BasePlatformConfig extends Config(
           site(TLKey("L2toMC")).copy(dataBeats = edgeDataBeats)
         case TLKey("MMIOtoEdge") =>
           site(TLKey("L2toMMIO")).copy(dataBeats = edgeDataBeats)
-        case BuildCoreplex =>
-          (c: CoreplexConfig, p: Parameters) => LazyModule(new DefaultCoreplex(c)(p)).module
         case NExtTopInterrupts => 2
         case SOCBusKey => SOCBusConfig(beatBytes = site(TLKey("L2toMMIO")).dataBitsPerBeat/8)
         case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
@@ -65,7 +63,7 @@ class BasePlatformConfig extends Config(
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case BuildExampleTop =>
-          (p: Parameters) => LazyModule(new ExampleTop(p))
+          (p: Parameters) => LazyModule(new ExampleTop(new DefaultCoreplex()(_))(p))
         case SimMemLatency => 0
         case _ => throw new CDEMatchError
       }

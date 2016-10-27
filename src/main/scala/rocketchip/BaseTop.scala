@@ -17,13 +17,12 @@ import coreplex._
 case object GlobalAddrMap extends Field[AddrMap]
 case object ConfigString extends Field[String]
 case object NCoreplexExtClients extends Field[Int]
+case object NExtInterrupts extends Field[Int]
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Bool]
-/** Function for building Coreplex */
-case object BuildCoreplex extends Field[(CoreplexConfig, Parameters) => BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]]
 
 /** Base Top with no Periphery */
-abstract class BaseTop(q: Parameters) extends LazyModule {
+abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit q: Parameters) extends LazyModule {
   // the following variables will be refactored properly with TL2
   val pInterrupts = new RangeManager
   val pBusMasters = new RangeManager
@@ -35,52 +34,39 @@ abstract class BaseTop(q: Parameters) extends LazyModule {
   val peripheryBus = LazyModule(new TLXbar)
   lazy val peripheryManagers = socBus.node.edgesIn(0).manager.managers
 
-  lazy val c = CoreplexConfig(
-    nTiles = q(NTiles),
-    nExtInterrupts = pInterrupts.sum,
-    nSlaves = pBusMasters.sum,
-    nMemChannels = q(NMemoryChannels),
-    hasSupervisor = q(UseVM)
-  )
+  // Fill in the TL1 legacy parameters
+  val qWithSums = q.alterPartial {
+    case NCoreplexExtClients => pBusMasters.sum
+    case NExtInterrupts => pInterrupts.sum
+  }
+  val qWithMap = qWithSums.alterPartial {
+     case GlobalAddrMap => GenerateGlobalAddrMap(qWithSums, peripheryManagers)
+  }
+  implicit val p = qWithMap.alterPartial {
+    case ConfigString => GenerateConfigString(qWithMap, peripheryManagers)
+  }
 
-  lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, peripheryManagers)
-  private val qWithMap = q.alterPartial({case GlobalAddrMap => genGlobalAddrMap})
-
-  lazy val genConfigString = GenerateConfigString(qWithMap, c, peripheryManagers)
-  implicit val p = qWithMap.alterPartial({
-    case ConfigString => genConfigString
-    case NCoreplexExtClients => pBusMasters.sum})
-
-  val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
+  val coreplex = LazyModule(buildCoreplex(p))
 
   peripheryBus.node :=
-    TLWidthWidget(p(SOCBusKey).beatBytes)(
     TLBuffer()(
     TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    TLWidthWidget(p(SOCBusKey).beatBytes)(
     socBus.node)))
 
-  socBus.node :=
-    TLWidthWidget(legacy.tlDataBytes)(
-    TLHintHandler()(
-    legacy.node))
+  socBus.node := coreplex.mmio
 
   TopModule.contents = Some(this)
 }
 
-abstract class BaseTopBundle[+L <: BaseTop](
-    val p: Parameters,
-    val outer: L) extends Bundle {
+abstract class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](val outer: L) extends Bundle {
+  implicit val p = outer.p
   val success = Bool(OUTPUT)
 }
 
-abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](
-    val p: Parameters,
-    val outer: L,
-    val io: B) extends LazyModuleImp(outer) {
-  val coreplex = p(BuildCoreplex)(outer.c, p)
-  val coreplexIO = Wire(coreplex.io)
-
-  outer.legacy.module.io.legacy <> coreplexIO.master.mmio
+abstract class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]](val outer: L, val io: B) extends LazyModuleImp(outer) {
+  implicit val p = outer.p
+  val coreplexIO = Wire(outer.coreplex.module.io)
 
   println("Generated Address Map")
   for (entry <- p(GlobalAddrMap).flatten) {
@@ -106,8 +92,8 @@ abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](
 }
 
 trait DirectConnection {
-  val coreplexIO: BaseCoreplexBundle
-  val coreplex: BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]
+  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
+  val outer: BaseTop[BaseCoreplex]
 
-  coreplexIO <> coreplex.io
+  coreplexIO <> outer.coreplex.module.io
 }

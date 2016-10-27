@@ -54,6 +54,7 @@ abstract class LazyTile(implicit p: Parameters) extends LazyModule {
     xLen = p(XLen))
 
   val module: TileImp
+  val slave: Option[TLOutputNode]
 }
 
 class RocketTile(implicit p: Parameters) extends LazyTile {

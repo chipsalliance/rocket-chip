@@ -104,7 +104,8 @@ object GenerateGlobalAddrMap {
 }
 
 object GenerateConfigString {
-  def apply(p: Parameters, c: CoreplexConfig, peripheryManagers: Seq[TLManagerParameters]) = {
+  def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
+    val c = CoreplexParameters()(p)
     val addrMap = p(GlobalAddrMap)
     val plicAddr = addrMap("io:cbus:plic").start
     val clint = CoreplexLocalInterrupterConfig()

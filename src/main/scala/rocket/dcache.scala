@@ -497,7 +497,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 }
 
-class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
+class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with HasCoreParameters {
   val beatBytes = p(XLen)/8
   val node = TLManagerNode(TLManagerPortParameters(
     Seq(TLManagerParameters(
@@ -510,7 +510,7 @@ class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
     beatBytes = beatBytes,
     minLatency = 1))
 
-  lazy val module = new LazyModuleImp(this) with HasCoreParameters {
+  lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val tl_in = node.bundleIn
       val dmem = new HellaCacheIO

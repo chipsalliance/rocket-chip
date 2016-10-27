@@ -110,7 +110,7 @@ trait PeripheryDebugModule {
   implicit val p: Parameters
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
@@ -143,7 +143,7 @@ trait PeripheryExtInterruptsModule {
   implicit val p: Parameters
   val outer: PeripheryExtInterrupts
   val io: PeripheryExtInterruptsBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
 
   {
     val r = outer.pInterrupts.range("ext")
@@ -172,7 +172,7 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMem
   val io: PeripheryMasterMemBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
 
   val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, edgeMemParams))
 
@@ -199,8 +199,9 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
 /////
 
 // PeripheryMasterAXI4MMIO is an example, make your own cake pattern like this one.
-trait PeripheryMasterAXI4MMIO extends BaseTop with HasPeripheryParameters {
+trait PeripheryMasterAXI4MMIO extends HasPeripheryParameters {
   implicit val p: Parameters
+  val socBus: TLXbar
 
   val mmio_axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
@@ -253,7 +254,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripherySlave
   val io: PeripherySlaveBundle
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
 
   if (p(NExtBusAXIChannels) > 0) {
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
@@ -339,6 +340,6 @@ trait PeripheryTestBusMasterModule {
 /////
 
 trait HardwiredResetVector {
-  val coreplexIO: BaseCoreplexBundle
+  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
   coreplexIO.resetVector := UInt(0x1000) // boot ROM
 }
