@@ -130,8 +130,8 @@ class AXI4ToTL extends LazyModule
     // Prioritize err over ok (b/c err_r.valid comes from a register)
     mux_r.valid := (!mux_lock_err && ok_r.valid) || (!mux_lock_ok && err_r.valid)
     mux_r.bits  := Mux(!mux_lock_ok && err_r.valid, err_r.bits, ok_r.bits)
-    ok_r.ready  := !mux_lock_err && mux_r.ready && !err_r.valid
-    err_r.ready := !mux_lock_ok  && mux_r.ready
+    ok_r.ready  := mux_r.ready && (mux_lock_ok || !err_r.valid)
+    err_r.ready := mux_r.ready && !mux_lock_ok
 
     // AXI4 needs irrevocable behaviour
     in.r <> Queue.irrevocable(mux_r, 1, flow=true)

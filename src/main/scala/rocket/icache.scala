@@ -129,7 +129,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
       io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_hit
     case 2 =>
-      val s2_hit = RegEnable(s1_hit, !stall)
+      val s2_hit = RegEnable(s1_hit, Bool(false), !stall)
       val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
       val s2_dout = RegEnable(s1_dout, !stall)
       io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
