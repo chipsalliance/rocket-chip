@@ -4,7 +4,9 @@ package rocket
 
 import Chisel._
 import junctions._
+import diplomacy._
 import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.agents._
 import uncore.coherence._
 import uncore.constants._
@@ -495,60 +497,74 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 }
 
-class ScratchpadSlavePort(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val tl = new ClientUncachedTileLinkIO().flip
-    val dmem = new HellaCacheIO
+class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
+  val beatBytes = p(XLen)/8
+  val node = TLManagerNode(TLManagerPortParameters(
+    Seq(TLManagerParameters(
+      address            = List(AddressSet(0x80000000L, p(DataScratchpadSize))),
+      regionType         = RegionType.UNCACHED,
+      executable         = true,
+      supportsPutPartial = TransferSizes(1, beatBytes),
+      supportsPutFull    = TransferSizes(1, beatBytes),
+      fifoId             = Some(0))), // requests handled in FIFO order
+    beatBytes = beatBytes,
+    minLatency = 1))
+
+  lazy val module = new LazyModuleImp(this) with HasCoreParameters {
+    val io = new Bundle {
+      val tl_in = node.bundleIn
+      val dmem = new HellaCacheIO
+    }
+
+    val tl_in = io.tl_in(0)
+    val edge = node.edgesIn(0)
+    val beatBytes = edge.manager.beatBytes
+
+    require(coreDataBits == beatBytes*8)
+    require(usingDataScratchpad)
+
+    val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
+    val state = Reg(init = s_ready)
+    when (io.dmem.resp.valid) { state := s_grant }
+    when (tl_in.d.fire()) { state := s_ready }
+    when (io.dmem.s2_nack) { state := s_replay }
+    when (io.dmem.req.fire()) { state := s_wait }
+
+    val acq = Reg(tl_in.a.bits)
+    when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data }
+    when (tl_in.a.fire()) { acq := tl_in.a.bits }
+
+    val isWrite = edge.hasData(acq)
+    val isRead = !isWrite
+
+    def formCacheReq(acq: TLBundleA) = {
+      val req = Wire(new HellaCacheReq)
+      // treat all loads as full words, so bytes appear in correct lane
+      req.typ := Mux(isRead, log2Ceil(beatBytes), acq.size)
+      req.cmd := Mux(isRead, M_XRD, M_XWR)
+      req.addr := Mux(isRead, ~(~acq.address | (beatBytes-1)), acq.address)
+      req.tag := UInt(0)
+      req
+    }
+
+    val ready = state === s_ready || tl_in.d.fire()
+    io.dmem.req.valid := (tl_in.a.valid && ready) || state === s_replay
+    tl_in.a.ready := io.dmem.req.ready && ready
+    io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
+    // this blows.  the TL data is already in the correct byte lane, but the D$
+    // expects right-justified store data, so that it can steer the bytes.
+    io.dmem.s1_data := new LoadGen(acq.size, Bool(false), acq.address(log2Ceil(beatBytes)-1,0), acq.data, Bool(false), beatBytes).data
+    io.dmem.s1_kill := false
+    io.dmem.invalidate_lr := false
+
+    // place AMO data in correct word lane
+    val minAMOBytes = 4
+    val grantData = Mux(io.dmem.resp.valid, io.dmem.resp.bits.data, acq.data)
+    val alignedGrantData = Mux(acq.size <= log2Ceil(minAMOBytes), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
+
+    tl_in.d.valid := io.dmem.resp.valid || state === s_grant
+    tl_in.d.bits := Mux(isRead,
+      edge.AccessAck(acq, UInt(0), alignedGrantData),
+      edge.AccessAck(acq, UInt(0)))
   }
-
-  val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
-  val state = Reg(init = s_ready)
-  when (io.dmem.resp.valid) { state := s_grant }
-  when (io.tl.grant.fire()) { state := s_ready }
-  when (io.dmem.s2_nack) { state := s_replay }
-  when (io.dmem.req.fire()) { state := s_wait }
-
-  val acq = Reg(io.tl.acquire.bits)
-  when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data }
-  when (io.tl.acquire.fire()) { acq := io.tl.acquire.bits }
-
-  val isRead = acq.isBuiltInType(Acquire.getType)
-  val isWrite = acq.isBuiltInType(Acquire.putType)
-  assert(state === s_ready || isRead || isWrite)
-  require(coreDataBits == acq.tlDataBits)
-  require(usingDataScratchpad)
-
-  def formCacheReq(acq: Acquire) = {
-    val req = Wire(new HellaCacheReq)
-    // treat all loads as full words, so bytes appear in correct lane
-    req.typ := Mux(isRead, log2Ceil(acq.tlDataBytes), acq.op_size())
-    req.cmd := acq.op_code()
-    req.addr := Mux(isRead, ~(~acq.full_addr() | (acq.tlDataBytes-1)), acq.full_addr())
-    req.tag := UInt(0)
-    req
-  }
-
-  val ready = state === s_ready || io.tl.grant.fire()
-  io.dmem.req.valid := (io.tl.acquire.valid && ready) || state === s_replay
-  io.tl.acquire.ready := io.dmem.req.ready && ready
-  io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, io.tl.acquire.bits))
-  // this blows.  the TL data is already in the correct byte lane, but the D$
-  // expects right-justified store data, so that it can steer the bytes.
-  io.dmem.s1_data := new LoadGen(acq.op_size(), Bool(false), acq.addr_byte(), acq.data, Bool(false), acq.tlDataBytes).data
-  io.dmem.s1_kill := false
-  io.dmem.invalidate_lr := false
-
-  // place AMO data in correct word lane
-  val minAMOBytes = 4
-  val grantData = Mux(io.dmem.resp.valid, io.dmem.resp.bits.data, acq.data)
-  val alignedGrantData = Mux(acq.op_size() <= log2Ceil(minAMOBytes), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
-
-  io.tl.grant.valid := io.dmem.resp.valid || state === s_grant
-  io.tl.grant.bits := Grant(
-    is_builtin_type = Bool(true),
-    g_type = acq.getBuiltInGrantType(),
-    client_xact_id = acq.client_xact_id,
-    manager_xact_id = UInt(0),
-    addr_beat = acq.addr_beat,
-    data = alignedGrantData)
 }

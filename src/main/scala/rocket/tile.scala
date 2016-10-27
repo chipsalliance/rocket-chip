@@ -27,40 +27,43 @@ case class RoccParameters(
 case class TileBundleConfig(
   nCachedTileLinkPorts: Int,
   nUncachedTileLinkPorts: Int,
-  xLen: Int,
-  hasSlavePort: Boolean)
+  xLen: Int)
 
-class TileIO(c: TileBundleConfig)(implicit p: Parameters) extends Bundle {
+class TileIO(c: TileBundleConfig, node: Option[TLInwardNode] = None)(implicit p: Parameters) extends Bundle {
   val cached = Vec(c.nCachedTileLinkPorts, new ClientTileLinkIO)
   val uncached = Vec(c.nUncachedTileLinkPorts, new ClientUncachedTileLinkIO)
   val hartid = UInt(INPUT, c.xLen)
   val interrupts = new TileInterrupts().asInput
-  val slave = c.hasSlavePort.option(new ClientUncachedTileLinkIO().flip)
+  val slave = node.map(_.inward.bundleIn)
   val resetVector = UInt(INPUT, c.xLen)
 
   override def cloneType = new TileIO(c).asInstanceOf[this.type]
 }
 
 abstract class TileImp(l: LazyTile)(implicit p: Parameters) extends LazyModuleImp(l) {
+  val io: TileIO
+}
+
+abstract class LazyTile(implicit p: Parameters) extends LazyModule {
   val nCachedTileLinkPorts = p(NCachedTileLinkPorts)
   val nUncachedTileLinkPorts = p(NUncachedTileLinkPorts)
   val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
   val bc = TileBundleConfig(
     nCachedTileLinkPorts = nCachedTileLinkPorts,
     nUncachedTileLinkPorts = nUncachedTileLinkPorts,
-    xLen = p(XLen),
-    hasSlavePort = p(DataScratchpadSize) > 0)
+    xLen = p(XLen))
 
-  val io: TileIO
-}
-
-abstract class LazyTile(implicit p: Parameters) extends LazyModule {
   val module: TileImp
 }
 
 class RocketTile(implicit p: Parameters) extends LazyTile {
+  val slave = if (p(DataScratchpadSize) == 0) None else Some(TLOutputNode())
+  val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
+
+  (slave zip scratch) foreach { case (node, lm) => node := lm.node }
+
   lazy val module = new TileImp(this) {
-    val io = new TileIO(bc)
+    val io = new TileIO(bc, slave)
     val buildRocc = p(BuildRoCC)
     val usingRocc = !buildRocc.isEmpty
     val nRocc = buildRocc.size
@@ -146,11 +149,7 @@ class RocketTile(implicit p: Parameters) extends LazyTile {
       core.io.ptw <> ptw.io.dpath
     }
 
-    io.slave foreach { case slavePort =>
-      val adapter = Module(new ScratchpadSlavePort()(dcacheParams))
-      adapter.io.tl <> TileLinkFragmenter(slavePort)
-      adapter.io.dmem +=: dcPorts
-    }
+    scratch.foreach { lm => lm.module.io.dmem +=: dcPorts }
 
     require(dcPorts.size == core.dcacheArbPorts)
     val dcArb = Module(new HellaCacheArbiter(dcPorts.size)(dcacheParams))
