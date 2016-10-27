@@ -28,30 +28,39 @@ class LevelGateway extends Module {
   io.plic.valid := io.interrupt && !inFlight
 }
 
-case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriorities: Int, address: BigInt = 0xC000000) {
-  def contextsPerHart = if (supervisor) 2 else 1
-  def nHarts = contextsPerHart * nHartsIn
-  def context(i: Int, mode: Char) = mode match {
-    case 'M' => i * contextsPerHart
-    case 'S' => require(supervisor); i * contextsPerHart + 1
-  }
-  def claimAddr(i: Int, mode: Char) = hartBase + hartOffset(context(i, mode)) + claimOffset
-  def threshAddr(i: Int, mode: Char) = hartBase + hartOffset(context(i, mode))
-  def enableAddr(i: Int, mode: Char) = enableBase + enableOffset(context(i, mode))
-  def size = hartBase + hartOffset(maxHarts)
-
+object PLICConsts
+{
   def maxDevices = 1023
   def maxHarts = 15872
   def priorityBase = 0x0
   def pendingBase = 0x1000
   def enableBase = 0x2000
   def hartBase = 0x200000
-  require(hartBase >= enableBase + enableOffset(maxHarts))
+
+  def claimOffset = 4
+  def priorityBytes = 4
 
   def enableOffset(i: Int) = i * ((maxDevices+7)/8)
   def hartOffset(i: Int) = i * 0x1000
-  def claimOffset = 4
-  def priorityBytes = 4
+  def enableBase(i: Int):Int = enableOffset(i) + enableBase
+  def hartBase(i: Int):Int = hartOffset(i) + hartBase
+
+  def size = hartBase(maxHarts)
+  require(hartBase >= enableBase(maxHarts))
+}
+
+case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriorities: Int) {
+  import PLICConsts._
+
+  def contextsPerHart = if (supervisor) 2 else 1
+  def nHarts = contextsPerHart * nHartsIn
+  def context(i: Int, mode: Char) = mode match {
+    case 'M' => i * contextsPerHart
+    case 'S' => require(supervisor); i * contextsPerHart + 1
+  }
+  def claimAddr(i: Int, mode: Char) = hartBase(context(i, mode)) + claimOffset
+  def threshAddr(i: Int, mode: Char) = hartBase(context(i, mode))
+  def enableAddr(i: Int, mode: Char) = enableBase(context(i, mode))
 
   require(nDevices <= maxDevices)
   require(nHarts > 0 && nHarts <= maxHarts)
@@ -59,8 +68,8 @@ case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriori
 }
 
 trait HasPLICParamters {
-  val params: (PLICConfig, Parameters)
-  val cfg = params._1
+  val params: (() => PLICConfig, Parameters)
+  val cfg = params._1 ()
   implicit val p = params._2
 }
 
@@ -109,15 +118,15 @@ trait PLICModule extends Module with HasRegMap with HasPLICParamters {
   }
 
   def priorityRegField(x: UInt) = if (cfg.nPriorities > 0) RegField(32, x) else RegField.r(32, x)
-  val piorityRegFields = Seq(cfg.priorityBase -> priority.map(p => priorityRegField(p)))
-  val pendingRegFields = Seq(cfg.pendingBase  -> pending .map(b => RegField.r(1, b)))
+  val piorityRegFields = Seq(PLICConsts.priorityBase -> priority.map(p => priorityRegField(p)))
+  val pendingRegFields = Seq(PLICConsts.pendingBase  -> pending .map(b => RegField.r(1, b)))
 
   val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
-    cfg.enableBase + cfg.enableOffset(i) -> e.map(b => RegField(1, b))
+    PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
   }
 
   val hartRegFields = Seq.tabulate(cfg.nHarts) { i =>
-    cfg.hartBase + cfg.hartOffset(i) -> Seq(
+    PLICConsts.hartBase(i) -> Seq(
       priorityRegField(threshold(i)),
       RegField(32,
         RegReadFn { valid =>
@@ -146,7 +155,7 @@ trait PLICModule extends Module with HasRegMap with HasPLICParamters {
 }
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(c: PLICConfig)(implicit val p: Parameters)
-  extends TLRegisterRouter(c.address, size = c.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
+class TLPLIC(c: () => PLICConfig, address: BigInt = 0xC000000)(implicit val p: Parameters)
+  extends TLRegisterRouter(address, size = PLICConsts.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
   new TLRegBundle((c, p), _)    with PLICBundle)(
   new TLRegModule((c, p), _, _) with PLICModule)

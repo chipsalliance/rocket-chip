@@ -112,7 +112,7 @@ object GenerateConfigString {
     val res = new StringBuilder
     res append  "plic {\n"
     res append s"  priority 0x${plicAddr.toString(16)};\n"
-    res append s"  pending 0x${(plicAddr + c.plicKey.pendingBase).toString(16)};\n"
+    res append s"  pending 0x${(plicAddr + PLICConsts.pendingBase).toString(16)};\n"
     res append s"  ndevs ${c.plicKey.nDevices};\n"
     res append  "};\n"
     res append  "rtc {\n"
