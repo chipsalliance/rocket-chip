@@ -67,6 +67,7 @@ class BasePlatformConfig extends Config(
         case AsyncMemChannels => false
         case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
         case TMemoryChannels => BusType.AXI
+        case ExtMemBase => Dump("MEM_BASE", 0x80000000L)
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case BuildExampleTop =>
@@ -97,9 +98,22 @@ class DefaultL2FPGAConfig extends Config(
 
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
+class WithNExtTopInterrupts(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case NExtTopInterrupts => n
+    case _ => throw new CDEMatchError
+  })
+
 class WithNMemoryChannels(n: Int) extends Config(
   (pname,site,here) => pname match {
     case NMemoryChannels => Dump("N_MEM_CHANNELS", n)
+    case _ => throw new CDEMatchError
+  }
+)
+
+class WithExtMemBase(n: Long) extends Config(
+  (pname,site,here) => pname match {
+    case ExtMemBase => Dump("MEM_BASE", n)
     case _ => throw new CDEMatchError
   }
 )
@@ -110,6 +124,7 @@ class WithExtMemSize(n: Long) extends Config(
     case _ => throw new CDEMatchError
   }
 )
+
 class WithAHB extends Config(
   (pname, site, here) => pname match {
     case TMemoryChannels     => BusType.AHB
@@ -177,6 +192,18 @@ class TinyConfig extends Config(
   new WithScratchpads ++
   new WithSmallCores ++ new WithRV32 ++
   new WithStatelessBridge ++ new BaseConfig)
+
+class WithAsyncMem extends Config(
+  (pname, site, here) => pname match {
+    case AsyncMemChannels => true
+    case _ => throw new CDEMatchError
+  })
+
+class WithAsyncMMIO extends Config(
+  (pname, site, here) => pname match {
+    case AsyncMMIOChannels => true
+    case _ => throw new CDEMatchError
+  })
 
 class WithAsyncDebug extends Config (
   (pname, site, here) => pname match {
