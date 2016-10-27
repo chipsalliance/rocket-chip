@@ -480,6 +480,9 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
   val dbRamRdEn   = Wire(Bool())
   val dbRamWrEnFinal   = Wire(Bool())
   val dbRamRdEnFinal   = Wire(Bool())
+  require((cfg.nDebugRamBytes % ramDataBytes) == 0)
+  val dbRamDataOffset = log2Up(ramDataBytes)
+
 
   // --- Debug Bus Accesses
 
@@ -606,10 +609,7 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
   //                                  0x40 - 0x6F Not Implemented
   dbRamAddr   := dbReq.addr( ramAddrWidth-1 , 0)
   dbRamWrData := dbReq.data
-  dbRamAddrValid := Bool(true)
-  if (ramAddrWidth < 4){
-    dbRamAddrValid := (dbReq.addr(3, ramAddrWidth) === UInt(0))
-  }
+  dbRamAddrValid := (dbReq.addr(3,0) <= UInt((cfg.nDebugRamBytes/ramDataBytes)))
 
   val dbRamRdDataFields = List.tabulate(cfg.nDebugRamBytes / ramDataBytes) { ii =>
     val slice = ramMem.slice(ii * ramDataBytes, (ii+1)*ramDataBytes)
@@ -620,7 +620,7 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
 
   when (dbRamWrEnFinal) {
     for (ii <- 0 until ramDataBytes) {
-      ramMem(dbRamAddr * UInt(ramDataBytes) + UInt(ii)) := dbRamWrData((8*(ii+1)-1), (8*ii))
+      ramMem((dbRamAddr << UInt(dbRamDataOffset)) + UInt(ii)) := dbRamWrData((8*(ii+1)-1), (8*ii))
     }
   }
   
