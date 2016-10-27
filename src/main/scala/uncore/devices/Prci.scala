@@ -20,7 +20,7 @@ class CoreplexLocalInterrupts extends Bundle {
   val msip = Bool()
 }
 
-case class CoreplexLocalInterrupterConfig(beatBytes: Int, address: BigInt = 0x02000000) {
+case class CoreplexLocalInterrupterConfig(address: BigInt = 0x02000000) {
   def msipOffset(hart: Int) = hart * msipBytes
   def msipAddress(hart: Int) = address + msipOffset(hart)
   def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes
@@ -48,8 +48,6 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 
   val timeWidth = 64
   val regWidth = 32
-  // demand atomic accesses for RV64
-  require(c.beatBytes >= (p(rocket.XLen) min timeWidth)/8)
 
   val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
   when (io.rtcTick) {
@@ -87,6 +85,6 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
 class CoreplexLocalInterrupter(c: CoreplexLocalInterrupterConfig)(implicit val p: Parameters)
-  extends TLRegisterRouter(c.address, 0, c.size, 0, c.beatBytes, false)(
+  extends TLRegisterRouter(c.address, size = c.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
   new TLRegBundle((c, p), _)    with CoreplexLocalInterrupterBundle)(
   new TLRegModule((c, p), _, _) with CoreplexLocalInterrupterModule)

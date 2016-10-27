@@ -107,7 +107,7 @@ object GenerateConfigString {
   def apply(p: Parameters, c: CoreplexConfig, peripheryManagers: Seq[TLManagerParameters]) = {
     val addrMap = p(GlobalAddrMap)
     val plicAddr = addrMap("io:cbus:plic").start
-    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:TL2:clint").start)
+    val clint = CoreplexLocalInterrupterConfig()
     val xLen = p(XLen)
     val res = new StringBuilder
     res append  "plic {\n"

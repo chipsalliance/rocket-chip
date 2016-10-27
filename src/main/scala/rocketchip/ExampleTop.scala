@@ -13,7 +13,6 @@ class ExampleTop(q: Parameters) extends BaseTop(q)
     with PeripheryBootROM
     with PeripheryDebug
     with PeripheryExtInterrupts
-    with PeripheryCoreplexLocalInterrupter
     with PeripheryMasterMem
     with PeripheryMasterAXI4MMIO
     with PeripherySlave {
@@ -24,7 +23,6 @@ class ExampleTopBundle[+L <: ExampleTop](p: Parameters, l: L) extends BaseTopBun
     with PeripheryBootROMBundle
     with PeripheryDebugBundle
     with PeripheryExtInterruptsBundle
-    with PeripheryCoreplexLocalInterrupterBundle
     with PeripheryMasterMemBundle
     with PeripheryMasterAXI4MMIOBundle
     with PeripherySlaveBundle
@@ -33,7 +31,6 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](p: Parameter
     with PeripheryBootROMModule
     with PeripheryDebugModule
     with PeripheryExtInterruptsModule
-    with PeripheryCoreplexLocalInterrupterModule
     with PeripheryMasterMemModule
     with PeripheryMasterAXI4MMIOModule
     with PeripherySlaveModule

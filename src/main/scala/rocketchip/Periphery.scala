@@ -274,34 +274,6 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryCoreplexLocalInterrupter extends LazyModule with HasPeripheryParameters {
-  implicit val p: Parameters
-  val peripheryBus: TLXbar
-
-  // CoreplexLocalInterrupter must be at least 64b if XLen >= 64
-  val beatBytes = max((outerMMIOParams(XLen) min 64) / 8, peripheryBusConfig.beatBytes)
-  val clintConfig = CoreplexLocalInterrupterConfig(beatBytes)
-  val clint = LazyModule(new CoreplexLocalInterrupter(clintConfig)(outerMMIOParams))
-  // The periphery bus is 32-bit, so we may need to adapt its width to XLen
-  clint.node := TLFragmenter(beatBytes, cacheBlockBytes)(TLWidthWidget(peripheryBusConfig.beatBytes)(peripheryBus.node))
-}
-
-trait PeripheryCoreplexLocalInterrupterBundle {
-  implicit val p: Parameters
-}
-
-trait PeripheryCoreplexLocalInterrupterModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripheryCoreplexLocalInterrupter
-  val io: PeripheryCoreplexLocalInterrupterBundle
-  val coreplexIO: BaseCoreplexBundle
-
-  outer.clint.module.io.rtcTick := Counter(p(RTCPeriod)).inc()
-  coreplexIO.clint <> outer.clint.module.io.tiles
-}
-
-/////
-
 trait PeripheryBootROM extends LazyModule with HasPeripheryParameters {
   implicit val p: Parameters
   val peripheryBus: TLXbar
