@@ -101,28 +101,10 @@ class WithHwachaAndDma extends Config (
         RoccParameters( // From hwacha/src/main/scala/configs.scala
         opcodes = OpcodeSet.custom0 | OpcodeSet.custom1,
         generator = (p: Parameters) => {
-          val h = Module(new Hwacha()(p.alterPartial({
+          Module(new Hwacha()(p.alterPartial({
           case FetchWidth => 1
           case CoreInstBits => 64
           })))
-          if(p(DecoupledRoCC)) {
-            val decoupler = Module(new RoccBusyDecoupler(
-            Seq(HwachaInstructions.VF, HwachaInstructions.VFT), 10)(p))
-            AsyncQueueify(decoupler.clock, decoupler.reset,
-              (h.io.elements - "utl").values,
-              (decoupler.io.roccOut.elements - "utl").values,
-              h.clock, h.reset,
-              p(RoCCQueueDepth), 2)
-            // UTL port is crossed in the coreplex for now
-            decoupler.io.roccOut.utl <> h.io.utl
-
-            val twoPhaseHwacha = Wire(Bool())
-            twoPhaseHwacha := LevelSyncTo(h.clock, decoupler.io.twoPhase, 2)
-            // Hwacha takes a cycle of decode to become busy
-            // so we add another sync reg to account for this
-            decoupler.io.delayTwoPhase := LevelSyncFrom(h.clock, twoPhaseHwacha, 2+1)
-            decoupler
-          } else h
           },
         nMemChannels = site(HwachaNLanes),
         nPTWPorts = 2 + site(HwachaNLanes), // icache + vru + vmus

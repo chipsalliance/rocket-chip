@@ -11,6 +11,8 @@ import util._
 import cde.{Parameters, Field}
 
 case object BuildRoCC extends Field[Seq[RoccParameters]]
+case object DecoupledRoCC extends Field[Bool]
+case object RoCCQueueDepth extends Field[Int]
 case object NCachedTileLinkPorts extends Field[Int]
 case object NUncachedTileLinkPorts extends Field[Int]
 case object TileId extends Field[Int]
@@ -94,13 +96,36 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
       }))
       rocc.clock := io.roccClock
       rocc.reset := io.roccReset
+      val interface = if(p(DecoupledRoCC)) {
+        val decoupler = Module(new RoccBusyDecoupler(
+          accelParams.opcodes, 10)(p.alterPartial({
+            case RoccNMemChannels => accelParams.nMemChannels
+            case RoccNPTWPorts => accelParams.nPTWPorts
+        })))
+
+        AsyncQueueify(decoupler.clock, decoupler.reset,
+          (rocc.io.elements - "utl").values,
+          (decoupler.io.roccOut.elements - "utl").values,
+          rocc.clock, rocc.reset,
+          p(RoCCQueueDepth), 2)
+        // UTL port is crossed in the coreplex for now
+        decoupler.io.roccOut.utl <> rocc.io.utl
+
+        val twoPhaseRocc = Wire(Bool())
+        twoPhaseRocc := LevelSyncTo(rocc.clock, decoupler.io.twoPhase, 2)
+        // Most RoCC impls takes a cycle of decode to become busy
+        // so we add another sync reg to account for this
+        decoupler.io.delayTwoPhase := LevelSyncFrom(rocc.clock, twoPhaseRocc, 2+1)
+        decoupler
+      } else rocc
+
       val dcIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-      rocc.io.cmd <> cmdRouter.io.out(i)
-      rocc.io.exception := core.io.rocc.exception
-      dcIF.io.requestor <> rocc.io.mem
+      interface.io.cmd <> cmdRouter.io.out(i)
+      interface.io.exception := core.io.rocc.exception
+      dcIF.io.requestor <> interface.io.mem
       dcPorts += dcIF.io.cache
-      uncachedArbPorts += rocc.io.autl
-      rocc
+      uncachedArbPorts += interface.io.autl
+      interface
     }
 
     if (nFPUPorts > 0) {
