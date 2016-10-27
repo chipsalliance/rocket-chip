@@ -23,7 +23,7 @@ case object BankIdLSB extends Field[Int]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** Function for building some kind of tile connected to a reset signal */
-case object BuildTiles extends Field[Seq[(Bool, Parameters) => Tile]]
+case object BuildTiles extends Field[Seq[Parameters => LazyTile]]
 /** The file to read the BootROM contents from */
 case object BootROMFile extends Field[String]
 
@@ -49,6 +49,7 @@ case class CoreplexConfig(
 }
 
 abstract class BaseCoreplex(c: CoreplexConfig)(implicit val p: Parameters) extends LazyModule with HasCoreplexParameters {
+  val lazyTiles = p(BuildTiles) map { _(p) }
 
   val debugLegacy = LazyModule(new TLLegacy()(outerMMIOParams))
   val debug = LazyModule(new TLDebugModule())
@@ -89,7 +90,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
   val io: B = b
 
   // Build a set of Tiles
-  val tiles = p(BuildTiles) map { _(reset, p) }
+  val tiles = outer.lazyTiles.map(_.module)
   val uncoreTileIOs = (tiles zipWithIndex) map { case (tile, i) => Wire(tile.io) }
 
   val nCachedPorts = tiles.map(tile => tile.io.cached.size).reduce(_ + _)

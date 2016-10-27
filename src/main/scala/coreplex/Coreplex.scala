@@ -9,7 +9,7 @@ import util._
 import rocket._
 
 trait DirectConnection {
-  val tiles: Seq[Tile]
+  val tiles: Seq[TileImp]
   val uncoreTileIOs: Seq[TileIO]
 
   val tlBuffering = TileLinkDepths(1,1,2,2,0)
@@ -49,7 +49,7 @@ trait TileClockResetBundle {
 
 trait AsyncConnection {
   val io: TileClockResetBundle
-  val tiles: Seq[Tile]
+  val tiles: Seq[TileImp]
   val uncoreTileIOs: Seq[TileIO]
 
   (tiles, uncoreTileIOs, io.tcrs).zipped foreach { case (tile, uncore, tcr) =>

@@ -95,8 +95,8 @@ class WithGroundTest extends Config(
     case BuildTiles => {
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
-        (r: Bool, p: Parameters) => {
-          Module(new GroundTestTile(resetSignal = r)(p.alterPartial({
+        (p: Parameters) => {
+          LazyModule(new GroundTestTile()(p.alterPartial({
             case TLId => "L1toL2"
             case TileId => i
             case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
