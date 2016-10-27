@@ -110,16 +110,16 @@ trait PeripheryDebugModule {
   implicit val p: Parameters
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
-  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
+  val coreplexDebug: DebugBusIO
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
     // handles the synchronization as well.
     val dtm = Module (new JtagDTMWithSync()(p))
     dtm.io.jtag <> io.jtag.get
-    coreplexIO.debug <> dtm.io.debug
+    coreplexDebug <> dtm.io.debug
   } else {
-    coreplexIO.debug <>
+    coreplexDebug <>
       (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
       else io.debug.get)
   }
@@ -143,12 +143,12 @@ trait PeripheryExtInterruptsModule {
   implicit val p: Parameters
   val outer: PeripheryExtInterrupts
   val io: PeripheryExtInterruptsBundle
-  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
+  val coreplexInterrupts: Vec[Bool]
 
   {
     val r = outer.pInterrupts.range("ext")
     ((r._1 until r._2) zipWithIndex) foreach { case (c, i) =>
-      coreplexIO.interrupts(c) := io.interrupts(i)
+      coreplexInterrupts(c) := io.interrupts(i)
     }
   }
 }
@@ -172,9 +172,9 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripheryMasterMem
   val io: PeripheryMasterMemBundle
-  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
+  val coreplexMem: Vec[ClientUncachedTileLinkIO]
 
-  val edgeMem = coreplexIO.master.mem.map(TileLinkWidthAdapter(_, edgeMemParams))
+  val edgeMem = coreplexMem.map(TileLinkWidthAdapter(_, edgeMemParams))
 
   // Abuse the fact that zip takes the shorter of the two lists
   ((io.mem_axi zip edgeMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
@@ -254,7 +254,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
   implicit val p: Parameters
   val outer: PeripherySlave
   val io: PeripherySlaveBundle
-  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
+  val coreplexSlave: Vec[ClientUncachedTileLinkIO]
 
   if (p(NExtBusAXIChannels) > 0) {
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
@@ -269,7 +269,7 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
     val (r_start, r_end) = outer.pBusMasters.range("ext")
     require(r_end - r_start == 1, "RangeManager should return 1 slot")
-    TileLinkWidthAdapter(coreplexIO.slave(r_start), conv.io.tl)
+    TileLinkWidthAdapter(coreplexSlave(r_start), conv.io.tl)
   }
 }
 
@@ -340,6 +340,7 @@ trait PeripheryTestBusMasterModule {
 /////
 
 trait HardwiredResetVector {
-  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
-  coreplexIO.resetVector := UInt(0x1000) // boot ROM
+  val outer: BaseTop[BaseCoreplex]
+
+  outer.coreplex.module.io.resetVector := UInt(0x1000) // boot ROM
 }

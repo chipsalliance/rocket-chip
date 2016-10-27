@@ -15,7 +15,8 @@ class ExampleTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit p:
     with PeripheryExtInterrupts
     with PeripheryMasterMem
     with PeripheryMasterAXI4MMIO
-    with PeripherySlave {
+    with PeripherySlave
+    with DirectConnection {
   override lazy val module = new ExampleTopModule(this, new ExampleTopBundle(this))
 }
 
@@ -35,7 +36,7 @@ class ExampleTopModule[+L <: ExampleTop[BaseCoreplex], +B <: ExampleTopBundle[L]
     with PeripheryMasterAXI4MMIOModule
     with PeripherySlaveModule
     with HardwiredResetVector
-    with DirectConnection
+    with DirectConnectionModule
 
 /** Example Top with TestRAM */
 class ExampleTopWithTestRAM[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit p: Parameters) extends ExampleTop(buildCoreplex)

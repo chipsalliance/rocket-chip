@@ -54,8 +54,6 @@ abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(impli
     TLWidthWidget(p(SOCBusKey).beatBytes)(
     socBus.node)))
 
-  socBus.node := coreplex.mmio
-
   TopModule.contents = Some(this)
 }
 
@@ -66,7 +64,11 @@ abstract class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](val outer: L) extends 
 
 abstract class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]](val outer: L, val io: B) extends LazyModuleImp(outer) {
   implicit val p = outer.p
-  val coreplexIO = Wire(outer.coreplex.module.io)
+
+  val coreplexMem        : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
+  val coreplexSlave      : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
+  val coreplexDebug      : DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
+  val coreplexInterrupts : Vec[Bool]                     = Wire(outer.coreplex.module.io.interrupts)
 
   println("Generated Address Map")
   for (entry <- p(GlobalAddrMap).flatten) {
@@ -88,12 +90,26 @@ abstract class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]
   println(p(ConfigString))
   ConfigStringOutput.contents = Some(p(ConfigString))
 
-  io.success := coreplexIO.success
+  io.success := outer.coreplex.module.io.success
 }
 
 trait DirectConnection {
-  val coreplexIO: BaseCoreplexBundle[BaseCoreplex]
+  val coreplex: BaseCoreplex
+  val socBus: TLXbar
+
+  socBus.node := coreplex.mmio
+}
+
+trait DirectConnectionModule {
   val outer: BaseTop[BaseCoreplex]
 
-  coreplexIO <> outer.coreplex.module.io
+  val coreplexMem        : Vec[ClientUncachedTileLinkIO]
+  val coreplexSlave      : Vec[ClientUncachedTileLinkIO]
+  val coreplexDebug      : DebugBusIO
+  val coreplexInterrupts : Vec[Bool]
+
+  coreplexMem        <> outer.coreplex.module.io.mem
+  coreplexInterrupts <> outer.coreplex.module.io.interrupts
+  outer.coreplex.module.io.slave <> coreplexSlave
+  outer.coreplex.module.io.debug <> coreplexDebug
 }

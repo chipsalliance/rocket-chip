@@ -68,16 +68,11 @@ abstract class BareCoreplex(implicit val p: Parameters) extends LazyModule with 
 abstract class BareCoreplexBundle[+L <: BareCoreplex](val outer: L) extends Bundle with HasCoreplexParameters {
   implicit val p = outer.p
 
-  val master = new Bundle {
-    val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
-    val mmio = outer.mmio.bundleOut
-  }
-
+  val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
+  val mmio = outer.mmio.bundleOut
   val slave = Vec(nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
   val resetVector = UInt(INPUT, p(XLen))
   val success = Bool(OUTPUT) // used for testing
-
-  override def cloneType = this.getClass.getConstructors.head.newInstance(outer).asInstanceOf[this.type]
 }
 
 abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L]](val outer: L, val io: B) extends LazyModuleImp(outer) with HasCoreplexParameters {
@@ -134,7 +129,7 @@ abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L
       icPort <> TileLinkIOUnwrapper(enqueued)
     }
 
-    io.master.mem <> mem_ic.io.out
+    io.mem <> mem_ic.io.out
   }
 
   for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
@@ -150,7 +145,6 @@ trait CoreplexPeripherals extends HasCoreplexParameters {
   val module: CoreplexPeripheralsModule
   val l1tol2: TLXbar
   val legacy: TLLegacy
-  val lazyTiles: Seq[LazyTile]
 
   val cbus  = LazyModule(new TLXbar)
   val debug = LazyModule(new TLDebugModule())
@@ -166,10 +160,6 @@ trait CoreplexPeripherals extends HasCoreplexParameters {
   debug.node := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
   plic.node  := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
   clint.node := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
-
-  lazyTiles.map(_.slave).flatten.foreach { scratch =>
-    scratch  := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
-  }
 }
 
 trait CoreplexPeripheralsBundle extends HasCoreplexParameters {
