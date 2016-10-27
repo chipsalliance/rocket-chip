@@ -691,12 +691,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
          wb_reg_inst, wb_reg_inst)
   }
 
-  if (nPerfEvents >= 3) {
+  if (nPerfEvents >= 30) {
     println ("HPM enabled: " + nPerfEvents + " events supported.")
     csr.io.events.map(_ := UInt(0))
+    // event mappings set to match BOOM's event numbers.
     csr.io.events(0) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch
     csr.io.events(1) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc
     csr.io.events(2) := wb_valid && csr.io.status.prv === PRV.U
+    csr.io.events(28) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && csr.io.status.prv === PRV.U
+    csr.io.events(29) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc && csr.io.status.prv === PRV.U
   }
 
 
