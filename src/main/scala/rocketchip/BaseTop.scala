@@ -45,10 +45,9 @@ abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(impli
   lazy val legacyAddrMap = GenerateGlobalAddrMap(q, coreplex.l1tol2.node.edgesIn(0).manager.managers)
 
   peripheryBus.node :=
-    TLBuffer()(
-    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
     TLWidthWidget(p(SOCBusKey).beatBytes)(
-    socBus.node)))
+    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    socBus.node))
 
   TopModule.contents = Some(this)
 }
