@@ -40,7 +40,7 @@ class TileIO(c: TileBundleConfig, node: Option[TLInwardNode] = None)(implicit p:
   override def cloneType = new TileIO(c).asInstanceOf[this.type]
 }
 
-abstract class TileImp(l: LazyTile)(implicit p: Parameters) extends LazyModuleImp(l) {
+abstract class TileImp(l: LazyTile)(implicit val p: Parameters) extends LazyModuleImp(l) {
   val io: TileIO
 }
 

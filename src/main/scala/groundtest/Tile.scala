@@ -96,9 +96,9 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(implicit val p: Parameters) extends LazyTile with HasGroundTestParameters {
+class GroundTestTile(implicit val p: Parameters) extends LazyTile {
   val slave = None
-  lazy val module = new TileImp(this) {
+  lazy val module = new TileImp(this) with HasGroundTestParameters {
     val io = new TileIO(bc) {
       val success = Bool(OUTPUT)
     }
