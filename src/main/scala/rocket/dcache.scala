@@ -498,17 +498,18 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 }
 
 class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with HasCoreParameters {
-  val beatBytes = p(XLen)/8
   val node = TLManagerNode(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(AddressSet(0x80000000L, BigInt(p(DataScratchpadSize)-1))),
       regionType         = RegionType.UNCACHED,
       executable         = true,
-      supportsPutPartial = TransferSizes(1, beatBytes),
-      supportsPutFull    = TransferSizes(1, beatBytes),
-      supportsGet        = TransferSizes(1, beatBytes),
+      supportsArithmetic = if (p(UseAtomics)) TransferSizes(1, coreDataBytes) else TransferSizes.none,
+      supportsLogical    = if (p(UseAtomics)) TransferSizes(1, coreDataBytes) else TransferSizes.none,
+      supportsPutPartial = TransferSizes(1, coreDataBytes),
+      supportsPutFull    = TransferSizes(1, coreDataBytes),
+      supportsGet        = TransferSizes(1, coreDataBytes),
       fifoId             = Some(0))), // requests handled in FIFO order
-    beatBytes = beatBytes,
+    beatBytes = coreDataBytes,
     minLatency = 1))
 
   // Make sure this ends up with the same name as before
@@ -522,9 +523,7 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
 
     val tl_in = io.tl_in(0)
     val edge = node.edgesIn(0)
-    val beatBytes = edge.manager.beatBytes
 
-    require(coreDataBits == beatBytes*8)
     require(usingDataScratchpad)
 
     val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
@@ -538,15 +537,29 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
     when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data }
     when (tl_in.a.fire()) { acq := tl_in.a.bits }
 
-    val isWrite = edge.hasData(acq)
-    val isRead = !isWrite
+    val isWrite = acq.opcode === TLMessages.PutFullData || acq.opcode === TLMessages.PutPartialData
+    val isRead = !edge.hasData(acq)
 
     def formCacheReq(acq: TLBundleA) = {
       val req = Wire(new HellaCacheReq)
+      req.cmd := MuxLookup(acq.opcode, Wire(M_XRD), Array(
+        TLMessages.PutFullData    -> M_XWR,
+        TLMessages.PutPartialData -> M_XWR,
+        TLMessages.ArithmeticData -> MuxLookup(acq.param, Wire(M_XRD), Array(
+          TLAtomics.MIN           -> M_XA_MIN,
+          TLAtomics.MAX           -> M_XA_MAX,
+          TLAtomics.MINU          -> M_XA_MINU,
+          TLAtomics.MAXU          -> M_XA_MAXU,
+          TLAtomics.ADD           -> M_XA_ADD)),
+        TLMessages.LogicalData    -> MuxLookup(acq.param, Wire(M_XRD), Array(
+          TLAtomics.XOR           -> M_XA_XOR,
+          TLAtomics.OR            -> M_XA_OR,
+          TLAtomics.AND           -> M_XA_AND,
+          TLAtomics.SWAP          -> M_XA_SWAP)),
+        TLMessages.Get            -> M_XRD))
       // treat all loads as full words, so bytes appear in correct lane
-      req.typ := Mux(isRead, log2Ceil(beatBytes), acq.size)
-      req.cmd := Mux(isRead, M_XRD, M_XWR)
-      req.addr := Mux(isRead, ~(~acq.address | (beatBytes-1)), acq.address)
+      req.typ := Mux(isRead, log2Ceil(coreDataBytes), acq.size)
+      req.addr := Mux(isRead, ~(~acq.address | (coreDataBytes-1)), acq.address)
       req.tag := UInt(0)
       req
     }
@@ -555,9 +568,9 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
     io.dmem.req.valid := (tl_in.a.valid && ready) || state === s_replay
     tl_in.a.ready := io.dmem.req.ready && ready
     io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
-    // this blows.  the TL data is already in the correct byte lane, but the D$
+    // the TL data is already in the correct byte lane, but the D$
     // expects right-justified store data, so that it can steer the bytes.
-    io.dmem.s1_data := new LoadGen(acq.size, Bool(false), acq.address(log2Ceil(beatBytes)-1,0), acq.data, Bool(false), beatBytes).data
+    io.dmem.s1_data := new LoadGen(acq.size, Bool(false), acq.address(log2Ceil(coreDataBytes)-1,0), acq.data, Bool(false), coreDataBytes).data
     io.dmem.s1_kill := false
     io.dmem.invalidate_lr := false
 
@@ -567,9 +580,10 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
     val alignedGrantData = Mux(acq.size <= log2Ceil(minAMOBytes), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
-    tl_in.d.bits := Mux(isRead,
-      edge.AccessAck(acq, UInt(0), alignedGrantData),
-      edge.AccessAck(acq, UInt(0)))
+    tl_in.d.bits := Mux(isWrite,
+      edge.AccessAck(acq, UInt(0)),
+      edge.AccessAck(acq, UInt(0), UInt(0)))
+    tl_in.d.bits.data := alignedGrantData
 
     // Tie off unused channels
     tl_in.b.valid := Bool(false)
