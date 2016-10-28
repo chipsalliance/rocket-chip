@@ -25,6 +25,9 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   var combinationalCheck = false
 
   def colour = "#000000" // black
+  override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
+  override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
+
   def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     val monitor = if (emitMonitors) {
       Some(LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo)))
@@ -159,6 +162,9 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
   }
 
   def colour = "#ff0000" // red
+  override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString
+  override def labelO(eo: TLAsyncEdgeParameters) = eo.manager.depth.toString
+
   def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }

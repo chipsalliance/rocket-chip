@@ -20,6 +20,9 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
   }
 
   def colour = "#00ccff" // bluish
+  override def labelI(ei: AXI4EdgeParameters) = (ei.slave.beatBytes * 8).toString
+  override def labelO(eo: AXI4EdgeParameters) = (eo.slave.beatBytes * 8).toString
+
   def connect(bo: => AXI4Bundle, bi: => AXI4Bundle, ei: => AXI4EdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }

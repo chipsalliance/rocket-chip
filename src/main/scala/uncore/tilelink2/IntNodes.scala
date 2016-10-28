@@ -62,6 +62,9 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
   }
 
   def colour = "#0000ff" // blue
+  override def labelI(ei: IntEdge) = ei.source.sources.map(_.range.size).sum.toString
+  override def labelO(eo: IntEdge) = eo.source.sources.map(_.range.size).sum.toString
+
   def connect(bo: => Vec[Bool], bi: => Vec[Bool], ei: => IntEdge)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => {
       // Cannot use bulk connect, because the widths could differ

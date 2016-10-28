@@ -62,7 +62,7 @@ abstract class LazyModule
 
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
-    buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" fontSize=\"10\" borderDistance=\"1.0\" rotationAngle=\"270.0\">${module.name}</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${module.instanceName}</y:NodeLabel></y:ShapeNode></data>\n"""
     buf ++= s"""${pad}  <graph id=\"${index}::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""${pad}    <node id=\"${index}::${n.index}\"/>\n"""
@@ -72,11 +72,15 @@ abstract class LazyModule
     buf ++= s"""${pad}</node>\n"""
   }
   private def edgesGraphML(buf: StringBuilder, pad: String) {
-    nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_.omitGraphML).foreach { o =>
+    nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_._1.omitGraphML).foreach { case (o, l) =>
       buf ++= pad
       buf ++= "<edge"
       buf ++= s""" source=\"${index}::${n.index}\""""
-      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge><y:Arrows source=\"none\" target=\"standard\"/><y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/></y:PolyLineEdge></data></edge>\n"""
+      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge>"""
+      buf ++= s"""<y:Arrows source=\"none\" target=\"standard\"/>"""
+      buf ++= s"""<y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/>"""
+      buf ++= s"""<y:EdgeLabel modelName=\"centered\" rotationAngle=\"270.0\">${l}</y:EdgeLabel>"""
+      buf ++= s"""</y:PolyLineEdge></data></edge>\n"""
     } }
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
