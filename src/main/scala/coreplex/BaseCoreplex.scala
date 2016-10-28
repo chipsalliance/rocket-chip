@@ -78,6 +78,12 @@ abstract class BareCoreplexBundle[+L <: BareCoreplex](val outer: L) extends Bund
 abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L]](val outer: L, val io: B) extends LazyModuleImp(outer) with HasCoreplexParameters {
   implicit val p = outer.p
 
+  // Create and export the ConfigString
+  val managers = outer.l1tol2.node.edgesIn(0).manager.managers
+  val configString = rocketchip.GenerateConfigString(p, managers)
+  println(s"\nGenerated Configuration String\n${configString}")
+  ConfigStringOutput.contents = Some(configString)
+
   // Build a set of Tiles
   val tiles = outer.lazyTiles.map(_.module)
   val uncoreTileIOs = (tiles zipWithIndex) map { case (tile, i) => Wire(tile.io) }

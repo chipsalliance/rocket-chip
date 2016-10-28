@@ -178,6 +178,6 @@ object GenerateBootROM {
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (p(ConfigString).getBytes.toSeq)
+    rom.array() ++ (ConfigStringOutput.contents.get.getBytes.toSeq)
   }
 }

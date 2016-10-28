@@ -15,7 +15,6 @@ import coreplex._
 
 // the following parameters will be refactored properly with TL2
 case object GlobalAddrMap extends Field[AddrMap]
-case object ConfigString extends Field[String]
 case object NCoreplexExtClients extends Field[Int]
 case object NExtInterrupts extends Field[Int]
 /** Enable or disable monitoring of Diplomatic buses */
@@ -35,15 +34,10 @@ abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(impli
   lazy val peripheryManagers = socBus.node.edgesIn(0).manager.managers
 
   // Fill in the TL1 legacy parameters
-  val qWithSums = q.alterPartial {
+  implicit val p = q.alterPartial {
     case NCoreplexExtClients => pBusMasters.sum
     case NExtInterrupts => pInterrupts.sum
-  }
-  val qWithMap = qWithSums.alterPartial {
-     case GlobalAddrMap => GenerateGlobalAddrMap(qWithSums, peripheryManagers)
-  }
-  implicit val p = qWithMap.alterPartial {
-    case ConfigString => GenerateConfigString(qWithMap, peripheryManagers)
+    case GlobalAddrMap => GenerateGlobalAddrMap(q, peripheryManagers)
   }
 
   val coreplex = LazyModule(buildCoreplex(p))
@@ -85,10 +79,6 @@ abstract class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]
 
   println("\nGenerated Interrupt Vector")
   outer.pInterrupts.print
-
-  println("\nGenerated Configuration String")
-  println(p(ConfigString))
-  ConfigStringOutput.contents = Some(p(ConfigString))
 
   io.success := outer.coreplex.module.io.success
 }
