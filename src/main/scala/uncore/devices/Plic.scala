@@ -67,18 +67,18 @@ case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriori
   require(nPriorities >= 0 && nPriorities <= nDevices)
 }
 
-trait HasPLICParamters {
+trait HasPLICParameters {
   val params: (() => PLICConfig, Parameters)
   val cfg = params._1 ()
   implicit val p = params._2
 }
 
-trait PLICBundle extends Bundle with HasPLICParamters {
+trait PLICBundle extends Bundle with HasPLICParameters {
   val devices = Vec(cfg.nDevices, new GatewayPLICIO).flip
   val harts = Vec(cfg.nHarts, Bool()).asOutput
 }
 
-trait PLICModule extends Module with HasRegMap with HasPLICParamters {
+trait PLICModule extends Module with HasRegMap with HasPLICParameters {
   val io: PLICBundle
 
   val priority =
@@ -118,7 +118,7 @@ trait PLICModule extends Module with HasRegMap with HasPLICParamters {
   }
 
   def priorityRegField(x: UInt) = if (cfg.nPriorities > 0) RegField(32, x) else RegField.r(32, x)
-  val piorityRegFields = Seq(PLICConsts.priorityBase -> priority.map(p => priorityRegField(p)))
+  val priorityRegFields = Seq(PLICConsts.priorityBase -> priority.map(p => priorityRegField(p)))
   val pendingRegFields = Seq(PLICConsts.pendingBase  -> pending .map(b => RegField.r(1, b)))
 
   val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
@@ -146,7 +146,7 @@ trait PLICModule extends Module with HasRegMap with HasPLICParamters {
     )
   }
 
-  regmap((piorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+  regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
   priority(0) := 0
   pending(0) := false

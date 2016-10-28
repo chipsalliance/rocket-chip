@@ -114,7 +114,7 @@ class WithGroundTest extends Config(
 class WithComparator extends Config(
   (pname, site, here) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
-      GroundTestTileSettings(uncached = site(ComparatorKey).targets.size)
+      GroundTestTileSettings(uncached = 2)
     }
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))

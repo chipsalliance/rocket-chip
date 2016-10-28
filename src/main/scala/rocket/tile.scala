@@ -54,14 +54,14 @@ abstract class LazyTile(implicit p: Parameters) extends LazyModule {
     xLen = p(XLen))
 
   val module: TileImp
-  val slave: Option[TLOutputNode]
+  val slave: Option[TLInputNode]
 }
 
 class RocketTile(implicit p: Parameters) extends LazyTile {
-  val slave = if (p(DataScratchpadSize) == 0) None else Some(TLOutputNode())
+  val slave = if (p(DataScratchpadSize) == 0) None else Some(TLInputNode())
   val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
 
-  (slave zip scratch) foreach { case (node, lm) => node := TLFragmenter(p(XLen)/8, p(RowBits)/8)(lm.node) }
+  (slave zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, 256)(node) }
 
   lazy val module = new TileImp(this) {
     val io = new TileIO(bc, slave)

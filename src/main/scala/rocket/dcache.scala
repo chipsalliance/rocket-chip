@@ -501,14 +501,18 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
   val beatBytes = p(XLen)/8
   val node = TLManagerNode(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(AddressSet(0x80000000L, p(DataScratchpadSize))),
+      address            = List(AddressSet(0x80000000L, BigInt(p(DataScratchpadSize)-1))),
       regionType         = RegionType.UNCACHED,
       executable         = true,
       supportsPutPartial = TransferSizes(1, beatBytes),
       supportsPutFull    = TransferSizes(1, beatBytes),
+      supportsGet        = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests handled in FIFO order
     beatBytes = beatBytes,
     minLatency = 1))
+
+  // Make sure this ends up with the same name as before
+  override def name = "dmem0"
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -566,5 +570,10 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
     tl_in.d.bits := Mux(isRead,
       edge.AccessAck(acq, UInt(0), alignedGrantData),
       edge.AccessAck(acq, UInt(0)))
+
+    // Tie off unused channels
+    tl_in.b.valid := Bool(false)
+    tl_in.c.ready := Bool(true)
+    tl_in.e.ready := Bool(true)
   }
 }
