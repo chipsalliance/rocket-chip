@@ -31,16 +31,18 @@ abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(impli
   // Add a SoC and peripheral bus
   val socBus = LazyModule(new TLXbar)
   val peripheryBus = LazyModule(new TLXbar)
-  lazy val peripheryManagers = socBus.node.edgesIn(0).manager.managers
 
   // Fill in the TL1 legacy parameters
   implicit val p = q.alterPartial {
     case NCoreplexExtClients => pBusMasters.sum
     case NExtInterrupts => pInterrupts.sum
-    case GlobalAddrMap => GenerateGlobalAddrMap(q, peripheryManagers)
+    case GlobalAddrMap => legacyAddrMap
   }
 
-  val coreplex = LazyModule(buildCoreplex(p))
+  val coreplex : C = LazyModule(buildCoreplex(p))
+
+  // Create the address map for legacy masters
+  lazy val legacyAddrMap = GenerateGlobalAddrMap(q, coreplex.l1tol2.node.edgesIn(0).manager.managers)
 
   peripheryBus.node :=
     TLBuffer()(

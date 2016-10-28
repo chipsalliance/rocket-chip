@@ -127,7 +127,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       require(nWays == 1)
       metaWriteArb.io.out.ready := true
       metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
-      val inScratchpad = addrMap(s"io:cbus:dmem${tileId}").containsAddress(s1_paddr)
+      val inScratchpad = addrMap(s"TL2:dmem${tileId}").containsAddress(s1_paddr)
       val hitState = Mux(inScratchpad, ClientMetadata.onReset.onHit(M_XWR), ClientMetadata.onReset)
       (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
     } else {

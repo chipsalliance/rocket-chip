@@ -54,19 +54,7 @@ class GlobalVariable[T] {
 
 object GenerateGlobalAddrMap {
   def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
-    lazy val cBusIOAddrMap: AddrMap = {
-      val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
-      entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
-      entries += AddrMapEntry("plic", MemRange(0x0C000000, 0x4000000, MemAttr(AddrMapProt.RW)))
-      if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
-        require(p(NTiles) == 1) // TODO relax this
-        require(p(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM
-        entries += AddrMapEntry("dmem0", MemRange(0x80000000L, BigInt(p(DataScratchpadSize)), MemAttr(AddrMapProt.RWX)))
-      }
-      new AddrMap(entries)
-    }
-
-    lazy val tl2Devices = peripheryManagers.map { manager =>
+    val tl2Devices = peripheryManagers.map { manager =>
       val cacheable = manager.regionType match {
         case RegionType.CACHED   => true
         case RegionType.TRACKED  => true
@@ -84,22 +72,18 @@ object GenerateGlobalAddrMap {
       }
     }.flatten
 
-    lazy val uniquelyNamedTL2Devices =
+    val uniquelyNamedTL2Devices =
       tl2Devices.groupBy(_.name).values.map(_.zipWithIndex.map {
         case (e, i) => if (i == 0) e else e.copy(name = e.name + "_" + i)
       }).flatten.toList
-
-    lazy val tl2AddrMap = new AddrMap(uniquelyNamedTL2Devices, collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
     Dump("MEM_BASE", memBase)
 
-    val cBus = AddrMapEntry("cbus", cBusIOAddrMap)
-    val tlBus = AddrMapEntry("TL2", tl2AddrMap)
-    val io = AddrMapEntry("io", AddrMap(cBus, tlBus))
+    val tl2 = AddrMapEntry("TL2", new AddrMap(uniquelyNamedTL2Devices, collapse = true))
     val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
-    AddrMap((io +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
+    AddrMap((tl2 +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
   }
 }
 
@@ -107,7 +91,7 @@ object GenerateConfigString {
   def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
     val c = CoreplexParameters()(p)
     val addrMap = p(GlobalAddrMap)
-    val plicAddr = addrMap("io:cbus:plic").start
+    val plicAddr = addrMap("TL2:plic").start
     val clint = CoreplexLocalInterrupterConfig()
     val xLen = p(XLen)
     val res = new StringBuilder
