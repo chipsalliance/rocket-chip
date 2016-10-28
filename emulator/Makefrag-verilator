@@ -8,11 +8,11 @@ verilog_debug = $(generated_dir_debug)/$(long_name).v
 
 .SECONDARY: $(firrtl) $(firrtl_debug) $(verilog) $(verilog_debug)
 
-$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir_debug)/%.fir $(generated_dir_debug)/%.prm $(generated_dir_debug)/%.d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir_debug)/%.fir $(generated_dir_debug)/%.prm $(generated_dir_debug)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir_debug) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 

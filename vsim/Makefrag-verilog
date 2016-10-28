@@ -8,7 +8,7 @@ verilog = $(generated_dir)/$(long_name).v
 # files.
 .SECONDARY: $(firrtl) $(verilog)
 
-$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
