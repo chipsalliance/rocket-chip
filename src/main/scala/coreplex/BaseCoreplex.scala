@@ -75,7 +75,8 @@ abstract class BareCoreplexBundle[+L <: BareCoreplex](val outer: L) extends Bund
   val success = Bool(OUTPUT) // used for testing
 }
 
-abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L]](val outer: L, val io: B) extends LazyModuleImp(outer) with HasCoreplexParameters {
+abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io: B) extends LazyModuleImp(io.outer) with HasCoreplexParameters {
+  val outer = io.outer.asInstanceOf[io.outer.type]
   implicit val p = outer.p
 
   // Create and export the ConfigString
@@ -200,11 +201,11 @@ trait CoreplexPeripheralsModule extends HasCoreplexParameters {
 
 class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
     with CoreplexPeripherals {
-  override lazy val module = new BaseCoreplexModule(this, new BaseCoreplexBundle(this))
+  override lazy val module = new BaseCoreplexModule(new BaseCoreplexBundle(this))
 }
 
 class BaseCoreplexBundle[+L <: BaseCoreplex](outer: L) extends BareCoreplexBundle(outer)
     with CoreplexPeripheralsBundle
 
-class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle[L]](outer: L, io: B) extends BareCoreplexModule(outer, io)
+class BaseCoreplexModule[+B <: BaseCoreplexBundle[BaseCoreplex]](io: B) extends BareCoreplexModule(io)
     with CoreplexPeripheralsModule

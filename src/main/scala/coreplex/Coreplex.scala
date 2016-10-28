@@ -39,12 +39,12 @@ trait DirectConnectionModule {
 
 class DefaultCoreplex(implicit p: Parameters) extends BaseCoreplex
     with DirectConnection {
-  override lazy val module = new DefaultCoreplexModule(this, new DefaultCoreplexBundle(this))
+  override lazy val module = new DefaultCoreplexModule(new DefaultCoreplexBundle(this))
 }
 
 class DefaultCoreplexBundle[+L <: DefaultCoreplex](outer: L) extends BaseCoreplexBundle(outer)
 
-class DefaultCoreplexModule[+L <: DefaultCoreplex, +B <: DefaultCoreplexBundle[L]](outer: L, io: B) extends BaseCoreplexModule(outer, io)
+class DefaultCoreplexModule[+B <: DefaultCoreplexBundle[DefaultCoreplex]](io: B) extends BaseCoreplexModule(io)
     with DirectConnectionModule
 
 /////
@@ -111,11 +111,11 @@ trait AsyncConnectionModule extends Module {
 
 class MultiClockCoreplex(implicit p: Parameters) extends BaseCoreplex
     with AsyncConnection {
-  override lazy val module = new MultiClockCoreplexModule(this, new MultiClockCoreplexBundle(this))
+  override lazy val module = new MultiClockCoreplexModule(new MultiClockCoreplexBundle(this))
 }
 
 class MultiClockCoreplexBundle[+L <: MultiClockCoreplex](outer: L) extends BaseCoreplexBundle(outer)
     with TileClockResetBundle
 
-class MultiClockCoreplexModule[+L <: MultiClockCoreplex, +B <: MultiClockCoreplexBundle[L]](outer: L, io: B) extends BaseCoreplexModule(outer, io)
+class MultiClockCoreplexModule[+B <: MultiClockCoreplexBundle[MultiClockCoreplex]](io: B) extends BaseCoreplexModule(io)
     with AsyncConnectionModule

@@ -57,7 +57,8 @@ abstract class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](val outer: L) extends 
   val success = Bool(OUTPUT)
 }
 
-abstract class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]](val outer: L, val io: B) extends LazyModuleImp(outer) {
+abstract class BaseTopModule[+B <: BaseTopBundle[BaseTop[BaseCoreplex]]](val io: B) extends LazyModuleImp(io.outer) {
+  val outer = io.outer.asInstanceOf[io.outer.type]
   implicit val p = outer.p
 
   val coreplexMem        : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
