@@ -26,9 +26,9 @@ $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	mkdir -p $(base_dir)/chisel3/lib
 	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
 
-src_path = src/main/scala
-default_submodules = . hardfloat context-dependent-environments chisel3
-chisel_srcs = $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
+src_path := src/main/scala
+default_submodules := . hardfloat context-dependent-environments chisel3
+chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm 2> /dev/null)
