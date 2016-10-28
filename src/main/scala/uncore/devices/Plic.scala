@@ -106,14 +106,14 @@ trait PLICModule extends Module with HasRegMap with HasPLICParamters {
     } else (x.head, UInt(0))
   }
 
-  val maxDevs = Wire(Vec(cfg.nHarts, UInt(width = log2Up(pending.size))))
+  val maxDevs = Reg(Vec(cfg.nHarts, UInt(width = log2Up(pending.size))))
   for (hart <- 0 until cfg.nHarts) {
     val effectivePriority =
       for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
         yield Cat(p && en, pri)
     val (maxPri, maxDev) = findMax((UInt(1) << priority(0).getWidth) +: effectivePriority)
 
-    maxDevs(hart) := Reg(next = maxDev)
+    maxDevs(hart) := maxDev
     io.harts(hart) := Reg(next = maxPri) > Cat(UInt(1), threshold(hart))
   }
 
