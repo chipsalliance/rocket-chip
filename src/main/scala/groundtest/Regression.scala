@@ -6,7 +6,7 @@ import uncore.constants._
 import uncore.agents._
 import util._
 import junctions.HasAddrMapParameters
-import rocket.HellaCacheIO
+import rocket._
 import cde.{Parameters, Field}
 
 class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
@@ -72,7 +72,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
 
   io.cache.req.valid := !get_sent && started
   io.cache.req.bits.addr := UInt(addrMap("io:pbus:TL2:bootrom").start)
-  io.cache.req.bits.typ := UInt(log2Ceil(32 / 8))
+  io.cache.req.bits.typ := MT_WU
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
   io.cache.invalidate_lr := Bool(false)
@@ -494,7 +494,7 @@ class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
 
   io.cache.req.valid := sending && state.isOneOf(s_write, s_read)
   io.cache.req.bits.addr := Cat(addr_blocks(req_idx), UInt(0, blockOffset))
-  io.cache.req.bits.typ := UInt(log2Ceil(64 / 8))
+  io.cache.req.bits.typ := MT_D
   io.cache.req.bits.cmd := Mux(state === s_write, M_XWR, M_XRD)
   io.cache.req.bits.tag := UInt(0)
   io.cache.req.bits.data := data(req_idx)
@@ -625,7 +625,7 @@ class MergedPutRegression(implicit p: Parameters) extends Regression()(p)
 
   io.cache.req.valid := (state === s_cache_req)
   io.cache.req.bits.cmd := M_XWR
-  io.cache.req.bits.typ := UInt(log2Ceil(64 / 8))
+  io.cache.req.bits.typ := MT_D
   io.cache.req.bits.addr := UInt(memStart)
   io.cache.req.bits.data := UInt(1)
   io.cache.req.bits.tag := UInt(0)
