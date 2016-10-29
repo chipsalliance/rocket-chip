@@ -153,8 +153,11 @@ trait CoreplexRISCVModule {
   // Create and export the ConfigString
   val managers = outer.l1tol2.node.edgesIn(0).manager.managers
   val configString = rocketchip.GenerateConfigString(p, outer.clint, outer.plic, managers)
-  println(s"\nGenerated Configuration String\n${configString}")
-  ConfigStringOutput.contents = Some(configString)
+  // Allow something else to have override the config string
+  if (!ConfigStringOutput.contents.isDefined) {
+    ConfigStringOutput.contents = Some(configString)
+  }
+  println(s"\nGenerated Configuration String\n${ConfigStringOutput.contents.get}")
 
   val nCachedPorts = tiles.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tiles.map(tile => tile.io.uncached.size).reduce(_ + _)
