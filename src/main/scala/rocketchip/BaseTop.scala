@@ -19,81 +19,83 @@ case object NCoreplexExtClients extends Field[Int]
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Bool]
 
-/** Base Top with no Periphery */
-abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit q: Parameters) extends LazyModule {
-  // the following variables will be refactored properly with TL2
+abstract class BareTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit val q: Parameters) extends LazyModule {
+  // Fill in the TL1 legacy parameters; remove these once rocket/groundtest/unittest are TL2
   val pBusMasters = new RangeManager
+  lazy val legacyAddrMap = GenerateGlobalAddrMap(q, coreplex.l1tol2.node.edgesIn(0).manager.managers)
+  val coreplex : C = LazyModule(buildCoreplex(q.alterPartial {
+    case NCoreplexExtClients => pBusMasters.sum
+    case GlobalAddrMap => legacyAddrMap
+  }))
 
-  TLImp.emitMonitors = q(TLEmitMonitors)
+  TopModule.contents = Some(this)
+}
+
+abstract class BareTopBundle[+L <: BareTop[BaseCoreplex]](val outer: L) extends Bundle
+abstract class BareTopModule[+B <: BareTopBundle[BareTop[BaseCoreplex]]](val io: B) extends LazyModuleImp(io.outer) {
+  val outer = io.outer.asInstanceOf[io.outer.type]
+}
+
+/** Base Top with no Periphery */
+trait TopNetwork {
+  this: BareTop[BaseCoreplex] =>
+  implicit val p = q
+  TLImp.emitMonitors = p(TLEmitMonitors)
 
   // Add a SoC and peripheral bus
   val socBus = LazyModule(new TLXbar)
   val peripheryBus = LazyModule(new TLXbar)
   val intBus = LazyModule(new IntXbar)
 
-  // Fill in the TL1 legacy parameters
-  implicit val p = q.alterPartial {
-    case NCoreplexExtClients => pBusMasters.sum
-    case GlobalAddrMap => legacyAddrMap
-  }
-
-  val coreplex : C = LazyModule(buildCoreplex(p))
-
-  // Create the address map for legacy masters
-  lazy val legacyAddrMap = GenerateGlobalAddrMap(q, coreplex.l1tol2.node.edgesIn(0).manager.managers)
-
   peripheryBus.node :=
     TLWidthWidget(p(SOCBusKey).beatBytes)(
     TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
     socBus.node))
-
-  TopModule.contents = Some(this)
 }
 
-abstract class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](val outer: L) extends Bundle {
-  implicit val p = outer.p
+trait TopNetworkBundle {
+  this: BareTopBundle[BareTop[BaseCoreplex]] =>
+  implicit val p = outer.q
   val success = Bool(OUTPUT)
 }
 
-abstract class BaseTopModule[+B <: BaseTopBundle[BaseTop[BaseCoreplex]]](val io: B) extends LazyModuleImp(io.outer) {
-  val outer = io.outer.asInstanceOf[io.outer.type]
+trait TopNetworkModule {
+  this: {
+    val outer: BareTop[BaseCoreplex] with TopNetwork
+    val io: TopNetworkBundle
+  } =>
   implicit val p = outer.p
 
-  val coreplexMem        : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
-  val coreplexSlave      : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
-  val coreplexDebug      : DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
-
-  println("Generated Address Map")
-  for (entry <- p(GlobalAddrMap).flatten) {
-    val name = entry.name
-    val start = entry.region.start
-    val end = entry.region.start + entry.region.size - 1
-    val prot = entry.region.attr.prot
-    val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
-                  (if ((prot & AddrMapProt.W) > 0) "W" else "") +
-                  (if ((prot & AddrMapProt.X) > 0) "X" else "")
-    val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
-    println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
-  }
+  val coreplexMem  : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
+  val coreplexSlave: Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
+  val coreplexDebug: DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
 
   io.success := outer.coreplex.module.io.success
 }
 
+/** Base Top with no Periphery */
+class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit p: Parameters) extends BareTop(buildCoreplex)
+    with TopNetwork {
+  override lazy val module = new BaseTopModule(new BaseTopBundle(this))
+}
+
+class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](outer: L) extends BareTopBundle(outer)
+    with TopNetworkBundle
+
+class BaseTopModule[+B <: BaseTopBundle[BaseTop[BaseCoreplex]]](io: B) extends BareTopModule(io)
+    with TopNetworkModule
+
 trait DirectConnection {
-  val coreplex: BaseCoreplex
-  val socBus: TLXbar
-  val intBus: IntXbar
+  this: BareTop[BaseCoreplex] with TopNetwork =>
 
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
 }
 
 trait DirectConnectionModule {
-  val outer: BaseTop[BaseCoreplex]
-
-  val coreplexMem        : Vec[ClientUncachedTileLinkIO]
-  val coreplexSlave      : Vec[ClientUncachedTileLinkIO]
-  val coreplexDebug      : DebugBusIO
+  this: TopNetworkModule {
+    val outer: BaseTop[BaseCoreplex]
+  } =>
 
   coreplexMem <> outer.coreplex.module.io.mem
   outer.coreplex.module.io.slave <> coreplexSlave
