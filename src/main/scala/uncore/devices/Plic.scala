@@ -87,7 +87,8 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
 
     println("\nInterrupt map:")
     flatSources.foreach { s =>
-      println(s"  [${s.range.start}, ${s.range.end}) => ${s.name}")
+      // +1 because 0 is reserved, +1-1 because the range is half-open
+      println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
 
     val nDevices = interrupts.size
