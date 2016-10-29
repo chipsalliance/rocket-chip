@@ -79,9 +79,6 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
 }
 
 case class IntIdentityNode() extends IdentityNode(IntImp)
-case class IntOutputNode() extends OutputNode(IntImp)
-case class IntInputNode() extends InputNode(IntImp)
-
 case class IntSourceNode(num: Int) extends SourceNode(IntImp)(
   IntSourcePortParameters(Seq(IntSourceParameters(num))), (if (num == 0) 0 else 1) to 1)
 case class IntSinkNode() extends SinkNode(IntImp)(
@@ -94,11 +91,20 @@ case class IntAdapterNode(
   numSinkPorts:   Range.Inclusive = 1 to 1)
   extends InteriorNode(IntImp)(sourceFn, sinkFn, numSourcePorts, numSinkPorts)
 
+case class IntOutputNode() extends OutputNode(IntImp)
+case class IntInputNode() extends InputNode(IntImp)
+
+case class IntBlindOutputNode() extends BlindOutputNode(IntImp)(IntSinkPortParameters(Seq(IntSinkParameters())))
+case class IntBlindInputNode(num: Int) extends BlindInputNode(IntImp)(IntSourcePortParameters(Seq(IntSourceParameters(num))))
+
+case class IntInternalOutputNode() extends InternalOutputNode(IntImp)(IntSinkPortParameters(Seq(IntSinkParameters())))
+case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(IntSourcePortParameters(Seq(IntSourceParameters(num))))
+
 class IntXbar extends LazyModule
 {
   val intnode = IntAdapterNode(
     numSourcePorts = 1 to 1, // does it make sense to have more than one interrupt sink?
-    numSinkPorts   = 1 to 128,
+    numSinkPorts   = 0 to 128,
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     sourceFn       = { seq =>
       IntSourcePortParameters((seq zip seq.map(_.num).scanLeft(0)(_+_).init).map {
@@ -114,5 +120,19 @@ class IntXbar extends LazyModule
 
     val cat = (intnode.edgesIn zip io.in).map{ case (e, i) => i.take(e.source.num) }.flatten
     io.out.foreach { _ := cat }
+  }
+}
+
+class IntXing extends LazyModule
+{
+  val intnode = IntIdentityNode()
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in = intnode.bundleIn
+      val out = intnode.bundleOut
+    }
+
+    io.out := RegNext(RegNext(RegNext(io.in)))
   }
 }

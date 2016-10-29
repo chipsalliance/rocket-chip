@@ -129,28 +129,21 @@ trait PeripheryDebugModule {
 
 trait PeripheryExtInterrupts extends LazyModule {
   implicit val p: Parameters
-  val pInterrupts: RangeManager
+  val intBus: IntXbar
 
-  pInterrupts.add("ext", p(NExtTopInterrupts))
+  val extInterrupts = IntBlindInputNode(p(NExtTopInterrupts))
+  val extInterruptXing = LazyModule(new IntXing)
+
+  intBus.intnode := extInterruptXing.intnode
+  extInterruptXing.intnode := extInterrupts
 }
 
 trait PeripheryExtInterruptsBundle {
-  implicit val p: Parameters
-  val interrupts = Vec(p(NExtTopInterrupts), Bool()).asInput
+  val outer: PeripheryExtInterrupts
+  val interrupts = outer.extInterrupts.bundleIn
 }
 
 trait PeripheryExtInterruptsModule {
-  implicit val p: Parameters
-  val outer: PeripheryExtInterrupts
-  val io: PeripheryExtInterruptsBundle
-  val coreplexInterrupts: Vec[Bool]
-
-  {
-    val r = outer.pInterrupts.range("ext")
-    ((r._1 until r._2) zipWithIndex) foreach { case (c, i) =>
-      coreplexInterrupts(c) := io.interrupts(i)
-    }
-  }
 }
 
 /////
@@ -220,9 +213,7 @@ trait PeripheryMasterAXI4MMIO extends HasPeripheryParameters {
 }
 
 trait PeripheryMasterAXI4MMIOBundle extends HasPeripheryParameters {
-  implicit val p: Parameters
   val outer: PeripheryMasterAXI4MMIO
-
   val mmio_axi = outer.mmio_axi4.bundleOut
 }
 

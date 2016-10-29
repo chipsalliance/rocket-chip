@@ -166,9 +166,12 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val flip = false // needed for blind nodes
   private def flipO(b: Vec[BO]) = if (flip) b.flip else b
   private def flipI(b: Vec[BI]) = if (flip) b      else b.flip
+  val wire = false // needed if you want to grab access to from inside a module
+  private def wireO(b: Vec[BO]) = if (wire) Wire(b) else b
+  private def wireI(b: Vec[BI]) = if (wire) Wire(b) else b
 
-  lazy val bundleOut = flipO(outer.bundleO(edgesOut))
-  lazy val bundleIn  = flipI(inner.bundleI(edgesIn))
+  lazy val bundleOut = wireO(flipO(outer.bundleO(edgesOut)))
+  lazy val bundleIn  = wireI(flipI(inner.bundleI(edgesIn)))
 
   // connects the outward part of a node with the inward part of this node
   override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {
@@ -231,6 +234,20 @@ class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
   extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, 1 to 1, 0 to 0)
 {
   override val flip = true
+  override lazy val bundleIn = bundleOut
+}
+
+class InternalOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI)
+  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, 1 to 1)
+{
+  override val wire = true
+  override lazy val bundleOut = bundleIn
+}
+
+class InternalInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO)
+  extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, 1 to 1, 0 to 0)
+{
+  override val wire = true
   override lazy val bundleIn = bundleOut
 }
 

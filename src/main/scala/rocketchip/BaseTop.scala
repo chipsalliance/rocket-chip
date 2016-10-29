@@ -16,14 +16,12 @@ import coreplex._
 // the following parameters will be refactored properly with TL2
 case object GlobalAddrMap extends Field[AddrMap]
 case object NCoreplexExtClients extends Field[Int]
-case object NExtInterrupts extends Field[Int]
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Bool]
 
 /** Base Top with no Periphery */
 abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit q: Parameters) extends LazyModule {
   // the following variables will be refactored properly with TL2
-  val pInterrupts = new RangeManager
   val pBusMasters = new RangeManager
 
   TLImp.emitMonitors = q(TLEmitMonitors)
@@ -31,11 +29,11 @@ abstract class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(impli
   // Add a SoC and peripheral bus
   val socBus = LazyModule(new TLXbar)
   val peripheryBus = LazyModule(new TLXbar)
+  val intBus = LazyModule(new IntXbar)
 
   // Fill in the TL1 legacy parameters
   implicit val p = q.alterPartial {
     case NCoreplexExtClients => pBusMasters.sum
-    case NExtInterrupts => pInterrupts.sum
     case GlobalAddrMap => legacyAddrMap
   }
 
@@ -64,7 +62,6 @@ abstract class BaseTopModule[+B <: BaseTopBundle[BaseTop[BaseCoreplex]]](val io:
   val coreplexMem        : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
   val coreplexSlave      : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
   val coreplexDebug      : DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
-  val coreplexInterrupts : Vec[Bool]                     = Wire(outer.coreplex.module.io.interrupts)
 
   println("Generated Address Map")
   for (entry <- p(GlobalAddrMap).flatten) {
@@ -79,17 +76,16 @@ abstract class BaseTopModule[+B <: BaseTopBundle[BaseTop[BaseCoreplex]]](val io:
     println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
   }
 
-  println("\nGenerated Interrupt Vector")
-  outer.pInterrupts.print
-
   io.success := outer.coreplex.module.io.success
 }
 
 trait DirectConnection {
   val coreplex: BaseCoreplex
   val socBus: TLXbar
+  val intBus: IntXbar
 
   socBus.node := coreplex.mmio
+  coreplex.mmioInt := intBus.intnode
 }
 
 trait DirectConnectionModule {
@@ -98,10 +94,8 @@ trait DirectConnectionModule {
   val coreplexMem        : Vec[ClientUncachedTileLinkIO]
   val coreplexSlave      : Vec[ClientUncachedTileLinkIO]
   val coreplexDebug      : DebugBusIO
-  val coreplexInterrupts : Vec[Bool]
 
-  coreplexMem        <> outer.coreplex.module.io.mem
-  coreplexInterrupts <> outer.coreplex.module.io.interrupts
+  coreplexMem <> outer.coreplex.module.io.mem
   outer.coreplex.module.io.slave <> coreplexSlave
   outer.coreplex.module.io.debug <> coreplexDebug
 }

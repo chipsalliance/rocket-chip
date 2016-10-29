@@ -36,14 +36,9 @@ trait HasCoreplexParameters {
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
   lazy val nTiles = p(uncore.devices.NTiles)
-  lazy val nExtInterrupts = p(rocketchip.NExtInterrupts)
   lazy val nSlaves = p(rocketchip.NCoreplexExtClients)
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val hasSupervisor = p(rocket.UseVM)
-
-  lazy val nInterruptPriorities = if (nExtInterrupts <= 1) 0 else (nExtInterrupts min 7)
-  lazy val plicKey = PLICConfig(nTiles, hasSupervisor, nExtInterrupts, nInterruptPriorities)
-  lazy val clintKey = CoreplexLocalInterrupterConfig()
 }
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
@@ -55,7 +50,7 @@ abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io
 }
 
 trait CoreplexNetwork extends HasCoreplexParameters {
-    this: BareCoreplex =>
+  this: BareCoreplex =>
 
   val l1tol2 = LazyModule(new TLXbar)
   val l1tol2_beatBytes = p(rocketchip.EdgeDataBits)/8
@@ -65,16 +60,29 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val cbus_beatBytes = p(XLen)/8
   val cbus_lineBytes = l1tol2_lineBytes
 
+  val mmio = TLOutputNode()
+  val mmioInt = IntInputNode()
+
   cbus.node :=
     TLAtomicAutomata(arithmetic = true)( // disable once TLB uses TL2 metadata
     TLWidthWidget(l1tol2_beatBytes)(
     TLBuffer()(
     l1tol2.node)))
+
+  mmio :=
+    TLBuffer()(
+    TLWidthWidget(l1tol2_beatBytes)(
+    l1tol2.node))
 }
 
 trait CoreplexNetworkBundle extends HasCoreplexParameters {
-    this: BareCoreplexBundle[BareCoreplex] =>
+  this: {
+    val outer: CoreplexNetwork
+  } =>
+
   implicit val p = outer.p
+  val mmio = outer.mmio.bundleOut
+  val interrupts = outer.mmioInt.bundleIn
 }
 
 trait CoreplexNetworkModule extends HasCoreplexParameters {
@@ -88,11 +96,11 @@ trait CoreplexRISCV {
   // Build a set of Tiles
   val lazyTiles = p(BuildTiles) map { _(p) }
   val legacy = LazyModule(new TLLegacy()(outerMMIOParams))
+  val tileIntNode = IntInternalOutputNode() // this should be moved into the Tile...
 
   val debug = LazyModule(new TLDebugModule())
-  val plic  = LazyModule(new TLPLIC(() => plicKey))
-  val clint = LazyModule(new CoreplexLocalInterrupter(clintKey))
-  val mmio = TLOutputNode()
+  val plic  = LazyModule(new TLPLIC(hasSupervisor, maxPriorities = 7))
+  val clint = LazyModule(new CoreplexLocalInterrupter)
 
   // Kill this once we move TL2 into rocket
   l1tol2.node :=
@@ -103,10 +111,8 @@ trait CoreplexRISCV {
   plic.node  := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
   clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
 
-  mmio :=
-    TLBuffer()(
-    TLWidthWidget(l1tol2_beatBytes)(
-    l1tol2.node))
+  plic.intnode := mmioInt
+  lazyTiles.foreach { _ => tileIntNode := plic.intnode }
 }
 
 trait CoreplexRISCVBundle {
@@ -114,13 +120,11 @@ trait CoreplexRISCVBundle {
     val outer: CoreplexRISCV
   } =>
 
-  val mmio = outer.mmio.bundleOut
   val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
   val slave = Vec(nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
   val resetVector = UInt(INPUT, p(XLen))
   val success = Bool(OUTPUT) // used for testing
   val debug = new DebugBusIO().flip
-  val interrupts = Vec(nExtInterrupts, Bool()).asInput
 }
 
 trait CoreplexRISCVModule {
@@ -134,7 +138,7 @@ trait CoreplexRISCVModule {
 
   // Create and export the ConfigString
   val managers = outer.l1tol2.node.edgesIn(0).manager.managers
-  val configString = rocketchip.GenerateConfigString(p, managers)
+  val configString = rocketchip.GenerateConfigString(p, outer.clint, outer.plic, managers)
   println(s"\nGenerated Configuration String\n${configString}")
   ConfigStringOutput.contents = Some(configString)
 
@@ -192,22 +196,16 @@ trait CoreplexRISCVModule {
   for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
     tile.hartid := UInt(i)
     tile.resetVector := io.resetVector
-    tile.interrupts <> outer.clint.module.io.tiles(i)
-    tile.interrupts.meip := outer.plic.module.io.harts(plicKey.context(i, 'M'))
-    tile.interrupts.seip.foreach(_ := outer.plic.module.io.harts(plicKey.context(i, 'S')))
     tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-  }
-
-  // Coreplex doesn't know when to stop running
-  io.success := Bool(false)
-  for (i <- 0 until io.interrupts.size) {
-    val gateway = Module(new LevelGateway)
-    gateway.io.interrupt := io.interrupts(i)
-    outer.plic.module.io.devices(i) <> gateway.io.plic
+    tile.interrupts.meip := outer.tileIntNode.bundleOut(i)(0)
+    tile.interrupts.seip.foreach(_ := outer.tileIntNode.bundleOut(i)(1))
   }
 
   outer.debug.module.io.db <> io.debug
   outer.clint.module.io.rtcTick := Counter(p(rocketchip.RTCPeriod)).inc()
+
+  // Coreplex doesn't know when to stop running
+  io.success := Bool(false)
 }
 
 class BaseCoreplex(implicit p: Parameters) extends BareCoreplex

@@ -88,21 +88,12 @@ object GenerateGlobalAddrMap {
 }
 
 object GenerateConfigString {
-  def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
+  def apply(p: Parameters, clint: CoreplexLocalInterrupter, plic: TLPLIC, peripheryManagers: Seq[TLManagerParameters]) = {
     val c = CoreplexParameters()(p)
     val addrMap = p(GlobalAddrMap)
-    val plicAddr = addrMap("TL2:plic").start
-    val clint = CoreplexLocalInterrupterConfig()
-    val xLen = p(XLen)
     val res = new StringBuilder
-    res append  "plic {\n"
-    res append s"  priority 0x${plicAddr.toString(16)};\n"
-    res append s"  pending 0x${(plicAddr + PLICConsts.pendingBase).toString(16)};\n"
-    res append s"  ndevs ${c.plicKey.nDevices};\n"
-    res append  "};\n"
-    res append  "rtc {\n"
-    res append s"  addr 0x${clint.timeAddress.toString(16)};\n"
-    res append  "};\n"
+    res append plic.module.globalConfigString
+    res append clint.module.globalConfigString
     if (addrMap contains "mem") {
       res append  "ram {\n"
       res append  "  0 {\n"
@@ -124,22 +115,8 @@ object GenerateConfigString {
       res append s"  $i {\n"
       res append  "    0 {\n"
       res append s"      isa $isa;\n"
-      res append s"      timecmp 0x${clint.timecmpAddress(i).toString(16)};\n"
-      res append s"      ipi 0x${clint.msipAddress(i).toString(16)};\n"
-      res append s"      plic {\n"
-      res append s"        m {\n"
-      res append s"         ie 0x${(plicAddr + c.plicKey.enableAddr(i, 'M')).toString(16)};\n"
-      res append s"         thresh 0x${(plicAddr + c.plicKey.threshAddr(i, 'M')).toString(16)};\n"
-      res append s"         claim 0x${(plicAddr + c.plicKey.claimAddr(i, 'M')).toString(16)};\n"
-      res append s"        };\n"
-      if (c.hasSupervisor) {
-        res append s"        s {\n"
-        res append s"         ie 0x${(plicAddr + c.plicKey.enableAddr(i, 'S')).toString(16)};\n"
-        res append s"         thresh 0x${(plicAddr + c.plicKey.threshAddr(i, 'S')).toString(16)};\n"
-        res append s"         claim 0x${(plicAddr + c.plicKey.claimAddr(i, 'S')).toString(16)};\n"
-        res append s"        };\n"
-      }
-      res append  "      };\n"
+      res append clint.module.hartConfigStrings(i)
+      res append plic.module.hartConfigStrings(i)
       res append  "    };\n"
       res append  "  };\n"
     }
