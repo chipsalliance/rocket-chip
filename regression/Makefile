@@ -41,10 +41,12 @@ endif
 ifeq ($(SUITE),RocketSuite)
 PROJECT=rocketchip
 CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig
+CFG_PROJECT=rocketchip
 endif
  
 ifeq ($(SUITE),BOOMSuite)
 CONFIGS=BOOMConfig BOOML1Config
+CFG_PROJECT=boom
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
@@ -52,11 +54,13 @@ PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
 	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
+CFG_PROJECT=rocketchip
 endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=unittest
 CONFIGS=JunctionsUnitTestConfig UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig TLXbarUnitTestConfig
+CFG_PROJECT=rocketchip
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)
@@ -64,6 +68,7 @@ CONFIGS_32=WithJtagDTM_DefaultRV32Config
 CONFIGS_64=WithJtagDTM_DefaultConfig
 CONFIGS += $(CONFIGS_32)
 CONFIGS += $(CONFIGS_64)
+CFG_PROJECT=rocketchip
 endif
 
 # These are the named regression targets.  While it's expected you run them in
