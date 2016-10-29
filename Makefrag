@@ -5,8 +5,8 @@ endif
 
 MODEL ?= TestHarness
 PROJECT ?= rocketchip
-CFG_PROJECT ?= $(PROJECT)
-CONFIG ?= DefaultConfig
+CFG_PROJECT ?= boom
+CONFIG ?= BOOMConfig
 # TODO: For now must match rocketchip.Generator
 long_name = $(PROJECT).$(CONFIG)
 
