@@ -37,7 +37,7 @@ abstract class BareTopModule[+B <: BareTopBundle[BareTop[BaseCoreplex]]](val io:
 }
 
 /** Base Top with no Periphery */
-trait TopNetwork {
+trait TopNetwork extends HasPeripheryParameters {
   this: BareTop[BaseCoreplex] =>
   implicit val p = q
   TLImp.emitMonitors = p(TLEmitMonitors)
@@ -53,13 +53,13 @@ trait TopNetwork {
     socBus.node))
 }
 
-trait TopNetworkBundle {
+trait TopNetworkBundle extends HasPeripheryParameters {
   this: BareTopBundle[BareTop[BaseCoreplex]] =>
   implicit val p = outer.q
   val success = Bool(OUTPUT)
 }
 
-trait TopNetworkModule {
+trait TopNetworkModule extends HasPeripheryParameters {
   this: {
     val outer: BareTop[BaseCoreplex] with TopNetwork
     val io: TopNetworkBundle

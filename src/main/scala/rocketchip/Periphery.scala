@@ -83,10 +83,8 @@ trait HasPeripheryParameters {
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
-  lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val edgeSlaveParams = p.alterPartial({ case TLId => "EdgetoSlave" })
   lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
-  lazy val edgeMMIOParams = p.alterPartial({ case TLId => "MMIOtoEdge" })
   lazy val peripheryBusConfig = p(PeripheryBusKey)
   lazy val socBusConfig = p(SOCBusKey)
   lazy val cacheBlockBytes = p(CacheBlockBytes)
@@ -94,12 +92,14 @@ trait HasPeripheryParameters {
 
 /////
 
-trait PeripheryDebug extends LazyModule {
-  implicit val p: Parameters
+trait PeripheryDebug {
+  this: TopNetwork =>
 }
 
 trait PeripheryDebugBundle {
-  implicit val p: Parameters
+  this: TopNetworkBundle {
+    val outer: PeripheryDebug
+  } =>
   val debug_clk = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Clock(INPUT))
   val debug_rst = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Bool(INPUT))
   val debug = (!p(IncludeJtagDTM)).option(new DebugBusIO()(p).flip)
@@ -107,10 +107,10 @@ trait PeripheryDebugBundle {
 }
 
 trait PeripheryDebugModule {
-  implicit val p: Parameters
-  val outer: PeripheryDebug
-  val io: PeripheryDebugBundle
-  val coreplexDebug: DebugBusIO
+  this: TopNetworkModule {
+    val outer: PeripheryDebug
+    val io: PeripheryDebugBundle
+  } =>
 
   if (p(IncludeJtagDTM)) {
     // JtagDTMWithSync is a wrapper which
@@ -127,9 +127,8 @@ trait PeripheryDebugModule {
 
 /////
 
-trait PeripheryExtInterrupts extends LazyModule {
-  implicit val p: Parameters
-  val intBus: IntXbar
+trait PeripheryExtInterrupts {
+  this: TopNetwork =>
 
   val extInterrupts = IntBlindInputNode(p(NExtTopInterrupts))
   val extInterruptXing = LazyModule(new IntXing)
@@ -139,21 +138,29 @@ trait PeripheryExtInterrupts extends LazyModule {
 }
 
 trait PeripheryExtInterruptsBundle {
-  val outer: PeripheryExtInterrupts
+  this: TopNetworkBundle {
+    val outer: PeripheryExtInterrupts
+  } =>
   val interrupts = outer.extInterrupts.bundleIn
 }
 
 trait PeripheryExtInterruptsModule {
+  this: TopNetworkModule {
+    val outer: PeripheryExtInterrupts
+    val io: PeripheryExtInterruptsBundle
+  } =>
 }
 
 /////
 
-trait PeripheryMasterMem extends LazyModule {
-  implicit val p: Parameters
+trait PeripheryMasterMem {
+  this: TopNetwork =>
 }
 
-trait PeripheryMasterMemBundle extends HasPeripheryParameters {
-  implicit val p: Parameters
+trait PeripheryMasterMemBundle {
+  this: TopNetworkBundle {
+    val outer: PeripheryMasterMem
+  } =>
   val mem_clk = p(AsyncMemChannels).option(Vec(nMemChannels, Clock(INPUT)))
   val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
   val mem_axi = Vec(nMemAXIChannels, new NastiIO)
@@ -161,11 +168,11 @@ trait PeripheryMasterMemBundle extends HasPeripheryParameters {
   val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(edgeMemParams))
 }
 
-trait PeripheryMasterMemModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripheryMasterMem
-  val io: PeripheryMasterMemBundle
-  val coreplexMem: Vec[ClientUncachedTileLinkIO]
+trait PeripheryMasterMemModule {
+  this: TopNetworkModule {
+    val outer: PeripheryMasterMem
+    val io: PeripheryMasterMemBundle
+  } =>
 
   val edgeMem = coreplexMem.map(TileLinkWidthAdapter(_, edgeMemParams))
 
@@ -192,9 +199,8 @@ trait PeripheryMasterMemModule extends HasPeripheryParameters {
 /////
 
 // PeripheryMasterAXI4MMIO is an example, make your own cake pattern like this one.
-trait PeripheryMasterAXI4MMIO extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val socBus: TLXbar
+trait PeripheryMasterAXI4MMIO {
+  this: TopNetwork =>
 
   val mmio_axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
@@ -212,40 +218,45 @@ trait PeripheryMasterAXI4MMIO extends HasPeripheryParameters {
     socBus.node))
 }
 
-trait PeripheryMasterAXI4MMIOBundle extends HasPeripheryParameters {
-  val outer: PeripheryMasterAXI4MMIO
+trait PeripheryMasterAXI4MMIOBundle {
+  this: TopNetworkBundle {
+    val outer: PeripheryMasterAXI4MMIO
+  } =>
   val mmio_axi = outer.mmio_axi4.bundleOut
 }
 
-trait PeripheryMasterAXI4MMIOModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripheryMasterAXI4MMIO
-  val io: PeripheryMasterAXI4MMIOBundle
-
+trait PeripheryMasterAXI4MMIOModule {
+  this: TopNetworkModule {
+    val outer: PeripheryMasterAXI4MMIO
+    val io: PeripheryMasterAXI4MMIOBundle
+  } =>
   // nothing to do
 }
 
 /////
 
-trait PeripherySlave extends LazyModule {
-  implicit val p: Parameters
-  val pBusMasters: RangeManager
+trait PeripherySlave {
+  this: TopNetwork {
+    val pBusMasters: RangeManager
+  } =>
 
   if (p(NExtBusAXIChannels) > 0) pBusMasters.add("ext", 1) // NExtBusAXIChannels are arbitrated into one TL port
 }
 
-trait PeripherySlaveBundle extends HasPeripheryParameters {
-  implicit val p: Parameters
+trait PeripherySlaveBundle {
+  this: TopNetworkBundle {
+    val outer: PeripherySlave
+  } =>
   val bus_clk = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Clock(INPUT)))
   val bus_rst = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Bool (INPUT)))
   val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
 }
 
-trait PeripherySlaveModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripherySlave
-  val io: PeripherySlaveBundle
-  val coreplexSlave: Vec[ClientUncachedTileLinkIO]
+trait PeripherySlaveModule {
+  this: TopNetworkModule {
+    val outer: PeripherySlave { val pBusMasters: RangeManager }
+    val io: PeripherySlaveBundle
+  } =>
 
   if (p(NExtBusAXIChannels) > 0) {
     val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
@@ -266,72 +277,76 @@ trait PeripherySlaveModule extends HasPeripheryParameters {
 
 /////
 
-trait PeripheryBootROM extends LazyModule with HasPeripheryParameters {
-  implicit val p: Parameters
-  val peripheryBus: TLXbar
+trait PeripheryBootROM {
+  this: TopNetwork =>
 
-  val address = 0x1000
-  val size = 0x1000
-  val bootrom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes))
+  val bootrom_address = 0x1000
+  val bootrom_size = 0x1000
+  val bootrom = LazyModule(new TLROM(bootrom_address, bootrom_size, GenerateBootROM(p, bootrom_address), true, peripheryBusConfig.beatBytes))
   bootrom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryBootROMBundle {
-  implicit val p: Parameters
+  this: TopNetworkBundle {
+    val outer: PeripheryBootROM
+  } =>
 }
 
-trait PeripheryBootROMModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripheryBootROM
-  val io: PeripheryBootROMBundle
+trait PeripheryBootROMModule {
+  this: TopNetworkModule {
+    val outer: PeripheryBootROM
+    val io: PeripheryBootROMBundle
+  } =>
 }
 
 /////
 
-trait PeripheryTestRAM extends LazyModule with HasPeripheryParameters {
-  implicit val p: Parameters
-  val peripheryBus: TLXbar
+trait PeripheryTestRAM {
+  this: TopNetwork =>
 
-  val ramBase = 0x52000000
-  val ramSize = 0x1000
-
-  val sram = LazyModule(new TLRAM(AddressSet(ramBase, ramSize-1), true, peripheryBusConfig.beatBytes)
-                        { override def name = "testram" })
-  sram.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
+  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, peripheryBusConfig.beatBytes))
+  testram.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryTestRAMBundle {
-  implicit val p: Parameters
+  this: TopNetworkBundle {
+    val outer: PeripheryTestRAM
+  } =>
 }
 
-trait PeripheryTestRAMModule extends HasPeripheryParameters {
-  implicit val p: Parameters
-  val outer: PeripheryTestRAM
+trait PeripheryTestRAMModule {
+  this: TopNetworkModule {
+    val outer: PeripheryTestRAM
+    val io: PeripheryTestRAMBundle
+  } =>
 }
 
 /////
 
-trait PeripheryTestBusMaster extends LazyModule {
-  implicit val p: Parameters
-  val peripheryBus: TLXbar
-
+trait PeripheryTestBusMaster {
+  this: TopNetwork =>
   val fuzzer = LazyModule(new TLFuzzer(5000))
   peripheryBus.node := fuzzer.node
 }
 
 trait PeripheryTestBusMasterBundle {
-  implicit val p: Parameters
+  this: TopNetworkBundle {
+    val outer: PeripheryTestBusMaster
+  } =>
 }
 
 trait PeripheryTestBusMasterModule {
-  implicit val p: Parameters
-  val outer: PeripheryTestBusMaster
+  this: TopNetworkModule {
+    val outer: PeripheryTestBusMaster
+    val io: PeripheryTestBusMasterBundle
+  } =>
 }
 
 /////
 
 trait HardwiredResetVector {
-  val outer: BaseTop[BaseCoreplex]
-
+  this: TopNetworkModule {
+    val outer: BaseTop[BaseCoreplex]
+  } =>
   outer.coreplex.module.io.resetVector := UInt(0x1000) // boot ROM
 }
