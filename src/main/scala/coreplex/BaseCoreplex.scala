@@ -53,7 +53,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   this: BareCoreplex =>
 
   val l1tol2 = LazyModule(new TLXbar)
-  val l1tol2_beatBytes = p(rocketchip.EdgeDataBits)/8
+  val l1tol2_beatBytes = p(TLKey("L2toMMIO")).dataBitsPerBeat/8
   val l1tol2_lineBytes = p(CacheBlockBytes)
 
   val cbus = LazyModule(new TLXbar)
