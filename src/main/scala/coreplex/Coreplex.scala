@@ -11,17 +11,12 @@ import util._
 import rocket._
 
 trait DirectConnection {
-  implicit val p: Parameters
-  val lazyTiles: Seq[LazyTile]
-  val legacy: TLLegacy
-  val cbus: TLXbar
-
+    this: CoreplexNetwork with CoreplexRISCV =>
   lazyTiles.map(_.slave).flatten.foreach { scratch => scratch := cbus.node }
 }
 
 trait DirectConnectionModule {
-  val tiles: Seq[TileImp]
-  val uncoreTileIOs: Seq[TileIO]
+    this: CoreplexNetworkModule with CoreplexRISCVModule =>
 
   val tlBuffering = TileLinkDepths(1,1,2,2,0)
   val ultBuffering = UncachedTileLinkDepths(1,2)
@@ -49,19 +44,8 @@ class DefaultCoreplexModule[+B <: DefaultCoreplexBundle[DefaultCoreplex]](io: B)
 
 /////
 
-trait TileClockResetBundle extends Bundle with HasCoreplexParameters {
-  val tcrs = Vec(nTiles, new Bundle {
-    val clock = Clock(INPUT)
-    val reset = Bool(INPUT)
-  })
-}
-
 trait AsyncConnection {
-  implicit val p: Parameters
-  val lazyTiles: Seq[LazyTile]
-  val legacy: TLLegacy
-  val cbus: TLXbar
-
+    this: CoreplexNetwork with CoreplexRISCV =>
   val crossings = lazyTiles.map(_.slave).map(_.map { scratch =>
     val crossing = LazyModule(new TLAsyncCrossing)
     crossing.node := cbus.node
@@ -70,11 +54,19 @@ trait AsyncConnection {
   })
 }
 
-trait AsyncConnectionModule extends Module {
-  val io: TileClockResetBundle
-  val tiles: Seq[TileImp]
-  val uncoreTileIOs: Seq[TileIO]
-  val outer: AsyncConnection
+trait AsyncConnectionBundle {
+    this: CoreplexNetworkBundle with CoreplexRISCVBundle =>
+  val tcrs = Vec(nTiles, new Bundle {
+    val clock = Clock(INPUT)
+    val reset = Bool(INPUT)
+  })
+}
+
+trait AsyncConnectionModule {
+  this: Module with CoreplexNetworkModule with CoreplexRISCVModule {
+    val outer: AsyncConnection
+    val io: AsyncConnectionBundle
+  } =>
 
   (outer.crossings zip io.tcrs) foreach { case (slaves, tcr) =>
     slaves.foreach { case (crossing, monitor) =>
@@ -115,7 +107,7 @@ class MultiClockCoreplex(implicit p: Parameters) extends BaseCoreplex
 }
 
 class MultiClockCoreplexBundle[+L <: MultiClockCoreplex](outer: L) extends BaseCoreplexBundle(outer)
-    with TileClockResetBundle
+    with AsyncConnectionBundle
 
 class MultiClockCoreplexModule[+B <: MultiClockCoreplexBundle[MultiClockCoreplex]](io: B) extends BaseCoreplexModule(io)
     with AsyncConnectionModule

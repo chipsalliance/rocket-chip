@@ -48,36 +48,89 @@ trait HasCoreplexParameters {
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
 
-abstract class BareCoreplex(implicit val p: Parameters) extends LazyModule with HasCoreplexParameters {
+abstract class BareCoreplex(implicit val p: Parameters) extends LazyModule
+abstract class BareCoreplexBundle[+L <: BareCoreplex](val outer: L) extends Bundle
+abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io: B) extends LazyModuleImp(io.outer) {
+  val outer = io.outer.asInstanceOf[io.outer.type]
+}
+
+trait CoreplexNetwork extends HasCoreplexParameters {
+    this: BareCoreplex =>
+
   val l1tol2 = LazyModule(new TLXbar)
-  val mmio = TLOutputNode()
+  val l1tol2_beatBytes = p(rocketchip.EdgeDataBits)/8
+  val l1tol2_lineBytes = p(CacheBlockBytes)
+
+  val cbus = LazyModule(new TLXbar)
+  val cbus_beatBytes = p(XLen)/8
+  val cbus_lineBytes = l1tol2_lineBytes
+
+  cbus.node :=
+    TLAtomicAutomata(arithmetic = true)( // disable once TLB uses TL2 metadata
+    TLWidthWidget(l1tol2_beatBytes)(
+    TLBuffer()(
+    l1tol2.node)))
+}
+
+trait CoreplexNetworkBundle extends HasCoreplexParameters {
+    this: BareCoreplexBundle[BareCoreplex] =>
+  implicit val p = outer.p
+}
+
+trait CoreplexNetworkModule extends HasCoreplexParameters {
+    this: BareCoreplexModule[BareCoreplexBundle[BareCoreplex]] =>
+  implicit val p = outer.p
+}
+
+trait CoreplexRISCV {
+    this: CoreplexNetwork =>
+
+  // Build a set of Tiles
   val lazyTiles = p(BuildTiles) map { _(p) }
   val legacy = LazyModule(new TLLegacy()(outerMMIOParams))
 
-  mmio :=
-    TLBuffer()(
-    TLWidthWidget(legacy.tlDataBytes)(
-    l1tol2.node))
+  val debug = LazyModule(new TLDebugModule())
+  val plic  = LazyModule(new TLPLIC(() => plicKey))
+  val clint = LazyModule(new CoreplexLocalInterrupter(clintKey))
+  val mmio = TLOutputNode()
 
   // Kill this once we move TL2 into rocket
   l1tol2.node :=
     TLHintHandler()(
     legacy.node)
+
+  debug.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
+  plic.node  := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
+  clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
+
+  mmio :=
+    TLBuffer()(
+    TLWidthWidget(l1tol2_beatBytes)(
+    l1tol2.node))
 }
 
-abstract class BareCoreplexBundle[+L <: BareCoreplex](val outer: L) extends Bundle with HasCoreplexParameters {
-  implicit val p = outer.p
+trait CoreplexRISCVBundle {
+  this: CoreplexNetworkBundle {
+    val outer: CoreplexRISCV
+  } =>
 
-  val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
   val mmio = outer.mmio.bundleOut
+  val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
   val slave = Vec(nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
   val resetVector = UInt(INPUT, p(XLen))
   val success = Bool(OUTPUT) // used for testing
+  val debug = new DebugBusIO().flip
+  val interrupts = Vec(nExtInterrupts, Bool()).asInput
 }
 
-abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io: B) extends LazyModuleImp(io.outer) with HasCoreplexParameters {
-  val outer = io.outer.asInstanceOf[io.outer.type]
-  implicit val p = outer.p
+trait CoreplexRISCVModule {
+  this: CoreplexNetworkModule {
+    val outer: CoreplexNetwork with CoreplexRISCV
+    val io: CoreplexRISCVBundle
+  } =>
+
+  val tiles = outer.lazyTiles.map(_.module)
+  val uncoreTileIOs = (tiles zipWithIndex) map { case (tile, i) => Wire(tile.io) }
 
   // Create and export the ConfigString
   val managers = outer.l1tol2.node.edgesIn(0).manager.managers
@@ -85,14 +138,10 @@ abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io
   println(s"\nGenerated Configuration String\n${configString}")
   ConfigStringOutput.contents = Some(configString)
 
-  // Build a set of Tiles
-  val tiles = outer.lazyTiles.map(_.module)
-  val uncoreTileIOs = (tiles zipWithIndex) map { case (tile, i) => Wire(tile.io) }
-
   val nCachedPorts = tiles.map(tile => tile.io.cached.size).reduce(_ + _)
   val nUncachedPorts = tiles.map(tile => tile.io.uncached.size).reduce(_ + _)
   val nBanks = nMemChannels * nBanksPerMemChannel
-  
+
   buildUncore(p.alterPartial({
     case HastiId => "TL"
     case TLId => "L1toL2"
@@ -139,48 +188,18 @@ abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io
     io.mem <> mem_ic.io.out
   }
 
+  // connect coreplex-internal interrupts to tiles
   for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
     tile.hartid := UInt(i)
     tile.resetVector := io.resetVector
+    tile.interrupts <> outer.clint.module.io.tiles(i)
+    tile.interrupts.meip := outer.plic.module.io.harts(plicKey.context(i, 'M'))
+    tile.interrupts.seip.foreach(_ := outer.plic.module.io.harts(plicKey.context(i, 'S')))
+    tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
   }
 
   // Coreplex doesn't know when to stop running
   io.success := Bool(false)
-}
-
-trait CoreplexPeripherals extends HasCoreplexParameters {
-  val module: CoreplexPeripheralsModule
-  val l1tol2: TLXbar
-  val legacy: TLLegacy
-
-  val cbus  = LazyModule(new TLXbar)
-  val debug = LazyModule(new TLDebugModule())
-  val plic  = LazyModule(new TLPLIC(() => plicKey))
-  val clint = LazyModule(new CoreplexLocalInterrupter(clintKey))
-
-  cbus.node :=
-    TLAtomicAutomata(arithmetic = true)( // disable once TLB uses TL2 metadata
-    TLWidthWidget(legacy.tlDataBytes)(
-    TLBuffer()(
-    l1tol2.node)))
-
-  debug.node := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
-  plic.node  := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
-  clint.node := TLFragmenter(p(XLen)/8, legacy.tlDataBeats * legacy.tlDataBytes)(cbus.node)
-}
-
-trait CoreplexPeripheralsBundle extends HasCoreplexParameters {
-  val outer: CoreplexPeripherals
-
-  val debug = new DebugBusIO().flip
-  val interrupts = Vec(nExtInterrupts, Bool()).asInput
-}
-
-trait CoreplexPeripheralsModule extends HasCoreplexParameters {
-  val outer: CoreplexPeripherals
-  val io: CoreplexPeripheralsBundle
-  val uncoreTileIOs: Seq[TileIO]
-
   for (i <- 0 until io.interrupts.size) {
     val gateway = Module(new LevelGateway)
     gateway.io.interrupt := io.interrupts(i)
@@ -189,23 +208,18 @@ trait CoreplexPeripheralsModule extends HasCoreplexParameters {
 
   outer.debug.module.io.db <> io.debug
   outer.clint.module.io.rtcTick := Counter(p(rocketchip.RTCPeriod)).inc()
-
-  // connect coreplex-internal interrupts to tiles
-  for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
-    tile.interrupts <> outer.clint.module.io.tiles(i)
-    tile.interrupts.meip := outer.plic.module.io.harts(plicKey.context(i, 'M'))
-    tile.interrupts.seip.foreach(_ := outer.plic.module.io.harts(plicKey.context(i, 'S')))
-    tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-  }
 }
 
 class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
-    with CoreplexPeripherals {
+    with CoreplexNetwork
+    with CoreplexRISCV {
   override lazy val module = new BaseCoreplexModule(new BaseCoreplexBundle(this))
 }
 
 class BaseCoreplexBundle[+L <: BaseCoreplex](outer: L) extends BareCoreplexBundle(outer)
-    with CoreplexPeripheralsBundle
+    with CoreplexNetworkBundle
+    with CoreplexRISCVBundle
 
 class BaseCoreplexModule[+B <: BaseCoreplexBundle[BaseCoreplex]](io: B) extends BareCoreplexModule(io)
-    with CoreplexPeripheralsModule
+    with CoreplexNetworkModule
+    with CoreplexRISCVModule
