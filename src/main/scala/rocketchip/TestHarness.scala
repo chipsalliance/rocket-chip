@@ -30,7 +30,7 @@ class TestHarness(q: Parameters) extends Module {
     int := Bool(false)
 
   if (dut.io.mem_axi.nonEmpty) {
-    val memSize = p(GlobalAddrMap)("mem").size
+    val memSize = p(ExtMemSize)
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi) {
       val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
