@@ -76,6 +76,8 @@ trait TopNetworkModule extends HasPeripheryParameters {
   val coreplexRtc  : Bool                          = Wire(outer.coreplex.module.io.rtcTick)
 
   io.success := outer.coreplex.module.io.success
+
+  outer.coreplex.module.io.rtcTick := coreplexRtc
   coreplexRtc := Counter(p(rocketchip.RTCPeriod)).inc()
 }
 
