@@ -44,9 +44,12 @@ trait HasCoreplexParameters {
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
 
 abstract class BareCoreplex(implicit val p: Parameters) extends LazyModule
-abstract class BareCoreplexBundle[+L <: BareCoreplex](val outer: L) extends Bundle
-abstract class BareCoreplexModule[+B <: BareCoreplexBundle[BareCoreplex]](val io: B) extends LazyModuleImp(io.outer) {
-  val outer = io.outer.asInstanceOf[io.outer.type]
+abstract class BareCoreplexBundle[+L <: BareCoreplex](_outer: L) extends Bundle {
+  val outer = _outer
+}
+abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
+  val outer = _outer
+  val io = _io ()
 }
 
 trait CoreplexNetwork extends HasCoreplexParameters {
@@ -86,7 +89,7 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
 }
 
 trait CoreplexNetworkModule extends HasCoreplexParameters {
-    this: BareCoreplexModule[BareCoreplexBundle[BareCoreplex]] =>
+    this: BareCoreplexModule[BareCoreplex, BareCoreplexBundle[BareCoreplex]] =>
   implicit val p = outer.p
 }
 
@@ -228,13 +231,13 @@ trait CoreplexRISCVModule {
 class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
     with CoreplexNetwork
     with CoreplexRISCV {
-  override lazy val module = new BaseCoreplexModule(new BaseCoreplexBundle(this))
+  override lazy val module = new BaseCoreplexModule(this, () => new BaseCoreplexBundle(this))
 }
 
-class BaseCoreplexBundle[+L <: BaseCoreplex](outer: L) extends BareCoreplexBundle(outer)
+class BaseCoreplexBundle[+L <: BaseCoreplex](_outer: L) extends BareCoreplexBundle(_outer)
     with CoreplexNetworkBundle
     with CoreplexRISCVBundle
 
-class BaseCoreplexModule[+B <: BaseCoreplexBundle[BaseCoreplex]](io: B) extends BareCoreplexModule(io)
+class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle[L]](_outer: L, _io: () => B) extends BareCoreplexModule(_outer, _io)
     with CoreplexNetworkModule
     with CoreplexRISCVModule

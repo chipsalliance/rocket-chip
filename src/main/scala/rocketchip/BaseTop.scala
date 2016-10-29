@@ -19,11 +19,11 @@ case object NCoreplexExtClients extends Field[Int]
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Bool]
 
-abstract class BareTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit val q: Parameters) extends LazyModule {
+abstract class BareTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit val q: Parameters) extends LazyModule {
   // Fill in the TL1 legacy parameters; remove these once rocket/groundtest/unittest are TL2
   val pBusMasters = new RangeManager
   lazy val legacyAddrMap = GenerateGlobalAddrMap(q, coreplex.l1tol2.node.edgesIn(0).manager.managers)
-  val coreplex : C = LazyModule(buildCoreplex(q.alterPartial {
+  val coreplex : C = LazyModule(_coreplex(q.alterPartial {
     case NCoreplexExtClients => pBusMasters.sum
     case GlobalAddrMap => legacyAddrMap
   }))
@@ -31,9 +31,13 @@ abstract class BareTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(impli
   TopModule.contents = Some(this)
 }
 
-abstract class BareTopBundle[+L <: BareTop[BaseCoreplex]](val outer: L) extends Bundle
-abstract class BareTopModule[+B <: BareTopBundle[BareTop[BaseCoreplex]]](val io: B) extends LazyModuleImp(io.outer) {
-  val outer = io.outer.asInstanceOf[io.outer.type]
+abstract class BareTopBundle[+L <: BareTop[BaseCoreplex]](_outer: L) extends Bundle {
+  val outer = _outer
+}
+
+abstract class BareTopModule[+L <: BareTop[BaseCoreplex], +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
+  val outer = _outer
+  val io = _io ()
 }
 
 /** Base Top with no Periphery */
@@ -76,15 +80,15 @@ trait TopNetworkModule extends HasPeripheryParameters {
 }
 
 /** Base Top with no Periphery */
-class BaseTop[+C <: BaseCoreplex](buildCoreplex: Parameters => C)(implicit p: Parameters) extends BareTop(buildCoreplex)
+class BaseTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends BareTop(_coreplex)
     with TopNetwork {
-  override lazy val module = new BaseTopModule(new BaseTopBundle(this))
+  override lazy val module = new BaseTopModule(this, () => new BaseTopBundle(this))
 }
 
-class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](outer: L) extends BareTopBundle(outer)
+class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](_outer: L) extends BareTopBundle(_outer)
     with TopNetworkBundle
 
-class BaseTopModule[+B <: BaseTopBundle[BaseTop[BaseCoreplex]]](io: B) extends BareTopModule(io)
+class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
     with TopNetworkModule
 
 trait DirectConnection {

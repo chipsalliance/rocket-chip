@@ -6,12 +6,12 @@ import coreplex._
 
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
     with DirectConnection {
-  override lazy val module = new GroundTestCoreplexModule(new GroundTestCoreplexBundle(this))
+  override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
 }
 
-class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](outer: L) extends BaseCoreplexBundle(outer)
+class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexBundle(_outer)
 
-class GroundTestCoreplexModule[+B <: GroundTestCoreplexBundle[GroundTestCoreplex]](io: B) extends BaseCoreplexModule(io)
+class GroundTestCoreplexModule[+L <: GroundTestCoreplex, +B <: GroundTestCoreplexBundle[L]](_outer: L, _io: () => B) extends BaseCoreplexModule(_outer, _io)
     with DirectConnectionModule {
   io.success := tiles.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }
