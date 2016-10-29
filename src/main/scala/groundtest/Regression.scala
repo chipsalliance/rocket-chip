@@ -681,6 +681,54 @@ class MergedPutRegression(implicit p: Parameters) extends Regression()(p)
   io.errored := data_mismatch
 }
 
+class PutAfterReleaseRegression(implicit p: Parameters) extends Regression()(p) {
+  val (s_idle :: s_cache_req :: s_cache_resp ::
+       s_write_first_req :: s_delay :: s_write_remaining_req :: s_write_resp ::
+       s_read_req :: s_read_resp :: s_finished :: Nil) = Enum(Bits(), 10)
+  val state = Reg(init = s_idle)
+
+  val (delay_cnt, delay_done) = Counter(state === s_delay, 100)
+  val (write_cnt, write_done) = Counter(
+    io.mem.acquire.fire() && io.mem.acquire.bits.hasData(), tlDataBeats)
+  val (read_cnt, read_done) = Counter(
+    io.mem.grant.fire() && io.mem.grant.bits.hasData(), tlDataBeats)
+
+  when (state === s_idle && io.start) { state := s_cache_req }
+  when (io.cache.req.fire()) { state := s_cache_resp }
+  when (state === s_cache_resp && io.cache.resp.valid) { state := s_write_first_req }
+  when (state === s_write_first_req && io.mem.acquire.ready) { state := s_delay }
+  when (delay_done) { state := s_write_remaining_req }
+  when (write_done) { state := s_write_resp }
+  when (state === s_write_resp && io.mem.grant.valid) { state := s_read_req }
+  when (state === s_read_req && io.mem.acquire.ready) { state := s_read_resp }
+  when (read_done) { state := s_finished }
+
+  io.finished := state === s_finished
+
+  io.cache.req.valid := state === s_cache_req
+  io.cache.req.bits.cmd := M_XWR
+  io.cache.req.bits.addr := UInt(memStart)
+  io.cache.req.bits.typ := MT_D
+  io.cache.req.bits.tag := UInt(0)
+  io.cache.req.bits.data := UInt(0)
+
+  io.mem.acquire.valid := state.isOneOf(s_write_first_req, s_write_remaining_req, s_read_req)
+  io.mem.acquire.bits := Mux(state === s_read_req,
+    GetBlock(
+      client_xact_id = UInt(0),
+      addr_block = UInt(memStartBlock)),
+    PutBlock(
+      client_xact_id = UInt(0),
+      addr_block = UInt(memStartBlock),
+      addr_beat = write_cnt,
+      data = write_cnt + UInt(1)))
+  io.mem.grant.ready := state.isOneOf(s_write_resp, s_read_resp)
+
+  assert(!io.mem.grant.valid || !io.mem.grant.bits.hasData() ||
+         io.mem.grant.bits.data === read_cnt + UInt(1),
+         "PutAfterReleaseRegression: data mismatch")
+}
+
 object RegressionTests {
   def cacheRegressions(implicit p: Parameters) = Seq(
     Module(new PutBlockMergeRegression),
@@ -699,7 +747,8 @@ object RegressionTests {
     Module(new IOGetAfterPutBlockRegression),
     Module(new WriteMaskedPutBlockRegression),
     Module(new PutBeforePutBlockRegression),
-    Module(new ReleaseRegression))
+    Module(new ReleaseRegression),
+    Module(new PutAfterReleaseRegression))
 }
 
 case object GroundTestRegressions extends Field[Parameters => Seq[Regression]]
