@@ -216,6 +216,7 @@ trait CoreplexRISCVModule {
   for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
     tile.hartid := UInt(i)
     tile.resetVector := io.resetVector
+    tile.interrupts := outer.clint.module.io.tiles(i)
     tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
     tile.interrupts.meip := outer.tileIntNodes(i).bundleOut(0)(0)
     tile.interrupts.seip.foreach(_ := outer.tileIntNodes(i).bundleOut(0)(1))
