@@ -69,8 +69,10 @@ trait TopNetworkModule extends HasPeripheryParameters {
   val coreplexMem  : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
   val coreplexSlave: Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
   val coreplexDebug: DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
+  val coreplexRtc  : Bool                          = Wire(outer.coreplex.module.io.rtcTick)
 
   io.success := outer.coreplex.module.io.success
+  coreplexRtc := Counter(p(rocketchip.RTCPeriod)).inc()
 }
 
 /** Base Top with no Periphery */

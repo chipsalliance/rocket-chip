@@ -122,9 +122,10 @@ trait CoreplexRISCVBundle {
 
   val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
   val slave = Vec(nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
+  val debug = new DebugBusIO().flip
+  val rtcTick = Bool(INPUT)
   val resetVector = UInt(INPUT, p(XLen))
   val success = Bool(OUTPUT) // used for testing
-  val debug = new DebugBusIO().flip
 }
 
 trait CoreplexRISCVModule {
@@ -215,7 +216,7 @@ trait CoreplexRISCVModule {
   }
 
   outer.debug.module.io.db <> io.debug
-  outer.clint.module.io.rtcTick := Counter(p(rocketchip.RTCPeriod)).inc()
+  outer.clint.module.io.rtcTick := io.rtcTick
 
   // Coreplex doesn't know when to stop running
   io.success := Bool(false)
