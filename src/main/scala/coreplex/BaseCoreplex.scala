@@ -96,7 +96,7 @@ trait CoreplexRISCV {
   // Build a set of Tiles
   val lazyTiles = p(BuildTiles) map { _(p) }
   val legacy = LazyModule(new TLLegacy()(outerMMIOParams))
-  val tileIntNode = IntInternalOutputNode() // this should be moved into the Tile...
+  val tileIntNodes = lazyTiles.map { _ => IntInternalOutputNode() } // this should be moved into the Tile...
 
   val debug = LazyModule(new TLDebugModule())
   val plic  = LazyModule(new TLPLIC(hasSupervisor, maxPriorities = 7))
@@ -112,7 +112,7 @@ trait CoreplexRISCV {
   clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
 
   plic.intnode := mmioInt
-  lazyTiles.foreach { _ => tileIntNode := plic.intnode }
+  tileIntNodes.foreach { _ := plic.intnode }
 }
 
 trait CoreplexRISCVBundle {
@@ -214,8 +214,8 @@ trait CoreplexRISCVModule {
     tile.hartid := UInt(i)
     tile.resetVector := io.resetVector
     tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-    tile.interrupts.meip := outer.tileIntNode.bundleOut(i)(0)
-    tile.interrupts.seip.foreach(_ := outer.tileIntNode.bundleOut(i)(1))
+    tile.interrupts.meip := outer.tileIntNodes(i).bundleOut(0)(0)
+    tile.interrupts.seip.foreach(_ := outer.tileIntNodes(i).bundleOut(0)(1))
   }
 
   outer.debug.module.io.db <> io.debug
