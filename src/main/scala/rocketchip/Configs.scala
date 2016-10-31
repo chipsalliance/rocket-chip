@@ -43,6 +43,7 @@ class BasePlatformConfig extends Config(
         case BuildCoreplex =>
           (c: CoreplexConfig, p: Parameters) => LazyModule(new DefaultCoreplex(c)(p)).module
         case NExtTopInterrupts => 2
+        case SOCBusKey => SOCBusConfig(beatBytes = site(TLKey("L2toMMIO")).dataBitsPerBeat/8)
         case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
         // Note that PLIC asserts that this is > 0.
         case AsyncDebugBus => false

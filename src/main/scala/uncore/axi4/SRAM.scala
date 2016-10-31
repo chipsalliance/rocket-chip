@@ -59,9 +59,13 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
       r_id := in.ar.bits.id
     }
 
+    val ren = in.ar.fire()
+    def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
+    val rdata = holdUnless(mem.read(r_addr, ren), RegNext(ren))
+
     in.r.bits.id   := r_id
     in.r.bits.resp := AXI4Parameters.RESP_OKAY
-    in.r.bits.data := Cat(mem.read(r_addr, in.ar.fire()).reverse)
+    in.r.bits.data := Cat(rdata.reverse)
     in.r.bits.last := Bool(true)
   }
 }

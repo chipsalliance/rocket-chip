@@ -51,6 +51,9 @@ case object RTCPeriod extends Field[Int]
 /* Specifies the periphery bus configuration */
 case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
 case object PeripheryBusKey extends Field[PeripheryBusConfig]
+/* Specifies the SOC-bus configuration */
+case class SOCBusConfig(beatBytes: Int = 4)
+case object SOCBusKey extends Field[SOCBusConfig]
 
 /* Specifies the data and id width at the chip boundary */
 case object EdgeDataBits extends Field[Int]
@@ -91,6 +94,7 @@ trait HasPeripheryParameters {
   lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
   lazy val edgeMMIOParams = p.alterPartial({ case TLId => "MMIOtoEdge" })
   lazy val peripheryBusConfig = p(PeripheryBusKey)
+  lazy val socBusConfig = p(SOCBusKey)
   lazy val cacheBlockBytes = p(CacheBlockBytes)
 }
 
@@ -326,9 +330,8 @@ trait PeripheryBootROM extends LazyModule with HasPeripheryParameters {
 
   val address = 0x1000
   val size = 0x1000
-  val rom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes)
-                       { override def name = "bootrom" })
-  rom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
+  val bootrom = LazyModule(new TLROM(address, size, GenerateBootROM(p, address), true, peripheryBusConfig.beatBytes))
+  bootrom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
 
 trait PeripheryBootROMBundle {

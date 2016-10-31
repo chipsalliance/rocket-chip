@@ -16,7 +16,20 @@ abstract class LazyModule
   LazyModule.stack = this :: LazyModule.stack
   parent.foreach(p => p.children = this :: p.children)
 
-  def name = getClass.getName.split('.').last
+  lazy val className = getClass.getName.split('.').last
+  lazy val valName = parent.flatMap { p =>
+    p.getClass.getMethods.filter { m =>
+      m.getParameterTypes.isEmpty &&
+      !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
+      classOf[LazyModule].isAssignableFrom(m.getReturnType) &&
+      (m.invoke(p) eq this)
+    }.headOption.map(_.getName)
+  }
+  lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
+
+  def moduleName = className + valName.orElse(outerName).map("_" + _).getOrElse("")
+  def instanceName = valName.getOrElse(outerName.map(_ + "_").getOrElse("") + className)
+  def name = valName.getOrElse(className)
   def line = sourceLine(info)
 
   def module: LazyModuleImp
@@ -91,6 +104,8 @@ abstract class LazyModuleImp(outer: LazyModule) extends Module
   // .module had better not be accessed while LazyModules are still being built!
   require (LazyModule.stack.isEmpty, s"${outer.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
 
-  override def desiredName = outer.name
+  override def desiredName = outer.moduleName
+  suggestName(outer.instanceName)
+
   outer.instantiate()
 }

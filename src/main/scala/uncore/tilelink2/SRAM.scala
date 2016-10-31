@@ -71,7 +71,9 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
     when (in.a.fire() && !read) {
       mem.write(memAddress, wdata, in.a.bits.mask.toBools)
     }
-    rdata := mem.read(memAddress, in.a.fire() && read)
+    val ren = in.a.fire() && read
+    def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
+    rdata := holdUnless(mem.read(memAddress, ren), RegNext(ren))
 
     // Tie off unused channels
     in.b.valid := Bool(false)

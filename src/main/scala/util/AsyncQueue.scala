@@ -54,7 +54,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
   val mem = Reg(Vec(depth, gen)) // This does NOT need to be reset at all.
   val widx = GrayCounter(bits+1, io.enq.fire(), !sink_ready, "widx_bin")
   val ridx = UIntSyncChain(io.ridx, sync, "ridx_gray")
-  val ready = widx =/= (ridx ^ UInt(depth | depth >> 1))
+  val ready = sink_ready && widx =/= (ridx ^ UInt(depth | depth >> 1))
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
   when (io.enq.fire()) { mem(index) := io.enq.bits }
@@ -81,8 +81,14 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
     sink_valid.io.in := sink_extend.io.out
     sink_ready := sink_valid.io.out
 
-    assert (io.sink_reset_n || !sink_ready || !io.enq.valid, "Enque while sink is reset and AsyncQueueSource is unprotected")
-    assert (io.sink_reset_n || widx === ridx, "Sink reset while AsyncQueueSource not empty")
+    // Assert that if there is stuff in the queue, then reset cannot happen
+    //  Impossible to write because dequeue can occur on the receiving side,
+    //  then reset allowed to happen, but write side cannot know that dequeue
+    //  occurred.
+    // TODO: write some sort of sanity check assertion for users
+    // that denote don't reset when there is activity
+//    assert (!(reset || !io.sink_reset_n) || !io.enq.valid, "Enque while sink is reset and AsyncQueueSource is unprotected")
+//    assert (!reset_rise || prev_idx_match.toBool, "Sink reset while AsyncQueueSource not empty")
   }
 }
 
@@ -104,7 +110,7 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
   val source_ready = Wire(init = Bool(true))
   val ridx = GrayCounter(bits+1, io.deq.fire(), !source_ready, "ridx_bin")
   val widx = UIntSyncChain(io.widx, sync, "widx_gray")
-  val valid = ridx =/= widx
+  val valid = source_ready && ridx =/= widx
 
   // The mux is safe because timing analysis ensures ridx has reached the register
   // On an ASIC, changes to the unread location cannot affect the selected value
@@ -137,7 +143,14 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
     source_valid.io.in := source_extend.io.out
     source_ready := source_valid.io.out
 
-    assert (io.source_reset_n || widx === ridx, "Source reset while AsyncQueueSink not empty")
+    val reset_and_extend = !source_ready || !io.source_reset_n || reset
+    val reset_and_extend_prev = Reg(Bool(), reset_and_extend, Bool(true))
+    val reset_rise = !reset_and_extend_prev && reset_and_extend
+    val prev_idx_match = AsyncResetReg(updateData=(io.widx===io.ridx), resetData=0)
+
+    // TODO: write some sort of sanity check assertion for users
+    // that denote don't reset when there is activity
+//    assert (!reset_rise || prev_idx_match.toBool, "Source reset while AsyncQueueSink not empty")
   }
 }
 

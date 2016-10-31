@@ -21,13 +21,16 @@ SHELL := /bin/bash
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
 FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
 
+# Build firrtl.jar and put it where chisel3 can find it.
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 	touch $(FIRRTL_JAR)
+	mkdir -p $(base_dir)/chisel3/lib
+	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
 
-src_path = src/main/scala
-default_submodules = . hardfloat context-dependent-environments chisel3
-chisel_srcs = $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
+src_path := src/main/scala
+default_submodules := . hardfloat context-dependent-environments chisel3
+chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm 2> /dev/null)

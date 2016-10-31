@@ -38,7 +38,7 @@ of riscv-tools:
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
     $ ./build.sh
-    $ ./build-rv32im.sh (if you are using RV32).
+    $ ./build-rv32ima.sh (if you are using RV32).
    
 For more information (or if you run into any issues), please consult the
 [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
@@ -92,13 +92,7 @@ If riscv-tools version changes, you should recompile and install riscv-tools acc
 
     $ cd riscv-tools
     $ ./build.sh
-    $ ./build-rv32im.sh (if you are using RV32)
-
-If firrtl version changes and you are using Chisel3, you may need to clean and recompile:
-
-    $ cd firrtl
-    $ sbt clean
-    $ sbt assembly
+    $ ./build-rv32ima.sh (if you are using RV32)
 
 ## <a name="what"></a> What's in the Rocket chip generator repository?
 

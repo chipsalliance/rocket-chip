@@ -8,13 +8,13 @@ verilog = $(generated_dir)/$(long_name).v
 # files.
 .SECONDARY: $(firrtl) $(verilog)
 
-$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
 $(generated_dir)/$(long_name).v $(generated_dir)/$(long_name).conf : $(firrtl) $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $(generated_dir)/$(long_name).v -X verilog --inferRW $(MODEL) --replSeqMem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
+	$(FIRRTL) -i $< -o $(generated_dir)/$(long_name).v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
 	cd $(generated_dir) && \
