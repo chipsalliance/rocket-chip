@@ -175,6 +175,7 @@ class BufferedBroadcastAcquireTracker(trackerId: Int)(implicit p: Parameters)
 
   // If there was a writeback, forward it outwards
   outerRelease(
+    block_orel = pending_put_data(vol_ognt_counter.up.idx),
     coh = outer_coh.onHit(M_XWR),
     data = data_buffer(vol_ognt_counter.up.idx))
 
