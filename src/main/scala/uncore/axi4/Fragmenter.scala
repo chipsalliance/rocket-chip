@@ -10,7 +10,7 @@ import scala.math.{min,max}
 import uncore.tilelink2.{leftOR, rightOR, UIntToOH1, OH1ToOH}
 
 // lite: masters all use only one ID => reads will not be interleaved
-class AXI4Fragmenter(lite: Boolean = false, maxInFlight: Int = 32, combinational: Boolean = true) extends LazyModule
+class AXI4Fragmenter(lite: Boolean = false, maxInFlight: => Int = 32, combinational: Boolean = true) extends LazyModule
 {
   val maxBeats = 1 << AXI4Parameters.lenBits
   def expandTransfer(x: TransferSizes, beatBytes: Int, alignment: BigInt) =
@@ -287,7 +287,7 @@ class AXI4FragmenterSideband(maxInFlight: Int, flow: Boolean = false) extends Mo
 object AXI4Fragmenter
 {
   // applied to the AXI4 source node; y.node := AXI4Fragmenter()(x.node)
-  def apply(lite: Boolean = false, maxInFlight: Int = 32, combinational: Boolean = true)(x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = {
+  def apply(lite: Boolean = false, maxInFlight: => Int = 32, combinational: Boolean = true)(x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = {
     val fragmenter = LazyModule(new AXI4Fragmenter(lite, maxInFlight, combinational))
     fragmenter.node := x
     fragmenter.node

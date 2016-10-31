@@ -4,8 +4,9 @@ package uncore.devices
 
 import Chisel._
 import junctions._
-import uncore.tilelink._
 import util._
+import regmapper._
+import uncore.tilelink2._
 import cde.{Parameters, Config, Field}
 
 // *****************************************
@@ -15,6 +16,7 @@ import cde.{Parameters, Config, Field}
 
 object DbRegAddrs{
 
+  def DMRAMBASE    = UInt(0x0)
   def DMCONTROL    = UInt(0x10)
 
   def DMINFO       = UInt(0x11)
@@ -69,7 +71,7 @@ object DsbBusConsts {
   // See $RISCV/riscv-tools/riscv-isa-sim/debug_rom/debug_rom.h/S
   // The code assumes 64 bytes of Debug RAM.
 
-  def defaultRomContents : Array[Byte] = Array(
+  def xlenAnyRomContents : Array[Byte] = Array(
     0x6f, 0x00, 0xc0, 0x04, 0x6f, 0x00, 0xc0, 0x00, 0x13, 0x04, 0xf0, 0xff,
     0x6f, 0x00, 0x80, 0x00, 0x13, 0x04, 0x00, 0x00, 0x0f, 0x00, 0xf0, 0x0f,
     0xf3, 0x24, 0x00, 0xf1, 0x63, 0xc6, 0x04, 0x00, 0x83, 0x24, 0xc0, 0x43,
@@ -121,10 +123,10 @@ object DsbBusConsts {
 
 object DsbRegAddrs{
 
-  def CLEARDEBINT  = UInt(0x100)
-  def SETHALTNOT   = UInt(0x10C)
-  def SERINFO      = UInt(0x110)
-  def SERBASE      = UInt(0x114)
+  def CLEARDEBINT  = 0x100
+  def SETHALTNOT   = 0x10C
+  def SERINFO      = 0x110
+  def SERBASE      = 0x114
   // For each serial, there are
   // 3 registers starting here:
   // SERSEND0
@@ -132,9 +134,11 @@ object DsbRegAddrs{
   // SERSTATUS0
   // ...
   // SERSTATUS7
-  def SERTX_OFFSET   = UInt(0)
-  def SERRX_OFFSET   = UInt(4)
-  def SERSTAT_OFFSET = UInt(8)
+  def SERTX_OFFSET   = 0
+  def SERRX_OFFSET   = 4
+  def SERSTAT_OFFSET = 8
+  def RAMBASE      = 0x400
+  def ROMBASE      = 0x800
 
 }
 
@@ -302,6 +306,24 @@ class DebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p
   val resp = new DecoupledIO(new DebugBusResp).flip()
 }
 
+trait HasDebugModuleParameters {
+  val params : Parameters
+  implicit val p = params
+  val cfg = p(DMKey)
+}
+
+/** Debug Module I/O, with the exclusion of the RegisterRouter
+  *  Access interface.
+  */
+
+trait DebugModuleBundle extends Bundle with HasDebugModuleParameters {
+  val db = new DebugBusIO()(p).flip()
+  val debugInterrupts = Vec(cfg.nComponents, Bool()).asOutput
+  val ndreset    = Bool(OUTPUT)
+  val fullreset  = Bool(OUTPUT)
+}
+
+
 // *****************************************
 // The Module 
 // 
@@ -313,7 +335,7 @@ class DebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p
   *  DebugModule is a slave to two masters:
   *    The Debug Bus -- implemented as a generic Decoupled IO with request
   *                   and response channels
-  *    The System Bus -- implemented as Uncached Tile Link.
+  *    The System Bus -- implemented as generic RegisterRouter
   *  
   *  DebugModule is responsible for holding registers, RAM, and ROM
   *      to support debug interactions, as well as driving interrupts
@@ -321,10 +343,9 @@ class DebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p
   *      It is also responsible for some reset lines.
   */
 
-class DebugModule ()(implicit val p:cde.Parameters)
-    extends Module
-    with HasTileLinkParameters { 
-  val cfg = p(DMKey)
+trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
+
+  val io: DebugModuleBundle
 
   //--------------------------------------------------------------
   // Import constants for shorter variable names
@@ -344,6 +365,7 @@ class DebugModule ()(implicit val p:cde.Parameters)
   require (cfg.hasBusMaster == false)
   require (cfg.nDebugRamBytes <= 64)
   require (cfg.authType == DebugModuleAuthType.None)
+  require((DbBusConsts.dbRamWordBits % 8) == 0)
 
   //--------------------------------------------------------------
   // Private Classes (Register Fields)
@@ -403,17 +425,6 @@ class DebugModule ()(implicit val p:cde.Parameters)
     
   }
 
-  //--------------------------------------------------------------
-  // Module I/O
-  //--------------------------------------------------------------
-
-  val io = new Bundle {
-    val db = new DebugBusIO()(p).flip()
-    val debugInterrupts = Vec(cfg.nComponents, Bool()).asOutput
-    val tl = new ClientUncachedTileLinkIO().flip 
-    val ndreset    = Bool(OUTPUT)
-    val fullreset  = Bool(OUTPUT) 
-  }
 
   //--------------------------------------------------------------
   // Register & Wire Declarations
@@ -455,46 +466,23 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
   // --- Debug RAM
 
-  // Since the access size from Debug Bus and System Bus may not be consistent,
-  // use the maximum to build the RAM, and then select as needed for the smaller
-  // size.
+  val ramDataWidth    = DbBusConsts.dbRamWordBits
+  val ramDataBytes    = ramDataWidth / 8;
+  val ramAddrWidth    = log2Up(cfg.nDebugRamBytes / ramDataBytes)
 
-  val dbRamDataWidth    = DbBusConsts.dbRamWordBits
-  val sbRamDataWidth    = tlDataBits
-  val dbRamAddrWidth    = log2Up((cfg.nDebugRamBytes * 8) / dbRamDataWidth) 
-  val sbRamAddrWidth    = log2Up((cfg.nDebugRamBytes * 8) / sbRamDataWidth)
-  val sbRamAddrOffset   = log2Up(tlDataBits/8)
+  val ramMem    = Reg(init = Vec.fill(cfg.nDebugRamBytes){UInt(0, width = 8)})
 
-  val ramDataWidth = dbRamDataWidth max sbRamDataWidth
-  val ramAddrWidth  = dbRamAddrWidth min sbRamAddrWidth
-  val ramMem    = Mem(1 << ramAddrWidth , UInt(width=ramDataWidth))
-  val ramAddr   = Wire(UInt(width=ramAddrWidth))
-  val ramRdData = Wire(UInt(width=ramDataWidth))
-  val ramWrData = Wire(UInt(width=ramDataWidth))
-  val ramWrMask = Wire(UInt(width=ramDataWidth))
-  val ramWrEn   = Wire(Bool())
-
-  val dbRamAddr   = Wire(UInt(width=dbRamAddrWidth))
+  val dbRamAddr   = Wire(UInt(width=ramAddrWidth))
   val dbRamAddrValid   = Wire(Bool())
-  val dbRamRdData = Wire (UInt(width=dbRamDataWidth))
-  val dbRamWrData = Wire(UInt(width=dbRamDataWidth))
+  val dbRamRdData = Wire (UInt(width=ramDataWidth))
+  val dbRamWrData = Wire(UInt(width=ramDataWidth))
   val dbRamWrEn   = Wire(Bool())
   val dbRamRdEn   = Wire(Bool())
   val dbRamWrEnFinal   = Wire(Bool())
   val dbRamRdEnFinal   = Wire(Bool())
+  require((cfg.nDebugRamBytes % ramDataBytes) == 0)
+  val dbRamDataOffset = log2Up(ramDataBytes)
 
-  val sbRamAddr   = Wire(UInt(width=sbRamAddrWidth))
-  val sbRamAddrValid = Wire(Bool())
-  val sbRamRdData = Wire (UInt(width=sbRamDataWidth))
-  val sbRamWrData = Wire(UInt(width=sbRamDataWidth))
-  val sbRamWrEn   = Wire(Bool())
-  val sbRamRdEn   = Wire(Bool())
-  val sbRamWrEnFinal   = Wire(Bool())
-  val sbRamRdEnFinal   = Wire(Bool())
-
-
-  val sbRomRdData       = Wire(UInt(width=tlDataBits))
-  val sbRomAddrOffset   = log2Up(tlDataBits/8)
 
   // --- Debug Bus Accesses
 
@@ -513,16 +501,6 @@ class DebugModule ()(implicit val p:cde.Parameters)
   val rdCondWrFailure = Wire(Bool())
   val dbWrNeeded = Wire(Bool())
 
-  // --- System Bus Access 
-  val sbAddr   = Wire(UInt(width=sbAddrWidth))
-  val sbRdData = Wire(UInt(width=tlDataBits))
-  val sbWrData = Wire(UInt(width=tlDataBits))
-  val sbWrMask = Wire(UInt(width=tlDataBits))
-  val sbWrEn   = Wire(Bool())
-  val sbRdEn   = Wire(Bool())
-
-  val stallFromDb = Wire(Bool())
-  val stallFromSb = Wire(Bool())
   //--------------------------------------------------------------
   // Interrupt Registers
   //--------------------------------------------------------------
@@ -622,63 +600,29 @@ class DebugModule ()(implicit val p:cde.Parameters)
   HALTSUMRdData.acks        := haltnotSummary
 
   //--------------------------------------------------------------
-  // Debug RAM Access (Debug Bus & System Bus)
+  // Debug RAM Access (Debug Bus ... System Bus can override)
   //--------------------------------------------------------------
 
   dbReq := io.db.req.bits
   // Debug Bus RAM Access
   // From Specification: Debug RAM is 0x00 - 0x0F
   //                                  0x40 - 0x6F Not Implemented
-  dbRamAddr   := dbReq.addr( dbRamAddrWidth-1 , 0)
+  dbRamAddr   := dbReq.addr( ramAddrWidth-1 , 0)
   dbRamWrData := dbReq.data
-  dbRamAddrValid := Bool(true)
-  if (dbRamAddrWidth < 4){
-    dbRamAddrValid := (dbReq.addr(3, dbRamAddrWidth) === UInt(0))
+  dbRamAddrValid := (dbReq.addr(3,0) <= UInt((cfg.nDebugRamBytes/ramDataBytes)))
+
+  val dbRamRdDataFields = List.tabulate(cfg.nDebugRamBytes / ramDataBytes) { ii =>
+    val slice = ramMem.slice(ii * ramDataBytes, (ii+1)*ramDataBytes)
+    slice.reduce[UInt]{ case (x: UInt, y: UInt) => Cat(y, x)}
   }
 
-  sbRamAddr   := sbAddr(sbRamAddrWidth + sbRamAddrOffset - 1, sbRamAddrOffset)   
-  sbRamWrData := sbWrData
-  sbRamAddrValid := Bool(true)
-  // From Specification: Debug RAM is 0x400 - 0x4FF
-  if ((sbRamAddrWidth + sbRamAddrOffset) < 8){
-    sbRamAddrValid := (sbAddr(7, sbRamAddrWidth + sbRamAddrOffset) === UInt(0))
+  dbRamRdData := dbRamRdDataFields(dbRamAddr)
+
+  when (dbRamWrEnFinal) {
+    for (ii <- 0 until ramDataBytes) {
+      ramMem((dbRamAddr << UInt(dbRamDataOffset)) + UInt(ii)) := dbRamWrData((8*(ii+1)-1), (8*ii))
+    }
   }
-
-  require (dbRamAddrWidth >= ramAddrWidth)    // SB accesses less than 32 bits Not Implemented.
-  val dbRamWrMask = Wire(init=Vec.fill(1 << (dbRamAddrWidth - ramAddrWidth)){Fill(dbRamDataWidth, UInt(1, width=1))})
-
-  if (dbRamDataWidth < ramDataWidth){
-
-    val dbRamSel = dbRamAddr(dbRamAddrWidth - ramAddrWidth - 1 , 0)
-    val rdDataWords = Vec.tabulate(1 << (dbRamAddrWidth - ramAddrWidth)){ ii =>
-      ramRdData((ii+1)*dbRamDataWidth - 1 , ii*dbRamDataWidth)}
-
-    dbRamWrMask := Vec.fill(1 << (dbRamAddrWidth - ramAddrWidth)){UInt(0, width = dbRamDataWidth)}
-    dbRamWrMask(dbRamSel) := Fill(dbRamDataWidth, UInt(1, width=1))
-    dbRamRdData := rdDataWords(dbRamSel)
-  } else {
-    dbRamRdData    := ramRdData
-  }
-
-  sbRamRdData := ramRdData
-
-  ramWrMask := Mux(sbRamWrEn, sbWrMask, dbRamWrMask.asUInt)
-
-  assert (!((dbRamWrEn | dbRamRdEn) & (sbRamRdEn | sbRamWrEn)), "Stall logic should have prevented concurrent SB/DB RAM Access")
-
-  // Make copies of DB RAM data before writing.
-  val dbRamWrDataVec = Fill(1 << (dbRamAddrWidth - ramAddrWidth), dbRamWrData)
-  ramWrData := Mux(sbRamWrEn,
-    (ramWrMask & sbRamWrData   ) | (~ramWrMask & ramRdData),
-    (ramWrMask & dbRamWrDataVec) | (~ramWrMask & ramRdData))
-
-  ramAddr   := Mux(sbRamWrEn | sbRamRdEn, sbRamAddr,
-    dbRamAddr >> (dbRamAddrWidth - ramAddrWidth))
-
-  ramRdData := ramMem(ramAddr)
-  when (ramWrEn) { ramMem(ramAddr) := ramWrData }
-
-  ramWrEn := sbRamWrEnFinal | dbRamWrEnFinal
   
   //--------------------------------------------------------------
   // Debug Bus Access
@@ -813,8 +757,8 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
   // -----------------------------------------
   // DB Access State Machine Decode (Combo)
-  io.db.req.ready := !stallFromSb && ((dbStateReg === s_DB_READY) ||
-    (dbStateReg === s_DB_RESP && io.db.resp.fire()))
+  io.db.req.ready := (dbStateReg === s_DB_READY) ||
+  (dbStateReg === s_DB_RESP && io.db.resp.fire())
 
   io.db.resp.valid := (dbStateReg === s_DB_RESP)
   io.db.resp.bits  := dbRespReg
@@ -844,171 +788,27 @@ class DebugModule ()(implicit val p:cde.Parameters)
   // Debug ROM
   //--------------------------------------------------------------
 
-  sbRomRdData := UInt(0)
-  if (cfg.hasDebugRom) {
-    // Inspired by ROMSlave
-    val romContents = cfg.debugRomContents.get
-    val romByteWidth = tlDataBits / 8
-    val romRows = (romContents.size + romByteWidth - 1)/romByteWidth
-    val romMem = Vec.tabulate(romRows) { ii =>
-      val slice = romContents.slice(ii*romByteWidth, (ii+1)*romByteWidth)
-      UInt(slice.foldRight(BigInt(0)) { case (x,y) => ((y << 8) + (x.toInt & 0xFF))}, width = romByteWidth*8)
-    }
-
-    val sbRomRdAddr = Wire(UInt())
-
-    if (romRows == 1) {
-      sbRomRdAddr := UInt(0)
-    } else {
-      sbRomRdAddr := sbAddr(log2Up(romRows) + sbRomAddrOffset - 1, sbRomAddrOffset)
-    }
-    sbRomRdData := romMem (sbRomRdAddr)
+  val romRegFields  =  if (cfg.hasDebugRom) {
+    cfg.debugRomContents.get.map( x => RegField.r(8, UInt(x.toInt & 0xFF)))
+  } else {
+    Seq(RegField(8))
   }
 
   //--------------------------------------------------------------
   // System Bus Access
   //--------------------------------------------------------------
 
-
-  // -----------------------------------------
-  // SB Access Write Decoder
-
-  sbRamWrEn  := Bool(false)
-  sbRamWrEnFinal := Bool(false)
-  SETHALTNOTWrEn := Bool(false)
-  CLEARDEBINTWrEn := Bool(false)
-
-  if (tlDataBits == 32) {
-    SETHALTNOTWrData := sbWrData
-    CLEARDEBINTWrData := sbWrData
-    when (sbAddr(11, 8)   === UInt(4)){ // 0x400-0x4ff is Debug RAM
-      sbRamWrEn := sbWrEn
-      sbRamRdEn := sbRdEn
-      when (sbRamAddrValid) {
-        sbRamWrEnFinal := sbWrEn
-        sbRamRdEnFinal := sbRdEn
-      }
-    }.elsewhen (sbAddr === SETHALTNOT){
-      SETHALTNOTWrEn := sbWrEn
-    }.elsewhen (sbAddr === CLEARDEBINT){
-      CLEARDEBINTWrEn := sbWrEn
-    }.otherwise {
-      //Other registers/RAM are Not Implemented.
-    }
-  } else {
-
-    // Pick out the correct word based on the address.
-    val sbWrDataWords = Vec.tabulate (tlDataBits / 32) {ii => sbWrData((ii+1)*32 - 1, ii*32)}
-    val sbWrMaskWords = Vec.tabulate (tlDataBits / 32) {ii => sbWrMask ((ii+1)*32 -1, ii*32)}
-
-    val sbWrSelTop = log2Up(tlDataBits/8) - 1
-    val sbWrSelBottom = 2
-
-    SETHALTNOTWrData  := sbWrDataWords(SETHALTNOT(sbWrSelTop, sbWrSelBottom))
-    CLEARDEBINTWrData := sbWrDataWords(CLEARDEBINT(sbWrSelTop, sbWrSelBottom))
-
-    when (sbAddr(11,8) === UInt(4)){ //0x400-0x4ff is Debug RAM
-      sbRamWrEn := sbWrEn
-      sbRamRdEn := sbRdEn
-      when (sbRamAddrValid){
-        sbRamWrEnFinal := sbWrEn
-        sbRamRdEnFinal := sbRdEn
-      }
-    }
-
-    SETHALTNOTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop + 1) === SETHALTNOT(sbAddrWidth-1, sbWrSelTop + 1) &&
-    (sbWrMaskWords(SETHALTNOT(sbWrSelTop, sbWrSelBottom))).orR &&
-    sbWrEn
-
-    CLEARDEBINTWrEn := sbAddr(sbAddrWidth - 1, sbWrSelTop + 1) === CLEARDEBINT(sbAddrWidth-1, sbWrSelTop + 1) &&
-    (sbWrMaskWords(CLEARDEBINT(sbWrSelTop, sbWrSelBottom))).orR &&
-    sbWrEn
-
+  // Local reg mapper function : Notify when written, but give the value.
+  def wValue (n: Int, value: UInt, set: Bool) : RegField = {
+    RegField(n, value, RegWriteFn((valid, data) => {set := valid ; value := data; Bool(true)}))
   }
 
-  // -----------------------------------------
-  // SB Access Read Mux
- 
-  sbRdData := UInt(0)
-  sbRamRdEn      := Bool(false)
-  sbRamRdEnFinal := Bool(false)
-
-  when (sbAddr(11, 8) === UInt(4)) {                                 //0x400-0x4FF Debug RAM
-    sbRamRdEn := sbRdEn
-    when (sbRamAddrValid) {
-      sbRdData  := sbRamRdData
-      sbRamRdEnFinal := sbRdEn
-    }
-  }.elsewhen (sbAddr(11,8).isOneOf(UInt(8), UInt(9))){ //0x800-0x9FF Debug ROM
-    if (cfg.hasDebugRom) {
-      sbRdData := sbRomRdData
-    } else {
-      sbRdData := UInt(0)
-    }
-  }. otherwise {
-    // All readable registers are Not Implemented.
-    sbRdData := UInt(0)
-  }
-
-  // -----------------------------------------
-  // SB Access State Machine -- based on BRAM Slave
-
-  val sbAcqReg = Reg(io.tl.acquire.bits)
-  val sbAcqValidReg = Reg(init = Bool(false))
-
-  val (sbReg_get :: sbReg_getblk :: sbReg_put :: sbReg_putblk :: Nil) = Seq(
-    Acquire.getType, Acquire.getBlockType, Acquire.putType, Acquire.putBlockType
-  ).map(sbAcqReg.isBuiltInType _)
-
-  val sbMultibeat = sbReg_getblk & sbAcqValidReg;
-
-  val sbBeatInc1 = sbAcqReg.addr_beat + UInt(1)
- 
-  val sbLast = (sbAcqReg.addr_beat === UInt(tlDataBeats - 1))
-
-  sbAddr := sbAcqReg.full_addr()
-  sbRdEn := (sbAcqValidReg && (sbReg_get || sbReg_getblk))
-  sbWrEn := (sbAcqValidReg && (sbReg_put || sbReg_putblk))
-  sbWrData := sbAcqReg.data
-  sbWrMask := sbAcqReg.full_wmask()
-
-  // -----------------------------------------
-  // SB Access State Machine Update (Seq)
-
-  when (io.tl.acquire.fire()){
-    sbAcqReg       := io.tl.acquire.bits
-    sbAcqValidReg  := Bool(true)
-  } .elsewhen (io.tl.grant.fire()) {
-    when (sbMultibeat){
-      sbAcqReg.addr_beat := sbBeatInc1
-      when (sbLast) {
-        sbAcqValidReg := Bool(false)
-      }
-    } . otherwise {
-      sbAcqValidReg := Bool(false)
-    }
-  }
-  
-
-  io.tl.grant.valid := sbAcqValidReg
-  io.tl.grant.bits := Grant(
-    is_builtin_type = Bool(true),
-    g_type = sbAcqReg.getBuiltInGrantType(),
-    client_xact_id = sbAcqReg.client_xact_id,
-    manager_xact_id = UInt(0),
-    addr_beat = sbAcqReg.addr_beat,
-    data = sbRdData
+  regmap(
+    CLEARDEBINT -> Seq(wValue(sbIdWidth, CLEARDEBINTWrData, CLEARDEBINTWrEn)),
+    SETHALTNOT  -> Seq(wValue(sbIdWidth, SETHALTNOTWrData, SETHALTNOTWrEn)),
+    RAMBASE     -> ramMem.map(x => RegField(8, x)),
+    ROMBASE     -> romRegFields
   )
-
-  stallFromDb := Bool(false) // SB always wins, and DB latches its read data so it is not necessary for SB to wait
-
-  stallFromSb := sbRamRdEn || sbRamWrEn // pessimistically assume that DB/SB are going to conflict on the RAM,
-                                        // and SB doesn't latch its read data to it is necessary for DB hold
-                                        // off while SB is accessing the RAM and waiting to send its result.
-
-  val sbStall = (sbMultibeat & !sbLast) || (io.tl.grant.valid  && !io.tl.grant.ready) || stallFromDb
-
-  io.tl.acquire.ready := !sbStall
 
   //--------------------------------------------------------------
   // Misc. Outputs
@@ -1019,6 +819,21 @@ class DebugModule ()(implicit val p:cde.Parameters)
 
 }
 
+/** Create a concrete TL2 Slave for the DebugModule RegMapper interface.
+  *  
+  */
+
+class TLDebugModule(address: BigInt = 0)(implicit p: Parameters)
+  extends TLRegisterRouter(address, beatBytes=p(rocket.XLen)/8, executable=true)(
+  new TLRegBundle(p, _ )    with DebugModuleBundle)(
+  new TLRegModule(p, _, _)  with DebugModule)
+
+
+/** Synchronizers for DebugBus
+  *  
+  */
+
+
 object AsyncDebugBusCrossing {
   // takes from_source from the 'from' clock domain to the 'to' clock domain
   def apply(from_clock: Clock, from_reset: Bool, from_source: DebugBusIO, to_clock: Clock, to_reset: Bool, depth: Int = 1, sync: Int = 3) = {
@@ -1028,6 +843,7 @@ object AsyncDebugBusCrossing {
     to_sink // is now to_source
   }
 }
+
 
 object AsyncDebugBusFrom { // OutsideClockDomain
   // takes from_source from the 'from' clock domain and puts it into your clock domain

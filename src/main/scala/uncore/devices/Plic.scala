@@ -6,8 +6,11 @@ import Chisel._
 import Chisel.ImplicitConversions._
 
 import junctions._
-import uncore.tilelink._
+import diplomacy._
+import regmapper._
+import uncore.tilelink2._
 import cde.Parameters
+import scala.math.min
 
 class GatewayPLICIO extends Bundle {
   val valid = Bool(OUTPUT)
@@ -27,161 +30,183 @@ class LevelGateway extends Module {
   io.plic.valid := io.interrupt && !inFlight
 }
 
-case class PLICConfig(nHartsIn: Int, supervisor: Boolean, nDevices: Int, nPriorities: Int) {
-  def contextsPerHart = if (supervisor) 2 else 1
-  def nHarts = contextsPerHart * nHartsIn
-  def context(i: Int, mode: Char) = mode match {
-    case 'M' => i * contextsPerHart
-    case 'S' => require(supervisor); i * contextsPerHart + 1
-  }
-  def claimAddr(i: Int, mode: Char) = hartBase + hartOffset(context(i, mode)) + claimOffset
-  def threshAddr(i: Int, mode: Char) = hartBase + hartOffset(context(i, mode))
-  def enableAddr(i: Int, mode: Char) = enableBase + enableOffset(context(i, mode))
-  def size = hartBase + hartOffset(maxHarts)
-
+object PLICConsts
+{
   def maxDevices = 1023
   def maxHarts = 15872
+  def priorityBase = 0x0
   def pendingBase = 0x1000
   def enableBase = 0x2000
   def hartBase = 0x200000
-  require(hartBase >= enableBase + enableOffset(maxHarts))
 
-  def enableOffset(i: Int) = i * ((maxDevices+7)/8)
-  def hartOffset(i: Int) = i * 0x1000
   def claimOffset = 4
   def priorityBytes = 4
 
-  require(nDevices <= maxDevices)
-  require(nHarts > 0 && nHarts <= maxHarts)
-  require(nPriorities >= 0 && nPriorities <= nDevices)
+  def enableOffset(i: Int) = i * ((maxDevices+7)/8)
+  def hartOffset(i: Int) = i * 0x1000
+  def enableBase(i: Int):Int = enableOffset(i) + enableBase
+  def hartBase(i: Int):Int = hartOffset(i) + hartBase
+
+  def size = hartBase(maxHarts)
+  require(hartBase >= enableBase(maxHarts))
 }
 
 /** Platform-Level Interrupt Controller */
-class PLIC(val cfg: PLICConfig)(implicit val p: Parameters) extends Module
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
-  val io = new Bundle {
-    val devices = Vec(cfg.nDevices, new GatewayPLICIO).flip
-    val harts = Vec(cfg.nHarts, Bool()).asOutput
-    val tl = new ClientUncachedTileLinkIO().flip
-  }
+class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit val p: Parameters) extends LazyModule
+{
+  val contextsPerHart = if (supervisor) 2 else 1
+  require (maxPriorities >= 0)
 
-  val priority =
-    if (cfg.nPriorities > 0) Reg(Vec(cfg.nDevices+1, UInt(width=log2Up(cfg.nPriorities+1))))
-    else Wire(init=Vec.fill(cfg.nDevices+1)(UInt(1)))
-  val threshold =
-    if (cfg.nPriorities > 0) Reg(Vec(cfg.nHarts, UInt(width = log2Up(cfg.nPriorities+1))))
-    else Wire(init=Vec.fill(cfg.nHarts)(UInt(0)))
-  val pending = Reg(init=Vec.fill(cfg.nDevices+1){Bool(false)})
-  val enables = Reg(Vec(cfg.nHarts, Vec(cfg.nDevices+1, Bool())))
+  val node = TLRegisterNode(
+    address   = AddressSet(address, PLICConsts.size-1),
+    beatBytes = p(rocket.XLen)/8,
+    undefZero = false)
 
-  for ((p, g) <- pending.tail zip io.devices) {
-    g.ready := !p
-    g.complete := false
-    when (g.valid) { p := true }
-  }
+  val intnode = IntAdapterNode(
+    numSourcePorts = 0 to 1024,
+    numSinkPorts   = 0 to 1024,
+    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart))) },
+    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
-  def findMax(x: Seq[UInt]): (UInt, UInt) = {
-    if (x.length > 1) {
-      val half = 1 << (log2Ceil(x.length) - 1)
-      val lMax = findMax(x take half)
-      val rMax = findMax(x drop half)
-      val useLeft = lMax._1 >= rMax._1
-      (Mux(useLeft, lMax._1, rMax._1), Mux(useLeft, lMax._2, UInt(half) + rMax._2))
-    } else (x.head, UInt(0))
-  }
-
-  val maxDevs = Wire(Vec(cfg.nHarts, UInt(width = log2Up(pending.size))))
-  for (hart <- 0 until cfg.nHarts) {
-    val effectivePriority =
-      for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
-        yield Cat(p && en, pri)
-    val (maxPri, maxDev) = findMax((UInt(1) << priority(0).getWidth) +: effectivePriority)
-
-    maxDevs(hart) := Reg(next = maxDev)
-    io.harts(hart) := Reg(next = maxPri) > Cat(UInt(1), threshold(hart))
-  }
-
-  val acq = Queue(io.tl.acquire, 1)
-  val read = acq.fire() && acq.bits.isBuiltInType(Acquire.getType)
-  val write = acq.fire() && acq.bits.isBuiltInType(Acquire.putType)
-  assert(!acq.fire() || read || write, "unsupported PLIC operation")
-  val addr = acq.bits.full_addr()(log2Up(cfg.size)-1,0)
-
-  val claimant =
-    if (cfg.nHarts == 1) UInt(0)
-    else (addr - cfg.hartBase)(log2Up(cfg.hartOffset(cfg.nHarts))-1,log2Up(cfg.hartOffset(1)))
-  val hart = Wire(init = claimant)
-  val myMaxDev = maxDevs(claimant)
-  val myEnables = enables(hart)
-  val rdata = Wire(init = UInt(0, tlDataBits))
-  val masked_wdata = (acq.bits.data & acq.bits.full_wmask()) | (rdata & ~acq.bits.full_wmask())
-
-  if (cfg.nDevices > 0) when (addr >= cfg.hartBase) {
-    val word =
-      if (tlDataBytes > cfg.claimOffset) UInt(0)
-      else addr(log2Up(cfg.claimOffset),log2Up(tlDataBytes))
-    rdata := Cat(myMaxDev, UInt(0, 8*cfg.priorityBytes-threshold(0).getWidth), threshold(claimant)) >> (word * tlDataBits)
-
-    when (read && addr(log2Ceil(cfg.claimOffset))) {
-      pending(myMaxDev) := false
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val tl_in = node.bundleIn
+      val devices = intnode.bundleIn
+      val harts = intnode.bundleOut
     }
-    when (write) {
-      when (if (tlDataBytes > cfg.claimOffset) acq.bits.wmask()(cfg.claimOffset) else addr(log2Ceil(cfg.claimOffset))) {
-        val dev = (acq.bits.data >> ((8 * cfg.claimOffset) % tlDataBits))(log2Up(pending.size)-1,0)
-        when (myEnables(dev)) { io.devices(dev-1).complete := true }
-      }.otherwise {
-        if (cfg.nPriorities > 0) threshold(claimant) := acq.bits.data
-      }
+
+    // Assign all the devices unique ranges
+    val sources = intnode.edgesIn.map(_.source)
+    val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
+      case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
+    }.flatten
+    // Compact the interrupt vector the same way
+    val interrupts = (intnode.edgesIn zip io.devices).map { case (e, i) => i.take(e.source.num) }.flatten
+    // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
+    val harts = io.harts.flatten
+
+    println("\nInterrupt map:")
+    flatSources.foreach { s =>
+      // +1 because 0 is reserved, +1-1 because the range is half-open
+      println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
-  }.elsewhen (addr >= cfg.enableBase) {
-    val enableHart =
-      if (cfg.nHarts > 1) (addr - cfg.enableBase)(log2Up(cfg.enableOffset(cfg.nHarts))-1,log2Up(cfg.enableOffset(1)))
-      else UInt(0)
-    hart := enableHart
-    val word =
-      if (tlDataBits >= myEnables.size) UInt(0)
-      else addr(log2Ceil((myEnables.size-1)/tlDataBits+1) + tlByteAddrBits - 1, tlByteAddrBits)
-    for (i <- 0 until myEnables.size by tlDataBits) {
-      when (word === i/tlDataBits) {
-        rdata := Cat(myEnables.slice(i, i + tlDataBits).reverse)
-        for (j <- 0 until (tlDataBits min (myEnables.size - i))) {
-          when (write) { enables(enableHart)(i+j) := masked_wdata(j) }
-        }
-      }
+
+    val nDevices = interrupts.size
+    val nPriorities = min(maxPriorities, nDevices)
+    val nHarts = harts.size
+
+    require(nDevices <= PLICConsts.maxDevices)
+    require(nHarts > 0 && nHarts <= PLICConsts.maxHarts)
+
+    def context(i: Int, mode: Char) = mode match {
+      case 'M' => i * contextsPerHart
+      case 'S' => require(supervisor); i * contextsPerHart + 1
     }
-  }.elsewhen (addr >= cfg.pendingBase) {
-    val word =
-      if (tlDataBytes >= pending.size) UInt(0)
-      else addr(log2Up(pending.size)-1,log2Up(tlDataBytes))
-    rdata := pending.asUInt >> (word * tlDataBits)
-  }.otherwise {
-    val regsPerBeat = tlDataBytes >> log2Up(cfg.priorityBytes)
-    val word =
-      if (regsPerBeat >= priority.size) UInt(0)
-      else addr(log2Up(priority.size*cfg.priorityBytes)-1,log2Up(tlDataBytes))
-    for (i <- 0 until priority.size by regsPerBeat) {
-      when (word === i/regsPerBeat) {
-        rdata := Cat(priority.slice(i, i + regsPerBeat).map(p => Cat(UInt(0, 8*cfg.priorityBytes-p.getWidth), p)).reverse)
-        for (j <- 0 until (regsPerBeat min (priority.size - i))) {
-          if (cfg.nPriorities > 0) when (write) { priority(i+j) := masked_wdata >> (j * 8 * cfg.priorityBytes) }
-        }
-      }
+    def claimAddr(i: Int, mode: Char)  = address + PLICConsts.hartBase(context(i, mode)) + PLICConsts.claimOffset
+    def threshAddr(i: Int, mode: Char) = address + PLICConsts.hartBase(context(i, mode))
+    def enableAddr(i: Int, mode: Char) = address + PLICConsts.enableBase(context(i, mode))
+
+    // Create the global PLIC config string
+    val globalConfigString = Seq(
+      s"plic {\n",
+      s"  priority 0x${address.toString(16)};\n",
+      s"  pending 0x${(address + PLICConsts.pendingBase).toString(16)};\n",
+      s"  ndevs ${nDevices};\n",
+      s"};\n").mkString
+
+    // Create the per-Hart config string
+    val hartConfigStrings = io.harts.zipWithIndex.map { case (_, i) => (Seq(
+      s"      plic {\n",
+      s"        m {\n",
+      s"         ie 0x${enableAddr(i, 'M').toString(16)};\n",
+      s"         thresh 0x${threshAddr(i, 'M').toString(16)};\n",
+      s"         claim 0x${claimAddr(i, 'M').toString(16)};\n",
+      s"        };\n") ++ (if (!supervisor) Seq() else Seq(
+      s"        s {\n",
+      s"         ie 0x${enableAddr(i, 'S').toString(16)};\n",
+      s"         thresh 0x${threshAddr(i, 'S').toString(16)};\n",
+      s"         claim 0x${claimAddr(i, 'S').toString(16)};\n",
+      s"        };\n")) ++ Seq(
+      s"      };\n")).mkString
     }
+
+    // For now, use LevelGateways for all TL2 interrupts
+    val gateways = Vec(interrupts.map { case i =>
+      val gateway = Module(new LevelGateway)
+      gateway.io.interrupt := i
+      gateway.io.plic
+    })
+
+    val priority =
+      if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))
+      else Wire(init=Vec.fill(nDevices+1)(UInt(1)))
+    val threshold =
+      if (nPriorities > 0) Reg(Vec(nHarts, UInt(width = log2Up(nPriorities+1))))
+      else Wire(init=Vec.fill(nHarts)(UInt(0)))
+    val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
+    val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
+
+    for ((p, g) <- pending.tail zip gateways) {
+      g.ready := !p
+      g.complete := false
+      when (g.valid) { p := true }
+    }
+
+    def findMax(x: Seq[UInt]): (UInt, UInt) = {
+      if (x.length > 1) {
+        val half = 1 << (log2Ceil(x.length) - 1)
+        val lMax = findMax(x take half)
+        val rMax = findMax(x drop half)
+        val useLeft = lMax._1 >= rMax._1
+        (Mux(useLeft, lMax._1, rMax._1), Mux(useLeft, lMax._2, UInt(half) | rMax._2))
+      } else (x.head, UInt(0))
+    }
+
+    val maxDevs = Reg(Vec(nHarts, UInt(width = log2Up(pending.size))))
+    for (hart <- 0 until nHarts) {
+      val effectivePriority =
+        for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
+          yield Cat(p && en, pri)
+      val (maxPri, maxDev) = findMax((UInt(1) << priority(0).getWidth) +: effectivePriority)
+
+      maxDevs(hart) := maxDev
+      harts(hart) := Reg(next = maxPri) > Cat(UInt(1), threshold(hart))
+    }
+
+    def priorityRegField(x: UInt) = if (nPriorities > 0) RegField(32, x) else RegField.r(32, x)
+    val priorityRegFields = Seq(PLICConsts.priorityBase -> priority.map(p => priorityRegField(p)))
+    val pendingRegFields = Seq(PLICConsts.pendingBase  -> pending .map(b => RegField.r(1, b)))
+
+    val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
+      PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
+    }
+
+    val hartRegFields = Seq.tabulate(nHarts) { i =>
+      PLICConsts.hartBase(i) -> Seq(
+        priorityRegField(threshold(i)),
+        RegField(32,
+          RegReadFn { valid =>
+            when (valid) {
+              pending(maxDevs(i)) := Bool(false)
+              maxDevs(i) := UInt(0) // flush pipeline
+            }
+            (Bool(true), maxDevs(i))
+          },
+          RegWriteFn { (valid, data) =>
+            when (valid && enables(i)(data)) {
+              gateways(data - UInt(1)).complete := Bool(true)
+            }
+            Bool(true)
+          }
+        )
+      )
+    }
+
+    node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+
+    priority(0) := 0
+    pending(0) := false
+    for (e <- enables)
+      e(0) := false
   }
-
-  priority(0) := 0
-  pending(0) := false
-  for (e <- enables)
-    e(0) := false
-
-  io.tl.grant.valid := acq.valid
-  acq.ready := io.tl.grant.ready
-  io.tl.grant.bits := Grant(
-    is_builtin_type = Bool(true),
-    g_type = acq.bits.getBuiltInGrantType(),
-    client_xact_id = acq.bits.client_xact_id,
-    manager_xact_id = UInt(0),
-    addr_beat = UInt(0),
-    data = rdata)
 }

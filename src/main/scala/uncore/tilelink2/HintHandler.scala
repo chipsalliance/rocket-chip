@@ -2,6 +2,7 @@
 
 package uncore.tilelink2
 
+import scala.math.min
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import diplomacy._
@@ -9,10 +10,9 @@ import diplomacy._
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
 class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true) extends LazyModule
 {
-  // HintAcks can come back combinationally => minLatency=0
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => if (!supportClients)  c else c.copy(minLatency = 0, clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
-    managerFn = { case Seq(m) => if (!supportManagers) m else m.copy(minLatency = 0, managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
+    clientFn  = { case Seq(c) => if (!supportClients)  c else c.copy(minLatency = min(1, c.minLatency), clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
+    managerFn = { case Seq(m) => if (!supportManagers) m else m.copy(minLatency = min(1, m.minLatency), managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -46,7 +46,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       hint.bits := edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address))
       out.a.bits := in.a.bits
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), hint))
+      TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), Queue(hint, 1)))
     } else {
       out.a.valid := in.a.valid
       in.a.ready := out.a.ready
@@ -69,7 +69,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       hint.bits := edgeOut.HintAck(out.b.bits)
       in.b.bits := out.b.bits
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats1(in.c.bits), in.c), (UInt(0), hint))
+      TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats1(in.c.bits), in.c), (UInt(0), Queue(hint, 1)))
     } else if (bce) {
       in.b.valid := out.b.valid
       out.b.ready := in.b.ready

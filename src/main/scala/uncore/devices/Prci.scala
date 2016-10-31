@@ -6,6 +6,7 @@ import Chisel._
 import junctions._
 import junctions.NastiConstants._
 import regmapper._
+import diplomacy._
 import uncore.tilelink2._
 import uncore.util._
 import util._
@@ -20,22 +21,19 @@ class CoreplexLocalInterrupts extends Bundle {
   val msip = Bool()
 }
 
-case class CoreplexLocalInterrupterConfig(beatBytes: Int, address: BigInt = 0x02000000) {
+object ClintConsts
+{
   def msipOffset(hart: Int) = hart * msipBytes
-  def msipAddress(hart: Int) = address + msipOffset(hart)
   def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes
-  def timecmpAddress(hart: Int) = address + timecmpOffset(hart)
   def timeOffset = 0xbff8
-  def timeAddress = address + timeOffset
   def msipBytes = 4
   def timecmpBytes = 8
   def size = 0x10000
 }
 
 trait MixCoreplexLocalInterrupterParameters {
-  val params: (CoreplexLocalInterrupterConfig, Parameters)
-  val c = params._1
-  implicit val p = params._2
+  val params: Parameters
+  implicit val p = params
 }
 
 trait CoreplexLocalInterrupterBundle extends Bundle with MixCoreplexLocalInterrupterParameters {
@@ -45,11 +43,10 @@ trait CoreplexLocalInterrupterBundle extends Bundle with MixCoreplexLocalInterru
 
 trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCoreplexLocalInterrupterParameters {
   val io: CoreplexLocalInterrupterBundle
+  val address: AddressSet
 
   val timeWidth = 64
   val regWidth = 32
-  // demand atomic accesses for RV64
-  require(c.beatBytes >= (p(rocket.XLen) min timeWidth)/8)
 
   val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
   when (io.rtcTick) {
@@ -66,6 +63,15 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
     tile.mtip := time.asUInt >= timecmp(i).asUInt
   }
 
+  val globalConfigString = Seq(
+    s"rtc {\n",
+    s"  addr 0x${(address.base + ClintConsts.timeOffset).toString(16)};\n",
+    s"};\n").mkString
+  val hartConfigStrings = (0 until p(NTiles)).map { i => Seq(
+    s"      timecmp 0x${(address.base + ClintConsts.timecmpOffset(i)).toString(16)};\n",
+    s"      ipi 0x${(address.base + ClintConsts.msipOffset(i)).toString(16)};\n").mkString
+  }
+
   /* 0000 msip hart 0
    * 0004 msip hart 1
    * 4000 mtimecmp hart 0 lo
@@ -77,16 +83,16 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
    */
 
   regmap(
-    0                  -> makeRegFields(ipi),
-    c.timecmpOffset(0) -> makeRegFields(timecmp.flatten),
-    c.timeOffset       -> makeRegFields(time))
+    0                            -> makeRegFields(ipi),
+    ClintConsts.timecmpOffset(0) -> makeRegFields(timecmp.flatten),
+    ClintConsts.timeOffset       -> makeRegFields(time))
 
   def makeRegFields(s: Seq[UInt]) = s.map(r => RegField(regWidth, r))
 }
 
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
-class CoreplexLocalInterrupter(c: CoreplexLocalInterrupterConfig)(implicit val p: Parameters)
-  extends TLRegisterRouter(c.address, 0, c.size, 0, c.beatBytes, false)(
-  new TLRegBundle((c, p), _)    with CoreplexLocalInterrupterBundle)(
-  new TLRegModule((c, p), _, _) with CoreplexLocalInterrupterModule)
+class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit val p: Parameters)
+  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
+  new TLRegBundle(p, _)    with CoreplexLocalInterrupterBundle)(
+  new TLRegModule(p, _, _) with CoreplexLocalInterrupterModule)

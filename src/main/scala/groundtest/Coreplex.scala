@@ -4,13 +4,14 @@ import Chisel._
 import cde.{Parameters}
 import coreplex._
 
-class GroundTestCoreplex(c: CoreplexConfig)(implicit p: Parameters) extends BaseCoreplex(c)(p) {
-  override lazy val module = Module(new GroundTestCoreplexModule(c, this, new GroundTestCoreplexBundle(c)(p))(p))
+class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
+    with DirectConnection {
+  override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
 }
 
-class GroundTestCoreplexBundle(c: CoreplexConfig)(implicit p: Parameters) extends BaseCoreplexBundle(c)(p)
+class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexBundle(_outer)
 
-class GroundTestCoreplexModule[+L <: GroundTestCoreplex, +B <: GroundTestCoreplexBundle](
-    c: CoreplexConfig, l: L, b: => B)(implicit p: Parameters) extends BaseCoreplexModule(c, l, b)(p) with DirectConnection {
+class GroundTestCoreplexModule[+L <: GroundTestCoreplex, +B <: GroundTestCoreplexBundle[L]](_outer: L, _io: () => B) extends BaseCoreplexModule(_outer, _io)
+    with DirectConnectionModule {
   io.success := tiles.flatMap(_.io.elements get "success").map(_.asInstanceOf[Bool]).reduce(_&&_)
 }

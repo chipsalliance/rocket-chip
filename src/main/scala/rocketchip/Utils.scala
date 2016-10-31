@@ -53,20 +53,8 @@ class GlobalVariable[T] {
 }
 
 object GenerateGlobalAddrMap {
-  def apply(p: Parameters, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
-    lazy val cBusIOAddrMap: AddrMap = {
-      val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
-      entries += AddrMapEntry("debug", MemSize(4096, MemAttr(AddrMapProt.RWX)))
-      entries += AddrMapEntry("plic", MemRange(0x0C000000, 0x4000000, MemAttr(AddrMapProt.RW)))
-      if (p(DataScratchpadSize) > 0) { // TODO heterogeneous tiles
-        require(p(NTiles) == 1) // TODO relax this
-        require(p(NMemoryChannels) == 0) // TODO allow both scratchpad & DRAM
-        entries += AddrMapEntry("dmem0", MemRange(0x80000000L, BigInt(p(DataScratchpadSize)), MemAttr(AddrMapProt.RWX)))
-      }
-      new AddrMap(entries)
-    }
-
-    lazy val tl2Devices = peripheryManagers.map { manager =>
+  def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
+    val tl2Devices = peripheryManagers.map { manager =>
       val cacheable = manager.regionType match {
         case RegionType.CACHED   => true
         case RegionType.TRACKED  => true
@@ -84,41 +72,28 @@ object GenerateGlobalAddrMap {
       }
     }.flatten
 
-    lazy val uniquelyNamedTL2Devices =
+    val uniquelyNamedTL2Devices =
       tl2Devices.groupBy(_.name).values.map(_.zipWithIndex.map {
         case (e, i) => if (i == 0) e else e.copy(name = e.name + "_" + i)
       }).flatten.toList
-
-    lazy val tl2AddrMap = new AddrMap(uniquelyNamedTL2Devices, collapse = true)
-    lazy val pBusIOAddrMap = new AddrMap(AddrMapEntry("TL2", tl2AddrMap) +: (p(ExtMMIOPorts) ++ pDevicesEntries), collapse = true)
 
     val memBase = 0x80000000L
     val memSize = p(ExtMemSize)
     Dump("MEM_BASE", memBase)
 
-    val cBus = AddrMapEntry("cbus", cBusIOAddrMap)
-    val pBus = AddrMapEntry("pbus", pBusIOAddrMap)
-    val io = AddrMapEntry("io", AddrMap((cBus +: (!pBusIOAddrMap.isEmpty).option(pBus).toSeq):_*))
+    val tl2 = AddrMapEntry("TL2", new AddrMap(uniquelyNamedTL2Devices, collapse = true))
     val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
-    AddrMap((io +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
+    AddrMap((tl2 +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
   }
 }
 
 object GenerateConfigString {
-  def apply(p: Parameters, c: CoreplexConfig, pDevicesEntries: Seq[AddrMapEntry], peripheryManagers: Seq[TLManagerParameters]) = {
+  def apply(p: Parameters, clint: CoreplexLocalInterrupter, plic: TLPLIC, peripheryManagers: Seq[TLManagerParameters]) = {
+    val c = CoreplexParameters()(p)
     val addrMap = p(GlobalAddrMap)
-    val plicAddr = addrMap("io:cbus:plic").start
-    val clint = CoreplexLocalInterrupterConfig(0, addrMap("io:pbus:TL2:clint").start)
-    val xLen = p(XLen)
     val res = new StringBuilder
-    res append  "plic {\n"
-    res append s"  priority 0x${plicAddr.toString(16)};\n"
-    res append s"  pending 0x${(plicAddr + c.plicKey.pendingBase).toString(16)};\n"
-    res append s"  ndevs ${c.plicKey.nDevices};\n"
-    res append  "};\n"
-    res append  "rtc {\n"
-    res append s"  addr 0x${clint.timeAddress.toString(16)};\n"
-    res append  "};\n"
+    res append plic.module.globalConfigString
+    res append clint.module.globalConfigString
     if (addrMap contains "mem") {
       res append  "ram {\n"
       res append  "  0 {\n"
@@ -140,33 +115,12 @@ object GenerateConfigString {
       res append s"  $i {\n"
       res append  "    0 {\n"
       res append s"      isa $isa;\n"
-      res append s"      timecmp 0x${clint.timecmpAddress(i).toString(16)};\n"
-      res append s"      ipi 0x${clint.msipAddress(i).toString(16)};\n"
-      res append s"      plic {\n"
-      res append s"        m {\n"
-      res append s"         ie 0x${(plicAddr + c.plicKey.enableAddr(i, 'M')).toString(16)};\n"
-      res append s"         thresh 0x${(plicAddr + c.plicKey.threshAddr(i, 'M')).toString(16)};\n"
-      res append s"         claim 0x${(plicAddr + c.plicKey.claimAddr(i, 'M')).toString(16)};\n"
-      res append s"        };\n"
-      if (c.hasSupervisor) {
-        res append s"        s {\n"
-        res append s"         ie 0x${(plicAddr + c.plicKey.enableAddr(i, 'S')).toString(16)};\n"
-        res append s"         thresh 0x${(plicAddr + c.plicKey.threshAddr(i, 'S')).toString(16)};\n"
-        res append s"         claim 0x${(plicAddr + c.plicKey.claimAddr(i, 'S')).toString(16)};\n"
-        res append s"        };\n"
-      }
-      res append  "      };\n"
+      res append clint.module.hartConfigStrings(i)
+      res append plic.module.hartConfigStrings(i)
       res append  "    };\n"
       res append  "  };\n"
     }
     res append  "};\n"
-    pDevicesEntries foreach { entry =>
-      val region = addrMap("io:pbus:" + entry.name)
-      res append s"${entry.name} {\n"
-      res append s"  addr 0x${region.start.toString(16)};\n"
-      res append s"  size 0x${region.size.toString(16)}; \n"
-      res append  "}\n"
-    }
     peripheryManagers.foreach { manager => res append manager.dts }
     res append '\u0000'
     res.toString
@@ -185,6 +139,6 @@ object GenerateBootROM {
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (p(ConfigString).getBytes.toSeq)
+    rom.array() ++ (ConfigStringOutput.contents.get.getBytes.toSeq)
   }
 }

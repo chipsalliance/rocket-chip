@@ -5,9 +5,11 @@ import diplomacy._
 
 package object tilelink2
 {
+  type TLInwardNode = InwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle]
   type TLOutwardNode = OutwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle]
   type TLAsyncOutwardNode = OutwardNodeHandle[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]
   type IntOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
+
   def OH1ToOH(x: UInt) = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
   def OH1ToUInt(x: UInt) = OHToUInt(OH1ToOH(x))
   def UIntToOH1(x: UInt, width: Int) = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
