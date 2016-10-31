@@ -93,7 +93,7 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   implicit val p = outer.p
 }
 
-trait CoreplexRISCV {
+trait CoreplexRISCVPlatform {
     this: CoreplexNetwork =>
 
   // Build a set of Tiles
@@ -118,9 +118,9 @@ trait CoreplexRISCV {
   tileIntNodes.foreach { _ := plic.intnode }
 }
 
-trait CoreplexRISCVBundle {
+trait CoreplexRISCVPlatformBundle {
   this: CoreplexNetworkBundle {
-    val outer: CoreplexRISCV
+    val outer: CoreplexRISCVPlatform
   } =>
 
   val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
@@ -131,10 +131,10 @@ trait CoreplexRISCVBundle {
   val success = Bool(OUTPUT) // used for testing
 }
 
-trait CoreplexRISCVModule {
+trait CoreplexRISCVPlatformModule {
   this: CoreplexNetworkModule {
-    val outer: CoreplexNetwork with CoreplexRISCV
-    val io: CoreplexRISCVBundle
+    val outer: CoreplexNetwork with CoreplexRISCVPlatform
+    val io: CoreplexRISCVPlatformBundle
   } =>
 
   val tiles = outer.lazyTiles.map(_.module)
@@ -231,14 +231,14 @@ trait CoreplexRISCVModule {
 
 class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
     with CoreplexNetwork
-    with CoreplexRISCV {
+    with CoreplexRISCVPlatform {
   override lazy val module = new BaseCoreplexModule(this, () => new BaseCoreplexBundle(this))
 }
 
 class BaseCoreplexBundle[+L <: BaseCoreplex](_outer: L) extends BareCoreplexBundle(_outer)
     with CoreplexNetworkBundle
-    with CoreplexRISCVBundle
+    with CoreplexRISCVPlatformBundle
 
 class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle[L]](_outer: L, _io: () => B) extends BareCoreplexModule(_outer, _io)
     with CoreplexNetworkModule
-    with CoreplexRISCVModule
+    with CoreplexRISCVPlatformModule

@@ -11,12 +11,12 @@ import util._
 import rocket._
 
 trait DirectConnection {
-    this: CoreplexNetwork with CoreplexRISCV =>
+    this: CoreplexNetwork with CoreplexRISCVPlatform =>
   lazyTiles.map(_.slave).flatten.foreach { scratch => scratch := cbus.node }
 }
 
 trait DirectConnectionModule {
-    this: CoreplexNetworkModule with CoreplexRISCVModule =>
+    this: CoreplexNetworkModule with CoreplexRISCVPlatformModule =>
 
   val tlBuffering = TileLinkDepths(1,1,2,2,0)
   val ultBuffering = UncachedTileLinkDepths(1,2)
@@ -45,7 +45,7 @@ class DefaultCoreplexModule[+L <: DefaultCoreplex, +B <: DefaultCoreplexBundle[L
 /////
 
 trait AsyncConnection {
-    this: CoreplexNetwork with CoreplexRISCV =>
+    this: CoreplexNetwork with CoreplexRISCVPlatform =>
   val crossings = lazyTiles.map(_.slave).map(_.map { scratch =>
     val crossing = LazyModule(new TLAsyncCrossing)
     crossing.node := cbus.node
@@ -55,7 +55,7 @@ trait AsyncConnection {
 }
 
 trait AsyncConnectionBundle {
-    this: CoreplexNetworkBundle with CoreplexRISCVBundle =>
+    this: CoreplexNetworkBundle with CoreplexRISCVPlatformBundle =>
   val tcrs = Vec(nTiles, new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
@@ -63,7 +63,7 @@ trait AsyncConnectionBundle {
 }
 
 trait AsyncConnectionModule {
-  this: Module with CoreplexNetworkModule with CoreplexRISCVModule {
+  this: Module with CoreplexNetworkModule with CoreplexRISCVPlatformModule {
     val outer: AsyncConnection
     val io: AsyncConnectionBundle
   } =>
