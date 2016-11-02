@@ -78,6 +78,10 @@ class RocketTile(clockSignal: Clock = null, resetSignal: Bool = null)
   icache.io.cpu <> core.io.imem
   icache.io.resetVector := io.resetVector
 
+  // Send counter signals into the core for use in the CSR file
+  core.io.counters.imem := icache.io.mem.acquire.valid & icache.io.mem.acquire.ready
+  core.io.counters.dmem := dcache.counters
+
   val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)))
   fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
 

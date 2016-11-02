@@ -150,6 +150,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUIO().flip
     val rocc = new RoCCInterface().flip
+    val counters = new Bundle {
+      val dmem = new HellaCacheCounterIO().flip
+      val imem = Bool(INPUT)
+    }
   }
 
   val decode_table = {
@@ -653,6 +657,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   io.rocc.cmd.bits.inst := new RoCCInstruction().fromBits(wb_reg_inst)
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
+
+  // [ben] Wire custom events into the CSR file
+  csr.io.events(0) := io.counters.imem
+  csr.io.events(1) := io.counters.dmem.miss
+  csr.io.events(2) := io.counters.dmem.hit
 
   if (enableCommitLog) {
     val pc = Wire(SInt(width=xLen))

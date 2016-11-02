@@ -793,6 +793,7 @@ class HellaCache(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCache
     val cpu = (new HellaCacheIO).flip
     val ptw = new TLBPTWIO()
     val mem = new ClientTileLinkIO
+    val counters = new HellaCacheCounterIO
   }
  
   require(isPow2(nWays)) // TODO: relax this
@@ -1107,6 +1108,31 @@ class HellaCache(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCache
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+
+  // [ben] Count DCache misses
+  // TODO - split into load and store misses
+  val handshake_delay = Reg(next = io.cpu.req.ready && io.cpu.req.valid)
+  val addr_delay = Reg(next = io.cpu.req.bits.addr)
+  val handshake = Reg(next = handshake_delay)
+  val my_addr = Reg(next = addr_delay)
+
+  io.counters.miss := false
+  io.counters.hit := false
+
+  when (handshake) {
+    when ( io.cpu.resp.valid && (my_addr === io.cpu.resp.bits.addr) ) {
+      io.counters.hit := true
+    }
+    .otherwise {
+      io.counters.miss := true
+    }
+  }
+
+}
+
+class HellaCacheCounterIO extends Bundle {
+  val miss = Bool(OUTPUT)
+  val hit = Bool(OUTPUT)
 }
 
 /**

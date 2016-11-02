@@ -45,6 +45,7 @@ class DCache(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val cpu = (new HellaCacheIO).flip
     val ptw = new TLBPTWIO()
     val mem = new ClientTileLinkIO
+    val counters = new HellaCacheCounterIO // So the interface fits - but leave it unconnected...
   }
 
   val fq = Module(new FinishQueue(1))
