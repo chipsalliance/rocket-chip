@@ -15,7 +15,7 @@ case class AXI4ToTLNode() extends MixedNode(AXI4Imp, TLImp)(
         nodePath = m.nodePath)
     }))
   },
-  uFn = { case (1, Seq(TLManagerPortParameters(managers, beatBytes, _))) =>
+  uFn = { case (1, Seq(TLManagerPortParameters(managers, beatBytes, _, _))) =>
     Seq(AXI4SlavePortParameters(beatBytes = beatBytes, slaves = managers.map { m =>
       AXI4SlaveParameters(
         address       = m.address,

@@ -43,7 +43,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       out.a.valid := in.a.valid && !hintBitsAtA
       in.a.ready := Mux(hintBitsAtA, hint.ready, out.a.ready)
 
-      hint.bits := edgeIn.HintAck(in.a.bits, edgeOut.manager.findIdStartFast(address))
+      hint.bits := edgeIn.HintAck(in.a.bits, UInt(0))
       out.a.bits := in.a.bits
 
       TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), Queue(hint, 1)))

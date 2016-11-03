@@ -108,7 +108,7 @@ object TLClientNode
 object TLManagerNode
 {
   def apply(beatBytes: Int, params: TLManagerParameters) =
-    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, 0), 1 to 1)
+    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, minLatency = 0), 1 to 1)
 }
 
 case class TLAdapterNode(

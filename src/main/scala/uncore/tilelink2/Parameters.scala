@@ -8,7 +8,6 @@ import scala.math.max
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
-  sinkId:             IdRange       = IdRange(0, 1),
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
@@ -59,22 +58,15 @@ case class TLManagerParameters(
 case class TLManagerPortParameters(
   managers:   Seq[TLManagerParameters],
   beatBytes:  Int,
+  endSinkId:  Int = 1,
   minLatency: Int = 0)
 {
   require (!managers.isEmpty)
   require (isPow2(beatBytes))
+  require (endSinkId > 0)
   require (minLatency >= 0)
 
-  // Require disjoint ranges for Ids and addresses
-  managers.combinations(2).foreach({ case Seq(x,y) =>
-    require (!x.sinkId.overlaps(y.sinkId))
-    x.address.foreach({ a => y.address.foreach({ b =>
-      require (!a.overlaps(b))
-    })})
-  })
-
   // Bounds on required sizes
-  def endSinkId   = managers.map(_.sinkId.end).max
   def maxAddress  = managers.map(_.maxAddress).max
   def maxTransfer = managers.map(_.maxTransfer).max
   
@@ -101,12 +93,6 @@ case class TLManagerPortParameters(
 
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
-  def findById(id: Int) = managers.find(_.sinkId.contains(id))
-
-  // Synthesizable lookup methods
-  def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
-  def findIdStartFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.start)))
-  def findIdEndFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.end)))
 
   // The safe version will check the entire address
   def findSafe(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
@@ -119,8 +105,6 @@ case class TLManagerPortParameters(
 
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
-  // containsFast would be useless; it could always be true
-  def containsById(id: UInt) = findById(id).reduce(_ || _)
 
   private def safe_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
     val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
