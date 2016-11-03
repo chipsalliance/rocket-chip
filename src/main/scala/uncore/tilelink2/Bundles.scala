@@ -88,6 +88,12 @@ object TLAtomics
   def isLogical(x: UInt) = x <= SWAP
 }
 
+object TLHints
+{
+  val PREFETCH_READ  = UInt(0)
+  val PREFETCH_WRITE = UInt(1)
+}
+
 sealed trait TLChannel extends TLBundleBase {
   val channelName: String
 }

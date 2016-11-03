@@ -216,7 +216,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
 
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.addr_lo, bundle.size)
-    val sink_ok = edge.manager.containsById(bundle.sink)
+    val sink_ok = bundle.sink < UInt(edge.manager.endSinkId)
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assert (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
@@ -270,7 +270,8 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeFormatE(bundle: TLBundleE, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    assert (edge.manager.containsById(bundle.sink), "'E' channels carries invalid sink ID" + extra)
+    val sink_ok = bundle.sink < UInt(edge.manager.endSinkId)
+    assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
   def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
