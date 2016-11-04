@@ -96,7 +96,7 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   implicit val p = outer.p
 }
 
-trait BankedL2 {
+trait BankedL2CoherenceManagers {
     this: CoreplexNetwork =>
   require (isPow2(nBanksPerMemChannel))
   require (isPow2(l1tol2_lineBytes))
@@ -119,19 +119,19 @@ trait BankedL2 {
   }
 }
 
-trait BankedL2Bundle {
+trait BankedL2CoherenceManagersBundle {
   this: CoreplexNetworkBundle {
-    val outer: BankedL2
+    val outer: BankedL2CoherenceManagers
   } =>
 
   require (nMemChannels == 1, "Seq in Chisel Bundle needed to support > 1") // !!!
   val mem = outer.l2Channels.map(_.bundleOut).toList.head // .head should be removed !!!
 }
 
-trait BankedL2Module {
+trait BankedL2CoherenceManagersModule {
   this: CoreplexNetworkModule {
-    val outer: BankedL2
-    val io: BankedL2Bundle
+    val outer: BankedL2CoherenceManagers
+    val io: BankedL2CoherenceManagersBundle
   } =>
 }
 
