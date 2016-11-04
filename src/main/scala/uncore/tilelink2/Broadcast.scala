@@ -6,7 +6,7 @@ import Chisel._
 import diplomacy._
 import scala.math.{min,max}
 
-class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
+class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false) extends LazyModule
 {
   require (lineBytes > 0 && isPow2(lineBytes))
   require (numTrackers > 0)
@@ -71,7 +71,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
 
     // Create the request tracker queues
     val trackers = Seq.tabulate(numTrackers) { id =>
-      Module(new TLBroadcastTracker(id, lineBytes, log2Up(caches.size), edgeIn, edgeOut)).io
+      Module(new TLBroadcastTracker(id, lineBytes, log2Up(caches.size), bufferless, edgeIn, edgeOut)).io
     }
 
     // We always accept E
@@ -203,7 +203,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
   }
 }
 
-class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, edgeIn: TLEdgeIn, edgeOut: TLEdgeOut) extends Module
+class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferless: Boolean, edgeIn: TLEdgeIn, edgeOut: TLEdgeOut) extends Module
 {
   val io = new Bundle {
     val in_a_first = Bool(INPUT)
@@ -259,7 +259,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, edgeIn: T
   io.line := address >> lineShift
 
   val i_data = Wire(Decoupled(new TLBroadcastData(edgeIn.bundle)))
-  val o_data = Queue(i_data, lineBytes / edgeIn.manager.beatBytes)
+  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes))
 
   io.in_a.ready := (idle || !io.in_a_first) && i_data.ready
   i_data.valid := (idle || !io.in_a_first) && io.in_a.valid
