@@ -26,14 +26,14 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
           require (m.regionType != RegionType.TRACKED)
           require (!m.supportsAcquire)
           // We only manage addresses which are uncached
-          if (m.regionType == RegionType.UNCACHED) {
+          if (m.regionType == RegionType.UNCACHED && m.supportsGet) {
             // The device had better support line transfers
-            require (!m.supportsPutFull    || m.supportsPutFull   .contains(lineBytes))
-            require (!m.supportsPutPartial || m.supportsPutPartial.contains(lineBytes))
-            require (!m.supportsGet        || m.supportsGet       .contains(lineBytes))
+            val lowerBound = max(m.supportsPutFull.min, m.supportsGet.min)
+            require (!m.supportsPutFull || m.supportsPutFull.contains(lineBytes))
+            require (!m.supportsGet     || m.supportsGet    .contains(lineBytes))
             m.copy(
               regionType         = RegionType.TRACKED,
-              supportsAcquire    = TransferSizes(1, lineBytes),
+              supportsAcquire    = TransferSizes(lowerBound, lineBytes),
               // truncate supported accesses to lineBytes (we only ever probe for one line)
               supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, lineBytes)),
               supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, lineBytes)),
