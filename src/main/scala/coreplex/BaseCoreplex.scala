@@ -103,7 +103,7 @@ trait BankedL2CoherenceManagers {
 
   def l2ManagerFactory(): (TLInwardNode, TLOutwardNode)
 
-  val l2Channels = Seq.fill(nMemChannels) {
+  val mem = Seq.fill(nMemChannels) {
     val bankBar = LazyModule(new TLXbar)
     val output = TLOutputNode()
 
@@ -124,8 +124,8 @@ trait BankedL2CoherenceManagersBundle {
     val outer: BankedL2CoherenceManagers
   } =>
 
-  require (nMemChannels == 1, "Seq in Chisel Bundle needed to support > 1") // !!!
-  val mem = outer.l2Channels.map(_.bundleOut).toList.head // .head should be removed !!!
+  require (nMemChannels <= 1, "Seq in Chisel Bundle needed to support > 1") // !!!
+  val mem = outer.mem.map(_.bundleOut).toList.headOption // .headOption should be removed !!!
 }
 
 trait BankedL2CoherenceManagersModule {
