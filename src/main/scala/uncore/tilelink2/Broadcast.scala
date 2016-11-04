@@ -67,7 +67,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
     require (lineBytes >= edgeOut.manager.beatBytes)
     // For the probe walker, we need to identify all the caches
     val caches = clients.filter(_.supportsProbe).map(_.sourceId)
-    val cache_targets = Vec(caches.map(c => UInt(c.start)))
+    val cache_targets = caches.map(c => UInt(c.start))
 
     // Create the request tracker queues
     val trackers = Seq.tabulate(numTrackers) { id =>
@@ -81,7 +81,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
     }
 
     // Depending on the high source bits, we might transform D
-    val d_high = 1 << log2Ceil(edgeIn.client.endSourceId)
+    val d_high = log2Ceil(edgeIn.client.endSourceId)
     val d_what = out.d.bits.source(d_high+1, d_high)
     val d_drop = d_what === DROP
     val d_hasData = edgeOut.hasData(out.d.bits)
@@ -143,20 +143,22 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
        trackers.map { t => (edgeOut.numBeats1(t.out_a.bits), t.out_a) }):_*)
 
     // The Probe FSM walks all caches and probes them
-    val probe_todo = RegInit(UInt(0, width = caches.size))
+    val probe_todo = RegInit(UInt(0, width = max(1, caches.size)))
     val probe_line = Reg(UInt())
     val probe_perms = Reg(UInt(width = 2))
     val probe_next = probe_todo & ~(leftOR(probe_todo) << 1)
     val probe_busy = probe_todo.orR()
-    val probe_target = Mux1H(probe_next, cache_targets)
+    val probe_target = if (caches.size == 0) UInt(0) else Mux1H(probe_next, cache_targets)
 
     // Probe whatever the FSM wants to do next
     in.b.valid := probe_busy
-    in.b.bits := edgeIn.Probe(probe_line << lineShift, probe_target, UInt(lineShift), probe_perms)._2
+    if (caches.size != 0) {
+      in.b.bits := edgeIn.Probe(probe_line << lineShift, probe_target, UInt(lineShift), probe_perms)._2
+    }
     when (in.b.fire()) { probe_todo := probe_todo & ~probe_next }
 
     // Which cache does a request come from?
-    val a_cache = Vec(caches.map(_.contains(in.a.bits.source))).asUInt
+    val a_cache = if (caches.size == 0) UInt(1) else Vec(caches.map(_.contains(in.a.bits.source))).asUInt
     val (a_first, _, _) = edgeIn.firstlast(in.a)
 
     // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
@@ -173,7 +175,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4) extends LazyModule
       t.in_a.valid := in.a.valid && select && (!a_first || !probe_busy)
       t.in_a.bits := in.a.bits
       t.in_a_first := a_first
-      t.probe := Mux(a_cache.orR(), UInt(caches.size-1), UInt(caches.size))
+      t.probe := (if (caches.size == 0) UInt(0) else Mux(a_cache.orR(), UInt(caches.size-1), UInt(caches.size)))
     }
 
     when (in.a.fire() && a_first) {
@@ -256,12 +258,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, edgeIn: T
   io.source := source
   io.line := address >> lineShift
 
-  class Data extends Bundle {
-    val mask = io.in_a.bits.mask.cloneType
-    val data = io.in_a.bits.data.cloneType
-  }
-
-  val i_data = Wire(Decoupled(new Data))
+  val i_data = Wire(Decoupled(new TLBroadcastData(edgeIn.bundle)))
   val o_data = Queue(i_data, lineBytes / edgeIn.manager.beatBytes)
 
   io.in_a.ready := (idle || !io.in_a_first) && i_data.ready
@@ -294,4 +291,10 @@ object TLBroadcastConstants
   val TRANSFORM_B = UInt(2)
   val DROP        = UInt(1)
   val PASS        = UInt(0)
+}
+
+class TLBroadcastData(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val mask = UInt(width = params.dataBits/8)
+  val data = UInt(width = params.dataBits)
 }
