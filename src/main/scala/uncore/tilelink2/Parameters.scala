@@ -23,7 +23,9 @@ case class TLManagerParameters(
   fifoId:             Option[Int]   = None,
   customDTS:          Option[String]= None)
 {
+  require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
+
   address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
   require (supportsPutFull.contains(supportsPutPartial))
 

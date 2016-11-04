@@ -104,6 +104,17 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   // Widen the match function to ignore all bits in imask
   def widen(imask: BigInt) = AddressSet(base & ~imask, mask | imask)
 
+  // Return an AddressSet that only contains the addresses both sets contain
+  def intersect(x: AddressSet): Option[AddressSet] = {
+    if (!overlaps(x)) {
+      None
+    } else {
+      val r_mask = mask & x.mask
+      val r_base = base | x.base
+      Some(AddressSet(r_base, r_mask))
+    }
+  }
+
   // AddressSets have one natural Ordering (the containment order, if contiguous)
   def compare(x: AddressSet) = {
     val primary   = (this.base - x.base).signum // smallest address first
