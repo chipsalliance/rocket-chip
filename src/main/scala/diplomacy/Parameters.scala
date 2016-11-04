@@ -104,6 +104,17 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   // Widen the match function to ignore all bits in imask
   def widen(imask: BigInt) = AddressSet(base & ~imask, mask | imask)
 
+  // Return an AddressSet that only contains the addresses both sets contain
+  def intersect(x: AddressSet): Option[AddressSet] = {
+    if (!overlaps(x)) {
+      None
+    } else {
+      val r_mask = mask & x.mask
+      val r_base = base | x.base
+      Some(AddressSet(r_base, r_mask))
+    }
+  }
+
   // AddressSets have one natural Ordering (the containment order, if contiguous)
   def compare(x: AddressSet) = {
     val primary   = (this.base - x.base).signum // smallest address first
@@ -133,5 +144,24 @@ object AddressSet
       misaligned(base+step, size-step, AddressSet(base, step-1) +: tail)
     }
   }
-}
 
+  def unify(seq: Seq[AddressSet]): Seq[AddressSet] = {
+    val n = seq.size
+    val array = Array(seq:_*)
+    var filter = Array.fill(n) { false }
+    for (i <- 0 until n-1) { if (!filter(i)) {
+      for (j <- i+1 until n) { if (!filter(j)) {
+        val a = array(i)
+        val b = array(j)
+        if (a.mask == b.mask && isPow2(a.base ^ b.base)) {
+          val c_base = a.base & ~(a.base ^ b.base)
+          val c_mask = a.mask | (a.base ^ b.base)
+          filter.update(j, true)
+          array.update(i, AddressSet(c_base, c_mask))
+        }
+      }}
+    }}
+    val out = (array zip filter) flatMap { case (a, f) => if (f) None else Some(a) }
+    if (out.size != n) unify(out) else out.toList
+  }
+}
