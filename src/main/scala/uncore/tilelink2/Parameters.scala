@@ -287,3 +287,45 @@ case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: T
 {
   val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
 }
+
+object ManagerUnification
+{
+  def apply(managers: Seq[TLManagerParameters]) = {
+    // To be unified, devices must agree on all of these terms
+    case class TLManagerKey(
+      regionType:         RegionType.T,
+      executable:         Boolean,
+      lastNode:           BaseNode,
+      supportsAcquire:    TransferSizes,
+      supportsArithmetic: TransferSizes,
+      supportsLogical:    TransferSizes,
+      supportsGet:        TransferSizes,
+      supportsPutFull:    TransferSizes,
+      supportsPutPartial: TransferSizes,
+      supportsHint:       TransferSizes)
+    def key(x: TLManagerParameters) = TLManagerKey(
+      regionType         = x.regionType,
+      executable         = x.executable,
+      lastNode           = x.nodePath.last,
+      supportsAcquire    = x.supportsAcquire,
+      supportsArithmetic = x.supportsArithmetic,
+      supportsLogical    = x.supportsLogical,
+      supportsGet        = x.supportsGet,
+      supportsPutFull    = x.supportsPutFull,
+      supportsPutPartial = x.supportsPutPartial,
+      supportsHint       = x.supportsHint)
+    val map = scala.collection.mutable.HashMap[TLManagerKey, TLManagerParameters]()
+    managers.foreach { m =>
+      val k = key(m)
+      map.get(k) match {
+        case None => map.update(k, m)
+        case Some(n) => {
+          map.update(k, m.copy(
+            address = m.address ++ n.address,
+            fifoId  = None)) // Merging means it's not FIFO anymore!
+        }
+      }
+    }
+    map.values.map(m => m.copy(address = AddressSet.unify(m.address))).toList
+  }
+}

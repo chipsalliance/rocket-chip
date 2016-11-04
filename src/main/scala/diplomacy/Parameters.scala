@@ -144,5 +144,24 @@ object AddressSet
       misaligned(base+step, size-step, AddressSet(base, step-1) +: tail)
     }
   }
-}
 
+  def unify(seq: Seq[AddressSet]): Seq[AddressSet] = {
+    val n = seq.size
+    val array = Array(seq:_*)
+    var filter = Array.fill(n) { false }
+    for (i <- 0 until n-1) { if (!filter(i)) {
+      for (j <- i+1 until n) { if (!filter(j)) {
+        val a = array(i)
+        val b = array(j)
+        if (a.mask == b.mask && isPow2(a.base ^ b.base)) {
+          val c_base = a.base & ~(a.base ^ b.base)
+          val c_mask = a.mask | (a.base ^ b.base)
+          filter.update(j, true)
+          array.update(i, AddressSet(c_base, c_mask))
+        }
+      }}
+    }}
+    val out = (array zip filter) flatMap { case (a, f) => if (f) None else Some(a) }
+    if (out.size != n) unify(out) else out.toList
+  }
+}
