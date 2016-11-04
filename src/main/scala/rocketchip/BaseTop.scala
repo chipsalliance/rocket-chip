@@ -55,6 +55,8 @@ trait TopNetwork extends HasPeripheryParameters {
     TLWidthWidget(p(SOCBusKey).beatBytes)(
     TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
     socBus.node))
+
+  var coreplexMem = Seq[TLOutwardNode]()
 }
 
 trait TopNetworkBundle extends HasPeripheryParameters {
@@ -70,7 +72,6 @@ trait TopNetworkModule extends HasPeripheryParameters {
   } =>
   implicit val p = outer.p
 
-  val coreplexMem  : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
   val coreplexSlave: Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
   val coreplexDebug: DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
   val coreplexRtc  : Bool                          = Wire(outer.coreplex.module.io.rtcTick)
@@ -98,6 +99,8 @@ trait DirectConnection {
 
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
+
+  coreplexMem = coreplex.mem
 }
 
 trait DirectConnectionModule {
@@ -105,7 +108,6 @@ trait DirectConnectionModule {
     val outer: BaseTop[BaseCoreplex]
   } =>
 
-  coreplexMem <> outer.coreplex.module.io.mem
   outer.coreplex.module.io.slave <> coreplexSlave
   outer.coreplex.module.io.debug <> coreplexDebug
 }

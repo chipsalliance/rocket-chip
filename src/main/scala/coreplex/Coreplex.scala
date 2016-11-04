@@ -43,6 +43,7 @@ trait DirectConnectionModule {
 }
 
 class DefaultCoreplex(implicit p: Parameters) extends BaseCoreplex
+    with BroadcastL2
     with DirectConnection {
   override lazy val module = new DefaultCoreplexModule(this, () => new DefaultCoreplexBundle(this))
 }
@@ -112,6 +113,7 @@ trait AsyncConnectionModule {
 }
 
 class MultiClockCoreplex(implicit p: Parameters) extends BaseCoreplex
+    with BroadcastL2
     with AsyncConnection {
   override lazy val module = new MultiClockCoreplexModule(this, () => new MultiClockCoreplexBundle(this))
 }

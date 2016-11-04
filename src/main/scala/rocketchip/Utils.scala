@@ -77,13 +77,8 @@ object GenerateGlobalAddrMap {
         case (e, i) => if (i == 0) e else e.copy(name = e.name + "_" + i)
       }).flatten.toList
 
-    val memBase = 0x80000000L
-    val memSize = p(ExtMemSize)
-    Dump("MEM_BASE", memBase)
-
     val tl2 = AddrMapEntry("TL2", new AddrMap(uniquelyNamedTL2Devices, collapse = true))
-    val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
-    AddrMap((tl2 +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
+    AddrMap(tl2)
   }
 }
 

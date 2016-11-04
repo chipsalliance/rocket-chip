@@ -19,21 +19,17 @@ class TestHarness(q: Parameters) extends Module {
   implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
-  require(dut.io.mem_clk.isEmpty)
-  require(dut.io.mem_rst.isEmpty)
-  require(dut.io.mem_ahb.isEmpty)
-  require(dut.io.mem_tl.isEmpty)
   require(dut.io.bus_clk.isEmpty)
   require(dut.io.bus_rst.isEmpty)
 
   for (int <- dut.io.interrupts(0))
     int := Bool(false)
 
-  if (dut.io.mem_axi.nonEmpty) {
+  if (dut.io.mem_axi4.nonEmpty) {
     val memSize = p(ExtMemSize)
-    require(memSize % dut.io.mem_axi.size == 0)
-    for (axi <- dut.io.mem_axi) {
-      val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))
+    require(memSize % dut.io.mem_axi4.size == 0)
+    for (axi <- dut.io.mem_axi4.map(_(0))) {
+      val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi4.size))
       mem.io.axi.ar <> axi.ar
       mem.io.axi.aw <> axi.aw
       mem.io.axi.w  <> axi.w

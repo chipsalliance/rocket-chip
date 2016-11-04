@@ -5,6 +5,7 @@ import cde.{Parameters}
 import coreplex._
 
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
+    with BroadcastL2
     with DirectConnection {
   override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
 }

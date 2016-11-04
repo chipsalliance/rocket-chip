@@ -10,13 +10,13 @@ import rocketchip._
 
 /** Example Top with Periphery */
 class ExampleTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends BaseTop(_coreplex)
+    with DirectConnection
     with PeripheryBootROM
     with PeripheryDebug
     with PeripheryExtInterrupts
-    with PeripheryMasterMem
+    with PeripheryMasterAXI4Mem
     with PeripheryMasterAXI4MMIO
-    with PeripherySlave
-    with DirectConnection {
+    with PeripherySlave {
   override lazy val module = new ExampleTopModule(this, () => new ExampleTopBundle(this))
 }
 
@@ -24,19 +24,19 @@ class ExampleTopBundle[+L <: ExampleTop[BaseCoreplex]](_outer: L) extends BaseTo
     with PeripheryBootROMBundle
     with PeripheryDebugBundle
     with PeripheryExtInterruptsBundle
-    with PeripheryMasterMemBundle
+    with PeripheryMasterAXI4MemBundle
     with PeripheryMasterAXI4MMIOBundle
     with PeripherySlaveBundle
 
 class ExampleTopModule[+L <: ExampleTop[BaseCoreplex], +B <: ExampleTopBundle[L]](_outer: L, _io: () => B) extends BaseTopModule(_outer, _io)
+    with DirectConnectionModule
     with PeripheryBootROMModule
     with PeripheryDebugModule
     with PeripheryExtInterruptsModule
-    with PeripheryMasterMemModule
+    with PeripheryMasterAXI4MemModule
     with PeripheryMasterAXI4MMIOModule
     with PeripherySlaveModule
     with HardwiredResetVector
-    with DirectConnectionModule
 
 /** Example Top with TestRAM */
 class ExampleTopWithTestRAM[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends ExampleTop(_coreplex)

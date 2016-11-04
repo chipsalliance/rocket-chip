@@ -3,7 +3,7 @@
 package rocketchip
 
 import Chisel._
-import cde.{Parameters, Field}
+import cde.{Parameters, Field, Dump}
 import junctions._
 import junctions.NastiConstants._
 import diplomacy._
@@ -153,47 +153,49 @@ trait PeripheryExtInterruptsModule {
 
 /////
 
-trait PeripheryMasterMem {
-  this: TopNetwork =>
+trait PeripheryMasterAXI4Mem {
+  this: BaseTop[BaseCoreplex] with TopNetwork =>
+
+  val base = 0x80000000L
+  val size = p(ExtMemSize)
+  val channels = coreplexMem.size
+  Dump("MEM_BASE", base)
+
+  val mem_axi4 = coreplexMem.zipWithIndex.map { case (node, i) =>
+    val c_size = size/channels
+    val c_base = base + c_size*i
+
+    val axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
+      slaves = Seq(AXI4SlaveParameters(
+        address       = List(AddressSet(c_base, c_size-1)),
+        executable    = true,
+        supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
+        supportsRead  = TransferSizes(1, 256),
+        interleavedId = Some(0))),             // slave does not interleave read responses
+      beatBytes = 8)) // 64-bit AXI interface
+
+    axi4 :=
+      // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
+      TLToAXI4(idBits = 4)(                     // use idBits = 0 for AXI4-Lite
+      TLWidthWidget(coreplex.l1tol2_beatBytes)( // convert width before attaching to the l1tol2
+      node))
+
+    axi4
+  }
 }
 
-trait PeripheryMasterMemBundle {
+trait PeripheryMasterAXI4MemBundle {
   this: TopNetworkBundle {
-    val outer: PeripheryMasterMem
+    val outer: PeripheryMasterAXI4Mem
   } =>
-  val mem_clk = p(AsyncMemChannels).option(Vec(nMemChannels, Clock(INPUT)))
-  val mem_rst = p(AsyncMemChannels).option(Vec(nMemChannels, Bool (INPUT)))
-  val mem_axi = Vec(nMemAXIChannels, new NastiIO)
-  val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
-  val mem_tl = Vec(nMemTLChannels, new ClientUncachedTileLinkIO()(edgeMemParams))
+  val mem_axi4 = outer.mem_axi4.map(_.bundleOut).toList.headOption // !!! remove headOption when Seq supported
 }
 
-trait PeripheryMasterMemModule {
+trait PeripheryMasterAXI4MemModule {
   this: TopNetworkModule {
-    val outer: PeripheryMasterMem
-    val io: PeripheryMasterMemBundle
+    val outer: PeripheryMasterAXI4Mem
+    val io: PeripheryMasterAXI4MemBundle
   } =>
-
-  val edgeMem = coreplexMem.map(TileLinkWidthAdapter(_, edgeMemParams))
-
-  // Abuse the fact that zip takes the shorter of the two lists
-  ((io.mem_axi zip edgeMem) zipWithIndex) foreach { case ((axi, mem), idx) =>
-    val axi_sync = PeripheryUtils.convertTLtoAXI(mem)
-    axi_sync.ar.bits.cache := CACHE_NORMAL_NOCACHE_BUF
-    axi_sync.aw.bits.cache := CACHE_NORMAL_NOCACHE_BUF
-    axi <> (
-      if (!p(AsyncMemChannels)) axi_sync
-      else AsyncNastiTo(io.mem_clk.get(idx), io.mem_rst.get(idx), axi_sync)
-    )
-  }
-
-  (io.mem_ahb zip edgeMem) foreach { case (ahb, mem) =>
-    ahb <> PeripheryUtils.convertTLtoAHB(mem, atomics = false)
-  }
-
-  (io.mem_tl zip edgeMem) foreach { case (tl, mem) =>
-    tl <> TileLinkEnqueuer(mem, 2)
-  }
 }
 
 /////

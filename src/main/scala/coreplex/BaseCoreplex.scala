@@ -165,7 +165,6 @@ trait CoreplexRISCVPlatformBundle {
     val outer: CoreplexRISCVPlatform
   } =>
 
-  val mem = Vec(nMemChannels, new ClientUncachedTileLinkIO()(outerMemParams))
   val slave = Vec(nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
   val debug = new DebugBusIO().flip
   val rtcTick = Bool(INPUT)
@@ -220,10 +219,7 @@ trait CoreplexRISCVPlatformModule {
     // Cached ports are first in client list, making sharerToClientId just an indentity function
     // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
     def sharerToClientId(sharerId: UInt) = sharerId
-    def addrToBank(addr: UInt): UInt = if (nBanks == 0) UInt(0) else {
-      val isMemory = globalAddrMap.isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
-      Mux(isMemory, addr.extract(lsb + log2Ceil(nBanks) - 1, lsb), UInt(nBanks))
-    }
+    def addrToBank(addr: UInt): UInt = UInt(nBanks)
     val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId))
 
     // Create point(s) of coherence serialization
@@ -250,8 +246,6 @@ trait CoreplexRISCVPlatformModule {
       val enqueued = TileLinkEnqueuer(bank.outerTL, backendBuffering)
       icPort <> TileLinkIOUnwrapper(enqueued)
     }
-
-    io.mem <> mem_ic.io.out
   }
 
   // connect coreplex-internal interrupts to tiles
@@ -271,16 +265,19 @@ trait CoreplexRISCVPlatformModule {
   io.success := Bool(false)
 }
 
-class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
+abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
     with CoreplexNetwork
+    with BankedL2CoherenceManagers
     with CoreplexRISCVPlatform {
   override lazy val module = new BaseCoreplexModule(this, () => new BaseCoreplexBundle(this))
 }
 
 class BaseCoreplexBundle[+L <: BaseCoreplex](_outer: L) extends BareCoreplexBundle(_outer)
     with CoreplexNetworkBundle
+    with BankedL2CoherenceManagersBundle
     with CoreplexRISCVPlatformBundle
 
 class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle[L]](_outer: L, _io: () => B) extends BareCoreplexModule(_outer, _io)
     with CoreplexNetworkModule
+    with BankedL2CoherenceManagersModule
     with CoreplexRISCVPlatformModule
