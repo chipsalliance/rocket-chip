@@ -10,6 +10,16 @@ import uncore.util._
 import util._
 import rocket._
 
+trait BroadcastL2 {
+    this: CoreplexNetwork =>
+  def l2ManagerFactory() = {
+    val bh = LazyModule(new TLBroadcast(l1tol2_beatBytes, nTrackersPerBank))
+    (bh.node, bh.node)
+  }
+}
+
+/////
+
 trait DirectConnection {
     this: CoreplexNetwork with CoreplexRISCVPlatform =>
   lazyTiles.map(_.slave).flatten.foreach { scratch => scratch := cbus.node }

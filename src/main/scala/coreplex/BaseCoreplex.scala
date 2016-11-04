@@ -18,6 +18,8 @@ import util._
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
 case object NBanksPerMemoryChannel extends Field[Int]
+/** Number of tracker per bank */
+case object NTrackersPerBank extends Field[Int]
 /** Least significant bit of address used for bank partitioning */
 case object BankIdLSB extends Field[Int]
 /** Function for building some kind of coherence manager agent */
@@ -39,6 +41,7 @@ trait HasCoreplexParameters {
   lazy val nSlaves = p(rocketchip.NCoreplexExtClients)
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val hasSupervisor = p(rocket.UseVM)
+  lazy val nTrackersPerBank = p(NTrackersPerBank)
 }
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
@@ -91,6 +94,45 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
 trait CoreplexNetworkModule extends HasCoreplexParameters {
     this: BareCoreplexModule[BareCoreplex, BareCoreplexBundle[BareCoreplex]] =>
   implicit val p = outer.p
+}
+
+trait BankedL2 {
+    this: CoreplexNetwork =>
+  require (isPow2(nBanksPerMemChannel))
+  require (isPow2(l1tol2_beatBytes))
+
+  def l2ManagerFactory(): (TLInwardNode, TLOutwardNode)
+
+  val l2Channels = Seq.fill(nMemChannels) {
+    val bankBar = LazyModule(new TLXbar)
+    val output = TLOutputNode()
+
+    output := bankBar.node
+    val mask = ~BigInt((nBanksPerMemChannel-1) * l1tol2_lineBytes)
+    for (i <- 0 until nBanksPerMemChannel) {
+      val (in, out) = l2ManagerFactory()
+      in := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(l1tol2.node)
+      bankBar.node := out
+    }
+
+    output
+  }
+}
+
+trait BankedL2Bundle {
+  this: CoreplexNetworkBundle {
+    val outer: BankedL2
+  } =>
+
+  require (nMemChannels == 1, "Seq in Chisel Bundle needed to support > 1") // !!!
+  val mem = outer.l2Channels.map(_.bundleOut).toList.head // .head should be removed !!!
+}
+
+trait BankedL2Module {
+  this: CoreplexNetworkModule {
+    val outer: BankedL2
+    val io: BankedL2Bundle
+  } =>
 }
 
 trait CoreplexRISCVPlatform {
