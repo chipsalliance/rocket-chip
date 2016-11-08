@@ -171,11 +171,15 @@ object Generator extends GeneratorApp {
 
   def makeAllPorts(nInputs: Int, nOutputs: Int): ModelType.Ports = {
     val config = new NastiParameters()(params)
-    val inOutPorts =
-      (0 until nInputs).map(i => makeAXIPorts(s"io_in_$i", false, config)) ++
-      (0 until nOutputs).map(i => makeAXIPorts(s"io_out_$i", true, config))
+    val inPorts = (0 until nInputs).map(
+      i => makeAXIPorts(s"io_in_$i", false, config))
+    val outPorts = (0 until nOutputs).map(
+      i => makeAXIPorts(s"io_out_$i", true, config))
+    val globalPorts = Seq(
+      makePort("clock", false, 1),
+      makePort("reset", false, 1))
     val ports = new ModelType.Ports
-    ports.getPort().addAll(toCollection(Seq(makePort("clock", false, 1)) ++ inOutPorts.flatten ++ Seq(makePort("reset", false, 1))))
+    ports.getPort().addAll(toCollection(globalPorts ++ (inPorts ++ outPorts).flatten))
     ports
   }
 
