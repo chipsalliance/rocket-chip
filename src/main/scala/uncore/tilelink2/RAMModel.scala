@@ -220,8 +220,6 @@ class TLRAMModel(log: String = "") extends LazyModule
     when (d_fire) {
       // Check the response is correct
       assert (d_size === d_flight.size)
-      assert (edge.manager.findIdStartFast(d_flight.base) <= d.sink)
-      assert (edge.manager.findIdEndFast  (d_flight.base) > d.sink)
       // addr_lo is allowed to differ
 
       when (d_flight.opcode === TLMessages.Hint) {

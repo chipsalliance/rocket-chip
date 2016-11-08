@@ -8,14 +8,14 @@ import junctions._
 import junctions.NastiConstants._
 import util.LatencyPipe
 
-case object BuildExampleTop extends Field[Parameters => ExampleTop]
+case object BuildExampleTop extends Field[Parameters => ExampleTop[coreplex.BaseCoreplex]]
 case object SimMemLatency extends Field[Int]
 
 class TestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = q(BuildExampleTop)(q).module
+  val dut = Module(q(BuildExampleTop)(q).module)
   implicit val p = dut.p
 
   // This test harness isn't especially flexible yet
@@ -25,16 +25,12 @@ class TestHarness(q: Parameters) extends Module {
   require(dut.io.mem_tl.isEmpty)
   require(dut.io.bus_clk.isEmpty)
   require(dut.io.bus_rst.isEmpty)
-  require(dut.io.mmio_clk.isEmpty)
-  require(dut.io.mmio_rst.isEmpty)
-  require(dut.io.mmio_ahb.isEmpty)
-  require(dut.io.mmio_tl.isEmpty)
 
-  for (int <- dut.io.interrupts)
+  for (int <- dut.io.interrupts(0))
     int := Bool(false)
 
   if (dut.io.mem_axi.nonEmpty) {
-    val memSize = p(GlobalAddrMap)("mem").size
+    val memSize = p(ExtMemSize)
     require(memSize % dut.io.mem_axi.size == 0)
     for (axi <- dut.io.mem_axi) {
       val mem = Module(new SimAXIMem(memSize / dut.io.mem_axi.size))

@@ -19,10 +19,9 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
     Seq(AXI4MasterPortParameters(masters))
   },
   uFn = { case (1, Seq(AXI4SlavePortParameters(slaves, beatBytes))) =>
-    val managers = slaves.zipWithIndex.map { case (s, id) =>
+    val managers = slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
-        sinkId             = IdRange(id, id+1),
         regionType         = s.regionType,
         executable         = s.executable,
         nodePath           = s.nodePath,
@@ -31,7 +30,7 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
         supportsPutPartial = s.supportsWrite)
         // AXI4 is NEVER fifo in TL sense (R+W are independent)
     }
-    Seq(TLManagerPortParameters(managers, beatBytes, 0))
+    Seq(TLManagerPortParameters(managers, beatBytes, 1, 0))
   },
   numPO = 1 to 1,
   numPI = 1 to 1)
@@ -64,7 +63,7 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     // AR before working on AW might have an AW slipped between two AR fragments.
     val out_b = Queue.irrevocable(out.b, entries=edgeIn.client.endSourceId, flow=combinational)
 
-    // We need to keep the following state from A => D: (addr_lo, size, sink, source)
+    // We need to keep the following state from A => D: (addr_lo, size, source)
     // All of those fields could potentially require 0 bits (argh. Chisel.)
     // We will pack as many of the lowest bits of state as fit into the AXI ID.
     // Any bits left-over must be put into a bank of Queues.
@@ -72,46 +71,39 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     // The Queues are deep enough that every source has guaranteed space in its Queue.
 
     val sourceBits = log2Ceil(edgeIn.client.endSourceId)
-    val sinkBits = log2Ceil(edgeIn.manager.endSinkId)
     val sizeBits = log2Ceil(edgeIn.maxLgSize+1)
     val addrBits = log2Ceil(edgeIn.manager.beatBytes)
-    val stateBits = addrBits + sizeBits + sinkBits + sourceBits // could be 0
+    val stateBits = addrBits + sizeBits + sourceBits // could be 0
 
     val a_address = edgeIn.address(in.a.bits)
     val a_addr_lo = edgeIn.addr_lo(a_address)
     val a_source  = in.a.bits.source
-    val a_sink    = edgeIn.manager.findIdStartFast(a_address)
     val a_size    = edgeIn.size(in.a.bits)
     val a_isPut   = edgeIn.hasData(in.a.bits)
     val (_, a_last, _) = edgeIn.firstlast(in.a)
 
     // Make sure the fields are within the bounds we assumed
     assert (a_source  < UInt(1 << sourceBits))
-    assert (a_sink    < UInt(1 << sinkBits))
     assert (a_size    < UInt(1 << sizeBits))
     assert (a_addr_lo < UInt(1 << addrBits))
 
     // Carefully pack/unpack fields into the state we send
     val baseEnd = 0
     val (sourceEnd, sourceOff) = (sourceBits + baseEnd,   baseEnd)
-    val (sinkEnd,   sinkOff)   = (sinkBits   + sourceEnd, sourceEnd)
-    val (sizeEnd,   sizeOff)   = (sizeBits   + sinkEnd,   sinkEnd)
+    val (sizeEnd,   sizeOff)   = (sizeBits   + sourceEnd, sourceEnd)
     val (addrEnd,   addrOff)   = (addrBits   + sizeEnd,   sizeEnd)
     require (addrEnd == stateBits)
 
-    val a_state = (a_source << sourceOff) | (a_sink    << sinkOff) |
-                  (a_size   << sizeOff)   | (a_addr_lo << addrOff)
+    val a_state = (a_source << sourceOff) | (a_size << sizeOff) | (a_addr_lo << addrOff)
     val a_id = if (idBits == 0) UInt(0) else a_state
 
     val r_state = Wire(UInt(width = stateBits))
     val r_source  = if (sourceBits > 0) r_state(sourceEnd-1, sourceOff) else UInt(0)
-    val r_sink    = if (sinkBits   > 0) r_state(sinkEnd  -1, sinkOff)   else UInt(0)
     val r_size    = if (sizeBits   > 0) r_state(sizeEnd  -1, sizeOff)   else UInt(0)
     val r_addr_lo = if (addrBits   > 0) r_state(addrEnd  -1, addrOff)   else UInt(0)
 
     val b_state = Wire(UInt(width = stateBits))
     val b_source  = if (sourceBits > 0) b_state(sourceEnd-1, sourceOff) else UInt(0)
-    val b_sink    = if (sinkBits   > 0) b_state(sinkEnd  -1, sinkOff)   else UInt(0)
     val b_size    = if (sizeBits   > 0) b_state(sizeEnd  -1, sizeOff)   else UInt(0)
     val b_addr_lo = if (addrBits   > 0) b_state(addrEnd  -1, addrOff)   else UInt(0)
 
@@ -221,8 +213,8 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
     val b_error = out_b.bits.resp =/= AXI4Parameters.RESP_OKAY
 
-    val r_d = edgeIn.AccessAck(r_addr_lo, r_sink, r_source, r_size, UInt(0), r_error)
-    val b_d = edgeIn.AccessAck(b_addr_lo, b_sink, b_source, b_size, b_error)
+    val r_d = edgeIn.AccessAck(r_addr_lo, UInt(0), r_source, r_size, UInt(0), r_error)
+    val b_d = edgeIn.AccessAck(b_addr_lo, UInt(0), b_source, b_size, b_error)
 
     in.d.bits := Mux(r_wins, r_d, b_d)
     in.d.bits.data := out.r.bits.data // avoid a costly Mux

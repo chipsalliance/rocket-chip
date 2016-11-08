@@ -17,7 +17,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   }
   def bundleI(ei: Seq[TLEdgeIn]): Vec[TLBundle] = {
     require (!ei.isEmpty)
-    Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_)))).flip
+    Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_))))
   }
 
   var emitMonitors = true
@@ -25,6 +25,9 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   var combinationalCheck = false
 
   def colour = "#000000" // black
+  override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
+  override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
+
   def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     val monitor = if (emitMonitors) {
       Some(LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo)))
@@ -89,10 +92,8 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   }
 }
 
+// Nodes implemented inside modules
 case class TLIdentityNode() extends IdentityNode(TLImp)
-case class TLOutputNode() extends OutputNode(TLImp)
-case class TLInputNode() extends InputNode(TLImp)
-
 case class TLClientNode(portParams: TLClientPortParameters, numPorts: Range.Inclusive = 1 to 1)
   extends SourceNode(TLImp)(portParams, numPorts)
 case class TLManagerNode(portParams: TLManagerPortParameters, numPorts: Range.Inclusive = 1 to 1)
@@ -107,7 +108,7 @@ object TLClientNode
 object TLManagerNode
 {
   def apply(beatBytes: Int, params: TLManagerParameters) =
-    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, 0), 1 to 1)
+    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, minLatency = 0), 1 to 1)
 }
 
 case class TLAdapterNode(
@@ -116,6 +117,14 @@ case class TLAdapterNode(
   numClientPorts:  Range.Inclusive = 1 to 1,
   numManagerPorts: Range.Inclusive = 1 to 1)
   extends InteriorNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
+
+// Nodes passed from an inner module
+case class TLOutputNode() extends OutputNode(TLImp)
+case class TLInputNode() extends InputNode(TLImp)
+
+// Nodes used for external ports
+case class TLBlindOutputNode(portParams: TLManagerPortParameters) extends BlindOutputNode(TLImp)(portParams)
+case class TLBlindInputNode(portParams: TLClientPortParameters) extends BlindInputNode(TLImp)(portParams)
 
 /** Synthesizeable unit tests */
 import unittest._
@@ -149,10 +158,13 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
   }
   def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
     require (ei.size == 1)
-    Vec(ei.size, new TLAsyncBundle(ei(0).bundle)).flip
+    Vec(ei.size, new TLAsyncBundle(ei(0).bundle))
   }
 
   def colour = "#ff0000" // red
+  override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString
+  override def labelO(eo: TLAsyncEdgeParameters) = eo.manager.depth.toString
+
   def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }

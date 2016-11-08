@@ -38,11 +38,9 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
         require (m.supportsPutPartial.contains(TransferSizes(1, tlDataBytes)))
         require (m.supportsPutPartial.contains(TransferSizes(tlDataBeats * tlDataBytes)))
       }
-      // Any atomic support => must support 32-bit up to beat size of all types
-      if (m.supportsArithmetic || m.supportsLogical) {
-        require (m.supportsArithmetic.contains(TransferSizes(4, tlDataBytes)))
-        require (m.supportsLogical   .contains(TransferSizes(4, tlDataBytes)))
-      }
+      // Any atomic support => must support 32-bit size
+      if (m.supportsArithmetic) { require (m.supportsArithmetic.contains(TransferSizes(4))) }
+      if (m.supportsLogical)    { require (m.supportsLogical   .contains(TransferSizes(4))) }
       // We straight-up require hints
       require (edge.manager.allSupportHint)
     }
