@@ -175,7 +175,7 @@ object Generator extends GeneratorApp {
       (0 until nInputs).map(i => makeAXIPorts(s"io_in_$i", false, config)) ++
       (0 until nOutputs).map(i => makeAXIPorts(s"io_out_$i", true, config))
     val ports = new ModelType.Ports
-    ports.getPort().addAll(toCollection(Seq(makePort("clock", false, 1)) ++ inOutPorts.flatten))
+    ports.getPort().addAll(toCollection(Seq(makePort("clock", false, 1)) ++ inOutPorts.flatten ++ Seq(makePort("reset", false, 1))))
     ports
   }
 
