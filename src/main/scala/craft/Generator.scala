@@ -6,6 +6,7 @@ import javax.xml.bind.{JAXBContext, Marshaller}
 import java.io.{File, FileOutputStream}
 import scala.collection.JavaConverters
 import java.util.Collection
+import java.math.BigInteger
 
 object Generator extends GeneratorApp {
   def toCollection[T](seq: Seq[T]): Collection[T] =
@@ -14,7 +15,7 @@ object Generator extends GeneratorApp {
   def makeOutputBridge(i: Int): BusInterfaceType.Slave.Bridge = {
     val bridge = new BusInterfaceType.Slave.Bridge
     bridge.setMasterRef(s"io_out_$i")
-    bridge.setOpaque(false)
+    bridge.setOpaque(true)
     bridge
   }
 
@@ -96,10 +97,10 @@ object Generator extends GeneratorApp {
     busType.setVersion("r0p0_0")
 
     val abstractionType = new LibraryRefType
-    busType.setVendor("amba.com")
-    busType.setLibrary("AMBA4")
-    busType.setName("AXI4_rtl")
-    busType.setVersion("r0p0_0")
+    abstractionType.setVendor("amba.com")
+    abstractionType.setLibrary("AMBA4")
+    abstractionType.setName("AXI4_rtl")
+    abstractionType.setVersion("r0p0_0")
 
     val mmapRef = new MemoryMapRefType
     mmapRef.setMemoryMapRef(s"m${i}_mm")
@@ -128,10 +129,10 @@ object Generator extends GeneratorApp {
     busType.setVersion("r0p0_0")
 
     val abstractionType = new LibraryRefType
-    busType.setVendor("amba.com")
-    busType.setLibrary("AMBA4")
-    busType.setName("AXI4_rtl")
-    busType.setVersion("r0p0_0")
+    abstractionType.setVendor("amba.com")
+    abstractionType.setLibrary("AMBA4")
+    abstractionType.setName("AXI4_rtl")
+    abstractionType.setVersion("r0p0_0")
 
     val addrSpaceRef = new BusInterfaceType.Master.AddressSpaceRef
     addrSpaceRef.setAddressSpaceRef(s"s${i}_as")
@@ -150,12 +151,35 @@ object Generator extends GeneratorApp {
     busif
   }
 
-  def makeOutputAddressSpace(name: String, size: Int): AddressSpaces.AddressSpace = {
+  def makeAddressSpace(name: String, size: Int): AddressSpaces.AddressSpace = {
     val addressSpace = new AddressSpaces.AddressSpace
     addressSpace.setName(name)
-    addressSpace.setRange(size)
-    addressSpace.setWidth(32)
-    addressSpace.setAddressUnitBits(8)
+    var range = new BankedBlockType.Range
+    range.setValue("0x" + size.toHexString)
+    addressSpace.setRange(range)
+    var width = new BankedBlockType.Width
+    width.setValue(BigInteger.valueOf(32))
+    addressSpace.setWidth(width)
+    addressSpace.setAddressUnitBits(BigInteger.valueOf(8))
+    addressSpace
+  }
+
+  def makeMemoryMap(name: String, signalMaps: Array[(String, Int)]): MemoryMapType = {
+    // Generate the subspaceMaps, one for each baseAddress.
+    val memoryMap = new MemoryMapType
+    var subspaceMaps = memoryMap.getMemoryMap()
+    memoryMap.setName(name)
+    for ((signal, address) <- signalMaps) {
+      val subSpaceMap = new SubspaceRefType
+      subSpaceMap.setMasterRef(signal)
+      subSpaceMap.setName("subspacemap_" + name + "_" + signal + "_" + address.toHexString)
+      val baseAddress = new BaseAddress
+      baseAddress.setValue("0x" + address.toHexString)
+      subSpaceMap.setBaseAddress(baseAddress)
+      subspaceMaps.add(subSpaceMap)
+    }
+    memoryMap.setAddressUnitBits(BigInteger.valueOf(8))
+    memoryMap
   }
 
   def generateIPXact {
@@ -167,12 +191,40 @@ object Generator extends GeneratorApp {
       (0 until nInputs).map(makeInputInterface(_, nOutputs)) ++
       (0 until nOutputs).map(makeOutputInterface _)))
 
+    val addressSpaces = new AddressSpaces
+    addressSpaces.getAddressSpace.addAll(toCollection(
+      (0 to 1).map(i => makeAddressSpace(s"s${i}_as", 1024))
+    ))
+    val signalMaps = Array[(String, Int)] (("io_out_0", 0), ("io_out_1", 1024))
+    val memoryMaps = new MemoryMaps
+    memoryMaps.getMemoryMap().addAll(toCollection(
+      (0 to 1).map(i => makeMemoryMap(s"m${i}_mm", signalMaps))
+    ))
+
+    val model = new ModelType
+    val views = new ModelType.Views
+    var view = new ViewType
+    var envIds = view.getEnvIdentifier
+    view.setName("RTL")
+    envIds.add("::")
+    var verilogSource = new FileSetRef
+    verilogSource.setLocalName("hdlSource")
+    var fileSetRefs = view.getFileSetRef
+    fileSetRefs.add(verilogSource)
+    views.getView.add(view)
+    model.setViews(views)
+
+    val ports = new ModelType.Ports
+
     val componentType = new ComponentType
     componentType.setLibrary("ucb-bar")
     componentType.setName("CraftXBar")
     componentType.setVendor("edu.berkeley.cs")
     componentType.setVersion("1.0")
     componentType.setBusInterfaces(busInterfaces)
+    componentType.setAddressSpaces(addressSpaces)
+    componentType.setMemoryMaps(memoryMaps)
+    componentType.setModel(model)
 
     val factory = new ObjectFactory
     val component = factory.createComponent(componentType)
