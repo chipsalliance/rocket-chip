@@ -1,7 +1,7 @@
 package craft
 
 import util.GeneratorApp
-import org.accellera.spirit.v1685_2009._
+import org.accellera.spirit.v1685_2009.{File => SpiritFile, _}
 import javax.xml.bind.{JAXBContext, Marshaller}
 import java.io.{File, FileOutputStream}
 import scala.collection.JavaConverters
@@ -9,6 +9,9 @@ import java.util.Collection
 import java.math.BigInteger
 import rocketchip._
 import junctions._
+import cde.Parameters
+
+class NastiParameters(implicit val p: Parameters) extends HasNastiParameters {}
 
 object Generator extends GeneratorApp {
   def toCollection[T](seq: Seq[T]): Collection[T] =
@@ -89,6 +92,88 @@ object Generator extends GeneratorApp {
       "BID"      -> s"${prefix}_b_bits_id",
       "BRESP"    -> s"${prefix}_b_bits_resp",
       "BUSER"    -> s"${prefix}_b_bits_user"))
+  }
+
+  def makePort(name: String, direction: Boolean, width: Int): PortType = {
+    val port = new PortType
+    val wire = new PortWireType
+    
+    wire.setDirection(
+      if (direction) ComponentPortDirectionType.OUT
+      else ComponentPortDirectionType.IN)
+    if (width > 1) {
+      val vector = new Vector
+      val left = new Vector.Left
+      val right = new Vector.Right
+      left.setValue(BigInteger.valueOf(width - 1))
+      right.setValue(BigInteger.valueOf(0))
+      vector.setLeft(left)
+      vector.setRight(right)
+      wire.setVector(vector)
+    }
+
+    port.setWire(wire)
+    port.setName(name)
+    port
+  }
+
+  def makeAXIPorts(prefix: String, direction: Boolean, config: HasNastiParameters): Seq[PortType] = {
+    val ports = Seq(
+      ("ar_valid", direction, 1),
+      ("ar_ready", !direction, 1),
+      ("ar_bits_id", direction, config.nastiXIdBits),
+      ("ar_bits_addr", direction, config.nastiXAddrBits),
+      ("ar_bits_size", direction, config.nastiXSizeBits),
+      ("ar_bits_len", direction, config.nastiXLenBits),
+      ("ar_bits_burst", direction, config.nastiXBurstBits),
+      ("ar_bits_cache", direction, config.nastiXCacheBits),
+      ("ar_bits_prot", direction, config.nastiXProtBits),
+      ("ar_bits_qos", direction, config.nastiXQosBits),
+      ("ar_bits_region", direction, config.nastiXRegionBits),
+      ("ar_bits_user", direction, config.nastiXUserBits),
+      ("aw_valid", direction, 1),
+      ("aw_ready", !direction, 1),
+      ("aw_bits_id", direction, config.nastiXIdBits),
+      ("aw_bits_addr", direction, config.nastiXAddrBits),
+      ("aw_bits_size", direction, config.nastiXSizeBits),
+      ("aw_bits_len", direction, config.nastiXLenBits),
+      ("aw_bits_burst", direction, config.nastiXBurstBits),
+      ("aw_bits_cache", direction, config.nastiXCacheBits),
+      ("aw_bits_prot", direction, config.nastiXProtBits),
+      ("aw_bits_qos", direction, config.nastiXQosBits),
+      ("aw_bits_region", direction, config.nastiXRegionBits),
+      ("aw_bits_user", direction, config.nastiXUserBits),
+      ("w_valid", direction, 1),
+      ("w_ready", !direction, 1),
+      ("w_bits_data", direction, config.nastiXDataBits),
+      ("w_bits_strb", direction, config.nastiWStrobeBits),
+      ("w_bits_last", direction, 1),
+      ("w_bits_user", direction, config.nastiXUserBits),
+      ("r_valid", !direction, 1),
+      ("r_ready", direction, 1),
+      ("r_bits_id", !direction, config.nastiXIdBits),
+      ("r_bits_resp", !direction, config.nastiXRespBits),
+      ("r_bits_data", !direction, config.nastiXDataBits),
+      ("r_bits_last", !direction, 1),
+      ("r_bits_user", !direction, config.nastiXUserBits),
+      ("b_valid", !direction, 1),
+      ("b_ready", direction, 1),
+      ("b_bits_id", !direction, config.nastiXIdBits),
+      ("b_bits_resp", !direction, config.nastiXRespBits),
+      ("b_bits_user", !direction, config.nastiXUserBits))
+
+    ports.map { case (name, portdir, width) =>
+      makePort(s"${prefix}_${name}", portdir, width) }
+  }
+
+  def makeAllPorts(nInputs: Int, nOutputs: Int): ModelType.Ports = {
+    val config = new NastiParameters()(params)
+    val inOutPorts = 
+      (0 until nInputs).map(i => makeAXIPorts(s"io_in_$i", false, config)) ++
+      (0 until nOutputs).map(i => makeAXIPorts(s"io_out_$i", true, config))
+    val ports = new ModelType.Ports
+    ports.getPort().addAll(toCollection(inOutPorts.flatten))
+    ports
   }
 
   def makeInputInterface(i: Int, nOut: Int): BusInterfaceType = {
@@ -184,11 +269,29 @@ object Generator extends GeneratorApp {
     memoryMap
   }
 
+  def makeFileSets(factory: ObjectFactory): FileSets = {
+    val fileName = new SpiritFile.Name
+    fileName.setValue(s"../verilog/${longName}.v")
+
+    val file = new SpiritFile
+    file.getFileType.add(factory.createFileFileType("verilogSource"))
+    file.setName(fileName)
+
+    val fileSet = new FileSetType
+    fileSet.setName("hdlSource")
+    fileSet.getFile.add(file)
+
+    val fileSets = new FileSets
+    fileSets.getFileSet().add(fileSet)
+    fileSets
+  }
+
   def generateIPXact {
     val nInputs = params(InPorts)
     val nOutputs = params(OutPorts)
     val extMemSize = params(ExtMemSize)
     val regionSize = extMemSize / nOutputs
+    val factory = new ObjectFactory
 
     val busInterfaces = new BusInterfaces
     busInterfaces.getBusInterface().addAll(toCollection(
@@ -217,8 +320,7 @@ object Generator extends GeneratorApp {
     fileSetRefs.add(verilogSource)
     views.getView.add(view)
     model.setViews(views)
-
-    val ports = new ModelType.Ports
+    model.setPorts(makeAllPorts(nInputs, nOutputs))
 
     val componentType = new ComponentType
     componentType.setLibrary("ucb-bar")
@@ -229,8 +331,8 @@ object Generator extends GeneratorApp {
     componentType.setAddressSpaces(addressSpaces)
     componentType.setMemoryMaps(memoryMaps)
     componentType.setModel(model)
+    componentType.setFileSets(makeFileSets(factory))
 
-    val factory = new ObjectFactory
     val component = factory.createComponent(componentType)
 
     val fos = new FileOutputStream(new File(td, s"$longName.xml"))
