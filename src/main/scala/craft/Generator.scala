@@ -10,6 +10,7 @@ import java.math.BigInteger
 import rocketchip._
 import junctions._
 import cde.Parameters
+import uncore.axi4.AXI4Parameters
 
 class NastiParameters(implicit val p: Parameters) extends HasNastiParameters {}
 
@@ -40,7 +41,7 @@ object Generator extends GeneratorApp {
   def makePortMaps(mappings: Seq[(String, String)]): BusInterfaceType.PortMaps = {
     val portmaps = new BusInterfaceType.PortMaps
     portmaps.getPortMap().addAll(toCollection(
-      mappings.map { case (log, phys) => makePortMap(log, phys) }))
+      mappings.sorted.map { case (log, phys) => makePortMap(log, phys) }))
     portmaps
   }
 
@@ -126,6 +127,7 @@ object Generator extends GeneratorApp {
       ("ar_bits_size", direction, config.nastiXSizeBits),
       ("ar_bits_len", direction, config.nastiXLenBits),
       ("ar_bits_burst", direction, config.nastiXBurstBits),
+      ("ar_bits_lock", direction, AXI4Parameters.lockBits),
       ("ar_bits_cache", direction, config.nastiXCacheBits),
       ("ar_bits_prot", direction, config.nastiXProtBits),
       ("ar_bits_qos", direction, config.nastiXQosBits),
@@ -138,6 +140,7 @@ object Generator extends GeneratorApp {
       ("aw_bits_size", direction, config.nastiXSizeBits),
       ("aw_bits_len", direction, config.nastiXLenBits),
       ("aw_bits_burst", direction, config.nastiXBurstBits),
+      ("aw_bits_lock", direction, AXI4Parameters.lockBits),
       ("aw_bits_cache", direction, config.nastiXCacheBits),
       ("aw_bits_prot", direction, config.nastiXProtBits),
       ("aw_bits_qos", direction, config.nastiXQosBits),
@@ -162,17 +165,17 @@ object Generator extends GeneratorApp {
       ("b_bits_resp", !direction, config.nastiXRespBits),
       ("b_bits_user", !direction, config.nastiXUserBits))
 
-    ports.map { case (name, portdir, width) =>
+    ports.sorted.map { case (name, portdir, width) =>
       makePort(s"${prefix}_${name}", portdir, width) }
   }
 
   def makeAllPorts(nInputs: Int, nOutputs: Int): ModelType.Ports = {
     val config = new NastiParameters()(params)
-    val inOutPorts = 
+    val inOutPorts =
       (0 until nInputs).map(i => makeAXIPorts(s"io_in_$i", false, config)) ++
       (0 until nOutputs).map(i => makeAXIPorts(s"io_out_$i", true, config))
     val ports = new ModelType.Ports
-    ports.getPort().addAll(toCollection(inOutPorts.flatten))
+    ports.getPort().addAll(toCollection(Seq(makePort("clock", false, 1)) ++ inOutPorts.flatten))
     ports
   }
 
