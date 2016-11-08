@@ -7,6 +7,8 @@ import java.io.{File, FileOutputStream}
 import scala.collection.JavaConverters
 import java.util.Collection
 import java.math.BigInteger
+import rocketchip._
+import junctions._
 
 object Generator extends GeneratorApp {
   def toCollection[T](seq: Seq[T]): Collection[T] =
@@ -151,7 +153,7 @@ object Generator extends GeneratorApp {
     busif
   }
 
-  def makeAddressSpace(name: String, size: Int): AddressSpaces.AddressSpace = {
+  def makeAddressSpace(name: String, size: Long): AddressSpaces.AddressSpace = {
     val addressSpace = new AddressSpaces.AddressSpace
     addressSpace.setName(name)
     var range = new BankedBlockType.Range
@@ -164,7 +166,7 @@ object Generator extends GeneratorApp {
     addressSpace
   }
 
-  def makeMemoryMap(name: String, signalMaps: Array[(String, Int)]): MemoryMapType = {
+  def makeMemoryMap(name: String, signalMaps: Seq[(String, Long)]): MemoryMapType = {
     // Generate the subspaceMaps, one for each baseAddress.
     val memoryMap = new MemoryMapType
     var subspaceMaps = memoryMap.getMemoryMap()
@@ -185,6 +187,8 @@ object Generator extends GeneratorApp {
   def generateIPXact {
     val nInputs = params(InPorts)
     val nOutputs = params(OutPorts)
+    val extMemSize = params(ExtMemSize)
+    val regionSize = extMemSize / nOutputs
 
     val busInterfaces = new BusInterfaces
     busInterfaces.getBusInterface().addAll(toCollection(
@@ -193,12 +197,12 @@ object Generator extends GeneratorApp {
 
     val addressSpaces = new AddressSpaces
     addressSpaces.getAddressSpace.addAll(toCollection(
-      (0 to 1).map(i => makeAddressSpace(s"s${i}_as", 1024))
+      (0 until nOutputs).map(i => makeAddressSpace(s"s${i}_as", regionSize))
     ))
-    val signalMaps = Array[(String, Int)] (("io_out_0", 0), ("io_out_1", 1024))
+    val signalMaps = (0 until nOutputs).map(i => (s"io_out_$i", regionSize * i))
     val memoryMaps = new MemoryMaps
     memoryMaps.getMemoryMap().addAll(toCollection(
-      (0 to 1).map(i => makeMemoryMap(s"m${i}_mm", signalMaps))
+      (0 until nInputs).map(i => makeMemoryMap(s"m${i}_mm", signalMaps))
     ))
 
     val model = new ModelType
