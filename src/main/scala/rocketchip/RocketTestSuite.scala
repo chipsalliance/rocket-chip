@@ -63,6 +63,8 @@ object TestGeneration {
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
 
+  def addVariable(name: String, value: String) { }
+
   def generateMakefrag: String = {
     def gen(kind: String, s: Seq[RocketTestSuite]) = {
       if(s.length > 0) {

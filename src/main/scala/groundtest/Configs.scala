@@ -74,24 +74,11 @@ class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case BuildCoreplex =>
       (c: CoreplexConfig, p: Parameters) => LazyModule(new GroundTestCoreplex(c)(p)).module
-    case TLKey("L1toL2") => {
-      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
-      val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
-      TileLinkParameters(
-        coherencePolicy = (
-          if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
-          else new MESICoherence(site(L2DirectoryRepresentation))),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
-        maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
-                           site(GroundTestKey).map(_.maxXacts))
-                             .reduce(max(_, _)),
-        maxClientsPerPort = 1,
-        maxManagerXacts = site(NAcquireTransactors) + 2,
-        dataBeats = dataBeats,
-        dataBits = site(CacheBlockBytes)*8)
-    }
+    case TLKey("L1toL2") => site(TLKey("DefaultL1toL2")).copy(
+      maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
+                         site(GroundTestKey).map(_.maxXacts))
+                           .reduce(max(_, _)),
+      maxClientsPerPort = 1)
     case BuildTiles => {
       (0 until site(NTiles)).map { i =>
         val tileSettings = site(GroundTestKey)(i)
