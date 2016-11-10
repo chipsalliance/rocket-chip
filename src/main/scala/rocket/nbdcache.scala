@@ -4,10 +4,11 @@ package rocket
 
 import Chisel._
 import uncore.tilelink._
-import uncore.coherence._
+import uncore.tilelink2._
 import uncore.agents._
 import uncore.constants._
 import uncore.util._
+import diplomacy._
 import util._
 import Chisel.ImplicitConversions._
 import cde.{Parameters, Field}
@@ -19,11 +20,19 @@ case class DCacheConfig(
 
 case object DCacheKey extends Field[DCacheConfig]
 
-trait HasL1HellaCacheParameters extends HasL1CacheParameters {
-  val wordBits = xLen // really, xLen max fLen
+trait HasL1HellaCacheParameters extends HasCacheParameters with HasCoreParameters {
+  val outerDataBeats = p(TLKey(p(TLId))).dataBeats
+  val outerDataBits = p(TLKey(p(TLId))).dataBitsPerBeat
+  val refillCyclesPerBeat = outerDataBits/rowBits
+  val refillCycles = refillCyclesPerBeat*outerDataBeats
+
+  val cacheBlockBytes = p(CacheBlockBytes)
+  val lgCacheBlockBytes = log2Up(cacheBlockBytes)
+
+  val wordBits = xLen // really, xLen max 
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
-  val beatBytes = p(CacheBlockBytes) / outerDataBeats
+  val beatBytes = cacheBlockBytes / outerDataBeats
   val beatWords = beatBytes / wordBytes
   val beatOffBits = log2Up(beatBytes)
   val idxMSB = untagBits-1
@@ -310,10 +319,10 @@ class MSHR(id: Int)(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCa
   rpq.io.enq.bits := io.req_bits
   rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
-  val coh_on_grant = req.old_meta.coh.onGrant(
-                          incoming = io.mem_grant.bits,
-                          pending = Mux(dirties_coh, M_XWR, req.cmd))
-  val coh_on_hit =  io.req_bits.old_meta.coh.onHit(io.req_bits.cmd)
+  val coh_on_grant = req.old_meta.coh.onGrant(UInt(0), UInt(0))
+                          //incoming = io.mem_grant.bits,
+                          //pending = Mux(dirties_coh, M_XWR, req.cmd))
+  val coh_on_hit =  coh_on_grant //io.req_bits.old_meta.coh.onHit(io.req_bits.cmd)
 
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
@@ -355,14 +364,14 @@ class MSHR(id: Int)(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCa
     req := io.req_bits
     dirties_coh := isWrite(io.req_bits.cmd)
     when (io.req_bits.tag_match) {
-      when(coh.isHit(io.req_bits.cmd)) { // set dirty bit
+      when(Bool(false)) { // TODO coh.isHit(io.req_bits.cmd)) { // set dirty bit
         state := s_meta_write_req
         new_coh_state := coh_on_hit
       }.otherwise { // upgrade permissions
         state := s_refill_req
       }
     }.otherwise { // writback if necessary and refill
-      state := Mux(coh.requiresVoluntaryWriteback(), s_wb_req, s_meta_clear)
+      //TODO state := Mux(coh.requiresVoluntaryWriteback(), s_wb_req, s_meta_clear)
     }
   }
 
@@ -390,22 +399,22 @@ class MSHR(id: Int)(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCa
   io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
   io.meta_write.bits.data.coh := Mux(state === s_meta_clear,
-                                      req.old_meta.coh.onCacheControl(M_FLUSH),
+                                      req.old_meta.coh.onCacheControl(M_FLUSH)._2,
                                       new_coh_state)
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
 
   io.wb_req.valid := state === s_wb_req
-  io.wb_req.bits := req.old_meta.coh.makeVoluntaryWriteback(
-                      client_xact_id = UInt(id),
-                      addr_block = Cat(req.old_meta.tag, req_idx))
+  //TODO io.wb_req.bits := req.old_meta.coh.makeVoluntaryWriteback(
+  //                    client_xact_id = UInt(id),
+  //                    addr_block = Cat(req.old_meta.tag, req_idx))
   io.wb_req.bits.way_en := req.way_en
 
   io.mem_req.valid := state === s_refill_req && fq.io.enq.ready
-  io.mem_req.bits := req.old_meta.coh.makeAcquire(
-                       addr_block = Cat(io.tag, req_idx),
-                       client_xact_id = Bits(id),
-                       op_code = req.cmd)
+  //TODO io.mem_req.bits := req.old_meta.coh.makeAcquire(
+  //                     addr_block = Cat(io.tag, req_idx),
+  //                     client_xact_id = Bits(id),
+  //                     op_code = req.cmd)
 
   io.meta_read.valid := state === s_drain_rpq
   io.meta_read.bits.idx := req_idx
@@ -669,10 +678,10 @@ class ProbeUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
   val miss_coh = ClientMetadata.onReset
   val reply_coh = Mux(tag_matches, old_coh, miss_coh)
-  val reply = reply_coh.makeRelease(req)
+  //TODO val reply = reply_coh.makeRelease(req)
   io.req.ready := state === s_invalid
   io.rep.valid := state === s_release
-  io.rep.bits := reply
+  //TODO io.rep.bits := reply
 
   assert(!io.rep.valid || !io.rep.bits.hasData(),
     "ProbeUnit should not send releases with data")
@@ -685,10 +694,10 @@ class ProbeUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.meta_write.bits.way_en := way_en
   io.meta_write.bits.idx := req.addr_block
   io.meta_write.bits.data.tag := req.addr_block >> idxBits
-  io.meta_write.bits.data.coh := old_coh.onProbe(req)
+  //TODO io.meta_write.bits.data.coh := old_coh.onProbe(req)
 
   io.wb_req.valid := state === s_writeback_req
-  io.wb_req.bits := reply
+  //TODO io.wb_req.bits := reply
   io.wb_req.bits.way_en := way_en
 
   // state === s_invalid
@@ -716,7 +725,7 @@ class ProbeUnit(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   when (state === s_mshr_resp) {
-    val needs_writeback = tag_matches && old_coh.requiresVoluntaryWriteback() 
+    val needs_writeback = tag_matches // TODO && old_coh.requiresVoluntaryWriteback() 
     state := Mux(needs_writeback, s_writeback_req, s_release)
   }
 
@@ -912,9 +921,8 @@ class HellaCache(cfg: DCacheConfig)(implicit p: Parameters) extends L1HellaCache
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
   val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).coh, s1_clk_en)))
-  val s2_hit = s2_tag_match && 
-                s2_hit_state.isHit(s2_req.cmd) && 
-                s2_hit_state === s2_hit_state.onHit(s2_req.cmd)
+  val (s2_has_permission, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
+  val s2_hit = s2_tag_match && s2_has_permission && s2_hit_state === s2_new_hit_state
 
   // load-reserved/store-conditional
   val lrsc_count = Reg(init=UInt(0))
@@ -1236,7 +1244,7 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 }
 
 object HellaCache {
-  def apply(cfg: DCacheConfig)(implicit p: Parameters) =
-    if (cfg.nMSHRs == 0) Module(new DCache()).io
-    else Module(new HellaCache(cfg)).io
+  def apply(cfg: DCacheConfig)(implicit p: Parameters) = LazyModule(new DCache)
+  //  if (cfg.nMSHRs == 0) Module(new DCache()).io
+  //  else Module(new HellaCache(cfg)).io
 }

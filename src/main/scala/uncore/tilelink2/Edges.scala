@@ -238,7 +238,10 @@ class TLEdgeOut(
     (legal, c)
   }
 
-  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt) = {
+  def ProbeAck(b: TLBundleB, reportPermissions: UInt): TLBundleC =
+    ProbeAck(b.source, b.address, b.size, reportPermissions)
+
+  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt): TLBundleC = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ProbeAck
     c.param   := reportPermissions
@@ -250,7 +253,10 @@ class TLEdgeOut(
     c
   }
 
-  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt, data: UInt) = {
+  def ProbeAck(b: TLBundleB, reportPermissions: UInt, data: UInt): TLBundleC =
+    ProbeAck(b.source, b.address, b.size, reportPermissions, data)
+
+  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt, data: UInt): TLBundleC = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ProbeAckData
     c.param   := reportPermissions
@@ -262,7 +268,8 @@ class TLEdgeOut(
     c
   }
 
-  def GrantAck(toSink: UInt) = {
+  def GrantAck(d: TLBundleD): TLBundleE = GrantAck(d.sink)
+  def GrantAck(toSink: UInt): TLBundleE = {
     val e = Wire(new TLBundleE(bundle))
     e.sink := toSink
     e

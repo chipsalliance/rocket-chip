@@ -3,6 +3,9 @@ package groundtest
 import Chisel._
 import rocket._
 import uncore.tilelink._
+import uncore.agents.CacheName
+import uncore.tilelink2._
+import diplomacy._
 import scala.util.Random
 import scala.collection.mutable.ListBuffer
 import junctions.HasAddrMapParameters
@@ -96,20 +99,25 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(implicit val p: Parameters) extends LazyTile {
+class GroundTestTile(implicit val p: Parameters) extends LazyModule with HasGroundTestParameters {
+  val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
   val slave = None
-  lazy val module = new TileImp(this) with HasGroundTestParameters {
-    val io = new TileIO(bc) {
+  val dcache = HellaCache(p(DCacheKey))(dcacheParams)
+  val ucLegacy = LazyModule(new TLLegacy()(p))
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val cached = dcache.node.bundleOut
+      val uncached = ucLegacy.node.bundleOut
       val success = Bool(OUTPUT)
     }
 
     val test = p(BuildGroundTest)(dcacheParams)
 
     val ptwPorts = ListBuffer.empty ++= test.io.ptw
-    val memPorts = ListBuffer.empty ++= test.io.mem
+    val uncachedArbPorts = ListBuffer.empty ++= test.io.mem
 
     if (nCached > 0) {
-      val dcache_io = HellaCache(p(DCacheKey))(dcacheParams)
       val dcacheArb = Module(new HellaCacheArbiter(nCached)(dcacheParams))
 
       dcacheArb.io.requestor.zip(test.io.cache).foreach {
@@ -118,13 +126,12 @@ class GroundTestTile(implicit val p: Parameters) extends LazyTile {
           dcacheIF.io.requestor <> cache
           requestor <> dcacheIF.io.cache
       }
-      dcache_io.cpu <> dcacheArb.io.mem
-      io.cached.head <> dcache_io.mem
+      dcache.module.io.cpu <> dcacheArb.io.mem
 
       // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
-      dcache_io.cpu.invalidate_lr := Bool(false)
+      dcache.module.io.cpu.invalidate_lr := Bool(false)
 
-      ptwPorts += dcache_io.ptw
+      ptwPorts += dcache.module.io.ptw
     }
 
     if (ptwPorts.size > 0) {
@@ -132,10 +139,9 @@ class GroundTestTile(implicit val p: Parameters) extends LazyTile {
       ptw.io.requestors <> ptwPorts
     }
 
-    require(memPorts.size == io.uncached.size)
-    if (memPorts.size > 0) {
-      io.uncached <> memPorts
-    }
+    val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size))
+    uncachedArb.io.in <> uncachedArbPorts
+    ucLegacy.module.io.legacy <> uncachedArb.io.out
 
     io.success := test.io.status.finished
   }

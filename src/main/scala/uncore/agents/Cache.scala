@@ -130,7 +130,6 @@ class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
 
 abstract class Metadata(implicit p: Parameters) extends CacheBundle()(p) {
   val tag = Bits(width = tagBits)
-  val coh: CoherenceMetadata
 }
 
 class MetaReadReq(implicit p: Parameters) extends CacheBundle()(p) {

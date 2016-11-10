@@ -43,6 +43,14 @@ object TLMessages
   def isD(x: UInt) = x <= ReleaseAck
 }
 
+/**
+  * The three primary TileLink permissions are:
+  *   (T)runk: the agent is (or is on the path to) the global point of serialization.
+  *   (B)ranch: the agent 
+  *   (N)one: 
+  * These permissions are permuted by transfer operations in various ways.
+  * Messages for 
+  */
 object TLPermissions
 {
   // Cap types (Grant = new permissions, Probe = permisions <= target)
