@@ -22,23 +22,28 @@ trait BroadcastL2 {
 
 trait DirectConnection {
     this: CoreplexNetwork with CoreplexRISCVPlatform =>
-  lazyTiles.map(_.slave).flatten.foreach { scratch => scratch := cbus.node }
+
+  lazyTiles foreach { t =>
+    t.slaveNode.foreach { _ := cbus.node }
+    l1tol2.node := TLBuffer(1,1,2,2,0)(TLHintHandler()(t.cachedOut))
+    l1tol2.node := TLBuffer(1,0,0,2,0)(TLHintHandler()(t.uncachedOut))
+  }
 }
 
 trait DirectConnectionModule {
-    this: CoreplexNetworkModule with CoreplexRISCVPlatformModule =>
+  this: CoreplexNetworkModule with CoreplexRISCVPlatformModule {
+    val outer: CoreplexNetwork with CoreplexRISCVPlatform
+    val io: CoreplexRISCVPlatformBundle
+  } =>
 
-  val tlBuffering = TileLinkDepths(1,1,2,2,0)
-  val ultBuffering = UncachedTileLinkDepths(1,2)
-
-  (tiles zip uncoreTileIOs) foreach { case (tile, uncore) =>
-    (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> TileLinkEnqueuer(t, tlBuffering) }
-    (uncore.uncached zip tile.io.uncached) foreach { case (u, t) => u <> TileLinkEnqueuer(t, ultBuffering) }
-
-    tile.io.interrupts <> uncore.interrupts
-
-    tile.io.hartid := uncore.hartid
-    tile.io.resetVector := uncore.resetVector
+  // connect coreplex-internal interrupts to tiles
+  tiles.zipWithIndex.foreach { case (tile, i) =>
+    tile.io.hartid := UInt(i)
+    tile.io.resetVector := io.resetVector
+    tile.io.interrupts := outer.clint.module.io.tiles(i)
+    tile.io.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
+    tile.io.interrupts.meip := outer.tileIntNodes(i).bundleOut(0)(0)
+    tile.io.interrupts.seip.foreach(_ := outer.tileIntNodes(i).bundleOut(0)(1))
   }
 }
 
@@ -57,12 +62,24 @@ class DefaultCoreplexModule[+L <: DefaultCoreplex, +B <: DefaultCoreplexBundle[L
 
 trait AsyncConnection {
     this: CoreplexNetwork with CoreplexRISCVPlatform =>
-  val crossings = lazyTiles.map(_.slave).map(_.map { scratch =>
-    val crossing = LazyModule(new TLAsyncCrossing)
-    crossing.node := cbus.node
-    val monitor = (scratch := crossing.node)
-    (crossing, monitor)
-  })
+
+  val masterCrossings = lazyTiles.map { t =>
+    t.masterNodes map { m =>
+      val crossing = LazyModule(new TLAsyncCrossing)
+      crossing.node := m
+      val monitor = (cbus.node := crossing.node)
+      (crossing, monitor)
+    }
+  }
+
+  val slaveCrossings = lazyTiles.map { t =>
+    t.slaveNode map { s =>
+      val crossing = LazyModule(new TLAsyncCrossing)
+      crossing.node := cbus.node
+      val monitor = (s := crossing.node)
+      (crossing, monitor)
+    }
+  }
 }
 
 trait AsyncConnectionBundle {
@@ -75,11 +92,24 @@ trait AsyncConnectionBundle {
 
 trait AsyncConnectionModule {
   this: Module with CoreplexNetworkModule with CoreplexRISCVPlatformModule {
-    val outer: AsyncConnection
-    val io: AsyncConnectionBundle
+    val outer: AsyncConnection with CoreplexNetwork with CoreplexRISCVPlatform
+    val io: AsyncConnectionBundle with CoreplexNetworkBundle with CoreplexRISCVPlatformBundle
   } =>
 
-  (outer.crossings zip io.tcrs) foreach { case (slaves, tcr) =>
+  (outer.masterCrossings zip io.tcrs) foreach { case (masters, tcr) =>
+    masters.foreach { case (crossing, monitor) =>
+      crossing.module.io.out_clock  := clock
+      crossing.module.io.out_reset  := reset
+      crossing.module.io.in_clock := tcr.clock
+      crossing.module.io.in_reset := tcr.reset
+      monitor.foreach { m =>
+        m.module.clock := clock
+        m.module.reset := reset
+      }
+    }
+  }
+
+  (outer.slaveCrossings zip io.tcrs) foreach { case (slaves, tcr) =>
     slaves.foreach { case (crossing, monitor) =>
       crossing.module.io.in_clock  := clock
       crossing.module.io.in_reset  := reset
@@ -92,23 +122,19 @@ trait AsyncConnectionModule {
     }
   }
 
-  (tiles, uncoreTileIOs, io.tcrs).zipped foreach { case (tile, uncore, tcr) =>
+  (tiles.zipWithIndex, io.tcrs).zipped.foreach { case ((tile, i), tcr) =>
     tile.clock := tcr.clock
     tile.reset := tcr.reset
 
-    (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> AsyncTileLinkFrom(tcr.clock, tcr.reset, t) }
-    (uncore.uncached zip tile.io.uncached) foreach { case (u, t) => u <> AsyncUTileLinkFrom(tcr.clock, tcr.reset, t) }
-
     val ti = tile.io.interrupts
-    val ui = uncore.interrupts
-    ti.debug := LevelSyncTo(tcr.clock, ui.debug)
-    ti.mtip := LevelSyncTo(tcr.clock, ui.mtip)
-    ti.msip := LevelSyncTo(tcr.clock, ui.msip)
-    ti.meip := LevelSyncTo(tcr.clock, ui.meip)
-    ti.seip.foreach { _ := LevelSyncTo(tcr.clock, ui.seip.get) }
+    ti.debug := LevelSyncTo(tcr.clock, outer.debug.module.io.debugInterrupts(i))
+    ti.mtip := LevelSyncTo(tcr.clock, outer.clint.module.io.tiles(i).mtip)
+    ti.msip := LevelSyncTo(tcr.clock, outer.clint.module.io.tiles(i).msip)
+    ti.meip := LevelSyncTo(tcr.clock, outer.tileIntNodes(i).bundleOut(0)(0))
+    ti.seip.foreach { _ := LevelSyncTo(tcr.clock, outer.tileIntNodes(i).bundleOut(0)(1)) }
 
-    tile.io.hartid := uncore.hartid
-    tile.io.resetVector := uncore.resetVector
+    tile.io.hartid := UInt(i)
+    tile.io.resetVector := io.resetVector 
   }
 }
 

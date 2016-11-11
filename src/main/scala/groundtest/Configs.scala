@@ -73,15 +73,15 @@ class Edge32BitMemtestConfig extends Config(
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case TLKey("L1toL2") => {
-      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
+      val useMEI = site(NTiles) <= 1
       val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
       TileLinkParameters(
         coherencePolicy = (
           if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
           else new MESICoherence(site(L2DirectoryRepresentation))),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
+        nCachingClients = 1,
+        nCachelessClients = site(NCoreplexExtClients) + 1,
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),
@@ -89,19 +89,6 @@ class WithGroundTest extends Config(
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = dataBeats,
         dataBits = site(CacheBlockBytes)*8)
-    }
-    case BuildTiles => {
-      (0 until site(NTiles)).map { i =>
-        val tileSettings = site(GroundTestKey)(i)
-        (p: Parameters) => {
-          LazyModule(new GroundTestTile()(p.alterPartial({
-            case TLId => "L1toL2"
-            case TileId => i
-            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
-            case NUncachedTileLinkPorts => tileSettings.uncached
-          })))
-        }
-      }
     }
     case BuildExampleTop =>
       (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(new GroundTestCoreplex()(_))(p))

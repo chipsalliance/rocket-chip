@@ -24,15 +24,12 @@ case object NTrackersPerBank extends Field[Int]
 case object BankIdLSB extends Field[Int]
 /** Function for building some kind of coherence manager agent */
 case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
-/** Function for building some kind of tile connected to a reset signal */
-case object BuildTiles extends Field[Seq[Parameters => LazyTile]]
 /** The file to read the BootROM contents from */
 case object BootROMFile extends Field[String]
 
 trait HasCoreplexParameters {
   implicit val p: Parameters
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
-  lazy val lsb = p(BankIdLSB)
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outerMemParams = p.alterPartial({ case TLId => "L2toMC" })
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
@@ -138,19 +135,11 @@ trait BankedL2CoherenceManagersModule {
 trait CoreplexRISCVPlatform {
     this: CoreplexNetwork =>
 
-  // Build a set of Tiles
-  val lazyTiles = p(BuildTiles) map { _(p) }
-  val legacy = LazyModule(new TLLegacy()(outerMMIOParams))
-  val tileIntNodes = lazyTiles.map { _ => IntInternalOutputNode() } // this should be moved into the Tile...
-
+  val lazyTiles = List.tabulate(p(NTiles)){ i => LazyModule(new RocketTile(i)) }
   val debug = LazyModule(new TLDebugModule())
   val plic  = LazyModule(new TLPLIC(hasSupervisor, maxPriorities = 7))
   val clint = LazyModule(new CoreplexLocalInterrupter)
-
-  // Kill this once we move TL2 into rocket
-  l1tol2.node :=
-    TLHintHandler()(
-    legacy.node)
+  val tileIntNodes = lazyTiles.map { _ => IntInternalOutputNode() } // this should be moved into the Tile...
 
   debug.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
   plic.node  := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
@@ -179,7 +168,11 @@ trait CoreplexRISCVPlatformModule {
   } =>
 
   val tiles = outer.lazyTiles.map(_.module)
-  val uncoreTileIOs = (tiles zipWithIndex) map { case (tile, i) => Wire(tile.io) }
+
+  // Remaining external coreplex signals
+  outer.debug.module.io.db <> io.debug
+  outer.clint.module.io.rtcTick := io.rtcTick
+  io.success := Bool(false) // Coreplex doesn't know when to stop running
 
   println("\nGenerated Address Map")
   for (entry <- p(rocketchip.GlobalAddrMap).flatten) {
@@ -202,67 +195,6 @@ trait CoreplexRISCVPlatformModule {
     ConfigStringOutput.contents = Some(configString)
   }
   println(s"\nGenerated Configuration String\n${ConfigStringOutput.contents.get}")
-
-  val nCachedPorts = tiles.map(tile => tile.io.cached.size).reduce(_ + _)
-  val nUncachedPorts = tiles.map(tile => tile.io.uncached.size).reduce(_ + _)
-  val nBanks = nMemChannels * nBanksPerMemChannel
-
-  buildUncore(p.alterPartial({
-    case HastiId => "TL"
-    case TLId => "L1toL2"
-    case NCachedTileLinkPorts => nCachedPorts
-    case NUncachedTileLinkPorts => nUncachedPorts
-  }))
-
-  def buildUncore(implicit p: Parameters) {
-    // Create a simple L1toL2 NoC between the tiles and the banks of outer memory
-    // Cached ports are first in client list, making sharerToClientId just an indentity function
-    // addrToBank is sed to hash physical addresses (of cache blocks) to banks (and thereby memory channels)
-    def sharerToClientId(sharerId: UInt) = sharerId
-    def addrToBank(addr: UInt): UInt = UInt(nBanks)
-    val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId))
-
-    // Create point(s) of coherence serialization
-    val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
-    managerEndpoints.flatMap(_.incoherent).foreach(_ := Bool(false))
-
-    val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
-        case TLId => "L1toL2"
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMMIO"
-      })))
-
-    // Wire the tiles to the TileLink client ports of the L1toL2 network,
-    // and coherence manager(s) to the other side
-    l1tol2net.io.clients_cached <> uncoreTileIOs.map(_.cached).flatten
-    l1tol2net.io.clients_uncached <> uncoreTileIOs.map(_.uncached).flatten ++ io.slave
-    l1tol2net.io.managers <> managerEndpoints.map(_.innerTL) :+ mmioManager.io.inner
-    outer.legacy.module.io.legacy <>  mmioManager.io.outer 
-
-    val mem_ic = Module(new TileLinkMemoryInterconnect(nBanksPerMemChannel, nMemChannels)(outerMemParams))
-
-    val backendBuffering = TileLinkDepths(0,0,0,0,0)
-    for ((bank, icPort) <- managerEndpoints zip mem_ic.io.in) {
-      val enqueued = TileLinkEnqueuer(bank.outerTL, backendBuffering)
-      icPort <> TileLinkIOUnwrapper(enqueued)
-    }
-  }
-
-  // connect coreplex-internal interrupts to tiles
-  for ((tile, i) <- (uncoreTileIOs zipWithIndex)) {
-    tile.hartid := UInt(i)
-    tile.resetVector := io.resetVector
-    tile.interrupts := outer.clint.module.io.tiles(i)
-    tile.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-    tile.interrupts.meip := outer.tileIntNodes(i).bundleOut(0)(0)
-    tile.interrupts.seip.foreach(_ := outer.tileIntNodes(i).bundleOut(0)(1))
-  }
-
-  outer.debug.module.io.db <> io.debug
-  outer.clint.module.io.rtcTick := io.rtcTick
-
-  // Coreplex doesn't know when to stop running
-  io.success := Bool(false)
 }
 
 abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex

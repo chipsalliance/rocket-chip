@@ -23,21 +23,35 @@ case class RoccParameters(
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
 
-class RocketTile(implicit p: Parameters) extends LazyModule {
-  val dcacheParams = p.alterPartial({ case CacheName => "L1D" })
-  val icacheParams = p.alterPartial({ case CacheName => "L1I" })
+class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
+  val dcacheParams = p.alterPartial({
+    case CacheName => "L1D"
+    case TLId => "L1toL2"
+    case TileId => tileId // TODO using this messes with Heirarchical P&R
+  })
+  val icacheParams = p.alterPartial({
+    case CacheName => "L1I"
+    case TLId => "L1toL2"
+  })
 
+  //TODO val intNode = IntInputNode()
   val slaveNode = if (p(DataScratchpadSize) == 0) None else Some(TLInputNode())
   val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
   val dcache = HellaCache(p(DCacheKey))(dcacheParams)
-  val ucLegacy = LazyModule(new TLLegacy()(p))
+  val ucLegacy = LazyModule(new TLLegacy()(icacheParams))
 
+  val cachedOut = TLOutputNode()
+  val uncachedOut = TLOutputNode()
+  cachedOut := dcache.node
+  uncachedOut := ucLegacy.node
+  val masterNodes = List(cachedOut, uncachedOut)
+  
   (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }
   
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val cached = dcache.node.bundleOut
-      val uncached = ucLegacy.node.bundleOut
+      val cached = cachedOut.bundleOut
+      val uncached = uncachedOut.bundleOut
       val slave = slaveNode.map(_.bundleIn)
       val hartid = UInt(INPUT, p(XLen))
       val interrupts = new TileInterrupts().asInput
@@ -49,7 +63,7 @@ class RocketTile(implicit p: Parameters) extends LazyModule {
     val nRocc = buildRocc.size
     val nFPUPorts = buildRocc.filter(_.useFPU).size
 
-    val core = Module(new Rocket)
+    val core = Module(new Rocket()(dcacheParams))
     val icache = Module(new Frontend()(icacheParams))
 
     val ptwPorts = ListBuffer(icache.io.ptw, dcache.module.io.ptw)
@@ -108,7 +122,7 @@ class RocketTile(implicit p: Parameters) extends LazyModule {
       uncachedArbPorts ++= roccs.flatMap(_.io.utl) // TODO no difference between io.autl and io.utl for now
     }
 
-    val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size))
+    val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size)(icacheParams))
     uncachedArb.io.in <> uncachedArbPorts
     ucLegacy.module.io.legacy <> uncachedArb.io.out
 

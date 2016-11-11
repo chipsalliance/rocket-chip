@@ -8,7 +8,7 @@ import scala.math.max
 
 case class AXI4SlaveParameters(
   address:       Seq[AddressSet],
-  regionType:    RegionType.T  = RegionType.GET_EFFECTS,
+  regionType:    RegionType.T  = RegionType.UNCACHED,
   executable:    Boolean       = false, // processor can execute from this memory
   nodePath:      Seq[BaseNode] = Seq(),
   supportsWrite: TransferSizes = TransferSizes.none,

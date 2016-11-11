@@ -42,7 +42,9 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
 class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends LazyModule with HasL1HellaCacheParameters {
 
-  val node = TLClientNode(TLClientParameters(supportsProbe = TransferSizes(cacheBlockBytes)))
+  val node = TLClientNode(TLClientParameters(
+    sourceId = IdRange(0, maxUncachedInFlight),
+    supportsProbe = TransferSizes(cacheBlockBytes)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -54,11 +56,30 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     val edge = node.edgesOut(0)
     val tl_out = io.mem(0)
 
-    val grantackq = Module(new Queue(tl_out.e.bits,1))
-
+    /* TODO
+    edge.manager.managers.foreach { m =>
+      // If a slave supports read at all, it must support all TL Legacy requires
+      if (m.supportsGet) {
+        require (m.supportsGet.contains(TransferSizes(1, tlDataBytes)))
+        require (m.supportsGet.contains(TransferSizes(tlDataBeats * tlDataBytes)))
+      }
+      // Likewise, any put support must mean full put support
+      if (m.supportsPutPartial) {
+        require (m.supportsPutPartial.contains(TransferSizes(1, tlDataBytes)))
+        require (m.supportsPutPartial.contains(TransferSizes(tlDataBeats * tlDataBytes)))
+      }
+      // Any atomic support => must support 32-bit size
+      if (m.supportsArithmetic) { require (m.supportsArithmetic.contains(TransferSizes(4))) }
+      if (m.supportsLogical)    { require (m.supportsLogical   .contains(TransferSizes(4))) }
+      // We straight-up require Acquire support, this is a cache afterall?
+      require (edge.manager.anySupportsAcquire)
+    }
+    */
     require(rowBits == encRowBits) // no ECC
     require(refillCyclesPerBeat == 1)
     require(rowBits >= coreDataBits)
+
+    val grantackq = Module(new Queue(tl_out.e.bits,1))
 
     // tags
     val replacer = p(Replacer)()
@@ -132,7 +153,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
         require(nWays == 1)
         metaWriteArb.io.out.ready := true
         metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
-        val inScratchpad = addrMap(s"TL2:dmem${tileId}").containsAddress(s1_paddr)
+        val inScratchpad = addrMap(s"TL2:dmem${p(TileId)}").containsAddress(s1_paddr)
         val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
         (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
       } else {

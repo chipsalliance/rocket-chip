@@ -73,14 +73,14 @@ trait HasMissInfo extends HasL1HellaCacheParameters {
   val way_en = Bits(width = nWays)
 }
 
-class HellaCacheReqInternal(implicit p: Parameters) extends L1HellaCacheBundle()(p)
+class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreMemOp {
   val phys = Bool()
 }
 
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
 
-class HellaCacheResp(implicit p: Parameters) extends L1HellaCacheBundle()(p)
+class HellaCacheResp(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreMemOp
     with HasCoreData {
   val replay = Bool()
@@ -1245,6 +1245,7 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 
 object HellaCache {
   def apply(cfg: DCacheConfig)(implicit p: Parameters) = LazyModule(new DCache)
+  // TODO convert non-blocking cache
   //  if (cfg.nMSHRs == 0) Module(new DCache()).io
   //  else Module(new HellaCache(cfg)).io
 }

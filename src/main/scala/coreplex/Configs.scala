@@ -66,18 +66,7 @@ class BaseCoreplexConfig extends Config (
         Module(new L2BroadcastHub()(p.alterPartial({
           case InnerTLId => "L1toL2"
           case OuterTLId => "L2toMC" })))
-      case NCachedTileLinkPorts => 1
-      case NUncachedTileLinkPorts => 1
       //Tile Constants
-      case BuildTiles => {
-        List.tabulate(site(NTiles)){ i => (p: Parameters) =>
-          LazyModule(new RocketTile()(p.alterPartial({
-            case TileId => i
-            case TLId => "L1toL2"
-            case NUncachedTileLinkPorts => 1 + site(RoccNMemChannels)
-          })))
-        }
-      }
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
       case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
@@ -108,14 +97,14 @@ class BaseCoreplexConfig extends Config (
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
       case TLKey("L1toL2") => {
-        val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
+        val useMEI = site(NTiles) <= 1
         TileLinkParameters(
           coherencePolicy = (
             if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
-          nCachingClients = site(NCachedTileLinkPorts),
-          nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
+          nCachingClients = 1,
+          nCachelessClients = site(NCoreplexExtClients) + 1,
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,

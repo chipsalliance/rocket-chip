@@ -75,8 +75,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
-  val nCores = p(NTiles)
-  val tileId = p(TileId)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
   val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
