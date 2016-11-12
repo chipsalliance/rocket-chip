@@ -283,7 +283,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     val a_address = s2_req.addr
     val a_size = s2_req.typ
     val a_data = Fill(beatWords, pstore1_storegen.data)
-    val acquire = edge.Acquire(a_source, a_address, lgCacheBlockBytes, s2_grow_param)._2 // TODO check cacheability
+    val acquire = edge.Acquire(a_source, a_address, lgCacheBlockBytes, s2_grow_param)._2 // TODO Cacheability already been checked?
     val get     = edge.Get(a_source, a_address, a_size)._2
     val put     = edge.Put(a_source, a_address, a_size, a_data)._2
     val atomics = if (edge.manager.anySupportLogical) {
@@ -305,9 +305,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
 
     tl_out.a.valid := grantackq.io.enq.ready && ((s2_valid_cached_miss && !s2_victim_dirty) ||
                                           (s2_valid_uncached && !uncachedInFlight.asUInt.andR))
-    tl_out.a.bits := Mux(pstore1_amo && s2_write && s2_uncached, atomics,
-                       Mux(s2_write && s2_uncached, put,
-                        Mux(s2_uncached, get, acquire)))
+    tl_out.a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!pstore1_amo, put, atomics)))
 
     // Set pending bits for outstanding TileLink transaction
     when (tl_out.a.fire()) {
@@ -392,12 +390,19 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     metaReadArb.io.in(1).bits.way_en := ~UInt(0, nWays)
 
     // release
-    val (writebackCount, writebackDone) = Counter(tl_out.c.fire() && inWriteback, refillCycles) //TODO firstlast?
-    val releaseDone = writebackDone || (tl_out.c.fire() && !inWriteback)
+    val (_, c_last, c_address_inc) = edge.firstlast(tl_out.c)
+    val releaseDone = tl_out.c.fire() && Mux(inWriteback, c_last, Bool(true))
     val releaseRejected = tl_out.c.valid && !tl_out.c.ready
     val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
     val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
+
+    // TODO refactor these counters
+    val (writebackCount, _) = Counter(tl_out.c.fire() && inWriteback, refillCycles)
     val releaseDataBeat = Cat(UInt(0), writebackCount) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
+
+    val nackResponseMessage     = edge.ProbeAck(
+                                    b = probe_bits,
+                                    reportPermissions = TLPermissions.NtoN)
 
     val voluntaryReleaseMessage = edge.Release(
                                     fromSource = UInt(maxUncachedInFlight - 1),
@@ -416,14 +421,14 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
                                     data = s2_data))
 
     tl_out.c.valid := s2_release_data_valid
-    tl_out.c.bits := voluntaryReleaseMessage // TODO was ClientMetadata.onReset.makeRelease(probe_bits) ... s2_victim_state ok?
+    tl_out.c.bits := nackResponseMessage // TODO was ClientMetadata.onReset.makeRelease(probe_bits) ... ok?
     val newCoh = Wire(init = probeNewCoh)
     releaseWay := s2_probe_way
 
     when (s2_victimize && s2_victim_dirty) {
       assert(!(s2_valid && s2_hit_valid))
       release_state := s_voluntary_writeback
-      probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << rowOffBits
+      probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << idxLSB
     }
     when (s2_probe) {
       when (needs_vol_wb) { release_state := s_probe_rep_dirty }
@@ -456,7 +461,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
 
     dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
     dataArb.io.in(2).bits.write := false
-    dataArb.io.in(2).bits.addr := tl_out.c.bits.address | (releaseDataBeat(log2Up(refillCycles)-1,0) << rowOffBits)
+    dataArb.io.in(2).bits.addr := tl_out.c.bits.address | c_address_inc
     dataArb.io.in(2).bits.way_en := ~UInt(0, nWays)
 
     metaWriteArb.io.in(2).valid := release_state.isOneOf(s_voluntary_write_meta, s_probe_write_meta)

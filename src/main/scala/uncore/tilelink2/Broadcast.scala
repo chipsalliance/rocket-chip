@@ -96,7 +96,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       d_normal.bits.param  := Mux(d_hasData, Mux(d_what(0), TLPermissions.toT, TLPermissions.toB), UInt(0))
     }
     d_normal.bits.sink := OHToUInt(d_trackerOH)
-    assert (!d_normal.valid || d_trackerOH.orR())
+    assert (!d_normal.valid || (d_trackerOH.orR() || d_normal.bits.opcode === TLMessages.ReleaseAck))
 
     // A tracker response is anything neither dropped nor a ReleaseAck
     val d_response = d_hasData || !d_what(1)

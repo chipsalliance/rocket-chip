@@ -205,7 +205,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.mask    := SInt(-1).asUInt
+    a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
   }
@@ -419,7 +419,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.mask    := SInt(-1).asUInt
+    b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
   }

@@ -53,53 +53,61 @@ object TLMessages
   */
 object TLPermissions
 {
+  val aWidth = 2
+  val bdWidth = 2
+  val cWidth = 3
+
   // Cap types (Grant = new permissions, Probe = permisions <= target)
-  val toT = UInt(0)
-  val toB = UInt(1)
-  val toN = UInt(2)
+  val toT = UInt(0, bdWidth)
+  val toB = UInt(1, bdWidth)
+  val toN = UInt(2, bdWidth)
   def isCap(x: UInt) = x <= toN
 
   // Grow types (Acquire = permissions >= target)
-  val NtoB = UInt(0)
-  val NtoT = UInt(1)
-  val BtoT = UInt(2)
+  val NtoB = UInt(0, aWidth)
+  val NtoT = UInt(1, aWidth)
+  val BtoT = UInt(2, aWidth)
   def isGrow(x: UInt) = x <= BtoT
 
   // Shrink types (ProbeAck, Release)
-  val TtoB = UInt(0)
-  val TtoN = UInt(1)
-  val BtoN = UInt(2)
+  val TtoB = UInt(0, cWidth)
+  val TtoN = UInt(1, cWidth)
+  val BtoN = UInt(2, cWidth)
   def isShrink(x: UInt) = x <= BtoN
 
   // Report types (ProbeAck)
-  val TtoT = UInt(3)
-  val BtoB = UInt(4)
-  val NtoN = UInt(5)
+  val TtoT = UInt(3, cWidth)
+  val BtoB = UInt(4, cWidth)
+  val NtoN = UInt(5, cWidth)
   def isReport(x: UInt) = x <= NtoN
 }
 
 object TLAtomics
 {
+  val width = 3 
+
   // Arithmetic types
-  val MIN  = UInt(0)
-  val MAX  = UInt(1)
-  val MINU = UInt(2)
-  val MAXU = UInt(3)
-  val ADD  = UInt(4)
+  val MIN  = UInt(0, width)
+  val MAX  = UInt(1, width)
+  val MINU = UInt(2, width)
+  val MAXU = UInt(3, width)
+  val ADD  = UInt(4, width)
   def isArithmetic(x: UInt) = x <= ADD
 
   // Logical types
-  val XOR  = UInt(0)
-  val OR   = UInt(1)
-  val AND  = UInt(2)
-  val SWAP = UInt(3)
+  val XOR  = UInt(0, width)
+  val OR   = UInt(1, width)
+  val AND  = UInt(2, width)
+  val SWAP = UInt(3, width)
   def isLogical(x: UInt) = x <= SWAP
 }
 
 object TLHints
 {
-  val PREFETCH_READ  = UInt(0)
-  val PREFETCH_WRITE = UInt(1)
+  val width = 1
+
+  val PREFETCH_READ  = UInt(0, width)
+  val PREFETCH_WRITE = UInt(1, width)
 }
 
 sealed trait TLChannel extends TLBundleBase {
@@ -114,7 +122,7 @@ final class TLBundleA(params: TLBundleParameters)
   val channelName = "'A' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3) // amo_opcode || perms || hint
+  val param   = UInt(width = List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max) // amo_opcode || grow perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
   val address = UInt(width = params.addressBits) // to
@@ -129,7 +137,7 @@ final class TLBundleB(params: TLBundleParameters)
   val channelName = "'B' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3)
+  val param   = UInt(width = TLPermissions.bdWidth) // cap perms
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
   val address = UInt(width = params.addressBits) // from
@@ -144,7 +152,7 @@ final class TLBundleC(params: TLBundleParameters)
   val channelName = "'C' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3)
+  val param   = UInt(width = TLPermissions.cWidth) // shrink or report perms
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
   val address = UInt(width = params.addressBits) // to
@@ -159,7 +167,7 @@ final class TLBundleD(params: TLBundleParameters)
   val channelName = "'D' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 2)
+  val param   = UInt(width = TLPermissions.bdWidth) // cap perms
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
   val sink    = UInt(width = params.sinkBits)   // from

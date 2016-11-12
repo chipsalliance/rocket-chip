@@ -10,10 +10,10 @@ import uncore.constants.MemoryOpConstants
 object ClientStates {
   val width = 2
 
-  val Nothing = UInt(0) 
-  val Branch  = UInt(1)
-  val Trunk   = UInt(2)
-  val Dirty   = UInt(3)
+  val Nothing = UInt(0, width)
+  val Branch  = UInt(1, width)
+  val Trunk   = UInt(2, width)
+  val Dirty   = UInt(3, width)
 
   def hasReadPermission(state: UInt): Bool = state > Nothing
   def hasWritePermission(state: UInt): Bool = state > Branch
@@ -24,7 +24,11 @@ object MemoryOpCategories extends MemoryOpConstants {
   val wi = Cat(Bool(false), Bool(true))  // Future op will write
   val rd = Cat(Bool(false), Bool(false)) // Op only reads
 
-  def categorize(cmd: UInt): UInt = Cat(isWrite(cmd), isWriteIntent(cmd))
+  def categorize(cmd: UInt): UInt = {
+    val cat = Cat(isWrite(cmd), isWriteIntent(cmd))
+    assert(cat.isOneOf(wr,wi,rd), "Could not categorize command.")
+    cat
+  }
 }
 
 /** Stores the client-side coherence information,
@@ -49,7 +53,8 @@ class ClientMetadata extends Bundle {
     import MemoryOpCategories._
     import TLPermissions._
     import ClientStates._
-    MuxTLookup(Cat(categorize(cmd), state), (Bool(false), UInt(0)), Seq(
+    val c = categorize(cmd)
+    MuxTLookup(Cat(c, state), (Bool(false), UInt(0)), Seq(
     //(effect, am now) -> (was a hit,   next)
       Cat(rd, Dirty)   -> (Bool(true),  Dirty),
       Cat(rd, Trunk)   -> (Bool(true),  Trunk),
@@ -71,14 +76,15 @@ class ClientMetadata extends Bundle {
     import MemoryOpCategories._
     import TLPermissions._
     import ClientStates._
-    MuxLookup(Cat(categorize(cmd), param), UInt(0), Seq(
+    val c = categorize(cmd)
+    assert(c === rd || param === toT, "Client was expecting trunk permissions.")   
+    MuxLookup(Cat(c, param), Nothing, Seq(
     //(effect param) -> (next)
       Cat(rd, toB)   -> Branch,
       Cat(rd, toT)   -> Trunk,
       Cat(wi, toT)   -> Trunk,
       Cat(wr, toT)   -> Dirty))
   }
-
 
   /** Does a secondary miss on the block require another Acquire message */
   def requiresAcquireOnSecondaryMiss(first_cmd: UInt, second_cmd: UInt): Bool = {
