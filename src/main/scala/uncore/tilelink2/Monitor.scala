@@ -29,7 +29,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat" + extra)
       assert (is_aligned, "'A' channel Acquire address not aligned to size" + extra)
       assert (TLPermissions.isGrow(bundle.param), "'A' channel Acquire carries invalid grow param" + extra)
-      assert (bundle.mask === mask, "'A' channel Acquire contains invalid mask" + extra)
+      assert (~bundle.mask === UInt(0), "'A' channel Acquire contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
@@ -94,7 +94,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'B' channel Probe smaller than a beat" + extra)
       assert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
       assert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      assert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
+      assert (~bundle.mask === UInt(0), "'B' channel Probe contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
