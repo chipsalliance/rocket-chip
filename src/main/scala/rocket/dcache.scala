@@ -318,13 +318,13 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     }
 
     // grant
-    val (d_first, d_last, d_address_inc) = edge.firstlast(tl_out.d)
+    val (d_first, d_last, d_done, d_address_inc) = edge.addr_inc(tl_out.d)
     val grantIsCached = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
     val grantIsUncached = tl_out.d.bits.opcode.isOneOf(AccessAck, AccessAckData, HintAck)
     val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
     val grantIsRefill = tl_out.d.bits.opcode === GrantData     // Writes the data array
     tl_out.d.ready := true
-    when (tl_out.d.fire() && d_last) {
+    when (d_done) {
       when (grantIsCached) {
         assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
         cached_grant_wait := false
@@ -390,15 +390,11 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     metaReadArb.io.in(1).bits.way_en := ~UInt(0, nWays)
 
     // release
-    val (_, c_last, c_address_inc) = edge.firstlast(tl_out.c)
-    val releaseDone = tl_out.c.fire() && Mux(inWriteback, c_last, Bool(true))
+    val (_, c_last, releaseDone, c_count) = edge.count(tl_out.c)
     val releaseRejected = tl_out.c.valid && !tl_out.c.ready
     val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
     val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
-
-    // TODO refactor these counters
-    val (writebackCount, _) = Counter(tl_out.c.fire() && inWriteback, refillCycles)
-    val releaseDataBeat = Cat(UInt(0), writebackCount) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
+    val releaseDataBeat = Cat(UInt(0), c_count) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
 
     val nackResponseMessage     = edge.ProbeAck(
                                     b = probe_bits,
@@ -421,7 +417,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
                                     data = s2_data))
 
     tl_out.c.valid := s2_release_data_valid
-    tl_out.c.bits := nackResponseMessage // TODO was ClientMetadata.onReset.makeRelease(probe_bits) ... ok?
+    tl_out.c.bits := nackResponseMessage
     val newCoh = Wire(init = probeNewCoh)
     releaseWay := s2_probe_way
 
@@ -461,7 +457,8 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
 
     dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
     dataArb.io.in(2).bits.write := false
-    dataArb.io.in(2).bits.addr := tl_out.c.bits.address | c_address_inc
+    dataArb.io.in(2).bits.addr := Cat(tl_out.c.bits.address(paddrBits-1, untagBits),
+                                      releaseDataBeat(log2Up(refillCycles)-1,0)) << rowOffBits
     dataArb.io.in(2).bits.way_en := ~UInt(0, nWays)
 
     metaWriteArb.io.in(2).valid := release_state.isOneOf(s_voluntary_write_meta, s_probe_write_meta)

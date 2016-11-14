@@ -175,19 +175,43 @@ class TLEdge(
     }
   }
 
-  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, UInt) = {
+  def firstlastHelper(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val beats1   = numBeats1(bits)
     val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes)))
     val counter1 = counter - UInt(1)
     val first = counter === UInt(0)
     val last  = counter === UInt(1) || beats1 === UInt(0)
+    val done  = last && fire
+    val count = (beats1 & ~counter1)
     when (fire) {
       counter := Mux(first, beats1, counter1)
     }
-    (first, last, (beats1 & ~counter1) << log2Ceil(manager.beatBytes))
+    (first, last, done, count)
   }
 
-  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
+  def first(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._1
+  def first(x: DecoupledIO[TLChannel]): Bool = first(x.bits, x.fire())
+
+  def last(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._2
+  def last(x: DecoupledIO[TLChannel]): Bool = last(x.bits, x.fire())
+
+  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, Bool) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3)
+  }
+  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.fire())
+
+  def count(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3, r._4)
+  }
+  def count(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.fire())
+
+  def addr_inc(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3, r._4 << log2Ceil(manager.beatBytes))
+  }
+  def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
 }
 
 class TLEdgeOut(

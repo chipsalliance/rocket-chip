@@ -102,7 +102,7 @@ class AXI4ToTL extends LazyModule
 
     val d_resp = Mux(out.d.bits.error, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
     val d_hasData = edgeOut.hasData(out.d.bits)
-    val (_, d_last, _) = edgeOut.firstlast(out.d.bits, out.d.fire())
+    val d_last = edgeOut.last(out.d)
 
     out.d.ready := Mux(d_hasData, ok_r.ready, ok_b.ready)
     ok_r.valid := out.d.valid && d_hasData

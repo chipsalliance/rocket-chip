@@ -80,7 +80,7 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
     val a_source  = in.a.bits.source
     val a_size    = edgeIn.size(in.a.bits)
     val a_isPut   = edgeIn.hasData(in.a.bits)
-    val (_, a_last, _) = edgeIn.firstlast(in.a)
+    val a_last    = edgeIn.last(in.a)
 
     // Make sure the fields are within the bounds we assumed
     assert (a_source  < UInt(1 << sourceBits))

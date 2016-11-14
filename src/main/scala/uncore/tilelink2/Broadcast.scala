@@ -100,7 +100,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // A tracker response is anything neither dropped nor a ReleaseAck
     val d_response = d_hasData || !d_what(1)
-    val (_, d_last, _) = edgeIn.firstlast(d_normal)
+    val d_last = edgeIn.last(d_normal)
     (trackers zip d_trackerOH.toBools) foreach { case (tracker, select) =>
       tracker.d_last := select && d_normal.fire() && d_response && d_last
     }
@@ -118,7 +118,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // Decrement the tracker's outstanding probe counter
     val c_decrement = in.c.fire() && (c_probeack || c_probeackdata)
-    val (_, c_last, _) = edgeIn.firstlast(in.c)
+    val c_last = edgeIn.last(in.c)
     trackers foreach { tracker =>
       tracker.probeack := c_decrement && c_last && tracker.line === (in.c.bits.address >> lineShift)
     }
@@ -159,7 +159,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // Which cache does a request come from?
     val a_cache = if (caches.size == 0) UInt(1) else Vec(caches.map(_.contains(in.a.bits.source))).asUInt
-    val (a_first, _, _) = edgeIn.firstlast(in.a)
+    val a_first = edgeIn.first(in.a)
 
     // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
     val freeTrackers = Vec(trackers.map { t => t.idle }).asUInt
