@@ -168,6 +168,7 @@ trait PeripheryMasterAXI4Mem {
     val axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
         address       = List(AddressSet(c_base, c_size-1)),
+        regionType    = RegionType.UNCACHED,   // cacheable
         executable    = true,
         supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
         supportsRead  = TransferSizes(1, 256),
