@@ -324,16 +324,16 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
     val grantIsRefill = tl_out.d.bits.opcode === GrantData     // Writes the data array
     tl_out.d.ready := true
-    when (d_done) {
+    when (tl_out.d.fire()) {
       when (grantIsCached) {
         assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
-        cached_grant_wait := false
+        when(d_last) { cached_grant_wait := false }
       } .elsewhen (grantIsUncached) {
         // TODO this requires that uncached accesses only take a single beat
         val id = tl_out.d.bits.source
         val req = uncachedReqs(id)
         assert(uncachedInFlight(id), "An AccessAck was unexpected by the dcache.")
-        uncachedInFlight(id) := false
+        when(d_last) { uncachedInFlight(id) := false }
         s2_data := tl_out.d.bits.data
         s2_req.cmd := req.cmd
         s2_req.typ := req.typ
@@ -476,7 +476,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
     // uncached response
-    io.cpu.replay_next := tl_out.d.fire() && tl_out.d.bits.opcode <= AccessAckData
+    io.cpu.replay_next := tl_out.d.fire() && grantIsUncached
     val doUncachedResp = Reg(next = io.cpu.replay_next)
     when (doUncachedResp) {
       assert(!s2_valid_hit)
