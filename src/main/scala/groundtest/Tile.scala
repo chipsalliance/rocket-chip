@@ -105,10 +105,16 @@ class GroundTestTile(implicit val p: Parameters) extends LazyModule with HasGrou
   val dcache = HellaCache(p(DCacheKey))(dcacheParams)
   val ucLegacy = LazyModule(new TLLegacy()(p))
 
+   val cachedOut = TLOutputNode()
+   val uncachedOut = TLOutputNode()
+   cachedOut := dcache.node
+   uncachedOut := ucLegacy.node
+   val masterNodes = List(cachedOut, uncachedOut)
+
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val cached = dcache.node.bundleOut
-      val uncached = ucLegacy.node.bundleOut
+      val cached = cachedOut.bundleOut
+      val uncached = uncachedOut.bundleOut
       val success = Bool(OUTPUT)
     }
 
