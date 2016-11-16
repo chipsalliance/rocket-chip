@@ -93,7 +93,7 @@ class WithGroundTest extends Config(
     case BuildExampleTop =>
       (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(new GroundTestCoreplex()(_))(p))
     case FPUKey => None
-    case UseAtomics => false
+    case UseAtomics => true
     case UseCompressed => false
     case _ => throw new CDEMatchError
   })
