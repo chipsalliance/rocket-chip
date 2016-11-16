@@ -10,9 +10,12 @@ import uncore.util._
 import util._
 import rocket._
 
+/** Should the broadcast hub have no buffers */
+case object BufferlessBroadcast extends Field[Boolean]
+
 trait BroadcastL2 extends BankedL2CoherenceManagers {
   def l2ManagerFactory() = {
-    val bh = LazyModule(new TLBroadcast(l1tol2_lineBytes, nTrackersPerBank))
+    val bh = LazyModule(new TLBroadcast(l1tol2_lineBytes, nTrackersPerBank, p(BufferlessBroadcast)))
     (bh.node, bh.node)
   }
 }

@@ -62,10 +62,6 @@ class BaseCoreplexConfig extends Config (
       case NAcquireTransactors => 7
       case L2StoreDataQueueDepth => 1
       case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
-      case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-        Module(new L2BroadcastHub()(p.alterPartial({
-          case InnerTLId => "L1toL2"
-          case OuterTLId => "L2toMC" })))
       //Tile Constants
       case BuildRoCC => Nil
       case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
@@ -142,10 +138,10 @@ class BaseCoreplexConfig extends Config (
       }
 
       case BootROMFile => "./bootrom/bootrom.img"
+      case BufferlessBroadcast => false
       case NTiles => 1
       case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
       case NTrackersPerBank => Knob("NTRACKERS_PER_BANK")
-      case BankIdLSB => 0
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case EnableL2Logging => false
@@ -203,12 +199,6 @@ class WithL2Cache extends Config(
     case NAcquireTransactors => 2
     case NSecondaryMisses => 4
     case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new L2HellaCacheBank()(p.alterPartial({
-        case CacheId => id
-        case CacheName => "L2Bank"
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC"})))
     case L2Replacer => () => new SeqRandom(site(NWays))
     case _ => throw new CDEMatchError
   },
@@ -217,10 +207,7 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new BufferlessBroadcastHub()(p.alterPartial({
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC" })))
+    case BufferlessBroadcast => true
   })
 
 /**
@@ -236,12 +223,6 @@ class WithBufferlessBroadcastHub extends Config(
  * DO NOT use this configuration.
  */
 class WithStatelessBridge extends Config (
-  topDefinitions = (pname, site, here) => pname match {
-    case BuildL2CoherenceManager => (id: Int, p: Parameters) =>
-      Module(new ManagerToClientStatelessBridge()(p.alterPartial({
-        case InnerTLId => "L1toL2"
-        case OuterTLId => "L2toMC" })))
-  },
   knobValues = {
     case "L1D_MSHRS" => 0
     case _ => throw new CDEMatchError

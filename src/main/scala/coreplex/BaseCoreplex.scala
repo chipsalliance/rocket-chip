@@ -20,10 +20,6 @@ case object NMemoryChannels extends Field[Int]
 case object NBanksPerMemoryChannel extends Field[Int]
 /** Number of tracker per bank */
 case object NTrackersPerBank extends Field[Int]
-/** Least significant bit of address used for bank partitioning */
-case object BankIdLSB extends Field[Int]
-/** Function for building some kind of coherence manager agent */
-case object BuildL2CoherenceManager extends Field[(Int, Parameters) => CoherenceAgent]
 /** The file to read the BootROM contents from */
 case object BootROMFile extends Field[String]
 
