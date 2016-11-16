@@ -457,8 +457,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
 
     dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
     dataArb.io.in(2).bits.write := false
-    dataArb.io.in(2).bits.addr := Cat(tl_out.c.bits.address(paddrBits-1, untagBits),
-                                      releaseDataBeat(log2Up(refillCycles)-1,0)) << rowOffBits
+    dataArb.io.in(2).bits.addr := tl_out.c.bits.address | (releaseDataBeat(log2Up(refillCycles)-1,0) << rowOffBits)
     dataArb.io.in(2).bits.way_en := ~UInt(0, nWays)
 
     metaWriteArb.io.in(2).valid := release_state.isOneOf(s_voluntary_write_meta, s_probe_write_meta)
