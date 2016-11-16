@@ -201,9 +201,8 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     val s2_victim_tag = RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid)
     val s2_victim_state = Mux(s2_hit_valid && !s2_flush_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
     val s2_victim_valid = s2_victim_state.isValid()
-    val (prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
-    val (needs_vol_wb, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH) 
-    val s2_victim_dirty = needs_vol_wb
+    val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
+    val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
     val s2_update_meta = s2_hit_state =/= s2_new_hit_state
     io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && tl_out.a.ready && !uncachedInFlight.asUInt.andR)
     when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
@@ -408,7 +407,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
                                     shrinkPermissions = s2_shrink_param,
                                     data = s2_data)._2
 
-    val probeResponseMessage = Mux(prb_ack_data,
+    val probeResponseMessage = Mux(s2_prb_ack_data,
                                   edge.ProbeAck(
                                     b = probe_bits,
                                     reportPermissions = s2_report_param),
@@ -428,7 +427,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
       probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << idxLSB
     }
     when (s2_probe) {
-      when (needs_vol_wb) { release_state := s_probe_rep_dirty }
+      when (s2_prb_ack_data) { release_state := s_probe_rep_dirty }
       .elsewhen (s2_probe_state.isValid()) { release_state := s_probe_rep_clean }
       .otherwise {
         tl_out.c.valid := true

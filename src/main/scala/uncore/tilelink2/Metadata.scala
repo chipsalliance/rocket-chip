@@ -107,7 +107,7 @@ class ClientMetadata extends Bundle {
     import ClientStates._
     import TLPermissions._
     MuxTLookup(Cat(param, state), (Bool(false), UInt(0), UInt(0)), Seq(
-    //(wanted, am now)  -> (dirtyWB      resp, next)
+    //(wanted, am now)  -> (hasDirtyData resp, next)
       Cat(toT, Dirty)   -> (Bool(true),  TtoT, Trunk),
       Cat(toT, Trunk)   -> (Bool(false), TtoT, Trunk),
       Cat(toT, Branch)  -> (Bool(false), BtoB, Branch),
@@ -139,7 +139,7 @@ class ClientMetadata extends Bundle {
 
   def onProbe(param: UInt): (Bool, UInt, ClientMetadata) = { 
     val r = shrinkHelper(param)
-    (Bool(true), r._2, ClientMetadata(r._3))
+    (r._1, r._2, ClientMetadata(r._3))
   }
 }
 
