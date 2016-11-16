@@ -48,6 +48,7 @@ trait HasL1HellaCacheParameters extends HasCacheParameters with HasCoreParameter
 
   require(isPow2(nSets))
   require(rowBits <= outerDataBits)
+  require(xLen <= outerDataBits) // TODO need offset addr for puts if data width < xlen
   require(!usingVM || untagBits <= pgIdxBits)
 }
 

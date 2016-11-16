@@ -280,23 +280,24 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
 
     // Prepare a TileLink request message that initiates a transaction
     val a_source = PriorityEncoder(~uncachedInFlight.asUInt)
-    val a_address = s2_req.addr
+    val acquire_address = (s2_req.addr >> idxLSB) << idxLSB
+    val access_address = s2_req.addr
     val a_size = s2_req.typ
     val a_data = Fill(beatWords, pstore1_storegen.data)
-    val acquire = edge.Acquire(a_source, a_address, lgCacheBlockBytes, s2_grow_param)._2 // TODO Cacheability already been checked?
-    val get     = edge.Get(a_source, a_address, a_size)._2
-    val put     = edge.Put(a_source, a_address, a_size, a_data)._2
+    val acquire = edge.Acquire(a_source, acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
+    val get     = edge.Get(a_source, access_address, a_size)._2
+    val put     = edge.Put(a_source, access_address, a_size, a_data)._2
     val atomics = if (edge.manager.anySupportLogical) {
       MuxLookup(s2_req.cmd, Wire(new TLBundleA(edge.bundle)), Array(
-        M_XA_SWAP -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.SWAP)._2,
-        M_XA_XOR  -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.XOR) ._2,
-        M_XA_OR   -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.OR)  ._2,
-        M_XA_AND  -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.AND) ._2,
-        M_XA_ADD  -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.ADD)._2,
-        M_XA_MIN  -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.MIN)._2,
-        M_XA_MAX  -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.MAX)._2,
-        M_XA_MINU -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.MINU)._2,
-        M_XA_MAXU -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.MAXU)._2))
+        M_XA_SWAP -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.SWAP)._2,
+        M_XA_XOR  -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.XOR) ._2,
+        M_XA_OR   -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.OR)  ._2,
+        M_XA_AND  -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.AND) ._2,
+        M_XA_ADD  -> edge.Arithmetic(a_source, access_address, a_size, a_data, TLAtomics.ADD)._2,
+        M_XA_MIN  -> edge.Arithmetic(a_source, access_address, a_size, a_data, TLAtomics.MIN)._2,
+        M_XA_MAX  -> edge.Arithmetic(a_source, access_address, a_size, a_data, TLAtomics.MAX)._2,
+        M_XA_MINU -> edge.Arithmetic(a_source, access_address, a_size, a_data, TLAtomics.MINU)._2,
+        M_XA_MAXU -> edge.Arithmetic(a_source, access_address, a_size, a_data, TLAtomics.MAXU)._2))
     } else {
       // If no managers support atomics, assert fail if processor asks for them
       assert (!(tl_out.a.valid && pstore1_amo && s2_write && s2_uncached))
