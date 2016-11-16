@@ -62,8 +62,6 @@ class BasePlatformConfig extends Config(
         case TMemoryChannels => BusType.AXI
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
-        case BuildExampleTop =>
-          (p: Parameters) => LazyModule(new ExampleTop(new DefaultCoreplex()(_))(p))
         case SimMemLatency => 0
         case _ => throw new CDEMatchError
       }

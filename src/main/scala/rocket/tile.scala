@@ -43,7 +43,7 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   val cachedOut = TLOutputNode()
   val uncachedOut = TLOutputNode()
   cachedOut := dcache.node
-  uncachedOut := ucLegacy.node
+  uncachedOut := TLHintHandler()(ucLegacy.node)
   val masterNodes = List(cachedOut, uncachedOut)
   
   (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }

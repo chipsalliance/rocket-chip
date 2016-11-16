@@ -81,7 +81,7 @@ class WithGroundTest extends Config(
           else new MESICoherence(site(L2DirectoryRepresentation))),
         nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
         nCachingClients = 1,
-        nCachelessClients = site(NCoreplexExtClients) + 1,
+        nCachelessClients = 1,
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),

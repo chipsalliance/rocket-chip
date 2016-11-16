@@ -306,6 +306,31 @@ class DebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p
   val resp = new DecoupledIO(new DebugBusResp).flip()
 }
 
+class AsyncDebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p) {
+  val req  = new AsyncBundle(1, new DebugBusReq(p(DMKey).nDebugBusAddrSize))
+  val resp = new AsyncBundle(1, new DebugBusResp).flip
+}
+
+object FromAsyncDebugBus
+{
+  def apply(x: AsyncDebugBusIO) = {
+    val out = Wire(new DebugBusIO()(x.p))
+    out.req <> FromAsyncBundle(x.req)
+    x.resp <> ToAsyncBundle(out.resp, 1)
+    out
+  }
+}
+
+object ToAsyncDebugBus
+{
+  def apply(x: DebugBusIO) = {
+    val out = Wire(new AsyncDebugBusIO()(x.p))
+    out.req <> ToAsyncBundle(x.req, 1)
+    x.resp <> FromAsyncBundle(out.resp)
+    out
+  }
+}
+
 trait HasDebugModuleParameters {
   val params : Parameters
   implicit val p = params

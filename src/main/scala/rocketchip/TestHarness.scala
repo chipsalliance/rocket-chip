@@ -5,6 +5,8 @@ package rocketchip
 import Chisel._
 import cde.{Parameters, Field}
 import junctions._
+import diplomacy._
+import coreplex._
 import junctions.NastiConstants._
 import util.LatencyPipe
 
@@ -15,12 +17,8 @@ class TestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  val dut = Module(q(BuildExampleTop)(q).module)
-  implicit val p = dut.p
-
-  // This test harness isn't especially flexible yet
-  require(dut.io.bus_clk.isEmpty)
-  require(dut.io.bus_rst.isEmpty)
+  implicit val p = q
+  val dut = Module(LazyModule(new ExampleRocketTop(new DefaultCoreplex()(_))).module)
 
   for (int <- dut.io.interrupts(0))
     int := Bool(false)
@@ -38,26 +36,7 @@ class TestHarness(q: Parameters) extends Module {
     }
   }
 
-  if (!p(IncludeJtagDTM)) {
-    // Todo: enable the usage of different clocks
-    // to test the synchronizer more aggressively.
-    val dtm_clock = clock
-    val dtm_reset = reset
-    if (dut.io.debug_clk.isDefined) dut.io.debug_clk.get := dtm_clock
-    if (dut.io.debug_rst.isDefined) dut.io.debug_rst.get := dtm_reset
-    val dtm = Module(new SimDTM).connect(dtm_clock, dtm_reset, dut.io.debug.get,
-      dut.io.success, io.success)
-  } else {
-    val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)
-  }
-
-  for (bus_axi <- dut.io.bus_axi) {
-    bus_axi.ar.valid := Bool(false)
-    bus_axi.aw.valid := Bool(false)
-    bus_axi.w.valid  := Bool(false)
-    bus_axi.r.ready  := Bool(false)
-    bus_axi.b.ready  := Bool(false)
-  }
+  val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug, io.success)
 
   for (mmio_axi <- dut.io.mmio_axi) {
     val slave = Module(new NastiErrorSlave)
@@ -128,13 +107,12 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
     val exit = UInt(OUTPUT, 32)
   }
 
-  def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.DebugBusIO,
-      dutsuccess: Bool, tbsuccess: Bool) = {
+  def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.DebugBusIO, tbsuccess: Bool) = {
     io.clk := tbclk
     io.reset := tbreset
     dutio <> io.debug
 
-    tbsuccess := dutsuccess || io.exit === UInt(1)
+    tbsuccess := io.exit === UInt(1)
     when (io.exit >= UInt(2)) {
       printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
       stop(1)

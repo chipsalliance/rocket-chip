@@ -92,41 +92,6 @@ trait HasPeripheryParameters {
 
 /////
 
-trait PeripheryDebug {
-  this: TopNetwork =>
-}
-
-trait PeripheryDebugBundle {
-  this: TopNetworkBundle {
-    val outer: PeripheryDebug
-  } =>
-  val debug_clk = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Clock(INPUT))
-  val debug_rst = (p(AsyncDebugBus) && !p(IncludeJtagDTM)).option(Bool(INPUT))
-  val debug = (!p(IncludeJtagDTM)).option(new DebugBusIO()(p).flip)
-  val jtag = p(IncludeJtagDTM).option(new JTAGIO(true).flip)
-}
-
-trait PeripheryDebugModule {
-  this: TopNetworkModule {
-    val outer: PeripheryDebug
-    val io: PeripheryDebugBundle
-  } =>
-
-  if (p(IncludeJtagDTM)) {
-    // JtagDTMWithSync is a wrapper which
-    // handles the synchronization as well.
-    val dtm = Module (new JtagDTMWithSync()(p))
-    dtm.io.jtag <> io.jtag.get
-    coreplexDebug <> dtm.io.debug
-  } else {
-    coreplexDebug <>
-      (if (p(AsyncDebugBus)) AsyncDebugBusFrom(io.debug_clk.get, io.debug_rst.get, io.debug.get)
-      else io.debug.get)
-  }
-}
-
-/////
-
 trait PeripheryExtInterrupts {
   this: TopNetwork =>
 
@@ -238,48 +203,6 @@ trait PeripheryMasterAXI4MMIOModule {
 
 /////
 
-trait PeripherySlave {
-  this: TopNetwork {
-    val pBusMasters: RangeManager
-  } =>
-
-  if (p(NExtBusAXIChannels) > 0) pBusMasters.add("ext", 1) // NExtBusAXIChannels are arbitrated into one TL port
-}
-
-trait PeripherySlaveBundle {
-  this: TopNetworkBundle {
-    val outer: PeripherySlave
-  } =>
-  val bus_clk = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Clock(INPUT)))
-  val bus_rst = p(AsyncBusChannels).option(Vec(p(NExtBusAXIChannels), Bool (INPUT)))
-  val bus_axi = Vec(p(NExtBusAXIChannels), new NastiIO).flip
-}
-
-trait PeripherySlaveModule {
-  this: TopNetworkModule {
-    val outer: PeripherySlave { val pBusMasters: RangeManager }
-    val io: PeripherySlaveBundle
-  } =>
-
-  if (p(NExtBusAXIChannels) > 0) {
-    val arb = Module(new NastiArbiter(p(NExtBusAXIChannels)))
-    ((io.bus_axi zip arb.io.master) zipWithIndex) foreach { case ((bus, port), idx) =>
-      port <> (
-        if (!p(AsyncBusChannels)) bus
-        else AsyncNastiFrom(io.bus_clk.get(idx), io.bus_rst.get(idx), bus)
-      )
-    }
-    val conv = Module(new TileLinkIONastiIOConverter()(edgeSlaveParams))
-    conv.io.nasti <> arb.io.slave
-
-    val (r_start, r_end) = outer.pBusMasters.range("ext")
-    require(r_end - r_start == 1, "RangeManager should return 1 slot")
-    TileLinkWidthAdapter(coreplexSlave(r_start), conv.io.tl)
-  }
-}
-
-/////
-
 trait PeripheryBootROM {
   this: TopNetwork =>
 
@@ -343,13 +266,4 @@ trait PeripheryTestBusMasterModule {
     val outer: PeripheryTestBusMaster
     val io: PeripheryTestBusMasterBundle
   } =>
-}
-
-/////
-
-trait HardwiredResetVector {
-  this: TopNetworkModule {
-    val outer: BaseTop[BaseCoreplex]
-  } =>
-  outer.coreplex.module.io.resetVector := UInt(0x1000) // boot ROM
 }

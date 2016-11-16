@@ -20,7 +20,6 @@ class JunctionsUnitTestConfig extends Config(new WithJunctionsUnitTests ++ new B
 
 class WithUncoreUnitTests extends Config(
   (pname, site, here) => pname match {
-    case rocketchip.NCoreplexExtClients => 0
     case uncore.tilelink.TLId => "L1toL2"
     case UnitTests => (p: Parameters) => Seq(
       Module(new uncore.devices.ROMSlaveTest()(p)),

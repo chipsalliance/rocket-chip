@@ -35,7 +35,6 @@ trait HasCoreplexParameters {
   lazy val outerMMIOParams = p.alterPartial({ case TLId => "L2toMMIO" })
   lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
   lazy val nTiles = p(uncore.devices.NTiles)
-  lazy val nSlaves = p(rocketchip.NCoreplexExtClients)
   lazy val nMemChannels = p(NMemoryChannels)
   lazy val hasSupervisor = p(rocket.UseVM)
   lazy val nTrackersPerBank = p(NTrackersPerBank)
@@ -53,7 +52,7 @@ abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L
 }
 
 trait CoreplexNetwork extends HasCoreplexParameters {
-  this: BareCoreplex =>
+  val module: CoreplexNetworkModule
 
   val l1tol2 = LazyModule(new TLXbar)
   val l1tol2_beatBytes = p(TLKey("L2toMMIO")).dataBitsPerBeat/8
@@ -79,9 +78,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
 }
 
 trait CoreplexNetworkBundle extends HasCoreplexParameters {
-  this: {
-    val outer: CoreplexNetwork
-  } =>
+  val outer: CoreplexNetwork
 
   implicit val p = outer.p
   val mmio = outer.mmio.bundleOut
@@ -89,12 +86,15 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
 }
 
 trait CoreplexNetworkModule extends HasCoreplexParameters {
-    this: BareCoreplexModule[BareCoreplex, BareCoreplexBundle[BareCoreplex]] =>
+  val outer: CoreplexNetwork
+  val io: CoreplexNetworkBundle
+
   implicit val p = outer.p
 }
 
-trait BankedL2CoherenceManagers {
-    this: CoreplexNetwork =>
+trait BankedL2CoherenceManagers extends CoreplexNetwork {
+  val module: BankedL2CoherenceManagersModule
+
   require (isPow2(nBanksPerMemChannel))
   require (isPow2(l1tol2_lineBytes))
 
@@ -116,100 +116,28 @@ trait BankedL2CoherenceManagers {
   }
 }
 
-trait BankedL2CoherenceManagersBundle {
-  this: CoreplexNetworkBundle {
-    val outer: BankedL2CoherenceManagers
-  } =>
+trait BankedL2CoherenceManagersBundle extends CoreplexNetworkBundle {
+  val outer: BankedL2CoherenceManagers
 
   require (nMemChannels <= 1, "Seq in Chisel Bundle needed to support > 1") // !!!
   val mem = outer.mem.map(_.bundleOut).toList.headOption // .headOption should be removed !!!
 }
 
-trait BankedL2CoherenceManagersModule {
-  this: CoreplexNetworkModule {
-    val outer: BankedL2CoherenceManagers
-    val io: BankedL2CoherenceManagersBundle
-  } =>
-}
-
-trait CoreplexRISCVPlatform {
-    this: CoreplexNetwork =>
-
-  val lazyTiles = List.tabulate(p(NTiles)){ i => LazyModule(new RocketTile(i)) }
-  val debug = LazyModule(new TLDebugModule())
-  val plic  = LazyModule(new TLPLIC(hasSupervisor, maxPriorities = 7))
-  val clint = LazyModule(new CoreplexLocalInterrupter)
-  val tileIntNodes = lazyTiles.map { _ => IntInternalOutputNode() } // this should be moved into the Tile...
-
-  debug.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
-  plic.node  := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
-  clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
-
-  plic.intnode := mmioInt
-  tileIntNodes.foreach { _ := plic.intnode }
-}
-
-trait CoreplexRISCVPlatformBundle {
-  this: CoreplexNetworkBundle {
-    val outer: CoreplexRISCVPlatform
-  } =>
-
-  val slave = Vec(nSlaves, new ClientUncachedTileLinkIO()(innerParams)).flip
-  val debug = new DebugBusIO().flip
-  val rtcTick = Bool(INPUT)
-  val resetVector = UInt(INPUT, p(XLen))
-  val success = Bool(OUTPUT) // used for testing
-}
-
-trait CoreplexRISCVPlatformModule {
-  this: CoreplexNetworkModule {
-    val outer: CoreplexNetwork with CoreplexRISCVPlatform
-    val io: CoreplexRISCVPlatformBundle
-  } =>
-
-  val tiles = outer.lazyTiles.map(_.module)
-
-  // Remaining external coreplex signals
-  outer.debug.module.io.db <> io.debug
-  outer.clint.module.io.rtcTick := io.rtcTick
-  io.success := Bool(false) // Coreplex doesn't know when to stop running
-
-  println("\nGenerated Address Map")
-  for (entry <- p(rocketchip.GlobalAddrMap).flatten) {
-    val name = entry.name
-    val start = entry.region.start
-    val end = entry.region.start + entry.region.size - 1
-    val prot = entry.region.attr.prot
-    val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
-                  (if ((prot & AddrMapProt.W) > 0) "W" else "") +
-                  (if ((prot & AddrMapProt.X) > 0) "X" else "")
-    val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
-    println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
-  }
-
-  // Create and export the ConfigString
-  val managers = outer.l1tol2.node.edgesIn(0).manager.managers
-  val configString = rocketchip.GenerateConfigString(p, outer.clint, outer.plic, managers)
-  // Allow something else to have override the config string
-  if (!ConfigStringOutput.contents.isDefined) {
-    ConfigStringOutput.contents = Some(configString)
-  }
-  println(s"\nGenerated Configuration String\n${ConfigStringOutput.contents.get}")
+trait BankedL2CoherenceManagersModule extends CoreplexNetworkModule {
+  val outer: BankedL2CoherenceManagers
+  val io: BankedL2CoherenceManagersBundle
 }
 
 abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
     with CoreplexNetwork
-    with BankedL2CoherenceManagers
-    with CoreplexRISCVPlatform {
+    with BankedL2CoherenceManagers {
   override lazy val module = new BaseCoreplexModule(this, () => new BaseCoreplexBundle(this))
 }
 
 class BaseCoreplexBundle[+L <: BaseCoreplex](_outer: L) extends BareCoreplexBundle(_outer)
     with CoreplexNetworkBundle
     with BankedL2CoherenceManagersBundle
-    with CoreplexRISCVPlatformBundle
 
 class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle[L]](_outer: L, _io: () => B) extends BareCoreplexModule(_outer, _io)
     with CoreplexNetworkModule
     with BankedL2CoherenceManagersModule
-    with CoreplexRISCVPlatformModule

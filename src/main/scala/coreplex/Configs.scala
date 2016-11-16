@@ -13,7 +13,7 @@ import uncore.converters._
 import rocket._
 import util._
 import util.ConfigUtils._
-import rocketchip.{GlobalAddrMap, NCoreplexExtClients}
+import rocketchip.{GlobalAddrMap}
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
 class BaseCoreplexConfig extends Config (
@@ -104,7 +104,7 @@ class BaseCoreplexConfig extends Config (
             else new MESICoherence(site(L2DirectoryRepresentation))),
           nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
           nCachingClients = 1,
-          nCachelessClients = site(NCoreplexExtClients) + 1,
+          nCachelessClients = 1,
           maxClientXacts = max_int(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,

@@ -10,8 +10,7 @@ import uncore.util._
 import util._
 import rocket._
 
-trait BroadcastL2 {
-    this: CoreplexNetwork =>
+trait BroadcastL2 extends BankedL2CoherenceManagers {
   def l2ManagerFactory() = {
     val bh = LazyModule(new TLBroadcast(l1tol2_lineBytes, nTrackersPerBank))
     (bh.node, bh.node)
@@ -20,45 +19,23 @@ trait BroadcastL2 {
 
 /////
 
-trait DirectConnection {
-    this: CoreplexNetwork with CoreplexRISCVPlatform =>
-
-  lazyTiles foreach { t =>
-    t.slaveNode.foreach { _ := cbus.node }
-    l1tol2.node := TLBuffer(1,1,2,2,0)(TLHintHandler()(t.cachedOut))
-    l1tol2.node := TLBuffer(1,0,0,2,0)(TLHintHandler()(t.uncachedOut))
-  }
-}
-
-trait DirectConnectionModule {
-  this: CoreplexNetworkModule with CoreplexRISCVPlatformModule {
-    val outer: CoreplexNetwork with CoreplexRISCVPlatform
-    val io: CoreplexRISCVPlatformBundle
-  } =>
-
-  // connect coreplex-internal interrupts to tiles
-  tiles.zipWithIndex.foreach { case (tile, i) =>
-    tile.io.hartid := UInt(i)
-    tile.io.resetVector := io.resetVector
-    tile.io.interrupts := outer.clint.module.io.tiles(i)
-    tile.io.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-    tile.io.interrupts.meip := outer.tileIntNodes(i).bundleOut(0)(0)
-    tile.io.interrupts.seip.foreach(_ := outer.tileIntNodes(i).bundleOut(0)(1))
-  }
-}
-
 class DefaultCoreplex(implicit p: Parameters) extends BaseCoreplex
     with BroadcastL2
-    with DirectConnection {
+    with CoreplexRISCVPlatform
+    with RocketPlex {
   override lazy val module = new DefaultCoreplexModule(this, () => new DefaultCoreplexBundle(this))
 }
 
 class DefaultCoreplexBundle[+L <: DefaultCoreplex](_outer: L) extends BaseCoreplexBundle(_outer)
+    with CoreplexRISCVPlatformBundle
+    with RocketPlexBundle
 
 class DefaultCoreplexModule[+L <: DefaultCoreplex, +B <: DefaultCoreplexBundle[L]](_outer: L, _io: () => B) extends BaseCoreplexModule(_outer, _io)
-    with DirectConnectionModule
+    with CoreplexRISCVPlatformModule
+    with RocketPlexModule
 
 /////
+/*
 
 trait AsyncConnection {
     this: CoreplexNetwork with CoreplexRISCVPlatform =>
@@ -149,3 +126,4 @@ class MultiClockCoreplexBundle[+L <: MultiClockCoreplex](_outer: L) extends Base
 
 class MultiClockCoreplexModule[+L <: MultiClockCoreplex, +B <: MultiClockCoreplexBundle[L]](_outer: L, _io: () => B) extends BaseCoreplexModule(_outer, _io)
     with AsyncConnectionModule
+*/
