@@ -85,8 +85,6 @@ trait HasPeripheryParameters {
   lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
   lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
-  lazy val edgeSlaveParams = p.alterPartial({ case TLId => "EdgetoSlave" })
-  lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
   lazy val peripheryBusConfig = p(PeripheryBusConfig)
   lazy val socBusConfig = p(SOCBusConfig)
   lazy val cacheBlockBytes = p(CacheBlockBytes)

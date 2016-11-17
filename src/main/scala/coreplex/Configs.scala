@@ -113,32 +113,6 @@ class BaseCoreplexConfig extends Config (
           dataBeats = innerDataBeats,
           dataBits = site(CacheBlockBytes)*8)
       }
-      case TLKey("L2toMC") => 
-        TileLinkParameters(
-          coherencePolicy = new MEICoherence(
-            new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = 1,
-          nCachingClients = site(NBanksPerMemoryChannel),
-          nCachelessClients = 0,
-          maxClientXacts = site(NAcquireTransactors) + 2,
-          maxClientsPerPort = site(NBanksPerMemoryChannel),
-          maxManagerXacts = 1,
-          dataBeats = innerDataBeats,
-          dataBits = site(CacheBlockBytes)*8)
-      case TLKey("L2toMMIO") => {
-        TileLinkParameters(
-          coherencePolicy = new MICoherence(
-            new NullRepresentation(site(NBanksPerMemoryChannel))),
-          nManagers = 1,
-          nCachingClients = 0,
-          nCachelessClients = 1,
-          maxClientXacts = 4,
-          maxClientsPerPort = 1,
-          maxManagerXacts = 1,
-          dataBeats = innerDataBeats,
-          dataBits = site(CacheBlockBytes) * 8)
-      }
-
       case BootROMFile => "./bootrom/bootrom.img"
       case BufferlessBroadcast => false
       case NTiles => 1

@@ -34,12 +34,6 @@ class BasePlatformConfig extends Config(
           addrBits = site(PAddrBits),
           idBits = site(EdgeIDBits))
         case TLEmitMonitors => true
-        case TLKey("EdgetoSlave") =>
-          site(TLKey("L1toL2")).copy(dataBeats = edgeDataBeats)
-        case TLKey("MCtoEdge") =>
-          site(TLKey("L2toMC")).copy(dataBeats = edgeDataBeats)
-        case TLKey("MMIOtoEdge") =>
-          site(TLKey("L2toMMIO")).copy(dataBeats = edgeDataBeats)
         case NExtTopInterrupts => 2
         case SOCBusConfig => site(L1toL2Config)
         case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
