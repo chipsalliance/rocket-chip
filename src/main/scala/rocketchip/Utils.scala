@@ -89,14 +89,6 @@ object GenerateConfigString {
     val res = new StringBuilder
     res append plic.module.globalConfigString
     res append clint.module.globalConfigString
-    if (addrMap contains "mem") {
-      res append  "ram {\n"
-      res append  "  0 {\n"
-      res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
-      res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
-      res append  "  };\n"
-      res append  "};\n"
-    }
     res append  "core {\n"
     for (i <- 0 until c.nTiles) { // TODO heterogeneous tiles
       val isa = {

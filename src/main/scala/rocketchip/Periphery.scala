@@ -38,6 +38,9 @@ case object AsyncDebugBus extends Field[Boolean]
 case object AsyncMemChannels extends Field[Boolean]
 /** Specifies the size of external memory */
 case object ExtMemSize extends Field[Long]
+case object ExtMemBase extends Field[Long]
+case object ExtBusSize extends Field[Long]
+case object ExtBusBase extends Field[Long]
 /** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
@@ -121,10 +124,9 @@ trait PeripheryExtInterruptsModule {
 trait PeripheryMasterAXI4Mem {
   this: BaseTop[BaseCoreplex] with TopNetwork =>
 
-  val base = 0x80000000L
+  val base = p(ExtMemBase)
   val size = p(ExtMemSize)
   val channels = coreplexMem.size
-  Dump("MEM_BASE", base)
 
   val mem_axi4 = coreplexMem.zipWithIndex.map { case (node, i) =>
     val c_size = size/channels
@@ -172,7 +174,7 @@ trait PeripheryMasterAXI4MMIO {
 
   val mmio_axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
-      address       = List(AddressSet(0x60000000L, 0x1fffffffL)),
+      address       = List(AddressSet(p(ExtBusBase), p(ExtBusSize)-1)),
       executable    = true,                  // Can we run programs on this memory?
       supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
       supportsRead  = TransferSizes(1, 256),

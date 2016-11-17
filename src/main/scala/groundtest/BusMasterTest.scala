@@ -6,6 +6,7 @@ import uncore.agents._
 import uncore.coherence.{InnerTLId, OuterTLId}
 import util._
 import junctions.HasAddrMapParameters
+import rocketchip._
 import cde.Parameters
 
 /**
@@ -20,7 +21,7 @@ class ExampleBusMaster(implicit val p: Parameters) extends Module
     with HasTileLinkParameters {
   val mmioParams = p.alterPartial({ case TLId => p(InnerTLId) })
   val memParams = p.alterPartial({ case TLId => p(OuterTLId) })
-  val memStart = addrMap("mem").start
+  val memStart = p(ExtMemBase)
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 
   val io = new Bundle {
@@ -69,7 +70,7 @@ class BusMasterTest(implicit p: Parameters) extends GroundTest()(p)
        s_req_check :: s_resp_check :: s_done :: Nil) = Enum(Bits(), 8)
   val state = Reg(init = s_idle)
 
-  val busMasterBlock = addrMap("io:pbus:busmaster").start >> p(CacheBlockOffsetBits)
+  val busMasterBlock = p(ExtBusBase) >> p(CacheBlockOffsetBits)
   val start_acq = Put(
     client_xact_id = UInt(0),
     addr_block = UInt(busMasterBlock),

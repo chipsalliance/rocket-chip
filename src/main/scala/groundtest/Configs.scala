@@ -93,7 +93,7 @@ class WithGroundTest extends Config(
     case BuildExampleTop =>
       (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(new GroundTestCoreplex()(_))(p))
     case FPUKey => None
-    case UseAtomics => true
+    case UseAtomics => false
     case UseCompressed => false
     case _ => throw new CDEMatchError
   })
@@ -137,7 +137,7 @@ class WithMemtest extends Config(
     }
     case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 128,
-      startAddress = site(GlobalAddrMap)("mem").start)
+      startAddress = BigInt(site(ExtMemBase)))
     case BuildGroundTest =>
       (p: Parameters) => Module(new GeneratorTest()(p))
     case _ => throw new CDEMatchError

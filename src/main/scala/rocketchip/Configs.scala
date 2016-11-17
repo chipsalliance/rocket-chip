@@ -60,7 +60,10 @@ class BasePlatformConfig extends Config(
         case AsyncMemChannels => false
         case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
         case TMemoryChannels => BusType.AXI
+        case ExtMemBase => Dump("MEM_BASE", 0x80000000L)
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
+        case ExtBusBase => 0x60000000L
+        case ExtBusSize => 0x20000000L
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
         case SimMemLatency => 0
         case _ => throw new CDEMatchError
