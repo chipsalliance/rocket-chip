@@ -407,7 +407,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
                                     shrinkPermissions = s2_shrink_param,
                                     data = s2_data)._2
 
-    val probeResponseMessage = Mux(s2_prb_ack_data,
+    val probeResponseMessage = Mux(!s2_prb_ack_data,
                                   edge.ProbeAck(
                                     b = probe_bits,
                                     reportPermissions = s2_report_param),
