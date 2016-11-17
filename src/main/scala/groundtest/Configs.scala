@@ -85,7 +85,7 @@ class WithGroundTest extends Config(
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),
-        maxClientsPerPort = 1,
+        maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = dataBeats,
         dataBits = site(CacheBlockBytes)*8)
@@ -106,8 +106,7 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq("mem", "TL2:testram").map(name =>
-                    site(GlobalAddrMap)(name).start.longValue),
+      targets    = Seq(site(ExtMemBase), testRamAddr),
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
