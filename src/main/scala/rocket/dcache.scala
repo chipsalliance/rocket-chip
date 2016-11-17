@@ -355,7 +355,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     dataArb.io.in(1).bits.wdata := tl_out.d.bits.data
     dataArb.io.in(1).bits.wmask := ~UInt(0, rowBytes)
     // tag updates on refill
-    metaWriteArb.io.in(1).valid := grantIsCached && tl_out.d.fire() && d_last
+    metaWriteArb.io.in(1).valid := grantIsCached && d_done
     assert(!metaWriteArb.io.in(1).valid || metaWriteArb.io.in(1).ready)
     metaWriteArb.io.in(1).bits.way_en := s2_victim_way
     metaWriteArb.io.in(1).bits.idx := s2_req.addr(idxMSB, idxLSB)
@@ -376,11 +376,11 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     }
 
     // Finish TileLink transaction by issuing a GrantAck
-    grantackq.io.enq.valid := tl_out.d.fire() && d_last && edge.hasFollowUp(tl_out.d.bits)
+    grantackq.io.enq.valid := d_done && edge.hasFollowUp(tl_out.d.bits)
     grantackq.io.enq.bits := edge.GrantAck(tl_out.d.bits)
     tl_out.e <> grantackq.io.deq
     assert(!grantackq.io.enq.valid || grantackq.io.enq.ready, "Too many Grants received by dcache.")
-    when (tl_out.d.fire() && d_last) { replacer.miss }
+    when (d_done) { replacer.miss }
 
     // Handle an incoming TileLink Probe message
     val block_probe = releaseInFlight || lrscValid || (s2_valid_hit && s2_lr)
