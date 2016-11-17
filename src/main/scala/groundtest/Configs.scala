@@ -106,7 +106,7 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq(site(ExtMemBase), testRamAddr),
+      targets    = Seq(site(ExtMem).base, testRamAddr),
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
@@ -136,7 +136,7 @@ class WithMemtest extends Config(
     }
     case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 128,
-      startAddress = BigInt(site(ExtMemBase)))
+      startAddress = BigInt(site(ExtMem).base))
     case BuildGroundTest =>
       (p: Parameters) => Module(new GeneratorTest()(p))
     case _ => throw new CDEMatchError

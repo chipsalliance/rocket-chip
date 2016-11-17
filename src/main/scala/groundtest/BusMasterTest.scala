@@ -21,7 +21,7 @@ class ExampleBusMaster(implicit val p: Parameters) extends Module
     with HasTileLinkParameters {
   val mmioParams = p.alterPartial({ case TLId => p(InnerTLId) })
   val memParams = p.alterPartial({ case TLId => p(OuterTLId) })
-  val memStart = p(ExtMemBase)
+  val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 
   val io = new Bundle {
@@ -70,7 +70,7 @@ class BusMasterTest(implicit p: Parameters) extends GroundTest()(p)
        s_req_check :: s_resp_check :: s_done :: Nil) = Enum(Bits(), 8)
   val state = Reg(init = s_idle)
 
-  val busMasterBlock = p(ExtBusBase) >> p(CacheBlockOffsetBits)
+  val busMasterBlock = p(ExtBus).base >> p(CacheBlockOffsetBits)
   val start_acq = Put(
     client_xact_id = UInt(0),
     addr_block = UInt(busMasterBlock),

@@ -19,13 +19,10 @@ import rocket.XLen
 import scala.math.max
 import coreplex._
 
-/** External Bus controls */
-case object NExtBusAXIChannels extends Field[Int]
 /** Specifies the size of external memory */
-case object ExtMemSize extends Field[Long]
-case object ExtMemBase extends Field[Long]
-case object ExtBusSize extends Field[Long]
-case object ExtBusBase extends Field[Long]
+case class AXIMasterConfig(base: Long, size: Long, beatBytes: Int, idBits: Int)
+case object ExtMem extends Field[AXIMasterConfig]
+case object ExtBus extends Field[AXIMasterConfig]
 /** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
@@ -35,10 +32,6 @@ case object PeripheryBusConfig extends Field[TLBusConfig]
 case object PeripheryBusArithmetic extends Field[Boolean]
 /* Specifies the SOC-bus configuration */
 case object SOCBusConfig extends Field[TLBusConfig]
-
-/* Specifies the data and id width at the chip boundary */
-case object EdgeDataBits extends Field[Int]
-case object EdgeIDBits extends Field[Int]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasPeripheryParameters {
@@ -81,13 +74,12 @@ trait PeripheryExtInterruptsModule {
 trait PeripheryMasterAXI4Mem {
   this: BaseTop[BaseCoreplex] with TopNetwork =>
 
-  val base = p(ExtMemBase)
-  val size = p(ExtMemSize)
-  val channels = coreplexMem.size
+  private val config = p(ExtMem)
+  private val channels = coreplexMem.size
 
   val mem_axi4 = coreplexMem.zipWithIndex.map { case (node, i) =>
-    val c_size = size/channels
-    val c_base = base + c_size*i
+    val c_size = config.size/channels
+    val c_base = config.base + c_size*i
 
     val axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
@@ -97,11 +89,11 @@ trait PeripheryMasterAXI4Mem {
         supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
         supportsRead  = TransferSizes(1, 256),
         interleavedId = Some(0))),             // slave does not interleave read responses
-      beatBytes = 8)) // 64-bit AXI interface
+      beatBytes = config.beatBytes))
 
     axi4 :=
       // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
-      TLToAXI4(idBits = 4)(                     // use idBits = 0 for AXI4-Lite
+      TLToAXI4(idBits = config.idBits)(         // use idBits = 0 for AXI4-Lite
       TLWidthWidget(coreplex.l1tol2_beatBytes)( // convert width before attaching to the l1tol2
       node))
 
@@ -129,18 +121,19 @@ trait PeripheryMasterAXI4MemModule {
 trait PeripheryMasterAXI4MMIO {
   this: TopNetwork =>
 
+  private val config = p(ExtBus)
   val mmio_axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
-      address       = List(AddressSet(BigInt(p(ExtBusBase)), p(ExtBusSize)-1)),
+      address       = List(AddressSet(BigInt(config.base), config.size-1)),
       executable    = true,                  // Can we run programs on this memory?
       supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
       supportsRead  = TransferSizes(1, 256),
       interleavedId = Some(0))),             // slave does not interleave read responses
-    beatBytes = 8)) // 64-bit AXI interface
+    beatBytes = config.beatBytes))
 
   mmio_axi4 :=
     // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
-    TLToAXI4(idBits = 4)(                  // use idBits = 0 for AXI4-Lite
+    TLToAXI4(idBits = config.idBits)(      // use idBits = 0 for AXI4-Lite
     TLWidthWidget(socBusConfig.beatBytes)( // convert width before attaching to socBus
     socBus.node))
 }

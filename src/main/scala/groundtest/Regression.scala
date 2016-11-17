@@ -20,7 +20,7 @@ class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) 
 
 abstract class Regression(implicit val p: Parameters)
     extends Module with HasTileLinkParameters with HasAddrMapParameters {
-  val memStart = p(ExtMemBase)
+  val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
   val io = new RegressionIO
 

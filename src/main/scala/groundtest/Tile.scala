@@ -5,7 +5,7 @@ import rocket._
 import uncore.tilelink._
 import uncore.agents.CacheName
 import uncore.tilelink2._
-import rocketchip.ExtMemBase
+import rocketchip.ExtMem
 import diplomacy._
 import scala.util.Random
 import scala.collection.mutable.ListBuffer
@@ -30,7 +30,7 @@ trait HasGroundTestParameters {
   val nUncached = tileSettings.uncached
   val nCached = tileSettings.cached
   val nPTW = tileSettings.ptw
-  val memStart = p(ExtMemBase)
+  val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 }
 

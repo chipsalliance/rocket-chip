@@ -23,16 +23,8 @@ class BasePlatformConfig extends Config(
     (pname,site,here) =>  {
       type PF = PartialFunction[Any,Any]
       def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-      lazy val edgeDataBits = site(EdgeDataBits)
-      lazy val edgeDataBeats = (8 * site(CacheBlockBytes)) / edgeDataBits
       pname match {
         //Memory Parameters
-        case EdgeDataBits => 64
-        case EdgeIDBits => 5
-        case NastiKey => NastiParameters(
-          dataBits = edgeDataBits,
-          addrBits = site(PAddrBits),
-          idBits = site(EdgeIDBits))
         case TLEmitMonitors => true
         case NExtTopInterrupts => 2
         case SOCBusConfig => site(L1toL2Config)
@@ -40,23 +32,10 @@ class BasePlatformConfig extends Config(
         case PeripheryBusArithmetic => true
         // Note that PLIC asserts that this is > 0.
         case IncludeJtagDTM => false
-        case NExtBusAXIChannels => 0
-        case HastiId => "Ext"
-        case HastiKey("TL") =>
-          HastiParameters(
-            addrBits = site(PAddrBits),
-            dataBits = site(TLKey(site(TLId))).dataBits / site(TLKey(site(TLId))).dataBeats)
-        case HastiKey("Ext") =>
-          HastiParameters(
-            addrBits = site(PAddrBits),
-            dataBits = edgeDataBits)
         case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
-        case ExtMemBase => Dump("MEM_BASE", 0x80000000L)
-        case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
-        case ExtBusBase => 0x60000000L
-        case ExtBusSize => 0x20000000L
+        case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
+        case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
-        case SimMemLatency => 0
         case _ => throw new CDEMatchError
       }
     }
@@ -91,7 +70,7 @@ class WithNMemoryChannels(n: Int) extends Config(
 
 class WithExtMemSize(n: Long) extends Config(
   (pname,site,here) => pname match {
-    case ExtMemSize => Dump("MEM_SIZE", n)
+    case ExtMem => site(ExtMem).copy(size = n)
     case _ => throw new CDEMatchError
   }
 )
@@ -122,7 +101,7 @@ class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
 class WithEdgeDataBits(dataBits: Int) extends Config(
   (pname, site, here) => pname match {
-    case EdgeDataBits => dataBits
+    case ExtMem => site(ExtMem).copy(beatBytes = dataBits/8)
     case _ => throw new CDEMatchError
   })
 
