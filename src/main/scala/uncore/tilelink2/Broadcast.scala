@@ -71,7 +71,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // Create the request tracker queues
     val trackers = Seq.tabulate(numTrackers) { id =>
-      Module(new TLBroadcastTracker(id, lineBytes, log2Up(caches.size), bufferless, edgeIn, edgeOut)).io
+      Module(new TLBroadcastTracker(id, lineBytes, log2Up(caches.size+1), bufferless, edgeIn, edgeOut)).io
     }
 
     // We always accept E
