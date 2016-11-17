@@ -22,7 +22,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
     l1tol2.node := lm.uncachedOut
   }
 
-  val cbusRAM = LazyModule(new TLRAM(AddressSet(0x10000, 0xffff), false, cbus_beatBytes))
+  val cbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, cbus_beatBytes))
   cbusRAM.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
 
   override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
