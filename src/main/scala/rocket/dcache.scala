@@ -330,10 +330,9 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
         assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
         when(d_last) { cached_grant_wait := false }
       } .elsewhen (grantIsUncached) {
-        // TODO this requires that uncached accesses only take a single beat
         val id = tl_out.d.bits.source
         val req = uncachedReqs(id)
-        assert(uncachedInFlight(id), "An AccessAck was unexpected by the dcache.")
+        assert(uncachedInFlight(id), "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
         when(d_last) { uncachedInFlight(id) := false }
         s2_data := tl_out.d.bits.data
         s2_req.cmd := req.cmd
@@ -341,7 +340,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
         s2_req.tag := req.tag
         s2_req.addr := Cat(s1_paddr >> wordOffBits /* don't-care */, req.addr(wordOffBits-1, 0))
       } .elsewhen (grantIsVoluntary) {
-        assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.")
+        assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.") // TODO should handle Ack coming back on same cycle!
         release_ack_wait := false
       }
     }
