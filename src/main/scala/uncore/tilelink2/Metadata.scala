@@ -20,9 +20,9 @@ object ClientStates {
 }
 
 object MemoryOpCategories extends MemoryOpConstants {
-  val wr = Cat(Bool(true), Bool(true))   // Op actually writes
-  val wi = Cat(Bool(false), Bool(true))  // Future op will write
-  val rd = Cat(Bool(false), Bool(false)) // Op only reads
+  def wr = Cat(Bool(true), Bool(true))   // Op actually writes
+  def wi = Cat(Bool(false), Bool(true))  // Future op will write
+  def rd = Cat(Bool(false), Bool(false)) // Op only reads
 
   def categorize(cmd: UInt): UInt = {
     val cat = Cat(isWrite(cmd), isWriteIntent(cmd))
