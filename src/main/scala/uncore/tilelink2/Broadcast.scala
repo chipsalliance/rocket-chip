@@ -259,7 +259,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   io.line := address >> lineShift
 
   val i_data = Wire(Decoupled(new TLBroadcastData(edgeIn.bundle)))
-  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes))
+  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes), pipe=bufferless)
 
   io.in_a.ready := (idle || !io.in_a_first) && i_data.ready
   i_data.valid := (idle || !io.in_a_first) && io.in_a.valid
