@@ -174,7 +174,7 @@ trait PeripheryMasterAXI4MMIO {
 
   val mmio_axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
-      address       = List(AddressSet(p(ExtBusBase), p(ExtBusSize)-1)),
+      address       = List(AddressSet(BigInt(p(ExtBusBase)), p(ExtBusSize)-1)),
       executable    = true,                  // Can we run programs on this memory?
       supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
       supportsRead  = TransferSizes(1, 256),
