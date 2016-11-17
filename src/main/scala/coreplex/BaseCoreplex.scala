@@ -14,6 +14,11 @@ import uncore.converters._
 import rocket._
 import util._
 
+/** Widths of various points in the SoC */
+case class TLBusConfig(beatBytes: Int)
+case object CBusConfig extends Field[TLBusConfig]
+case object L1toL2Config extends Field[TLBusConfig]
+
 /** Number of memory channels */
 case object NMemoryChannels extends Field[Int]
 /** Number of banks per memory channel */
@@ -25,6 +30,8 @@ case object BootROMFile extends Field[String]
 
 trait HasCoreplexParameters {
   implicit val p: Parameters
+  lazy val cbusConfig = p(CBusConfig)
+  lazy val l1tol2Config = p(L1toL2Config)
   lazy val nBanksPerMemChannel = p(NBanksPerMemoryChannel)
   lazy val innerParams = p.alterPartial({ case TLId => "L1toL2" })
   lazy val outerMemParams = p.alterPartial({ case TLId => "L2toMC" })
@@ -51,11 +58,11 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
 
   val l1tol2 = LazyModule(new TLXbar)
-  val l1tol2_beatBytes = p(TLKey("L2toMMIO")).dataBitsPerBeat/8
+  val l1tol2_beatBytes = l1tol2Config.beatBytes
   val l1tol2_lineBytes = p(CacheBlockBytes)
 
   val cbus = LazyModule(new TLXbar)
-  val cbus_beatBytes = p(XLen)/8
+  val cbus_beatBytes = cbusConfig.beatBytes
   val cbus_lineBytes = l1tol2_lineBytes
 
   val intBar = LazyModule(new IntXbar)

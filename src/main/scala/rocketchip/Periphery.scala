@@ -46,11 +46,10 @@ case object NExtTopInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
 case object RTCPeriod extends Field[Int]
 /* Specifies the periphery bus configuration */
-case class PeripheryBusConfig(arithAMO: Boolean, beatBytes: Int = 4)
-case object PeripheryBusKey extends Field[PeripheryBusConfig]
+case object PeripheryBusConfig extends Field[TLBusConfig]
+case object PeripheryBusArithmetic extends Field[Boolean]
 /* Specifies the SOC-bus configuration */
-case class SOCBusConfig(beatBytes: Int = 4)
-case object SOCBusKey extends Field[SOCBusConfig]
+case object SOCBusConfig extends Field[TLBusConfig]
 
 /* Specifies the data and id width at the chip boundary */
 case object EdgeDataBits extends Field[Int]
@@ -88,9 +87,10 @@ trait HasPeripheryParameters {
   lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
   lazy val edgeSlaveParams = p.alterPartial({ case TLId => "EdgetoSlave" })
   lazy val edgeMemParams = p.alterPartial({ case TLId => "MCtoEdge" })
-  lazy val peripheryBusConfig = p(PeripheryBusKey)
-  lazy val socBusConfig = p(SOCBusKey)
+  lazy val peripheryBusConfig = p(PeripheryBusConfig)
+  lazy val socBusConfig = p(SOCBusConfig)
   lazy val cacheBlockBytes = p(CacheBlockBytes)
+  lazy val peripheryBusArithmetic = p(PeripheryBusArithmetic)
 }
 
 /////

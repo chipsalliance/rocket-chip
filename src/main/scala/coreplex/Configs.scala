@@ -92,6 +92,8 @@ class BaseCoreplexConfig extends Config (
       case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
       case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
                              log2Up(site(TLKey(site(TLId))).nClients)
+      case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
+      case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth
       case TLKey("L1toL2") => {
         val useMEI = site(NTiles) <= 1
         TileLinkParameters(

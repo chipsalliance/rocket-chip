@@ -41,8 +41,9 @@ class BasePlatformConfig extends Config(
         case TLKey("MMIOtoEdge") =>
           site(TLKey("L2toMMIO")).copy(dataBeats = edgeDataBeats)
         case NExtTopInterrupts => 2
-        case SOCBusKey => SOCBusConfig(beatBytes = site(TLKey("L2toMMIO")).dataBitsPerBeat/8)
-        case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
+        case SOCBusConfig => site(L1toL2Config)
+        case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
+        case PeripheryBusArithmetic => true
         // Note that PLIC asserts that this is > 0.
         case AsyncDebugBus => false
         case IncludeJtagDTM => false
@@ -177,13 +178,13 @@ class WithJtagDTM extends Config (
 
 class WithNoPeripheryArithAMO extends Config (
   (pname, site, here) => pname match {
-    case PeripheryBusKey => PeripheryBusConfig(arithAMO = false, beatBytes = 4)
+    case PeripheryBusArithmetic => false
   }
 )
 
 class With64BitPeriphery extends Config (
   (pname, site, here) => pname match {
-    case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 8)
+    case PeripheryBusConfig => TLBusConfig(beatBytes = 8)
   }
 )
 
