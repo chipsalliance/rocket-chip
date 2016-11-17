@@ -39,9 +39,7 @@ class BasePlatformConfig extends Config(
         case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
         case PeripheryBusArithmetic => true
         // Note that PLIC asserts that this is > 0.
-        case AsyncDebugBus => false
         case IncludeJtagDTM => false
-        case AsyncBusChannels => false
         case NExtBusAXIChannels => 0
         case HastiId => "Ext"
         case HastiKey("TL") =>
@@ -52,9 +50,7 @@ class BasePlatformConfig extends Config(
           HastiParameters(
             addrBits = site(PAddrBits),
             dataBits = edgeDataBits)
-        case AsyncMemChannels => false
         case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
-        case TMemoryChannels => BusType.AXI
         case ExtMemBase => Dump("MEM_BASE", 0x80000000L)
         case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
         case ExtBusBase => 0x60000000L
@@ -155,13 +151,6 @@ class TinyConfig extends Config(
   new WithScratchpads ++
   new WithSmallCores ++ new WithRV32 ++
   new WithStatelessBridge ++ new BaseConfig)
-
-class WithAsyncDebug extends Config (
-  (pname, site, here) => pname match {
-    case AsyncDebugBus => true
-    case _ => throw new CDEMatchError
-  }
-)
 
 class WithJtagDTM extends Config (
   (pname, site, here) => pname match {

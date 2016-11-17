@@ -19,23 +19,8 @@ import rocket.XLen
 import scala.math.max
 import coreplex._
 
-/** Options for memory bus interface */
-object BusType {
-  sealed trait EnumVal
-  case object AXI extends EnumVal
-  case object AHB extends EnumVal
-  case object TL  extends EnumVal
-  val busTypes = Seq(AXI, AHB, TL)
-}
-
-/** Memory channel controls */
-case object TMemoryChannels extends Field[BusType.EnumVal]
 /** External Bus controls */
 case object NExtBusAXIChannels extends Field[Int]
-/** Async configurations */
-case object AsyncBusChannels extends Field[Boolean]
-case object AsyncDebugBus extends Field[Boolean]
-case object AsyncMemChannels extends Field[Boolean]
 /** Specifies the size of external memory */
 case object ExtMemSize extends Field[Long]
 case object ExtMemBase extends Field[Long]
@@ -55,36 +40,10 @@ case object SOCBusConfig extends Field[TLBusConfig]
 case object EdgeDataBits extends Field[Int]
 case object EdgeIDBits extends Field[Int]
 
-object PeripheryUtils {
-  def addQueueAXI(source: NastiIO) = {
-    val sink = Wire(source)
-    sink.ar  <> Queue(source.ar, 1)
-    sink.aw  <> Queue(source.aw, 1)
-    sink.w   <> Queue(source.w)
-    source.r <> Queue(sink.r)
-    source.b <> Queue(sink.b, 1)
-    sink
-  }
-  def convertTLtoAXI(tl: ClientUncachedTileLinkIO) = {
-    val bridge = Module(new NastiIOTileLinkIOConverter()(tl.p))
-    bridge.io.tl <> tl
-    addQueueAXI(bridge.io.nasti)
-  }
-  def convertTLtoAHB(tl: ClientUncachedTileLinkIO, atomics: Boolean) = {
-    val bridge = Module(new AHBBridge(atomics)(tl.p))
-    bridge.io.tl <> tl
-    bridge.io.ahb
-  }
-}
-
 /** Utility trait for quick access to some relevant parameters */
 trait HasPeripheryParameters {
   implicit val p: Parameters
-  lazy val tMemChannels = p(TMemoryChannels)
   lazy val nMemChannels = p(NMemoryChannels)
-  lazy val nMemAXIChannels = if (tMemChannels == BusType.AXI) nMemChannels else 0
-  lazy val nMemAHBChannels = if (tMemChannels == BusType.AHB) nMemChannels else 0
-  lazy val nMemTLChannels  = if (tMemChannels == BusType.TL)  nMemChannels else 0
   lazy val peripheryBusConfig = p(PeripheryBusConfig)
   lazy val socBusConfig = p(SOCBusConfig)
   lazy val cacheBlockBytes = p(CacheBlockBytes)
