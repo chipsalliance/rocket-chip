@@ -175,6 +175,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
     val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
     val s2_req = Reg(io.cpu.req.bits)
+    val s2_req_block_addr = (s2_req.addr >> idxLSB) << idxLSB
     val s2_uncached = Reg(Bool())
     when (s1_valid_not_nacked || s1_flush_valid) {
       s2_req := s1_req
@@ -279,7 +280,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
 
     // Prepare a TileLink request message that initiates a transaction
     val a_source = PriorityEncoder(~uncachedInFlight.asUInt)
-    val acquire_address = (s2_req.addr >> idxLSB) << idxLSB
+    val acquire_address = s2_req_block_addr
     val access_address = s2_req.addr
     val a_size = s2_req.typ
     val a_data = Fill(beatWords, pstore1_storegen.data)
@@ -350,7 +351,7 @@ class DCache(maxUncachedInFlight: Int = 2)(implicit val p: Parameters) extends L
     dataArb.io.in(1).valid := doRefillBeat
     assert(dataArb.io.in(1).ready || !doRefillBeat)
     dataArb.io.in(1).bits.write := true
-    dataArb.io.in(1).bits.addr :=  s2_req.addr | d_address_inc
+    dataArb.io.in(1).bits.addr :=  s2_req_block_addr | d_address_inc
     dataArb.io.in(1).bits.way_en := s2_victim_way
     dataArb.io.in(1).bits.wdata := tl_out.d.bits.data
     dataArb.io.in(1).bits.wmask := ~UInt(0, rowBytes)
