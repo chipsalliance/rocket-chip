@@ -5,6 +5,7 @@ import cde.Parameters
 import diplomacy._
 import coreplex._
 import uncore.devices.NTiles
+import uncore.tilelink2._
 import rocket.TileId
 import uncore.tilelink.TLId
 
@@ -16,6 +17,14 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
       case TileId => i
     })))
   }
+  tiles.foreach { lm =>
+    l1tol2.node := lm.cachedOut
+    l1tol2.node := lm.uncachedOut
+  }
+
+  val cbusRAM = LazyModule(new TLRAM(AddressSet(0x10000, 0xffff), false, cbus_beatBytes))
+  cbusRAM.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
+
   override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
 }
 
