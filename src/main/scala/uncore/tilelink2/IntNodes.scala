@@ -41,7 +41,7 @@ case class IntSourcePortParameters(sources: Seq[IntSourceParameters])
   // The interrupts mapping must not overlap
   sources.map(_.range).combinations(2).foreach { case Seq(a, b) => require (!a.overlaps(b)) }
   // The interrupts must perfectly cover the range
-  require (sources.map(_.range.end).max == num)
+  require (sources.isEmpty || sources.map(_.range.end).max == num)
 }
 
 case class IntSinkPortParameters(sinks: Seq[IntSinkParameters])
@@ -57,7 +57,7 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
     Vec(eo.size, Vec(eo.map(_.source.num).max, Bool()))
   }
   def bundleI(ei: Seq[IntEdge]): Vec[Vec[Bool]] = {
-    require (!ei.isEmpty)
+    if (ei.isEmpty) Vec(0, Vec(0, Bool())) else
     Vec(ei.size, Vec(ei.map(_.source.num).max, Bool()))
   }
 
@@ -103,7 +103,7 @@ case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(IntS
 class IntXbar extends LazyModule
 {
   val intnode = IntAdapterNode(
-    numSourcePorts = 1 to 1, // does it make sense to have more than one interrupt sink?
+    numSourcePorts = 0 to 128,
     numSinkPorts   = 0 to 128,
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     sourceFn       = { seq =>

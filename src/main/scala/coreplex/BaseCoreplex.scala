@@ -58,8 +58,12 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val cbus_beatBytes = p(XLen)/8
   val cbus_lineBytes = l1tol2_lineBytes
 
+  val intBar = LazyModule(new IntXbar)
+
   val mmio = TLOutputNode()
   val mmioInt = IntInputNode()
+
+  intBar.intnode := mmioInt
 
   cbus.node :=
     TLAtomicAutomata(arithmetic = true)( // disable once TLB uses TL2 metadata

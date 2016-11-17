@@ -25,8 +25,7 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   plic.node  := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
   clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
 
-  plic.intnode := mmioInt
-
+  plic.intnode := intBar.intnode
 }
 
 trait CoreplexRISCVPlatformBundle extends CoreplexNetworkBundle {
