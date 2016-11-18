@@ -19,25 +19,19 @@ import DefaultTestSuites._
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
 class BasePlatformConfig extends Config(
-  topDefinitions = {
-    (pname,site,here) =>  {
-      type PF = PartialFunction[Any,Any]
-      def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-      pname match {
-        //Memory Parameters
-        case TLEmitMonitors => true
-        case NExtTopInterrupts => 2
-        case SOCBusConfig => site(L1toL2Config)
-        case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
-        case PeripheryBusArithmetic => true
-        // Note that PLIC asserts that this is > 0.
-        case IncludeJtagDTM => false
-        case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
-        case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
-        case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
-        case _ => throw new CDEMatchError
-      }
-    }
+  (pname,site,here) => pname match {
+    //Memory Parameters
+    case TLEmitMonitors => true
+    case NExtTopInterrupts => 2
+    case SOCBusConfig => site(L1toL2Config)
+    case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
+    case PeripheryBusArithmetic => true
+    // Note that PLIC asserts that this is > 0.
+    case IncludeJtagDTM => false
+    case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
+    case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
+    case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
+    case _ => throw new CDEMatchError
   })
 
 class BaseConfig extends Config(new BaseCoreplexConfig ++ new BasePlatformConfig)
@@ -119,8 +113,6 @@ class QuadChannelBenchmarkConfig extends Config(new WithNMemoryChannels(4) ++ ne
 class OctoChannelBenchmarkConfig extends Config(new WithNMemoryChannels(8) ++ new SingleChannelBenchmarkConfig)
 
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseConfig)
-
-class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
 
 class DualCoreConfig extends Config(
   new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)

@@ -14,36 +14,41 @@ import uncore.util._
 import util._
 import cde.{Parameters, Field}
 
-case object CacheName extends Field[String]
-case object NSets extends Field[Int]
-case object NWays extends Field[Int]
-case object RowBits extends Field[Int]
+case class CacheConfig(
+  nSets:         Int,
+  nWays:         Int,
+  rowBits:       Int,
+  nTLBEntries:   Int,
+  cacheIdBits:   Int,
+  splitMetadata: Boolean)
+case class CacheName(id: String) extends Field[CacheConfig]
+case object CacheName extends Field[CacheName]
+
 case object Replacer extends Field[() => ReplacementPolicy]
 case object L2Replacer extends Field[() => SeqReplacementPolicy]
 case object NPrimaryMisses extends Field[Int]
 case object NSecondaryMisses extends Field[Int]
 case object CacheBlockBytes extends Field[Int]
 case object ECCCode extends Field[Option[Code]]
-case object CacheIdBits extends Field[Int]
 case object CacheId extends Field[Int]
-case object SplitMetadata extends Field[Boolean]
 
 trait HasCacheParameters {
   implicit val p: Parameters
-  val nSets = p(NSets)
+  val cacheConfig = p(p(CacheName))
+  val nSets = cacheConfig.nSets
   val blockOffBits = p(CacheBlockOffsetBits)
-  val cacheIdBits = p(CacheIdBits)
-  val idxBits = log2Up(nSets)
+  val cacheIdBits = cacheConfig.cacheIdBits
+  val idxBits = log2Up(cacheConfig.nSets)
   val untagBits = blockOffBits + cacheIdBits + idxBits
   val tagBits = p(PAddrBits) - untagBits
-  val nWays = p(NWays)
+  val nWays = cacheConfig.nWays
   val wayBits = log2Up(nWays)
   val isDM = nWays == 1
-  val rowBits = p(RowBits)
+  val rowBits = cacheConfig.rowBits
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
   val code = p(ECCCode).getOrElse(new IdentityCode)
-  val hasSplitMetadata = p(SplitMetadata)
+  val hasSplitMetadata = cacheConfig.splitMetadata
 }
 
 abstract class CacheModule(implicit val p: Parameters) extends Module

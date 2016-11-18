@@ -103,12 +103,6 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
   } 
 
-  /** Output Design Space Exploration knobs and constraints. */
-  def generateDSEConstraints {
-    writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
-    writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
-  }
-
   /** Output a global Parameter dump, which an external script can turn into Verilog headers. */
   def generateParameterDump {
     writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()

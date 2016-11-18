@@ -8,15 +8,14 @@ import Chisel.ImplicitConversions._
 import junctions._
 import scala.math._
 import cde.{Parameters, Field}
-import uncore.agents.PseudoLRU
+import uncore.agents._
 import uncore.coherence._
 
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
-case object NTLBEntries extends Field[Int]
 
 trait HasTLBParameters extends HasCoreParameters {
-  val entries = p(NTLBEntries)
+  val entries = p(p(CacheName)).nTLBEntries
   val camAddrBits = log2Ceil(entries)
   val camTagBits = asIdBits + vpnBits
 }

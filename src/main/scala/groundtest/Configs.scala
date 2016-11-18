@@ -39,10 +39,10 @@ class MemtestStatelessConfig extends Config(
 class FancyMemtestConfig extends Config(
   new WithNGenerators(1, 2) ++ new WithNCores(2) ++ new WithMemtest ++
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
-  new WithSplitL2Metadata ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithL2Cache ++ new GroundTestConfig)
 
 class CacheFillTestConfig extends Config(
-  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithNL2Ways(4) ++ new WithL2Capacity(4) ++ new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
 
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)
@@ -108,10 +108,9 @@ class WithComparator extends Config(
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
-      prefetches = site("COMPARATOR_PREFETCHES"))
+      prefetches = false)
     case FPUConfig => None
     case UseAtomics => false
-    case "COMPARATOR_PREFETCHES" => false
     case _ => throw new CDEMatchError
   })
 
@@ -123,7 +122,7 @@ class WithAtomics extends Config(
 
 class WithPrefetches extends Config(
   (pname, site, here) => pname match {
-    case "COMPARATOR_PREFETCHES" => true
+    case ComparatorKey => site(ComparatorKey).copy(prefetches = true)
     case _ => throw new CDEMatchError
   })
 
@@ -156,11 +155,6 @@ class WithCacheFillTest extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new CacheFillTest()(p))
     case _ => throw new CDEMatchError
-  },
-  knobValues = {
-    case "L2_WAYS" => 4
-    case "L2_CAPACITY_IN_KB" => 4
-    case _ => throw new CDEMatchError
   })
 
 class WithBroadcastRegressionTest extends Config(
@@ -188,7 +182,7 @@ class WithCacheRegressionTest extends Config(
   })
 
 class WithTraceGen extends Config(
-  topDefinitions = (pname, site, here) => pname match {
+  (pname, site, here) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(uncached = 1, cached = 1)
     }
@@ -207,10 +201,6 @@ class WithTraceGen extends Config(
       }.flatten
     }
     case UseAtomics => true
-    case _ => throw new CDEMatchError
-  },
-  knobValues = {
-    case "L1D_SETS" => 16
-    case "L1D_WAYS" => 1
+    case CacheName("L1D") => site(CacheName("L1D")).copy(nSets = 16, nWays = 1)
     case _ => throw new CDEMatchError
   })

@@ -108,8 +108,7 @@ class PutBlockMergeRegression(implicit p: Parameters)
 
   disableCache()
 
-  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
-  val nSets = l2params(NSets)
+  val nSets = p(CacheName("L2")).nSets
   val addr_blocks = Vec(Seq(0, 0, nSets).map(num => UInt(num + memStartBlock)))
   val nSteps = addr_blocks.size
   val (acq_beat, acq_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
@@ -425,9 +424,8 @@ class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()
 class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
   disableCache()
 
-  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
-  val nSets = l2params(NSets)
-  val nWays = l2params(NWays)
+  val nSets = p(CacheName("L2")).nSets
+  val nWays = p(CacheName("L2")).nWays
 
   val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(memStartBlock + i * nSets) }
   val data = Vec.tabulate(nWays + 1) { i => UInt((i + 1) * 1423) }
@@ -478,10 +476,9 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
 class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
   disableMem()
 
-  val l1params = p.alterPartial({ case CacheName => "L1D" })
-  val nSets = l1params(NSets)
-  val nWays = l1params(NWays)
-  val blockOffset = l1params(CacheBlockOffsetBits)
+  val nSets = p(CacheName("L1D")).nSets
+  val nWays = p(CacheName("L1D")).nWays
+  val blockOffset = p(CacheBlockOffsetBits)
 
   val startBlock = memStartBlock + 10
   val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(startBlock + i * nSets) }
@@ -566,9 +563,8 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
 class MergedGetRegression(implicit p: Parameters) extends Regression()(p) {
   disableCache()
 
-  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
-  val nSets = l2params(NSets)
-  val nWays = l2params(NWays)
+  val nSets = p(CacheName("L2")).nSets
+  val nWays = p(CacheName("L2")).nWays
 
   val (s_idle :: s_put :: s_get :: s_done :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_idle)

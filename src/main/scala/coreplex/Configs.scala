@@ -18,9 +18,7 @@ import rocketchip.{GlobalAddrMap}
 import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
 
 class BaseCoreplexConfig extends Config (
-  topDefinitions = { (pname,site,here) => 
-    type PF = PartialFunction[Any,Any]
-    def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
+  { (pname,site,here) =>
     lazy val innerDataBits = site(XLen)
     lazy val innerDataBeats = (8 * site(CacheBlockBytes)) / innerDataBits
     pname match {
@@ -29,34 +27,26 @@ class BaseCoreplexConfig extends Config (
       case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
       case ASIdBits => 7
       //Params used by all caches
-      case NSets => findBy(CacheName)
-      case NWays => findBy(CacheName)
-      case RowBits => findBy(CacheName)
-      case NTLBEntries => findBy(CacheName)
-      case CacheIdBits => findBy(CacheName)
-      case SplitMetadata => findBy(CacheName)
-      case "L1I" => {
-        case NSets => Knob("L1I_SETS") //64
-        case NWays => Knob("L1I_WAYS") //4
-        case RowBits => site(TLKey("L1toL2")).dataBitsPerBeat
-        case NTLBEntries => 8
-        case CacheIdBits => 0
-        case SplitMetadata => false
-      }:PF
-      case "L1D" => {
-        case NSets => Knob("L1D_SETS") //64
-        case NWays => Knob("L1D_WAYS") //4
-        case RowBits => site(TLKey("L1toL2")).dataBitsPerBeat
-        case NTLBEntries => 8
-        case CacheIdBits => 0
-        case SplitMetadata => false
-      }:PF
+      case CacheName("L1I") => CacheConfig(
+        nSets         = 64,
+        nWays         = 4,
+        rowBits       = site(L1toL2Config).beatBytes*8,
+        nTLBEntries   = 8,
+        cacheIdBits   = 0,
+        splitMetadata = false)
+      case CacheName("L1D") => CacheConfig(
+        nSets         = 64,
+        nWays         = 4,
+        rowBits       = site(L1toL2Config).beatBytes*8,
+        nTLBEntries   = 8,
+        cacheIdBits   = 0,
+        splitMetadata = false)
       case ECCCode => None
-      case Replacer => () => new RandomReplacement(site(NWays))
+      case Replacer => () => new RandomReplacement(site(site(CacheName)).nWays)
       //L1InstCache
       case BtbKey => BtbParameters()
       //L1DataCache
-      case DCacheKey => DCacheConfig(nMSHRs = site(Knob("L1D_MSHRS")))
+      case DCacheKey => DCacheConfig(nMSHRs = 2)
       case DataScratchpadSize => 0
       //L2 Memory System Params
       case AmoAluOperandBits => site(XLen)
@@ -118,20 +108,11 @@ class BaseCoreplexConfig extends Config (
       case NTiles => 1
       case BroadcastConfig => BroadcastConfig()
       case BankedL2Config => BankedL2Config()
-      case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
+      case CacheBlockBytes => 64
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case EnableL2Logging => false
       case _ => throw new CDEMatchError
-  }},
-  knobValues = {
-    case "NBANKS_PER_MEM_CHANNEL" => 1
-    case "NTRACKERS_PER_BANK" => 4
-    case "L1D_MSHRS" => 2
-    case "L1D_SETS" => 64
-    case "L1D_WAYS" => 4
-    case "L1I_SETS" => 64
-    case "L1I_WAYS" => 4
-    case _ => throw new CDEMatchError
+    }
   }
 )
 
@@ -141,45 +122,34 @@ class WithNCores(n: Int) extends Config(
   })
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
-  knobValues = {
-    case "NBANKS_PER_MEM_CHANNEL" => n
-    case _ => throw new CDEMatchError
+  (pname, site, here) => pname match {
+    case BankedL2Config => site(BankedL2Config).copy(nBanksPerChannel = n)
   })
 
 class WithNTrackersPerBank(n: Int) extends Config(
-  knobValues = {
-    case "NTRACKERS_PER_BANK" => n
-    case _ => throw new CDEMatchError
+  (pname, site, here) => pname match {
+    case BroadcastConfig => site(BroadcastConfig).copy(nTrackers = n)
   })
 
 class WithDataScratchpad(n: Int) extends Config(
   (pname,site,here) => pname match {
     case DataScratchpadSize => n
-    case NSets if site(CacheName) == "L1D" => n / site(CacheBlockBytes)
+    case CacheName("L1D") => site(CacheName("L1D")).copy(nSets = n / site(CacheBlockBytes))
     case _ => throw new CDEMatchError
   })
 
+// TODO: re-add L2
 class WithL2Cache extends Config(
   (pname,site,here) => pname match {
-    case "L2_CAPACITY_IN_KB" => Knob("L2_CAPACITY_IN_KB")
-    case "L2Bank" => {
-      case NSets => (((here[Int]("L2_CAPACITY_IN_KB")*1024) /
-                        site(CacheBlockBytes)) /
-                          (site(BankedL2Config).nBanks)) /
-                            site(NWays)
-      case NWays => Knob("L2_WAYS")
-      case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
-      case CacheIdBits => log2Ceil(site(BankedL2Config).nBanks)
-      case SplitMetadata => Knob("L2_SPLIT_METADATA")
-    }: PartialFunction[Any,Any] 
-    case NAcquireTransactors => 2
-    case NSecondaryMisses => 4
-    case L2DirectoryRepresentation => new FullRepresentation(site(NTiles))
-    case L2Replacer => () => new SeqRandom(site(NWays))
+    case CacheName("L2") => CacheConfig(
+      nSets         = 1024,
+      nWays         = 1,
+      rowBits       = site(L1toL2Config).beatBytes*8,
+      nTLBEntries   = 0,
+      cacheIdBits   = 1,
+      splitMetadata = false)
     case _ => throw new CDEMatchError
-  },
-  knobValues = { case "L2_WAYS" => 8; case "L2_CAPACITY_IN_KB" => 2048; case "L2_SPLIT_METADATA" => false; case _ => throw new CDEMatchError }
-)
+  })
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
@@ -198,36 +168,29 @@ class WithBufferlessBroadcastHub extends Config(
  * system depends on coherence between channels in any way,
  * DO NOT use this configuration.
  */
-class WithStatelessBridge extends Config (
-  topDefinitions = { (pname,site,here) => pname match {
+class WithStatelessBridge extends Config(
+  (pname,site,here) => pname match {
     case BankedL2Config => site(BankedL2Config).copy(coherenceManager = { case (_, _) =>
       val pass = LazyModule(new TLBuffer(0))
       (pass.node, pass.node)
     })
+    case DCacheKey => site(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
-  }},
-  knobValues = {
-    case "L1D_MSHRS" => 0
-    case _ => throw new CDEMatchError
-  }
-)
+  })
 
 class WithPLRU extends Config(
   (pname, site, here) => pname match {
-    case L2Replacer => () => new SeqPLRU(site(NSets), site(NWays))
     case _ => throw new CDEMatchError
   })
 
 class WithL2Capacity(size_kb: Int) extends Config(
-  knobValues = {
-    case "L2_CAPACITY_IN_KB" => size_kb
+  (pname,site,here) => pname match {
     case _ => throw new CDEMatchError
   })
 
 class WithNL2Ways(n: Int) extends Config(
-  knobValues = {
-    case "L2_WAYS" => n
-    case _ => throw new CDEMatchError
+  (pname,site,here) => pname match {
+    case CacheName("L2") => site(CacheName("L2")).copy(nWays = n)
   })
 
 class WithRV32 extends Config(
@@ -235,35 +198,26 @@ class WithRV32 extends Config(
     case XLen => 32
     case FPUKey => Some(FPUConfig(divSqrt = false))
     case _ => throw new CDEMatchError
-  }
-)
+  })
 
-class WithBlockingL1 extends Config (
-  knobValues = {
-    case "L1D_MSHRS" => 0
+class WithBlockingL1 extends Config(
+  (pname,site,here) => pname match {
+    case DCacheKey => site(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
-  }
-)
+  })
 
-class WithSmallCores extends Config (
-  topDefinitions = { (pname,site,here) => pname match {
+class WithSmallCores extends Config(
+  (pname,site,here) => pname match {
     case MulDivKey => Some(MulDivConfig())
     case FPUKey => None
     case UseVM => false
-    case NTLBEntries => 4
     case BtbKey => BtbParameters(nEntries = 0)
     case NAcquireTransactors => 2
+    case CacheName("L1D") => site(CacheName("L1D")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+    case CacheName("L1I") => site(CacheName("L1I")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+    case DCacheKey => site(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
-  }},
-  knobValues = {
-    case "L1D_SETS" => 64
-    case "L1D_WAYS" => 1
-    case "L1I_SETS" => 64
-    case "L1I_WAYS" => 1
-    case "L1D_MSHRS" => 0
-    case _ => throw new CDEMatchError
-  }
-)
+  })
 
 class WithRoccExample extends Config(
   (pname, site, here) => pname match {
@@ -282,6 +236,3 @@ class WithRoccExample extends Config(
     case RoccMaxTaggedMemXacts => 1
     case _ => throw new CDEMatchError
   })
-
-class WithSplitL2Metadata extends Config(
-  knobValues = { case "L2_SPLIT_METADATA" => true; case _ => throw new CDEMatchError })

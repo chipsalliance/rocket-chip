@@ -25,12 +25,12 @@ case class RoccParameters(
 
 class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   val dcacheParams = p.alterPartial({
-    case CacheName => "L1D"
+    case CacheName => CacheName("L1D")
     case TLId => "L1toL2"
     case TileId => tileId // TODO using this messes with Heirarchical P&R: change to io.hartid?
   })
   val icacheParams = p.alterPartial({
-    case CacheName => "L1I"
+    case CacheName => CacheName("L1I")
     case TLId => "L1toL2"
   })
 

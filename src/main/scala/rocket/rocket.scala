@@ -142,8 +142,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val interrupts = new TileInterrupts().asInput
     val hartid = UInt(INPUT, xLen)
-    val imem  = new FrontendIO()(p.alterPartial({case CacheName => "L1I" }))
-    val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
+    val imem  = new FrontendIO()(p.alterPartial({case CacheName => CacheName("L1I") }))
+    val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUIO().flip
     val rocc = new RoCCInterface().flip
