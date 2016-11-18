@@ -24,7 +24,7 @@ import junctions._
 import rocket._
 import util.{Timer, DynamicTimer}
 import scala.util.Random
-import cde.{Parameters, Field}
+import config._
 
 // =======
 // Outline

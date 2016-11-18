@@ -11,7 +11,7 @@ import scala.util.Random
 import scala.collection.mutable.ListBuffer
 import junctions.HasAddrMapParameters
 import util.ParameterizedBundle
-import cde.{Parameters, Field}
+import config._
 
 case object BuildGroundTest extends Field[Parameters => GroundTest]
 

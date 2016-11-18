@@ -5,7 +5,7 @@ package uncore.coherence
 import Chisel._
 import uncore.tilelink._
 import uncore.constants._
-import cde.{Parameters, Field}
+import config._
 
 /** Identifies the TLId of the inner network in a hierarchical cache controller */ 
 case object InnerTLId extends Field[String]

@@ -9,7 +9,7 @@ import junctions._
 import diplomacy._
 import regmapper._
 import uncore.tilelink2._
-import cde.Parameters
+import config._
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {

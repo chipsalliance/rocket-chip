@@ -11,7 +11,7 @@ import uncore.util._
 import diplomacy._
 import util._
 import Chisel.ImplicitConversions._
-import cde.{Parameters, Field}
+import config._
 
 case class DCacheConfig(
   nMSHRs: Int = 1,

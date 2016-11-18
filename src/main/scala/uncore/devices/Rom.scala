@@ -7,7 +7,7 @@ import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.util._
-import cde.{Parameters, Field}
+import config._
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
 {

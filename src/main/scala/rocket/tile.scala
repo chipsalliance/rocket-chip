@@ -10,7 +10,7 @@ import uncore.agents._
 import uncore.converters._
 import uncore.devices._
 import util._
-import cde.{Parameters, Field}
+import config._
 import scala.collection.mutable.ListBuffer
 
 case object BuildRoCC extends Field[Seq[RoccParameters]]

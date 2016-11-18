@@ -2,7 +2,7 @@
 
 package rocketchip
 
-import cde.{Parameters, Dump}
+import config._
 import junctions._
 import diplomacy._
 import uncore.devices._

@@ -5,7 +5,7 @@ package rocket
 import Chisel._
 import util._
 import Chisel.ImplicitConversions._
-import cde.Parameters
+import config._
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
   val ttype = UInt(width = 4)

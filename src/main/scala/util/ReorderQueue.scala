@@ -1,7 +1,7 @@
 package util
 
 import Chisel._
-import cde.Parameters
+import config._
 
 class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val data = dType.cloneType

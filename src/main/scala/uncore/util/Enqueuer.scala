@@ -2,7 +2,7 @@ package uncore.util
 
 import Chisel._
 import uncore.tilelink._
-import cde.Parameters
+import config._
 
 /** Struct for describing per-channel queue depths */
 case class TileLinkDepths(acq: Int, prb: Int, rel: Int, gnt: Int, fin: Int)

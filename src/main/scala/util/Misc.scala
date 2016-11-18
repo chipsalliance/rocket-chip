@@ -1,7 +1,7 @@
 package util
 
 import Chisel._
-import cde.Parameters
+import config._
 import scala.math._
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle {

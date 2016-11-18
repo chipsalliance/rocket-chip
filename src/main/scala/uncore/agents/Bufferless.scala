@@ -6,7 +6,7 @@ import Chisel._
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._
-import cde.Parameters
+import config._
 
 
 class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {

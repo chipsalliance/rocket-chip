@@ -8,7 +8,7 @@ import util._
 import junctions.HasAddrMapParameters
 import rocket._
 import rocketchip._
-import cde.{Parameters, Field}
+import config._
 
 class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val start = Bool(INPUT)

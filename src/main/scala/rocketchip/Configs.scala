@@ -16,7 +16,7 @@ import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import scala.collection.immutable.HashMap
 import DefaultTestSuites._
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import config._
 
 class BasePlatformConfig extends Config(
   (pname,site,here) => pname match {

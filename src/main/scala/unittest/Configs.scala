@@ -3,7 +3,7 @@
 package unittest
 
 import Chisel._
-import cde.{Parameters, Config, CDEMatchError}
+import config._
 import rocketchip.{BaseConfig, BasePlatformConfig}
 
 class WithJunctionsUnitTests extends Config(

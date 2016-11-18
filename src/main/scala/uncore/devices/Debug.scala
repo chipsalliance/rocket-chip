@@ -7,7 +7,7 @@ import junctions._
 import util._
 import regmapper._
 import uncore.tilelink2._
-import cde.{Parameters, Config, Field}
+import config._
 
 // *****************************************
 // Constants which are interesting even

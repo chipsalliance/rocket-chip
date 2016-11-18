@@ -3,7 +3,7 @@
 package rocketchip
 
 import Chisel._
-import cde.{Parameters, Field, Dump}
+import config._
 import diplomacy._
 import uncore.tilelink2._
 import uncore.devices._

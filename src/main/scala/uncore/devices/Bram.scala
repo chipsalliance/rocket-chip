@@ -1,7 +1,7 @@
 package uncore.devices
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import unittest.UnitTest
 import junctions._
 import uncore.tilelink._

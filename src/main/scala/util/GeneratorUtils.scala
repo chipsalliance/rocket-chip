@@ -3,7 +3,7 @@
 package util
 
 import Chisel._
-import cde._
+import config._
 import diplomacy.LazyModule
 import java.io.{File, FileWriter}
 
@@ -24,7 +24,7 @@ case class ParsedInputNames(
   */
 trait HasGeneratorUtilities {
   def getConfig(names: ParsedInputNames): Config = {
-    names.fullConfigClasses.foldRight(new Config()) { case (currentName, config) =>
+    new Config(names.fullConfigClasses.foldRight(Parameters.empty) { case (currentName, config) =>
       val currentConfig = try {
         Class.forName(currentName).newInstance.asInstanceOf[Config]
       } catch {
@@ -32,7 +32,7 @@ trait HasGeneratorUtilities {
           throwException(s"""Unable to find part "$currentName" from "${names.configs}", did you misspell it?""", e)
       }
       currentConfig ++ config
-    }
+    })
   }
 
   def getParameters(names: ParsedInputNames): Parameters = getParameters(getConfig(names))

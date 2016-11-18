@@ -5,7 +5,7 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
 import util._
-import cde.{Parameters, Field}
+import config._
 
 class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
     with HasTileLinkParameters {

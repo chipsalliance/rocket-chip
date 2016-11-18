@@ -4,7 +4,7 @@ import Chisel._
 import uncore.devices._
 import junctions._
 import util._
-import cde.{Parameters, Field}
+import config._
 
 case object IncludeJtagDTM extends Field[Boolean]
 

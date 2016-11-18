@@ -9,7 +9,7 @@ import uncore.constants._
 import junctions.HasAddrMapParameters
 import util._
 import Chisel.ImplicitConversions._
-import cde.{Parameters, Field}
+import config._
 
 case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]

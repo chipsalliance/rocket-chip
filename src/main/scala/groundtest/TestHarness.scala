@@ -2,7 +2,7 @@ package groundtest
 
 import Chisel._
 import diplomacy._
-import cde.Parameters
+import config._
 import rocketchip._
 import util._
 

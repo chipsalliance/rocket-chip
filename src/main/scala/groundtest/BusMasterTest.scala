@@ -7,7 +7,7 @@ import uncore.coherence.{InnerTLId, OuterTLId}
 import util._
 import junctions.HasAddrMapParameters
 import rocketchip._
-import cde.Parameters
+import config._
 
 /**
  * An example bus mastering devices that writes some preset data to memory.

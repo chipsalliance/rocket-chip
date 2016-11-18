@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import diplomacy._
-import cde.Parameters
+import config._
 import uncore.tilelink._
 import uncore.constants._
 

@@ -1,7 +1,7 @@
 package coreplex
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import junctions._
 import diplomacy._
 import uncore.tilelink._

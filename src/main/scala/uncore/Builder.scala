@@ -1,7 +1,7 @@
 package uncore
 
 import Chisel._
-import cde.{Config, Parameters, ParameterDump, Knob, Dump, CDEMatchError}
+import config._
 import junctions.PAddrBits
 import uncore.tilelink._
 import uncore.agents._

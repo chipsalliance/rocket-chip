@@ -8,7 +8,7 @@ import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
 import junctions._
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import config._
 import scala.math.max
 import coreplex._
 import rocketchip._

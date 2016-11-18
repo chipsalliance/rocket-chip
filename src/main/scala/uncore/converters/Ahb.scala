@@ -5,7 +5,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.util._
 import uncore.constants._
-import cde.{Parameters, Field}
+import config._
 import HastiConstants._
 
 /* We need to translate TileLink requests into operations we can actually execute on AHB.

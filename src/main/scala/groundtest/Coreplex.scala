@@ -1,7 +1,7 @@
 package groundtest
 
 import Chisel._
-import cde.Parameters
+import config._
 import diplomacy._
 import coreplex._
 import uncore.devices.NTiles

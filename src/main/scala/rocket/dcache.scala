@@ -12,7 +12,7 @@ import uncore.util._
 import util._
 import TLMessages._
 import Chisel.ImplicitConversions._
-import cde.{Parameters, Field}
+import config._
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)

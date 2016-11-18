@@ -15,7 +15,7 @@ import rocket._
 import util._
 import util.ConfigUtils._
 import rocketchip.{GlobalAddrMap}
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import config._
 
 class BaseCoreplexConfig extends Config (
   { (pname,site,here) =>

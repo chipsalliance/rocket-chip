@@ -8,7 +8,7 @@ import junctions._
 import rocket._
 import util.SimpleTimer
 import scala.util.Random
-import cde.{Parameters, Field}
+import config._
 
 case class TrafficGeneratorParameters(
   maxRequests: Int,
