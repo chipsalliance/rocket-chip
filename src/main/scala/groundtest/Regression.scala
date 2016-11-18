@@ -724,12 +724,15 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   val all_done = (regress_idx === UInt(regressions.size))
   val start = Reg(init = Bool(true))
 
+  // Some tests randomly backpressure grant; make this safe:
+  val grant = Queue(io.mem.head.grant, 16)
+
   // default output values
   io.mem.head.acquire.valid := Bool(false)
   io.mem.head.acquire.bits := GetBlock(
     client_xact_id = UInt(0),
     addr_block = UInt(0))
-  io.mem.head.grant.ready := Bool(false)
+  grant.ready := Bool(false)
   io.cache.head.req.valid := Bool(false)
   io.cache.head.req.bits.addr := UInt(0)
   io.cache.head.req.bits.typ := UInt(log2Ceil(64 / 8))
@@ -743,8 +746,8 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
     val me = regress_idx === UInt(i)
     regress.io.start := me && start
     regress.io.mem.acquire.ready := io.mem.head.acquire.ready && me
-    regress.io.mem.grant.valid   := io.mem.head.grant.valid && me
-    regress.io.mem.grant.bits    := io.mem.head.grant.bits
+    regress.io.mem.grant.valid   := grant.valid && me
+    regress.io.mem.grant.bits    := grant.bits
     regress.io.cache.req.ready   := io.cache.head.req.ready && me
     regress.io.cache.resp.valid  := io.cache.head.resp.valid && me
     regress.io.cache.resp.bits   := io.cache.head.resp.bits
@@ -752,7 +755,7 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
     when (me) {
       io.mem.head.acquire.valid := regress.io.mem.acquire.valid
       io.mem.head.acquire.bits := regress.io.mem.acquire.bits
-      io.mem.head.grant.ready := regress.io.mem.grant.ready
+      grant.ready := regress.io.mem.grant.ready
       io.cache.head.req.valid := regress.io.cache.req.valid
       io.cache.head.req.bits := regress.io.cache.req.bits
       io.cache.head.invalidate_lr := regress.io.cache.invalidate_lr
@@ -779,11 +782,11 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   io.status.timeout.valid := timeout
   io.status.timeout.bits := UInt(0)
 
-  assert(!(all_done && io.mem.head.grant.valid),
+  assert(!(all_done && grant.valid),
     "Getting grant after test completion")
 
   when (all_done) {
-    io.status.error.valid := io.mem.head.grant.valid
+    io.status.error.valid := grant.valid
     io.status.error.bits := UInt(regressions.size)
   }
 }
