@@ -29,7 +29,6 @@ object UncoreBuilder extends App {
   chiselMain.run(args.drop(2), gen)
 
   val pdFile = new java.io.FileWriter(s"${Driver.targetDir}/$topModuleName.prm")
-  pdFile.write(ParameterDump.getDump)
   pdFile.close
 
 }

@@ -105,7 +105,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
 
   /** Output a global Parameter dump, which an external script can turn into Verilog headers. */
   def generateParameterDump {
-    writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()
+    writeOutputFile(td, s"$longName.prm", "")
   }
 
   /** Output a global ConfigString, for use by the RISC-V software ecosystem. */
