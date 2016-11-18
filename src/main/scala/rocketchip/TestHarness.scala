@@ -9,8 +9,6 @@ import diplomacy._
 import coreplex._
 import uncore.axi4._
 
-case object BuildExampleTop extends Field[Parameters => ExampleTop[coreplex.BaseCoreplex]]
-
 class TestHarness(q: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)

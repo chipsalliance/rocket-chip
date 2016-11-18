@@ -9,8 +9,7 @@ import uncore.tilelink2._
 import rocket.TileId
 import uncore.tilelink.TLId
 
-class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
-    with BroadcastL2 {
+class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tiles = List.tabulate(p(NTiles)) { i =>
     LazyModule(new GroundTestTile()(p.alterPartial({
       case TLId => "L1toL2"

@@ -10,20 +10,9 @@ import uncore.util._
 import util._
 import rocket._
 
-/** Should the broadcast hub have no buffers */
-case object BufferlessBroadcast extends Field[Boolean]
-
-trait BroadcastL2 extends BankedL2CoherenceManagers {
-  def l2ManagerFactory() = {
-    val bh = LazyModule(new TLBroadcast(l1tol2_lineBytes, nTrackersPerBank, p(BufferlessBroadcast)))
-    (bh.node, bh.node)
-  }
-}
-
 /////
 
 class DefaultCoreplex(implicit p: Parameters) extends BaseCoreplex
-    with BroadcastL2
     with CoreplexRISCVPlatform
     with RocketPlex {
   override lazy val module = new DefaultCoreplexModule(this, () => new DefaultCoreplexBundle(this))
@@ -119,7 +108,6 @@ trait AsyncConnectionModule {
 }
 
 class MultiClockCoreplex(implicit p: Parameters) extends BaseCoreplex
-    with BroadcastL2
     with AsyncConnection {
   override lazy val module = new MultiClockCoreplexModule(this, () => new MultiClockCoreplexBundle(this))
 }

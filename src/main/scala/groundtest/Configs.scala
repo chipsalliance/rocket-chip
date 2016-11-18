@@ -79,7 +79,7 @@ class WithGroundTest extends Config(
         coherencePolicy = (
           if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
           else new MESICoherence(site(L2DirectoryRepresentation))),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
+        nManagers = site(BankedL2Config).nBanks + 1,
         nCachingClients = 1,
         nCachelessClients = 1,
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
@@ -90,8 +90,6 @@ class WithGroundTest extends Config(
         dataBeats = dataBeats,
         dataBits = site(CacheBlockBytes)*8)
     }
-    case BuildExampleTop =>
-      (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(new GroundTestCoreplex()(_))(p))
     case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false

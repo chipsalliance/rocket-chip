@@ -6,6 +6,7 @@ import Chisel._
 import junctions._
 import diplomacy._
 import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.coherence._
 import uncore.agents._
 import uncore.devices._
@@ -100,7 +101,7 @@ class BaseCoreplexConfig extends Config (
           coherencePolicy = (
             if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
             else new MESICoherence(site(L2DirectoryRepresentation))),
-          nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1 /* MMIO */,
+          nManagers = site(BankedL2Config).nBanks + 1 /* MMIO */,
           nCachingClients = 1,
           nCachelessClients = 1,
           maxClientXacts = max_int(
@@ -114,10 +115,9 @@ class BaseCoreplexConfig extends Config (
           dataBits = site(CacheBlockBytes)*8)
       }
       case BootROMFile => "./bootrom/bootrom.img"
-      case BufferlessBroadcast => false
       case NTiles => 1
-      case NBanksPerMemoryChannel => Knob("NBANKS_PER_MEM_CHANNEL")
-      case NTrackersPerBank => Knob("NTRACKERS_PER_BANK")
+      case BroadcastConfig => BroadcastConfig()
+      case BankedL2Config => BankedL2Config()
       case CacheBlockBytes => Dump("CACHE_BLOCK_BYTES", 64)
       case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
       case EnableL2Logging => false
@@ -165,11 +165,11 @@ class WithL2Cache extends Config(
     case "L2Bank" => {
       case NSets => (((here[Int]("L2_CAPACITY_IN_KB")*1024) /
                         site(CacheBlockBytes)) /
-                          (site(NBanksPerMemoryChannel)*site(NMemoryChannels))) /
+                          (site(BankedL2Config).nBanks)) /
                             site(NWays)
       case NWays => Knob("L2_WAYS")
       case RowBits => site(TLKey(site(TLId))).dataBitsPerBeat
-      case CacheIdBits => log2Ceil(site(NMemoryChannels) * site(NBanksPerMemoryChannel))
+      case CacheIdBits => log2Ceil(site(BankedL2Config).nBanks)
       case SplitMetadata => Knob("L2_SPLIT_METADATA")
     }: PartialFunction[Any,Any] 
     case NAcquireTransactors => 2
@@ -183,7 +183,7 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here) => pname match {
-    case BufferlessBroadcast => true
+    case BroadcastConfig => site(BroadcastConfig).copy(bufferless = true)
   })
 
 /**
@@ -199,6 +199,13 @@ class WithBufferlessBroadcastHub extends Config(
  * DO NOT use this configuration.
  */
 class WithStatelessBridge extends Config (
+  topDefinitions = { (pname,site,here) => pname match {
+    case BankedL2Config => site(BankedL2Config).copy(coherenceManager = { case (_, _) =>
+      val pass = LazyModule(new TLBuffer(0))
+      (pass.node, pass.node)
+    })
+    case _ => throw new CDEMatchError
+  }},
   knobValues = {
     case "L1D_MSHRS" => 0
     case _ => throw new CDEMatchError

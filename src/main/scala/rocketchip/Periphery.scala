@@ -36,7 +36,6 @@ case object SOCBusConfig extends Field[TLBusConfig]
 /** Utility trait for quick access to some relevant parameters */
 trait HasPeripheryParameters {
   implicit val p: Parameters
-  lazy val nMemChannels = p(NMemoryChannels)
   lazy val peripheryBusConfig = p(PeripheryBusConfig)
   lazy val socBusConfig = p(SOCBusConfig)
   lazy val cacheBlockBytes = p(CacheBlockBytes)

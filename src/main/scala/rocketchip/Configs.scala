@@ -32,7 +32,6 @@ class BasePlatformConfig extends Config(
         case PeripheryBusArithmetic => true
         // Note that PLIC asserts that this is > 0.
         case IncludeJtagDTM => false
-        case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
         case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
         case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
         case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
@@ -63,7 +62,7 @@ class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
 class WithNMemoryChannels(n: Int) extends Config(
   (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", n)
+    case BankedL2Config => site(BankedL2Config).copy(nMemoryChannels = n)
     case _ => throw new CDEMatchError
   }
 )
