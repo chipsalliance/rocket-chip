@@ -44,11 +44,12 @@ object TLMessages
 
 /**
   * The three primary TileLink permissions are:
-  *   (T)runk: the agent is (or is on the path to) the global point of serialization.
-  *   (B)ranch: the agent 
+  *   (T)runk: the agent is (or is on inwards path to) the global point of serialization.
+  *   (B)ranch: the agent is on an outwards path to
   *   (N)one: 
   * These permissions are permuted by transfer operations in various ways.
-  * Messages for 
+  * Operations can cap permissions, request for them to be grown or shrunk,
+  * or for a report on their current status.
   */
 object TLPermissions
 {
