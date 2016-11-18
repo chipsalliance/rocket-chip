@@ -385,38 +385,6 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
   io.errored := Bool(false)
 }
 
-/* This tests the sort of access the pattern that Hwacha uses.
- * Instead of using PutBlock/GetBlock, it uses word-sized puts and gets
- * to the same block.
- * Each request has the same client_xact_id, but there are multiple in flight.
- * The responses therefore must come back in the order they are sent. */
-class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()(p) {
-  disableCache()
-
-  val sending = Reg(init = Bool(false))
-  val finished = Reg(init = Bool(false))
-
-  val (send_cnt, send_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
-  val (recv_cnt, recv_done) = Counter(io.mem.grant.fire(), tlDataBeats)
-
-  when (!sending && io.start) { sending := Bool(true) }
-  when (send_done) { sending := Bool(false) }
-  when (recv_done) { finished := Bool(true) }
-
-  io.mem.acquire.valid := sending
-  io.mem.acquire.bits := Get(
-    client_xact_id = UInt(0),
-    addr_block = UInt(memStartBlock + 9),
-    addr_beat = send_cnt)
-  io.mem.grant.ready := !finished
-
-  io.finished := finished
-
-  val beat_mismatch = io.mem.grant.fire() && io.mem.grant.bits.addr_beat =/= recv_cnt
-  assert(!beat_mismatch, "SequentialSameIdGetRegression: grant received out of order")
-  io.errored := beat_mismatch
-}
-
 /* Test that a writeback will occur by writing nWays + 1 blocks to the same
  * set. This assumes that there is only a single cache bank. If we want to
  * test multibank configurations, we'll have to think of some other way to
@@ -733,7 +701,6 @@ object RegressionTests {
     Module(new RepeatedNoAllocPutRegression),
     Module(new WriteMaskedPutBlockRegression),
     Module(new PrefetchHitRegression),
-    Module(new SequentialSameIdGetRegression),
     Module(new WritebackRegression),
     Module(new PutBeforePutBlockRegression),
     Module(new MixedAllocPutRegression),
