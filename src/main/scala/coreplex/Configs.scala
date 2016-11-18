@@ -122,19 +122,19 @@ class WithNCores(n: Int) extends Config(
   })
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
-  (pname, site, here) => pname match {
-    case BankedL2Config => site(BankedL2Config).copy(nBanksPerChannel = n)
+  (pname, site, here, up) => pname match {
+    case BankedL2Config => up(BankedL2Config).copy(nBanksPerChannel = n)
   })
 
 class WithNTrackersPerBank(n: Int) extends Config(
-  (pname, site, here) => pname match {
-    case BroadcastConfig => site(BroadcastConfig).copy(nTrackers = n)
+  (pname, site, here, up) => pname match {
+    case BroadcastConfig => up(BroadcastConfig).copy(nTrackers = n)
   })
 
 class WithDataScratchpad(n: Int) extends Config(
-  (pname,site,here) => pname match {
+  (pname,site,here,up) => pname match {
     case DataScratchpadSize => n
-    case CacheName("L1D") => site(CacheName("L1D")).copy(nSets = n / site(CacheBlockBytes))
+    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = n / site(CacheBlockBytes))
     case _ => throw new CDEMatchError
   })
 
@@ -152,8 +152,8 @@ class WithL2Cache extends Config(
   })
 
 class WithBufferlessBroadcastHub extends Config(
-  (pname, site, here) => pname match {
-    case BroadcastConfig => site(BroadcastConfig).copy(bufferless = true)
+  (pname, site, here, up) => pname match {
+    case BroadcastConfig => up(BroadcastConfig).copy(bufferless = true)
   })
 
 /**
@@ -169,12 +169,12 @@ class WithBufferlessBroadcastHub extends Config(
  * DO NOT use this configuration.
  */
 class WithStatelessBridge extends Config(
-  (pname,site,here) => pname match {
-    case BankedL2Config => site(BankedL2Config).copy(coherenceManager = { case (_, _) =>
+  (pname,site,here,up) => pname match {
+    case BankedL2Config => up(BankedL2Config).copy(coherenceManager = { case (_, _) =>
       val pass = LazyModule(new TLBuffer(0))
       (pass.node, pass.node)
     })
-    case DCacheKey => site(DCacheKey).copy(nMSHRs = 0)
+    case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
 
@@ -189,8 +189,8 @@ class WithL2Capacity(size_kb: Int) extends Config(
   })
 
 class WithNL2Ways(n: Int) extends Config(
-  (pname,site,here) => pname match {
-    case CacheName("L2") => site(CacheName("L2")).copy(nWays = n)
+  (pname,site,here,up) => pname match {
+    case CacheName("L2") => up(CacheName("L2")).copy(nWays = n)
   })
 
 class WithRV32 extends Config(
@@ -201,21 +201,21 @@ class WithRV32 extends Config(
   })
 
 class WithBlockingL1 extends Config(
-  (pname,site,here) => pname match {
-    case DCacheKey => site(DCacheKey).copy(nMSHRs = 0)
+  (pname,site,here,up) => pname match {
+    case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
 
 class WithSmallCores extends Config(
-  (pname,site,here) => pname match {
+  (pname,site,here,up) => pname match {
     case MulDivKey => Some(MulDivConfig())
     case FPUKey => None
     case UseVM => false
     case BtbKey => BtbParameters(nEntries = 0)
     case NAcquireTransactors => 2
-    case CacheName("L1D") => site(CacheName("L1D")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-    case CacheName("L1I") => site(CacheName("L1I")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-    case DCacheKey => site(DCacheKey).copy(nMSHRs = 0)
+    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+    case CacheName("L1I") => up(CacheName("L1I")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+    case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
 

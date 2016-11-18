@@ -121,8 +121,8 @@ class WithAtomics extends Config(
   })
 
 class WithPrefetches extends Config(
-  (pname, site, here) => pname match {
-    case ComparatorKey => site(ComparatorKey).copy(prefetches = true)
+  (pname, site, here, up) => pname match {
+    case ComparatorKey => up(ComparatorKey).copy(prefetches = true)
     case _ => throw new CDEMatchError
   })
 
@@ -182,7 +182,7 @@ class WithCacheRegressionTest extends Config(
   })
 
 class WithTraceGen extends Config(
-  (pname, site, here) => pname match {
+  (pname, site, here, up) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(uncached = 1, cached = 1)
     }
@@ -201,6 +201,6 @@ class WithTraceGen extends Config(
       }.flatten
     }
     case UseAtomics => true
-    case CacheName("L1D") => site(CacheName("L1D")).copy(nSets = 16, nWays = 1)
+    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = 16, nWays = 1)
     case _ => throw new CDEMatchError
   })
