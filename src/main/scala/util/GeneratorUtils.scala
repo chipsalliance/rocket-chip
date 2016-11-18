@@ -43,7 +43,7 @@ trait HasGeneratorUtilities {
   def elaborate(names: ParsedInputNames, params: Parameters): Circuit = {
     val gen = () =>
       Class.forName(names.fullTopModuleClass)
-        .getConstructor(classOf[cde.Parameters])
+        .getConstructor(classOf[Parameters])
         .newInstance(params)
         .asInstanceOf[Module]
 

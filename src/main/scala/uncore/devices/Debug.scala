@@ -301,12 +301,12 @@ class DebugBusResp( ) extends Bundle {
   *  Therefore it has the 'flipped' version of this.
   */
 
-class DebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p) {
+class DebugBusIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val req = new  DecoupledIO(new DebugBusReq(p(DMKey).nDebugBusAddrSize))
   val resp = new DecoupledIO(new DebugBusResp).flip()
 }
 
-class AsyncDebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p) {
+class AsyncDebugBusIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val req  = new AsyncBundle(1, new DebugBusReq(p(DMKey).nDebugBusAddrSize))
   val resp = new AsyncBundle(1, new DebugBusResp).flip
 }

@@ -22,7 +22,7 @@ object UncoreBuilder extends App {
 
   val gen = () => 
     Class.forName(s"uncore.$topModuleName")
-      .getConstructor(classOf[cde.Parameters])
+      .getConstructor(classOf[Parameters])
       .newInstance(paramsFromConfig)
       .asInstanceOf[Module]
 
