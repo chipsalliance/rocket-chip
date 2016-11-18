@@ -27,7 +27,6 @@ object TLMessages
   val AccessAck      = UInt(0) //               .    .
   val AccessAckData  = UInt(1) //               .    .
   val HintAck        = UInt(2) //               .    .
-//val PutThroughData = UInt(3) //               .              // future extension ?
   val ProbeAck       = UInt(4) //               .
   val ProbeAckData   = UInt(5) //               .
   val Release        = UInt(6) //               .              => ReleaseAck
