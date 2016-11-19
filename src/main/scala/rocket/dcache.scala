@@ -254,7 +254,11 @@ class DCacheModule(outer: DCache)(implicit p: Parameters) extends HellaCacheModu
   val access_address = s2_req.addr
   val a_size = s2_req.typ
   val a_data = Fill(beatWords, pstore1_storegen.data)
-  val acquire = edge.Acquire(a_source, acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
+  val acquire = if (edge.manager.anySupportAcquire) {
+    edge.Acquire(a_source, acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
+  } else {
+    Wire(new TLBundleA(edge.bundle))
+  }
   val get     = edge.Get(a_source, access_address, a_size)._2
   val put     = edge.Put(a_source, access_address, a_size, a_data)._2
   val atomics = if (edge.manager.anySupportLogical) {
@@ -370,12 +374,16 @@ class DCacheModule(outer: DCache)(implicit p: Parameters) extends HellaCacheModu
                                   b = probe_bits,
                                   reportPermissions = TLPermissions.NtoN)
 
-  val voluntaryReleaseMessage = edge.Release(
+  val voluntaryReleaseMessage = if (edge.manager.anySupportAcquire) {
+                                edge.Release(
                                   fromSource = UInt(maxUncachedInFlight - 1),
                                   toAddress = probe_bits.address,
                                   lgSize = lgCacheBlockBytes,
                                   shrinkPermissions = s2_shrink_param,
                                   data = s2_data)._2
+  } else {
+    Wire(new TLBundleC(edge.bundle))
+  }
 
   val probeResponseMessage = Mux(!s2_prb_ack_data,
                                 edge.ProbeAck(
