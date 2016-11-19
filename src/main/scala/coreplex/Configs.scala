@@ -170,10 +170,12 @@ class WithBufferlessBroadcastHub extends Config(
  */
 class WithStatelessBridge extends Config(
   (pname,site,here,up) => pname match {
+/* !!! FIXME
     case BankedL2Config => up(BankedL2Config).copy(coherenceManager = { case (_, _) =>
       val pass = LazyModule(new TLBuffer(0))
       (pass.node, pass.node)
     })
+*/
     case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
