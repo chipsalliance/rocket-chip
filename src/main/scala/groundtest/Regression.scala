@@ -599,7 +599,7 @@ class MergedPutRegression(implicit p: Parameters) extends Regression()(p)
   val delaying = Reg(init = Bool(false))
   val (put_cnt, put_done) = Counter(io.mem.acquire.fire(), tlMaxClientXacts)
   val (delay_cnt, delay_done) = Counter(delaying, 8)
-  val put_acked = Reg(UInt(width = 3), init = UInt(0))
+  val put_acked = Reg(UInt(width = tlMaxClientXacts), init = UInt(0))
 
   io.mem.acquire.valid := sending && !delaying
   io.mem.acquire.bits := Mux(state === s_put,
