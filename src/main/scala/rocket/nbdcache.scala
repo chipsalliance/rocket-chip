@@ -58,6 +58,8 @@ class WritebackReq(params: TLBundleParameters)(implicit p: Parameters) extends L
   val param = UInt(width = TLPermissions.cWidth) 
   val way_en = Bits(width = nWays)
   val voluntary = Bool()
+
+  override def cloneType = new WritebackReq(params)(p).asInstanceOf[this.type]
 }
 
 class IOMSHR(id: Int, edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
@@ -80,7 +82,7 @@ class IOMSHR(id: Int, edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCa
   val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
-  val s_idle :: s_mem_access :: s_mem_ack :: s_resp :: Nil = Enum(Bits(), 5)
+  val s_idle :: s_mem_access :: s_mem_ack :: s_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
   io.req.ready := (state === s_idle)
 
@@ -89,7 +91,7 @@ class IOMSHR(id: Int, edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCa
  
   val a_source = UInt(id)
   val a_address = req.addr
-  val a_size = req.typ
+  val a_size = storegen.size
   val a_data = Fill(beatWords, storegen.data)
 
   val get     = edge.Get(a_source, a_address, a_size)._2
@@ -169,7 +171,6 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
 
-  val new_coh_state = Reg(init=ClientMetadata.onReset)
   val req = Reg(new MSHRReqInternal(cfg))
   val req_idx = req.addr(untagBits-1,blockOffBits)
   val req_tag = req.addr >> untagBits
@@ -196,11 +197,17 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
   rpq.io.enq.bits := io.req_bits
   rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
+  // TODO clean all this coh state business up
+  val new_coh_state = Reg(init=ClientMetadata.onReset)
+  val grow_param = Reg(init=UInt(0))
   val coh_on_grant = Mux(dirties_coh,
                           ClientMetadata.maximum,
                           req.old_meta.coh.onGrant(req.cmd, io.mem_grant.bits.param))
-  val (is_hit, grow_param, coh_on_hit) = io.req_bits.old_meta.coh.onAccess(io.req_bits.cmd)
+  val (is_hit, missed_param, coh_on_hit)   = io.req_bits.old_meta.coh.onAccess(io.req_bits.cmd)
   val (needs_wb, shrink_param, coh_on_wb)  = io.req_bits.old_meta.coh.onCacheControl(M_FLUSH)
+  val (hit_again, missed_again_param, _) = req.old_meta.coh.onCacheControl(io.req_bits.cmd)
+  val (_, _, clear_coh_state) = req.old_meta.coh.onCacheControl(M_FLUSH)
+  val (_, after_wb_param, _) = ClientMetadata.onReset.onAccess(req.cmd)
 
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
@@ -220,6 +227,7 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
     state := s_refill_resp
   }
   when (state === s_meta_clear && io.meta_write.ready) {
+    grow_param := after_wb_param
     state := s_refill_req
   }
   when (state === s_wb_resp && io.mem_grant.valid) {
@@ -234,6 +242,7 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
     //  going to ask for in s_refill_req
     when(cmd_requires_second_acquire) {
       req.cmd := io.req_bits.cmd
+      when(!hit_again) { grow_param := missed_again_param }
     }
     dirties_coh := dirties_coh || isWrite(io.req_bits.cmd)
   }
@@ -246,6 +255,7 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
         new_coh_state := coh_on_hit
       }.otherwise { // upgrade permissions
         state := s_refill_req
+        grow_param := missed_param
       }
     }.otherwise { // writback if necessary and refill
       state := Mux(needs_wb, s_wb_req, s_meta_clear)
@@ -274,9 +284,7 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
 
   io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
-  io.meta_write.bits.data.coh := Mux(state === s_meta_clear,
-                                      req.old_meta.coh.onCacheControl(M_FLUSH)._2,
-                                      new_coh_state)
+  io.meta_write.bits.data.coh := Mux(state === s_meta_clear, clear_coh_state, new_coh_state)
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
 
@@ -290,10 +298,10 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
 
   io.mem_acquire.valid := state === s_refill_req && grantackq.io.enq.ready
   io.mem_acquire.bits := edge.Acquire(
-                      fromSource = UInt(id),
-                      toAddress = Cat(io.tag, req_idx) << blockOffBits,
-                      lgSize = lgCacheBlockBytes,
-                      growPermissions = grow_param)._2
+                                fromSource = UInt(id),
+                                toAddress = Cat(io.tag, req_idx) << blockOffBits,
+                                lgSize = lgCacheBlockBytes,
+                                growPermissions = grow_param)._2
 
   io.meta_read.valid := state === s_drain_rpq
   io.meta_read.bits.idx := req_idx
@@ -796,7 +804,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache)(implicit p: Parameters) 
   val s2_tag_match_way = RegEnable(s1_tag_match_way, s1_clk_en)
   val s2_tag_match = s2_tag_match_way.orR
   val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).coh, s1_clk_en)))
-  val (s2_has_permission, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
+  val (s2_has_permission, _, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_hit = s2_tag_match && s2_has_permission && s2_hit_state === s2_new_hit_state
 
   // load-reserved/store-conditional
