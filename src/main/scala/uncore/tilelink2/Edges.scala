@@ -191,27 +191,32 @@ class TLEdge(
 
   def first(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._1
   def first(x: DecoupledIO[TLChannel]): Bool = first(x.bits, x.fire())
+  def first(x: ValidIO[TLChannel]): Bool = first(x.bits, x.valid)
 
   def last(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._2
   def last(x: DecoupledIO[TLChannel]): Bool = last(x.bits, x.fire())
+  def last(x: ValidIO[TLChannel]): Bool = last(x.bits, x.valid)
 
   def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, Bool) = {
     val r = firstlastHelper(bits, fire)
     (r._1, r._2, r._3)
   }
   def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.fire())
+  def firstlast(x: ValidIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.valid)
 
   def count(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val r = firstlastHelper(bits, fire)
     (r._1, r._2, r._3, r._4)
   }
   def count(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.fire())
+  def count(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.valid)
 
   def addr_inc(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val r = firstlastHelper(bits, fire)
     (r._1, r._2, r._3, r._4 << log2Ceil(manager.beatBytes))
   }
   def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
+  def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
 }
 
 class TLEdgeOut(
