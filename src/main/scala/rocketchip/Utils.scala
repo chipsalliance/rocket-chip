@@ -85,7 +85,6 @@ object GenerateGlobalAddrMap {
 object GenerateConfigString {
   def apply(p: Parameters, clint: CoreplexLocalInterrupter, plic: TLPLIC, peripheryManagers: Seq[TLManagerParameters]) = {
     val c = CoreplexParameters()(p)
-    val addrMap = p(GlobalAddrMap)
     val res = new StringBuilder
     res append plic.module.globalConfigString
     res append clint.module.globalConfigString

@@ -9,7 +9,6 @@ import rocketchip.ExtMem
 import diplomacy._
 import scala.util.Random
 import scala.collection.mutable.ListBuffer
-import junctions.HasAddrMapParameters
 import util.ParameterizedBundle
 import config._
 

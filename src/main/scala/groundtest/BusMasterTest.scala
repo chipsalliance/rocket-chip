@@ -5,7 +5,6 @@ import uncore.tilelink._
 import uncore.agents._
 import uncore.coherence.{InnerTLId, OuterTLId}
 import util._
-import junctions.HasAddrMapParameters
 import rocketchip._
 import config._
 
@@ -17,7 +16,6 @@ import config._
  * means it has finished.
  */
 class ExampleBusMaster(implicit val p: Parameters) extends Module
-    with HasAddrMapParameters
     with HasTileLinkParameters {
   val mmioParams = p.alterPartial({ case TLId => p(InnerTLId) })
   val memParams = p.alterPartial({ case TLId => p(OuterTLId) })

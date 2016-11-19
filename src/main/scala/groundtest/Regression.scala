@@ -5,7 +5,6 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
 import util._
-import junctions.HasAddrMapParameters
 import rocket._
 import rocketchip._
 import config._
@@ -19,7 +18,7 @@ class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) 
 }
 
 abstract class Regression(implicit val p: Parameters)
-    extends Module with HasTileLinkParameters with HasAddrMapParameters {
+    extends Module with HasTileLinkParameters {
   val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
   val io = new RegressionIO

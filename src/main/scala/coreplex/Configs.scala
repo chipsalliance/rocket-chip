@@ -14,7 +14,6 @@ import uncore.converters._
 import rocket._
 import util._
 import util.ConfigUtils._
-import rocketchip.{GlobalAddrMap}
 import config._
 
 class BaseCoreplexConfig extends Config (

@@ -45,7 +45,6 @@ trait HasCoreplexParameters {
   implicit val p: Parameters
   lazy val cbusConfig = p(CBusConfig)
   lazy val l1tol2Config = p(L1toL2Config)
-  lazy val globalAddrMap = p(rocketchip.GlobalAddrMap)
   lazy val nTiles = p(uncore.devices.NTiles)
   lazy val hasSupervisor = p(rocket.UseVM)
   lazy val l2Config = p(BankedL2Config)
