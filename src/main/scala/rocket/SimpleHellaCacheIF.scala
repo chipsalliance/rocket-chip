@@ -4,7 +4,7 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import cde.Parameters
+import config._
 import util._
 
 /**

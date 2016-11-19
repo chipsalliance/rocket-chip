@@ -4,7 +4,6 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import cde.Parameters
 import diplomacy._
 import uncore.agents._
 import uncore.constants._

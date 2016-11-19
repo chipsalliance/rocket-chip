@@ -4,9 +4,9 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import cde.Parameters
 import junctions._
 import diplomacy._
+import config._
 import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._

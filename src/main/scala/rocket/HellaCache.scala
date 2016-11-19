@@ -3,7 +3,7 @@
 package rocket
 
 import Chisel._
-import cde.{Parameters, Field}
+import config.{Parameters, Field}
 import diplomacy._
 import uncore.tilelink2._
 import uncore.agents._
