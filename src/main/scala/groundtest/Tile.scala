@@ -146,9 +146,14 @@ class GroundTestTile(implicit val p: Parameters) extends LazyModule with HasGrou
       ptw.io.requestors <> ptwPorts
     }
 
-    val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size))
-    uncachedArb.io.in <> uncachedArbPorts
-    ucLegacy.module.io.legacy <> uncachedArb.io.out
+    if (uncachedArbPorts.isEmpty) {
+      ucLegacy.module.io.legacy.acquire.valid := Bool(false)
+      ucLegacy.module.io.legacy.grant.ready := Bool(true)
+    } else {
+      val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size))
+      uncachedArb.io.in <> uncachedArbPorts
+      ucLegacy.module.io.legacy <> uncachedArb.io.out
+    }
 
     io.success := test.io.status.finished
   }
