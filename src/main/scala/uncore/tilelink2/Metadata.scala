@@ -26,7 +26,7 @@ object MemoryOpCategories extends MemoryOpConstants {
 
   def categorize(cmd: UInt): UInt = {
     val cat = Cat(isWrite(cmd), isWriteIntent(cmd))
-    assert(cat.isOneOf(wr,wi,rd), "Could not categorize command.")
+    //assert(cat.isOneOf(wr,wi,rd), "Could not categorize command.")
     cat
   }
 }
@@ -77,7 +77,7 @@ class ClientMetadata extends Bundle {
     import TLPermissions._
     import ClientStates._
     val c = categorize(cmd)
-    assert(c === rd || param === toT, "Client was expecting trunk permissions.")   
+    //assert(c === rd || param === toT, "Client was expecting trunk permissions.")
     MuxLookup(Cat(c, param), Nothing, Seq(
     //(effect param) -> (next)
       Cat(rd, toB)   -> Branch,
