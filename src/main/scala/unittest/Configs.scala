@@ -4,10 +4,14 @@ package unittest
 
 import Chisel._
 import config._
+import junctions._
 import rocketchip.{BaseConfig, BasePlatformConfig}
 
 class WithJunctionsUnitTests extends Config(
   (pname, site, here) => pname match {
+    case HastiId => "HastiTest"
+    case HastiKey("HastiTest") => HastiParameters(addrBits = 32, dataBits = 64)
+    case NastiKey => NastiParameters(addrBits = 32, dataBits = 64, idBits = 4)
     case junctions.PAddrBits => 32
     case rocket.XLen => 64
     case UnitTests => (p: Parameters) => Seq(
