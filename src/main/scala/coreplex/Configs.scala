@@ -119,16 +119,51 @@ class BaseCoreplexConfig extends Config (
 class WithNCores(n: Int) extends Config(
   (pname,site,here) => pname match {
     case NTiles => n
+    case _ => throw new CDEMatchError
   })
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
   (pname, site, here, up) => pname match {
     case BankedL2Config => up(BankedL2Config).copy(nBanksPerChannel = n)
+    case _ => throw new CDEMatchError
   })
 
 class WithNTrackersPerBank(n: Int) extends Config(
   (pname, site, here, up) => pname match {
     case BroadcastConfig => up(BroadcastConfig).copy(nTrackers = n)
+    case _ => throw new CDEMatchError
+  })
+
+// This is the number of sets **per way**
+class WithL1ICacheSets(sets: Int) extends Config(
+  (pname, site, here, up) => pname match {
+    case CacheName("L1I") => up(CacheName("L1I")).copy(nSets = sets)
+    case _ => throw new CDEMatchError
+  })
+
+// This is the number of sets **per way**
+class WithL1DCacheSets(sets: Int) extends Config(
+  (pname, site, here, up) => pname match {
+    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = sets)
+    case _ => throw new CDEMatchError
+  })
+
+class WithL1ICacheWays(ways: Int) extends Config(
+  (pname, site, here, up) => pname match {
+    case CacheName("L1I") => up(CacheName("L1I")).copy(nWays = ways)
+    case _ => throw new CDEMatchError
+  })
+
+class WithL1DCacheWays(ways: Int) extends Config(
+  (pname, site, here, up) => pname match {
+    case CacheName("L1D") => up(CacheName("L1D")).copy(nWays = ways)
+    case _ => throw new CDEMatchError
+  })
+
+class WithCacheBlockBytes(linesize: Int) extends Config(
+  (pname,site,here) => pname match {
+    case CacheBlockBytes => linesize
+    case _ => throw new CDEMatchError
   })
 
 class WithDataScratchpad(n: Int) extends Config(
@@ -236,5 +271,35 @@ class WithRoccExample extends Config(
         generator = (p: Parameters) => Module(new CharacterCountExample()(p))))
 
     case RoccMaxTaggedMemXacts => 1
+    case _ => throw new CDEMatchError
+  })
+
+class WithDefaultBtb extends Config(
+  (pname,site,here) => pname match {
+    case BtbKey => BtbParameters()
+    case _ => throw new CDEMatchError
+  })
+
+class WithFastMulDiv extends Config(
+  (pname,site,here) => pname match {
+    case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true))
+    case _ => throw new CDEMatchError
+  })
+
+class WithoutMulDiv extends Config(
+  (pname, site, here) => pname match {
+    case MulDivKey => None
+    case _ => throw new CDEMatchError
+  })
+
+class WithoutFPU extends Config(
+  (pname, site, here) => pname match {
+    case FPUKey => None
+    case _ => throw new CDEMatchError
+  })
+
+class WithFPUWithoutDivSqrt extends Config (
+  (pname, site, here) => pname match {
+    case FPUKey => Some(FPUConfig(divSqrt = false))
     case _ => throw new CDEMatchError
   })

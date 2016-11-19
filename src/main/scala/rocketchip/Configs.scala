@@ -154,3 +154,17 @@ class WithoutTLMonitors extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithNExtTopInterrupts(nExtInts: Int) extends Config(
+  (pname, site, here) => pname match {
+    case NExtTopInterrupts => nExtInts
+    case _ => throw new CDEMatchError
+  }
+)
+
+class WithNBreakpoints(hwbp: Int) extends Config (
+  (pname,site,here) => pname match {
+    case NBreakpoints => hwbp
+    case _ => throw new CDEMatchError
+  }
+)
