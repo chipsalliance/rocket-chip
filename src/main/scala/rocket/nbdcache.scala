@@ -202,7 +202,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     addr_block = addr_block,
     addr_beat = addr_beat,
     addr_byte = addr_byte,
-    operand_size = req.typ,
+    operand_size = storegen.size,
     alloc = Bool(false))
 
   val put_acquire = Put(
@@ -219,7 +219,7 @@ class IOMSHR(id: Int)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     addr_beat = addr_beat,
     addr_byte = addr_byte,
     atomic_opcode = req.cmd,
-    operand_size = req.typ,
+    operand_size = storegen.size,
     data = beat_data)
 
   io.acquire.valid := (state === s_acquire)
