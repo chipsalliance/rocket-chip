@@ -40,14 +40,14 @@ endif
 
 ifeq ($(SUITE),RocketSuite)
 PROJECT=rocketchip
-CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig
+CONFIGS=DefaultConfig DefaultBufferlessConfig TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
 PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
+	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
