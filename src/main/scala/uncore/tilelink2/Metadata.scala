@@ -71,7 +71,9 @@ class ClientMetadata extends Bundle {
       Cat(wr, Nothing) -> (Bool(false), NtoT)))
   }
 
-  /** Determine what state to go to after miss based on Grant param */
+  /** Determine what state to go to after miss based on Grant param
+    * For now, doesn't depend on state (which may have been Probed).
+    */
   private def growFinisher(cmd: UInt, param: UInt): UInt = {
     import MemoryOpCategories._
     import TLPermissions._
