@@ -161,8 +161,7 @@ class HellaCacheModule(outer: HellaCache)(implicit val p: Parameters) extends La
 
 object HellaCache {
   def apply(cfg: DCacheConfig)(implicit p: Parameters) = {
-    //if (cfg.nMSHRs == 0) LazyModule(new DCache(cfg))
-    //else LazyModule(new NonBlockingDCache(cfg))
-    LazyModule(new DCache(cfg))
+    if (cfg.nMSHRs == 0) LazyModule(new DCache(cfg))
+    else LazyModule(new NonBlockingDCache(cfg))
   }
 }
