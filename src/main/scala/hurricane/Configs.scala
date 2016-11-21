@@ -185,7 +185,7 @@ class HurricaneUpstreamConfig extends Config (
 )
 
 class HurricaneUpstreamTinyConfig extends Config (
-  new WithHurricaneUpstreamSizingFullParams ++
+  new WithHurricaneUpstreamSizingTinyParams ++
   new HurricaneUpstreamFeatureConfig
 )
 
