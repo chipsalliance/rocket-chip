@@ -145,7 +145,6 @@ class HellaCacheModule(outer: HellaCache)(implicit val p: Parameters) extends La
     with HasL1HellaCacheParameters {
   implicit val cfg = outer.cfg
   val io = new HellaCacheBundle(outer)
-  val edge = outer.node.edgesOut(0)
   val tl_out = io.mem(0)
 
   /* TODO

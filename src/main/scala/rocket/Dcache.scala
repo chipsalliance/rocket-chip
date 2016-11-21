@@ -123,7 +123,7 @@ class DCacheModule(outer: DCache)(implicit p: Parameters) extends HellaCacheModu
       require(nWays == 1)
       metaWriteArb.io.out.ready := true
       metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
-      val inScratchpad = addrMap(s"TL2:dmem${p(TileId)}").containsAddress(s1_paddr)
+      val inScratchpad = Bool(false) // !!! addrMap(s"TL2:dmem${p(TileId)}").containsAddress(s1_paddr)
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
     } else {

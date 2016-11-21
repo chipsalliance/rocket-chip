@@ -6,7 +6,7 @@ import Chisel._
 import uncore.devices._
 import uncore.agents.CacheName
 import uncore.constants._
-import junctions.HasAddrMapParameters
+import uncore.tilelink2._
 import util._
 import Chisel.ImplicitConversions._
 import config._
@@ -32,12 +32,14 @@ case object NBreakpoints extends Field[Int]
 case object NPerfCounters extends Field[Int]
 case object NPerfEvents extends Field[Int]
 case object DataScratchpadSize extends Field[Int]
+case object TLCacheEdge extends Field[TLEdgeOut]
 
-trait HasCoreParameters extends HasAddrMapParameters {
+trait HasCoreParameters {
   implicit val p: Parameters
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
 
+  val edge = p(TLCacheEdge)
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
@@ -67,6 +69,7 @@ trait HasCoreParameters extends HasAddrMapParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
+  val paddrBits = edge.bundle.addressBits
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)
