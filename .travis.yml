@@ -33,7 +33,9 @@ addons:
 
 env:
   matrix:
-    - SUITE=RocketSuite
+    - SUITE=RocketSuiteA
+    - SUITE=RocketSuiteB
+    - SUITE=RocketSuiteC
     - SUITE=GroundtestSuite
     - SUITE=UnittestSuite
 
