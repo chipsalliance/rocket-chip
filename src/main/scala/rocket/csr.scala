@@ -8,7 +8,6 @@ import config._
 import uncore.devices._
 import util._
 import Chisel.ImplicitConversions._
-import junctions.AddrMap
 
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient

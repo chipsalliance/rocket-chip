@@ -5,17 +5,19 @@ package rocket
 import Chisel._
 import util._
 import Chisel.ImplicitConversions._
-import junctions._
 import scala.math._
 import config._
+import diplomacy._
 import uncore.agents._
 import uncore.coherence._
+import uncore.tilelink2._
 
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
 
 trait HasTLBParameters extends HasCoreParameters {
   val entries = p(p(CacheName)).nTLBEntries
+  val cacheBlockBytes = p(CacheBlockBytes)
   val camAddrBits = log2Ceil(entries)
   val camTagBits = asIdBits + vpnBits
 }
@@ -64,15 +66,23 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val mpu_ppn = Mux(do_refill, refill_ppn, passthrough_ppn)
-  val prot = addrMap.getProt(mpu_ppn << pgIdxBits)
-  val cacheable = addrMap.isCacheable(mpu_ppn << pgIdxBits)
-  def pgaligned(r: MemRegion) = {
-    val pgsize = 1 << pgIdxBits
-    (r.start % pgsize) == 0 && (r.size % pgsize) == 0
+  def fastCheck(member: TLManagerParameters => Boolean) =
+    Mux1H(edge.manager.findFast(mpu_ppn << pgIdxBits), edge.manager.managers.map(m => Bool(member(m))))
+  val prot_r = fastCheck(_.supportsGet)
+  val prot_w = fastCheck(_.supportsPutFull)
+  val prot_x = fastCheck(_.executable)
+  val cacheable = fastCheck(_.supportsAcquire)
+  val allSizes = TransferSizes(1, cacheBlockBytes)
+  val amoSizes = TransferSizes(1, xLen/8)
+  edge.manager.managers.foreach { m =>
+    require (m.minAlignment >= 4096, s"MemoryMap region ${m.name} must be page-aligned (is ${m.minAlignment})")
+    require (!m.supportsGet     || m.supportsGet    .contains(allSizes), s"MemoryMap region ${m.name} only supports ${m.supportsGet} Get, but must support ${allSizes}")
+    require (!m.supportsPutFull || m.supportsPutFull.contains(allSizes), s"MemoryMap region ${m.name} only supports ${m.supportsPutFull} PutFull, but must support ${allSizes}")
+    require (!m.supportsAcquire || m.supportsAcquire.contains(allSizes), s"MemoryMap region ${m.name} only supports ${m.supportsAcquire} Acquire, but must support ${allSizes}")
+    require (!m.supportsLogical || m.supportsLogical.contains(amoSizes), s"MemoryMap region ${m.name} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
+    require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes), s"MemoryMap region ${m.name} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
   }
-  require(addrMap.flatten.forall(e => pgaligned(e.region)),
-    "MemoryMap regions must be page-aligned")
-  
+
   val lookup_tag = Cat(io.ptw.ptbr.asid, io.req.bits.vpn(vpnBits-1,0))
   val vm_enabled = Bool(usingVM) && io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
   val hitsVec = (0 until entries).map(i => valid(i) && vm_enabled && tags(i) === lookup_tag) :+ !vm_enabled
@@ -95,10 +105,10 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
     val mask = UIntToOH(r_refill_waddr)
     valid := valid | mask
     u_array := Mux(pte.u, u_array | mask, u_array & ~mask)
-    sw_array := Mux(pte.sw() && prot.w, sw_array | mask, sw_array & ~mask)
-    sx_array := Mux(pte.sx() && prot.x, sx_array | mask, sx_array & ~mask)
-    sr_array := Mux(pte.sr() && prot.r, sr_array | mask, sr_array & ~mask)
-    xr_array := Mux(pte.sx() && prot.r, xr_array | mask, xr_array & ~mask)
+    sw_array := Mux(pte.sw() && prot_w, sw_array | mask, sw_array & ~mask)
+    sx_array := Mux(pte.sx() && prot_x, sx_array | mask, sx_array & ~mask)
+    sr_array := Mux(pte.sr() && prot_r, sr_array | mask, sr_array & ~mask)
+    xr_array := Mux(pte.sx() && prot_r, xr_array | mask, xr_array & ~mask)
     cash_array := Mux(cacheable, cash_array | mask, cash_array & ~mask)
     dirty_array := Mux(pte.d, dirty_array | mask, dirty_array & ~mask)
   }
@@ -107,9 +117,9 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val repl_waddr = Mux(!valid.andR, PriorityEncoder(~valid), plru.replace)
 
   val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.pum, u_array, UInt(0)), u_array)
-  val w_array = Cat(prot.w, priv_ok & sw_array)
-  val x_array = Cat(prot.x, priv_ok & sx_array)
-  val r_array = Cat(prot.r, priv_ok & (sr_array | Mux(io.ptw.status.mxr, xr_array, UInt(0))))
+  val w_array = Cat(prot_w, priv_ok & sw_array)
+  val x_array = Cat(prot_x, priv_ok & sx_array)
+  val r_array = Cat(prot_r, priv_ok & (sr_array | Mux(io.ptw.status.mxr, xr_array, UInt(0))))
   val c_array = Cat(cacheable, cash_array)
 
   val bad_va =
