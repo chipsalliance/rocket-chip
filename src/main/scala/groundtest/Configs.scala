@@ -8,7 +8,7 @@ import uncore.coherence._
 import uncore.agents._
 import uncore.devices.NTiles
 import junctions._
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import config._
 import scala.math.max
 import coreplex._
 import rocketchip._
@@ -38,11 +38,11 @@ class MemtestStatelessConfig extends Config(
 // Test ALL the things
 class FancyMemtestConfig extends Config(
   new WithNGenerators(1, 2) ++ new WithNCores(2) ++ new WithMemtest ++
-  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
-  new WithSplitL2Metadata ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithNMemoryChannels(1) ++ new WithNBanksPerMemChannel(4) ++ // !!! waiting on Chisel3 support for 2 channels
+  new WithL2Cache ++ new GroundTestConfig)
 
 class CacheFillTestConfig extends Config(
-  new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithNL2Ways(4) ++ new WithL2Capacity(4) ++ new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
 
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)
@@ -73,38 +73,23 @@ class Edge32BitMemtestConfig extends Config(
 class WithGroundTest extends Config(
   (pname, site, here) => pname match {
     case TLKey("L1toL2") => {
-      val useMEI = site(NTiles) <= 1 && site(NCachedTileLinkPorts) <= 1
+      val useMEI = site(NTiles) <= 1
       val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
       TileLinkParameters(
         coherencePolicy = (
           if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
           else new MESICoherence(site(L2DirectoryRepresentation))),
-        nManagers = site(NBanksPerMemoryChannel)*site(NMemoryChannels) + 1,
-        nCachingClients = site(NCachedTileLinkPorts),
-        nCachelessClients = site(NCoreplexExtClients) + site(NUncachedTileLinkPorts),
+        nManagers = site(BankedL2Config).nBanks + 1,
+        nCachingClients = 1,
+        nCachelessClients = 1,
         maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
                            site(GroundTestKey).map(_.maxXacts))
                              .reduce(max(_, _)),
-        maxClientsPerPort = 1,
+        maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
         maxManagerXacts = site(NAcquireTransactors) + 2,
         dataBeats = dataBeats,
         dataBits = site(CacheBlockBytes)*8)
     }
-    case BuildTiles => {
-      (0 until site(NTiles)).map { i =>
-        val tileSettings = site(GroundTestKey)(i)
-        (p: Parameters) => {
-          LazyModule(new GroundTestTile()(p.alterPartial({
-            case TLId => "L1toL2"
-            case TileId => i
-            case NCachedTileLinkPorts => if(tileSettings.cached > 0) 1 else 0
-            case NUncachedTileLinkPorts => tileSettings.uncached
-          })))
-        }
-      }
-    }
-    case BuildExampleTop =>
-      (p: Parameters) => LazyModule(new ExampleTopWithTestRAM(new GroundTestCoreplex()(_))(p))
     case FPUKey => None
     case UseAtomics => false
     case UseCompressed => false
@@ -119,15 +104,13 @@ class WithComparator extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new ComparatorCore()(p))
     case ComparatorKey => ComparatorParameters(
-      targets    = Seq("mem", "TL2:testram").map(name =>
-                    site(GlobalAddrMap)(name).start.longValue),
+      targets    = Seq(site(ExtMem).base, testRamAddr),
       width      = 8,
       operations = 1000,
       atomics    = site(UseAtomics),
-      prefetches = site("COMPARATOR_PREFETCHES"))
+      prefetches = false)
     case FPUConfig => None
     case UseAtomics => false
-    case "COMPARATOR_PREFETCHES" => false
     case _ => throw new CDEMatchError
   })
 
@@ -138,8 +121,8 @@ class WithAtomics extends Config(
   })
 
 class WithPrefetches extends Config(
-  (pname, site, here) => pname match {
-    case "COMPARATOR_PREFETCHES" => true
+  (pname, site, here, up) => pname match {
+    case ComparatorKey => up(ComparatorKey).copy(prefetches = true)
     case _ => throw new CDEMatchError
   })
 
@@ -150,7 +133,7 @@ class WithMemtest extends Config(
     }
     case GeneratorKey => TrafficGeneratorParameters(
       maxRequests = 128,
-      startAddress = site(GlobalAddrMap)("mem").start)
+      startAddress = BigInt(site(ExtMem).base))
     case BuildGroundTest =>
       (p: Parameters) => Module(new GeneratorTest()(p))
     case _ => throw new CDEMatchError
@@ -171,11 +154,6 @@ class WithCacheFillTest extends Config(
     }
     case BuildGroundTest =>
       (p: Parameters) => Module(new CacheFillTest()(p))
-    case _ => throw new CDEMatchError
-  },
-  knobValues = {
-    case "L2_WAYS" => 4
-    case "L2_CAPACITY_IN_KB" => 4
     case _ => throw new CDEMatchError
   })
 
@@ -204,7 +182,7 @@ class WithCacheRegressionTest extends Config(
   })
 
 class WithTraceGen extends Config(
-  topDefinitions = (pname, site, here) => pname match {
+  (pname, site, here, up) => pname match {
     case GroundTestKey => Seq.fill(site(NTiles)) {
       GroundTestTileSettings(uncached = 1, cached = 1)
     }
@@ -223,10 +201,6 @@ class WithTraceGen extends Config(
       }.flatten
     }
     case UseAtomics => true
-    case _ => throw new CDEMatchError
-  },
-  knobValues = {
-    case "L1D_SETS" => 16
-    case "L1D_WAYS" => 1
+    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = 16, nWays = 1)
     case _ => throw new CDEMatchError
   })

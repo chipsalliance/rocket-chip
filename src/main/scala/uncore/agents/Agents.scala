@@ -3,7 +3,7 @@
 package uncore.agents
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import junctions.PAddrBits
 import uncore.tilelink._
 import uncore.converters._

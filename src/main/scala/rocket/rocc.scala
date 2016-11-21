@@ -8,7 +8,7 @@ import uncore.constants._
 import uncore.agents.CacheName
 import util._
 import Chisel.ImplicitConversions._
-import cde.{Parameters, Field}
+import config._
 
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
@@ -41,7 +41,7 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
 class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
-  val mem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
+  val mem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
   

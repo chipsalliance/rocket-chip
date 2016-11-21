@@ -6,7 +6,7 @@ import uncore.tilelink._
 import uncore.util._
 import util._
 import Chisel.ImplicitConversions._
-import cde.{Parameters, Field}
+import config._
 
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val outerDataBeats = p(TLKey(p(TLId))).dataBeats
@@ -72,7 +72,8 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
 
-  val narrow_grant = FlowThroughSerializer(io.mem.grant, refillCyclesPerBeat)
+  require(refillCyclesPerBeat == 1)
+  val narrow_grant = io.mem.grant 
   val (refill_cnt, refill_wrap) = Counter(narrow_grant.fire(), refillCycles)
   val refill_done = state === s_refill && refill_wrap
   narrow_grant.ready := Bool(true)

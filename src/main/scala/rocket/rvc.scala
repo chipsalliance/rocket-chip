@@ -3,7 +3,7 @@ package rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import util._
-import cde.Parameters
+import config._
 
 class ExpandedInstruction extends Bundle {
   val bits = UInt(width = 32)

@@ -71,7 +71,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // Create the request tracker queues
     val trackers = Seq.tabulate(numTrackers) { id =>
-      Module(new TLBroadcastTracker(id, lineBytes, log2Up(caches.size), bufferless, edgeIn, edgeOut)).io
+      Module(new TLBroadcastTracker(id, lineBytes, log2Up(caches.size+1), bufferless, edgeIn, edgeOut)).io
     }
 
     // We always accept E
@@ -96,11 +96,11 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       d_normal.bits.param  := Mux(d_hasData, Mux(d_what(0), TLPermissions.toT, TLPermissions.toB), UInt(0))
     }
     d_normal.bits.sink := OHToUInt(d_trackerOH)
-    assert (!d_normal.valid || d_trackerOH.orR())
+    assert (!d_normal.valid || (d_trackerOH.orR() || d_normal.bits.opcode === TLMessages.ReleaseAck))
 
     // A tracker response is anything neither dropped nor a ReleaseAck
     val d_response = d_hasData || !d_what(1)
-    val (_, d_last, _) = edgeIn.firstlast(d_normal)
+    val d_last = edgeIn.last(d_normal)
     (trackers zip d_trackerOH.toBools) foreach { case (tracker, select) =>
       tracker.d_last := select && d_normal.fire() && d_response && d_last
     }
@@ -118,7 +118,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // Decrement the tracker's outstanding probe counter
     val c_decrement = in.c.fire() && (c_probeack || c_probeackdata)
-    val (_, c_last, _) = edgeIn.firstlast(in.c)
+    val c_last = edgeIn.last(in.c)
     trackers foreach { tracker =>
       tracker.probeack := c_decrement && c_last && tracker.line === (in.c.bits.address >> lineShift)
     }
@@ -136,11 +136,9 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     putfull.bits := edgeOut.Put(Cat(put_what, in.c.bits.source), in.c.bits.address, in.c.bits.size, in.c.bits.data)._2
 
     // Combine ReleaseAck or the modified D
-    TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (UInt(0), releaseack), (edgeOut.numBeats1(d_normal.bits), d_normal))
+    TLArbiter.lowest(edgeOut, in.d, releaseack, d_normal)
     // Combine the PutFull with the trackers
-    TLArbiter(TLArbiter.lowestIndexFirst)(out.a, 
-      ((edgeOut.numBeats1(putfull.bits), putfull) +:
-       trackers.map { t => (edgeOut.numBeats1(t.out_a.bits), t.out_a) }):_*)
+    TLArbiter.lowestFromSeq(edgeOut, out.a, putfull +: trackers.map(_.out_a))
 
     // The Probe FSM walks all caches and probes them
     val probe_todo = RegInit(UInt(0, width = max(1, caches.size)))
@@ -159,7 +157,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
     // Which cache does a request come from?
     val a_cache = if (caches.size == 0) UInt(1) else Vec(caches.map(_.contains(in.a.bits.source))).asUInt
-    val (a_first, _, _) = edgeIn.firstlast(in.a)
+    val a_first = edgeIn.first(in.a)
 
     // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
     val freeTrackers = Vec(trackers.map { t => t.idle }).asUInt
@@ -259,7 +257,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   io.line := address >> lineShift
 
   val i_data = Wire(Decoupled(new TLBroadcastData(edgeIn.bundle)))
-  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes))
+  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes), pipe=bufferless)
 
   io.in_a.ready := (idle || !io.in_a_first) && i_data.ready
   i_data.valid := (idle || !io.in_a_first) && io.in_a.valid

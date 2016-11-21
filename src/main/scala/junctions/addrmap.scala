@@ -3,7 +3,7 @@
 package junctions
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import scala.collection.mutable.HashMap
 
 case object PAddrBits extends Field[Int]

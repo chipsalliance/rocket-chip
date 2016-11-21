@@ -3,7 +3,7 @@
 package rocket
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import util._
 import Chisel.ImplicitConversions._
 import uncore.agents.PseudoLRU

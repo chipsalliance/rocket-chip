@@ -4,7 +4,7 @@ package rocket
 
 import Chisel._
 import Instructions._
-import cde.{Parameters, Field}
+import config._
 import uncore.devices._
 import util._
 import Chisel.ImplicitConversions._

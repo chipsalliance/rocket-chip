@@ -175,19 +175,48 @@ class TLEdge(
     }
   }
 
-  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, UInt) = {
+  def firstlastHelper(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val beats1   = numBeats1(bits)
     val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes)))
     val counter1 = counter - UInt(1)
     val first = counter === UInt(0)
     val last  = counter === UInt(1) || beats1 === UInt(0)
+    val done  = last && fire
+    val count = (beats1 & ~counter1)
     when (fire) {
       counter := Mux(first, beats1, counter1)
     }
-    (first, last, (beats1 & ~counter1) << log2Ceil(manager.beatBytes))
+    (first, last, done, count)
   }
 
-  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
+  def first(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._1
+  def first(x: DecoupledIO[TLChannel]): Bool = first(x.bits, x.fire())
+  def first(x: ValidIO[TLChannel]): Bool = first(x.bits, x.valid)
+
+  def last(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._2
+  def last(x: DecoupledIO[TLChannel]): Bool = last(x.bits, x.fire())
+  def last(x: ValidIO[TLChannel]): Bool = last(x.bits, x.valid)
+
+  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, Bool) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3)
+  }
+  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.fire())
+  def firstlast(x: ValidIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.valid)
+
+  def count(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3, r._4)
+  }
+  def count(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.fire())
+  def count(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.valid)
+
+  def addr_inc(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3, r._4 << log2Ceil(manager.beatBytes))
+  }
+  def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
+  def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
 }
 
 class TLEdgeOut(
@@ -205,7 +234,7 @@ class TLEdgeOut(
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.mask    := SInt(-1).asUInt
+    a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
   }
@@ -238,7 +267,10 @@ class TLEdgeOut(
     (legal, c)
   }
 
-  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt) = {
+  def ProbeAck(b: TLBundleB, reportPermissions: UInt): TLBundleC =
+    ProbeAck(b.source, b.address, b.size, reportPermissions)
+
+  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt): TLBundleC = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ProbeAck
     c.param   := reportPermissions
@@ -250,7 +282,10 @@ class TLEdgeOut(
     c
   }
 
-  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt, data: UInt) = {
+  def ProbeAck(b: TLBundleB, reportPermissions: UInt, data: UInt): TLBundleC =
+    ProbeAck(b.source, b.address, b.size, reportPermissions, data)
+
+  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt, data: UInt): TLBundleC = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ProbeAckData
     c.param   := reportPermissions
@@ -262,7 +297,8 @@ class TLEdgeOut(
     c
   }
 
-  def GrantAck(toSink: UInt) = {
+  def GrantAck(d: TLBundleD): TLBundleE = GrantAck(d.sink)
+  def GrantAck(toSink: UInt): TLBundleE = {
     val e = Wire(new TLBundleE(bundle))
     e.sink := toSink
     e
@@ -412,7 +448,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.mask    := SInt(-1).asUInt
+    b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
   }

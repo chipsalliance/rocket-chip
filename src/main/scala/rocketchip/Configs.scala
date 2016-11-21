@@ -16,58 +16,22 @@ import scala.math.max
 import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import scala.collection.immutable.HashMap
 import DefaultTestSuites._
-import cde.{Parameters, Config, Dump, Knob, CDEMatchError}
+import config._
 
 class BasePlatformConfig extends Config(
-  topDefinitions = {
-    (pname,site,here) =>  {
-      type PF = PartialFunction[Any,Any]
-      def findBy(sname:Any):Any = here[PF](site[Any](sname))(pname)
-      lazy val edgeDataBits = site(EdgeDataBits)
-      lazy val edgeDataBeats = (8 * site(CacheBlockBytes)) / edgeDataBits
-      pname match {
-        //Memory Parameters
-        case EdgeDataBits => 64
-        case EdgeIDBits => 5
-        case NastiKey => NastiParameters(
-          dataBits = edgeDataBits,
-          addrBits = site(PAddrBits),
-          idBits = site(EdgeIDBits))
-        case TLEmitMonitors => true
-        case TLKey("EdgetoSlave") =>
-          site(TLKey("L1toL2")).copy(dataBeats = edgeDataBeats)
-        case TLKey("MCtoEdge") =>
-          site(TLKey("L2toMC")).copy(dataBeats = edgeDataBeats)
-        case TLKey("MMIOtoEdge") =>
-          site(TLKey("L2toMMIO")).copy(dataBeats = edgeDataBeats)
-        case NExtTopInterrupts => 2
-        case SOCBusKey => SOCBusConfig(beatBytes = site(TLKey("L2toMMIO")).dataBitsPerBeat/8)
-        case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 4)
-        // Note that PLIC asserts that this is > 0.
-        case AsyncDebugBus => false
-        case IncludeJtagDTM => false
-        case AsyncBusChannels => false
-        case NExtBusAXIChannels => 0
-        case HastiId => "Ext"
-        case HastiKey("TL") =>
-          HastiParameters(
-            addrBits = site(PAddrBits),
-            dataBits = site(TLKey(site(TLId))).dataBits / site(TLKey(site(TLId))).dataBeats)
-        case HastiKey("Ext") =>
-          HastiParameters(
-            addrBits = site(PAddrBits),
-            dataBits = edgeDataBits)
-        case AsyncMemChannels => false
-        case NMemoryChannels => Dump("N_MEM_CHANNELS", 1)
-        case TMemoryChannels => BusType.AXI
-        case ExtMemSize => Dump("MEM_SIZE", 0x10000000L)
-        case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
-        case BuildExampleTop =>
-          (p: Parameters) => LazyModule(new ExampleTop(new DefaultCoreplex()(_))(p))
-        case SimMemLatency => 0
-        case _ => throw new CDEMatchError
-      }
-    }
+  (pname,site,here) => pname match {
+    //Memory Parameters
+    case TLEmitMonitors => true
+    case NExtTopInterrupts => 2
+    case SOCBusConfig => site(L1toL2Config)
+    case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
+    case PeripheryBusArithmetic => true
+    // Note that PLIC asserts that this is > 0.
+    case IncludeJtagDTM => false
+    case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
+    case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
+    case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
+    case _ => throw new CDEMatchError
   })
 
 class BaseConfig extends Config(new BaseCoreplexConfig ++ new BasePlatformConfig)
@@ -91,15 +55,15 @@ class DefaultL2FPGAConfig extends Config(
 class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
 class WithNMemoryChannels(n: Int) extends Config(
-  (pname,site,here) => pname match {
-    case NMemoryChannels => Dump("N_MEM_CHANNELS", n)
+  (pname,site,here,up) => pname match {
+    case BankedL2Config => up(BankedL2Config).copy(nMemoryChannels = n)
     case _ => throw new CDEMatchError
   }
 )
 
 class WithExtMemSize(n: Long) extends Config(
-  (pname,site,here) => pname match {
-    case ExtMemSize => Dump("MEM_SIZE", n)
+  (pname,site,here,up) => pname match {
+    case ExtMem => up(ExtMem).copy(size = n)
     case _ => throw new CDEMatchError
   }
 )
@@ -129,8 +93,8 @@ class DualChannelDualBankL2Config extends Config(
 class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
 class WithEdgeDataBits(dataBits: Int) extends Config(
-  (pname, site, here) => pname match {
-    case EdgeDataBits => dataBits
+  (pname, site, here, up) => pname match {
+    case ExtMem => up(ExtMem).copy(beatBytes = dataBits/8)
     case _ => throw new CDEMatchError
   })
 
@@ -150,8 +114,6 @@ class OctoChannelBenchmarkConfig extends Config(new WithNMemoryChannels(8) ++ ne
 
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseConfig)
 
-class SplitL2MetadataTestConfig extends Config(new WithSplitL2Metadata ++ new DefaultL2Config)
-
 class DualCoreConfig extends Config(
   new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
 
@@ -159,13 +121,6 @@ class TinyConfig extends Config(
   new WithScratchpads ++
   new WithSmallCores ++ new WithRV32 ++
   new WithStatelessBridge ++ new BaseConfig)
-
-class WithAsyncDebug extends Config (
-  (pname, site, here) => pname match {
-    case AsyncDebugBus => true
-    case _ => throw new CDEMatchError
-  }
-)
 
 class WithJtagDTM extends Config (
   (pname, site, here) => pname match {
@@ -176,13 +131,13 @@ class WithJtagDTM extends Config (
 
 class WithNoPeripheryArithAMO extends Config (
   (pname, site, here) => pname match {
-    case PeripheryBusKey => PeripheryBusConfig(arithAMO = false, beatBytes = 4)
+    case PeripheryBusArithmetic => false
   }
 )
 
 class With64BitPeriphery extends Config (
   (pname, site, here) => pname match {
-    case PeripheryBusKey => PeripheryBusConfig(arithAMO = true, beatBytes = 8)
+    case PeripheryBusConfig => TLBusConfig(beatBytes = 8)
   }
 )
 

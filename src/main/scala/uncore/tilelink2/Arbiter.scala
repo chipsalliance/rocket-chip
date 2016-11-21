@@ -13,6 +13,14 @@ object TLArbiter
   val lowestIndexFirst: Policy = (valids, granted) =>
     valids.scanLeft(Bool(true))(_ && !_).init
 
+  def lowestFromSeq[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: Seq[DecoupledIO[T]]) {
+    apply(lowestIndexFirst)(sink, sources.map(s => (edge.numBeats1(s.bits), s)):_*)
+  }
+
+  def lowest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*) {
+    apply(lowestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
+  }
+
   def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*) {
     if (sources.isEmpty) {
       sink.valid := Bool(false)

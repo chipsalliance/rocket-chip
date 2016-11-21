@@ -94,7 +94,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'B' channel Probe smaller than a beat" + extra)
       assert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
       assert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      assert (~bundle.mask === UInt(0).asUInt, "'B' channel Probe contains invalid mask" + extra)
+      assert (~bundle.mask === UInt(0), "'B' channel Probe contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
@@ -102,7 +102,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (address_ok, "'B' channel Get carries unmanaged address" + extra)
       assert (is_aligned, "'B' channel Get address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'B' channel Get carries invalid param" + extra)
-      assert (bundle.mask === mask, "'A' channel Get contains invalid mask" + extra)
+      assert (bundle.mask === mask, "'B' channel Get contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
@@ -283,7 +283,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (a_first, _, _) = edge.firstlast(a.bits, a.fire())
+    val a_first = edge.first(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -306,7 +306,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatB(b: DecoupledSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (b_first, _, _) = edge.firstlast(b.bits, b.fire())
+    val b_first = edge.first(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -329,7 +329,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatC(c: DecoupledSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (c_first, _, _) = edge.firstlast(c.bits, c.fire())
+    val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -352,7 +352,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatD(d: DecoupledSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (d_first, _, _) = edge.firstlast(d.bits, d.fire())
+    val d_first = edge.first(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -387,8 +387,8 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
-    val (_, a_last, _) = edge.firstlast(bundle.a.bits, bundle.a.fire())
-    val (_, d_last, _) = edge.firstlast(bundle.d.bits, bundle.d.fire())
+    val a_last = edge.last(bundle.a.bits, bundle.a.fire())
+    val d_last = edge.last(bundle.d.bits, bundle.d.fire())
 
     if (edge.manager.minLatency > 0) {
       assert(bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)

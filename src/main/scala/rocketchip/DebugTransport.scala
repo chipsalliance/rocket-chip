@@ -1,10 +1,10 @@
 package rocketchip
 
 import Chisel._
-import uncore.devices.{DebugBusIO, AsyncDebugBusCrossing, DebugBusReq, DebugBusResp, DMKey}
+import uncore.devices._
 import junctions._
 import util._
-import cde.{Parameters, Field}
+import config._
 
 case object IncludeJtagDTM extends Field[Boolean]
 
@@ -45,13 +45,13 @@ class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
 
   val io = new Bundle {
 
-    val jtag = new JTAGIO(true).flip()
-    val debug = new DebugBusIO()(p)
+    val jtag = new JTAGIO(true).flip
+    val debug = new AsyncDebugBusIO
 
   }
 
-  val req_width = io.debug.req.bits.getWidth
-  val resp_width = io.debug.resp.bits.getWidth
+  val req_width = io.debug.req.mem(0).getWidth
+  val resp_width = io.debug.resp.mem(0).getWidth
 
   val jtag_dtm = Module (new DebugTransportModuleJtag(req_width, resp_width))
 
@@ -62,7 +62,8 @@ class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
 
   val io_debug_bus = Wire (new DebugBusIO)
 
-  io.debug <> AsyncDebugBusCrossing(io.jtag.TCK, io.jtag.TRST, io_debug_bus, clock, reset, depth, sync)
+  io.debug.req <> ToAsyncBundle(io_debug_bus.req)
+  io_debug_bus.resp <> FromAsyncBundle(io.debug.resp)
 
   // Translate from straight 'bits' interface of the blackboxes
   // into the Resp/Req data structures.

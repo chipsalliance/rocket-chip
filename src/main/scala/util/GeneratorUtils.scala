@@ -3,7 +3,7 @@
 package util
 
 import Chisel._
-import cde._
+import config._
 import diplomacy.LazyModule
 import java.io.{File, FileWriter}
 
@@ -24,7 +24,7 @@ case class ParsedInputNames(
   */
 trait HasGeneratorUtilities {
   def getConfig(names: ParsedInputNames): Config = {
-    names.fullConfigClasses.foldRight(new Config()) { case (currentName, config) =>
+    new Config(names.fullConfigClasses.foldRight(Parameters.empty) { case (currentName, config) =>
       val currentConfig = try {
         Class.forName(currentName).newInstance.asInstanceOf[Config]
       } catch {
@@ -32,7 +32,7 @@ trait HasGeneratorUtilities {
           throwException(s"""Unable to find part "$currentName" from "${names.configs}", did you misspell it?""", e)
       }
       currentConfig ++ config
-    }
+    })
   }
 
   def getParameters(names: ParsedInputNames): Parameters = getParameters(getConfig(names))
@@ -43,7 +43,7 @@ trait HasGeneratorUtilities {
   def elaborate(names: ParsedInputNames, params: Parameters): Circuit = {
     val gen = () =>
       Class.forName(names.fullTopModuleClass)
-        .getConstructor(classOf[cde.Parameters])
+        .getConstructor(classOf[Parameters])
         .newInstance(params)
         .asInstanceOf[Module]
 
@@ -103,15 +103,9 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
   } 
 
-  /** Output Design Space Exploration knobs and constraints. */
-  def generateDSEConstraints {
-    writeOutputFile(td, s"${names.configs}.knb", world.getKnobs) // Knobs for DSE
-    writeOutputFile(td, s"${names.configs}.cst", world.getConstraints) // Constraints for DSE
-  }
-
   /** Output a global Parameter dump, which an external script can turn into Verilog headers. */
   def generateParameterDump {
-    writeOutputFile(td, s"$longName.prm", ParameterDump.getDump) // Parameters flagged with Dump()
+    writeOutputFile(td, s"$longName.prm", "")
   }
 
   /** Output a global ConfigString, for use by the RISC-V software ecosystem. */
