@@ -8,13 +8,6 @@ import scala.collection.mutable.HashMap
 
 case object PAddrBits extends Field[Int]
 
-trait HasAddrMapParameters {
-  implicit val p: Parameters
-
-  val paddrBits = p(PAddrBits)
-  def addrMap = p(rocketchip.GlobalAddrMap)
-}
-
 case class MemAttr(prot: Int, cacheable: Boolean = false)
 
 sealed abstract class MemRegion {
