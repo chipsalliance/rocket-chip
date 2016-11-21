@@ -11,7 +11,8 @@ import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._
 
-class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with HasCoreParameters {
+class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule {
+  val coreDataBytes = p(XLen)/8
   val node = TLManagerNode(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(AddressSet(0x80000000L, BigInt(p(DataScratchpadSize)-1))),
@@ -26,9 +27,6 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
     beatBytes = coreDataBytes,
     minLatency = 1))
 
-  // Make sure this ends up with the same name as before
-  override def name = "dmem0"
-
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val tl_in = node.bundleIn
@@ -37,8 +35,6 @@ class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule with Ha
 
     val tl_in = io.tl_in(0)
     val edge = node.edgesIn(0)
-
-    require(usingDataScratchpad)
 
     val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
     val state = Reg(init = s_ready)
