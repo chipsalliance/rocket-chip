@@ -4,7 +4,7 @@ import Chisel._
 import junctions._
 import scala.collection.mutable.ArraySeq
 import uncore.util._
-import cde.{Parameters, Field}
+import config._
 
 
 /** PortedTileLinkNetworks combine a TileLink protocol with a particular physical

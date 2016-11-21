@@ -1,7 +1,7 @@
 package junctions
 
 import Chisel._
-import cde.Parameters
+import config._
 
 class NastiDriver(dataWidth: Int, burstLen: Int, nBursts: Int)
     (implicit p: Parameters) extends NastiModule {

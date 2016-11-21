@@ -9,7 +9,7 @@ import junctions._
 import diplomacy._
 import regmapper._
 import uncore.tilelink2._
-import cde.Parameters
+import config._
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -135,7 +135,7 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
       gateway.io.plic
-    })
+    } ++ (if (interrupts.isEmpty) Some(Wire(new GatewayPLICIO)) else None))
 
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))

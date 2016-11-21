@@ -7,7 +7,7 @@ import junctions._
 import rocket._
 import util.Timer
 import scala.util.Random
-import cde.{Parameters, Field}
+import config._
 
 case class ComparatorParameters(
   targets:    Seq[Long], 

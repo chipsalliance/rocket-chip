@@ -7,7 +7,7 @@ import junctions._
 import util._
 import regmapper._
 import uncore.tilelink2._
-import cde.{Parameters, Config, Field}
+import config._
 
 // *****************************************
 // Constants which are interesting even
@@ -301,9 +301,34 @@ class DebugBusResp( ) extends Bundle {
   *  Therefore it has the 'flipped' version of this.
   */
 
-class DebugBusIO(implicit val p: cde.Parameters) extends ParameterizedBundle()(p) {
+class DebugBusIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val req = new  DecoupledIO(new DebugBusReq(p(DMKey).nDebugBusAddrSize))
   val resp = new DecoupledIO(new DebugBusResp).flip()
+}
+
+class AsyncDebugBusIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
+  val req  = new AsyncBundle(1, new DebugBusReq(p(DMKey).nDebugBusAddrSize))
+  val resp = new AsyncBundle(1, new DebugBusResp).flip
+}
+
+object FromAsyncDebugBus
+{
+  def apply(x: AsyncDebugBusIO) = {
+    val out = Wire(new DebugBusIO()(x.p))
+    out.req <> FromAsyncBundle(x.req)
+    x.resp <> ToAsyncBundle(out.resp, 1)
+    out
+  }
+}
+
+object ToAsyncDebugBus
+{
+  def apply(x: DebugBusIO) = {
+    val out = Wire(new AsyncDebugBusIO()(x.p))
+    out.req <> ToAsyncBundle(x.req, 1)
+    x.resp <> FromAsyncBundle(out.resp)
+    out
+  }
 }
 
 trait HasDebugModuleParameters {

@@ -11,7 +11,7 @@ import uncore.tilelink2._
 import uncore.util._
 import util._
 import scala.math.{min,max}
-import cde.{Parameters, Field}
+import config._
 
 /** Number of tiles */
 case object NTiles extends Field[Int]

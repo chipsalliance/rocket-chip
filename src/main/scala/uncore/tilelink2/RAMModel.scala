@@ -110,7 +110,7 @@ class TLRAMModel(log: String = "") extends LazyModule
     // Process A access requests
     val a = Reg(next = in.a.bits)
     val a_fire = Reg(next = in.a.fire(), init = Bool(false))
-    val (a_first, a_last, a_address_inc) = edge.firstlast(a, a_fire)
+    val (a_first, a_last, _, a_address_inc) = edge.addr_inc(a, a_fire)
     val a_size = edge.size(a)
     val a_sizeOH = UIntToOH(a_size)
     val a_address = a.address | a_address_inc
@@ -196,7 +196,7 @@ class TLRAMModel(log: String = "") extends LazyModule
     // Process D access responses
     val d = RegNext(out.d.bits)
     val d_fire = Reg(next = out.d.fire(), init = Bool(false))
-    val (d_first, d_last, d_address_inc) = edge.firstlast(d, d_fire)
+    val (d_first, d_last, _, d_address_inc) = edge.addr_inc(d, d_fire)
     val d_size = edge.size(d)
     val d_sizeOH = UIntToOH(d_size)
     val d_base = d_flight.base

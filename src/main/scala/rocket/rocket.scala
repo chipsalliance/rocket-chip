@@ -9,7 +9,7 @@ import uncore.constants._
 import junctions.HasAddrMapParameters
 import util._
 import Chisel.ImplicitConversions._
-import cde.{Parameters, Field}
+import config._
 
 case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]
@@ -75,8 +75,6 @@ trait HasCoreParameters extends HasAddrMapParameters {
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
-  val nCores = p(NTiles)
-  val tileId = p(TileId)
 
   // fetchWidth doubled, but coreInstBytes halved, for RVC
   val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
@@ -144,8 +142,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val interrupts = new TileInterrupts().asInput
     val hartid = UInt(INPUT, xLen)
-    val imem  = new FrontendIO()(p.alterPartial({case CacheName => "L1I" }))
-    val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => "L1D" }))
+    val imem  = new FrontendIO()(p.alterPartial({case CacheName => CacheName("L1I") }))
+    val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUIO().flip
     val rocc = new RoCCInterface().flip

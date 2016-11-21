@@ -55,6 +55,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
         minLatency = seq.map(_.minLatency).min,
         endSinkId = outputIdRanges.map(_.end).max,
         managers = ManagerUnification(seq.flatMap { port =>
+          // println(s"${port.managers.map(_.name)} ${port.beatBytes} vs ${seq(0).managers.map(_.name)} ${seq(0).beatBytes}")
           require (port.beatBytes == seq(0).beatBytes)
           val fifoIdMapper = fifoIdFactory()
           port.managers map { manager => manager.copy(

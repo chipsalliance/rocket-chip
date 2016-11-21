@@ -5,11 +5,12 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
 import util._
-import cde.{Parameters, Field}
+import config._
 
 class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
     with HasTileLinkParameters {
-  val capacityKb: Int = p("L2_CAPACITY_IN_KB")
+  val l2Config = p(CacheName("L2"))
+  val capacityKb = l2Config.nSets * l2Config.nWays * l2Config.rowBits / (1024*8)
   val nblocks = capacityKb * 1024 / p(CacheBlockBytes)
   val s_start :: s_prefetch :: s_retrieve :: s_finished :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_start)

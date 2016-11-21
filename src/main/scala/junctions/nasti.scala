@@ -5,7 +5,7 @@ import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
 import util._
-import cde.{Parameters, Field}
+import config._
 
 case object NastiKey extends Field[NastiParameters]
 

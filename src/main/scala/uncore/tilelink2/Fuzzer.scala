@@ -113,12 +113,10 @@ class TLFuzzer(
 
     // Progress within each operation
     val a = out.a.bits
-    val (a_first, a_last, _) = edge.firstlast(out.a)
-    val req_done = out.a.fire() && a_last
+    val (a_first, a_last, req_done) = edge.firstlast(out.a)
 
     val d = out.d.bits
-    val (d_first, d_last, _) = edge.firstlast(out.d)
-    val resp_done = out.d.fire() && d_last
+    val (d_first, d_last, resp_done) = edge.firstlast(out.d)
 
     // Source ID generation
     val idMap = Module(new IDMapGenerator(inFlight))

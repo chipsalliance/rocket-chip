@@ -5,6 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import diplomacy._
+import util.AsyncBundle
 
 // READ the comments in the TLIsolation object before you instantiate this module
 class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends LazyModule

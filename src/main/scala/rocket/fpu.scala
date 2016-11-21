@@ -8,7 +8,7 @@ import util._
 import Chisel.ImplicitConversions._
 import FPConstants._
 import uncore.constants.MemoryOpConstants._
-import cde.{Parameters, Field}
+import config._
 
 case class FPUConfig(
   divSqrt: Boolean = true,

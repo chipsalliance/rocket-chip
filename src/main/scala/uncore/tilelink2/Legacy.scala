@@ -4,7 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import diplomacy._
-import cde.Parameters
+import config._
 import uncore.tilelink._
 import uncore.constants._
 
@@ -46,9 +46,6 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
     }
     // TL legacy will not generate PutFull
     // During conversion from TL Legacy, we won't support Acquire
-
-    // Must be able to fit TL2 sink_id into TL legacy
-    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId || !edge.manager.anySupportAcquire)
 
     val out = io.out(0)
     out.a.valid := io.legacy.acquire.valid
@@ -134,7 +131,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
       TLMessages.HintAck       -> Grant.prefetchAckType))
     grant.is_builtin_type := Bool(true)
     grant.client_xact_id  := out.d.bits.source
-    grant.manager_xact_id := out.d.bits.sink
+    grant.manager_xact_id := UInt(0)
     grant.data            := out.d.bits.data
     grant.addr_beat       := beatCounter
 

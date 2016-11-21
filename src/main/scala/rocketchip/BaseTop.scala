@@ -3,7 +3,7 @@
 package rocketchip
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import junctions._
 import diplomacy._
 import uncore.tilelink._
@@ -15,16 +15,13 @@ import coreplex._
 
 // the following parameters will be refactored properly with TL2
 case object GlobalAddrMap extends Field[AddrMap]
-case object NCoreplexExtClients extends Field[Int]
 /** Enable or disable monitoring of Diplomatic buses */
-case object TLEmitMonitors extends Field[Bool]
+case object TLEmitMonitors extends Field[Boolean]
 
-abstract class BareTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit val q: Parameters) extends LazyModule {
+abstract class BareTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit val p: Parameters) extends LazyModule {
   // Fill in the TL1 legacy parameters; remove these once rocket/groundtest/unittest are TL2
-  val pBusMasters = new RangeManager
-  lazy val legacyAddrMap = GenerateGlobalAddrMap(q, coreplex.l1tol2.node.edgesIn(0).manager.managers)
-  val coreplex : C = LazyModule(_coreplex(q.alterPartial {
-    case NCoreplexExtClients => pBusMasters.sum
+  lazy val legacyAddrMap = GenerateGlobalAddrMap(p, coreplex.l1tol2.node.edgesIn(0).manager.managers)
+  val coreplex : C = LazyModule(_coreplex(p.alterPartial {
     case GlobalAddrMap => legacyAddrMap
   }))
 
@@ -42,8 +39,8 @@ abstract class BareTopModule[+L <: BareTop[BaseCoreplex], +B <: BareTopBundle[L]
 
 /** Base Top with no Periphery */
 trait TopNetwork extends HasPeripheryParameters {
-  this: BareTop[BaseCoreplex] =>
-  implicit val p = q
+  val module: TopNetworkModule
+
   TLImp.emitMonitors = p(TLEmitMonitors)
 
   // Add a SoC and peripheral bus
@@ -52,33 +49,22 @@ trait TopNetwork extends HasPeripheryParameters {
   val intBus = LazyModule(new IntXbar)
 
   peripheryBus.node :=
-    TLWidthWidget(p(SOCBusKey).beatBytes)(
-    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    TLWidthWidget(socBusConfig.beatBytes)(
+    TLAtomicAutomata(arithmetic = peripheryBusArithmetic)(
     socBus.node))
+
+  var coreplexMem = Seq[TLOutwardNode]()
 }
 
 trait TopNetworkBundle extends HasPeripheryParameters {
-  this: BareTopBundle[BareTop[BaseCoreplex]] =>
-  implicit val p = outer.q
-  val success = Bool(OUTPUT)
+  val outer: TopNetwork
+  implicit val p = outer.p
 }
 
 trait TopNetworkModule extends HasPeripheryParameters {
-  this: {
-    val outer: BareTop[BaseCoreplex] with TopNetwork
-    val io: TopNetworkBundle
-  } =>
+  val io: TopNetworkBundle
+  val outer: TopNetwork
   implicit val p = outer.p
-
-  val coreplexMem  : Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.mem)
-  val coreplexSlave: Vec[ClientUncachedTileLinkIO] = Wire(outer.coreplex.module.io.slave)
-  val coreplexDebug: DebugBusIO                    = Wire(outer.coreplex.module.io.debug)
-  val coreplexRtc  : Bool                          = Wire(outer.coreplex.module.io.rtcTick)
-
-  io.success := outer.coreplex.module.io.success
-
-  outer.coreplex.module.io.rtcTick := coreplexRtc
-  coreplexRtc := Counter(p(rocketchip.RTCPeriod)).inc()
 }
 
 /** Base Top with no Periphery */
@@ -93,19 +79,11 @@ class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](_outer: L) extends BareTopBundl
 class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
     with TopNetworkModule
 
-trait DirectConnection {
-  this: BareTop[BaseCoreplex] with TopNetwork =>
+trait DirectConnection extends TopNetwork {
+  val coreplex: BaseCoreplex
 
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
-}
 
-trait DirectConnectionModule {
-  this: TopNetworkModule {
-    val outer: BaseTop[BaseCoreplex]
-  } =>
-
-  coreplexMem <> outer.coreplex.module.io.mem
-  outer.coreplex.module.io.slave <> coreplexSlave
-  outer.coreplex.module.io.debug <> coreplexDebug
+  coreplexMem = coreplex.mem
 }

@@ -8,7 +8,7 @@ import uncore.util._
 import uncore.constants._
 import uncore.devices.TileLinkTestRAM
 import unittest.UnitTest
-import cde.Parameters
+import config._
 
 /** Utilities for safely wrapping a *UncachedTileLink by pinning probe.ready and release.valid low */
 object TileLinkIOWrapper {

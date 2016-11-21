@@ -1,7 +1,7 @@
 package junctions
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import unittest.UnitTest
 import util.ParameterizedBundle
 

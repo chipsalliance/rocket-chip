@@ -24,7 +24,7 @@ import junctions._
 import rocket._
 import util.{Timer, DynamicTimer}
 import scala.util.Random
-import cde.{Parameters, Field}
+import config._
 
 // =======
 // Outline
@@ -178,7 +178,6 @@ class TagMan(val logNumTags : Int) extends Module {
 
 class TraceGenerator(id: Int)
     (implicit p: Parameters) extends L1HellaCacheModule()(p)
-                                with HasAddrMapParameters
                                 with HasTraceGenParams
                                 with HasGroundTestParameters {
   val io = new Bundle {

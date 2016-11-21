@@ -2,7 +2,7 @@ package uncore.agents
 
 import Chisel._
 import uncore.tilelink._
-import cde.Parameters
+import config._
 
 class MMIOTileLinkManagerData(implicit p: Parameters)
     extends TLBundle()(p)

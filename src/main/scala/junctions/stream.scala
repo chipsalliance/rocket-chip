@@ -2,7 +2,7 @@ package junctions
 
 import Chisel._
 import NastiConstants._
-import cde.Parameters
+import config._
 
 class StreamChannel(w: Int) extends Bundle {
   val data = UInt(width = w)

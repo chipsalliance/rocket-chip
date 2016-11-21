@@ -7,7 +7,7 @@ import uncore.coherence.CoherencePolicy
 import uncore.constants._
 import util._
 import scala.math.max
-import cde.{Parameters, Field}
+import config._
 
 case object CacheBlockOffsetBits extends Field[Int]
 case object AmoAluOperandBits extends Field[Int]

@@ -5,9 +5,9 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.agents._
 import util._
-import junctions.HasAddrMapParameters
 import rocket._
-import cde.{Parameters, Field}
+import rocketchip._
+import config._
 
 class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val start = Bool(INPUT)
@@ -18,8 +18,8 @@ class RegressionIO(implicit val p: Parameters) extends ParameterizedBundle()(p) 
 }
 
 abstract class Regression(implicit val p: Parameters)
-    extends Module with HasTileLinkParameters with HasAddrMapParameters {
-  val memStart = addrMap("mem").start
+    extends Module with HasTileLinkParameters {
+  val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
   val io = new RegressionIO
 
@@ -71,7 +71,7 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
   io.mem.grant.ready := Bool(true)
 
   io.cache.req.valid := !get_sent && started
-  io.cache.req.bits.addr := UInt(addrMap("TL2:bootrom").start)
+  io.cache.req.bits.addr := UInt(testRamAddr)
   io.cache.req.bits.typ := MT_WU
   io.cache.req.bits.cmd := M_XRD
   io.cache.req.bits.tag := UInt(0)
@@ -107,8 +107,7 @@ class PutBlockMergeRegression(implicit p: Parameters)
 
   disableCache()
 
-  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
-  val nSets = l2params(NSets)
+  val nSets = p(CacheName("L2")).nSets
   val addr_blocks = Vec(Seq(0, 0, nSets).map(num => UInt(num + memStartBlock)))
   val nSteps = addr_blocks.size
   val (acq_beat, acq_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
@@ -385,38 +384,6 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
   io.errored := Bool(false)
 }
 
-/* This tests the sort of access the pattern that Hwacha uses.
- * Instead of using PutBlock/GetBlock, it uses word-sized puts and gets
- * to the same block.
- * Each request has the same client_xact_id, but there are multiple in flight.
- * The responses therefore must come back in the order they are sent. */
-class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()(p) {
-  disableCache()
-
-  val sending = Reg(init = Bool(false))
-  val finished = Reg(init = Bool(false))
-
-  val (send_cnt, send_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
-  val (recv_cnt, recv_done) = Counter(io.mem.grant.fire(), tlDataBeats)
-
-  when (!sending && io.start) { sending := Bool(true) }
-  when (send_done) { sending := Bool(false) }
-  when (recv_done) { finished := Bool(true) }
-
-  io.mem.acquire.valid := sending
-  io.mem.acquire.bits := Get(
-    client_xact_id = UInt(0),
-    addr_block = UInt(memStartBlock + 9),
-    addr_beat = send_cnt)
-  io.mem.grant.ready := !finished
-
-  io.finished := finished
-
-  val beat_mismatch = io.mem.grant.fire() && io.mem.grant.bits.addr_beat =/= recv_cnt
-  assert(!beat_mismatch, "SequentialSameIdGetRegression: grant received out of order")
-  io.errored := beat_mismatch
-}
-
 /* Test that a writeback will occur by writing nWays + 1 blocks to the same
  * set. This assumes that there is only a single cache bank. If we want to
  * test multibank configurations, we'll have to think of some other way to
@@ -424,9 +391,8 @@ class SequentialSameIdGetRegression(implicit p: Parameters) extends Regression()
 class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
   disableCache()
 
-  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
-  val nSets = l2params(NSets)
-  val nWays = l2params(NWays)
+  val nSets = p(CacheName("L2")).nSets
+  val nWays = p(CacheName("L2")).nWays
 
   val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(memStartBlock + i * nSets) }
   val data = Vec.tabulate(nWays + 1) { i => UInt((i + 1) * 1423) }
@@ -477,10 +443,9 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
 class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
   disableMem()
 
-  val l1params = p.alterPartial({ case CacheName => "L1D" })
-  val nSets = l1params(NSets)
-  val nWays = l1params(NWays)
-  val blockOffset = l1params(CacheBlockOffsetBits)
+  val nSets = p(CacheName("L1D")).nSets
+  val nWays = p(CacheName("L1D")).nWays
+  val blockOffset = p(CacheBlockOffsetBits)
 
   val startBlock = memStartBlock + 10
   val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(startBlock + i * nSets) }
@@ -565,9 +530,8 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
 class MergedGetRegression(implicit p: Parameters) extends Regression()(p) {
   disableCache()
 
-  val l2params = p.alterPartial({ case CacheName => "L2Bank" })
-  val nSets = l2params(NSets)
-  val nWays = l2params(NWays)
+  val nSets = p(CacheName("L2")).nSets
+  val nWays = p(CacheName("L2")).nWays
 
   val (s_idle :: s_put :: s_get :: s_done :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
@@ -634,7 +598,7 @@ class MergedPutRegression(implicit p: Parameters) extends Regression()(p)
   val delaying = Reg(init = Bool(false))
   val (put_cnt, put_done) = Counter(io.mem.acquire.fire(), tlMaxClientXacts)
   val (delay_cnt, delay_done) = Counter(delaying, 8)
-  val put_acked = Reg(UInt(width = 3), init = UInt(0))
+  val put_acked = Reg(UInt(width = tlMaxClientXacts), init = UInt(0))
 
   io.mem.acquire.valid := sending && !delaying
   io.mem.acquire.bits := Mux(state === s_put,
@@ -736,7 +700,6 @@ object RegressionTests {
     Module(new RepeatedNoAllocPutRegression),
     Module(new WriteMaskedPutBlockRegression),
     Module(new PrefetchHitRegression),
-    Module(new SequentialSameIdGetRegression),
     Module(new WritebackRegression),
     Module(new PutBeforePutBlockRegression),
     Module(new MixedAllocPutRegression),
@@ -760,12 +723,15 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   val all_done = (regress_idx === UInt(regressions.size))
   val start = Reg(init = Bool(true))
 
+  // Some tests randomly backpressure grant; make this safe:
+  val grant = Queue(io.mem.head.grant, 16)
+
   // default output values
   io.mem.head.acquire.valid := Bool(false)
   io.mem.head.acquire.bits := GetBlock(
     client_xact_id = UInt(0),
     addr_block = UInt(0))
-  io.mem.head.grant.ready := Bool(false)
+  grant.ready := Bool(false)
   io.cache.head.req.valid := Bool(false)
   io.cache.head.req.bits.addr := UInt(0)
   io.cache.head.req.bits.typ := UInt(log2Ceil(64 / 8))
@@ -779,8 +745,8 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
     val me = regress_idx === UInt(i)
     regress.io.start := me && start
     regress.io.mem.acquire.ready := io.mem.head.acquire.ready && me
-    regress.io.mem.grant.valid   := io.mem.head.grant.valid && me
-    regress.io.mem.grant.bits    := io.mem.head.grant.bits
+    regress.io.mem.grant.valid   := grant.valid && me
+    regress.io.mem.grant.bits    := grant.bits
     regress.io.cache.req.ready   := io.cache.head.req.ready && me
     regress.io.cache.resp.valid  := io.cache.head.resp.valid && me
     regress.io.cache.resp.bits   := io.cache.head.resp.bits
@@ -788,7 +754,7 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
     when (me) {
       io.mem.head.acquire.valid := regress.io.mem.acquire.valid
       io.mem.head.acquire.bits := regress.io.mem.acquire.bits
-      io.mem.head.grant.ready := regress.io.mem.grant.ready
+      grant.ready := regress.io.mem.grant.ready
       io.cache.head.req.valid := regress.io.cache.req.valid
       io.cache.head.req.bits := regress.io.cache.req.bits
       io.cache.head.invalidate_lr := regress.io.cache.invalidate_lr
@@ -815,11 +781,11 @@ class RegressionTest(implicit p: Parameters) extends GroundTest()(p) {
   io.status.timeout.valid := timeout
   io.status.timeout.bits := UInt(0)
 
-  assert(!(all_done && io.mem.head.grant.valid),
+  assert(!(all_done && grant.valid),
     "Getting grant after test completion")
 
   when (all_done) {
-    io.status.error.valid := io.mem.head.grant.valid
+    io.status.error.valid := grant.valid
     io.status.error.bits := UInt(regressions.size)
   }
 }

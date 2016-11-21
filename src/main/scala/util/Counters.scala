@@ -1,7 +1,7 @@
 package util
 
 import Chisel._
-import cde.Parameters
+import config._
 import scala.math.max
 
 // Produces 0-width value when counting to 1
