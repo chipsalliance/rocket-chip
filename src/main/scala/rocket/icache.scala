@@ -72,7 +72,8 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
 
-  val narrow_grant = FlowThroughSerializer(io.mem.grant, refillCyclesPerBeat)
+  require(refillCyclesPerBeat == 1)
+  val narrow_grant = io.mem.grant 
   val (refill_cnt, refill_wrap) = Counter(narrow_grant.fire(), refillCycles)
   val refill_done = state === s_refill && refill_wrap
   narrow_grant.ready := Bool(true)
