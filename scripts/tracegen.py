@@ -52,6 +52,8 @@ def main():
       numFinished = numFinished + 1
       if numFinished == total:
         break
+    elif line[0:12] == "using random":
+      continue
     else:
       print line,
 
