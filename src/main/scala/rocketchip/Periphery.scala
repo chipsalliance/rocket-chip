@@ -71,16 +71,17 @@ trait PeripheryExtInterruptsModule {
 /////
 
 trait PeripheryMasterAXI4Mem {
-  this: BaseTop[BaseCoreplex] with TopNetwork =>
+  this: TopNetwork =>
+  val module: PeripheryMasterAXI4MemModule
 
   private val config = p(ExtMem)
-  private val channels = coreplexMem.size
+  private val channels = p(BankedL2Config).nMemoryChannels
 
-  val mem_axi4 = coreplexMem.zipWithIndex.map { case (node, i) =>
+  val mem_axi4 = Seq.tabulate(channels) { i =>
     val c_size = config.size/channels
     val c_base = config.base + c_size*i
 
-    val axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
+    AXI4BlindOutputNode(AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
         address       = List(AddressSet(c_base, c_size-1)),
         regionType    = RegionType.UNCACHED,   // cacheable
@@ -89,14 +90,12 @@ trait PeripheryMasterAXI4Mem {
         supportsRead  = TransferSizes(1, 256),
         interleavedId = Some(0))),             // slave does not interleave read responses
       beatBytes = config.beatBytes))
+  }
 
-    axi4 :=
-      // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
-      TLToAXI4(idBits = config.idBits)(         // use idBits = 0 for AXI4-Lite
-      TLWidthWidget(coreplex.l1tol2_beatBytes)( // convert width before attaching to the l1tol2
-      node))
-
-    axi4
+  val mem = mem_axi4.map { node =>
+    val foo = LazyModule(new TLToAXI4(config.idBits))
+    node := foo.node
+    foo.node
   }
 }
 

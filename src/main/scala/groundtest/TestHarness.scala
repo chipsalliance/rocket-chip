@@ -12,7 +12,7 @@ class TestHarness(q: Parameters) extends Module {
   }
   implicit val p = q
 
-  val dut = Module(LazyModule(new GroundTestTop(new GroundTestCoreplex()(_))).module)
+  val dut = Module(LazyModule(new GroundTestTop).module)
   io.success := dut.io.success
 
   if (dut.io.mem_axi4.nonEmpty) {

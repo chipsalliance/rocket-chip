@@ -11,21 +11,19 @@ import uncore.tilelink2._
 import uncore.devices._
 import util._
 import rocket._
-import coreplex._
 
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Boolean]
 
-abstract class BareTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit val p: Parameters) extends LazyModule {
-  val coreplex = LazyModule(_coreplex(p))
+abstract class BareTop(implicit val p: Parameters) extends LazyModule {
   TopModule.contents = Some(this)
 }
 
-abstract class BareTopBundle[+L <: BareTop[BaseCoreplex]](_outer: L) extends Bundle {
+abstract class BareTopBundle[+L <: BareTop](_outer: L) extends Bundle {
   val outer = _outer
 }
 
-abstract class BareTopModule[+L <: BareTop[BaseCoreplex], +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
+abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
   val outer = _outer
   val io = _io ()
 }
@@ -45,8 +43,6 @@ trait TopNetwork extends HasPeripheryParameters {
     TLWidthWidget(socBusConfig.beatBytes)(
     TLAtomicAutomata(arithmetic = peripheryBusArithmetic)(
     socBus.node))
-
-  var coreplexMem = Seq[TLOutwardNode]()
 }
 
 trait TopNetworkBundle extends HasPeripheryParameters {
@@ -61,22 +57,13 @@ trait TopNetworkModule extends HasPeripheryParameters {
 }
 
 /** Base Top with no Periphery */
-class BaseTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends BareTop(_coreplex)
+class BaseTop(implicit p: Parameters) extends BareTop
     with TopNetwork {
   override lazy val module = new BaseTopModule(this, () => new BaseTopBundle(this))
 }
 
-class BaseTopBundle[+L <: BaseTop[BaseCoreplex]](_outer: L) extends BareTopBundle(_outer)
+class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
     with TopNetworkBundle
 
-class BaseTopModule[+L <: BaseTop[BaseCoreplex], +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
+class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
     with TopNetworkModule
-
-trait DirectConnection extends TopNetwork {
-  val coreplex: BaseCoreplex
-
-  socBus.node := coreplex.mmio
-  coreplex.mmioInt := intBus.intnode
-
-  coreplexMem = coreplex.mem
-}

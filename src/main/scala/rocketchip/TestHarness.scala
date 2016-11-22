@@ -14,7 +14,7 @@ class TestHarness(q: Parameters) extends Module {
     val success = Bool(OUTPUT)
   }
   implicit val p = q
-  val dut = Module(LazyModule(new ExampleRocketTop(new DefaultCoreplex()(_))).module)
+  val dut = Module(LazyModule(new ExampleRocketTop).module)
 
   for (int <- dut.io.interrupts(0))
     int := Bool(false)
