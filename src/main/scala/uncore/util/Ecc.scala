@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package uncore.agents
+package uncore.util
 
 import Chisel._
 import util._

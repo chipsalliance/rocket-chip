@@ -5,7 +5,6 @@ package rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import diplomacy._
-import uncore.agents._
 import uncore.constants._
 import uncore.tilelink._
 import uncore.tilelink2._

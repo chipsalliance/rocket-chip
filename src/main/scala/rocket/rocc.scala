@@ -5,7 +5,7 @@ package rocket
 import Chisel._
 import uncore.tilelink._
 import uncore.constants._
-import uncore.agents.CacheName
+import uncore.util.CacheName
 import util._
 import Chisel.ImplicitConversions._
 import config._

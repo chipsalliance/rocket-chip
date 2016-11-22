@@ -6,7 +6,7 @@ import Chisel._
 import config.{Parameters, Field}
 import diplomacy._
 import uncore.tilelink2._
-import uncore.agents._
+import uncore.util._
 import uncore.constants._
 import uncore.tilelink.{TLKey, TLId}
 import util.ParameterizedBundle
