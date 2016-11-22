@@ -46,6 +46,8 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 	mkdir -p $(dir $@)
 	wget http://www.veripool.org/ftp/verilator-$(VERILATOR_VERSION).tgz -O $@
 
+verilator: $(INSTALLED_VERILATOR)
+
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
 VERILATOR_FLAGS := --top-module $(MODEL) \

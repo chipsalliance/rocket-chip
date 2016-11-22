@@ -45,6 +45,9 @@ branches:
     - boom
     - /^hurricane.*$/
 
+install:
+  - make tools verilator -C regression SUITE=none
+
 before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
