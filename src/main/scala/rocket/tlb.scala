@@ -8,8 +8,7 @@ import Chisel.ImplicitConversions._
 import scala.math._
 import config._
 import diplomacy._
-import uncore.agents._
-import uncore.coherence._
+import uncore.util._
 import uncore.tilelink2._
 
 case object PgLevels extends Field[Int]

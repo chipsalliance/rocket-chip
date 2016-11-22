@@ -6,7 +6,7 @@ import Chisel._
 import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
-import uncore.agents._
+import uncore.util.{CacheName, CacheBlockBytes}
 import uncore.converters._
 import uncore.devices._
 import util._

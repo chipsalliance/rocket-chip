@@ -6,7 +6,7 @@ import Chisel._
 import config._
 import util._
 import Chisel.ImplicitConversions._
-import uncore.agents.PseudoLRU
+import uncore.util.PseudoLRU
 
 case object BtbKey extends Field[BtbParameters]
 
