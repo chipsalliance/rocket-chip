@@ -14,7 +14,6 @@ import config._
 import scala.collection.mutable.ListBuffer
 
 case object BuildRoCC extends Field[Seq[RoccParameters]]
-case object TileId extends Field[Int]
 
 case class RoccParameters(
   opcodes: OpcodeSet,
@@ -30,7 +29,6 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   val dcacheParams = coreParams.alterPartial({
     case CacheName => CacheName("L1D")
     case TLId => "L1toL2"
-    case TileId => tileId // TODO using this messes with Heirarchical P&R: change to io.hartid?
   })
   val icacheParams = coreParams.alterPartial({
     case CacheName => CacheName("L1I")
