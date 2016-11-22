@@ -84,7 +84,7 @@ object GenerateConfigString {
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters, address: BigInt) = {
+  def apply(p: Parameters, address: BigInt, configString: String) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
 
@@ -95,6 +95,6 @@ object GenerateBootROM {
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (ConfigStringOutput.contents.get.getBytes.toSeq)
+    rom.array() ++ (configString.getBytes.toSeq)
   }
 }

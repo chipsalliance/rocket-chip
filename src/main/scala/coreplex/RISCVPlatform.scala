@@ -26,6 +26,11 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
 
   plic.intnode := intBar.intnode
+
+  lazy val configString = {
+    val managers = l1tol2.node.edgesIn(0).manager.managers
+    rocketchip.GenerateConfigString(p, clint, plic, managers)
+  }
 }
 
 trait CoreplexRISCVPlatformBundle extends CoreplexNetworkBundle {
@@ -48,14 +53,6 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
   val rtcLast = Reg(init = Bool(false), next=rtcSync)
   outer.clint.module.io.rtcTick := Reg(init = Bool(false), next=(rtcSync & (~rtcLast)))
 
-  {
-    val managers = outer.l1tol2.node.edgesIn(0).manager.managers
-
-    // Allow something else to have override the config string
-    if (!ConfigStringOutput.contents.isDefined) {
-      ConfigStringOutput.contents = Some(rocketchip.GenerateConfigString(p, outer.clint, outer.plic, managers))
-    }
-
-    println(s"\nGenerated Configuration String\n${ConfigStringOutput.contents.get}")
-  }
+  println(s"\nGenerated Configuration String\n${outer.configString}")
+  ConfigStringOutput.contents = Some(outer.configString)
 }
