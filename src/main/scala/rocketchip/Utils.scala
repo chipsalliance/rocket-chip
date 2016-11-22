@@ -56,8 +56,8 @@ object GenerateConfigString {
   def apply(p: Parameters, clint: CoreplexLocalInterrupter, plic: TLPLIC, peripheryManagers: Seq[TLManagerParameters]) = {
     val c = CoreplexParameters()(p)
     val res = new StringBuilder
-    res append plic.module.globalConfigString
-    res append clint.module.globalConfigString
+    res append plic.globalConfigString
+    res append clint.globalConfigString
     res append  "core {\n"
     for (i <- 0 until c.nTiles) { // TODO heterogeneous tiles
       val isa = {
@@ -71,8 +71,8 @@ object GenerateConfigString {
       res append s"  $i {\n"
       res append  "    0 {\n"
       res append s"      isa $isa;\n"
-      res append clint.module.hartConfigStrings(i)
-      res append plic.module.hartConfigStrings(i)
+      res append clint.hartConfigStrings(i)
+      res append plic.hartConfigStrings(i)
       res append  "    };\n"
       res append  "  };\n"
     }
