@@ -52,4 +52,4 @@ script:
   - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default
 
 before_cache:
-  - ls -tr regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
+  - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
