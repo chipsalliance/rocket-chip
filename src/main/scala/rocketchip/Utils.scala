@@ -52,36 +52,6 @@ class GlobalVariable[T] {
   def get: T = { require(assigned); variable }
 }
 
-object GenerateGlobalAddrMap {
-  def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
-    val tl2Devices = peripheryManagers.map { manager =>
-      val cacheable = manager.regionType match {
-        case RegionType.CACHED   => true
-        case RegionType.TRACKED  => true
-        case _ => false
-      }
-      val attr = MemAttr(
-        (if (manager.supportsGet)     AddrMapProt.R else 0) |
-        (if (manager.supportsPutFull) AddrMapProt.W else 0) |
-        (if (manager.executable)      AddrMapProt.X else 0), cacheable)
-      val multi = manager.address.size > 1
-      manager.address.zipWithIndex.map { case (address, i) =>
-        require (address.contiguous) // TL1 needs this
-        val name = manager.name + (if (multi) ".%d".format(i) else "")
-        AddrMapEntry(name, MemRange(address.base, address.mask+1, attr))
-      }
-    }.flatten
-
-    val uniquelyNamedTL2Devices =
-      tl2Devices.groupBy(_.name).values.map(_.zipWithIndex.map {
-        case (e, i) => if (i == 0) e else e.copy(name = e.name + "_" + i)
-      }).flatten.toList
-
-    val tl2 = AddrMapEntry("TL2", new AddrMap(uniquelyNamedTL2Devices, collapse = true))
-    AddrMap(tl2)
-  }
-}
-
 object GenerateConfigString {
   def apply(p: Parameters, clint: CoreplexLocalInterrupter, plic: TLPLIC, peripheryManagers: Seq[TLManagerParameters]) = {
     val c = CoreplexParameters()(p)
@@ -114,7 +84,7 @@ object GenerateConfigString {
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters, address: BigInt) = {
+  def apply(p: Parameters, address: BigInt, configString: String) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
 
@@ -125,6 +95,6 @@ object GenerateBootROM {
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (ConfigStringOutput.contents.get.getBytes.toSeq)
+    rom.array() ++ (configString.getBytes.toSeq)
   }
 }

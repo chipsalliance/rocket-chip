@@ -38,16 +38,26 @@ ifeq ($(SUITE),)
 $(error Set SUITE to the regression suite you want to run)
 endif
 
-ifeq ($(SUITE),RocketSuite)
+ifeq ($(SUITE),RocketSuiteA)
 PROJECT=rocketchip
-CONFIGS=DefaultConfig DefaultBufferlessConfig TinyConfig
+CONFIGS=DefaultConfig
+endif
+
+ifeq ($(SUITE),RocketSuiteB)
+PROJECT=rocketchip
+CONFIGS=DefaultBufferlessConfig
+endif
+
+ifeq ($(SUITE),RocketSuiteC)
+PROJECT=rocketchip
+CONFIGS=DefaultL2Config TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
 PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
 	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
+	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
@@ -68,6 +78,8 @@ endif
 # commandline a bit cleaner.
 submodules: stamps/other-submodules.stamp
 tools: $(RISCV)/install.stamp
+verilator:
+	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/emulator) verilator
 
 EMU_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-debug.stamp)
 EMU_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-ndebug.stamp)

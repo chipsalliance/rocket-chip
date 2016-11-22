@@ -687,6 +687,7 @@ class NonBlockingDCache(cfg: DCacheConfig)(implicit p: Parameters) extends Hella
 class NonBlockingDCacheModule(outer: NonBlockingDCache)(implicit p: Parameters) extends HellaCacheModule(outer)(p) {
 
   require(isPow2(nWays)) // TODO: relax this
+  require(p(DataScratchpadSize) == 0)
 
   val wb = Module(new WritebackUnit(edge))
   val prober = Module(new ProbeUnit(edge))
