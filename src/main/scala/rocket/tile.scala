@@ -24,12 +24,15 @@ case class RoccParameters(
   useFPU: Boolean = false)
 
 class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
-  val dcacheParams = p.alterPartial({
+  val coreParams = p.alterPartial {
+    case TLCacheEdge => cachedOut.edgesOut(0)
+  }
+  val dcacheParams = coreParams.alterPartial({
     case CacheName => CacheName("L1D")
     case TLId => "L1toL2"
     case TileId => tileId // TODO using this messes with Heirarchical P&R: change to io.hartid?
   })
-  val icacheParams = p.alterPartial({
+  val icacheParams = coreParams.alterPartial({
     case CacheName => CacheName("L1I")
     case TLId => "L1toL2"
   })
@@ -37,7 +40,14 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   //TODO val intNode = IntInputNode()
   val slaveNode = if (p(DataScratchpadSize) == 0) None else Some(TLInputNode())
   val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
-  val dcache = HellaCache(p(DCacheKey))(dcacheParams)
+  def findScratch() = scratch.map { s =>
+    val finalNode = uncachedOut.edgesOut(0).manager.managers.find(_.nodePath.last == s.node)
+    require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
+    require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
+    finalNode.get.address(0)
+  }
+
+  val dcache = HellaCache(p(DCacheKey), findScratch)(dcacheParams)
   val ucLegacy = LazyModule(new TLLegacy()(icacheParams))
 
   val cachedOut = TLOutputNode()
@@ -54,7 +64,7 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
       val uncached = uncachedOut.bundleOut
       val slave = slaveNode.map(_.bundleIn)
       val hartid = UInt(INPUT, p(XLen))
-      val interrupts = new TileInterrupts().asInput
+      val interrupts = new TileInterrupts()(coreParams).asInput
       val resetVector = UInt(INPUT, p(XLen))
     }
 
@@ -74,15 +84,15 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
     icache.io.cpu <> core.io.imem
     icache.io.resetVector := io.resetVector
 
-    val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)))
+    val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)(coreParams)))
     fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
 
     if (usingRocc) {
-      val respArb = Module(new RRArbiter(new RoCCResponse, nRocc))
+      val respArb = Module(new RRArbiter(new RoCCResponse()(coreParams), nRocc))
       core.io.rocc.resp <> respArb.io.out
 
       val roccOpcodes = buildRocc.map(_.opcodes)
-      val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
+      val cmdRouter = Module(new RoccCommandRouter(roccOpcodes)(coreParams))
       cmdRouter.io.in <> core.io.rocc.cmd
 
       val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
@@ -101,7 +111,7 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
 
       if (nFPUPorts > 0) {
         fpuOpt.foreach { fpu =>
-          val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nFPUPorts))
+          val fpArb = Module(new InOrderArbiter(new FPInput()(coreParams), new FPResult()(coreParams), nFPUPorts))
           val fp_roccs = roccs.zip(buildRocc)
             .filter { case (_, params) => params.useFPU }
             .map { case (rocc, _) => rocc.io }

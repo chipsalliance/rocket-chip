@@ -145,7 +145,6 @@ class HellaCacheModule(outer: HellaCache)(implicit val p: Parameters) extends La
     with HasL1HellaCacheParameters {
   implicit val cfg = outer.cfg
   val io = new HellaCacheBundle(outer)
-  val edge = outer.node.edgesOut(0)
   val tl_out = io.mem(0)
 
   /* TODO
@@ -160,8 +159,8 @@ class HellaCacheModule(outer: HellaCache)(implicit val p: Parameters) extends La
 }
 
 object HellaCache {
-  def apply(cfg: DCacheConfig)(implicit p: Parameters) = {
-    if (cfg.nMSHRs == 0) LazyModule(new DCache(cfg))
+  def apply(cfg: DCacheConfig, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
+    if (cfg.nMSHRs == 0) LazyModule(new DCache(cfg, scratch))
     else LazyModule(new NonBlockingDCache(cfg))
   }
 }

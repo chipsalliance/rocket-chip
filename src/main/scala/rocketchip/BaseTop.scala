@@ -13,18 +13,11 @@ import util._
 import rocket._
 import coreplex._
 
-// the following parameters will be refactored properly with TL2
-case object GlobalAddrMap extends Field[AddrMap]
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Boolean]
 
 abstract class BareTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit val p: Parameters) extends LazyModule {
-  // Fill in the TL1 legacy parameters; remove these once rocket/groundtest/unittest are TL2
-  lazy val legacyAddrMap = GenerateGlobalAddrMap(p, coreplex.l1tol2.node.edgesIn(0).manager.managers)
-  val coreplex : C = LazyModule(_coreplex(p.alterPartial {
-    case GlobalAddrMap => legacyAddrMap
-  }))
-
+  val coreplex = LazyModule(_coreplex(p))
   TopModule.contents = Some(this)
 }
 

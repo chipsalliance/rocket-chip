@@ -39,7 +39,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 }
 
-class DCache(cfg: DCacheConfig)(implicit p: Parameters) extends HellaCache(cfg)(p) {
+class DCache(cfg: DCacheConfig, val scratch: () => Option[AddressSet])(implicit p: Parameters) extends HellaCache(cfg)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
@@ -123,7 +123,7 @@ class DCacheModule(outer: DCache)(implicit p: Parameters) extends HellaCacheModu
       require(nWays == 1)
       metaWriteArb.io.out.ready := true
       metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
-      val inScratchpad = addrMap(s"TL2:dmem${p(TileId)}").containsAddress(s1_paddr)
+      val inScratchpad = outer.scratch().map(_.contains(s1_paddr)).getOrElse(Bool(false))
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
     } else {

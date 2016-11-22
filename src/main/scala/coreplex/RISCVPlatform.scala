@@ -26,6 +26,11 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
 
   plic.intnode := intBar.intnode
+
+  lazy val configString = {
+    val managers = l1tol2.node.edgesIn(0).manager.managers
+    rocketchip.GenerateConfigString(p, clint, plic, managers)
+  }
 }
 
 trait CoreplexRISCVPlatformBundle extends CoreplexNetworkBundle {
@@ -48,25 +53,6 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
   val rtcLast = Reg(init = Bool(false), next=rtcSync)
   outer.clint.module.io.rtcTick := Reg(init = Bool(false), next=(rtcSync & (~rtcLast)))
 
-  println("\nGenerated Address Map")
-  for (entry <- p(rocketchip.GlobalAddrMap).flatten) {
-    val name = entry.name
-    val start = entry.region.start
-    val end = entry.region.start + entry.region.size - 1
-    val prot = entry.region.attr.prot
-    val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
-                  (if ((prot & AddrMapProt.W) > 0) "W" else "") +
-                  (if ((prot & AddrMapProt.X) > 0) "X" else "")
-    val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
-    println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
-  }
-
-  // Create and export the ConfigString
-  val managers = outer.l1tol2.node.edgesIn(0).manager.managers
-  val configString = rocketchip.GenerateConfigString(p, outer.clint, outer.plic, managers)
-  // Allow something else to have override the config string
-  if (!ConfigStringOutput.contents.isDefined) {
-    ConfigStringOutput.contents = Some(configString)
-  }
-  println(s"\nGenerated Configuration String\n${ConfigStringOutput.contents.get}")
+  println(s"\nGenerated Configuration String\n${outer.configString}")
+  ConfigStringOutput.contents = Some(outer.configString)
 }

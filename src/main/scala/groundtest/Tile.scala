@@ -100,7 +100,10 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
 }
 
 class GroundTestTile(implicit val p: Parameters) extends LazyModule with HasGroundTestParameters {
-  val dcacheParams = p.alterPartial({ case CacheName => CacheName("L1D") })
+  val dcacheParams = p.alterPartial {
+    case CacheName => CacheName("L1D")
+    case rocket.TLCacheEdge => cachedOut.edgesOut(0)
+  }
   val slave = None
   val dcache = HellaCache(p(DCacheKey))(dcacheParams)
   val ucLegacy = LazyModule(new TLLegacy()(p))
@@ -141,7 +144,7 @@ class GroundTestTile(implicit val p: Parameters) extends LazyModule with HasGrou
     }
 
     if (ptwPorts.size > 0) {
-      val ptw = Module(new DummyPTW(ptwPorts.size))
+      val ptw = Module(new DummyPTW(ptwPorts.size)(dcacheParams))
       ptw.io.requestors <> ptwPorts
     }
 

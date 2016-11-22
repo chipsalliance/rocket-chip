@@ -104,6 +104,17 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val io: CoreplexNetworkBundle
 
   implicit val p = outer.p
+
+  println("\nGenerated Address Map")
+  for (manager <- outer.l1tol2.node.edgesIn(0).manager.managers) {
+    val prot = (if (manager.supportsGet)     "R" else "") +
+               (if (manager.supportsPutFull) "W" else "") +
+               (if (manager.executable)      "X" else "") +
+               (if (manager.supportsAcquire) " [C]" else "")
+    manager.address.foreach { a =>
+      println(f"\t${manager.name}%s ${a.base}%x - ${a.base+a.mask+1}%x, $prot")
+    }
+  }
 }
 
 trait BankedL2CoherenceManagers extends CoreplexNetwork {
