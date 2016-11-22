@@ -345,7 +345,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
     val out = Valid(new FPResult)
   }
 
-  val in = Pipe(io.in)
+  val in = Pipe(io.in, latency - 1)
 
   val mux = Wire(new FPResult)
   mux.exc := Bits(0)
@@ -389,7 +389,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
       }
     }
 
-    io.out <> Pipe(in.valid, mux, latency-1)
+    io.out <> Pipe(in.valid, mux)
   }
 
   class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
@@ -399,7 +399,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
       val lt = Bool(INPUT) // from FPToInt
     }
 
-    val in = Pipe(io.in)
+    val in = Pipe(io.in, latency - 1)
 
     val signNum = Mux(in.bits.rm(1), in.bits.in1 ^ in.bits.in2, Mux(in.bits.rm(0), ~in.bits.in2, in.bits.in2))
     val fsgnj_s = Cat(signNum(32), in.bits.in1(31, 0))
@@ -449,7 +449,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
       }
   }
 
-  io.out <> Pipe(in.valid, mux, latency-1)
+  io.out <> Pipe(in.valid, mux)
 }
 
 class FPUFMAPipe(val latency: Int, expWidth: Int, sigWidth: Int)(implicit p: Parameters) extends FPUModule()(p) {
@@ -462,28 +462,26 @@ class FPUFMAPipe(val latency: Int, expWidth: Int, sigWidth: Int)(implicit p: Par
   val one = UInt(1) << (width-1)
   val zero = (io.in.bits.in1(width) ^ io.in.bits.in2(width)) << width
 
-  val valid = Reg(next=io.in.valid)
-  val in = Reg(new FPInput)
-  when (io.in.valid) {
-    in := io.in.bits
-    val cmd_fma = io.in.bits.ren3
-    val cmd_addsub = io.in.bits.swap23
-    in.cmd := Cat(io.in.bits.cmd(1) & (cmd_fma || cmd_addsub), io.in.bits.cmd(0))
-    when (cmd_addsub) { in.in2 := one }
-    unless (cmd_fma || cmd_addsub) { in.in3 := zero }
-  }
+  val op_pipe_in = Wire(io.in)
+  op_pipe_in := io.in
+  val cmd_fma = io.in.bits.ren3
+  val cmd_addsub = io.in.bits.swap23
+  op_pipe_in.bits.cmd := Cat(io.in.bits.cmd(1) & (cmd_fma || cmd_addsub), io.in.bits.cmd(0))
+  when (cmd_addsub) { op_pipe_in.bits.in2 := one }
+  unless (cmd_fma || cmd_addsub) { op_pipe_in.bits.in3 := zero }
+  val in = Pipe(op_pipe_in, latency - 1)
 
   val fma = Module(new hardfloat.MulAddRecFN(expWidth, sigWidth))
-  fma.io.op := in.cmd
-  fma.io.roundingMode := in.rm
-  fma.io.a := in.in1
-  fma.io.b := in.in2
-  fma.io.c := in.in3
+  fma.io.op := in.bits.cmd
+  fma.io.roundingMode := in.bits.rm
+  fma.io.a := in.bits.in1
+  fma.io.b := in.bits.in2
+  fma.io.c := in.bits.in3
 
   val res = Wire(new FPResult)
   res.data := Cat(UInt((BigInt(1) << (fLen - (expWidth + sigWidth))) - 1), fma.io.out)
   res.exc := fma.io.exceptionFlags
-  io.out := Pipe(valid, res, latency-1)
+  io.out := Pipe(in.valid, res)
 }
 
 class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
