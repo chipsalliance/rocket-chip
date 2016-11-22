@@ -139,12 +139,6 @@ has an additional bit) to handle subnormal numbers more efficiently in
 the processor. Please take a look at the
 [README](https://github.com/ucb-bar/berkeley-hardfloat/blob/master/README.md)
 in the repository for more information.
-* **context-dependent-environments**
-([https://github.com/ucb-bar/context-dependent-environments](https://github.com/ucb-bar/context-dependent-environments)):
-The rocket-chip Chisel code is highly parameterizable, and utilizes the classes in 
-this subrepo to set and pass parameters to different levels of the design. Note that in 
-Chisel2, this was handled by Chisel itself, but has been moved into a seperate
-library for use with Chisel3. 
 * **riscv-tools**
 ([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
 We tag a version of riscv-tools that works with the RTL committed in the
