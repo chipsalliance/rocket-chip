@@ -8,8 +8,8 @@ import uncore.coherence._
 import rocket._
 import uncore.devices.NTiles
 
-trait RocketPlex extends CoreplexRISCVPlatform {
-  val module: RocketPlexModule
+trait RocketTiles extends CoreplexRISCVPlatform {
+  val module: RocketTilesModule
 
   val rocketTiles = List.tabulate(p(NTiles)) { i => LazyModule(new RocketTile(i)) }
   val tileIntNodes = rocketTiles.map { _ => IntInternalOutputNode() }
@@ -22,13 +22,13 @@ trait RocketPlex extends CoreplexRISCVPlatform {
   }
 }
 
-trait RocketPlexBundle extends CoreplexRISCVPlatformBundle {
-  val outer: CoreplexRISCVPlatform
+trait RocketTilesBundle extends CoreplexRISCVPlatformBundle {
+  val outer: RocketTiles
 }
 
-trait RocketPlexModule extends CoreplexRISCVPlatformModule {
-  val outer: RocketPlex
-  val io: RocketPlexBundle
+trait RocketTilesModule extends CoreplexRISCVPlatformModule {
+  val outer: RocketTiles
+  val io: RocketTilesBundle
 
   outer.rocketTiles.map(_.module).zipWithIndex.foreach { case (tile, i) =>
     tile.io.hartid := UInt(i)
@@ -67,8 +67,8 @@ class AsyncRocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   }
 }
 
-trait AsyncRocketPlex extends CoreplexRISCVPlatform {
-  val module: AsyncRocketPlexModule
+trait AsyncRocketTiles extends CoreplexRISCVPlatform {
+  val module: AsyncRocketTilesModule
 
   val rocketTiles = List.tabulate(p(NTiles)) { i => LazyModule(new AsyncRocketTile(i)) }
   val tileIntNodes = rocketTiles.map { _ => IntInternalOutputNode() }
@@ -81,8 +81,8 @@ trait AsyncRocketPlex extends CoreplexRISCVPlatform {
   }
 }
 
-trait AsyncRocketPlexBundle extends CoreplexRISCVPlatformBundle {
-  val outer: CoreplexRISCVPlatform
+trait AsyncRocketTilesBundle extends CoreplexRISCVPlatformBundle {
+  val outer: AsyncRocketTiles
 
   val tcrs = Vec(nTiles, new Bundle {
     val clock = Clock(INPUT)
@@ -90,9 +90,9 @@ trait AsyncRocketPlexBundle extends CoreplexRISCVPlatformBundle {
   })
 }
 
-trait AsyncRocketPlexModule extends CoreplexRISCVPlatformModule {
-  val outer: AsyncRocketPlex
-  val io: AsyncRocketPlexBundle
+trait AsyncRocketTilesModule extends CoreplexRISCVPlatformModule {
+  val outer: AsyncRocketTiles
+  val io: AsyncRocketTilesBundle
 
   outer.rocketTiles.map(_.module).zipWithIndex.foreach { case (tile, i) =>
     tile.clock := io.tcrs(i).clock
