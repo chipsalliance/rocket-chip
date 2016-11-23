@@ -88,17 +88,25 @@ class ClientMetadata extends Bundle {
       Cat(wr, toT)   -> Dirty))
   }
 
-  /** Does a secondary miss on the block require another Acquire message */
-  def requiresAcquireOnSecondaryMiss(first_cmd: UInt, second_cmd: UInt): Bool = {
-    import MemoryOpCategories._
-    isWriteIntent(second_cmd) && !isWriteIntent(first_cmd)
-  }
-
   /** Does this cache have permissions on this block sufficient to perform op,
     * and what to do next (Acquire message param or updated metadata). */
   def onAccess(cmd: UInt): (Bool, UInt, ClientMetadata) = {
     val r = growStarter(cmd)
     (r._1, r._2, ClientMetadata(r._2))
+  }
+
+  /** Does a secondary miss on the block require another Acquire message */
+  def onSecondaryAccess(first_cmd: UInt, second_cmd: UInt): (Bool, Bool, UInt, ClientMetadata, UInt) = {
+    import MemoryOpCategories._
+    val r1 = growStarter(first_cmd)
+    val r2 = growStarter(second_cmd)
+    val needs_second_acq = isWriteIntent(second_cmd) && !isWriteIntent(first_cmd)
+    val hit_again = r1._1 && r2._1
+    val dirties = categorize(second_cmd) === wr
+    val biggest_grow_param = Mux(dirties, r2._2, r1._2)
+    val dirtiest_state = ClientMetadata(biggest_grow_param)
+    val dirtiest_cmd = Mux(dirties, second_cmd, first_cmd)
+    (needs_second_acq, hit_again, biggest_grow_param, dirtiest_state, dirtiest_cmd)
   }
 
   /** Metadata change on a returned Grant */
