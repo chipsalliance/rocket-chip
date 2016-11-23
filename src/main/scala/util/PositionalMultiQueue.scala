@@ -38,23 +38,24 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
   val next  = Mem(params.positions, UInt(width = log2Up(params.positions)))
   val data  = Mem(params.positions, params.gen)
   // optimized away for synthesis; used to confirm invariant
-  val guard = RegInit(Vec.fill(params.positions) { Bool(false) })
+  val guard = RegInit(UInt(0, width = params.positions))
 
   when (io.enq.fire()) {
     data(io.enq.bits.pos) := io.enq.bits.data
     // ensure the user never stores to the same position twice
     assert (!guard(io.enq.bits.pos))
-    guard(io.enq.bits.pos) := Bool(true)
 
     when (!empty(io.enq.bits.way)) {
       next(tail(io.enq.bits.way)) := io.enq.bits.pos
     }
   }
+  val setGuard = io.enq.fire() << io.enq.bits.pos
 
   val deq = Wire(io.deq)
   io.deq <> deq
 
   val waySelect = UIntToOH(io.enq.bits.way, params.ways)
+  var clrGuard = UInt(0)
   for (i <- 0 until params.ways) {
     val enq = io.enq.fire() && waySelect(i)
     val last = head(i) === tail(i)
@@ -78,13 +79,15 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
 
     when (deq(i).fire()) {
       head(i) := Mux(last, io.enq.bits.pos, next(head(i)))
-      guard(deq(i).bits.pos) := Bool(false)
     }
+    clrGuard = clrGuard | (deq(i).fire() << deq(i).bits.pos)
 
     when (enq =/= deq(i).fire()) {
       empty(i) := deq(i).fire() && last
     }
   }
+
+  guard := (guard | setGuard) & ~clrGuard
 }
 
 object PositionalMultiQueue
