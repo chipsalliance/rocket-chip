@@ -155,12 +155,14 @@ trait PeripheryMasterAXI4MMIOModule {
 
 // PeripherySlaveAXI4 is an example, make your own cake pattern like this one.
 trait PeripherySlaveAXI4 extends L2Crossbar {
-  private val idBits = 8
+  private val axiIdBits = 8
+  private val tlIdBits = 2 // at most 4 AXI requets inflight at a time
+
   val l2_axi4 = AXI4BlindInputNode(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
-      id = IdRange(0, 1 << idBits)))))
+      id = IdRange(0, 1 << axiIdBits)))))
 
-  l2.node := AXI4ToTL()(AXI4Fragmenter()(l2_axi4))
+  l2.node := TLSourceShrinker(1 << tlIdBits)(AXI4ToTL()(AXI4Fragmenter()(l2_axi4)))
 }
 
 trait PeripherySlaveAXI4Bundle extends L2CrossbarBundle {
