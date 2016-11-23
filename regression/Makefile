@@ -1,3 +1,6 @@
+base_dir = $(abspath ..)
+generated_dir = $(abspath ./generated-src)
+
 # The default target, which runs all regression targets.
 regression: vsim-regression emulator-regression
 
@@ -40,23 +43,23 @@ endif
 
 ifeq ($(SUITE),RocketSuiteA)
 PROJECT=rocketchip
-CONFIGS=DefaultConfig
+CONFIGS=DefaultConfig DefaultBufferlessConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteB)
 PROJECT=rocketchip
-CONFIGS=DefaultBufferlessConfig
-endif
-
-ifeq ($(SUITE),RocketSuiteC)
-PROJECT=rocketchip
 CONFIGS=DefaultL2Config TinyConfig
 endif
 
-ifeq ($(SUITE),GroundtestSuite)
+ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
-	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
+	BroadcastRegressionTestConfig BufferlessRegressionTestConfig
+endif
+
+ifeq ($(SUITE),GroundtestSuiteB)
+PROJECT=groundtest
+CONFIGS=CacheRegressionTestConfig \
 	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
 endif
 
