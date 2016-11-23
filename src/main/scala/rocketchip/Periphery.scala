@@ -20,9 +20,11 @@ import scala.math.max
 import coreplex._
 
 /** Specifies the size of external memory */
-case class AXIMasterConfig(base: Long, size: Long, beatBytes: Int, idBits: Int)
-case object ExtMem extends Field[AXIMasterConfig]
-case object ExtBus extends Field[AXIMasterConfig]
+case class MasterConfig(base: Long, size: Long, beatBytes: Int, idBits: Int)
+case object ExtMem extends Field[MasterConfig]
+case object ExtBus extends Field[MasterConfig]
+case class SlaveConfig(beatBytes: Int, idBits: Int, sourceBits: Int)
+case object ExtIn extends Field[SlaveConfig]
 /** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int]
 /** Source of RTC. First bundle is TopIO.extra, Second bundle is periphery.io.extra  **/
@@ -155,14 +157,17 @@ trait PeripheryMasterAXI4MMIOModule {
 
 // PeripherySlaveAXI4 is an example, make your own cake pattern like this one.
 trait PeripherySlaveAXI4 extends L2Crossbar {
-  private val axiIdBits = 8
-  private val tlIdBits = 2 // at most 4 AXI requets inflight at a time
-
+  private val config = p(ExtIn)
   val l2_axi4 = AXI4BlindInputNode(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
-      id = IdRange(0, 1 << axiIdBits)))))
+      id = IdRange(0, 1 << config.idBits)))))
 
-  l2.node := TLSourceShrinker(1 << tlIdBits)(AXI4ToTL()(AXI4Fragmenter()(l2_axi4)))
+  l2.node :=
+    TLSourceShrinker(1 << config.sourceBits)(
+    TLWidthWidget(config.beatBytes)(
+    AXI4ToTL()(
+    AXI4Fragmenter()(
+    l2_axi4))))
 }
 
 trait PeripherySlaveAXI4Bundle extends L2CrossbarBundle {
@@ -173,6 +178,69 @@ trait PeripherySlaveAXI4Bundle extends L2CrossbarBundle {
 trait PeripherySlaveAXI4Module extends L2CrossbarModule {
   val outer: PeripherySlaveAXI4
   val io: PeripherySlaveAXI4Bundle
+  // nothing to do
+}
+
+/////
+
+// Add an external TL-UL slave
+trait PeripheryMasterTLMMIO {
+  this: TopNetwork =>
+
+  private val config = p(ExtBus)
+  val mmio_tl = TLBlindOutputNode(TLManagerPortParameters(
+    managers = Seq(TLManagerParameters(
+      address            = List(AddressSet(BigInt(config.base), config.size-1)),
+      executable         = true,
+      supportsGet        = TransferSizes(1, cacheBlockBytes),
+      supportsPutFull    = TransferSizes(1, cacheBlockBytes),
+      supportsPutPartial = TransferSizes(1, cacheBlockBytes))),
+    beatBytes = config.beatBytes))
+
+  mmio_tl :=
+    TLSourceShrinker(config.idBits)(
+    TLWidthWidget(socBusConfig.beatBytes)(
+    socBus.node))
+}
+
+trait PeripheryMasterTLMMIOBundle {
+  this: TopNetworkBundle {
+    val outer: PeripheryMasterTLMMIO
+  } =>
+  val mmio_tl = outer.mmio_tl.bundleOut
+}
+
+trait PeripheryMasterTLMMIOModule {
+  this: TopNetworkModule {
+    val outer: PeripheryMasterTLMMIO
+    val io: PeripheryMasterTLMMIOBundle
+  } =>
+  // nothing to do
+}
+
+/////
+
+// NOTE: this port is NOT allowed to issue Acquires
+trait PeripherySlaveTL extends L2Crossbar {
+  private val config = p(ExtIn)
+  val l2_tl = TLBlindInputNode(TLClientPortParameters(
+    clients = Seq(TLClientParameters(
+      sourceId = IdRange(0, 1 << config.idBits)))))
+
+  l2.node :=
+    TLSourceShrinker(1 << config.sourceBits)(
+    TLWidthWidget(config.beatBytes)(
+    l2_tl))
+}
+
+trait PeripherySlaveTLBundle extends L2CrossbarBundle {
+  val outer: PeripherySlaveTL
+  val l2_tl = outer.l2_tl.bundleIn
+}
+
+trait PeripherySlaveTLModule extends L2CrossbarModule {
+  val outer: PeripherySlaveTL
+  val io: PeripherySlaveTLBundle
   // nothing to do
 }
 

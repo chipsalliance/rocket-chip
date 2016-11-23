@@ -28,8 +28,9 @@ class BasePlatformConfig extends Config(
     case PeripheryBusArithmetic => true
     // Note that PLIC asserts that this is > 0.
     case IncludeJtagDTM => false
-    case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
-    case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
+    case ExtMem => MasterConfig(base=0x80000000L, size=0x10000000L, beatBytes=8, idBits=4)
+    case ExtBus => MasterConfig(base=0x60000000L, size=0x20000000L, beatBytes=8, idBits=4)
+    case ExtIn  => SlaveConfig(beatBytes=8, idBits=8, sourceBits=2)
     case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
     case _ => throw new CDEMatchError
   })
