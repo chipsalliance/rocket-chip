@@ -45,6 +45,10 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
     // ensure the user never stores to the same position twice
     assert (!guard(io.enq.bits.pos))
     guard(io.enq.bits.pos) := Bool(true)
+
+    when (!empty(io.enq.bits.way)) {
+      next(tail(io.enq.bits.way)) := io.enq.bits.pos
+    }
   }
 
   val deq = Wire(io.deq)
@@ -59,8 +63,6 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
       tail(i) := io.enq.bits.pos
       when (empty(i)) {
         head(i) := io.enq.bits.pos
-      } .otherwise {
-        next(tail(i)) := io.enq.bits.pos
       }
     }
 
