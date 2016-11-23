@@ -29,10 +29,10 @@ case object BroadcastConfig extends Field[BroadcastConfig]
 case class BankedL2Config(
   nMemoryChannels:  Int = 1,
   nBanksPerChannel: Int = 1,
-  coherenceManager: (Int, Parameters) => (TLInwardNode, TLOutwardNode) = { case (lineBytes, p) =>
+  coherenceManager: Parameters => (TLInwardNode, TLOutwardNode) = { case p =>
     val BroadcastConfig(nTrackers, bufferless) = p(BroadcastConfig)
-    val bh = LazyModule(new TLBroadcast(lineBytes, nTrackers, bufferless))
-    (bh.node, bh.node)
+    val bh = LazyModule(new TLBroadcast(p(CacheBlockBytes), nTrackers, bufferless))
+    (bh.node, TLWidthWidget(p(L1toL2Config).beatBytes)(bh.node))
   }) {
   val nBanks = nMemoryChannels*nBanksPerChannel
 }
@@ -130,7 +130,7 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
     output := bankBar.node
     val mask = ~BigInt((l2Config.nBanksPerChannel-1) * l1tol2_lineBytes)
     for (i <- 0 until l2Config.nBanksPerChannel) {
-      val (in, out) = l2Config.coherenceManager(l1tol2_lineBytes, p)
+      val (in, out) = l2Config.coherenceManager(p)
       in := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(l1tol2.node)
       bankBar.node := out
     }
