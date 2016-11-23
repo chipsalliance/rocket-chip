@@ -22,15 +22,22 @@ class TestHarness(q: Parameters) extends Module {
   if (dut.io.mem_axi4.nonEmpty) {
     val memSize = p(ExtMem).size
     require(memSize % dut.io.mem_axi4.size == 0)
-    for (axi <- dut.io.mem_axi4) {
-      Module(LazyModule(new SimAXIMem(memSize / dut.io.mem_axi4.size)).module).io.axi <> axi
+    for (axi4 <- dut.io.mem_axi4) {
+      Module(LazyModule(new SimAXIMem(memSize / dut.io.mem_axi4.size)).module).io.axi4 <> axi4
     }
   }
 
   val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug, io.success)
 
   val mmio_sim = Module(LazyModule(new SimAXIMem(4096)).module)
-  mmio_sim.io.axi <> dut.io.mmio_axi
+  mmio_sim.io.axi4 <> dut.io.mmio_axi4
+
+  val l2_axi4 = dut.io.l2_axi4(0)
+  l2_axi4.ar.valid := Bool(false)
+  l2_axi4.aw.valid := Bool(false)
+  l2_axi4.w .valid := Bool(false)
+  l2_axi4.r .ready := Bool(true)
+  l2_axi4.b .ready := Bool(true)
 }
 
 class SimAXIMem(size: BigInt)(implicit p: Parameters) extends LazyModule {
@@ -42,7 +49,7 @@ class SimAXIMem(size: BigInt)(implicit p: Parameters) extends LazyModule {
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val axi = node.bundleIn
+      val axi4 = node.bundleIn
     }
   }
 }

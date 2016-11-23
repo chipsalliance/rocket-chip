@@ -67,3 +67,13 @@ class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
 
 class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
     with TopNetworkModule
+
+trait L2Crossbar extends TopNetwork {
+  val l2 = LazyModule(new TLXbar)
+}
+
+trait L2CrossbarBundle extends TopNetworkBundle {
+}
+
+trait L2CrossbarModule extends TopNetworkModule {
+}

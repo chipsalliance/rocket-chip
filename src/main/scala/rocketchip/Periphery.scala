@@ -140,7 +140,7 @@ trait PeripheryMasterAXI4MMIOBundle {
   this: TopNetworkBundle {
     val outer: PeripheryMasterAXI4MMIO
   } =>
-  val mmio_axi = outer.mmio_axi4.bundleOut
+  val mmio_axi4 = outer.mmio_axi4.bundleOut
 }
 
 trait PeripheryMasterAXI4MMIOModule {
@@ -148,6 +148,29 @@ trait PeripheryMasterAXI4MMIOModule {
     val outer: PeripheryMasterAXI4MMIO
     val io: PeripheryMasterAXI4MMIOBundle
   } =>
+  // nothing to do
+}
+
+/////
+
+// PeripherySlaveAXI4 is an example, make your own cake pattern like this one.
+trait PeripherySlaveAXI4 extends L2Crossbar {
+  private val idBits = 8
+  val l2_axi4 = AXI4BlindInputNode(AXI4MasterPortParameters(
+    masters = Seq(AXI4MasterParameters(
+      id = IdRange(0, 1 << idBits)))))
+
+  l2.node := AXI4ToTL()(AXI4Fragmenter()(l2_axi4))
+}
+
+trait PeripherySlaveAXI4Bundle extends L2CrossbarBundle {
+  val outer: PeripherySlaveAXI4
+  val l2_axi4 = outer.l2_axi4.bundleIn
+}
+
+trait PeripherySlaveAXI4Module extends L2CrossbarModule {
+  val outer: PeripherySlaveAXI4
+  val io: PeripherySlaveAXI4Bundle
   // nothing to do
 }
 
