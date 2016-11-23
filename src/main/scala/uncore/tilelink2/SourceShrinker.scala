@@ -9,6 +9,8 @@ import scala.math.{min,max}
 
 class TLSourceShrinker(maxInFlight: Int) extends LazyModule
 {
+  require (maxInFlight > 0)
+
   private val client = TLClientParameters(sourceId = IdRange(0, maxInFlight))
   val node = TLAdapterNode(
     // We erase all client information since we crush the source Ids
@@ -37,34 +39,39 @@ class TLSourceShrinker(maxInFlight: Int) extends LazyModule
     in.c.ready := Bool(true)
     in.e.ready := Bool(true)
 
-    // State tracking
-    val sourceIdMap = Mem(maxInFlight, in.a.bits.source)
-    val allocated = RegInit(UInt(0, width = maxInFlight))
-    val nextFreeOH = ~(leftOR(~allocated) << 1) & ~allocated
-    val nextFree = OHToUInt(nextFreeOH)
-    val full = allocated.andR()
+    if (maxInFlight >= edgeIn.client.endSourceId) {
+      out.a <> in.a
+      in.d <> out.d
+    } else {
+      // State tracking
+      val sourceIdMap = Mem(maxInFlight, in.a.bits.source)
+      val allocated = RegInit(UInt(0, width = maxInFlight))
+      val nextFreeOH = ~(leftOR(~allocated) << 1) & ~allocated
+      val nextFree = OHToUInt(nextFreeOH)
+      val full = allocated.andR()
 
-    val a_first = edgeIn.first(in.a)
-    val d_last  = edgeIn.last(in.d)
+      val a_first = edgeIn.first(in.a)
+      val d_last  = edgeIn.last(in.d)
 
-    val block = a_first && full
-    in.a.ready := out.a.ready && !block
-    out.a.valid := in.a.valid && !block
-    out.a.bits := in.a.bits
-    out.a.bits.source := holdUnless(nextFree, a_first)
+      val block = a_first && full
+      in.a.ready := out.a.ready && !block
+      out.a.valid := in.a.valid && !block
+      out.a.bits := in.a.bits
+      out.a.bits.source := holdUnless(nextFree, a_first)
 
-    in.d <> out.d
-    in.d.bits.source := sourceIdMap(out.d.bits.source)
+      in.d <> out.d
+      in.d.bits.source := sourceIdMap(out.d.bits.source)
 
-    when (a_first && in.a.fire()) {
-      sourceIdMap(nextFree) := in.a.bits.source
+      when (a_first && in.a.fire()) {
+        sourceIdMap(nextFree) := in.a.bits.source
+      }
+
+      val alloc = a_first && in.a.fire()
+      val free = d_last && in.d.fire()
+      val alloc_id = Mux(alloc, nextFreeOH, UInt(0))
+      val free_id = Mux(free, UIntToOH(out.d.bits.source), UInt(0))
+      allocated := (allocated | alloc_id) & ~free_id
     }
-
-    val alloc = a_first && in.a.fire()
-    val free = d_last && in.d.fire()
-    val alloc_id = Mux(alloc, nextFreeOH, UInt(0))
-    val free_id = Mux(free, UIntToOH(out.d.bits.source), UInt(0))
-    allocated := (allocated | alloc_id) & ~free_id
   }
 }
 
