@@ -133,7 +133,7 @@ floating-point conversions with different precision.
 ([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
 We tag a version of the RISC-V software ecosystem that works with the RTL committed in this repository.
 * **torture**
-([https://github.com/ucb-bar/torture](https://github.com/ucb-bar/torture)):
+([https://github.com/ucb-bar/riscv-torture](https://github.com/ucb-bar/riscv-torture)):
 This module is used to generate and execture constrained random instruction streams that can
 be used to stress-test both the core and uncore portions of the design.
 
