@@ -19,7 +19,6 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     managerFn = { case Seq(mp) =>
       mp.copy(
         endSinkId  = numTrackers,
-        minLatency = 1,
         managers   = mp.managers.map { m =>
           // We are the last level manager
           require (m.regionType != RegionType.CACHED)
