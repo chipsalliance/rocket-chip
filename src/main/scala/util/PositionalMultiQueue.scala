@@ -35,8 +35,8 @@ class PositionalMultiQueue[T <: Data](params: PositionalMultiQueueParameters[T],
   val empty = RegInit(Vec.fill(params.ways) { Bool(true) })
   val head  = Reg(Vec(params.ways, UInt(width = log2Up(params.positions))))
   val tail  = Reg(Vec(params.ways, UInt(width = log2Up(params.positions))))
-  val next  = Reg(Vec(params.positions, UInt(width = log2Up(params.positions))))
-  val data  = Reg(Vec(params.positions, params.gen))
+  val next  = Mem(params.positions, UInt(width = log2Up(params.positions)))
+  val data  = Mem(params.positions, params.gen)
   // optimized away for synthesis; used to confirm invariant
   val guard = RegInit(Vec.fill(params.positions) { Bool(false) })
 
