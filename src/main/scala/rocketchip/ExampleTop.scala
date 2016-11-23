@@ -5,56 +5,48 @@ package rocketchip
 import Chisel._
 import config._
 import junctions._
-import coreplex._
 import rocketchip._
 
-/** Example Top with Periphery */
-class ExampleTop[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends BaseTop(_coreplex)
-    with DirectConnection
+/** Example Top with Periphery (w/o coreplex) */
+abstract class ExampleTop(implicit p: Parameters) extends BaseTop
     with PeripheryExtInterrupts
     with PeripheryMasterAXI4Mem
-    with PeripheryMasterAXI4MMIO {
+    with PeripheryMasterAXI4MMIO
+    with PeripherySlaveAXI4 {
   override lazy val module = new ExampleTopModule(this, () => new ExampleTopBundle(this))
 }
 
-class ExampleTopBundle[+L <: ExampleTop[BaseCoreplex]](_outer: L) extends BaseTopBundle(_outer)
+class ExampleTopBundle[+L <: ExampleTop](_outer: L) extends BaseTopBundle(_outer)
     with PeripheryExtInterruptsBundle
     with PeripheryMasterAXI4MemBundle
     with PeripheryMasterAXI4MMIOBundle
+    with PeripherySlaveAXI4Bundle
 
-class ExampleTopModule[+L <: ExampleTop[BaseCoreplex], +B <: ExampleTopBundle[L]](_outer: L, _io: () => B) extends BaseTopModule(_outer, _io)
+class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](_outer: L, _io: () => B) extends BaseTopModule(_outer, _io)
     with PeripheryExtInterruptsModule
     with PeripheryMasterAXI4MemModule
     with PeripheryMasterAXI4MMIOModule
+    with PeripherySlaveAXI4Module
 
-class ExampleRocketTop[+C <: DefaultCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends ExampleTop(_coreplex)
+class ExampleRocketTop(implicit p: Parameters) extends ExampleTop
     with PeripheryBootROM
     with PeripheryDTM
     with PeripheryCounter
-    with HardwiredResetVector {
+    with HardwiredResetVector
+    with RocketPlexMaster {
   override lazy val module = new ExampleRocketTopModule(this, () => new ExampleRocketTopBundle(this))
 }
 
-class ExampleRocketTopBundle[+L <: ExampleRocketTop[DefaultCoreplex]](_outer: L) extends ExampleTopBundle(_outer)
+class ExampleRocketTopBundle[+L <: ExampleRocketTop](_outer: L) extends ExampleTopBundle(_outer)
     with PeripheryBootROMBundle
     with PeripheryDTMBundle
     with PeripheryCounterBundle
     with HardwiredResetVectorBundle
+    with RocketPlexMasterBundle
 
-class ExampleRocketTopModule[+L <: ExampleRocketTop[DefaultCoreplex], +B <: ExampleRocketTopBundle[L]](_outer: L, _io: () => B) extends ExampleTopModule(_outer, _io)
+class ExampleRocketTopModule[+L <: ExampleRocketTop, +B <: ExampleRocketTopBundle[L]](_outer: L, _io: () => B) extends ExampleTopModule(_outer, _io)
     with PeripheryBootROMModule
     with PeripheryDTMModule
     with PeripheryCounterModule
     with HardwiredResetVectorModule
-
-/** Example Top with TestRAM */
-class ExampleTopWithTestRAM[+C <: BaseCoreplex](_coreplex: Parameters => C)(implicit p: Parameters) extends ExampleTop(_coreplex)
-    with PeripheryTestRAM {
-  override lazy val module = new ExampleTopWithTestRAMModule(this, () => new ExampleTopWithTestRAMBundle(this))
-}
-
-class ExampleTopWithTestRAMBundle[+L <: ExampleTopWithTestRAM[BaseCoreplex]](_outer: L) extends ExampleTopBundle(_outer)
-    with PeripheryTestRAMBundle
-
-class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM[BaseCoreplex], +B <: ExampleTopWithTestRAMBundle[L]](_outer: L, _io: () => B) extends ExampleTopModule(_outer, _io)
-    with PeripheryTestRAMModule
+    with RocketPlexMasterModule

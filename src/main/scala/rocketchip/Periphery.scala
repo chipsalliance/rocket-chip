@@ -71,16 +71,17 @@ trait PeripheryExtInterruptsModule {
 /////
 
 trait PeripheryMasterAXI4Mem {
-  this: BaseTop[BaseCoreplex] with TopNetwork =>
+  this: TopNetwork =>
+  val module: PeripheryMasterAXI4MemModule
 
   private val config = p(ExtMem)
-  private val channels = coreplexMem.size
+  private val channels = p(BankedL2Config).nMemoryChannels
 
-  val mem_axi4 = coreplexMem.zipWithIndex.map { case (node, i) =>
+  val mem_axi4 = Seq.tabulate(channels) { i =>
     val c_size = config.size/channels
     val c_base = config.base + c_size*i
 
-    val axi4 = AXI4BlindOutputNode(AXI4SlavePortParameters(
+    AXI4BlindOutputNode(AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
         address       = List(AddressSet(c_base, c_size-1)),
         regionType    = RegionType.UNCACHED,   // cacheable
@@ -89,14 +90,12 @@ trait PeripheryMasterAXI4Mem {
         supportsRead  = TransferSizes(1, 256),
         interleavedId = Some(0))),             // slave does not interleave read responses
       beatBytes = config.beatBytes))
+  }
 
-    axi4 :=
-      // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
-      TLToAXI4(idBits = config.idBits)(         // use idBits = 0 for AXI4-Lite
-      TLWidthWidget(coreplex.l1tol2_beatBytes)( // convert width before attaching to the l1tol2
-      node))
-
-    axi4
+  val mem = mem_axi4.map { node =>
+    val foo = LazyModule(new TLToAXI4(config.idBits))
+    node := foo.node
+    foo.node
   }
 }
 
@@ -141,7 +140,7 @@ trait PeripheryMasterAXI4MMIOBundle {
   this: TopNetworkBundle {
     val outer: PeripheryMasterAXI4MMIO
   } =>
-  val mmio_axi = outer.mmio_axi4.bundleOut
+  val mmio_axi4 = outer.mmio_axi4.bundleOut
 }
 
 trait PeripheryMasterAXI4MMIOModule {
@@ -149,6 +148,31 @@ trait PeripheryMasterAXI4MMIOModule {
     val outer: PeripheryMasterAXI4MMIO
     val io: PeripheryMasterAXI4MMIOBundle
   } =>
+  // nothing to do
+}
+
+/////
+
+// PeripherySlaveAXI4 is an example, make your own cake pattern like this one.
+trait PeripherySlaveAXI4 extends L2Crossbar {
+  private val axiIdBits = 8
+  private val tlIdBits = 2 // at most 4 AXI requets inflight at a time
+
+  val l2_axi4 = AXI4BlindInputNode(AXI4MasterPortParameters(
+    masters = Seq(AXI4MasterParameters(
+      id = IdRange(0, 1 << axiIdBits)))))
+
+  l2.node := TLSourceShrinker(1 << tlIdBits)(AXI4ToTL()(AXI4Fragmenter()(l2_axi4)))
+}
+
+trait PeripherySlaveAXI4Bundle extends L2CrossbarBundle {
+  val outer: PeripherySlaveAXI4
+  val l2_axi4 = outer.l2_axi4.bundleIn
+}
+
+trait PeripherySlaveAXI4Module extends L2CrossbarModule {
+  val outer: PeripherySlaveAXI4
+  val io: PeripherySlaveAXI4Bundle
   // nothing to do
 }
 
