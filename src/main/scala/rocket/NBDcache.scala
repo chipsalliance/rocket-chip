@@ -5,7 +5,6 @@ package rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import diplomacy._
-import uncore.agents._
 import uncore.constants._
 import uncore.tilelink._
 import uncore.tilelink2._
@@ -176,15 +175,18 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
   val req_tag = req.addr >> untagBits
   val req_block_addr = (req.addr >> blockOffBits) << blockOffBits
   val idx_match = req_idx === io.req_bits.addr(untagBits-1,blockOffBits)
+
+  val new_coh = Reg(init=ClientMetadata.onReset)
+  val (_, shrink_param, coh_on_clear)    = req.old_meta.coh.onCacheControl(M_FLUSH)
+  val grow_param                                  = new_coh.onAccess(req.cmd)._2
+  val coh_on_grant                                = new_coh.onGrant(req.cmd, io.mem_grant.bits.param)
   // We only accept secondary misses if we haven't yet sent an Acquire to outer memory
   // or if the Acquire that was sent will obtain a Grant with sufficient permissions
   // to let us replay this new request. I.e. we don't handle multiple outstanding
   // Acquires on the same block for now.
-  val cmd_requires_second_acquire = 
-    req.old_meta.coh.requiresAcquireOnSecondaryMiss(req.cmd, io.req_bits.cmd)
-  // Track whether or not a secondary acquire will cause the coherence state
-  // to go from clean to dirty.
-  val dirties_coh = Reg(Bool())
+  val (cmd_requires_second_acquire, is_hit_again, _, dirtier_coh, dirtier_cmd) =
+    new_coh.onSecondaryAccess(req.cmd, io.req_bits.cmd)
+
   val states_before_refill = Seq(s_wb_req, s_wb_resp, s_meta_clear)
   val (_, _, refill_done, refill_address_inc) = edge.addr_inc(io.mem_grant)
   val sec_rdy = idx_match &&
@@ -197,19 +199,6 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
   rpq.io.enq.bits := io.req_bits
   rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
-  // TODO clean all this coh state business up
-  val new_coh_state = Reg(init=ClientMetadata.onReset)
-  val grow_param = Reg(init=UInt(0))
-  val coh_on_grant = Mux(dirties_coh,
-                          ClientMetadata.maximum,
-                          req.old_meta.coh.onGrant(req.cmd, io.mem_grant.bits.param))
-  val (is_hit, missed_param, coh_on_hit)   = io.req_bits.old_meta.coh.onAccess(io.req_bits.cmd)
-  val (needs_wb, _, _)     = io.req_bits.old_meta.coh.onCacheControl(M_FLUSH)
-  val (_, shrink_param, _)  = req.old_meta.coh.onCacheControl(M_FLUSH)
-  val (hit_again, missed_again_param, _) = req.old_meta.coh.onCacheControl(io.req_bits.cmd)
-  val (_, _, clear_coh_state) = req.old_meta.coh.onCacheControl(M_FLUSH)
-  val (_, after_wb_param, _) = ClientMetadata.onReset.onAccess(req.cmd)
-
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
   }
@@ -221,14 +210,13 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
     state := s_meta_write_resp
   }
   when (state === s_refill_resp && refill_done) {
+    new_coh := coh_on_grant
     state := s_meta_write_req
-    new_coh_state := coh_on_grant
   }
   when (io.mem_acquire.fire()) { // s_refill_req
     state := s_refill_resp
   }
   when (state === s_meta_clear && io.meta_write.ready) {
-    grow_param := after_wb_param
     state := s_refill_req
   }
   when (state === s_wb_resp && io.mem_grant.valid) {
@@ -241,24 +229,26 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
     //If we get a secondary miss that needs more permissions before we've sent
     //  out the primary miss's Acquire, we can upgrade the permissions we're 
     //  going to ask for in s_refill_req
-    when(cmd_requires_second_acquire) {
-      req.cmd := io.req_bits.cmd
-      when(!hit_again) { grow_param := missed_again_param }
+    req.cmd := dirtier_cmd
+    when (is_hit_again) {
+      new_coh := dirtier_coh
     }
-    dirties_coh := dirties_coh || isWrite(io.req_bits.cmd)
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     req := io.req_bits
-    dirties_coh := isWrite(io.req_bits.cmd)
+    val old_coh = io.req_bits.old_meta.coh
+    val needs_wb = old_coh.onCacheControl(M_FLUSH)._1
+    val (is_hit, _, coh_on_hit) = old_coh.onAccess(io.req_bits.cmd)
     when (io.req_bits.tag_match) {
       when (is_hit) { // set dirty bit
+        new_coh := coh_on_hit
         state := s_meta_write_req
-        new_coh_state := coh_on_hit
       }.otherwise { // upgrade permissions
+        new_coh := old_coh
         state := s_refill_req
-        grow_param := missed_param
       }
     }.otherwise { // writback if necessary and refill
+      new_coh := ClientMetadata.onReset
       state := Mux(needs_wb, s_wb_req, s_meta_clear)
     }
   }
@@ -285,7 +275,7 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
 
   io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
-  io.meta_write.bits.data.coh := Mux(state === s_meta_clear, clear_coh_state, new_coh_state)
+  io.meta_write.bits.data.coh := Mux(state === s_meta_clear, coh_on_clear, new_coh)
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
 

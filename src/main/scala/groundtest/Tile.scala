@@ -3,7 +3,7 @@ package groundtest
 import Chisel._
 import rocket._
 import uncore.tilelink._
-import uncore.agents.CacheName
+import uncore.util.CacheName
 import uncore.tilelink2._
 import rocketchip.ExtMem
 import diplomacy._

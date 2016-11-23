@@ -3,7 +3,7 @@ package groundtest
 import Chisel._
 import uncore.tilelink._
 import uncore.constants._
-import uncore.agents._
+import uncore.util._
 import util._
 import rocket._
 import rocketchip._
