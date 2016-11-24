@@ -72,6 +72,14 @@ trait PeripheryExtInterruptsModule {
 
 /////
 
+trait PeripheryNoMem extends TopNetwork {
+  private val channels = p(BankedL2Config).nMemoryChannels
+  require (channels == 0)
+  val mem = Seq()
+}
+
+/////
+
 trait PeripheryMasterAXI4Mem {
   this: TopNetwork =>
   val module: PeripheryMasterAXI4MemModule
