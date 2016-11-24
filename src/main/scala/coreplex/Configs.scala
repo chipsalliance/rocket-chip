@@ -124,39 +124,39 @@ class WithNCores(n: Int) extends Config(
 
 class WithNBanksPerMemChannel(n: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case BankedL2Config => up(BankedL2Config).copy(nBanksPerChannel = n)
+    case BankedL2Config => up(BankedL2Config, site).copy(nBanksPerChannel = n)
     case _ => throw new CDEMatchError
   })
 
 class WithNTrackersPerBank(n: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case BroadcastConfig => up(BroadcastConfig).copy(nTrackers = n)
+    case BroadcastConfig => up(BroadcastConfig, site).copy(nTrackers = n)
     case _ => throw new CDEMatchError
   })
 
 // This is the number of sets **per way**
 class WithL1ICacheSets(sets: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case CacheName("L1I") => up(CacheName("L1I")).copy(nSets = sets)
+    case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = sets)
     case _ => throw new CDEMatchError
   })
 
 // This is the number of sets **per way**
 class WithL1DCacheSets(sets: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = sets)
+    case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = sets)
     case _ => throw new CDEMatchError
   })
 
 class WithL1ICacheWays(ways: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case CacheName("L1I") => up(CacheName("L1I")).copy(nWays = ways)
+    case CacheName("L1I") => up(CacheName("L1I"), site).copy(nWays = ways)
     case _ => throw new CDEMatchError
   })
 
 class WithL1DCacheWays(ways: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case CacheName("L1D") => up(CacheName("L1D")).copy(nWays = ways)
+    case CacheName("L1D") => up(CacheName("L1D"), site).copy(nWays = ways)
     case _ => throw new CDEMatchError
   })
 
@@ -169,7 +169,7 @@ class WithCacheBlockBytes(linesize: Int) extends Config(
 class WithDataScratchpad(n: Int) extends Config(
   (pname,site,here,up) => pname match {
     case DataScratchpadSize => n
-    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = n / site(CacheBlockBytes))
+    case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = n / site(CacheBlockBytes))
     case _ => throw new CDEMatchError
   })
 
@@ -188,7 +188,7 @@ class WithL2Cache extends Config(
 
 class WithBufferlessBroadcastHub extends Config(
   (pname, site, here, up) => pname match {
-    case BroadcastConfig => up(BroadcastConfig).copy(bufferless = true)
+    case BroadcastConfig => up(BroadcastConfig, site).copy(bufferless = true)
   })
 
 /**
@@ -206,12 +206,12 @@ class WithBufferlessBroadcastHub extends Config(
 class WithStatelessBridge extends Config(
   (pname,site,here,up) => pname match {
 /* !!! FIXME
-    case BankedL2Config => up(BankedL2Config).copy(coherenceManager = { case (_, _) =>
+    case BankedL2Config => up(BankedL2Config, site).copy(coherenceManager = { case (_, _) =>
       val pass = LazyModule(new TLBuffer(0))
       (pass.node, pass.node)
     })
 */
-    case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
+    case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
 
@@ -227,7 +227,7 @@ class WithL2Capacity(size_kb: Int) extends Config(
 
 class WithNL2Ways(n: Int) extends Config(
   (pname,site,here,up) => pname match {
-    case CacheName("L2") => up(CacheName("L2")).copy(nWays = n)
+    case CacheName("L2") => up(CacheName("L2"), site).copy(nWays = n)
   })
 
 class WithRV32 extends Config(
@@ -239,7 +239,7 @@ class WithRV32 extends Config(
 
 class WithBlockingL1 extends Config(
   (pname,site,here,up) => pname match {
-    case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
+    case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
 
@@ -250,9 +250,9 @@ class WithSmallCores extends Config(
     case UseVM => false
     case BtbKey => BtbParameters(nEntries = 0)
     case NAcquireTransactors => 2
-    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-    case CacheName("L1I") => up(CacheName("L1I")).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-    case DCacheKey => up(DCacheKey).copy(nMSHRs = 0)
+    case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+    case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+    case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
     case _ => throw new CDEMatchError
   })
 

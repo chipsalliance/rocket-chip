@@ -57,14 +57,14 @@ class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
 class WithNMemoryChannels(n: Int) extends Config(
   (pname,site,here,up) => pname match {
-    case BankedL2Config => up(BankedL2Config).copy(nMemoryChannels = n)
+    case BankedL2Config => up(BankedL2Config, site).copy(nMemoryChannels = n)
     case _ => throw new CDEMatchError
   }
 )
 
 class WithExtMemSize(n: Long) extends Config(
   (pname,site,here,up) => pname match {
-    case ExtMem => up(ExtMem).copy(size = n)
+    case ExtMem => up(ExtMem, site).copy(size = n)
     case _ => throw new CDEMatchError
   }
 )
@@ -95,7 +95,7 @@ class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
 class WithEdgeDataBits(dataBits: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case ExtMem => up(ExtMem).copy(beatBytes = dataBits/8)
+    case ExtMem => up(ExtMem, site).copy(beatBytes = dataBits/8)
     case _ => throw new CDEMatchError
   })
 

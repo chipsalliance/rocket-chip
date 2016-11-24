@@ -6,7 +6,8 @@ class CDEMatchError() extends Exception {
 }
 
 abstract class View {
-  final def apply[T](pname: Field[T]): T = find(pname, this).asInstanceOf[T]
+  final def apply[T](pname: Field[T]): T = apply(pname, this)
+  final def apply[T](pname: Field[T], site: View): T = find(pname, site).asInstanceOf[T]
 
   protected[config] def find(pname: Any, site: View): Any
 }
