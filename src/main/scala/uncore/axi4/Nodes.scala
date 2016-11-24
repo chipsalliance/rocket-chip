@@ -53,3 +53,6 @@ case class AXI4InputNode() extends InputNode(AXI4Imp)
 // Nodes used for external ports
 case class AXI4BlindOutputNode(portParams: AXI4SlavePortParameters) extends BlindOutputNode(AXI4Imp)(portParams)
 case class AXI4BlindInputNode(portParams: AXI4MasterPortParameters) extends BlindInputNode(AXI4Imp)(portParams)
+
+case class AXI4InternalOutputNode(portParams: AXI4SlavePortParameters) extends InternalOutputNode(AXI4Imp)(portParams)
+case class AXI4InternalInputNode(portParams: AXI4MasterPortParameters) extends InternalInputNode(AXI4Imp)(portParams)
