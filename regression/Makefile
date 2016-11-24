@@ -61,7 +61,7 @@ endif
 ifeq ($(SUITE),GroundtestSuiteB)
 PROJECT=groundtest
 CONFIGS=BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
+	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
