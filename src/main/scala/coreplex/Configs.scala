@@ -109,7 +109,7 @@ class BaseCoreplexConfig extends Config (
       case BroadcastConfig => BroadcastConfig()
       case BankedL2Config => BankedL2Config()
       case CacheBlockBytes => 64
-      case CacheBlockOffsetBits => log2Up(here(CacheBlockBytes))
+      case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
       case EnableL2Logging => false
       case _ => throw new CDEMatchError
     }
