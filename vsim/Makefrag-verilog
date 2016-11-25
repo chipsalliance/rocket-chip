@@ -12,9 +12,9 @@ $(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(FIRRTL_JAR
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir)/%.v $(generated_dir)/%.conf : $(firrtl) $(FIRRTL_JAR)
+%.v %.conf: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $(generated_dir)/$(long_name).v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
+	$(FIRRTL) -i $< -o $*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$*.conf
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
 	cd $(generated_dir) && \
