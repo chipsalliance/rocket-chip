@@ -57,7 +57,7 @@ class AsyncRocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
       val uncached = uncachedOut.bundleOut
       val slave = slaveNode.map(_.bundleIn)
       val hartid = UInt(INPUT, p(XLen))
-      val interrupts = new TileInterrupts().asInput
+      val interrupts = new TileInterrupts()(rocket.coreParams).asInput
       val resetVector = UInt(INPUT, p(XLen))
     }
     rocket.module.io.interrupts := ShiftRegister(io.interrupts, 3)
