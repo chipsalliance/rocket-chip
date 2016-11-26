@@ -9,8 +9,8 @@ final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
 {
   require (isPow2(depth))
   val mem  = Vec(depth, gen)
-  val ridx = UInt(width = log2Up(depth)+1).flip
-  val widx = UInt(width = log2Up(depth)+1)
+  val ridx = UInt(width = log2Ceil(depth)+1).flip
+  val widx = UInt(width = log2Ceil(depth)+1)
   val ridx_valid = Bool().flip
   val widx_valid = Bool()
   val source_reset_n = Bool()
