@@ -6,8 +6,9 @@ import diplomacy._
 import coreplex._
 import uncore.devices.NTiles
 import uncore.tilelink2._
-import rocket.TileId
 import uncore.tilelink.TLId
+
+case object TileId extends Field[Int]
 
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tiles = List.tabulate(p(NTiles)) { i =>

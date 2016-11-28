@@ -53,11 +53,15 @@ PROJECT=rocketchip
 CONFIGS=DefaultL2Config TinyConfig
 endif
 
-ifeq ($(SUITE),GroundtestSuite)
+ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
-	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig
+endif
+
+ifeq ($(SUITE),GroundtestSuiteB)
+PROJECT=groundtest
+CONFIGS=BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
+	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)

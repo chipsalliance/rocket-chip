@@ -28,8 +28,9 @@ class BasePlatformConfig extends Config(
     case PeripheryBusArithmetic => true
     // Note that PLIC asserts that this is > 0.
     case IncludeJtagDTM => false
-    case ExtMem => AXIMasterConfig(0x80000000L, 0x10000000L, 8, 4)
-    case ExtBus => AXIMasterConfig(0x60000000L, 0x20000000L, 8, 4)
+    case ExtMem => MasterConfig(base=0x80000000L, size=0x10000000L, beatBytes=8, idBits=4)
+    case ExtBus => MasterConfig(base=0x60000000L, size=0x20000000L, beatBytes=8, idBits=4)
+    case ExtIn  => SlaveConfig(beatBytes=8, idBits=8, sourceBits=2)
     case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
     case _ => throw new CDEMatchError
   })
@@ -56,14 +57,14 @@ class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
 
 class WithNMemoryChannels(n: Int) extends Config(
   (pname,site,here,up) => pname match {
-    case BankedL2Config => up(BankedL2Config).copy(nMemoryChannels = n)
+    case BankedL2Config => up(BankedL2Config, site).copy(nMemoryChannels = n)
     case _ => throw new CDEMatchError
   }
 )
 
 class WithExtMemSize(n: Long) extends Config(
   (pname,site,here,up) => pname match {
-    case ExtMem => up(ExtMem).copy(size = n)
+    case ExtMem => up(ExtMem, site).copy(size = n)
     case _ => throw new CDEMatchError
   }
 )
@@ -94,7 +95,7 @@ class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
 
 class WithEdgeDataBits(dataBits: Int) extends Config(
   (pname, site, here, up) => pname match {
-    case ExtMem => up(ExtMem).copy(beatBytes = dataBits/8)
+    case ExtMem => up(ExtMem, site).copy(beatBytes = dataBits/8)
     case _ => throw new CDEMatchError
   })
 
@@ -168,3 +169,9 @@ class WithNBreakpoints(hwbp: Int) extends Config (
     case _ => throw new CDEMatchError
   }
 )
+
+class WithRTCPeriod(nCycles: Int) extends Config(
+  (pname, site, here) => pname match {
+    case RTCPeriod => nCycles
+    case _ => throw new CDEMatchError
+  })

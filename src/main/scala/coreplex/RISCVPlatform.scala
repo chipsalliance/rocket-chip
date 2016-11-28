@@ -29,7 +29,9 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
 
   lazy val configString = {
     val managers = l1tol2.node.edgesIn(0).manager.managers
-    rocketchip.GenerateConfigString(p, clint, plic, managers)
+    // Use the existing config string if the user overrode it
+    ConfigStringOutput.contents.getOrElse(
+      rocketchip.GenerateConfigString(p, clint, plic, managers))
   }
 }
 

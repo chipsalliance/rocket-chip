@@ -5,7 +5,6 @@ package rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import diplomacy._
-import uncore.agents._
 import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._
@@ -252,7 +251,7 @@ class DCacheModule(outer: DCache)(implicit p: Parameters) extends HellaCacheModu
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt)
   val acquire_address = s2_req_block_addr
   val access_address = s2_req.addr
-  val a_size = s2_req.typ
+  val a_size = s2_req.typ(MT_SZ-2, 0)
   val a_data = Fill(beatWords, pstore1_storegen.data)
   val acquire = if (edge.manager.anySupportAcquire) {
     edge.Acquire(a_source, acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
