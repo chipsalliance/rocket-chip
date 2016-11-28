@@ -38,32 +38,25 @@ case object IncludeJtagDTM extends Field[Boolean]
  * 
  */
 
-class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
-    extends Module {
-
+class JtagDTMWithSync(implicit val p: Parameters) extends Module {
   // io.DebugBusIO <-> Sync <-> DebugBusIO <-> UInt <-> DTM Black Box
 
   val io = new Bundle {
-
     val jtag = new JTAGIO(true).flip
     val debug = new AsyncDebugBusIO
-
   }
 
   val req_width = io.debug.req.mem(0).getWidth
   val resp_width = io.debug.resp.mem(0).getWidth
 
-  val jtag_dtm = Module (new DebugTransportModuleJtag(req_width, resp_width))
-
+  val jtag_dtm = Module(new DebugTransportModuleJtag(req_width, resp_width))
   jtag_dtm.io.jtag <> io.jtag
 
-  val dtm_req = Wire(new DecoupledIO(UInt(width = req_width)))
-  val dtm_resp = Wire(new DecoupledIO(UInt(width = resp_width)))
-
   val io_debug_bus = Wire (new DebugBusIO)
+  io.debug <> ToAsyncDebugBus(io_debug_bus)
 
-  io.debug.req <> ToAsyncBundle(io_debug_bus.req)
-  io_debug_bus.resp <> FromAsyncBundle(io.debug.resp)
+  val dtm_req = jtag_dtm.io.dtm_req
+  val dtm_resp = jtag_dtm.io.dtm_resp
 
   // Translate from straight 'bits' interface of the blackboxes
   // into the Resp/Req data structures.
@@ -74,20 +67,12 @@ class JtagDTMWithSync(depth: Int = 1, sync: Int = 3)(implicit val p: Parameters)
   dtm_resp.valid := io_debug_bus.resp.valid
   dtm_resp.bits  := io_debug_bus.resp.bits.asUInt
   io_debug_bus.resp.ready  := dtm_resp.ready
-
-  dtm_req <> jtag_dtm.io.dtm_req
-  jtag_dtm.io.dtm_resp <> dtm_resp
 }
 
 class DebugTransportModuleJtag(reqSize : Int, respSize : Int)(implicit val p: Parameters)  extends BlackBox {
-
   val io = new Bundle {
     val jtag = new JTAGIO(true).flip()
-
     val dtm_req = new DecoupledIO(UInt(width = reqSize))
-
     val dtm_resp = new DecoupledIO(UInt(width = respSize)).flip()
-
   }
-
 }

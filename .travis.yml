@@ -35,6 +35,7 @@ env:
   matrix:
     - SUITE=RocketSuiteA
     - SUITE=RocketSuiteB
+    - SUITE=RocketSuiteC
     - SUITE=GroundtestSuiteA
     - SUITE=GroundtestSuiteB
     - SUITE=UnittestSuite

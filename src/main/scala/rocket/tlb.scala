@@ -8,8 +8,7 @@ import Chisel.ImplicitConversions._
 import scala.math._
 import config._
 import diplomacy._
-import uncore.agents._
-import uncore.coherence._
+import uncore.util._
 import uncore.tilelink2._
 
 case object PgLevels extends Field[Int]
@@ -66,8 +65,10 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val mpu_ppn = Mux(do_refill, refill_ppn, passthrough_ppn)
+  val mpu_physaddr = mpu_ppn << pgIdxBits
+  val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
-    Mux1H(edge.manager.findFast(mpu_ppn << pgIdxBits), edge.manager.managers.map(m => Bool(member(m))))
+    legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
   val prot_r = fastCheck(_.supportsGet)
   val prot_w = fastCheck(_.supportsPutFull)
   val prot_x = fastCheck(_.executable)

@@ -6,6 +6,7 @@ import diplomacy._
 import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
+import uncore.util._
 import uncore.devices.NTiles
 import junctions._
 import config._
@@ -122,7 +123,7 @@ class WithAtomics extends Config(
 
 class WithPrefetches extends Config(
   (pname, site, here, up) => pname match {
-    case ComparatorKey => up(ComparatorKey).copy(prefetches = true)
+    case ComparatorKey => up(ComparatorKey, site).copy(prefetches = true)
     case _ => throw new CDEMatchError
   })
 
@@ -201,6 +202,6 @@ class WithTraceGen extends Config(
       }.flatten
     }
     case UseAtomics => true
-    case CacheName("L1D") => up(CacheName("L1D")).copy(nSets = 16, nWays = 1)
+    case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 16, nWays = 1)
     case _ => throw new CDEMatchError
   })
