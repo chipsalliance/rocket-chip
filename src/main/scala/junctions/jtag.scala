@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 package junctions
 import Chisel._
 import config._

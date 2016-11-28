@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package junctions
 import Chisel._

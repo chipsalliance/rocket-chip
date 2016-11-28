@@ -1,4 +1,6 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package util
 
 import Chisel._
