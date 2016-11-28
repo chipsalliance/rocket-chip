@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 package uncore.util
 
 import Chisel._

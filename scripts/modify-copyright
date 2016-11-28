@@ -1,0 +1,9 @@
+#! /bin/sh
+d=$(dirname "$0")
+threshold=10
+
+for i in $(git ls-tree -r HEAD . | grep '\.\(scala\|cc\|v\)' | cut -f2); do
+  ("$d/copyright-file" "$i" | sort -rn | awk 'NR == 1 || $1 > '$threshold' { print }' | sed 's@[^A-Z]*@// See LICENSE.@;s@$@ for license details.@;$a\\'; \
+    grep -v "^// See LICENSE" $i | sed '/./,$!d') > $i.tmp
+  mv $i.tmp $i
+done

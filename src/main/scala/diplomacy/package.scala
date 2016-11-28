@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
