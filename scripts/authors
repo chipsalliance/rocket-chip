@@ -27,7 +27,7 @@ case "$who" in
 "Jim Lawson")         echo Berkeley ;;
 "John Wright")        echo Berkeley ;;
 "Ken McMillan")       echo Microsoft;;
-"Matthew Naylor")     echo Cambridge;;
+"Matthew Naylor")     if [ $when -le 20161127 ]; then echo Berkeley; else echo Cambridge; fi ;;
 "Megan Wachs")        echo SiFive   ;;
 "Miquel Moreto")      echo Berkeley ;;
 "mwachs5")            echo SiFive   ;;
