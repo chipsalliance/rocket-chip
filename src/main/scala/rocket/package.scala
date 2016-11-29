@@ -1,3 +1,3 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
 
 package object rocket extends rocket.constants.ScalarOpConstants

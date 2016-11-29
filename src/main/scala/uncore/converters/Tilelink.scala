@@ -1,3 +1,6 @@
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
+
 package uncore.converters
 
 import Chisel._

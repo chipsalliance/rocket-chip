@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 import sbt._
 import Keys._
 import complete._

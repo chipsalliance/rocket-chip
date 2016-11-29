@@ -1,4 +1,4 @@
-
+// See LICENSE.SiFive for license details.
 
 module DebugTransportModuleJtag (
                    

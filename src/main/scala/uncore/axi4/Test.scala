@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+
 package uncore.axi4
 
 import Chisel._
