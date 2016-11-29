@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 import Chisel._
 
 package object util {

@@ -1,4 +1,4 @@
-
+// See LICENSE.SiFive for license details.
 
 /** This black-boxes an Async Reset
   * Reg.
