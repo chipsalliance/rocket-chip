@@ -16,7 +16,6 @@ import config._
 import scala.math.max
 import coreplex._
 import rocketchip._
-import util.ConfigUtils._
 
 /** Actual testing target Configs */
 
