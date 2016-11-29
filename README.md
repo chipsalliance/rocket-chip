@@ -151,7 +151,7 @@ We tag a version of riscv-tools that works with the RTL committed in the
 rocket-chip repository.  Once the software toolchain stabilizes, we
 might turn this submodule into an external dependency.
 * **torture**
-([https://github.com/ucb-bar/torture](https://github.com/ucb-bar/torture)):
+([https://github.com/ucb-bar/riscv-torture](https://github.com/ucb-bar/riscv-torture)):
 The torture test code is used to generate randomized instruction streams which
 are then run as code on the rocket core(s). These are constrained random tests
 to stress-test both the core and uncore portions of the design.
