@@ -33,6 +33,8 @@ addons:
       - texinfo
 
 env:
+  global:
+    - CACHE_NAME=RocketChip
   matrix:
     - SUITE=RocketSuiteA
     - SUITE=RocketSuiteB
