@@ -4,6 +4,7 @@ language: scala
 # run on new infrastructure
 sudo: false
 cache:
+  timeout: 1000
   apt: true
   directories:
     $HOME/.ivy2
