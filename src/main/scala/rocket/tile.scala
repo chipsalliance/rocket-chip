@@ -54,9 +54,9 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   cachedOut := dcache.node
   uncachedOut := TLHintHandler()(ucLegacy.node)
   val masterNodes = List(cachedOut, uncachedOut)
-  
+
   (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }
-  
+
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val cached = cachedOut.bundleOut
@@ -95,7 +95,7 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
       cmdRouter.io.in <> core.io.rocc.cmd
 
       val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
-        val rocc = accelParams.generator(p.alterPartial({
+        val rocc = accelParams.generator(dcacheParams.alterPartial({
           case RoccNMemChannels => accelParams.nMemChannels
           case RoccNPTWPorts => accelParams.nPTWPorts
         }))
