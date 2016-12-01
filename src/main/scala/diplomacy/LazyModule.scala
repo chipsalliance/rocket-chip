@@ -91,7 +91,10 @@ object LazyModule
   protected[diplomacy] var stack = List[LazyModule]()
   private var index = 0
 
+  var module_list = List[LazyModule]()
+
   def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
+    module_list = bc :: module_list
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
