@@ -415,11 +415,15 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     legalizeSourceUnique(bundle, edge)
   }
 
+  var code_insertion = (bundle_monitor: TLBundleSnoop, edge: TLEdge) => {}
+  
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in = gen().asInput
     }
 
+    code_insertion(io.in, edge())
+    
     legalize(io.in, edge())(sourceInfo)
   }
 }
