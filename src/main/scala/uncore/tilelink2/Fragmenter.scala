@@ -13,7 +13,7 @@ import scala.math.{min,max}
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
-class TLFragmenter(minSize: Int, maxSize: Int, alwaysMin: Boolean = false) extends LazyModule
+class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false) extends LazyModule
 {
   require (isPow2 (maxSize))
   require (isPow2 (minSize))
