@@ -3,9 +3,10 @@
 package diplomacy
 
 import Chisel._
+import config._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
-abstract class LazyModule
+abstract class LazyModule()(implicit val p: Parameters)
 {
   protected[diplomacy] var bindings = List[() => Unit]()
   protected[diplomacy] var children = List[LazyModule]()
@@ -112,4 +113,5 @@ abstract class LazyModuleImp(outer: LazyModule) extends Module
   suggestName(outer.instanceName)
 
   outer.instantiate()
+  implicit val p = outer.p
 }

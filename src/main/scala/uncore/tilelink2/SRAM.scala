@@ -3,9 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
-class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
+class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
   val node = TLManagerNode(TLManagerPortParameters(
     Seq(TLManagerParameters(
@@ -84,7 +85,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
 /** Synthesizeable unit testing */
 import unittest._
 
-class TLRAMSimple(ramBeatBytes: Int) extends LazyModule {
+class TLRAMSimple(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
@@ -97,6 +98,6 @@ class TLRAMSimple(ramBeatBytes: Int) extends LazyModule {
   }
 }
 
-class TLRAMSimpleTest(ramBeatBytes: Int) extends UnitTest(timeout = 500000) {
+class TLRAMSimpleTest(ramBeatBytes: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMSimple(ramBeatBytes)).module).io.finished
 }

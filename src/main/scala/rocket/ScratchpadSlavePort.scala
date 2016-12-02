@@ -11,7 +11,7 @@ import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._
 
-class ScratchpadSlavePort(implicit val p: Parameters) extends LazyModule {
+class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
   val coreDataBytes = p(XLen)/8
   val node = TLManagerNode(TLManagerPortParameters(
     Seq(TLManagerParameters(

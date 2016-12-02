@@ -3,9 +3,10 @@
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
-class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
+class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: Parameters) extends LazyModule
 {
   def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
@@ -184,7 +185,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMXbar(nManagers: Int) extends LazyModule {
+class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
   val xbar = LazyModule(new TLXbar)
@@ -201,11 +202,11 @@ class TLRAMXbar(nManagers: Int) extends LazyModule {
   }
 }
 
-class TLRAMXbarTest(nManagers: Int) extends UnitTest(timeout = 500000) {
+class TLRAMXbarTest(nManagers: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMXbar(nManagers)).module).io.finished
 }
 
-class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
+class TLMulticlientXbar(nManagers: Int, nClients: Int)(implicit p: Parameters) extends LazyModule {
   val xbar = LazyModule(new TLXbar)
 
   val fuzzers = (0 until nClients) map { n =>
@@ -224,6 +225,6 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
   }
 }
 
-class TLMulticlientXbarTest(nManagers: Int, nClients: Int) extends UnitTest(timeout = 5000000) {
+class TLMulticlientXbarTest(nManagers: Int, nClients: Int)(implicit p: Parameters) extends UnitTest(timeout = 5000000) {
   io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients)).module).io.finished
 }

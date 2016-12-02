@@ -4,9 +4,10 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import config._
 import diplomacy._
 
-class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo) extends LazyModule
+class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo)(implicit p: Parameters) extends LazyModule
 {
   def extra(implicit sourceInfo: SourceInfo) = {
     sourceInfo match {

@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.collection.mutable.ListBuffer
 
@@ -28,7 +29,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
   override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
 
-  def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     val monitor = if (emitMonitors) {
       Some(LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo)))
     } else {
@@ -132,7 +133,7 @@ case class TLInternalInputNode(portParams: TLClientPortParameters) extends Inter
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLInputNodeTest extends UnitTest(500000) {
+class TLInputNodeTest()(implicit p: Parameters) extends UnitTest(500000) {
   class Acceptor extends LazyModule {
     val node = TLInputNode()
     val tlram = LazyModule(new TLRAM(AddressSet(0x54321000, 0xfff)))
@@ -168,7 +169,7 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
   override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString
   override def labelO(eo: TLAsyncEdgeParameters) = eo.manager.depth.toString
 
-  def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }
 

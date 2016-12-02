@@ -15,12 +15,13 @@ import rocket._
 /** Enable or disable monitoring of Diplomatic buses */
 case object TLEmitMonitors extends Field[Boolean]
 
-abstract class BareTop(implicit val p: Parameters) extends LazyModule {
+abstract class BareTop(implicit p: Parameters) extends LazyModule {
   TopModule.contents = Some(this)
 }
 
-abstract class BareTopBundle[+L <: BareTop](_outer: L) extends Bundle {
+abstract class BareTopBundle[+L <: BareTop](_outer: L) extends GenericParameterizedBundle(_outer) {
   val outer = _outer
+  implicit val p = outer.p
 }
 
 abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
@@ -47,13 +48,11 @@ trait TopNetwork extends HasPeripheryParameters {
 
 trait TopNetworkBundle extends HasPeripheryParameters {
   val outer: TopNetwork
-  implicit val p = outer.p
 }
 
 trait TopNetworkModule extends HasPeripheryParameters {
   val io: TopNetworkBundle
   val outer: TopNetwork
-  implicit val p = outer.p
 }
 
 /** Base Top with no Periphery */

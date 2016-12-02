@@ -4,10 +4,11 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import util._
 
-class TLAsyncCrossingSource(sync: Int = 3) extends LazyModule
+class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAsyncSourceNode()
 
@@ -41,7 +42,7 @@ class TLAsyncCrossingSource(sync: Int = 3) extends LazyModule
   }
 }
 
-class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3) extends LazyModule
+class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAsyncSinkNode(depth)
 
@@ -77,7 +78,7 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3) extends LazyModule
 object TLAsyncCrossingSource
 {
   // applied to the TL source node; y.node := TLAsyncCrossingSource()(x.node)
-  def apply(sync: Int = 3)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLAsyncOutwardNode = {
+  def apply(sync: Int = 3)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLAsyncOutwardNode = {
     val source = LazyModule(new TLAsyncCrossingSource(sync))
     source.node := x
     source.node
@@ -87,14 +88,14 @@ object TLAsyncCrossingSource
 object TLAsyncCrossingSink
 {
   // applied to the TL source node; y.node := TLAsyncCrossingSink()(x.node)
-  def apply(depth: Int = 8, sync: Int = 3)(x: TLAsyncOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply(depth: Int = 8, sync: Int = 3)(x: TLAsyncOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     sink.node := x
     sink.node
   }
 }
 
-class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
+class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val nodeIn = TLInputNode()
   val nodeOut = TLOutputNode()
@@ -136,7 +137,7 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3) extends LazyModule
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMCrossing extends LazyModule {
+class TLRAMCrossing(implicit p: Parameters) extends LazyModule {
   val model = LazyModule(new TLRAMModel)
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
   val fuzz = LazyModule(new TLFuzzer(5000))
@@ -167,6 +168,6 @@ class TLRAMCrossing extends LazyModule {
   }
 }
 
-class TLRAMCrossingTest extends UnitTest(timeout = 500000) {
+class TLRAMCrossingTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMCrossing).module).io.finished
 }

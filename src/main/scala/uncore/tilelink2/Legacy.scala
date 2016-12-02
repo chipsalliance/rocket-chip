@@ -8,19 +8,15 @@ import config._
 import uncore.tilelink._
 import uncore.constants._
 
-// Instantiate 'val p' before HasTileLinkParameters tries to use it
-abstract class LegacyLazyModuleImp(module: LazyModule)(implicit val p: Parameters)
-  extends LazyModuleImp(module) with HasTileLinkParameters
-
-class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkParameters
+class TLLegacy(implicit p: Parameters) extends LazyModule with HasTileLinkParameters
 {
   // TL legacy clients don't support anything fancy
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, 1 << tlClientXactIdBits)))
 
-  lazy val module = new LegacyLazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) with HasTileLinkParameters {
     val io = new Bundle {
-      val legacy = new ClientUncachedTileLinkIO()(p).flip
+      val legacy = new ClientUncachedTileLinkIO().flip
       val out = node.bundleOut
     }
 

@@ -102,7 +102,7 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(implicit val p: Parameters) extends LazyModule with HasGroundTestParameters {
+class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTestParameters {
   val dcacheParams = p.alterPartial {
     case CacheName => CacheName("L1D")
     case rocket.TLCacheEdge => cachedOut.edgesOut(0)

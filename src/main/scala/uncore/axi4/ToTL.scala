@@ -4,6 +4,7 @@ package uncore.axi4
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import uncore.tilelink2._
 
@@ -30,7 +31,7 @@ case class AXI4ToTLNode() extends MixedNode(AXI4Imp, TLImp)(
   numPO = 1 to 1,
   numPI = 1 to 1)
 
-class AXI4ToTL extends LazyModule
+class AXI4ToTL()(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4ToTLNode()
 
@@ -176,7 +177,7 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply()(x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply()(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val tl = LazyModule(new AXI4ToTL)
     tl.node := x
     tl.node

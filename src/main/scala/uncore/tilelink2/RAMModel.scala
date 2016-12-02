@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
 // We detect concurrent puts that put memory into an undefined state.
@@ -20,7 +21,7 @@ import diplomacy._
 // put, get, getAck, putAck => ok: detected by getAck (it sees busy>0)		impossible for FIFO
 // If FIFO, the getAck should check data even if its validity was wiped
 
-class TLRAMModel(log: String = "") extends LazyModule
+class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
 {
   val node = TLIdentityNode()
 

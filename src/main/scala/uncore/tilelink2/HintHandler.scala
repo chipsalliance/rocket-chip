@@ -5,10 +5,11 @@ package uncore.tilelink2
 import scala.math.min
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
-class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true) extends LazyModule
+class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { case Seq(c) => if (!supportClients)  c else c.copy(minLatency = min(1, c.minLatency), clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
@@ -100,7 +101,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 object TLHintHandler
 {
   // applied to the TL source node; y.node := TLHintHandler(x.node)
-  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
     hints.node := x
     hints.node
@@ -112,7 +113,7 @@ import unittest._
 
 //TODO ensure handler will pass through hints to clients that can handle them themselves
 
-class TLRAMHintHandler() extends LazyModule {
+class TLRAMHintHandler()(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
@@ -125,6 +126,6 @@ class TLRAMHintHandler() extends LazyModule {
   }
 }
 
-class TLRAMHintHandlerTest extends UnitTest(timeout = 500000) {
+class TLRAMHintHandlerTest()(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMHintHandler).module).io.finished
 }

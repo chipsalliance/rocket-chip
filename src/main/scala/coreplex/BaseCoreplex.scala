@@ -31,7 +31,8 @@ case object BroadcastConfig extends Field[BroadcastConfig]
 case class BankedL2Config(
   nMemoryChannels:  Int = 1,
   nBanksPerChannel: Int = 1,
-  coherenceManager: Parameters => (TLInwardNode, TLOutwardNode) = { case p =>
+  coherenceManager: Parameters => (TLInwardNode, TLOutwardNode) = { case q =>
+    implicit val p = q
     val BroadcastConfig(nTrackers, bufferless) = p(BroadcastConfig)
     val bh = LazyModule(new TLBroadcast(p(CacheBlockBytes), nTrackers, bufferless))
     (bh.node, TLWidthWidget(p(L1toL2Config).beatBytes)(bh.node))
@@ -54,9 +55,10 @@ trait HasCoreplexParameters {
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
 
-abstract class BareCoreplex(implicit val p: Parameters) extends LazyModule
-abstract class BareCoreplexBundle[+L <: BareCoreplex](_outer: L) extends Bundle {
+abstract class BareCoreplex(implicit p: Parameters) extends LazyModule
+abstract class BareCoreplexBundle[+L <: BareCoreplex](_outer: L) extends GenericParameterizedBundle(_outer) {
   val outer = _outer
+  implicit val p = outer.p
 }
 abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
   val outer = _outer
@@ -96,7 +98,6 @@ trait CoreplexNetwork extends HasCoreplexParameters {
 trait CoreplexNetworkBundle extends HasCoreplexParameters {
   val outer: CoreplexNetwork
 
-  implicit val p = outer.p
   val mmio = outer.mmio.bundleOut
   val interrupts = outer.mmioInt.bundleIn
 }
@@ -104,8 +105,6 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
 trait CoreplexNetworkModule extends HasCoreplexParameters {
   val outer: CoreplexNetwork
   val io: CoreplexNetworkBundle
-
-  implicit val p = outer.p
 
   println("\nGenerated Address Map")
   for (manager <- outer.l1tol2.node.edgesIn(0).manager.managers) {

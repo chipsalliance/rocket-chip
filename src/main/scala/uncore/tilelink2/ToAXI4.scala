@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import util.PositionalMultiQueue
 import uncore.axi4._
@@ -35,7 +36,7 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
   numPO = 1 to 1,
   numPI = 1 to 1)
 
-class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
+class TLToAXI4(idBits: Int, combinational: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAXI4Node(idBits)
 
@@ -229,7 +230,7 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true) extends LazyModule
 object TLToAXI4
 {
   // applied to the TL source node; y.node := TLToAXI4(idBits)(x.node)
-  def apply(idBits: Int, combinational: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = {
+  def apply(idBits: Int, combinational: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val axi4 = LazyModule(new TLToAXI4(idBits, combinational))
     axi4.node := x
     axi4.node

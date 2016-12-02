@@ -332,8 +332,7 @@ object ToAsyncDebugBus
 }
 
 trait HasDebugModuleParameters {
-  val params : Parameters
-  implicit val p = params
+  implicit val p: Parameters
   val cfg = p(DMKey)
 }
 
@@ -850,8 +849,8 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
 
 class TLDebugModule(address: BigInt = 0)(implicit p: Parameters)
   extends TLRegisterRouter(address, beatBytes=p(rocket.XLen)/8, executable=true)(
-  new TLRegBundle(p, _ )    with DebugModuleBundle)(
-  new TLRegModule(p, _, _)  with DebugModule)
+  new TLRegBundle((), _ )    with DebugModuleBundle)(
+  new TLRegModule((), _, _)  with DebugModule)
 
 
 /** Synchronizers for DebugBus
