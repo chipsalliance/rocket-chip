@@ -127,6 +127,16 @@ stamps/other-submodules.stamp:
 	date > $@
 
 $(RISCV)/install.stamp:
+	mkdir -p $(dir $@)
+	git -C $(abspath $(TOP)) submodule update --init riscv-tools
+	rm -f $(abspath $(TOP))/riscv-tools/.travis.yml
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-gnu-toolchain
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-isa-sim
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-fesvr
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-opcodes
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-pk
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-tests
+	+cd $(abspath $(TOP))/riscv-tools; RISCV=$(abspath $(RISCV)) ./build.sh
 	date > $@
 
 # Builds the various simulators
