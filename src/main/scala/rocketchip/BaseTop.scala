@@ -12,9 +12,6 @@ import uncore.devices._
 import util._
 import rocket._
 
-/** Enable or disable monitoring of Diplomatic buses */
-case object TLEmitMonitors extends Field[Boolean]
-
 abstract class BareTop(implicit p: Parameters) extends LazyModule {
   TopModule.contents = Some(this)
 }
@@ -32,8 +29,6 @@ abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _
 /** Base Top with no Periphery */
 trait TopNetwork extends HasPeripheryParameters {
   val module: TopNetworkModule
-
-  TLImp.emitMonitors = p(TLEmitMonitors)
 
   // Add a SoC and peripheral bus
   val socBus = LazyModule(new TLXbar)

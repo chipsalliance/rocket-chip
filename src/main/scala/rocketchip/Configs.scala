@@ -8,7 +8,7 @@ import junctions._
 import rocket._
 import diplomacy._
 import uncore.agents._
-import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.devices._
 import uncore.converters._
 import util._
@@ -21,8 +21,11 @@ import config._
 
 class BasePlatformConfig extends Config(
   (pname,site,here) => pname match {
+    // TileLink connection parameters
+    case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
+    case TLFuzzReadyValid => false
+    case TLCombinationalCheck => false
     //Memory Parameters
-    case TLEmitMonitors => true
     case NExtTopInterrupts => 2
     case SOCBusConfig => site(L1toL2Config)
     case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
@@ -143,16 +146,9 @@ class With64BitPeriphery extends Config (
   }
 )
 
-class WithTLMonitors extends Config (
-  (pname, site, here) => pname match {
-    case TLEmitMonitors => true
-    case _ => throw new CDEMatchError
-  }
-)
-
 class WithoutTLMonitors extends Config (
   (pname, site, here) => pname match {
-    case TLEmitMonitors => false
+    case TLMonitorBuilder => (args: TLMonitorArgs) => None
     case _ => throw new CDEMatchError
   }
 )
