@@ -34,8 +34,9 @@ install:
 
 before_install:
   - docker pull hcook/docker-riscv
-  - docker run hcook/docker-riscv /bin/sh -c "cd $RISCV; date > install.stamp;"
+  - docker run hcook/docker-riscv /bin/sh -c "cd $RISCV; ls; ls bin; date >> install2.stamp; ls; pwd;"
 
 script:
-  - make emulator-ndebug -C regression SUITE=$SUITE 
-  - make emulator-regression-tests -C regression SUITE=$SUITE
+  - docker run hcook/docker-riscv /bin/sh -c "ls $RISCV"
+  - docker run hcook/docker-riscv /bin/sh -c "make emulator-ndebug -C regression SUITE=$SUITE" 
+  - docker run hcook/docker-riscv /bin/sh -c "make emulator-regression-tests -C regression SUITE=$SUITE"
