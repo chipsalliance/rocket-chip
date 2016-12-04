@@ -36,4 +36,4 @@ before_install:
   - docker pull hcook/docker-riscv
 
 script:
-  - docker run -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv /bin/sh -c  "make emulator-ndebug -C regression SUITE=$SUITE VERILATOR_ROOT=opt/riscv/test/emulator/verilator/install/share/verilator; make emulator-regression-tests -C regression SUITE=$SUITE" 
+  - docker run -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv /bin/sh -c  "which verilator; make emulator-ndebug -C regression SUITE=$SUITE; make emulator-regression-tests -C regression SUITE=$SUITE" 
