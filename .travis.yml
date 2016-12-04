@@ -1,37 +1,18 @@
 git:
   submodules: false
 language: scala
-# run on new infrastructure
-sudo: false
+sudo: required
+services:
+  - docker
 cache:
-  apt: true
   directories:
     $HOME/.ivy2
-    regression/install
-    emulator/verilator
-
-# packages needed to build riscv-tools
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-    packages:
-      - gcc-4.8
-      - g++-4.8
-      - gperf
-      - autoconf
-      - automake
-      - autotools-dev
-      - libmpc-dev
-      - libmpfr-dev
-      - libgmp-dev
-      - gawk
-      - build-essential
-      - bison
-      - flex
-      - texinfo
 
 env:
+  global:
+    - CACHE_NAME=RocketChip
+    - RISCV=/opt/riscv
+    - TORTURE_CONFIG=default
   matrix:
     - SUITE=RocketSuiteA
     - SUITE=RocketSuiteB
@@ -47,15 +28,9 @@ branches:
     - boom
     - /^hurricane.*$/
 
-install:
-  - make tools verilator -C regression SUITE=none
-
 before_install:
-  - export CXX=g++-4.8 CC=gcc-4.8
+  - docker pull hcook/docker-riscv
 
 script:
-  - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default
-  - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default
-
-before_cache:
-  - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
+  - docker run -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv /bin/sh -c  "which verilator; echo $INSTALLED_VERILATOR" 
+  - docker run -v $HOME/.ivy2:/opt/riscv/test/.ivy2 -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv /bin/sh -c  "make emulator-ndebug -C regression SUITE=$SUITE; make emulator-regression-tests -C regression SUITE=$SUITE"
