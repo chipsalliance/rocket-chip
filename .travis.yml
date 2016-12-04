@@ -7,7 +7,6 @@ services:
 cache:
   directories:
     $HOME/.ivy2
-    emulator/verilator
 
 env:
   global:
@@ -28,9 +27,6 @@ branches:
     - hwacha
     - boom
     - /^hurricane.*$/
-
-install:
-  - make verilator -C regression SUITE=none
 
 before_install:
   - docker pull hcook/docker-riscv
