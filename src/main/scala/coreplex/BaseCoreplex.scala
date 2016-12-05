@@ -97,9 +97,12 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
     }
     val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId))
 
+    val tileIncoherent = tiles.flatMap(tile =>
+      Seq.fill(tile.io.cached.size) { tile.reset })
+
     // Create point(s) of coherence serialization
     val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}
-    managerEndpoints.map(_.incoherent).foreach(_ <> tiles.map(_.reset))
+    managerEndpoints.map(_.incoherent).foreach(_ <> tileIncoherent)
 
     val mmioManager = Module(new MMIOTileLinkManager()(p.alterPartial({
         case TLId => "L1toL2"
