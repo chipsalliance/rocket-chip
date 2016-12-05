@@ -192,10 +192,10 @@ class WithTraceGen extends Config(
     case BuildGroundTest =>
       (p: Parameters) => Module(new GroundTestTraceGenerator()(p))
     case GeneratorKey => TrafficGeneratorParameters(
-      maxRequests = 256,
+      maxRequests = 8192,
       startAddress = 0)
     case AddressBag => {
-      val nSets = 32 // L2 NSets
+      val nSets = 2
       val nWays = 1
       val blockOffset = site(CacheBlockOffsetBits)
       val nBeats = site(TLKey("L1toL2")).dataBeats
