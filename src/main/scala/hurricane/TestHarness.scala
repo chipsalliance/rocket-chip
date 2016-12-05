@@ -62,5 +62,5 @@ class TestHarness(q: Parameters) extends Module {
     dbg.resp.ready := Bool(false)
   }
 
-  io.success := serial.io.exit
+  io.success := serial.io.exit || dut.io.success
 }

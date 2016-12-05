@@ -333,3 +333,16 @@ trait PowerManagementUnitModule {
     coreplexIO.slave(coreStart + 1),
     uncached)
 }
+
+class HUpTopWithTestRAM(q: Parameters) extends HUpTop(q)
+    with PeripheryTestRAM {
+  override lazy val module = Module(new HUpTopWithTestRAMModule(
+    p, this, new HUpTopWithTestRAMBundle(p)))
+}
+
+class HUpTopWithTestRAMBundle(p: Parameters) extends HUpTopBundle(p)
+  with PeripheryTestRAMBundle
+
+class HUpTopWithTestRAMModule[+L <: HUpTopWithTestRAM, +B <: HUpTopWithTestRAMBundle]
+  (p: Parameters, l: L, b: => B) extends HUpTopModule(p, l, b)
+  with PeripheryTestRAMModule

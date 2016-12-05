@@ -99,22 +99,21 @@ class WithHwachaAndDma extends Config (
       TestGeneration.addVariable("DISASM_EXTENSION", "--extension=hwacha")
       Seq(
         RoccParameters( // From hwacha/src/main/scala/configs.scala
-        opcodes = OpcodeSet.custom0 | OpcodeSet.custom1,
-        generator = (p: Parameters) => {
-          Module(new Hwacha()(p.alterPartial({
-          case FetchWidth => 1
-          case CoreInstBits => 64
-          })))
-          },
-        nMemChannels = site(HwachaNLanes),
-        nPTWPorts = 2 + site(HwachaNLanes), // icache + vru + vmus
-        useFPU = true),
-      RoccParameters( // From dma/src/main/scala/Configs.scala
-        opcodes = OpcodeSet.custom3,
-        generator = (p: Parameters) => Module(new CopyAccelerator()(p)),
-        nMemChannels = (if (site(CopyAccelShareMemChannel)) 0 else 1),
-        nPTWPorts = 1)
-      )
+          opcodes = OpcodeSet.custom0 | OpcodeSet.custom1,
+          generator = (p: Parameters) => {
+            Module(new Hwacha()(p.alterPartial({
+            case FetchWidth => 1
+            case CoreInstBits => 64
+            })))
+            },
+          nMemChannels = site(HwachaNLanes),
+          nPTWPorts = 2 + site(HwachaNLanes), // icache + vru + vmus
+          useFPU = true),
+        RoccParameters( // From dma/src/main/scala/Configs.scala
+          opcodes = OpcodeSet.custom3,
+          generator = (p: Parameters) => Module(new CopyAccelerator()(p)),
+          nMemChannels = site(NDmaTrackers),
+          nPTWPorts = 1))
     }
     case _ => throw new CDEMatchError
   }
@@ -190,3 +189,38 @@ class HurricaneUpstreamTinyConfig extends Config (
 )
 
 class HurricaneUpstreamConfigNoJtag extends Config(new NoJtagDTM ++ new HurricaneUpstreamConfig)
+
+class WithMultiClockGroundTest extends Config(
+  (pname, site, here) => pname match {
+    case BuildCoreplex => (c: CoreplexConfig, p: Parameters) =>
+      LazyModule(new MultiClockGroundTestCoreplex(c)(p)).module
+    case _ => throw new CDEMatchError
+  })
+
+class WithTestRAM extends Config(
+  (pname, site, here) => pname match {
+    case BuildHTop => (p: Parameters) =>
+      LazyModule(new HUpTopWithTestRAM(p))
+    case _ => throw new CDEMatchError
+  })
+
+class WithHbwifGroundTest extends Config(
+  new WithMultiClockGroundTest ++ new WithGroundTest)
+
+class WithHbwifMemtest extends Config(
+  new WithAtomics ++ new WithMemtest ++ new WithHbwifGroundTest)
+
+class MemtestHbwifConfig extends Config(
+  new WithHbwifMemtest ++ new DefaultHUpTopConfig)
+
+class MemtestHbwifL2Config extends Config(
+  new WithHbwifMemtest ++ new DefaultHUpTopL2Config)
+
+class ComparatorHbwifL2Config extends Config(
+  new WithAtomics ++ new WithComparator ++ new WithTestRAM ++
+  new WithBufferDepth(4) ++
+  new WithHbwifGroundTest ++ new DefaultHUpTopL2Config)
+
+class TraceGenHbwifConfig extends Config(
+  new WithNCores(2) ++ new WithTraceGen ++
+  new WithHbwifGroundTest ++ new DefaultHUpTopL2Config)
