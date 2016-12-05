@@ -1,0 +1,6 @@
+#! /bin/sh
+d=$(dirname $0)
+for i in "$@"; do
+  if [ $# -gt 1 ]; then echo "$i:"; fi
+  git blame --date="format:%Y%m%d" -M -C -C -C "$i" | sed 's/[^(]*(\([^0-46-9]*\) \([0-9]*\).*/\2 \1/' | $d/authors | sort | uniq -c | sort -rn
+done

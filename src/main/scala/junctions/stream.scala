@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 package junctions
 
 import Chisel._

@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package rocket
 
@@ -41,10 +42,10 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
 class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
-  val mem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
+  val mem = new HellaCacheIO
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
-  
+
   // These should be handled differently, eventually
   val autl = new ClientUncachedTileLinkIO
   val utl = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)

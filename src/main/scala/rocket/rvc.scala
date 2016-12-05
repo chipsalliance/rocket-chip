@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 package rocket
 
 import Chisel._

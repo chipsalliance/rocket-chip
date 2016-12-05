@@ -1,0 +1,51 @@
+#! /bin/sh
+
+while read when who; do
+case "$who" in
+"Adam Izraelevitz")   echo Berkeley ;;
+"Albert Magyar")      echo Berkeley ;;
+"Albert Ou")          if [ $when -ge 20151101 ]; then echo SiFive; else echo Berkeley; fi ;;
+"Amirali Sharifian")  echo Unknown  ;;
+"Andrew Waterman")    if [ $when -ge 20150901 ]; then echo SiFive; else echo Berkeley; fi ;;
+"Ben Keller")         echo Berkeley ;;
+"Christopher Celio")  echo Berkeley ;;
+"Colin Schmidt")      echo Berkeley ;;
+"Daiwei Li")          echo Berkeley ;;
+"David Biancolin")    echo Berkeley ;;
+"Donggyu")            echo Berkeley ;;
+"Donggyu Kim")        echo Berkeley ;;
+"ducky")              echo Berkeley ;;
+"Eric Love")          echo Berkeley ;;
+"Gage W Eads")        echo Berkeley ;;
+"Henry Cook")         if [ $when -ge 20160501 ]; then echo SiFive; else echo Berkeley; fi ;;
+"Howard Mao")         if [ $when -ge 20160601 -a $when -le 20160819 ]; then echo SiFive; else echo Berkeley; fi ;;
+"Huy Vo")             echo Berkeley ;;
+"Iori YONEJI")        echo Unknown  ;;
+"jackkoenig")         echo Berkeley ;;
+"Jack Koenig")        echo Berkeley ;;
+"Jacob Chang")        echo SiFive   ;;
+"Jim Lawson")         echo Berkeley ;;
+"John Wright")        echo Berkeley ;;
+"Ken McMillan")       echo Microsoft;;
+"Matthew Naylor")     if [ $when -le 20161127 ]; then echo Berkeley; else echo Cambridge; fi ;;
+"Megan Wachs")        echo SiFive   ;;
+"Miquel Moreto")      echo Berkeley ;;
+"mwachs5")            echo SiFive   ;;
+"Palmer Dabbelt")     echo Berkeley ;;
+"Quan Nguyen")        echo Berkeley ;;
+"RainerWasserfuhr")   echo Unknown  ;;
+"Richard Xia")        echo SiFive   ;;
+"Rimas Avizienis")    echo Berkeley ;;
+"roman3017")          echo Unknown  ;;
+"Sagar Karandikar")   echo Berkeley ;;
+"Schuyler Eldridge")  echo Unknown  ;;
+"Scott Beamer")       echo Berkeley ;;
+"Scott Johnson")      echo SiFive   ;;
+"SeungRyeol Lee")     echo LGE      ;;
+"Stephen Twigg")      echo Berkeley ;;
+"Wei Song")           echo Cambridge;;
+"Wesley W. Terpstra") echo SiFive   ;;
+"Yunsup Lee")         if [ $when -gt 20150901 ]; then echo SiFive; else echo Berkeley; fi ;;
+*)                    echo NoMatch; echo "Missing scripts/authors entry for $who" >&2; exit 1 ;;
+esac
+done

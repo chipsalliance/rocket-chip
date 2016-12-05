@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 //*****************************************************
 // Christopher Celio
 // 2015 Feb 2

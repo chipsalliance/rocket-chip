@@ -4,9 +4,6 @@
 [submodule "hardfloat"]
 	path = hardfloat
 	url = https://github.com/ucb-bar/berkeley-hardfloat.git
-[submodule "context-dependent-environments"]
-	path = context-dependent-environments
-	url = https://github.com/ucb-bar/context-dependent-environments
 [submodule "torture"]
 	path = torture
 	url = https://github.com/ucb-bar/riscv-torture.git

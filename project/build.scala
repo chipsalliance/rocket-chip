@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 import sbt._
 import Keys._
 import complete._
@@ -17,9 +19,8 @@ object BuildSettings extends Build {
   )
 
   lazy val chisel = project in file("chisel3")
-  lazy val cde        = project in file("context-dependent-environments")
   lazy val hardfloat  = project.dependsOn(chisel)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, cde, hardfloat)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, hardfloat)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
