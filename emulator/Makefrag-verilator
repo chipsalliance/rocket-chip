@@ -23,8 +23,9 @@ $(generated_dir_debug)/%.fir $(generated_dir_debug)/%.prm $(generated_dir_debug)
 # Build and install our own Verilator, to work around versionining issues.
 VERILATOR_VERSION=3.884
 VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
-INSTALLED_VERILATOR ?= $(abspath verilator/install/bin/verilator)
-$(INSTALLED_VERILATOR): $(VERILATOR_SRCDIR)/bin/verilator
+VERILATOR_TARGET := $(abspath verilator/install/bin/verilator)
+INSTALLED_VERILATOR ?= $(VERILATOR_TARGET)
+$(VERILATOR_TARGET): $(VERILATOR_SRCDIR)/bin/verilator
 	$(MAKE) -C $(VERILATOR_SRCDIR) installbin installdata
 	touch $@
 

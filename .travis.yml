@@ -4,15 +4,8 @@ language: scala
 sudo: required
 services:
   - docker
-cache:
-  directories:
-    $HOME/.ivy2
 
 env:
-  global:
-    - CACHE_NAME=RocketChip
-    - RISCV=/opt/riscv
-    - TORTURE_CONFIG=default
   matrix:
     - SUITE=RocketSuiteA
     - SUITE=RocketSuiteB
@@ -29,8 +22,7 @@ branches:
     - /^hurricane.*$/
 
 before_install:
-  - docker pull hcook/docker-riscv
+  - docker pull hcook/docker-riscv:chisel
 
 script:
-  - docker run -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv /bin/sh -c  "which verilator; echo $INSTALLED_VERILATOR" 
-  - docker run -v $HOME/.ivy2:/opt/riscv/test/.ivy2 -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv /bin/sh -c  "make emulator-ndebug -C regression SUITE=$SUITE; make emulator-regression-tests -C regression SUITE=$SUITE"
+  - docker run -v /home/travis/build/ucb-bar/rocket-chip:/opt/riscv/test hcook/docker-riscv:chisel /bin/sh -c  "touch /usr/local/bin/verilator; make emulator-ndebug -C regression SUITE=$SUITE; make emulator-regression-tests -C regression SUITE=$SUITE"
