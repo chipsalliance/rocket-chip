@@ -87,6 +87,8 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     val d_normal = Wire(in.d)
     val d_trackerOH = Vec(trackers.map { t => !t.idle && t.source === d_normal.bits.source }).asUInt
 
+    assert (!out.d.valid || !d_drop || out.d.bits.opcode === TLMessages.AccessAck)
+
     out.d.ready := d_normal.ready || d_drop
     d_normal.valid := out.d.valid && !d_drop
     d_normal.bits := out.d.bits // truncates source
@@ -102,6 +104,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     val d_last = edgeIn.last(d_normal)
     (trackers zip d_trackerOH.toBools) foreach { case (tracker, select) =>
       tracker.d_last := select && d_normal.fire() && d_response && d_last
+      tracker.probedack := select && out.d.fire() && d_drop
     }
 
     // Incoming C can be:
@@ -114,12 +117,12 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     val c_probeackdata = in.c.bits.opcode === TLMessages.ProbeAckData
     val c_releasedata  = in.c.bits.opcode === TLMessages.ReleaseData
     val c_release      = in.c.bits.opcode === TLMessages.Release
+    val c_trackerOH    = trackers.map { t => t.line === (in.c.bits.address >> lineShift) }
+    val c_trackerSrc   = Mux1H(c_trackerOH, trackers.map { _.source })
 
     // Decrement the tracker's outstanding probe counter
-    val c_decrement = in.c.fire() && (c_probeack || c_probeackdata)
-    val c_last = edgeIn.last(in.c)
-    trackers foreach { tracker =>
-      tracker.probeack := c_decrement && c_last && tracker.line === (in.c.bits.address >> lineShift)
+    (trackers zip c_trackerOH) foreach { case (tracker, select) =>
+      tracker.probenack := in.c.fire() && c_probeack && select
     }
 
     val releaseack = Wire(in.d)
@@ -131,8 +134,9 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     releaseack.bits  := edgeIn.ReleaseAck(in.c.bits.address, UInt(0), in.c.bits.source, in.c.bits.size)
 
     val put_what = Mux(c_releasedata, TRANSFORM_B, DROP)
+    val put_who  = Mux(c_releasedata, in.c.bits.source, c_trackerSrc)
     putfull.valid := in.c.valid && (c_probeackdata || c_releasedata)
-    putfull.bits := edgeOut.Put(Cat(put_what, in.c.bits.source), in.c.bits.address, in.c.bits.size, in.c.bits.data)._2
+    putfull.bits := edgeOut.Put(Cat(put_what, put_who), in.c.bits.address, in.c.bits.size, in.c.bits.data)._2
 
     // Combine ReleaseAck or the modified D
     TLArbiter.lowest(edgeOut, in.d, releaseack, d_normal)
@@ -207,7 +211,8 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
     val in_a  = Decoupled(new TLBundleA(edgeIn.bundle)).flip
     val out_a = Decoupled(new TLBundleA(edgeOut.bundle))
     val probe = UInt(INPUT, width = probeCountBits)
-    val probeack = Bool(INPUT)
+    val probenack = Bool(INPUT)
+    val probedack = Bool(INPUT)
     val d_last = Bool(INPUT)
     val e_last = Bool(INPUT)
     val source = UInt(OUTPUT) // the source awaiting D response
@@ -246,9 +251,10 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
     assert (!idle)
     idle := Bool(true)
   }
-  when (io.probeack) {
+
+  when (io.probenack || io.probedack) {
     assert (count > UInt(0))
-    count := count - UInt(1)
+    count := count - Mux(io.probenack && io.probedack, UInt(2), UInt(1))
   }
 
   io.idle := idle
