@@ -7,9 +7,9 @@ import diplomacy._
 import scala.math.max
 
 case class TLManagerParameters(
-  address:            Seq[AddressSet],
+  val address:            Seq[AddressSet],
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
-  executable:         Boolean       = false, // processor can execute from this memory
+  val executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquire:    TransferSizes = TransferSizes.none,
