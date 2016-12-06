@@ -115,6 +115,9 @@ class WithHwachaAndDma extends Config (
           nMemChannels = site(NDmaTrackers),
           nPTWPorts = 1))
     }
+    case RoccMaxTaggedMemXacts => max(
+      max(site(HwachaNVLTEntries), site(HwachaNSMUEntries)),
+      3 * site(NDmaTrackerMemXacts))
     case _ => throw new CDEMatchError
   }
 )
