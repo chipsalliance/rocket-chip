@@ -4,11 +4,12 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.math.{min,max}
 
 // pipe is only used if a queue has depth = 1
-class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe: Boolean = true) extends LazyModule
+class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   require (a >= 0)
   require (b >= 0)
@@ -49,12 +50,12 @@ class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe:
 object TLBuffer
 {
   // applied to the TL source node; y.node := TLBuffer(x.node)
-  def apply()                                (x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = apply(2)(x)
-  def apply(entries: Int)                    (x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = apply(entries, true)(x)
-  def apply(entries: Int, pipe: Boolean)     (x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = apply(entries, entries, pipe)(x)
-  def apply(ace: Int, bd: Int)               (x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = apply(ace, bd, true)(x)
-  def apply(ace: Int, bd: Int, pipe: Boolean)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = apply(ace, bd, ace, bd, ace, pipe)(x)
-  def apply(a: Int, b: Int, c: Int, d: Int, e: Int, pipe: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply()                                (x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = apply(2)(x)
+  def apply(entries: Int)                    (x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = apply(entries, true)(x)
+  def apply(entries: Int, pipe: Boolean)     (x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = apply(entries, entries, pipe)(x)
+  def apply(ace: Int, bd: Int)               (x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = apply(ace, bd, true)(x)
+  def apply(ace: Int, bd: Int, pipe: Boolean)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = apply(ace, bd, ace, bd, ace, pipe)(x)
+  def apply(a: Int, b: Int, c: Int, d: Int, e: Int, pipe: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val buffer = LazyModule(new TLBuffer(a, b, c, d, e, pipe))
     buffer.node := x
     buffer.node

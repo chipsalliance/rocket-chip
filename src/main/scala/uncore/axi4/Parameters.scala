@@ -3,6 +3,7 @@
 package uncore.axi4
 
 import Chisel._
+import config._
 import diplomacy._
 import scala.math.max
 

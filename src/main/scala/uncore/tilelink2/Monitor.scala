@@ -4,9 +4,27 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import config._
 import diplomacy._
 
-class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo) extends LazyModule
+case class TLMonitorArgs(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo, p: Parameters)
+
+abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
+{
+  implicit val sourceInfo = args.sourceInfo
+
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge): Unit
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in = args.gen().asInput
+    }
+
+    legalize(io.in, args.edge())
+  }
+}
+
+class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 {
   def extra(implicit sourceInfo: SourceInfo) = {
     sourceInfo match {
@@ -409,17 +427,9 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     inflight := (inflight | a_set) & ~d_clr
   }
 
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    legalizeFormat     (bundle, edge)
-    legalizeMultibeat  (bundle, edge)
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge) {
+    legalizeFormat      (bundle, edge)
+    legalizeMultibeat   (bundle, edge)
     legalizeSourceUnique(bundle, edge)
-  }
-
-  lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = gen().asInput
-    }
-
-    legalize(io.in, edge())(sourceInfo)
   }
 }

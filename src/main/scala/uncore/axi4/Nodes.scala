@@ -4,6 +4,7 @@ package uncore.axi4
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 
 object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4EdgeParameters, AXI4EdgeParameters, AXI4Bundle]
@@ -23,7 +24,7 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
   override def labelI(ei: AXI4EdgeParameters) = (ei.slave.beatBytes * 8).toString
   override def labelO(eo: AXI4EdgeParameters) = (eo.slave.beatBytes * 8).toString
 
-  def connect(bo: => AXI4Bundle, bi: => AXI4Bundle, ei: => AXI4EdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(bo: => AXI4Bundle, bi: => AXI4Bundle, ei: => AXI4EdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }
 

@@ -4,12 +4,13 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.math.{min,max}
 
 // Ensures that all downstream RW managers support Atomic operationss.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
-class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true) extends LazyModule
+class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   require (concurrency >= 1)
 
@@ -278,7 +279,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 object TLAtomicAutomata
 {
   // applied to the TL source node; y.node := TLAtomicAutomata(x.node)
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
     atomics.node := x
     atomics.node
@@ -290,7 +291,7 @@ import unittest._
 
 //TODO ensure handler will pass through operations to clients that can handle them themselves
 
-class TLRAMAtomicAutomata() extends LazyModule {
+class TLRAMAtomicAutomata()(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
@@ -303,6 +304,6 @@ class TLRAMAtomicAutomata() extends LazyModule {
   }
 }
 
-class TLRAMAtomicAutomataTest extends UnitTest(timeout = 500000) {
+class TLRAMAtomicAutomataTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMAtomicAutomata).module).io.finished
 }

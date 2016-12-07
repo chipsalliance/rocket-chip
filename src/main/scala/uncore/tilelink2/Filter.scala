@@ -4,10 +4,11 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.math.{min,max}
 
-class TLFilter(select: AddressSet) extends LazyModule
+class TLFilter(select: AddressSet)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { case Seq(cp) => cp },
@@ -44,7 +45,7 @@ class TLFilter(select: AddressSet) extends LazyModule
 object TLFilter
 {
   // applied to the TL source node; y.node := TLBuffer(x.node)
-  def apply(select: AddressSet)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply(select: AddressSet)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val filter = LazyModule(new TLFilter(select))
     filter.node := x
     filter.node

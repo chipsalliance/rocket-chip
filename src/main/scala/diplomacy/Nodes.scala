@@ -3,6 +3,7 @@
 package diplomacy
 
 import Chisel._
+import config._
 import scala.collection.mutable.ListBuffer
 import chisel3.internal.sourceinfo.SourceInfo
 
@@ -15,7 +16,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def edgeI(pd: DI, pu: UI): EI
   def bundleI(ei: Seq[EI]): Vec[BI]
   def colour: String
-  def connect(bo: => BI, bi: => BI, e: => EI)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit)
+  def connect(bo: => BI, bi: => BI, e: => EI)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit)
 
   // optional methods to track node graph
   def mixI(pu: UI, node: InwardNode[DI, UI, BI]): UI = pu // insert node into parameters
@@ -68,8 +69,8 @@ case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
   val inward: InwardNode[DI, UI, BI]
-  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] =
-    inward.:=(h)(sourceInfo)
+  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+    inward.:=(h)(p, sourceInfo)
 }
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, UI, BI]
@@ -174,7 +175,7 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val bundleIn  = wireI(flipI(inner.bundleI(edgesIn)))
 
   // connects the outward part of a node with the inward part of this node
-  override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit sourceInfo: SourceInfo): Option[LazyModule] = {
+  override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = {
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")

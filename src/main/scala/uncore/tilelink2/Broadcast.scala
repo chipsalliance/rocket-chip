@@ -3,10 +3,11 @@
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 import scala.math.{min,max}
 
-class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false) extends LazyModule
+class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   require (lineBytes > 0 && isPow2(lineBytes))
   require (numTrackers > 0)

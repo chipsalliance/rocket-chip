@@ -52,7 +52,7 @@ object PLICConsts
 }
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit val p: Parameters) extends LazyModule
+class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
 {
   val contextsPerHart = if (supervisor) 2 else 1
   require (maxPriorities >= 0)
