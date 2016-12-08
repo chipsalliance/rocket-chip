@@ -244,11 +244,11 @@ object Generator extends GeneratorApp {
     busif
   }
 
-  def makeAddressSpace(name: String, size: Long): AddressSpaces.AddressSpace = {
+  def makeAddressSpace(name: String, size: BigInt): AddressSpaces.AddressSpace = {
     val addressSpace = new AddressSpaces.AddressSpace
     addressSpace.setName(name)
     var range = new BankedBlockType.Range
-    range.setValue("0x" + size.toHexString)
+    range.setValue("0x" + size.toString(16))
     addressSpace.setRange(range)
     var width = new BankedBlockType.Width
     width.setValue(BigInteger.valueOf(32))
@@ -257,7 +257,7 @@ object Generator extends GeneratorApp {
     addressSpace
   }
 
-  def makeMemoryMap(name: String, signalMaps: Seq[(String, Long)]): MemoryMapType = {
+  def makeMemoryMap(name: String, signalMaps: Seq[(String, BigInt)]): MemoryMapType = {
     // Generate the subspaceMaps, one for each baseAddress.
     val memoryMap = new MemoryMapType
     var subspaceMaps = memoryMap.getMemoryMap()
@@ -265,9 +265,9 @@ object Generator extends GeneratorApp {
     for ((signal, address) <- signalMaps) {
       val subSpaceMap = new SubspaceRefType
       subSpaceMap.setMasterRef(signal)
-      subSpaceMap.setName("subspacemap_" + name + "_" + signal + "_" + address.toHexString)
+      subSpaceMap.setName("subspacemap_" + name + "_" + signal + "_" + address.toString(16))
       val baseAddress = new BaseAddress
-      baseAddress.setValue("0x" + address.toHexString)
+      baseAddress.setValue("0x" + address.toString(16))
       subSpaceMap.setBaseAddress(baseAddress)
       subspaceMaps.add(subSpaceMap)
     }
@@ -295,9 +295,21 @@ object Generator extends GeneratorApp {
   def generateIPXact {
     val nInputs = params(InPorts)
     val nOutputs = params(OutPorts)
-    val extMemSize = params(ExtMemSize)
-    val regionSize = extMemSize / nOutputs
+    val addrMap = params(GlobalAddrMap)
     val factory = new ObjectFactory
+
+    println("Generated Address Map")
+    for (entry <- addrMap.flatten) {
+      val name = entry.name
+      val start = entry.region.start
+      val end = entry.region.start + entry.region.size - 1
+      val prot = entry.region.attr.prot
+      val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
+                    (if ((prot & AddrMapProt.W) > 0) "W" else "") +
+                    (if ((prot & AddrMapProt.X) > 0) "X" else "")
+      val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
+      println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
+    }
 
     val busInterfaces = new BusInterfaces
     busInterfaces.getBusInterface().addAll(toCollection(
@@ -306,9 +318,14 @@ object Generator extends GeneratorApp {
 
     val addressSpaces = new AddressSpaces
     addressSpaces.getAddressSpace.addAll(toCollection(
-      (0 until nOutputs).map(i => makeAddressSpace(s"s${i}_as", regionSize))
+      addrMap.flatten.zipWithIndex.map { case (entry, i) =>
+        makeAddressSpace(s"s${i}_as", entry.region.size)
+      }
     ))
-    val signalMaps = (0 until nOutputs).map(i => (s"io_out_$i", regionSize * i))
+
+    val signalMaps = addrMap.flatten.zipWithIndex.map { case (entry, i) =>
+      (s"io_out_$i", entry.region.start)
+    }
     val memoryMaps = new MemoryMaps
     memoryMaps.getMemoryMap().addAll(toCollection(
       (0 until nInputs).map(i => makeMemoryMap(s"m${i}_mm", signalMaps))

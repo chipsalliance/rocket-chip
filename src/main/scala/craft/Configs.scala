@@ -5,6 +5,7 @@ import cde.{Parameters, Config, CDEMatchError}
 import uncore.tilelink._
 import uncore.coherence.{MICoherence, NullRepresentation}
 import uncore.agents.CacheBlockBytes
+import junctions._
 
 class WithCraft extends Config(
   (pname, site, here) => pname match {
@@ -15,7 +16,13 @@ class WithCraft extends Config(
       maxClientsPerPort = site(InPorts))
     case TLId => "XBar"
     case InPorts => 2
-    case OutPorts => 2
+    case OutPorts => site(GlobalAddrMap).flatten.size
+    case GlobalAddrMap => {
+      val memSize = site(ExtMemSize)
+      AddrMap(
+        AddrMapEntry(s"chan0", MemSize(memSize - 0x200, MemAttr(AddrMapProt.RWX))),
+        AddrMapEntry(s"chan1", MemSize(0x200, MemAttr(AddrMapProt.RWX))))
+    }
     case XBarQueueDepth => 2
     case ExtMemSize => 0x800L
     case _ => throw new CDEMatchError

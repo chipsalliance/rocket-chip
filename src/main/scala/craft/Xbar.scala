@@ -3,7 +3,7 @@ package craft
 import Chisel._
 import cde._
 import junctions._
-import rocketchip.{ExtMemSize, PeripheryUtils}
+import rocketchip.{ExtMemSize, PeripheryUtils, GlobalAddrMap}
 
 case object InPorts extends Field[Int]
 case object OutPorts extends Field[Int]
@@ -18,15 +18,10 @@ class CraftXBar(topParams: Parameters) extends Module {
   }
 
   val inPorts = p(InPorts)
-  val outPorts = p(OutPorts)
-  val memSize = p(ExtMemSize)
-
-  val addrMap = new AddrMap(Seq.tabulate(inPorts) { i =>
-    AddrMapEntry(s"chan$i", MemSize(memSize / outPorts, MemAttr(AddrMapProt.RWX)))
-  })
+  val addrMap = p(GlobalAddrMap)
 
   val bus = Module(new NastiRecursiveInterconnect(
-    outPorts, addrMap, p(XBarQueueDepth)))
+    inPorts, addrMap, p(XBarQueueDepth)))
   bus.io.masters <> io.in.map(PeripheryUtils.addQueueAXI(_))
   io.out <> bus.io.slaves.map(PeripheryUtils.addQueueAXI(_))
 }
