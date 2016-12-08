@@ -40,12 +40,6 @@ trait HasCoreParameters {
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
 
-  val edge = p(TLCacheEdge)
-  val cacheBlockBytes = p(CacheBlockBytes)
-  val lgCacheBlockBytes = log2Up(cacheBlockBytes)
-  val cacheDataBits = edge.bundle.dataBits
-  val cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
-
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
@@ -75,7 +69,7 @@ trait HasCoreParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = edge.bundle.addressBits
+  val paddrBits = p(TLCacheEdge).bundle.addressBits
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)

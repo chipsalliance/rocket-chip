@@ -20,8 +20,7 @@ case class DCacheConfig(
 
 case object DCacheKey extends Field[DCacheConfig]
 
-trait HasL1HellaCacheParameters extends HasCacheParameters with HasCoreParameters {
-  val refillCycles = cacheDataBeats
+trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val wordBits = xLen // really, xLen max 
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
@@ -126,7 +125,8 @@ abstract class HellaCache(val cfg: DCacheConfig)(implicit p: Parameters) extends
   val module: HellaCacheModule
 }
 
-class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends Bundle {
+class HellaCacheBundle(outer: HellaCache) extends Bundle {
+  implicit val p = outer.p
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val mem = outer.node.bundleOut
@@ -135,6 +135,7 @@ class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends Bundle
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
   implicit val cfg = outer.cfg
+  implicit val edge = outer.node.edgesOut(0)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
 

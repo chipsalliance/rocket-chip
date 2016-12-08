@@ -12,10 +12,11 @@ import Chisel.ImplicitConversions._
 import config._
 
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
-  val outerDataBeats = p(TLKey(p(TLId))).dataBeats
-  val outerDataBits = p(TLKey(p(TLId))).dataBitsPerBeat
-  val refillCyclesPerBeat = outerDataBits/rowBits
-  val refillCycles = refillCyclesPerBeat*outerDataBeats
+  val cacheBlockBytes = p(CacheBlockBytes)
+  val lgCacheBlockBytes = log2Up(cacheBlockBytes)
+  val cacheDataBits = p(TLCacheEdge).bundle.dataBits
+  val cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
+  val refillCycles = cacheDataBeats
 }
 
 class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {
@@ -74,12 +75,9 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
     refill_addr := s1_paddr
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
-
-  require(refillCyclesPerBeat == 1)
-  val narrow_grant = io.mem.grant 
-  val (refill_cnt, refill_wrap) = Counter(narrow_grant.fire(), refillCycles)
+  val (refill_cnt, refill_wrap) = Counter(io.mem.grant.fire(), refillCycles)
   val refill_done = state === s_refill && refill_wrap
-  narrow_grant.ready := Bool(true)
+  io.mem.grant.ready := Bool(true)
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
@@ -118,9 +116,9 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
 
   for (i <- 0 until nWays) {
     val data_array = SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits)))
-    val wen = narrow_grant.valid && repl_way === UInt(i)
+    val wen = io.mem.grant.valid && repl_way === UInt(i)
     when (wen) {
-      val e_d = code.encode(narrow_grant.bits.data)
+      val e_d = code.encode(io.mem.grant.bits.data)
       data_array.write((s1_idx << log2Ceil(refillCycles)) | refill_cnt, e_d)
     }
     val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-log2Ceil(refillCycles))

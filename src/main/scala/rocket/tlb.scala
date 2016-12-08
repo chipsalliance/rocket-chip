@@ -15,7 +15,7 @@ import uncore.tilelink2._
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
 
-trait HasTLBParameters extends HasCoreParameters {
+trait HasTLBParameters extends HasL1CacheParameters {
   val entries = p(p(CacheName)).nTLBEntries
   val camAddrBits = log2Ceil(entries)
   val camTagBits = asIdBits + vpnBits
@@ -38,7 +38,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val cacheable = Bool(OUTPUT)
 }
 
-class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
+class TLB(implicit edge: TLEdgeOut, val p: Parameters) extends Module with HasTLBParameters {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
     val resp = new TLBResp
@@ -178,7 +178,7 @@ class TLB(implicit val p: Parameters) extends Module with HasTLBParameters {
   }
 }
 
-class DecoupledTLB(implicit p: Parameters) extends Module {
+class DecoupledTLB(implicit edge: TLEdgeOut, p: Parameters) extends Module {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
     val resp = Decoupled(new TLBResp)

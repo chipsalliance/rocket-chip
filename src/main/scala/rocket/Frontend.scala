@@ -43,7 +43,7 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   }
 
   val icache = Module(new ICache(latency = 2))
-  val tlb = Module(new TLB)
+  val tlb = Module(new TLB()(p(TLCacheEdge), p))
 
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
