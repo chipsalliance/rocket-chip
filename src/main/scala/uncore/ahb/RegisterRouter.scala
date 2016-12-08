@@ -52,7 +52,7 @@ class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
 
     val request = ahb.htrans === AHBParameters.TRANS_NONSEQ || ahb.htrans === AHBParameters.TRANS_SEQ
     when (ahb.hready && ahb.hsel && request) {
-      assert (!d_phase || in.ready)
+      assert (!in.valid || in.ready)
       d_phase := Bool(true)
       d_taken := Bool(false)
       d_read  := !ahb.hwrite
