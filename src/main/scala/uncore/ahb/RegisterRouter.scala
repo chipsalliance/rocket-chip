@@ -13,8 +13,8 @@ class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
     Seq(AHBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
-      supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
-      supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
+      supportsWrite = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)),
+      supportsRead  = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)))),
     beatBytes  = beatBytes))
 {
   require (address.contiguous)
@@ -45,6 +45,7 @@ class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
     in.bits.mask  := d_mask
     in.bits.extra := UInt(0)
 
+    when (ahb.hready) { d_phase := Bool(false) }
     ahb.hreadyout := !d_phase || out.valid
     ahb.hresp     := AHBParameters.RESP_OKAY
     ahb.hrdata    := out.bits.data
