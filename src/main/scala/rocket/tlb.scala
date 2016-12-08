@@ -17,7 +17,6 @@ case object ASIdBits extends Field[Int]
 
 trait HasTLBParameters extends HasCoreParameters {
   val entries = p(p(CacheName)).nTLBEntries
-  val cacheBlockBytes = p(CacheBlockBytes)
   val camAddrBits = log2Ceil(entries)
   val camTagBits = asIdBits + vpnBits
 }
