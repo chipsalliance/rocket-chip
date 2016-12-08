@@ -20,10 +20,14 @@ class AHBFuzzBridge()(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel("AHBFuzzMaster"))
+  var xbar  = LazyModule(new AHBFanout)
   val ram   = LazyModule(new AHBRAM(AddressSet(0x0, 0xff)))
+  val gpio  = LazyModule(new RRTest0(0x100))
 
   model.node := fuzz.node
-  ram.node := TLToAHB()(model.node)
+  xbar.node := TLToAHB()(model.node)
+  ram.node  := xbar.node
+  gpio.node := xbar.node
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
