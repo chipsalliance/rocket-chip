@@ -31,7 +31,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     TransferSizes.none
   def mapManager(m: TLManagerParameters) = m.copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
-    supportsLogical    = expandTransfer(m.supportsLogical),
+    supportsLogical    = shrinkTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet),
     supportsPutFull    = expandTransfer(m.supportsPutFull),
     supportsPutPartial = expandTransfer(m.supportsPutPartial),
