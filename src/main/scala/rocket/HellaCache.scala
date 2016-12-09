@@ -138,16 +138,6 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edgesOut(0)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
-
-  /* TODO
-  edge.manager.managers.foreach { m =>
-    if (m.supportsGet) {
-      require (m.supportsGet.contains(TransferSizes(1, tlDataBytes)))
-    ....etc
-    }
-  }
-  */
-
 }
 
 object HellaCache {

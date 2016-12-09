@@ -4,10 +4,11 @@
 package rocket
 
 import Chisel._
-import uncore.tilelink._
+import config._
+import diplomacy._
+import uncore.tilelink2._
 import util._
 import Chisel.ImplicitConversions._
-import config._
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -34,16 +35,29 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val npc = UInt(INPUT, width = vaddrBitsExtended)
 }
 
-class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CacheParameters {
-  val io = new Bundle {
-    val cpu = new FrontendIO().flip
-    val ptw = new TLBPTWIO()
-    val mem = new ClientUncachedTileLinkIO
-    val resetVector = UInt(INPUT, vaddrBitsExtended)
-  }
+class Frontend(implicit p: Parameters) extends LazyModule {
+  lazy val module = new FrontendModule(this)
+  val icache = LazyModule(new ICache(latency = 2))
+  val node = TLOutputNode()
 
-  val icache = Module(new ICache(latency = 2))
-  val tlb = Module(new TLB()(p(TLCacheEdge), p))
+  node := icache.node
+}
+
+class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
+  val cpu = new FrontendIO().flip
+  val ptw = new TLBPTWIO()
+  val mem = outer.node.bundleOut
+  val resetVector = UInt(INPUT, vaddrBitsExtended)
+}
+
+class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
+    with HasCoreParameters
+    with HasL1CacheParameters {
+  val io = new FrontendBundle(outer)
+  implicit val edge = outer.node.edgesOut(0)
+  val icache = outer.icache.module
+
+  val tlb = Module(new TLB)
 
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
@@ -115,7 +129,6 @@ class Frontend(implicit p: Parameters) extends CoreModule()(p) with HasL1CachePa
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)
 
-  io.mem <> icache.io.mem
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache

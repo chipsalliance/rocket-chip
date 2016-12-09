@@ -4,12 +4,13 @@
 package rocket
 
 import Chisel._
+import config._
+import diplomacy._
 import uncore.agents._
-import uncore.tilelink._
+import uncore.tilelink2._
 import uncore.util._
 import util._
 import Chisel.ImplicitConversions._
-import config._
 
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val cacheBlockBytes = p(CacheBlockBytes)
@@ -28,17 +29,29 @@ class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1Cache
   val datablock = Bits(width = rowBits)
 }
 
-class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with HasL1CacheParameters {
-  val io = new Bundle {
-    val req = Valid(new ICacheReq).flip
-    val s1_ppn = UInt(INPUT, ppnBits) // delayed one cycle w.r.t. req
-    val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
-    val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
+class ICache(val latency: Int)(implicit p: Parameters) extends LazyModule {
+  lazy val module = new ICacheModule(this)
+  val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
+}
 
-    val resp = Decoupled(new ICacheResp)
-    val invalidate = Bool(INPUT)
-    val mem = new ClientUncachedTileLinkIO
-  }
+class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
+  val req = Valid(new ICacheReq).flip
+  val s1_ppn = UInt(INPUT, ppnBits) // delayed one cycle w.r.t. req
+  val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
+  val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
+
+  val resp = Decoupled(new ICacheResp)
+  val invalidate = Bool(INPUT)
+  val mem = outer.node.bundleOut
+}
+
+class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
+    with HasCoreParameters
+    with HasL1CacheParameters {
+  val io = new ICacheBundle(outer)
+  val edge = outer.node.edgesOut(0)
+  val tl_out = io.mem(0)
+
   require(isPow2(nSets) && isPow2(nWays))
   require(isPow2(coreInstBytes))
   require(!usingVM || pgIdxBits >= untagBits)
@@ -75,9 +88,8 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
     refill_addr := s1_paddr
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
-  val (refill_cnt, refill_wrap) = Counter(io.mem.grant.fire(), refillCycles)
-  val refill_done = state === s_refill && refill_wrap
-  io.mem.grant.ready := Bool(true)
+  val (_, _, refill_done, refill_cnt) = edge.count(tl_out.d)
+  tl_out.d.ready := state === s_refill
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
@@ -116,9 +128,9 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
 
   for (i <- 0 until nWays) {
     val data_array = SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits)))
-    val wen = io.mem.grant.valid && repl_way === UInt(i)
+    val wen = tl_out.d.valid && repl_way === UInt(i)
     when (wen) {
-      val e_d = code.encode(io.mem.grant.bits.data)
+      val e_d = code.encode(tl_out.d.bits.data)
       data_array.write((s1_idx << log2Ceil(refillCycles)) | refill_cnt, e_d)
     }
     val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-log2Ceil(refillCycles))
@@ -126,7 +138,7 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
   }
 
   // output signals
-  latency match {
+  outer.latency match {
     case 1 =>
       io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_hit
@@ -137,8 +149,13 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
       io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
       io.resp.valid := s2_hit
   }
-  io.mem.acquire.valid := state === s_request && !io.s2_kill
-  io.mem.acquire.bits := GetBlock(addr_block = refill_addr >> blockOffBits)
+  tl_out.a.valid := state === s_request && !io.s2_kill
+  tl_out.a.bits := edge.Get(
+                    fromSource = UInt(0),
+                    toAddress = (refill_addr >> blockOffBits) << blockOffBits,
+                    lgSize = lgCacheBlockBytes)._2
+  tl_out.c.valid := Bool(false)
+  tl_out.e.valid := Bool(false)
 
   // control state machine
   switch (state) {
@@ -147,11 +164,11 @@ class ICache(latency: Int)(implicit p: Parameters) extends CoreModule()(p) with 
       invalidated := Bool(false)
     }
     is (s_request) {
-      when (io.mem.acquire.ready) { state := s_refill_wait }
+      when (tl_out.a.ready) { state := s_refill_wait }
       when (io.s2_kill) { state := s_ready }
     }
     is (s_refill_wait) {
-      when (io.mem.grant.valid) { state := s_refill }
+      when (tl_out.d.valid) { state := s_refill }
     }
     is (s_refill) {
       when (refill_done) { state := s_ready }
