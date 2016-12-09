@@ -7,8 +7,11 @@ services:
 
 env:
   matrix:
-    - SUITE=RocketSuite
-    - SUITE=GroundtestSuite
+    - SUITE=RocketSuiteA
+    - SUITE=RocketSuiteB
+    - SUITE=RocketSuiteC
+    - SUITE=GroundtestSuiteA
+    - SUITE=GroundtestSuiteB
     - SUITE=UnittestSuite
 
 # blacklist private branches

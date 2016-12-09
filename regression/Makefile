@@ -41,15 +41,29 @@ ifeq ($(SUITE),)
 $(error Set SUITE to the regression suite you want to run)
 endif
 
-ifeq ($(SUITE),RocketSuite)
+ifeq ($(SUITE),RocketSuiteA)
 PROJECT=rocketchip
-CONFIGS=DefaultConfig DefaultBufferlessConfig DefaultL2Config TinyConfig
+CONFIGS=DefaultConfig
 endif
 
-ifeq ($(SUITE),GroundtestSuite)
+ifeq ($(SUITE),RocketSuiteB)
+PROJECT=rocketchip
+CONFIGS=DefaultBufferlessConfig
+endif
+
+ifeq ($(SUITE),RocketSuiteC)
+PROJECT=rocketchip
+CONFIGS=DefaultL2Config TinyConfig
+endif
+
+ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
-	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig
+endif
+
+ifeq ($(SUITE),GroundtestSuiteB)
+PROJECT=groundtest
+CONFIGS=BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
 	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
 endif
 
