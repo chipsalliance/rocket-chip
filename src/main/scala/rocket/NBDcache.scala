@@ -675,7 +675,7 @@ class NonBlockingDCache(cfg: DCacheConfig)(implicit p: Parameters) extends Hella
   override lazy val module = new NonBlockingDCacheModule(this) 
 }
 
-class NonBlockingDCacheModule(outer: NonBlockingDCache)(implicit p: Parameters) extends HellaCacheModule(outer)(p) {
+class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule(outer) {
 
   require(isPow2(nWays)) // TODO: relax this
   require(p(DataScratchpadSize) == 0)

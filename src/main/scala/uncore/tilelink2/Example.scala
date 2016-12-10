@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import regmapper._
 
 case class ExampleParams(num: Int, address: BigInt)
@@ -33,6 +34,6 @@ trait ExampleModule extends HasRegMap
 }
 
 // Create a concrete TL2 version of the abstract Example slave
-class TLExample(p: ExampleParams) extends TLRegisterRouter(p.address, 4)(
-  new TLRegBundle(p, _)    with ExampleBundle)(
-  new TLRegModule(p, _, _) with ExampleModule)
+class TLExample(params: ExampleParams)(implicit p: Parameters) extends TLRegisterRouter(params.address, 4)(
+  new TLRegBundle(params, _)    with ExampleBundle)(
+  new TLRegModule(params, _, _) with ExampleModule)

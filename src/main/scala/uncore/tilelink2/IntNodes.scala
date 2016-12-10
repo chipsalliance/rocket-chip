@@ -4,6 +4,7 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.collection.mutable.ListBuffer
 import scala.math.max
@@ -65,7 +66,7 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
   override def labelI(ei: IntEdge) = ei.source.sources.map(_.range.size).sum.toString
   override def labelO(eo: IntEdge) = eo.source.sources.map(_.range.size).sum.toString
 
-  def connect(bo: => Vec[Bool], bi: => Vec[Bool], ei: => IntEdge)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(bo: => Vec[Bool], bi: => Vec[Bool], ei: => IntEdge)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => {
       // Cannot use bulk connect, because the widths could differ
       (bo zip bi) foreach { case (o, i) => i := o }
@@ -100,7 +101,7 @@ case class IntBlindInputNode(num: Int) extends BlindInputNode(IntImp)(IntSourceP
 case class IntInternalOutputNode() extends InternalOutputNode(IntImp)(IntSinkPortParameters(Seq(IntSinkParameters())))
 case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(IntSourcePortParameters(Seq(IntSourceParameters(num))))
 
-class IntXbar extends LazyModule
+class IntXbar()(implicit p: Parameters) extends LazyModule
 {
   val intnode = IntAdapterNode(
     numSourcePorts = 0 to 128,
@@ -123,7 +124,7 @@ class IntXbar extends LazyModule
   }
 }
 
-class IntXing extends LazyModule
+class IntXing()(implicit p: Parameters) extends LazyModule
 {
   val intnode = IntIdentityNode()
 

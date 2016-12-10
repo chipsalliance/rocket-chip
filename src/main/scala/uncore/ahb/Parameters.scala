@@ -1,23 +1,22 @@
 // See LICENSE.SiFive for license details.
 
-package uncore.axi4
+package uncore.ahb
 
 import Chisel._
 import config._
 import diplomacy._
 import scala.math.max
 
-case class AXI4SlaveParameters(
+case class AHBSlaveParameters(
   address:       Seq[AddressSet],
   regionType:    RegionType.T  = RegionType.GET_EFFECTS,
   executable:    Boolean       = false, // processor can execute from this memory
   nodePath:      Seq[BaseNode] = Seq(),
   supportsWrite: TransferSizes = TransferSizes.none,
-  supportsRead:  TransferSizes = TransferSizes.none,
-  interleavedId: Option[Int]   = None) // The device will not interleave read responses
+  supportsRead:  TransferSizes = TransferSizes.none)
 {
   address.foreach { a => require (a.finite) }
-  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
+    address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = max(supportsWrite.max, supportsRead.max)
@@ -28,8 +27,8 @@ case class AXI4SlaveParameters(
   require (minAlignment >= maxTransfer)
 }
 
-case class AXI4SlavePortParameters(
-  slaves:    Seq[AXI4SlaveParameters],
+case class AHBSlavePortParameters(
+  slaves:    Seq[AHBSlaveParameters],
   beatBytes: Int)
 {
   require (!slaves.isEmpty)
@@ -40,8 +39,8 @@ case class AXI4SlavePortParameters(
 
   // Check the link is not pointlessly wide
   require (maxTransfer >= beatBytes)
-  // Check that the link can be implemented in AXI4
-  require (maxTransfer <= beatBytes * (1 << AXI4Parameters.lenBits))
+  // Check that the link can be implemented in AHB
+  require (maxTransfer <= beatBytes * AHBParameters.maxTransfer)
 
   lazy val routingMask = AddressDecoder(slaves.map(_.address))
   def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
@@ -55,62 +54,46 @@ case class AXI4SlavePortParameters(
   }
 }
 
-case class AXI4MasterParameters(
-  id:       IdRange       = IdRange(0, 1),
-  aligned:  Boolean       = false,
+case class AHBMasterParameters(
   nodePath: Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
-case class AXI4MasterPortParameters(
-  masters: Seq[AXI4MasterParameters])
-{
-  val endId = masters.map(_.id.end).max
+case class AHBMasterPortParameters(
+  masters: Seq[AHBMasterParameters])
 
-  // Require disjoint ranges for ids
-  masters.combinations(2).foreach { case Seq(x,y) => require (!x.id.overlaps(y.id)) }
-}
-
-case class AXI4BundleParameters(
+case class AHBBundleParameters(
   addrBits: Int,
-  dataBits: Int,
-  idBits:   Int)
+  dataBits: Int)
 {
   require (dataBits >= 8)
   require (addrBits >= 1)
-  require (idBits >= 1)
   require (isPow2(dataBits))
 
   // Bring the globals into scope
-  val lenBits   = AXI4Parameters.lenBits
-  val sizeBits  = AXI4Parameters.sizeBits
-  val burstBits = AXI4Parameters.burstBits
-  val lockBits  = AXI4Parameters.lockBits
-  val cacheBits = AXI4Parameters.cacheBits
-  val protBits  = AXI4Parameters.protBits
-  val qosBits   = AXI4Parameters.qosBits
-  val respBits  = AXI4Parameters.respBits
+  val transBits = AHBParameters.transBits
+  val burstBits = AHBParameters.burstBits
+  val protBits  = AHBParameters.protBits
+  val sizeBits  = AHBParameters.sizeBits
 
-  def union(x: AXI4BundleParameters) =
-    AXI4BundleParameters(
+  def union(x: AHBBundleParameters) =
+    AHBBundleParameters(
       max(addrBits, x.addrBits),
-      max(dataBits, x.dataBits),
-      max(idBits,   x.idBits))
+      max(dataBits, x.dataBits))
 }
 
-object AXI4BundleParameters
+object AHBBundleParameters
 {
-  def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
-    new AXI4BundleParameters(
+  def apply(master: AHBMasterPortParameters, slave: AHBSlavePortParameters) =
+    new AHBBundleParameters(
       addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8,
-      idBits   = log2Up(master.endId))
+      dataBits = slave.beatBytes * 8)
 }
 
-case class AXI4EdgeParameters(
-  master: AXI4MasterPortParameters,
-  slave:  AXI4SlavePortParameters)
+case class AHBEdgeParameters(
+  master: AHBMasterPortParameters,
+  slave:  AHBSlavePortParameters)
 {
-  val bundle = AXI4BundleParameters(master, slave)
+  val bundle = AHBBundleParameters(master, slave)
 }

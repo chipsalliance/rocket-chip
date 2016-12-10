@@ -32,8 +32,7 @@ object ClintConsts
 }
 
 trait MixCoreplexLocalInterrupterParameters {
-  val params: Parameters
-  implicit val p = params
+  implicit val p: Parameters
 }
 
 trait CoreplexLocalInterrupterBundle extends Bundle with MixCoreplexLocalInterrupterParameters {
@@ -83,10 +82,10 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
-class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit val p: Parameters)
-  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
-  new TLRegBundle(p, _)    with CoreplexLocalInterrupterBundle)(
-  new TLRegModule(p, _, _) with CoreplexLocalInterrupterModule)
+class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Parameters)
+  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(rocket.XLen)/8, undefZero = true)(
+  new TLRegBundle((), _)    with CoreplexLocalInterrupterBundle)(
+  new TLRegModule((), _, _) with CoreplexLocalInterrupterModule)
 {
   val globalConfigString = Seq(
     s"rtc {\n",

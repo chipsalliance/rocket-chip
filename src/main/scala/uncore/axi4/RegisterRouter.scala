@@ -3,6 +3,7 @@
 package uncore.axi4
 
 import Chisel._
+import config._
 import diplomacy._
 import regmapper._
 import scala.math.{min,max}
@@ -77,16 +78,17 @@ object AXI4RegisterNode
 // These convenience methods below combine to make it possible to create a AXI4
 // register mapped device from a totally abstract register mapped device.
 
-abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean) extends LazyModule
+abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4RegisterNode(address, concurrency, beatBytes, undefZero, executable)
   val intnode = uncore.tilelink2.IntSourceNode(interrupts)
 }
 
-case class AXI4RegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[AXI4Bundle])
+case class AXI4RegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[AXI4Bundle])(implicit val p: Parameters)
 
 class AXI4RegBundleBase(arg: AXI4RegBundleArg) extends Bundle
 {
+  implicit val p = arg.p
   val interrupts = arg.interrupts
   val in = arg.in
 }
@@ -104,7 +106,7 @@ class AXI4RegModule[P, B <: AXI4RegBundleBase](val params: P, bundleBuilder: => 
 class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
    (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
    (bundleBuilder: AXI4RegBundleArg => B)
-   (moduleBuilder: (=> B, AXI4RegisterRouterBase) => M)
+   (moduleBuilder: (=> B, AXI4RegisterRouterBase) => M)(implicit p: Parameters)
   extends AXI4RegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
 {
   require (isPow2(size))

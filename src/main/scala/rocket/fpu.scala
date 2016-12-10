@@ -308,17 +308,15 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   val dcmp = Module(new hardfloat.CompareRecFN(maxExpWidth, maxSigWidth))
   dcmp.io.a := in.in1
   dcmp.io.b := in.in2
-  dcmp.io.signaling := Bool(true)
-  val dcmp_out = (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR
-  val dcmp_exc = dcmp.io.exceptionFlags
+  dcmp.io.signaling := !in.rm(1)
 
   io.out.bits.toint := Mux(in.rm(0), classify_out, unrec_int)
   io.out.bits.store := unrec_mem
   io.out.bits.exc := Bits(0)
 
   when (in.cmd === FCMD_CMP) {
-    io.out.bits.toint := dcmp_out
-    io.out.bits.exc := dcmp_exc
+    io.out.bits.toint := (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR
+    io.out.bits.exc := dcmp.io.exceptionFlags
   }
   when (in.cmd === FCMD_CVT_IF) {
     val minXLen = 32

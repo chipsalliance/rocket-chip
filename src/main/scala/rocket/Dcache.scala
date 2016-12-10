@@ -42,7 +42,7 @@ class DCache(cfg: DCacheConfig, val scratch: () => Option[AddressSet])(implicit 
   override lazy val module = new DCacheModule(this) 
 }
 
-class DCacheModule(outer: DCache)(implicit p: Parameters) extends HellaCacheModule(outer)(p) {
+class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val maxUncachedInFlight = cfg.nMMIOs
 

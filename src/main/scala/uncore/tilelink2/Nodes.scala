@@ -4,8 +4,13 @@ package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.collection.mutable.ListBuffer
+
+case object TLMonitorBuilder extends Field[TLMonitorArgs => Option[TLMonitorBase]]
+case object TLFuzzReadyValid extends Field[Boolean]
+case object TLCombinationalCheck extends Field[Boolean]
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
@@ -20,24 +25,16 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_))))
   }
 
-  var emitMonitors = true
-  var stressTestDecoupled = false
-  var combinationalCheck = false
-
   def colour = "#000000" // black
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
   override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
 
-  def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    val monitor = if (emitMonitors) {
-      Some(LazyModule(new TLMonitor(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo)))
-    } else {
-      None
-    }
+  def connect(bo: => TLBundle, bi: => TLBundle, ei: => TLEdgeIn)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    val monitor = p(TLMonitorBuilder)(TLMonitorArgs(() => new TLBundleSnoop(bo.params), () => ei, sourceInfo, p))
     (monitor, () => {
       bi <> bo
       monitor.foreach { _.module.io.in := TLBundleSnoop(bo) }
-      if (combinationalCheck) {
+      if (p(TLCombinationalCheck)) {
         // It is forbidden for valid to depend on ready in TL2
         // If someone did that, then this will create a detectable combinational loop
         bo.a.ready := bi.a.ready && bo.a.valid
@@ -46,7 +43,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
         bi.d.ready := bo.d.ready && bi.d.valid
         bo.e.ready := bi.e.ready && bo.e.valid
       }
-      if (stressTestDecoupled) {
+      if (p(TLCombinationalCheck)) {
         // Randomly stall the transfers
         val allow = LFSRNoiseMaker(5)
         bi.a.valid := bo.a.valid && allow(0)
@@ -132,7 +129,7 @@ case class TLInternalInputNode(portParams: TLClientPortParameters) extends Inter
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLInputNodeTest extends UnitTest(500000) {
+class TLInputNodeTest()(implicit p: Parameters) extends UnitTest(500000) {
   class Acceptor extends LazyModule {
     val node = TLInputNode()
     val tlram = LazyModule(new TLRAM(AddressSet(0x54321000, 0xfff)))
@@ -168,7 +165,7 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
   override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString
   override def labelO(eo: TLAsyncEdgeParameters) = eo.manager.depth.toString
 
-  def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(bo: => TLAsyncBundle, bi: => TLAsyncBundle, ei: => TLAsyncEdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => { bi <> bo })
   }
 

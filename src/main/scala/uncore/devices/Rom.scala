@@ -12,7 +12,7 @@ import uncore.tilelink2._
 import uncore.util._
 import config._
 
-class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
+class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
   val node = TLManagerNode(beatBytes, TLManagerParameters(
     address     = List(AddressSet(base, size-1)),

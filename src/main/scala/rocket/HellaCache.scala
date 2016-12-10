@@ -129,7 +129,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val ordered = Bool(INPUT)
 }
 
-abstract class HellaCache(val cfg: DCacheConfig)(implicit val p: Parameters) extends LazyModule {
+abstract class HellaCache(val cfg: DCacheConfig)(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, cfg.nMSHRs + cfg.nMMIOs),
     supportsProbe = TransferSizes(p(CacheBlockBytes))))
@@ -142,7 +142,7 @@ class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends Bundle
   val mem = outer.node.bundleOut
 }
 
-class HellaCacheModule(outer: HellaCache)(implicit val p: Parameters) extends LazyModuleImp(outer)
+class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
   implicit val cfg = outer.cfg
   val io = new HellaCacheBundle(outer)

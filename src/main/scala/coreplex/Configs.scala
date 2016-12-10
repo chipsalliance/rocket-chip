@@ -4,8 +4,10 @@
 package coreplex
 
 import Chisel._
-import junctions._
+import config._
 import diplomacy._
+import junctions.PAddrBits
+import rocket._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.coherence._
@@ -13,10 +15,7 @@ import uncore.agents._
 import uncore.devices._
 import uncore.converters._
 import uncore.util._
-import rocket._
 import util._
-import util.ConfigUtils._
-import config._
 
 class BaseCoreplexConfig extends Config (
   { (pname,site,here) =>
@@ -95,11 +94,11 @@ class BaseCoreplexConfig extends Config (
           nManagers = site(BankedL2Config).nBanks + 1 /* MMIO */,
           nCachingClients = 1,
           nCachelessClients = 1,
-          maxClientXacts = max_int(
+          maxClientXacts = List(
               // L1 cache
               site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
               // RoCC
-              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)),
+              if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
           maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
           maxManagerXacts = site(NAcquireTransactors) + 2,
           dataBeats = innerDataBeats,
@@ -208,7 +207,7 @@ class WithStatelessBridge extends Config(
   (pname,site,here,up) => pname match {
 /* !!! FIXME
     case BankedL2Config => up(BankedL2Config, site).copy(coherenceManager = { case (_, _) =>
-      val pass = LazyModule(new TLBuffer(0))
+      val pass = LazyModule(new TLBuffer(0)(site))
       (pass.node, pass.node)
     })
 */

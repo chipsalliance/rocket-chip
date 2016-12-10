@@ -25,14 +25,17 @@ class JunctionsUnitTestConfig extends Config(new WithJunctionsUnitTests ++ new B
 class WithUncoreUnitTests extends Config(
   (pname, site, here) => pname match {
     case uncore.tilelink.TLId => "L1toL2"
-    case UnitTests => (p: Parameters) => Seq(
-      Module(new uncore.devices.ROMSlaveTest()(p)),
-      Module(new uncore.devices.TileLinkRAMTest()(p)),
-      Module(new uncore.converters.TileLinkWidthAdapterTest()(p)),
-      Module(new uncore.tilelink2.TLFuzzRAMTest),
-      Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
-      Module(new uncore.axi4.AXI4FullFuzzRAMTest),
-      Module(new uncore.axi4.AXI4BridgeTest))
+    case UnitTests => (q: Parameters) => {
+      implicit val p = q
+      Seq(
+        Module(new uncore.devices.ROMSlaveTest()),
+        Module(new uncore.devices.TileLinkRAMTest()),
+        Module(new uncore.converters.TileLinkWidthAdapterTest()),
+        Module(new uncore.tilelink2.TLFuzzRAMTest),
+        Module(new uncore.ahb.AHBBridgeTest),
+        Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
+        Module(new uncore.axi4.AXI4FullFuzzRAMTest),
+        Module(new uncore.axi4.AXI4BridgeTest)) }
     case _ => throw new CDEMatchError
   }
 )
@@ -41,7 +44,8 @@ class UncoreUnitTestConfig extends Config(new WithUncoreUnitTests ++ new BaseCon
 
 class WithTLSimpleUnitTests extends Config(
   (pname, site, here) => pname match {
-    case UnitTests => (p: Parameters) => {
+    case UnitTests => (q: Parameters) => {
+      implicit val p = q
       Seq(
         Module(new uncore.tilelink2.TLRAMSimpleTest(1)),
         Module(new uncore.tilelink2.TLRAMSimpleTest(4)),
@@ -53,7 +57,9 @@ class WithTLSimpleUnitTests extends Config(
 
 class WithTLWidthUnitTests extends Config(
   (pname, site, here) => pname match {
-    case UnitTests => (p: Parameters) => { Seq(
+    case UnitTests => (q: Parameters) => {
+      implicit val p = q
+      Seq(
         Module(new uncore.tilelink2.TLRAMFragmenterTest( 4, 256)),
         Module(new uncore.tilelink2.TLRAMFragmenterTest(16,  64)),
         Module(new uncore.tilelink2.TLRAMFragmenterTest( 4,  16)),
@@ -64,7 +70,9 @@ class WithTLWidthUnitTests extends Config(
 
 class WithTLXbarUnitTests extends Config(
   (pname, site, here) => pname match {
-    case UnitTests => (p: Parameters) => { Seq(
+    case UnitTests => (q: Parameters) => {
+      implicit val p = q
+      Seq(
         Module(new uncore.tilelink2.TLRAMXbarTest(1)),
         Module(new uncore.tilelink2.TLRAMXbarTest(2)),
         Module(new uncore.tilelink2.TLRAMXbarTest(8)),

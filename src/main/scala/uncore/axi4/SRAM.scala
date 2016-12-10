@@ -3,9 +3,10 @@
 package uncore.axi4
 
 import Chisel._
+import config._
 import diplomacy._
 
-class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
+class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4SlaveNode(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(

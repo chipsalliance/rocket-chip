@@ -8,11 +8,10 @@ import config._
 import rocketchip._
 import util._
 
-class TestHarness(q: Parameters) extends Module {
+class TestHarness(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
-  implicit val p = q
 
   val dut = Module(LazyModule(new GroundTestTop).module)
   io.success := dut.io.success

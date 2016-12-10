@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
 class IDMapGenerator(numIds: Int) extends Module {
@@ -85,7 +86,7 @@ class TLFuzzer(
                   (wide: Int, increment: Bool, abs_values: Int) =>
                    LFSRNoiseMaker(wide=wide, increment=increment)
                   }
-              ) extends LazyModule
+              )(implicit p: Parameters) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -213,7 +214,7 @@ class TLFuzzer(
 /** Synthesizeable integration test */
 import unittest._
 
-class TLFuzzRAM extends LazyModule
+class TLFuzzRAM()(implicit p: Parameters) extends LazyModule
 {
   val model = LazyModule(new TLRAMModel("TLFuzzRAM"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
@@ -253,7 +254,7 @@ class TLFuzzRAM extends LazyModule
   }
 }
 
-class TLFuzzRAMTest extends UnitTest(500000) {
+class TLFuzzRAMTest()(implicit p: Parameters) extends UnitTest(500000) {
   val dut = Module(LazyModule(new TLFuzzRAM).module)
   io.finished := dut.io.finished
 }
