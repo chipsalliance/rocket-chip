@@ -62,7 +62,7 @@ class WritebackReq(params: TLBundleParameters)(implicit p: Parameters) extends L
   override def cloneType = new WritebackReq(params)(p).asInstanceOf[this.type]
 }
 
-class IOMSHR(id: Int, edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
+class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new HellaCacheReq).flip
     val resp = Decoupled(new HellaCacheResp)
@@ -145,7 +145,7 @@ class IOMSHR(id: Int, edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCa
   }
 }
 
-class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) extends L1HellaCacheModule()(p) {
+class MSHR(id: Int)(implicit edge: TLEdgeOut, cfg: DCacheConfig, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req_pri_val    = Bool(INPUT)
     val req_pri_rdy    = Bool(OUTPUT)
@@ -310,7 +310,7 @@ class MSHR(id: Int, edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) 
   }
 }
 
-class MSHRFile(edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) extends L1HellaCacheModule()(p) {
+class MSHRFile(implicit edge: TLEdgeOut, cfg: DCacheConfig, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new MSHRReq).flip
     val resp = Decoupled(new HellaCacheResp)
@@ -361,7 +361,7 @@ class MSHRFile(edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) exten
   io.probe_rdy := true
 
   val mshrs = (0 until cfg.nMSHRs) map { i =>
-    val mshr = Module(new MSHR(i,edge)(cfg,p))
+    val mshr = Module(new MSHR(i))
 
     idxMatch(i) := mshr.io.idx_match
     tagList(i) := mshr.io.tag
@@ -408,7 +408,7 @@ class MSHRFile(edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) exten
 
   val mmios = (0 until nIOMSHRs) map { i =>
     val id = cfg.nMSHRs + i
-    val mshr = Module(new IOMSHR(id, edge))
+    val mshr = Module(new IOMSHR(id))
 
     mmio_alloc_arb.io.in(i).valid := mshr.io.req.ready
     mshr.io.req.valid := mmio_alloc_arb.io.in(i).ready
@@ -449,7 +449,7 @@ class MSHRFile(edge: TLEdgeOut)(implicit cfg: DCacheConfig, p: Parameters) exten
   }
 }
 
-class WritebackUnit(edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
+class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new WritebackReq(edge.bundle)).flip
     val meta_read = Decoupled(new L1MetaReadReq)
@@ -525,7 +525,7 @@ class WritebackUnit(edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCach
   io.release.bits := Mux(req.voluntary, voluntaryRelease, probeResponse)
 }
 
-class ProbeUnit(edge: TLEdgeOut)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
+class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBundleB(edge.bundle)).flip
     val rep = Decoupled(new TLBundleC(edge.bundle))
@@ -680,9 +680,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   require(isPow2(nWays)) // TODO: relax this
   require(p(DataScratchpadSize) == 0)
 
-  val wb = Module(new WritebackUnit(edge))
-  val prober = Module(new ProbeUnit(edge))
-  val mshrs = Module(new MSHRFile(edge))
+  val wb = Module(new WritebackUnit)
+  val prober = Module(new ProbeUnit)
+  val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
