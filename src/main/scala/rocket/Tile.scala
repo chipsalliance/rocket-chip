@@ -36,7 +36,6 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
     case TLId => "L1toL2"
   })
 
-  //TODO val intNode = IntInputNode()
   val slaveNode = if (p(DataScratchpadSize) == 0) None else Some(TLInputNode())
   val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
   def findScratch() = scratch.map { s =>
@@ -47,12 +46,16 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
   }
 
   val dcache = HellaCache(p(DCacheKey), findScratch)(dcacheParams)
+  val frontend = LazyModule(new Frontend()(icacheParams))
   val ucLegacy = LazyModule(new TLLegacy()(icacheParams))
+  val tileXbar = LazyModule(new TLXbar)
+  tileXbar.node := TLHintHandler()(ucLegacy.node)
+  tileXbar.node := frontend.node
 
   val cachedOut = TLOutputNode()
   val uncachedOut = TLOutputNode()
   cachedOut := dcache.node
-  uncachedOut := TLHintHandler()(ucLegacy.node)
+  uncachedOut := tileXbar.node
   val masterNodes = List(cachedOut, uncachedOut)
 
   (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }
@@ -73,15 +76,14 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
     val nFPUPorts = buildRocc.filter(_.useFPU).size
 
     val core = Module(new Rocket()(dcacheParams))
-    val icache = Module(new Frontend()(icacheParams))
 
-    val ptwPorts = ListBuffer(icache.io.ptw, dcache.module.io.ptw)
+    val ptwPorts = ListBuffer(frontend.module.io.ptw, dcache.module.io.ptw)
     val dcPorts = ListBuffer(core.io.dmem)
-    val uncachedArbPorts = ListBuffer(icache.io.mem)
+    val uncachedArbPorts = ListBuffer[ClientUncachedTileLinkIO]()
     core.io.interrupts := io.interrupts
     core.io.hartid := io.hartid
-    icache.io.cpu <> core.io.imem
-    icache.io.resetVector := io.resetVector
+    frontend.module.io.cpu <> core.io.imem
+    frontend.module.io.resetVector := io.resetVector
 
     val fpuOpt = p(FPUKey).map(cfg => Module(new FPU(cfg)(coreParams)))
     fpuOpt.foreach(fpu => core.io.fpu <> fpu.io)
@@ -129,11 +131,14 @@ class RocketTile(tileId: Int)(implicit p: Parameters) extends LazyModule {
 
       ptwPorts ++= roccs.flatMap(_.io.ptw)
       uncachedArbPorts ++= roccs.flatMap(_.io.utl) // TODO no difference between io.autl and io.utl for now
-    }
 
-    val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size)(icacheParams))
-    uncachedArb.io.in <> uncachedArbPorts
-    ucLegacy.module.io.legacy <> uncachedArb.io.out
+      val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size)(icacheParams))
+      uncachedArb.io.in <> uncachedArbPorts
+      ucLegacy.module.io.legacy <> uncachedArb.io.out
+    } else {
+      ucLegacy.module.io.legacy.acquire.valid := Bool(false)
+      ucLegacy.module.io.legacy.grant.ready := Bool(false)
+    }
 
     if (p(UseVM)) {
       val ptw = Module(new PTW(ptwPorts.size)(dcacheParams))
