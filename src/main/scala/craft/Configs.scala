@@ -18,7 +18,7 @@ class WithCraft extends Config(
     case InPorts => 2
     case OutPorts => site(GlobalAddrMap).flatten.size
     case GlobalAddrMap => {
-      val sizes = Seq(0x1000, 0x800, 0x400, 0x200, 0x100, 0x80, 0x80)
+      val sizes = Seq(0x400, 0x400)
       val entries = sizes.zipWithIndex.map { case (sz, i) =>
         AddrMapEntry(s"chan$i", MemSize(sz, MemAttr(AddrMapProt.RWX)))
       }
@@ -29,4 +29,31 @@ class WithCraft extends Config(
     case _ => throw new CDEMatchError
   })
 
+class WithInPorts(n: Int) extends Config(
+  (pname, site, here) => pname match {
+    case InPorts => n
+    case _ => throw new CDEMatchError
+  })
+
+class WithOutPorts(sizes: Seq[Int]) extends Config(
+  (pname, site, here) => pname match {
+    case GlobalAddrMap => {
+      val entries = sizes.zipWithIndex.map { case (sz, i) =>
+        AddrMapEntry(s"chan$i", MemSize(sz, MemAttr(AddrMapProt.RWX)))
+      }
+      new AddrMap(entries)
+    }
+    case _ => throw new CDEMatchError
+  })
+
 class CraftConfig extends Config(new WithCraft ++ new BaseConfig)
+
+class TwoByTwoConfig extends Config(
+  new WithInPorts(2) ++
+  new WithOutPorts(Seq(0x600, 0x200)) ++
+  new CraftConfig)
+
+class OneBySevenConfig extends Config(
+  new WithInPorts(1) ++
+  new WithOutPorts(Seq(0x1000, 0x800, 0x400, 0x200, 0x100, 0x80, 0x80)) ++
+  new CraftConfig)
