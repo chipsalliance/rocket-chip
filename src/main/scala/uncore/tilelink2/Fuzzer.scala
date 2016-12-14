@@ -109,9 +109,13 @@ class TLFuzzer(
     val dataBits     = edge.bundle.dataBits
 
     // Progress through operations
-    val num_reqs = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
-    val num_resps = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
-    io.finished  := num_resps === UInt(0)
+    val num_reqs = Reg(init = UInt(nOperations, log2Up(nOperations)))
+    val num_resps = Reg(init = UInt(nOperations, log2Up(nOperations)))
+    if (nOperations>0) {
+      io.finished  := num_resps === UInt(0)
+    } else {
+      io.finished := Bool(false)
+    }
 
     // Progress within each operation
     val a = out.a.bits
@@ -180,7 +184,11 @@ class TLFuzzer(
       UInt("b101") -> hbits))
 
     // Wire both the used and un-used channel signals
-    out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
+    if (nOperations>0) {
+      out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
+    } else {
+      out.a.valid := legal && alloc.valid
+    }
     out.a.bits  := bits
     out.b.ready := Bool(true)
     out.c.valid := Bool(false)
@@ -191,12 +199,14 @@ class TLFuzzer(
     inc := !legal || req_done
     inc_beat := !legal || out.a.fire()
 
-    when (out.a.fire() && a_last) {
-      num_reqs := num_reqs - UInt(1)
-    }
+    if (nOperations>0) {
+      when (out.a.fire() && a_last) {
+        num_reqs := num_reqs - UInt(1)
+      }
 
-    when (out.d.fire() && d_last) {
-      num_resps := num_resps - UInt(1)
+      when (out.d.fire() && d_last) {
+        num_resps := num_resps - UInt(1)
+      }
     }
   }
 }
