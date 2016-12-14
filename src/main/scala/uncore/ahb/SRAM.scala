@@ -91,8 +91,13 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     val muxdata = Vec((p_mask.toBools zip (p_wdata zip d_rdata))
                       map { case (m, (p, r)) => Mux(d_bypass && m, p, r) })
 
+    // Don't fuzz hready when not in data phase
+    val d_request = Reg(Bool(false))
+    when (in.hready) { d_request := Bool(false) }
+    when (a_request)  { d_request := Bool(true) }
+
     // Finally, the outputs
-    in.hreadyout := LFSR16(Bool(true))(0) // Bool(true)
+    in.hreadyout := !d_request || LFSR16(Bool(true))(0) // Bool(true)
     in.hresp     := AHBParameters.RESP_OKAY
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
