@@ -3,7 +3,7 @@ package craft
 import Chisel._
 import cde._
 import junctions._
-import rocketchip.{ExtMemSize, PeripheryUtils, GlobalAddrMap}
+import rocketchip.{PeripheryUtils, GlobalAddrMap}
 
 case object InPorts extends Field[Int]
 case object OutPorts extends Field[Int]

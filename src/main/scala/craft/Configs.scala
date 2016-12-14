@@ -18,13 +18,14 @@ class WithCraft extends Config(
     case InPorts => 2
     case OutPorts => site(GlobalAddrMap).flatten.size
     case GlobalAddrMap => {
-      val memSize = site(ExtMemSize)
-      AddrMap(
-        AddrMapEntry(s"chan0", MemSize(memSize - 0x200, MemAttr(AddrMapProt.RWX))),
-        AddrMapEntry(s"chan1", MemSize(0x200, MemAttr(AddrMapProt.RWX))))
+      val sizes = Seq(0x1000, 0x800, 0x400, 0x200, 0x100, 0x80, 0x80)
+      val entries = sizes.zipWithIndex.map { case (sz, i) =>
+        AddrMapEntry(s"chan$i", MemSize(sz, MemAttr(AddrMapProt.RWX)))
+      }
+      new AddrMap(entries)
     }
+    case ExtMemSize => site(GlobalAddrMap).size.longValue
     case XBarQueueDepth => 2
-    case ExtMemSize => 0x800L
     case _ => throw new CDEMatchError
   })
 

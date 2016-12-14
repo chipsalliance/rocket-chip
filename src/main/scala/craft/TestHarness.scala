@@ -16,7 +16,6 @@ class TestHarness(topParams: Parameters) extends Module {
   val dut = Module(new CraftXBar(p))
 
   val inPorts = p(InPorts)
-  val outPorts = p(OutPorts)
   val memSize = p(ExtMemSize)
 
   val finished = Wire(Vec(inPorts, Bool()))
@@ -31,8 +30,8 @@ class TestHarness(topParams: Parameters) extends Module {
     driver.io.start := Bool(true)
   }
 
-  for (i <- 0 until outPorts) {
-    val mem = Module(new SimAXIMem(memSize / outPorts))
+  p(GlobalAddrMap).flatten.zipWithIndex.foreach { case (entry, i) =>
+    val mem = Module(new SimAXIMem(entry.region.size))
     mem.io.axi <> dut.io.out(i)
   }
 
