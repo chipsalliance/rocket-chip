@@ -5,7 +5,7 @@ package rocket
 
 import Chisel._
 import uncore.devices._
-import uncore.util.CacheName
+import uncore.util.{CacheName, CacheBlockBytes}
 import uncore.constants._
 import uncore.tilelink2._
 import util._
@@ -40,7 +40,6 @@ trait HasCoreParameters {
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
 
-  val edge = p(TLCacheEdge)
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
@@ -70,7 +69,7 @@ trait HasCoreParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = edge.bundle.addressBits
+  val paddrBits = p(TLCacheEdge).bundle.addressBits
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)

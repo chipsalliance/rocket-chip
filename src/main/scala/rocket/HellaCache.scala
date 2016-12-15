@@ -20,22 +20,11 @@ case class DCacheConfig(
 
 case object DCacheKey extends Field[DCacheConfig]
 
-trait HasL1HellaCacheParameters extends HasCacheParameters with HasCoreParameters {
-  val outerDataBeats = p(TLKey(p(TLId))).dataBeats
-  val outerDataBits = p(TLKey(p(TLId))).dataBitsPerBeat
-
-  val refillCyclesPerBeat = outerDataBits/rowBits
-  require(refillCyclesPerBeat == 1)
-
-  val refillCycles = refillCyclesPerBeat*outerDataBeats
-
-  val cacheBlockBytes = p(CacheBlockBytes)
-  val lgCacheBlockBytes = log2Up(cacheBlockBytes)
-
+trait HasL1HellaCacheParameters extends HasL1CacheParameters {
   val wordBits = xLen // really, xLen max 
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
-  val beatBytes = cacheBlockBytes / outerDataBeats
+  val beatBytes = cacheBlockBytes / cacheDataBeats
   val beatWords = beatBytes / wordBytes
   val beatOffBits = log2Up(beatBytes)
   val idxMSB = untagBits-1
@@ -51,8 +40,8 @@ trait HasL1HellaCacheParameters extends HasCacheParameters with HasCoreParameter
 
   require(isPow2(nSets))
   require(rowBits >= coreDataBits)
-  require(rowBits <= outerDataBits)
-  require(xLen <= outerDataBits) // would need offset addr for puts if data width < xlen
+  require(rowBits == cacheDataBits) // TODO should rowBits even be seperably specifiable?
+  require(xLen <= cacheDataBits) // would need offset addr for puts if data width < xlen
   require(!usingVM || untagBits <= pgIdxBits)
 }
 
@@ -136,7 +125,8 @@ abstract class HellaCache(val cfg: DCacheConfig)(implicit p: Parameters) extends
   val module: HellaCacheModule
 }
 
-class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends Bundle {
+class HellaCacheBundle(outer: HellaCache) extends Bundle {
+  implicit val p = outer.p
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val mem = outer.node.bundleOut
@@ -145,18 +135,9 @@ class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends Bundle
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
   implicit val cfg = outer.cfg
+  implicit val edge = outer.node.edgesOut(0)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
-
-  /* TODO
-  edge.manager.managers.foreach { m =>
-    if (m.supportsGet) {
-      require (m.supportsGet.contains(TransferSizes(1, tlDataBytes)))
-    ....etc
-    }
-  }
-  */
-
 }
 
 object HellaCache {
