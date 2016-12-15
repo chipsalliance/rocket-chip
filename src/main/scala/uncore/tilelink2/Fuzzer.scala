@@ -109,8 +109,8 @@ class TLFuzzer(
     val dataBits     = edge.bundle.dataBits
 
     // Progress through operations
-    val num_reqs = Reg(init = UInt(nOperations, log2Up(nOperations)))
-    val num_resps = Reg(init = UInt(nOperations, log2Up(nOperations)))
+    val num_reqs = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
+    val num_resps = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
     if (nOperations>0) {
       io.finished  := num_resps === UInt(0)
     } else {
