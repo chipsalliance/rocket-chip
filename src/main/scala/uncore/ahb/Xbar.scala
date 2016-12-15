@@ -22,7 +22,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
     }
 
     // Require consistent bus widths
-    val port0 = node.edgesIn(0).slave
+    val port0 = node.edgesOut(0).slave
     node.edgesOut.foreach { edge =>
       val port = edge.slave
       require (port.beatBytes == port0.beatBytes,
