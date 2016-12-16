@@ -13,7 +13,7 @@ class AHBBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   // Flow control signals from the master
   val hmastlock = Bool(OUTPUT)
   val htrans    = UInt(OUTPUT, width = params.transBits)
-  val hsel      = Bool(OUTPUT) // on a master, drive this with true
+  val hsel      = Bool(OUTPUT)
   val hready    = Bool(OUTPUT) // on a master, drive this from readyout
 
   // Payload signals
