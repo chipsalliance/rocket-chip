@@ -31,7 +31,7 @@ class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => B
     val wdata  = UInt(INPUT, width = bits)
   }
 
-  val reg = Reg(UInt(width = bits))
+  val reg = RegInit(UInt(0, width = bits))
 
   val rvalid_s = rvalid(io.rready)
   val wready_s = wready(io.wvalid)
@@ -87,7 +87,7 @@ class RRTestRequest(val bits: Int,
 
   val (riready, rovalid, _)     = rflow(io.rivalid, io.roready, UInt(0, width = 1))
   val (wiready, wovalid, wdata) = wflow(io.wivalid, io.woready, io.wdata)
-  val reg = Reg(UInt(width = bits))
+  val reg = RegInit(UInt(0, width = bits))
 
   io.riready := riready
   io.rovalid := rovalid

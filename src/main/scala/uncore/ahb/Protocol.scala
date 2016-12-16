@@ -3,7 +3,6 @@
 package uncore.ahb
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO}
 
 object AHBParameters
 {

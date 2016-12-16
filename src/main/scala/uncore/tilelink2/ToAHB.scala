@@ -6,7 +6,6 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import config._
 import diplomacy._
-import util.PositionalMultiQueue
 import uncore.ahb._
 import scala.math.{min, max}
 import AHBParameters._
@@ -119,7 +118,7 @@ class TLToAHB(combinational: Boolean = true)(implicit p: Parameters) extends Laz
 
     out.hmastlock := Bool(false) // for now
     out.htrans    := Mux(a_valid, Mux(a_first, TRANS_NONSEQ, TRANS_SEQ), Mux(a_first, TRANS_IDLE, TRANS_BUSY))
-    out.hsel      := Bool(true)
+    out.hsel      := a_valid || !a_first
     out.hready    := out.hreadyout
     out.hwrite    := a_hasData
     out.haddr     := a.bits.address | a_offset
@@ -134,8 +133,8 @@ object TLToAHB
 {
   // applied to the TL source node; y.node := TLToAHB()(x.node)
   def apply(combinational: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AHBOutwardNode = {
-    val axi4 = LazyModule(new TLToAHB(combinational))
-    axi4.node := x
-    axi4.node
+    val ahb = LazyModule(new TLToAHB(combinational))
+    ahb.node := x
+    ahb.node
   }
 }
