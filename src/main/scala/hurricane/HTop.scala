@@ -58,6 +58,9 @@ class HUpTop(q: Parameters) extends BaseTop(q)
     topLevelSCRBuilder.addStatus(s"core_${i}_clock_counter")
     topLevelSCRBuilder.addStatus(s"core_${i}_rocc_clock_counter")
   }
+  for (i <- 0 until p(HbwifKey).numLanes) {
+    topLevelSCRBuilder.addStatus(s"hbwifLane_${i}_slowClock_counter")
+  }
   topLevelSCRBuilder.addControl("hbwif_reset", UInt(1))
   topLevelSCRBuilder.addControl("hbwif_reset_override", UInt(0))
   //                                                         hold      divisor
@@ -90,21 +93,27 @@ class HUpTopModule[+L <: HUpTop, +B <: HUpTopBundle]
 
   coreplex.clock := clock
   coreplex.reset := ResetSync(scr.control("coreplex_reset")(0).toBool, coreplex.clock)
-  scr.status("coreplex_clock_counter") := WideCounterModule(64, coreplex.clock, coreplex.reset)
+  scr.status("coreplex_clock_counter") :=
+      WordSync(WideCounterModule(64, coreplex.clock, coreplex.reset),coreplex.clock)
 
   multiClockCoreplexIO.tcrs.zipWithIndex foreach { case (tcr, i) =>
     tcr.clock := clock
     tcr.reset := ResetSync(scr.control(s"core_${i}_reset")(0).toBool, tcr.clock)
-    scr.status(s"core_${i}_clock_counter") := WideCounterModule(64, tcr.clock, tcr.reset)
+    scr.status(s"core_${i}_clock_counter") :=
+        WordSync(WideCounterModule(64, tcr.clock, tcr.reset),tcr.clock)
     tcr.roccClock := clock
     tcr.roccReset := ResetSync(scr.control(s"core_${i}_rocc_reset")(0).toBool, tcr.roccClock)
-    scr.status(s"core_${i}_rocc_clock_counter") := WideCounterModule(64, tcr.roccClock, tcr.roccReset)
+    scr.status(s"core_${i}_rocc_clock_counter") :=
+        WordSync(WideCounterModule(64, tcr.roccClock, tcr.roccReset),tcr.roccClock)
   }
 
   // Hbwif connections
   hbwifFastClock := clock
   hbwifReset := scr.control("hbwif_reset")(0).toBool
   hbwifResetOverride := scr.control("hbwif_reset_override")(0).toBool
+  for (i <- 0 until p(HbwifKey).numLanes) {
+    scr.status(s"hbwifLane_${i}_slowClock_counter") := hbwifSlowClockCounter(i)
+  }
 }
 
 /////
