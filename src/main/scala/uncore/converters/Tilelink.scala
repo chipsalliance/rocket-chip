@@ -6,6 +6,8 @@ import junctions.PAddrBits
 import uncore.tilelink._
 import uncore.util._
 import uncore.constants._
+import uncore.devices.TileLinkTestRAM
+import unittest.UnitTest
 import cde.Parameters
 
 /** Utilities for safely wrapping a *UncachedTileLink by pinning probe.ready and release.valid low */
@@ -241,6 +243,8 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String, c: Clock = null, r
   val stretch = ognt.g_type === Grant.getDataBlockType
   val smallget = iacq.a_type === Acquire.getType
   val smallput = iacq.a_type === Acquire.putType
+  val atomic = iacq.a_type === Acquire.putAtomicType
+  val wideget = iacq.a_type === Acquire.getBlockType
   val smallgnt = ognt.g_type === Grant.getDataBeatType
 
   val sending_put = Reg(init = Bool(false))
@@ -297,12 +301,31 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String, c: Clock = null, r
     data = put_data.asUInt,
     wmask = Some(put_wmask.asUInt))(outerConfig)
 
+  val put_atomic_acquire = PutAtomic(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = out_addr_block,
+    addr_beat = out_addr_beat,
+    addr_byte = out_addr_byte,
+    atomic_opcode = iacq.op_code(),
+    operand_size = iacq.op_size(),
+    data = align_data(switch_addr, iacq.data))(outerConfig)
+
+  val default_acquire = Acquire(
+    is_builtin_type = Bool(true),
+    a_type = iacq.a_type,
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block)(outerConfig)
+
   io.out.acquire.valid := sending_put || (!shrink && io.in.acquire.valid)
-  io.out.acquire.bits := MuxCase(get_block_acquire, Seq(
+  io.out.acquire.bits := MuxCase(default_acquire, Seq(
     sending_put -> put_block_acquire,
+    wideget -> get_block_acquire,
     smallget -> get_acquire,
-    smallput -> put_acquire))
+    smallput -> put_acquire,
+    atomic -> put_atomic_acquire))
   io.in.acquire.ready := !sending_put && (shrink || io.out.acquire.ready)
+
+  assert(!io.in.acquire.valid || iacq.isBuiltInType(), "Non-builtin acquires not supported by widener")
 
   when (io.in.acquire.fire() && shrink) {
     when (!collecting) {
@@ -370,8 +393,8 @@ class TileLinkIOWidener(innerTLId: String, outerTLId: String, c: Clock = null, r
     g_type = ognt.g_type,
     client_xact_id = ognt.client_xact_id,
     manager_xact_id = ognt.manager_xact_id,
-    addr_beat = ognt.addr_beat,
-    data = ognt.data)(innerConfig)
+    addr_beat = UInt(0),
+    data = UInt(0))(innerConfig)
 
   io.in.grant.valid := returning_data || (!stretch && io.out.grant.valid)
   io.in.grant.bits := MuxCase(default_grant, Seq(
@@ -414,9 +437,10 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
   val ognt = io.out.grant.bits
 
   val stretch = iacq.a_type === Acquire.putBlockType
-  val shrink = iacq.a_type === Acquire.getBlockType
+  val wideget = iacq.a_type === Acquire.getBlockType
   val smallput = iacq.a_type === Acquire.putType
   val smallget = iacq.a_type === Acquire.getType
+  val atomic = iacq.a_type === Acquire.putAtomicType
 
   val acq_data_buffer = Reg(UInt(width = innerDataBits))
   val acq_wmask_buffer = Reg(UInt(width = innerWriteMaskBits))
@@ -453,6 +477,9 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
   assert(!io.in.acquire.valid || !smallget || read_size_ok,
     "Can't perform Get wider than outer width")
 
+  assert(!io.in.acquire.valid || !atomic || read_size_ok,
+    "Can't perform PutAtomic wider than outer width")
+
   val outerConfig = p.alterPartial({ case TLId => outerTLId })
   val innerConfig = p.alterPartial({ case TLId => innerTLId })
 
@@ -485,17 +512,42 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
     data = smallput_data,
     wmask = Some(smallput_wmask))(outerConfig)
 
-  val sending_put = Reg(init = Bool(false))
+  val atomic_addr = iacq.full_addr()
+  val atomic_addr_beat = atomic_addr(outerBlockOffset - 1, outerByteAddrBits)
+  val atomic_addr_byte = atomic_addr(outerByteAddrBits - 1, 0)
+  val atomic_data_sel = atomic_addr(outerByteAddrBits + log2Up(factor) - 1, outerByteAddrBits)
+  val atomic_data_vec = Vec(Seq.tabulate(factor) {
+    i => iacq.data((i + 1) * outerDataBits - 1, i * outerDataBits)
+  })
 
+  val put_atomic_acquire = PutAtomic(
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block,
+    addr_beat = atomic_addr_beat,
+    addr_byte = atomic_addr_byte,
+    atomic_opcode = iacq.op_code(),
+    operand_size = iacq.op_size(),
+    data = atomic_data_vec(atomic_data_sel))(outerConfig)
+
+  val default_acquire = Acquire(
+    is_builtin_type = Bool(true),
+    a_type = iacq.a_type,
+    client_xact_id = iacq.client_xact_id,
+    addr_block = iacq.addr_block)(outerConfig)
+
+  val sending_put = Reg(init = Bool(false))
   val pass_valid = io.in.acquire.valid && !stretch
 
-  io.out.acquire.bits := MuxCase(Wire(io.out.acquire.bits, init=iacq), Seq(
-    (sending_put, put_block_acquire),
-    (shrink, get_block_acquire),
-    (smallput, put_acquire),
-    (smallget, get_acquire)))
+  io.out.acquire.bits := MuxCase(default_acquire, Seq(
+    sending_put -> put_block_acquire,
+    wideget -> get_block_acquire,
+    smallput -> put_acquire,
+    smallget -> get_acquire,
+    atomic -> put_atomic_acquire))
   io.out.acquire.valid := sending_put || pass_valid
   io.in.acquire.ready := !sending_put && (stretch || io.out.acquire.ready)
+
+  assert(!io.in.acquire.valid || iacq.isBuiltInType(), "Non-builtin acquires not supported by narrower")
 
   when (io.in.acquire.fire() && stretch) {
     acq_data_buffer := iacq.data
@@ -512,7 +564,6 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
     when (oacq_ctr.inc()) { sending_put := Bool(false) }
   }
 
-  val ognt_block = ognt.hasMultibeatData()
   val gnt_data_buffer = Reg(Vec(factor, UInt(width = outerDataBits)))
   val gnt_client_id = Reg(ognt.client_xact_id)
   val gnt_manager_id = Reg(ognt.manager_xact_id)
@@ -520,6 +571,9 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
   val ignt_ctr = Counter(innerDataBeats)
   val ognt_ctr = Counter(factor)
   val sending_get = Reg(init = Bool(false))
+
+  val smallget_grant = ognt.g_type === Grant.getDataBeatType
+  val wideget_grant = ognt.hasMultibeatData()
 
   val get_block_grant = Grant(
     is_builtin_type = Bool(true),
@@ -529,8 +583,6 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
     addr_beat = ignt_ctr.value,
     data = gnt_data_buffer.asUInt)(innerConfig)
 
-  val smallget_grant = ognt.g_type === Grant.getDataBeatType
-
   val get_grant = Grant(
     is_builtin_type = Bool(true),
     g_type = Grant.getDataBeatType,
@@ -539,14 +591,22 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
     addr_beat = ognt.addr_beat >> UInt(log2Up(factor)),
     data = Fill(factor, ognt.data))(innerConfig)
 
-  io.in.grant.valid := sending_get || (io.out.grant.valid && !ognt_block)
-  io.out.grant.ready := !sending_get && (ognt_block || io.in.grant.ready)
+  val default_grant = Grant(
+    is_builtin_type = Bool(true),
+    g_type = ognt.g_type,
+    client_xact_id = ognt.client_xact_id,
+    manager_xact_id = ognt.manager_xact_id,
+    addr_beat = UInt(0),
+    data = UInt(0))(innerConfig)
 
-  io.in.grant.bits := MuxCase(Wire(io.in.grant.bits, init=ognt), Seq(
+  io.in.grant.valid := sending_get || (io.out.grant.valid && !wideget_grant)
+  io.out.grant.ready := !sending_get && (wideget_grant || io.in.grant.ready)
+
+  io.in.grant.bits := MuxCase(default_grant, Seq(
     sending_get -> get_block_grant,
     smallget_grant -> get_grant))
 
-  when (io.out.grant.valid && ognt_block && !sending_get) {
+  when (io.out.grant.valid && wideget_grant && !sending_get) {
     gnt_data_buffer(ognt_ctr.value) := ognt.data
     when (ognt_ctr.inc()) {
       gnt_client_id := ognt.client_xact_id
@@ -559,6 +619,35 @@ class TileLinkIONarrower(innerTLId: String, outerTLId: String, c: Clock = null, 
     ignt_ctr.inc()
     sending_get := Bool(false)
   }
+}
+
+class TileLinkWidthAdapterTest(implicit p: Parameters) extends UnitTest {
+  val narrowConfig = p(TLKey(p(TLId)))
+  val wideConfig = narrowConfig.copy(
+    dataBeats = narrowConfig.dataBeats / 2)
+  val adapterParams = p.alterPartial({ case TLKey("WIDE") => wideConfig })
+
+  val depth = 2 * narrowConfig.dataBeats
+  val ram = Module(new TileLinkTestRAM(depth))
+  val driver = Module(new DriverSet(
+    (driverParams: Parameters) => {
+      implicit val p = driverParams
+      Seq(
+        Module(new PutSweepDriver(depth)),
+        Module(new PutMaskDriver),
+        Module(new PutAtomicDriver),
+        Module(new PutBlockSweepDriver(depth / narrowConfig.dataBeats)),
+        Module(new PrefetchDriver),
+        Module(new GetMultiWidthDriver))
+    }))
+  val widener = Module(new TileLinkIOWidener(p(TLId), "WIDE")(adapterParams))
+  val narrower = Module(new TileLinkIONarrower("WIDE", p(TLId))(adapterParams))
+
+  widener.io.in <> driver.io.mem
+  narrower.io.in <> widener.io.out
+  ram.io <> narrower.io.out
+  driver.io.start := io.start
+  io.finished := driver.io.finished
 }
 
 class TileLinkFragmenterSource(implicit p: Parameters) extends TLModule()(p) {
