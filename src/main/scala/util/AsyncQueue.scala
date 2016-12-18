@@ -69,9 +69,9 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
 
   io.widx_valid := Bool(true)
   if (safe) {
-    val source_valid = Module(new AsyncValidSync(sync+1, "source_valid"))
-    val sink_extend  = Module(new AsyncValidSync(1, "sink_extend"))
-    val sink_valid   = Module(new AsyncValidSync(sync, "sink_valid"))
+    val source_valid = Module(new AsyncValidSync(sync+1, "source_valid")).suggestName("source_validSync")
+    val sink_extend  = Module(new AsyncValidSync(1, "sink_extend")).suggestName("sink_extendSync")
+    val sink_valid   = Module(new AsyncValidSync(sync, "sink_valid")).suggestName("sink_validSync")
     source_valid.reset := reset || !io.sink_reset_n
     sink_extend .reset := reset || !io.sink_reset_n
 
@@ -131,9 +131,9 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
 
   io.ridx_valid := Bool(true)
   if (safe) {
-    val sink_valid    = Module(new AsyncValidSync(sync+1, "sink_valid"))
-    val source_extend = Module(new AsyncValidSync(1, "source_extend"))
-    val source_valid  = Module(new AsyncValidSync(sync, "source_valid"))
+    val sink_valid    = Module(new AsyncValidSync(sync+1, "sink_valid")).suggestName("sink_validSync")
+    val source_extend = Module(new AsyncValidSync(1, "source_extend")).suggestName("source_extendSync")
+    val source_valid  = Module(new AsyncValidSync(sync, "source_valid")).suggestName("source_validSync")
     sink_valid   .reset := reset || !io.source_reset_n
     source_extend.reset := reset || !io.source_reset_n
 
@@ -146,7 +146,7 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
     val reset_and_extend = !source_ready || !io.source_reset_n || reset
     val reset_and_extend_prev = Reg(Bool(), reset_and_extend, Bool(true))
     val reset_rise = !reset_and_extend_prev && reset_and_extend
-    val prev_idx_match = AsyncResetReg(updateData=(io.widx===io.ridx), resetData=0)
+    val prev_idx_match = AsyncResetReg(updateData=(io.widx===io.ridx), resetData=0, "prev_idx_matchReg")
 
     // TODO: write some sort of sanity check assertion for users
     // that denote don't reset when there is activity
