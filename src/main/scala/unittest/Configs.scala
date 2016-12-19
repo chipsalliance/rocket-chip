@@ -33,6 +33,7 @@ class WithUncoreUnitTests extends Config(
         Module(new uncore.converters.TileLinkWidthAdapterTest()),
         Module(new uncore.tilelink2.TLFuzzRAMTest),
         Module(new uncore.ahb.AHBBridgeTest),
+        Module(new uncore.apb.APBBridgeTest),
         Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
         Module(new uncore.axi4.AXI4FullFuzzRAMTest),
         Module(new uncore.axi4.AXI4BridgeTest)) }
