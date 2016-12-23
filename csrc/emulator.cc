@@ -118,10 +118,6 @@ int main(int argc, char** argv)
       // we've hit the binary. The binary is expected to be a
       // non-option and not start with '-' or '+'.
       case 1: {
-        if (optarg[0] != '+') {
-          to_dtm.push_back(optarg);
-          goto done_processing;
-        }
         std::string arg = optarg;
         if (arg == "+verbose")
           verbose = true;
@@ -134,9 +130,8 @@ int main(int argc, char** argv)
         else if (arg.substr(0, 12) == "+cycle-count")
           print_cycles = true;
         else {
-          fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], optarg);
-          usage(argv[0]);
-          return 1;
+          to_dtm.push_back(optarg);
+          goto done_processing;
         }
         break;
       }
