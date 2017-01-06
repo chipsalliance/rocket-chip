@@ -4,16 +4,133 @@
 package rocket
 
 import Chisel._
-import uncore.tilelink._
-import uncore.constants._
-import uncore.util.CacheName
-import util._
 import Chisel.ImplicitConversions._
 import config._
+import coreplex._
+import diplomacy._
+import uncore.constants._
+import uncore.tilelink._
+import uncore.tilelink2._
+import uncore.util.CacheName
+import util._
 
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
+case object BuildRoCC extends Field[Seq[RoccParameters]]
+
+trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwork {
+  val module: CanHaveLegacyRoccsModule
+  val legacyRocc = if (p(BuildRoCC).isEmpty) None else Some(LazyModule(new LegacyRoccComplex))
+
+/*
+  val roccsOut: Seq[TLOutputNode] = (legacyRocc.map { lr =>
+    lr.masterNodes.map {
+      val out = TLOutputNode()
+      mn => out := mn
+      out
+    }}).getOrElse(List())
+*/
+  
+  legacyRocc foreach { lr =>
+    lr.masterNodes.foreach { l1backend.node := _ }
+    nPTWPorts += lr.nPTWPorts
+    nDCachePorts += lr.nRocc
+  }
+}
+
+trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule with CanHavePTWModule with TileNetworkModule {
+  val outer: CanHaveLegacyRoccs
+
+  outer.legacyRocc foreach { lr =>
+    ptwPorts ++= lr.module.io.ptw
+    dcachePorts ++= lr.module.io.dcache
+  }
+
+}
+
+class LegacyRoccComplex(implicit p: Parameters) extends LazyModule with HasCoreParameters {
+  val buildRocc = p(BuildRoCC)
+  val usingRocc = !buildRocc.isEmpty
+  val nRocc = buildRocc.size
+  val nFPUPorts = buildRocc.filter(_.useFPU).size
+  val nMemChannels = buildRocc.map(_.nMemChannels).sum + nRocc
+  val nPTWPorts = buildRocc.map(_.nPTWPorts).sum
+  val roccOpcodes = buildRocc.map(_.opcodes)
+
+  val legacies = List.fill(nMemChannels) { LazyModule(new TLLegacy) }
+  val masterNodes = legacies.map(_ => TLOutputNode())
+  legacies.zip(masterNodes).foreach { case(l,m) => m := TLHintHandler()(l.node) }
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val tl = masterNodes.map(_.bundleOut)
+      val dcache = Vec(nRocc, new HellaCacheIO)
+      val fpu = new Bundle {
+        val cp_req = Decoupled(new FPInput())
+        val cp_resp = Decoupled(new FPResult()).flip
+      }
+      val ptw = Vec(nPTWPorts, new TLBPTWIO)
+      val core = new Bundle {
+        val cmd = Decoupled(new RoCCCommand).flip
+        val resp = Decoupled(new RoCCResponse)
+        val busy = Bool(OUTPUT)
+        val interrupt = Bool(OUTPUT)
+        val exception = Bool(INPUT)
+      }
+    }
+
+    val respArb = Module(new RRArbiter(new RoCCResponse, nRocc))
+    io.core.resp <> respArb.io.out
+
+    val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
+    cmdRouter.io.in <> io.core.cmd
+
+    val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
+      val rocc = accelParams.generator(p.alterPartial({
+        case RoccNMemChannels => accelParams.nMemChannels
+        case RoccNPTWPorts => accelParams.nPTWPorts
+      }))
+      val dcIF = Module(new SimpleHellaCacheIF)
+      rocc.io.cmd <> cmdRouter.io.out(i)
+      rocc.io.exception := io.core.exception
+      dcIF.io.requestor <> rocc.io.mem
+      io.dcache(i) := dcIF.io.cache
+      legacies(i).module.io.legacy <> rocc.io.autl
+      respArb.io.in(i) <> Queue(rocc.io.resp)
+      rocc
+    }
+
+    (nRocc to legacies.size) zip roccs.map(_.io.utl) foreach { case(i, utl) =>
+      legacies(i).module.io.legacy <> utl
+    }
+    io.core.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
+    io.core.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
+
+    if (usingFPU && nFPUPorts > 0) {
+      val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nFPUPorts))
+      val fp_rocc_ios = roccs.zip(buildRocc)
+        .filter { case (_, params) => params.useFPU }
+        .map { case (rocc, _) => rocc.io }
+      fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
+      fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
+        case (rocc, arb) => rocc.fpu_resp <> arb
+      }
+      io.fpu.cp_req <> fpArb.io.out_req
+      fpArb.io.out_resp <> io.fpu.cp_resp
+    } else {
+      io.fpu.cp_req.valid := Bool(false)
+      io.fpu.cp_resp.ready := Bool(false)
+    }
+  }
+}
+
+case class RoccParameters(
+  opcodes: OpcodeSet,
+  generator: Parameters => RoCC,
+  nMemChannels: Int = 0,
+  nPTWPorts : Int = 0,
+  useFPU: Boolean = false)
 
 class RoCCInstruction extends Bundle
 {

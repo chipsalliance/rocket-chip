@@ -65,7 +65,7 @@ trait HasTileLinkParameters {
   val tlMaxManagerXacts = tlExternal.maxManagerXacts
   val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientsPerPort)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
-  val tlBlockAddrBits = p(PAddrBits) - p(CacheBlockOffsetBits)
+  val tlBlockAddrBits = p(rocket.PAddrBits) - p(CacheBlockOffsetBits)
   val tlDataBeats = tlExternal.dataBeats
   val tlDataBits = tlExternal.dataBitsPerBeat
   val tlDataBytes = tlDataBits/8

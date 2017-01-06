@@ -6,7 +6,6 @@ package coreplex
 import Chisel._
 import config._
 import diplomacy._
-import junctions.PAddrBits
 import rocket._
 import uncore.tilelink._
 import uncore.tilelink2._
@@ -85,6 +84,7 @@ class BaseCoreplexConfig extends Config (
                              log2Up(site(TLKey(site(TLId))).nClients)
       case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
       case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth
+      case TLId => "L1toL2"
       case TLKey("L1toL2") => {
         val useMEI = site(NTiles) <= 1
         TileLinkParameters(
@@ -106,6 +106,7 @@ class BaseCoreplexConfig extends Config (
       }
       case BootROMFile => "./bootrom/bootrom.img"
       case NTiles => 1
+      case RocketConfigs => List(RocketConfig(site(XLen)))
       case BroadcastConfig => BroadcastConfig()
       case BankedL2Config => BankedL2Config()
       case CacheBlockBytes => 64

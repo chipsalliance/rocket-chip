@@ -729,3 +729,14 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
     when (ex_ctrl.div || ex_ctrl.sqrt) { io.illegal_rm := true }
   }
 }
+
+/** Mix-ins for constructing tiles that may have an FPU external to the core pipeline */
+trait CanHaveSharedFPU {
+  implicit val p: Parameters
+}
+
+trait CanHaveSharedFPUModule {
+  val outer: CanHaveSharedFPU
+  val fpuOpt = outer.p(FPUKey).map(cfg => Module(new FPU(cfg)(outer.p)))
+  // TODO fpArb could go here instead of inside LegacyRoccComplex
+}

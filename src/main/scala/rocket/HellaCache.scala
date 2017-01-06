@@ -5,12 +5,13 @@ package rocket
 
 import Chisel._
 import config.{Parameters, Field}
+import coreplex._
 import diplomacy._
+import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._
-import uncore.constants._
-import uncore.tilelink.{TLKey, TLId}
 import util.ParameterizedBundle
+import scala.collection.mutable.ListBuffer
 
 case class DCacheConfig(
   nMSHRs: Int = 1,
@@ -145,4 +146,27 @@ object HellaCache {
     if (cfg.nMSHRs == 0) LazyModule(new DCache(cfg, scratch))
     else LazyModule(new NonBlockingDCache(cfg))
   }
+}
+
+/** Mix-ins for constructing tiles that have a HellaCache */
+trait HasHellaCache extends TileNetwork {
+  val module: HasHellaCacheModule
+  implicit val p: Parameters
+  def findScratchpadFromICache: Option[AddressSet]
+  var nDCachePorts = 0
+  val dcacheParams = p.alterPartial({ case CacheName => CacheName("L1D") })
+  val dcache = HellaCache(p(DCacheKey), findScratchpadFromICache _)(dcacheParams)
+  l1backend.node := dcache.node
+}
+
+trait HasHellaCacheBundle extends TileNetworkBundle {
+  val outer: HasHellaCache
+}
+
+trait HasHellaCacheModule extends TileNetworkModule {
+  val outer: HasHellaCache
+  //val io: HasHellaCacheBundle
+  val dcachePorts = ListBuffer[HellaCacheIO]()
+  val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.dcacheParams))
+  outer.dcache.module.io.cpu <> dcacheArb.io.mem
 }

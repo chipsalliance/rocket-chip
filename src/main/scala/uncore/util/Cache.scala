@@ -5,7 +5,7 @@ package uncore.util
 
 import Chisel._
 import config.{Parameters, Field}
-import junctions.PAddrBits
+import rocket.PAddrBits
 import util.ParameterizedBundle
 import uncore.constants._
 

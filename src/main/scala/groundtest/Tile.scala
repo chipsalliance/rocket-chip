@@ -105,7 +105,6 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
 class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTestParameters {
   val dcacheParams = p.alterPartial {
     case CacheName => CacheName("L1D")
-    case rocket.TLCacheEdge => cachedOut.edgesOut(0)
   }
   val slave = None
   val dcache = HellaCache(p(DCacheKey))(dcacheParams)

@@ -12,6 +12,7 @@ import diplomacy._
 import uncore.util._
 import uncore.tilelink2._
 
+case object PAddrBits extends Field[Int]
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
 

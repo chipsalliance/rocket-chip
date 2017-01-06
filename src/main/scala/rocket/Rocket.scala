@@ -4,14 +4,16 @@
 package rocket
 
 import Chisel._
+import config._
 import uncore.devices._
-import uncore.util.{CacheName, CacheBlockBytes}
 import uncore.constants._
 import uncore.tilelink2._
+import uncore.util.{CacheName, CacheBlockBytes}
 import util._
 import Chisel.ImplicitConversions._
-import config._
 
+case class RocketConfig(xLen: Int)
+// TODO replace some of below fields with above Config
 case object XLen extends Field[Int]
 case object FetchWidth extends Field[Int]
 case object RetireWidth extends Field[Int]
@@ -33,7 +35,7 @@ case object NBreakpoints extends Field[Int]
 case object NPerfCounters extends Field[Int]
 case object NPerfEvents extends Field[Int]
 case object DataScratchpadSize extends Field[Int]
-case object TLCacheEdge extends Field[TLEdgeOut]
+case object SharedMemoryTLEdge extends Field[TLEdgeOut]
 
 trait HasCoreParameters {
   implicit val p: Parameters
@@ -69,7 +71,7 @@ trait HasCoreParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = p(TLCacheEdge).bundle.addressBits
+  val paddrBits = p(PAddrBits)
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)
@@ -141,7 +143,7 @@ object ImmGen {
   }
 }
 
-class Rocket(implicit p: Parameters) extends CoreModule()(p) {
+class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val interrupts = new TileInterrupts().asInput
     val hartid = UInt(INPUT, xLen)

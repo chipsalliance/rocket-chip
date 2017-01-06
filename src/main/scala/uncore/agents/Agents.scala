@@ -5,7 +5,7 @@ package uncore.agents
 
 import Chisel._
 import config._
-import junctions.PAddrBits
+import rocket.PAddrBits
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._

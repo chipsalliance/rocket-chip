@@ -398,7 +398,7 @@ class AHBBridge(supportAtomics: Boolean = true)(implicit val p: Parameters) exte
   
   // Hasti and TileLink widths must agree at this point in the topology
   require (tlDataBits == hastiDataBits)
-  require (p(PAddrBits) == hastiAddrBits)
+  require (p(rocket.PAddrBits) == hastiAddrBits)
   
   // AHB does not permit bursts to cross a 1KB boundary
   require (tlDataBits * tlDataBeats <= 1024*8)

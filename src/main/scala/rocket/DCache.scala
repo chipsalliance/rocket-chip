@@ -38,7 +38,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 }
 
-class DCache(cfg: DCacheConfig, val scratch: () => Option[AddressSet])(implicit p: Parameters) extends HellaCache(cfg)(p) {
+class DCache(cfg: DCacheConfig, val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache(cfg)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
