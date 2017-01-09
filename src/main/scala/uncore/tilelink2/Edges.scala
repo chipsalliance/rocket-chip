@@ -95,6 +95,24 @@ class TLEdge(
     staticHasData(x).map(Bool(_)).getOrElse(opdata)
   }
 
+  def opcode(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => a.opcode
+      case b: TLBundleB => b.opcode
+      case c: TLBundleC => c.opcode
+      case d: TLBundleD => d.opcode
+    }
+  }
+
+  def param(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => a.param
+      case b: TLBundleB => b.param
+      case c: TLBundleC => c.param
+      case d: TLBundleD => d.param
+    }
+  }
+
   def size(x: TLDataChannel): UInt = {
     x match {
       case a: TLBundleA => a.size

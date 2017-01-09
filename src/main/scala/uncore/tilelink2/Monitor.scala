@@ -13,14 +13,14 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
 {
   implicit val sourceInfo = args.sourceInfo
 
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge): Unit
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in = args.gen().asInput
     }
 
-    legalize(io.in, args.edge())
+    legalize(io.in, args.edge(), reset)
   }
 }
 
@@ -427,7 +427,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     inflight := (inflight | a_set) & ~d_clr
   }
 
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge) {
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool) {
     legalizeFormat      (bundle, edge)
     legalizeMultibeat   (bundle, edge)
     legalizeSourceUnique(bundle, edge)

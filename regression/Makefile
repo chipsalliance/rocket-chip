@@ -265,6 +265,3 @@ jtag-dtm-tests-64 : $(JTAG_DTM_64_TEST_STAMPS)
 
 # Targets for JTAG DTM full-chain simulation
 jtag-dtm-regression: jtag-dtm-tests-32 jtag-dtm-tests-64
-
-
-
