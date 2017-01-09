@@ -4,6 +4,7 @@
 package groundtest
 
 import Chisel._
+import coreplex.BareTile
 import rocket._
 import uncore.tilelink._
 import uncore.util.CacheName
@@ -102,7 +103,7 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTestParameters {
+class GroundTestTile(implicit p: Parameters) extends BareTile()(p) with HasGroundTestParameters {
   val dcacheParams = p.alterPartial {
     case CacheName => CacheName("L1D")
   }

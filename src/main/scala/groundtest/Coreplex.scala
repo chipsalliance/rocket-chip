@@ -6,6 +6,7 @@ import Chisel._
 import config._
 import diplomacy._
 import coreplex._
+import rocket.SharedMemoryTLEdge
 import uncore.devices.NTiles
 import uncore.tilelink2._
 import uncore.tilelink.TLId
@@ -15,6 +16,7 @@ case object TileId extends Field[Int]
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tiles = List.tabulate(p(NTiles)) { i =>
     LazyModule(new GroundTestTile()(p.alterPartial({
+      case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case TLId => "L1toL2"
       case TileId => i
     })))
