@@ -71,11 +71,7 @@ trait HasCoreParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-<<<<<<< HEAD:src/main/scala/rocket/Rocket.scala
   val paddrBits = p(PAddrBits)
-=======
-  val paddrBits = p(TLCacheEdge).bundle.addressBits
->>>>>>> origin/master:src/main/scala/rocket/rocket.scala
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)
