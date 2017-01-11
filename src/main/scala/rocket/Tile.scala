@@ -48,16 +48,6 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   require(dcachePorts.size == core.dcacheArbPorts)
   dcacheArb.io.requestor <> dcachePorts
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
-  fpuOpt foreach { fpu =>
-    outer.legacyRocc.orElse {
-      fpu.io.cp_req.valid := Bool(false)
-      fpu.io.cp_resp.ready := Bool(false)
-      None
-    } foreach { lr =>
-      fpu.io.cp_req <> lr.module.io.fpu.cp_req
-      fpu.io.cp_resp <> lr.module.io.fpu.cp_resp
-    }
-  }
 }
 
 class AsyncRocketTile(c: RocketConfig, gen: (RocketConfig, Parameters) => RocketTile)(implicit p: Parameters) extends LazyModule {
