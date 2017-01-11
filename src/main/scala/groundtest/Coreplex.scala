@@ -22,13 +22,12 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
     LazyModule(new GroundTestTile()(p.alter { (pname, site, here, up) => pname match {
       case TileId => i
       case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
+      case AmoAluOperandBits => site(XLen)
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case TLId => "L1toL2"
       case TLKey("L1toL2") =>
         TileLinkParameters(
-          coherencePolicy = (
-            if (site(NTiles) <= 1) new MEICoherence(site(L2DirectoryRepresentation))
-            else new MESICoherence(site(L2DirectoryRepresentation))),
+          coherencePolicy = new MESICoherence(new NullRepresentation(site(NTiles))),
           nManagers = site(BankedL2Config).nBanks + 1,
           nCachingClients = 1,
           nCachelessClients = 1,
@@ -36,7 +35,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
                              site(GroundTestKey).map(_.maxXacts))
                                .reduce(max(_, _)),
           maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
-          maxManagerXacts = site(NAcquireTransactors) + 2,
+          maxManagerXacts = 8,
           dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
           dataBits = site(CacheBlockBytes)*8)
     }}))

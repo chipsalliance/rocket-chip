@@ -27,14 +27,13 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
   val legacyRocc = if (p(BuildRoCC).isEmpty) None
     else Some(LazyModule(new LegacyRoccComplex()(p.alter { (pname, site, here, up) => pname match {
         case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
+        case AmoAluOperandBits => site(XLen)
         case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
         case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
         case TLId => "L1toL2"
         case TLKey("L1toL2") =>
           TileLinkParameters(
-            coherencePolicy = (
-              if (site(NTiles) <= 1) new MEICoherence(site(L2DirectoryRepresentation))
-              else new MESICoherence(site(L2DirectoryRepresentation))),
+            coherencePolicy = new MESICoherence(new NullRepresentation(site(NTiles))),
             nManagers = site(BankedL2Config).nBanks + 1 /* MMIO */,
             nCachingClients = 1,
             nCachelessClients = 1,
@@ -42,7 +41,7 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
                 site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
                 if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
             maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
-            maxManagerXacts = site(NAcquireTransactors) + 2,
+            maxManagerXacts = 8,
             dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
             dataBits = site(CacheBlockBytes)*8)
     }})))
