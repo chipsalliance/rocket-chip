@@ -103,13 +103,13 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(implicit p: Parameters) extends BareTile()(p) with HasGroundTestParameters {
+class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTestParameters {
   val dcacheParams = p.alterPartial {
     case CacheName => CacheName("L1D")
   }
   val slave = None
   val dcache = HellaCache(p(DCacheKey))(dcacheParams)
-  val ucLegacy = LazyModule(new TLLegacy()(p))
+  val ucLegacy = LazyModule(new TLLegacy)
 
    val cachedOut = TLOutputNode()
    val uncachedOut = TLOutputNode()

@@ -9,9 +9,12 @@ import config._
 import coreplex._
 import diplomacy._
 import uncore.constants._
+import uncore.agents._
+import uncore.coherence._
+import uncore.devices._
 import uncore.tilelink._
 import uncore.tilelink2._
-import uncore.util.CacheName
+import uncore.util._
 import util._
 
 case object RoccMaxTaggedMemXacts extends Field[Int]
@@ -21,17 +24,30 @@ case object BuildRoCC extends Field[Seq[RoccParameters]]
 
 trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwork {
   val module: CanHaveLegacyRoccsModule
-  val legacyRocc = if (p(BuildRoCC).isEmpty) None else Some(LazyModule(new LegacyRoccComplex))
+  val legacyRocc = if (p(BuildRoCC).isEmpty) None
+    else Some(LazyModule(new LegacyRoccComplex()(p.alter { (pname, site, here, up) => pname match {
+        case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
+        case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
+        case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
+        case TLId => "L1toL2"
+        case TLKey("L1toL2") =>
+          TileLinkParameters(
+            coherencePolicy = (
+              if (site(NTiles) <= 1) new MEICoherence(site(L2DirectoryRepresentation))
+              else new MESICoherence(site(L2DirectoryRepresentation))),
+            nManagers = site(BankedL2Config).nBanks + 1 /* MMIO */,
+            nCachingClients = 1,
+            nCachelessClients = 1,
+            maxClientXacts = List(
+                site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
+                if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
+            maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
+            maxManagerXacts = site(NAcquireTransactors) + 2,
+            dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
+            dataBits = site(CacheBlockBytes)*8)
+    }})))
 
-/*
-  val roccsOut: Seq[TLOutputNode] = (legacyRocc.map { lr =>
-    lr.masterNodes.map {
-      val out = TLOutputNode()
-      mn => out := mn
-      out
-    }}).getOrElse(List())
-*/
-  
+  // TODO for now, all legacy rocc mem ports mapped to one external node
   legacyRocc foreach { lr =>
     lr.masterNodes.foreach { l1backend.node := _ }
     nPTWPorts += lr.nPTWPorts
@@ -156,26 +172,30 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
   val data = Bits(width = xLen)
 }
 
-class RoCCInterface(implicit p: Parameters) extends CoreBundle()(p) {
+class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
+  val exception = Bool(INPUT)
 
+  override def cloneType = new RoCCCoreIO()(p).asInstanceOf[this.type]
+}
+
+class RoCCIO(implicit p: Parameters) extends RoCCCoreIO()(p) {
   // These should be handled differently, eventually
   val autl = new ClientUncachedTileLinkIO
   val utl = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)
   val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
-  val exception = Bool(INPUT)
 
-  override def cloneType = new RoCCInterface().asInstanceOf[this.type]
+  override def cloneType = new RoCCIO()(p).asInstanceOf[this.type]
 }
 
 abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new RoCCInterface
+  val io = new RoCCIO
   io.mem.req.bits.phys := Bool(true) // don't perform address translation
   io.mem.invalidate_lr := Bool(false) // don't mess with LR/SC
 }

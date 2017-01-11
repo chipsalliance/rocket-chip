@@ -155,7 +155,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
-  val rocc = new RoCCInterface().flip
+  val rocc_interrupt = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
@@ -252,7 +252,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_hpmcounter = reg_hpmevent.map(e => WideCounter(64, ((UInt(0) +: io.events): Seq[UInt])(e)))
 
   val mip = Wire(init=reg_mip)
-  mip.rocc := io.rocc.interrupt
+  mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
 
   val pending_interrupts = read_mip & reg_mie

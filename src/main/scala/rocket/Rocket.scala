@@ -151,7 +151,7 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
     val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUIO().flip
-    val rocc = new RoCCInterface().flip
+    val rocc = new RoCCCoreIO().flip
   }
 
   val decode_table = {
@@ -522,7 +522,7 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
   csr.io.hartid := io.hartid
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
-  csr.io.rocc.interrupt <> io.rocc.interrupt
+  csr.io.rocc_interrupt := io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   csr.io.badaddr := encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata)
   io.ptw.ptbr := csr.io.ptbr

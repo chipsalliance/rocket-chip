@@ -6,21 +6,42 @@ import Chisel._
 import config._
 import diplomacy._
 import coreplex._
-import rocket.SharedMemoryTLEdge
-import uncore.devices.NTiles
+import rocket._
+import uncore.agents._
+import uncore.coherence._
+import uncore.devices._
+import uncore.tilelink._
 import uncore.tilelink2._
-import uncore.tilelink.TLId
+import uncore.util._
+import scala.math.max
 
 case object TileId extends Field[Int]
 
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tiles = List.tabulate(p(NTiles)) { i =>
-    LazyModule(new GroundTestTile()(p.alterPartial({
+    LazyModule(new GroundTestTile()(p.alter { (pname, site, here, up) => pname match {
+      case TileId => i
+      case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case TLId => "L1toL2"
-      case TileId => i
-    })))
+      case TLKey("L1toL2") =>
+        TileLinkParameters(
+          coherencePolicy = (
+            if (site(NTiles) <= 1) new MEICoherence(site(L2DirectoryRepresentation))
+            else new MESICoherence(site(L2DirectoryRepresentation))),
+          nManagers = site(BankedL2Config).nBanks + 1,
+          nCachingClients = 1,
+          nCachelessClients = 1,
+          maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
+                             site(GroundTestKey).map(_.maxXacts))
+                               .reduce(max(_, _)),
+          maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
+          maxManagerXacts = site(NAcquireTransactors) + 2,
+          dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
+          dataBits = site(CacheBlockBytes)*8)
+    }}))
   }
+
   tiles.foreach { lm =>
     l1tol2.node := lm.cachedOut
     l1tol2.node := lm.uncachedOut
