@@ -150,7 +150,7 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
     val imem  = new FrontendIO()(p.alterPartial({case CacheName => CacheName("L1I") }))
     val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
     val ptw = new DatapathPTWIO().flip
-    val fpu = new FPUIO().flip
+    val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
   }
 

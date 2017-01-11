@@ -57,6 +57,17 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
 trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule with CanHavePTWModule with TileNetworkModule {
   val outer: CanHaveLegacyRoccs
 
+  fpuOpt foreach { fpu =>
+    outer.legacyRocc.orElse {
+      fpu.io.cp_req.valid := Bool(false)
+      fpu.io.cp_resp.ready := Bool(false)
+      None
+    } foreach { lr =>
+      fpu.io.cp_req <> lr.module.io.fpu.cp_req
+      fpu.io.cp_resp <> lr.module.io.fpu.cp_resp
+    }
+  }
+
   outer.legacyRocc foreach { lr =>
     ptwPorts ++= lr.module.io.ptw
     dcachePorts ++= lr.module.io.dcache

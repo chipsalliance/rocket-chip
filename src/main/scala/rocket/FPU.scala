@@ -149,7 +149,7 @@ class FPUDecoder(implicit p: Parameters) extends FPUModule()(p) {
   sigs zip decoder map {case(s,d) => s := d}
 }
 
-class FPUIO(implicit p: Parameters) extends CoreBundle {
+class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val inst = Bits(INPUT, 32)
   val fromint_data = Bits(INPUT, xLen)
 
@@ -174,7 +174,9 @@ class FPUIO(implicit p: Parameters) extends CoreBundle {
   val sboard_set = Bool(OUTPUT)
   val sboard_clr = Bool(OUTPUT)
   val sboard_clra = UInt(OUTPUT, 5)
+}
 
+class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
   val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
   val cp_resp = Decoupled(new FPResult())
 }
