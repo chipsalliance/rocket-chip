@@ -22,11 +22,7 @@ class RocketTile(val c: RocketConfig)(implicit p: Parameters) extends BaseTile()
 }
 
 class RocketTileBundle(outer: RocketTile) extends BaseTileBundle(outer)
-    with CanHaveScratchpadBundle {
-  val hartid = UInt(INPUT, p(XLen))
-  val interrupts = new TileInterrupts()(p).asInput
-  val resetVector = UInt(INPUT, p(XLen))
-}
+    with CanHaveScratchpadBundle
 
 class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => new RocketTileBundle(outer))
     with CanHaveLegacyRoccsModule
@@ -64,9 +60,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   }
 }
 
-// TODO make this into a generic wrapper around CoreConfig => Tile?
-class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(c))
+class AsyncRocketTile(c: RocketConfig, gen: (RocketConfig, Parameters) => RocketTile)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(gen(c, p))
 
   val masterNodes = rocket.masterNodes.map(_ => TLAsyncOutputNode())
   val slaveNode = rocket.slaveNode.map(_ => TLAsyncInputNode())
@@ -76,7 +71,7 @@ class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModul
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val masters = masterNodes.map(_.bundleOut)
+      val master = masterNodes.map(_.bundleOut)
       val slave = slaveNode.map(_.bundleIn)
       val hartid = UInt(INPUT, p(XLen))
       val interrupts = new TileInterrupts()(p).asInput

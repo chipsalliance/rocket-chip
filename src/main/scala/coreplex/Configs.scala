@@ -105,8 +105,9 @@ class BaseCoreplexConfig extends Config (
           dataBits = site(CacheBlockBytes)*8)
       }
       case BootROMFile => "./bootrom/bootrom.img"
-      case NTiles => 1
+      case NTiles => site(RocketConfigs).size
       case RocketConfigs => List(RocketConfig(site(XLen)))
+      case BuildRocketTile => (c: RocketConfig, p: Parameters) => new RocketTile(c)(p)
       case BroadcastConfig => BroadcastConfig()
       case BankedL2Config => BankedL2Config()
       case CacheBlockBytes => 64

@@ -5,6 +5,7 @@ package coreplex
 import Chisel._
 import config._
 import diplomacy._
+import rocket.{TileInterrupts, XLen}
 import uncore.tilelink2._
 import util.GenericParameterizedBundle
 
@@ -45,7 +46,11 @@ abstract class BaseTile(implicit p: Parameters) extends BareTile
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with TileNetworkBundle
+    with TileNetworkBundle {
+  val hartid = UInt(INPUT, p(XLen))
+  val interrupts = new TileInterrupts()(p).asInput
+  val resetVector = UInt(INPUT, p(XLen))
+}
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
     with TileNetworkModule
