@@ -45,7 +45,7 @@ class FancyMemtestConfig extends Config(
   new WithL2Cache ++ new GroundTestConfig)
 
 class CacheFillTestConfig extends Config(
-  new WithNL2Ways(4) ++ new WithL2Capacity(4) ++ new WithCacheFillTest ++ new WithPLRU ++ new WithL2Cache ++ new GroundTestConfig)
+  new WithNL2Ways(4) ++ new WithL2Capacity(4) ++ new WithCacheFillTest ++ new WithL2Cache ++ new GroundTestConfig)
 
 class BroadcastRegressionTestConfig extends Config(
   new WithBroadcastRegressionTest ++ new GroundTestConfig)

@@ -52,8 +52,6 @@ class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 class DefaultL2FPGAConfig extends Config(
   new WithL2Capacity(64) ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
-class PLRUL2Config extends Config(new WithPLRU ++ new DefaultL2Config)
-
 class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
   case BankedL2Config => up(BankedL2Config, site).copy(nMemoryChannels = n)
 })
