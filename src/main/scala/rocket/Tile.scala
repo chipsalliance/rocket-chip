@@ -28,7 +28,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveLegacyRoccsModule
     with CanHaveScratchpadModule {
 
-  val core = Module(new Rocket(outer.c)(outer.p))
+  val core = Module(p(BuildCore)(outer.c, outer.p))
   core.io.interrupts := io.interrupts
   core.io.hartid := io.hartid
   outer.frontend.module.io.cpu <> core.io.imem
@@ -50,8 +50,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
 }
 
-class AsyncRocketTile(c: RocketConfig, gen: (RocketConfig, Parameters) => RocketTile)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(gen(c, p))
+class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(c))
 
   val masterNodes = rocket.masterNodes.map(_ => TLAsyncOutputNode())
   val slaveNode = rocket.slaveNode.map(_ => TLAsyncInputNode())

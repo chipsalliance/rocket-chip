@@ -9,13 +9,12 @@ import rocket._
 import uncore.tilelink2._
 
 case object RocketConfigs extends Field[Seq[RocketConfig]]
-case object BuildRocketTile extends Field[(RocketConfig, Parameters) => RocketTile]
 
 trait HasSynchronousRocketTiles extends CoreplexRISCVPlatform {
   val module: HasSynchronousRocketTilesModule
 
   val rocketTiles: Seq[RocketTile] = p(RocketConfigs).map { c =>
-    LazyModule(p(BuildRocketTile)(c, p.alterPartial {
+    LazyModule(new RocketTile(c)(p.alterPartial {
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
   }))}
@@ -50,8 +49,8 @@ trait HasSynchronousRocketTilesModule extends CoreplexRISCVPlatformModule {
 trait HasAsynchronousRocketTiles extends CoreplexRISCVPlatform {
   val module: HasAsynchronousRocketTilesModule
 
-  val rocketTiles = p(RocketConfigs).map { c =>
-    LazyModule(new AsyncRocketTile(c, p(BuildRocketTile))(p.alterPartial {
+  val rocketTiles: Seq[AsyncRocketTile] = p(RocketConfigs).map { c =>
+    LazyModule(new AsyncRocketTile(c)(p.alterPartial {
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
   }))}

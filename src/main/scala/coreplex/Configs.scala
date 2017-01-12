@@ -72,7 +72,7 @@ class BaseCoreplexConfig extends Config (
       case BootROMFile => "./bootrom/bootrom.img"
       case NTiles => site(RocketConfigs).size
       case RocketConfigs => List(RocketConfig(site(XLen)))
-      case BuildRocketTile => (c: RocketConfig, p: Parameters) => new RocketTile(c)(p)
+      case BuildCore => (c: RocketConfig, p: Parameters) => new Rocket(c)(p)
       case BroadcastConfig => BroadcastConfig()
       case BankedL2Config => BankedL2Config()
       case CacheBlockBytes => 64

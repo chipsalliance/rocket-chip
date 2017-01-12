@@ -5,10 +5,7 @@ package rocket
 
 import Chisel._
 import config._
-import uncore.devices._
 import uncore.constants._
-import uncore.tilelink2._
-import uncore.util.{CacheName, CacheBlockBytes}
 import util._
 import Chisel.ImplicitConversions._
 
@@ -35,72 +32,6 @@ case object NBreakpoints extends Field[Int]
 case object NPerfCounters extends Field[Int]
 case object NPerfEvents extends Field[Int]
 case object DataScratchpadSize extends Field[Int]
-case object SharedMemoryTLEdge extends Field[TLEdgeOut]
-
-trait HasCoreParameters {
-  implicit val p: Parameters
-  val xLen = p(XLen)
-  val fLen = xLen // TODO relax this
-
-  val usingVM = p(UseVM)
-  val usingUser = p(UseUser) || usingVM
-  val usingDebug = p(UseDebug)
-  val usingMulDiv = p(MulDivKey).nonEmpty
-  val usingFPU = p(FPUKey).nonEmpty
-  val usingAtomics = p(UseAtomics)
-  val usingCompressed = p(UseCompressed)
-  val usingRoCC = !p(BuildRoCC).isEmpty
-  val fastLoadWord = p(FastLoadWord)
-  val fastLoadByte = p(FastLoadByte)
-  val fastJAL = p(FastJAL)
-  val nBreakpoints = p(NBreakpoints)
-  val nPerfCounters = p(NPerfCounters)
-  val nPerfEvents = p(NPerfEvents)
-  val usingDataScratchpad = p(DataScratchpadSize) > 0
-
-  val retireWidth = p(RetireWidth)
-  val fetchWidth = p(FetchWidth)
-  val coreInstBits = p(CoreInstBits)
-  val coreInstBytes = coreInstBits/8
-  val coreDataBits = xLen
-  val coreDataBytes = coreDataBits/8
-  val dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
-  val coreDCacheReqTagBits = 6
-  val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
-
-  def pgIdxBits = 12
-  def pgLevelBits = 10 - log2Ceil(xLen / 32)
-  def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = p(PAddrBits)
-  def ppnBits = paddrBits - pgIdxBits
-  def vpnBits = vaddrBits - pgIdxBits
-  val pgLevels = p(PgLevels)
-  val asIdBits = p(ASIdBits)
-  val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
-  val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
-  val coreMaxAddrBits = paddrBits max vaddrBitsExtended
-  val nCustomMrwCsrs = p(NCustomMRWCSRs)
-
-  // fetchWidth doubled, but coreInstBytes halved, for RVC
-  val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
-
-  // Print out log of committed instructions and their writeback values.
-  // Requires post-processing due to out-of-order writebacks.
-  val enableCommitLog = false
-
-  val maxPAddrBits = xLen match {
-    case 32 => 34
-    case 64 => 50
-  }
-
-  require(paddrBits <= maxPAddrBits)
-  require(!fastLoadByte || fastLoadWord)
-}
-
-abstract class CoreModule(implicit val p: Parameters) extends Module
-  with HasCoreParameters
-abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
-  with HasCoreParameters
 
 class RegFile(n: Int, w: Int, zero: Boolean = false) {
   private val rf = Mem(n, UInt(width = w))
@@ -143,16 +74,7 @@ object ImmGen {
   }
 }
 
-class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val interrupts = new TileInterrupts().asInput
-    val hartid = UInt(INPUT, xLen)
-    val imem  = new FrontendIO()(p.alterPartial({case CacheName => CacheName("L1I") }))
-    val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
-    val ptw = new DatapathPTWIO().flip
-    val fpu = new FPUCoreIO().flip
-    val rocc = new RoCCCoreIO().flip
-  }
+class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p) with HasCoreIO {
 
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
