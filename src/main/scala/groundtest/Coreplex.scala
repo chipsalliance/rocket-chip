@@ -19,7 +19,7 @@ case object TileId extends Field[Int]
 
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tiles = List.tabulate(p(NTiles)) { i =>
-    LazyModule(new GroundTestTile()(p.alter { (pname, site, here, up) => pname match {
+    LazyModule(new GroundTestTile()(p.alter { (site, here, up) => {
       case TileId => i
       case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
       case AmoAluOperandBits => site(XLen)

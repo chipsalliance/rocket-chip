@@ -25,7 +25,7 @@ case object BuildRoCC extends Field[Seq[RoccParameters]]
 trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwork {
   val module: CanHaveLegacyRoccsModule
   val legacyRocc = if (p(BuildRoCC).isEmpty) None
-    else Some(LazyModule(new LegacyRoccComplex()(p.alter { (pname, site, here, up) => pname match {
+    else Some(LazyModule(new LegacyRoccComplex()(p.alter { (site, here, up) => {
         case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
         case AmoAluOperandBits => site(XLen)
         case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
