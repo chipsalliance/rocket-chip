@@ -182,15 +182,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val updateHit = if (updatesOutOfOrder) updateHits.orR else r_btb_update.bits.prediction.valid
   val updateHitAddr = if (updatesOutOfOrder) OHToUInt(updateHits) else r_btb_update.bits.prediction.bits.entry
 
-  // we'd prefer PseudoLRU replacement, but it only works for powers of 2
-  val nextRepl =
-    if (!isPow2(entries)) {
-      Counter(r_btb_update.valid && !updateHit, entries)._1
-    } else {
-      val plru = new PseudoLRU(entries)
-      when (hits.orR) { plru.access(OHToUInt(hits)) }
-      plru.replace
-    }
+  val nextRepl = Counter(r_btb_update.valid && !updateHit, entries)._1
 
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
