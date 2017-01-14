@@ -102,3 +102,4 @@ class ISCA2016LOVL4B4Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB
 class ISCA2016LOVL4B8Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB8Config)
 
 class DecoupledISCA2016Config extends Config(new WithDecoupledRoCC ++ new ISCA2016Config)
+class DualCoreISCA2016L2Config extends Config(new WithNCores(2) ++ new WithNLanes(2) ++ new ISCA2016Config)
