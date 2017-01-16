@@ -30,7 +30,7 @@ def parse_line(line):
       mask_gran = int(tokens[i+1])
     else:
       sys.exit('%s: unknown argument %s' % (sys.argv[0], a))
-  return (name, width, depth, mask_gran, width/mask_gran, ports)
+  return (name, width, depth, mask_gran, width//mask_gran, ports)
 
 def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
   addr_width = max(math.ceil(math.log(depth)/math.log(2)),1)
