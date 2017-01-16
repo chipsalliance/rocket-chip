@@ -11,9 +11,6 @@ class WithUncoreUnitTests extends Config((site, here, up) => {
   case UnitTests => (q: Parameters) => {
     implicit val p = q
     Seq(
-      Module(new uncore.devices.ROMSlaveTest()),
-      Module(new uncore.devices.TileLinkRAMTest()),
-      Module(new uncore.converters.TileLinkWidthAdapterTest()),
       Module(new uncore.tilelink2.TLFuzzRAMTest),
       Module(new uncore.ahb.AHBBridgeTest),
       Module(new uncore.apb.APBBridgeTest),
