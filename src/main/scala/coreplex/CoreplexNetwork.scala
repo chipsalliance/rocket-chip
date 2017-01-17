@@ -28,9 +28,9 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   intBar.intnode := mmioInt
 
   cbus.node :=
+    TLBuffer()(
     TLAtomicAutomata(arithmetic = true)( // disable once TLB uses TL2 metadata
     TLWidthWidget(l1tol2_beatBytes)(
-    TLBuffer()(
     l1tol2.node)))
 
   mmio :=
