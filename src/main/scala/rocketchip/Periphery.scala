@@ -103,9 +103,9 @@ trait PeripheryMasterAXI4Mem {
   }
 
   val mem = mem_axi4.map { node =>
-    val foo = LazyModule(new TLToAXI4(config.idBits))
-    node := foo.node
-    foo.node
+    val converter = LazyModule(new TLToAXI4(config.idBits))
+    node := AXI4Buffer()(converter.node)
+    converter.node
   }
 }
 
@@ -140,10 +140,11 @@ trait PeripheryMasterAXI4MMIO {
     beatBytes = config.beatBytes))
 
   mmio_axi4 :=
+    AXI4Buffer()(
     // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
     TLToAXI4(idBits = config.idBits)(      // use idBits = 0 for AXI4-Lite
     TLWidthWidget(socBusConfig.beatBytes)( // convert width before attaching to socBus
-    socBus.node))
+    socBus.node)))
 }
 
 trait PeripheryMasterAXI4MMIOBundle {
@@ -206,9 +207,10 @@ trait PeripheryMasterTLMMIO {
     beatBytes = config.beatBytes))
 
   mmio_tl :=
+    TLBuffer()(
     TLSourceShrinker(config.idBits)(
     TLWidthWidget(socBusConfig.beatBytes)(
-    socBus.node))
+    socBus.node)))
 }
 
 trait PeripheryMasterTLMMIOBundle {
