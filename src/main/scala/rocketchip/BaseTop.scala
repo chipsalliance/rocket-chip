@@ -36,9 +36,10 @@ trait TopNetwork extends HasPeripheryParameters {
   val intBus = LazyModule(new IntXbar)
 
   peripheryBus.node :=
+    TLBuffer()(
     TLWidthWidget(socBusConfig.beatBytes)(
     TLAtomicAutomata(arithmetic = peripheryBusArithmetic)(
-    socBus.node))
+    socBus.node)))
 }
 
 trait TopNetworkBundle extends HasPeripheryParameters {
