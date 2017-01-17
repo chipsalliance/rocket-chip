@@ -20,7 +20,7 @@ trait HasSynchronousRocketTiles extends CoreplexRISCVPlatform {
   }))}
 
   rocketTiles.foreach { r =>
-    r.masterNodes.foreach { l1tol2.node := _ }
+    r.masterNodes.foreach { l1tol2.node := TLBuffer()(_) }
     r.slaveNode.foreach { _ := cbus.node }
   }
 
