@@ -5,7 +5,7 @@ package uncore.agents
 
 import Chisel._
 import scala.reflect.ClassTag
-import junctions.PAddrBits
+import rocket.PAddrBits
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._

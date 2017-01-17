@@ -7,8 +7,6 @@ import Chisel._
 import config._
 import scala.collection.mutable.HashMap
 
-case object PAddrBits extends Field[Int]
-
 case class MemAttr(prot: Int, cacheable: Boolean = false)
 
 sealed abstract class MemRegion {

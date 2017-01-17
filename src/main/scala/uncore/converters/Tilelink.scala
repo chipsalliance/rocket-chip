@@ -5,7 +5,7 @@ package uncore.converters
 
 import Chisel._
 import util.{ReorderQueue, DecoupledHelper}
-import junctions.PAddrBits
+import rocket.PAddrBits
 import uncore.tilelink._
 import uncore.util._
 import uncore.constants._

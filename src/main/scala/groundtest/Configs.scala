@@ -13,7 +13,6 @@ import uncore.util._
 import uncore.devices.NTiles
 import junctions._
 import config._
-import scala.math.max
 import coreplex._
 import rocketchip._
 
@@ -74,24 +73,6 @@ class Edge32BitMemtestConfig extends Config(
 
 /* Composable Configs to set individual parameters */
 class WithGroundTest extends Config((site, here, up) => {
-  case TLKey("L1toL2") => {
-    val useMEI = site(NTiles) <= 1
-    val dataBeats = (8 * site(CacheBlockBytes)) / site(XLen)
-    TileLinkParameters(
-      coherencePolicy = (
-        if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
-        else new MESICoherence(site(L2DirectoryRepresentation))),
-      nManagers = site(BankedL2Config).nBanks + 1,
-      nCachingClients = 1,
-      nCachelessClients = 1,
-      maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
-                         site(GroundTestKey).map(_.maxXacts))
-                           .reduce(max(_, _)),
-      maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
-      maxManagerXacts = site(NAcquireTransactors) + 2,
-      dataBeats = dataBeats,
-      dataBits = site(CacheBlockBytes)*8)
-  }
   case FPUKey => None
   case UseAtomics => false
   case UseCompressed => false

@@ -4,11 +4,12 @@
 package rocket
 
 import Chisel._
-import uncore.util.PseudoLRU
+import config._
 import uncore.constants._
+import uncore.util.PseudoLRU
 import util._
 import Chisel.ImplicitConversions._
-import config._
+import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val prv = Bits(width = 2)
@@ -216,4 +217,18 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
       state := s_ready
     }
   }
+}
+
+/** Mix-ins for constructing tiles that might have a PTW */
+trait CanHavePTW extends HasHellaCache {
+  implicit val p: Parameters
+  val module: CanHavePTWModule
+  var nPTWPorts = 1
+}
+
+trait CanHavePTWModule extends HasHellaCacheModule {
+  val outer: CanHavePTW
+  val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
+  val ptwOpt = if (outer.p(UseVM)) { Some(Module(new PTW(outer.nPTWPorts)(outer.p))) } else None
+  ptwOpt foreach { ptw => dcachePorts += ptw.io.mem }
 }

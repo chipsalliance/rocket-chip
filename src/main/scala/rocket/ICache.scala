@@ -15,7 +15,7 @@ import Chisel.ImplicitConversions._
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val cacheBlockBytes = p(CacheBlockBytes)
   val lgCacheBlockBytes = log2Up(cacheBlockBytes)
-  val cacheDataBits = p(TLCacheEdge).bundle.dataBits
+  val cacheDataBits = p(SharedMemoryTLEdge).bundle.dataBits
   val cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
   val refillCycles = cacheDataBeats
 }

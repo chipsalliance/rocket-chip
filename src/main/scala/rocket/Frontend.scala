@@ -5,8 +5,10 @@ package rocket
 
 import Chisel._
 import config._
+import coreplex._
 import diplomacy._
 import uncore.tilelink2._
+import uncore.util.CacheName
 import util._
 import Chisel.ImplicitConversions._
 
@@ -148,4 +150,24 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt_if
   io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
   io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
+}
+
+/** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
+trait HasICacheFrontend extends CanHavePTW with TileNetwork {
+  val module: HasICacheFrontendModule
+  val frontend = LazyModule(new Frontend()(p.alterPartial({
+    case CacheName => CacheName("L1I")
+  })))
+  l1backend.node := frontend.node
+  nPTWPorts += 1
+}
+
+trait HasICacheFrontendBundle extends TileNetworkBundle {
+  val outer: HasICacheFrontend
+}
+
+trait HasICacheFrontendModule extends CanHavePTWModule with TileNetworkModule {
+  val outer: HasICacheFrontend
+  //val io: HasICacheFrontendBundle
+  ptwPorts += outer.frontend.module.io.ptw
 }

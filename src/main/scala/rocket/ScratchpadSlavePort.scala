@@ -101,3 +101,34 @@ class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
     tl_in.e.ready := Bool(true)
   }
 }
+
+/** Mix-ins for constructing tiles that have optional scratchpads */
+trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
+  val module: CanHaveScratchpadModule
+
+  val slaveNode = if (p(DataScratchpadSize) == 0) None else Some(TLInputNode())
+  val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
+
+  (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }
+
+  def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
+    val finalNode = frontend.node.edgesOut(0).manager.managers.find(_.nodePath.last == s.node)
+    require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
+    require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
+    finalNode.get.address(0)
+  }
+
+  nDCachePorts += 1 // core TODO dcachePorts += () => module.io.dmem ??
+}
+
+trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
+  val outer: CanHaveScratchpad
+  val slave = outer.slaveNode.map(_.bundleIn)
+}
+
+trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontendModule {
+  val outer: CanHaveScratchpad
+  val io: CanHaveScratchpadBundle
+
+  outer.scratch.foreach { lm => dcachePorts += lm.module.io.dmem }
+}

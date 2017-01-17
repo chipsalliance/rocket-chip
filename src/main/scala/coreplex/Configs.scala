@@ -6,14 +6,10 @@ package coreplex
 import Chisel._
 import config._
 import diplomacy._
-import junctions.PAddrBits
 import rocket._
-import uncore.tilelink._
-import uncore.tilelink2._
-import uncore.coherence._
-import uncore.agents._
-import uncore.devices._
 import uncore.converters._
+import uncore.devices._
+import uncore.tilelink2._
 import uncore.util._
 import util._
 
@@ -44,15 +40,8 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   //L1DataCache
   case DCacheKey => DCacheConfig(nMSHRs = 2)
   case DataScratchpadSize => 0
-  //L2 Memory System Params
-  case AmoAluOperandBits => site(XLen)
-  case NAcquireTransactors => 7
-  case L2StoreDataQueueDepth => 1
-  case L2DirectoryRepresentation => new NullRepresentation(site(NTiles))
   //Tile Constants
   case BuildRoCC => Nil
-  case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
-  case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
   //Rocket Core Constants
   case CoreInstBits => if (site(UseCompressed)) 16 else 32
   case FetchWidth => if (site(UseCompressed)) 2 else 1
@@ -76,37 +65,15 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case MtvecInit => Some(BigInt(0))
   case MtvecWritable => true
   //Uncore Paramters
-  case LNEndpoints => site(TLKey(site(TLId))).nManagers + site(TLKey(site(TLId))).nClients
-  case LNHeaderBits => log2Ceil(site(TLKey(site(TLId))).nManagers) +
-                         log2Up(site(TLKey(site(TLId))).nClients)
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
   case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth
-  case TLKey("L1toL2") => {
-    val useMEI = site(NTiles) <= 1
-    TileLinkParameters(
-      coherencePolicy = (
-        if (useMEI) new MEICoherence(site(L2DirectoryRepresentation))
-        else new MESICoherence(site(L2DirectoryRepresentation))),
-      nManagers = site(BankedL2Config).nBanks + 1 /* MMIO */,
-      nCachingClients = 1,
-      nCachelessClients = 1,
-      maxClientXacts = List(
-          // L1 cache
-          site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
-          // RoCC
-          if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
-      maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
-      maxManagerXacts = site(NAcquireTransactors) + 2,
-      dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
-      dataBits = site(CacheBlockBytes)*8)
-  }
   case BootROMFile => "./bootrom/bootrom.img"
-  case NTiles => 1
+  case NTiles => site(RocketConfigs).size
+  case RocketConfigs => List(RocketConfig(site(XLen)))
+  case BuildCore => (c: RocketConfig, p: Parameters) => new Rocket(c)(p)
   case BroadcastConfig => BroadcastConfig()
   case BankedL2Config => BankedL2Config()
   case CacheBlockBytes => 64
-  case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
-  case EnableL2Logging => false
 })
 
 class WithNCores(n: Int) extends Config((site, here, up) => {
@@ -185,7 +152,7 @@ class WithStatelessBridge extends Config((site, here, up) => {
   case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
 })
 
-class WithL2Capacity(size_kb: Int) extends Config(Parameters.empty)
+class WithL2Capacity(size_kb: Int) extends Config(Parameters.empty) // TODO
 
 class WithNL2Ways(n: Int) extends Config((site, here, up) => {
   case CacheName("L2") => up(CacheName("L2"), site).copy(nWays = n)
@@ -205,7 +172,6 @@ class WithSmallCores extends Config((site, here, up) => {
   case FPUKey => None
   case UseVM => false
   case BtbKey => BtbParameters(nEntries = 0)
-  case NAcquireTransactors => 2
   case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
   case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
   case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
