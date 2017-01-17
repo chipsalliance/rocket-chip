@@ -104,9 +104,8 @@ trait PeripheryMasterAXI4Mem {
 
   val mem = mem_axi4.map { node =>
     val converter = LazyModule(new TLToAXI4(config.idBits))
-    val buffered = AXI4Buffer()(foo.node)
-    node := buffered.node
-    buffered.node
+    node := AXI4Buffer()(converter.node)
+    converter.node
   }
 }
 
