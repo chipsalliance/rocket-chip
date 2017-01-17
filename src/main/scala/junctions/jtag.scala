@@ -1,5 +1,6 @@
 // See LICENSE.SiFive for license details.
 
+/*
 package junctions
 import Chisel._
 import config._
@@ -14,3 +15,4 @@ class JTAGIO(drvTdo: Boolean = false) extends Bundle {
   val DRV_TDO = if (drvTdo) Some(Bool(INPUT)) else None
   override def cloneType = new JTAGIO(drvTdo).asInstanceOf[this.type]
 }
+ */
