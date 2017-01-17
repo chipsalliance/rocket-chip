@@ -212,3 +212,7 @@ class WithoutFPU extends Config((site, here, up) => {
 class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
   case FPUKey => Some(FPUConfig(divSqrt = false))
 })
+
+class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
+  case BootROMFile => bootROMFile
+})
