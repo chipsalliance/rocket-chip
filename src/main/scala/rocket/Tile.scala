@@ -61,7 +61,7 @@ class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModul
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val master = masterNodes.map(_.bundleOut)
+      val master = masterNodes.head.bundleOut // TODO fix after Chisel #366
       val slave = slaveNode.map(_.bundleIn)
       val hartid = UInt(INPUT, p(XLen))
       val interrupts = new TileInterrupts()(p).asInput
