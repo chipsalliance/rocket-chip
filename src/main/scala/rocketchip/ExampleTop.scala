@@ -30,7 +30,7 @@ class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](_outer: L, _
 
 class ExampleRocketTop(implicit p: Parameters) extends ExampleTop
     with PeripheryBootROM
-    with PeripheryDTM
+    with PeripheryDebug
     with PeripheryCounter
     with HardwiredResetVector
     with RocketPlexMaster {
@@ -39,14 +39,14 @@ class ExampleRocketTop(implicit p: Parameters) extends ExampleTop
 
 class ExampleRocketTopBundle[+L <: ExampleRocketTop](_outer: L) extends ExampleTopBundle(_outer)
     with PeripheryBootROMBundle
-    with PeripheryDTMBundle
+    with PeripheryDebugBundle
     with PeripheryCounterBundle
     with HardwiredResetVectorBundle
     with RocketPlexMasterBundle
 
 class ExampleRocketTopModule[+L <: ExampleRocketTop, +B <: ExampleRocketTopBundle[L]](_outer: L, _io: () => B) extends ExampleTopModule(_outer, _io)
     with PeripheryBootROMModule
-    with PeripheryDTMModule
+    with PeripheryDebugModule
     with PeripheryCounterModule
     with HardwiredResetVectorModule
     with RocketPlexMasterModule

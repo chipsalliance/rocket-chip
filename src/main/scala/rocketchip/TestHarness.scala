@@ -26,7 +26,11 @@ class TestHarness()(implicit p: Parameters) extends Module {
     }
   }
 
-  val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug, io.success)
+  if (!p(IncludeJtagDTM)) {
+    val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug.get, io.success)
+  } else {
+     val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)		
+  }
 
   val mmio_sim = Module(LazyModule(new SimAXIMem(4096)).module)
   mmio_sim.io.axi4 <> dut.io.mmio_axi4
