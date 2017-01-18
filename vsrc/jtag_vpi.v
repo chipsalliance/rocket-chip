@@ -45,13 +45,15 @@ module JTAGVPI
         parameter  CMD_DELAY = 2 // 1000
 )   
 (
-	output     jtag_TMS,
-	output     jtag_TCK,
-	output     jtag_TDI,
-	input      jtag_TDO,
-        input      jtag_TRST, // unused
-	input      enable,
-	input      init_done);
+	output jtag_TMS,
+	output jtag_TCK,
+	output jtag_TDI,
+	input  jtag_TDO_data,
+        input  jtag_TDO_driven,
+ 
+        output jtag_TRSTn, // unused
+	input  enable,
+	input  init_done);
 
    reg                  tms;
    reg                  tck;
@@ -61,9 +63,10 @@ module JTAGVPI
    assign jtag_TMS = tms;
    assign jtag_TCK = tck;
    assign jtag_TDI = tdi;
-   assign tdo = jtag_TDO;
-    
-   
+   assign tdo = jtag_TDO_driven ? jtag_TDO_data : 1'bz;
+
+   assign jtag_TRSTn = 1'b1;
+      
 integer		cmd;
 integer		length;
 integer		nb_bits;

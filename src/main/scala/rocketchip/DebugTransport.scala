@@ -23,12 +23,17 @@ class DebugAccessUpdate(addrBits: Int) extends Bundle {
   val op = UInt(width = DbBusConsts.dbOpSize)
   val data = UInt(width = DbBusConsts.dbDataSize)
   val addr = UInt(width = addrBits)
+
+  override def cloneType = new DebugAccessUpdate(addrBits).asInstanceOf[this.type]   
 }
 
 class DebugAccessCapture(addrBits: Int) extends Bundle {
   val resp = UInt(width = DbBusConsts.dbRespSize)
   val data = UInt(width = DbBusConsts.dbDataSize)
   val addr = UInt(width = addrBits)
+
+  override def cloneType = new DebugAccessCapture(addrBits).asInstanceOf[this.type]
+
 }
 
 class DTMInfo extends Bundle {
@@ -52,7 +57,7 @@ class DebugTransportModuleJTAG(
 
   val io = new Bundle {
     val dbus = new DebugBusIO()(p)
-    val jtag = new JtagIO().flip()
+    val jtag = Flipped(new JTAGIO())
     val fsmReset = Bool(OUTPUT)
   }
 
@@ -80,18 +85,26 @@ class DebugTransportModuleJTAG(
   val dbusStatus = Wire(UInt(width = 2))
   
   //--------------------------------------------------------
-  // DTM Info Chain
+  // DTM Info Chain Declaration
 
   dbusStatus := Cat(stickyNonzeroRespReg, stickyNonzeroRespReg | stickyBusyReg)
 
-  dtmInfo := UInt(0)
   dtmInfo.debugVersion   := UInt(debugVersion)
   dtmInfo.debugAddrBits  := UInt(debugAddrBits)
   dtmInfo.dbusStatus     := dbusStatus
   dtmInfo.dbusIdleCycles := UInt(debugIdleCycles)
+  dtmInfo.reserved0      := UInt(0)
+  dtmInfo.dbusreset      := Bool(false) // This is write-only
+  dtmInfo.reserved1      := UInt(0)
 
   val dtmInfoChain = Module (CaptureUpdateChain(gen = new DTMInfo()))
   dtmInfoChain.io.capture.bits := dtmInfo
+
+  //--------------------------------------------------------
+  // Debug Access Chain Declaration
+
+   val debugAccessChain = Module(CaptureUpdateChain(genCapture = new DebugAccessCapture(debugAddrBits),
+     genUpdate = new DebugAccessUpdate(debugAddrBits)))
 
   //--------------------------------------------------------
   // Debug Access Support
@@ -117,16 +130,16 @@ class DebugTransportModuleJTAG(
   // Downgrade/Skip. We make the decision to downgrade or skip
   // during every CAPTURE_DR, and use the result in UPDATE_DR.
   // The sticky versions are reset by write to dbusReset in DTM_INFO.
-  when (debugAccessChain.io.update.valid) {
-    skipOpReg := Bool(false)
-    downgradeOpReg := Bool(false)
-  }
-  when (debugAccessChain.io.capture.capture) {
-    skipOpReg := busy
-    downgradeOpReg := (!busy & nonzeroResp)
-    stickyBusyReg := busy
-    stickyNonzeroRespReg <= nonzeroResp
-  }
+    when (debugAccessChain.io.update.valid) {
+      skipOpReg := Bool(false)
+      downgradeOpReg := Bool(false)
+    }
+    when (debugAccessChain.io.capture.capture) {
+      skipOpReg := busy
+      downgradeOpReg := (!busy & nonzeroResp)
+      stickyBusyReg := busy
+      stickyNonzeroRespReg <= nonzeroResp
+    }
   when (dtmInfoChain.io.update.valid) {
     when (dtmInfoChain.io.update.bits.dbusreset) {
       stickyNonzeroRespReg := Bool(false)
@@ -140,53 +153,54 @@ class DebugTransportModuleJTAG(
   // The current specification says that any non-zero response is an error.
   nonzeroResp := stickyNonzeroRespReg | (io.dbus.resp.valid & (io.dbus.resp.bits.resp != UInt(0)))
 
-  busyResp := UInt(0)
+  busyResp.addr  := UInt(0)
+  busyResp.resp  := UInt(0)
+  busyResp.data  := UInt(0)
 
   nonbusyResp.addr := dbusReqReg.addr
   nonbusyResp.resp := io.dbus.resp.bits.resp
-  nonbusyResp.data := io.dbus.resp.bits.addr
+  nonbusyResp.data := io.dbus.resp.bits.data
 
   //--------------------------------------------------------
-  // Debug Access Chain
+  // Debug Access Chain Implementation 
 
-  val debugAccessChain = Module(new CaptureUpdateChain(genCapture = new DebugAccessCapture(debugAddrBits),
-    genUpdate = new DebugAccessUpdate(debugAddrBits)))
-
-  debugAccessChain.io.capture.bits := Mux(busy, busyResp, nonbusyResp)
-  when (debugAccessChain.io.update.valid) {
-    skipOpReg := Bool(false)
-    downgradeOpReg := Bool(false)
-  }
-  when (debugAccessChain.io.capture.capture) {
-      skipOpReg := busy
-      downgradeOpReg := (!busy & nonzeroResp)
-      stickyBusyReg := busy
-      stickyNonzeroRespReg <= nonzeroResp
-  }
+   debugAccessChain.io.capture.bits := Mux(busy, busyResp, nonbusyResp)
+   when (debugAccessChain.io.update.valid) {
+     skipOpReg := Bool(false)
+     downgradeOpReg := Bool(false)
+   }
+   when (debugAccessChain.io.capture.capture) {
+       skipOpReg := busy
+       downgradeOpReg := (!busy & nonzeroResp)
+       stickyBusyReg := busy
+       stickyNonzeroRespReg <= nonzeroResp
+   }
   
   //--------------------------------------------------------
   // Drive Ready Valid Interface
 
-  when (debugAccessChain.io.update.valid) {
-    when (skipOpReg) {
-      // Do Nothing
-    }.otherwise {
-      when (downgradeOpReg) {
-        dbusReqReg = UInt(0) // NOP Encoding is 2'b00
-      }.otherwise {
-        dbusReqReg := debugAccessChain.io.update.bits
-      }
-      dbusReqValidReg := Bool(true)
-    }
-  }.otherwise {
-    when (io.dbus.req.ready) {
-      dbusReqValidReg := Bool(false)
-    }
-  }
+   when (debugAccessChain.io.update.valid) {
+     when (skipOpReg) {
+       // Do Nothing
+     }.otherwise {
+       when (downgradeOpReg) {
+         dbusReqReg.addr := UInt(0)
+         dbusReqReg.data := UInt(0)
+         dbusReqReg.op   := UInt(0)
+       }.otherwise {
+         dbusReqReg := debugAccessChain.io.update.bits
+       }
+       dbusReqValidReg := Bool(true)
+     }
+   }.otherwise {
+     when (io.dbus.req.ready) {
+       dbusReqValidReg := Bool(false)
+     }
+   }
 
 
 
-  io.dtmResp.ready := debugAccessChain.io.capture.capture
+   io.dbus.resp.ready := debugAccessChain.io.capture.capture
   io.dbus.req.valid := dbusReqValidReg
 
   // This is a name-based, not type-based assignment. Do these still work?
@@ -197,8 +211,8 @@ class DebugTransportModuleJTAG(
   // Actual JTAG TAP
 
   val tapIO = JtagTapGenerator(irLength = 5,
-    instructions = Map(debugAccessChain -> dtmJTAGAddrs.DEBUG_ACCESS,
-      dtmInfoChain -> dtmJTAGAddrs.DTM_INFO),
+    instructions = Map(dtmJTAGAddrs.DEBUG_ACCESS -> debugAccessChain,
+                       dtmJTAGAddrs.DTM_INFO -> dtmInfoChain),
     idcode = Some((dtmJTAGAddrs.IDCODE, JtagIdcode(idcodeVersion, idcodePartNum, idcodeManufId))))
 
 
@@ -206,7 +220,7 @@ class DebugTransportModuleJTAG(
   // Reset Generation (this is fed back to us by the instantiating module,
   // and is used to reset the debug registers).
 
-  io.fsmReset = tapIO.status.reset
+  io.fsmReset := tapIO.output.reset
 
 }
 
@@ -236,6 +250,8 @@ class DebugTransportModuleJTAG(
  * 
  *  TRST is not a required input. If unused, it 
  *  should be tied low.
+ *  
+ *  clock and reset of this block should be  TCK and dtmReset
  */
 
 class JtagDTMWithSync(implicit val p: Parameters) extends Module {
@@ -244,8 +260,9 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
 
   val io = new Bundle {
     // This should be flip.
-    val jtag = new JtagIO().flip()
+    val jtag = Flipped(new JTAGIO())
     val debug = new AsyncDebugBusIO
+    val fsmReset = Bool(OUTPUT)
   }
 
   val jtag_dtm = Module(new DebugTransportModuleJTAG(
@@ -257,5 +274,7 @@ class JtagDTMWithSync(implicit val p: Parameters) extends Module {
   val io_debug_bus = Wire (new DebugBusIO)
   io.debug <> ToAsyncDebugBus(io_debug_bus)
 
-  jtag_dtm.io.dbus := io_debug_bus
+  io_debug_bus <> jtag_dtm.io.dbus
+
+  io.fsmReset := jtag_dtm.io.fsmReset
 }
