@@ -9,29 +9,29 @@ import uncore.constants._
 import util._
 import Chisel.ImplicitConversions._
 
-case class RocketConfig(xLen: Int)
-// TODO replace some of below fields with above Config
-case object XLen extends Field[Int]
-case object FetchWidth extends Field[Int]
-case object RetireWidth extends Field[Int]
-case object FPUKey extends Field[Option[FPUConfig]]
-case object MulDivKey extends Field[Option[MulDivConfig]]
-case object UseVM extends Field[Boolean]
-case object UseUser extends Field[Boolean]
-case object UseDebug extends Field[Boolean]
-case object UseAtomics extends Field[Boolean]
-case object UseCompressed extends Field[Boolean]
-case object FastLoadWord extends Field[Boolean]
-case object FastLoadByte extends Field[Boolean]
-case object FastJAL extends Field[Boolean]
-case object CoreInstBits extends Field[Int]
-case object NCustomMRWCSRs extends Field[Int]
-case object MtvecWritable extends Field[Boolean]
-case object MtvecInit extends Field[Option[BigInt]]
-case object NBreakpoints extends Field[Int]
-case object NPerfCounters extends Field[Int]
-case object NPerfEvents extends Field[Int]
-case object DataScratchpadSize extends Field[Int]
+case class RocketCoreConfig(
+  useAtomics: Bool = true,
+  useCompressed: Bool = true,
+  nBreakpoints: Int = 1,
+  nPerfCounters: Int = 0,
+  nPerfEvents: Int = 0,
+  nCustomMRWCSRs: Int = 0,
+  mtvecInit: Option[BigInt] = Some(BigInt(0)),
+  mtvecWriteable: Bool = true,
+  fastLoadWord: Bool = true,
+  fastLoadByte: Bool = false,
+  fastJAL: Bool = false,
+  fpuConfig: Option[FPUConfig] = Some(FPUConfig()),
+  mulDivConfig: Option[MulDivConfig] = Some(MulDivConfig(
+                                              mulUnroll = 8,
+                                              mulEarlyOut = (site(XLen) > 32),
+                                              divEarlyOut = true))
+) extends CoreConfig {
+  val coreInstBits: Int = if (useCompressed) 16 else 32
+  val fetchWidth: Int = if (useCompressed) 2 else 1
+  val decodeWidth: Int = fetchWidth / (if (usingCompressed) 2 else 1)
+  val retireWidth: Int = 1
+}
 
 class RegFile(n: Int, w: Int, zero: Boolean = false) {
   private val rf = Mem(n, UInt(width = w))
@@ -74,7 +74,7 @@ object ImmGen {
   }
 }
 
-class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p) with HasCoreIO {
+class Rocket(implicit val c: RocketCoreConfig, p: Parameters) extends CoreModule()(c,p) with HasCoreIO {
 
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:

@@ -14,10 +14,19 @@ import util.ParameterizedBundle
 import scala.collection.mutable.ListBuffer
 
 case class DCacheConfig(
-  nMSHRs: Int = 1,
-  nSDQ: Int = 17,
-  nRPQ: Int = 16,
-  nMMIOs: Int = 1)
+    nSets: Int = 64,
+    nWays: Int = 4,
+    rowBits: Int = 128,
+    nTLBEntries: Int = 8,
+    cacheIdBits: Int = 0,
+    splitMetadata: Boolean = false,
+    ecc: Option[Code] = None,
+    nMSHRs: Int = 1,
+    nSDQ: Int = 17,
+    nRPQ: Int = 16,
+    nMMIOs: Int = 1) extends CacheConfig {
+  val replacement = new RandomReplacement(nWays)
+}
 
 case object DCacheKey extends Field[DCacheConfig]
 

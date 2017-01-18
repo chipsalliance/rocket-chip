@@ -9,26 +9,24 @@ import rocket.PAddrBits
 import util.ParameterizedBundle
 import uncore.constants._
 
-case class CacheConfig(
-  nSets:         Int,
-  nWays:         Int,
-  rowBits:       Int,
-  nTLBEntries:   Int,
-  cacheIdBits:   Int,
-  splitMetadata: Boolean)
+// These parameters apply to all caches, for now
+case object CacheBlockBytes extends Field[Int]
+
+trait CacheConfig {
+  val nSets:         Int
+  val nWays:         Int
+  val rowBits:       Int
+  val nTLBEntries:   Int
+  val cacheIdBits:   Int
+  val splitMetadata: Boolean
+  val ecc:           Option[Code]
+}
 case class CacheName(id: String) extends Field[CacheConfig]
 case object CacheName extends Field[CacheName]
 
-case object Replacer extends Field[() => ReplacementPolicy]
-case object L2Replacer extends Field[() => SeqReplacementPolicy]
-case object NPrimaryMisses extends Field[Int]
-case object NSecondaryMisses extends Field[Int]
-case object CacheBlockBytes extends Field[Int]
-case object ECCCode extends Field[Option[Code]]
-
 trait HasCacheParameters {
   implicit val p: Parameters
-  val cacheConfig = p(p(CacheName))
+  implicit val c: CacheConfig
   val nSets = cacheConfig.nSets
   val blockOffBits = log2Up(p(CacheBlockBytes))
   val cacheIdBits = cacheConfig.cacheIdBits
@@ -41,7 +39,7 @@ trait HasCacheParameters {
   val rowBits = cacheConfig.rowBits
   val rowBytes = rowBits/8
   val rowOffBits = log2Up(rowBytes)
-  val code = p(ECCCode).getOrElse(new IdentityCode)
+  val code = cacheConfig.ecc
   val hasSplitMetadata = cacheConfig.splitMetadata
 }
 

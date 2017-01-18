@@ -12,7 +12,19 @@ import uncore.devices._
 import uncore.tilelink2._
 import util._
 
-class RocketTile(val c: RocketConfig)(implicit p: Parameters) extends BaseTile()(p)
+case object SharedMemoryTLEdge extends Field[TLEdgeOut]
+case object DataScratchpadSize extends Field[Int]
+
+/** TODO:Is it time to add back in a second level of Config nesting?
+case class RocketTileConfig(
+  core: RocketCoreConfig = RocketCoreConfig(),
+  icache: ICacheConfig = ICacheConfig(),
+  dcache: DCacheConfig = DCacheConfig(),
+  rocc: Seq[RoccParameters] = Nil,
+  dataScratchpadBytes: Int = 0)
+*/
+  
+class RocketTile()(implicit val c: RocketCoreConfig, p: Parameters) extends BaseTile()(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 

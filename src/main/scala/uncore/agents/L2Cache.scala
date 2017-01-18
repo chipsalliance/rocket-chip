@@ -15,6 +15,9 @@ import config.{Parameters, Field}
 
 case object CacheId extends Field[Int]
 case object L2DirectoryRepresentation extends Field[DirectoryRepresentation]
+case object L2Replacer extends Field[() => SeqReplacementPolicy]
+case object NPrimaryMisses extends Field[Int]
+case object NSecondaryMisses extends Field[Int]
 
 trait HasOuterCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
   val cacheId = p(CacheId)

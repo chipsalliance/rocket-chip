@@ -18,67 +18,51 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PAddrBits => 32
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case ASIdBits => 7
-  //Params used by all caches
-  case CacheName("L1I") => CacheConfig(
-    nSets         = 64,
-    nWays         = 4,
-    rowBits       = site(L1toL2Config).beatBytes*8,
-    nTLBEntries   = 8,
-    cacheIdBits   = 0,
-    splitMetadata = false)
-  case CacheName("L1D") => CacheConfig(
-    nSets         = 64,
-    nWays         = 4,
-    rowBits       = site(L1toL2Config).beatBytes*8,
-    nTLBEntries   = 8,
-    cacheIdBits   = 0,
-    splitMetadata = false)
-  case ECCCode => None
-  case Replacer => () => new RandomReplacement(site(site(CacheName)).nWays)
   //L1InstCache
+  case CacheName("L1I") => CacheConfig(
+    rowBits = site(L1toL2Config).beatBytes*8,
+    latency = 1)
   case BtbKey => BtbParameters()
   //L1DataCache
-  case DCacheKey => DCacheConfig(nMSHRs = 2)
+  case CacheName("L1D") => CacheConfig(
+  case DCacheKey(_) => DCacheConfig(
+    rowBits = site(L1toL2Config).beatBytes*8,
+    nMSHRs  = 2)
   case DataScratchpadSize => 0
-  //Tile Constants
-  case BuildRoCC => Nil
   //Rocket Core Constants
-  case CoreInstBits => if (site(UseCompressed)) 16 else 32
-  case FetchWidth => if (site(UseCompressed)) 2 else 1
-  case RetireWidth => 1
   case UseVM => true
   case UseUser => false
   case UseDebug => true
-  case NBreakpoints => 1
-  case NPerfCounters => 0
-  case NPerfEvents => 0
-  case FastLoadWord => true
-  case FastLoadByte => false
-  case FastJAL => false
   case XLen => 64
-  case FPUKey => Some(FPUConfig())
-  case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true))
-  case UseAtomics => true
-  case UseCompressed => true
-  case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
-  case NCustomMRWCSRs => 0
-  case MtvecInit => Some(BigInt(0))
-  case MtvecWritable => true
+  //Tile Constants
+  case BuildRoCC => Nil
+  case BuildCore => (c: RocketConfig, p: Parameters) => new Rocket(c)(p)
   //Uncore Paramters
+  case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
+  case RocketTileConfigs => List(RocketTileConfig())
+  case NTiles => site(RocketTileConfigs).size
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
   case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth
   case BootROMFile => "./bootrom/bootrom.img"
-  case NTiles => site(RocketConfigs).size
-  case RocketConfigs => List(RocketConfig(site(XLen)))
-  case BuildCore => (c: RocketConfig, p: Parameters) => new Rocket(c)(p)
   case BroadcastConfig => BroadcastConfig()
   case BankedL2Config => BankedL2Config()
   case CacheBlockBytes => 64
 })
 
 class WithNCores(n: Int) extends Config((site, here, up) => {
-  case NTiles => n
+  case RocketConfigs => List.fill(n-1)(RocketConfig()) :+ up(RocketTileConfigs, site)
 })
+
+class WithNSmallCores(n: Int) extends Config((site, here, up) => {
+  val small = RocketTileConfig(
+    core = RocketCoreConfig(
+      fpuCOnfig = None,
+      mulDivConfig = Some(MulDivConfig()))
+    btb = BtbParameters(nEntries = 0)
+  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+  case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
+  case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
+  case Rocket
 
 class WithNBanksPerMemChannel(n: Int) extends Config((site, here, up) => {
   case BankedL2Config => up(BankedL2Config, site).copy(nBanksPerChannel = n)

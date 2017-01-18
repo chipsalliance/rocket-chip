@@ -9,31 +9,50 @@ import uncore.util.{CacheName, CacheBlockBytes}
 import util._
 
 case object BuildCore extends Field[(RocketConfig, Parameters) => CoreModule with HasCoreIO]
-case object SharedMemoryTLEdge extends Field[TLEdgeOut]
+
+// These parameters apply to all cores, for now
+case object XLen extends Field[Int]
+case object UseVM extends Field[Boolean]
+case object UseUser extends Field[Boolean]
+case object UseDebug extends Field[Boolean]
+
+// These parameters can be varied per-core
+trait CoreConfig {
+  useAtomics: Bool
+  useCompressed: Bool
+  fpuConfig: Option[FPUConfig]
+  mulDivConfig: Option[MulDivConfig]
+  fetchWidth: Int
+  decodeWidth: Int
+  retireWidth: Int
+
+}
 
 trait HasCoreParameters {
   implicit val p: Parameters
+  implicit val c: CoreConfig
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
 
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
-  val usingMulDiv = p(MulDivKey).nonEmpty
-  val usingFPU = p(FPUKey).nonEmpty
-  val usingAtomics = p(UseAtomics)
-  val usingCompressed = p(UseCompressed)
-  val usingRoCC = !p(BuildRoCC).isEmpty
+
+  val usingMulDiv = c.mulDivConfig.nonEmpty
+  val usingFPU = c.fpuConfig.nonEmpty
+  val usingAtomics = c.useAtomics
+  val usingCompressed = c.useCompressed
+
   val fastLoadWord = p(FastLoadWord)
   val fastLoadByte = p(FastLoadByte)
   val fastJAL = p(FastJAL)
   val nBreakpoints = p(NBreakpoints)
   val nPerfCounters = p(NPerfCounters)
   val nPerfEvents = p(NPerfEvents)
+
+  val usingRoCC = !p(BuildRoCC).isEmpty
   val usingDataScratchpad = p(DataScratchpadSize) > 0
 
-  val retireWidth = p(RetireWidth)
-  val fetchWidth = p(FetchWidth)
   val coreInstBits = p(CoreInstBits)
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
@@ -54,8 +73,11 @@ trait HasCoreParameters {
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
+
   val nCustomMrwCsrs = p(NCustomMRWCSRs)
 
+  val retireWidth = p(RetireWidth)
+  val fetchWidth = p(FetchWidth)
   // fetchWidth doubled, but coreInstBytes halved, for RVC
   val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
 
