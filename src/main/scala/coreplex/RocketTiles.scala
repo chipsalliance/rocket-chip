@@ -49,6 +49,7 @@ trait HasSynchronousRocketTilesModule extends CoreplexRISCVPlatformModule {
 trait HasAsynchronousRocketTiles extends CoreplexRISCVPlatform {
   val module: HasAsynchronousRocketTilesModule
 
+  import rocket.AsyncRocketTile
   val rocketTiles: Seq[AsyncRocketTile] = p(RocketConfigs).map { c =>
     LazyModule(new AsyncRocketTile(c)(p.alterPartial {
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
