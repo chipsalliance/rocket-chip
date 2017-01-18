@@ -57,7 +57,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       ABo(out.a, in .a)
       ABi(in .d, out.d)
 
-      if (edgeOut.manager.base.anySupportAcquire && edgeOut.client.base.anySupportProbe) {
+      if (edgeOut.manager.base.anySupportAcquireB && edgeOut.client.base.anySupportProbe) {
         ABi(in .b, out.b)
         ABo(out.c, in .c)
         ABo(out.e, in .e)

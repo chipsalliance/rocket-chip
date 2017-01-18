@@ -27,7 +27,7 @@ class TLEdge(
         // Do there exist A messages with Data?
         val aDataYes = manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportPutFull || manager.anySupportPutPartial
         // Do there exist A messages without Data?
-        val aDataNo  = manager.anySupportAcquire || manager.anySupportGet || manager.anySupportHint
+        val aDataNo  = manager.anySupportAcquireB || manager.anySupportGet || manager.anySupportHint
         // Statically optimize the case where hasData is a constant
         if (!aDataYes) Some(false) else if (!aDataNo) Some(true) else None
       }
@@ -48,9 +48,9 @@ class TLEdge(
       }
       case _:TLBundleD => {
         // Do there eixst D messages with Data?
-        val dDataYes = manager.anySupportGet || manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportAcquire
+        val dDataYes = manager.anySupportGet || manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportAcquireB
         // Do there exist D messages without Data?
-        val dDataNo  = manager.anySupportPutFull || manager.anySupportPutPartial || manager.anySupportHint || manager.anySupportAcquire
+        val dDataNo  = manager.anySupportPutFull || manager.anySupportPutPartial || manager.anySupportHint || manager.anySupportAcquireT
         if (!dDataYes) Some(false) else if (!dDataNo) Some(true) else None
       }
       case _:TLBundleE => Some(false)
@@ -244,8 +244,8 @@ class TLEdgeOut(
 {
   // Transfers
   def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
-    require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquireFast(toAddress, lgSize)
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Acquire
     a.param   := growPermissions
@@ -258,8 +258,8 @@ class TLEdgeOut(
   }
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt) = {
-    require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquireFast(toAddress, lgSize)
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.Release
     c.param   := shrinkPermissions
@@ -272,8 +272,8 @@ class TLEdgeOut(
   }
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt, data: UInt) = {
-    require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquireFast(toAddress, lgSize)
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ReleaseData
     c.param   := shrinkPermissions

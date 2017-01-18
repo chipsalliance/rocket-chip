@@ -31,7 +31,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
 
     // Acquires cannot pass this adapter; it makes Probes impossible
     require (!edgeIn.client.anySupportProbe || 
-             !edgeOut.manager.anySupportAcquire)
+             !edgeOut.manager.anySupportAcquireB)
 
     out.b.ready := Bool(true)
     out.c.valid := Bool(false)

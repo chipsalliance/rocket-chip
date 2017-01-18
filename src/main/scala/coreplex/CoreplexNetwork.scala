@@ -55,7 +55,7 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
     val prot = (if (manager.supportsGet)     "R" else "") +
                (if (manager.supportsPutFull) "W" else "") +
                (if (manager.executable)      "X" else "") +
-               (if (manager.supportsAcquire) " [C]" else "")
+               (if (manager.supportsAcquireB) " [C]" else "")
     manager.address.foreach { a =>
       println(f"\t${manager.name}%s ${a.base}%x - ${a.base+a.mask+1}%x, $prot")
     }

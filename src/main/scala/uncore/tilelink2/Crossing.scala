@@ -20,7 +20,7 @@ class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyM
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val sink_reset_n = out.a.sink_reset_n
-      val bce = edgeIn.manager.anySupportAcquire && edgeIn.client.anySupportProbe
+      val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
       val depth = edgeOut.manager.depth
 
       out.a <> ToAsyncBundle(in.a, depth, sync)
@@ -54,7 +54,7 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val source_reset_n = in.a.source_reset_n
-      val bce = edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe
+      val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
 
       out.a <> FromAsyncBundle(in.a, sync)
       in.d <> ToAsyncBundle(out.d, depth, sync)

@@ -62,7 +62,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     // We don't support fragmenting to sub-beat accesses
     require (minSize >= beatBytes)
     // We can't support devices which are cached on both sides of us
-    require (!edgeOut.manager.anySupportAcquire || !edgeIn.client.anySupportProbe)
+    require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)
 
     /* The Fragmenter is a bit tricky, because there are 5 sizes in play:
      *   max  size -- the maximum transfer size possible

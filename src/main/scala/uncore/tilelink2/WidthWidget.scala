@@ -147,7 +147,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
     splice(edgeIn,  in.a,  edgeOut, out.a)
     splice(edgeOut, out.d, edgeIn,  in.d)
 
-    if (edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe) {
+    if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
       splice(edgeOut, out.b, edgeIn,  in.b)
       splice(edgeIn,  in.c,  edgeOut, out.c)
       in.e.ready := out.e.ready
