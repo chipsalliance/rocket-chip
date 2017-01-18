@@ -409,7 +409,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val d_last = edge.last(bundle.d.bits, bundle.d.fire())
 
     if (edge.manager.minLatency > 0) {
-      assert(bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assert(bundle.d.bits.opcode === TLMessages.ReleaseAck || bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
