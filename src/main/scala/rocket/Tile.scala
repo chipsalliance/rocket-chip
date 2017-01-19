@@ -15,14 +15,22 @@ import util._
 case object SharedMemoryTLEdge extends Field[TLEdgeOut]
 case object DataScratchpadSize extends Field[Int]
 
-/** TODO:Is it time to add back in a second level of Config nesting?
+trait TileConfig {
+  val core: CoreConfig
+  val icache: ICacheConfig
+  val dcache: DCacheConfig
+  val rocc: Seq[RoccParameters]
+  val btb: BTBConfig
+  val dataScratchpadBytes: Int
+}
+
 case class RocketTileConfig(
   core: RocketCoreConfig = RocketCoreConfig(),
   icache: ICacheConfig = ICacheConfig(),
   dcache: DCacheConfig = DCacheConfig(),
   rocc: Seq[RoccParameters] = Nil,
-  dataScratchpadBytes: Int = 0)
-*/
+  btb: BTBConfig = BTBConfig()
+  dataScratchpadBytes: Int = 0) extends TileConfig
   
 class RocketTile()(implicit val c: RocketCoreConfig, p: Parameters) extends BaseTile()(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache

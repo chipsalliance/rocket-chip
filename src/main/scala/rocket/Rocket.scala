@@ -27,11 +27,28 @@ case class RocketCoreConfig(
                                               mulEarlyOut = (site(XLen) > 32),
                                               divEarlyOut = true))
 ) extends CoreConfig {
-  val coreInstBits: Int = if (useCompressed) 16 else 32
   val fetchWidth: Int = if (useCompressed) 2 else 1
-  val decodeWidth: Int = fetchWidth / (if (usingCompressed) 2 else 1)
+  val decodeWidth: Int = fetchWidth / (if (usingCompressed) 2 else 1) // fetchWidth doubled, but coreInstBytes halved, for RVC
   val retireWidth: Int = 1
+  val instBits: Int = if (useCompressed) 16 else 32
 }
+
+trait HasRocketCoreParameters extends HasCoreParameters {
+  implicit val rocketConfig: RocketCoreConfig = tileConfig.core
+
+  val fastLoadWord = rocketConfig.fastLoadWord
+  val fastLoadByte = rocketConfig.fastLoadByte
+  val fastJAL = rocketConfig.fastJAL
+  val nBreakpoints = rocketConfig.nBreakpoints
+  val nPerfCounters = rocketConfig.nPerfCounters
+  val nPerfEvents = rocketConfig.nPerfEvents
+  val nCustomMrwCsrs = rocketConfig.nCustomMRWCSRs
+
+  val usingRoCC = !p(BuildRoCC).isEmpty
+
+  require(!fastLoadByte || fastLoadWord)
+}
+
 
 class RegFile(n: Int, w: Int, zero: Boolean = false) {
   private val rf = Mem(n, UInt(width = w))

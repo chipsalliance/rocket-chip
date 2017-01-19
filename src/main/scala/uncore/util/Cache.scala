@@ -26,7 +26,7 @@ case object CacheName extends Field[CacheName]
 
 trait HasCacheParameters {
   implicit val p: Parameters
-  implicit val c: CacheConfig
+  implicit val cacheConfig: CacheConfig
   val nSets = cacheConfig.nSets
   val blockOffBits = log2Up(p(CacheBlockBytes))
   val cacheIdBits = cacheConfig.cacheIdBits
@@ -45,6 +45,7 @@ trait HasCacheParameters {
 
 abstract class CacheModule(implicit val p: Parameters) extends Module
   with HasCacheParameters
+
 abstract class CacheBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCacheParameters
 

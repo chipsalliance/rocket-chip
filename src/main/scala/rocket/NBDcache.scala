@@ -5,23 +5,17 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import config._
 import diplomacy._
 import uncore.constants._
-import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.util._
 import util._
-import config._
 
 trait HasMissInfo extends HasL1HellaCacheParameters {
   val tag_match = Bool()
   val old_meta = new L1Metadata
   val way_en = Bits(width = nWays)
-}
-
-class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p)
-    with HasCoreMemOp {
-  val phys = Bool()
 }
 
 class L1DataReadReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {

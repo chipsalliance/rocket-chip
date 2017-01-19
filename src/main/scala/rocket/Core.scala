@@ -25,40 +25,37 @@ trait CoreConfig {
   fetchWidth: Int
   decodeWidth: Int
   retireWidth: Int
-
+  instBits: Int
 }
 
 trait HasCoreParameters {
   implicit val p: Parameters
-  implicit val c: CoreConfig
+  implicit val tileConfig: TileConfig = p(TileKey)
+  implicit val coreConfig = tileConfig.core
+
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
+  require(xLen == 32 || xLen == 64)
 
   val usingVM = p(UseVM)
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
 
-  val usingMulDiv = c.mulDivConfig.nonEmpty
-  val usingFPU = c.fpuConfig.nonEmpty
-  val usingAtomics = c.useAtomics
-  val usingCompressed = c.useCompressed
+  val usingMulDiv = coreConfig.mulDivConfig.nonEmpty
+  val usingFPU = coreConfig.fpuConfig.nonEmpty
+  val usingAtomics = coreConfig.useAtomics
+  val usingCompressed = coreConfig.useCompressed
 
-  val fastLoadWord = p(FastLoadWord)
-  val fastLoadByte = p(FastLoadByte)
-  val fastJAL = p(FastJAL)
-  val nBreakpoints = p(NBreakpoints)
-  val nPerfCounters = p(NPerfCounters)
-  val nPerfEvents = p(NPerfEvents)
+  val retireWidth = coreConfig.retireWidth
+  val fetchWidth = coreConfig.fetchWidth
+  val decodeWidth = coreConfig.decodeWidth
 
-  val usingRoCC = !p(BuildRoCC).isEmpty
-  val usingDataScratchpad = p(DataScratchpadSize) > 0
-
-  val coreInstBits = p(CoreInstBits)
+  val coreInstBits = coreConfig.instBits
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
 
-  val dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
+  val dcacheArbPorts = 1 + usingVM.toInt + (p(DataScratchpadSize) > 0).toInt + p(BuildRoCC).size
   val coreDCacheReqTagBits = 6
   val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
 
@@ -73,28 +70,15 @@ trait HasCoreParameters {
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
-
-  val nCustomMrwCsrs = p(NCustomMRWCSRs)
-
-  val retireWidth = p(RetireWidth)
-  val fetchWidth = p(FetchWidth)
-  // fetchWidth doubled, but coreInstBytes halved, for RVC
-  val decodeWidth = fetchWidth / (if (usingCompressed) 2 else 1)
+  val maxPAddrBits = xLen match { case 32 => 34; case 64 => 50 }
+  require(paddrBits <= maxPAddrBits)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
-
-  val maxPAddrBits = xLen match {
-    case 32 => 34
-    case 64 => 50
-  }
-
-  require(paddrBits <= maxPAddrBits)
-  require(!fastLoadByte || fastLoadWord)
 }
 
-abstract class CoreModule(implicit val p: Parameters) extends Module
+abstract class CoreModule(implicit val coreConfig: CoreConfig, val p: Parameters) extends Module
   with HasCoreParameters
 
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
@@ -102,14 +86,14 @@ abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundl
 
 trait HasCoreIO {
   implicit val p: Parameters
+  implicit val t: TileConfig 
   val io = new Bundle {
     val interrupts = new TileInterrupts().asInput
     val hartid = UInt(INPUT, p(XLen))
-    val imem  = new FrontendIO()(p.alterPartial({case CacheName => CacheName("L1I") }))
-    val dmem = new HellaCacheIO()(p.alterPartial({ case CacheName => CacheName("L1D") }))
+    val imem  = new FrontendIO()(p)
+    val dmem = new HellaCacheIO()(p)
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
   }
 }
-

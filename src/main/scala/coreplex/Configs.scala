@@ -57,12 +57,12 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
   val small = RocketTileConfig(
     core = RocketCoreConfig(
       fpuCOnfig = None,
-      mulDivConfig = Some(MulDivConfig()))
-    btb = BtbParameters(nEntries = 0)
-  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-  case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-  case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
-  case Rocket
+      mulDivConfig = Some(MulDivConfig())),
+    btb = BtbParameters(nEntries = 0),
+    dcache = DCacheConfig(nSets = 64, nWays = 1, nTLBEntries = 4, nMSHRs = 0),
+    icache = ICacheConfig(nSets = 64, nWays = 1, nTLBEntries = 4))
+  case RocketTileConfigs => List.fill(n)(small) :+ up(RocketTileConfigs, site)
+}
 
 class WithNBanksPerMemChannel(n: Int) extends Config((site, here, up) => {
   case BankedL2Config => up(BankedL2Config, site).copy(nBanksPerChannel = n)

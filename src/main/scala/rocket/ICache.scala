@@ -18,6 +18,8 @@ trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
   val cacheDataBits = p(SharedMemoryTLEdge).bundle.dataBits
   val cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
   val refillCycles = cacheDataBeats
+  val usingDataScratchpad = p(DataScratchpadSize) > 0
+
 }
 
 class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {

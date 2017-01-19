@@ -92,6 +92,10 @@ trait HasCoreData extends HasCoreParameters {
   val data = Bits(width = coreDataBits)
 }
 
+class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
+  val phys = Bool()
+}
+
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
 
 class HellaCacheResp(implicit p: Parameters) extends CoreBundle()(p)
