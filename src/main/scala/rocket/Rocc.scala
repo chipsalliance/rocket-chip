@@ -75,7 +75,7 @@ trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule with CanHavePTWMod
 
 }
 
-class LegacyRoccComplex(implicit p: Parameters) extends LazyModule with HasCoreParameters {
+class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
   val buildRocc = p(BuildRoCC)
   val usingRocc = !buildRocc.isEmpty
   val nRocc = buildRocc.size
@@ -84,11 +84,11 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule with HasCoreP
   val nPTWPorts = buildRocc.map(_.nPTWPorts).sum
   val roccOpcodes = buildRocc.map(_.opcodes)
 
-  val legacies = List.fill(nMemChannels) { LazyModule(new TLLegacy) }
+  val legacies = List.fill(nMemChannels) { LazyModule(new TLLegacy()(p.alterPartial({ case PAddrBits => 32 }))) }
   val masterNodes = legacies.map(_ => TLOutputNode())
   legacies.zip(masterNodes).foreach { case(l,m) => m := TLHintHandler()(l.node) }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) with HasCoreParameters {
     val io = new Bundle {
       val tl = masterNodes.map(_.bundleOut)
       val dcache = Vec(nRocc, new HellaCacheIO)
@@ -117,7 +117,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule with HasCoreP
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
       }))
-      val dcIF = Module(new SimpleHellaCacheIF)
+      val dcIF = Module(new SimpleHellaCacheIF()(p.alterPartial({ case CacheName => CacheName("L1D") })))
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.exception := io.core.exception
       dcIF.io.requestor <> rocc.io.mem
@@ -127,7 +127,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule with HasCoreP
       rocc
     }
 
-    (nRocc to legacies.size) zip roccs.map(_.io.utl) foreach { case(i, utl) =>
+    (nRocc until legacies.size) zip roccs.map(_.io.utl) foreach { case(i, utl) =>
       legacies(i).module.io.legacy <> utl
     }
     io.core.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
