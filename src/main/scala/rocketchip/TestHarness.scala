@@ -46,7 +46,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
 class SimAXIMem(size: BigInt)(implicit p: Parameters) extends LazyModule {
   val config = p(ExtMem)
 
-  val node = AXI4BlindInputNode(AXI4MasterPortParameters(Seq(AXI4MasterParameters(IdRange(0, 1 << config.idBits)))))
+  val node = AXI4BlindInputNode(Seq(AXI4MasterPortParameters(Seq(AXI4MasterParameters(IdRange(0, 1 << config.idBits))))))
   val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))
   sram.node := AXI4Buffer()(AXI4Fragmenter(maxInFlight = 4)(node))
 

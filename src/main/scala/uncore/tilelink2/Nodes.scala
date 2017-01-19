@@ -120,11 +120,11 @@ case class TLOutputNode() extends OutputNode(TLImp)
 case class TLInputNode() extends InputNode(TLImp)
 
 // Nodes used for external ports
-case class TLBlindOutputNode(portParams: TLManagerPortParameters) extends BlindOutputNode(TLImp)(portParams)
-case class TLBlindInputNode(portParams: TLClientPortParameters) extends BlindInputNode(TLImp)(portParams)
+case class TLBlindOutputNode(portParams: Seq[TLManagerPortParameters]) extends BlindOutputNode(TLImp)(portParams)
+case class TLBlindInputNode(portParams: Seq[TLClientPortParameters]) extends BlindInputNode(TLImp)(portParams)
 
-case class TLInternalOutputNode(portParams: TLManagerPortParameters) extends InternalOutputNode(TLImp)(portParams)
-case class TLInternalInputNode(portParams: TLClientPortParameters) extends InternalInputNode(TLImp)(portParams)
+case class TLInternalOutputNode(portParams: Seq[TLManagerPortParameters]) extends InternalOutputNode(TLImp)(portParams)
+case class TLInternalInputNode(portParams: Seq[TLClientPortParameters]) extends InternalInputNode(TLImp)(portParams)
 
 /** Synthesizeable unit tests */
 import unittest._

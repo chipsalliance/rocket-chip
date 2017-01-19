@@ -52,8 +52,8 @@ case class APBOutputNode() extends OutputNode(APBImp)
 case class APBInputNode() extends InputNode(APBImp)
 
 // Nodes used for external ports
-case class APBBlindOutputNode(portParams: APBSlavePortParameters) extends BlindOutputNode(APBImp)(portParams)
-case class APBBlindInputNode(portParams: APBMasterPortParameters) extends BlindInputNode(APBImp)(portParams)
+case class APBBlindOutputNode(portParams: Seq[APBSlavePortParameters]) extends BlindOutputNode(APBImp)(portParams)
+case class APBBlindInputNode(portParams: Seq[APBMasterPortParameters]) extends BlindInputNode(APBImp)(portParams)
 
-case class APBInternalOutputNode(portParams: APBSlavePortParameters) extends InternalOutputNode(APBImp)(portParams)
-case class APBInternalInputNode(portParams: APBMasterPortParameters) extends InternalInputNode(APBImp)(portParams)
+case class APBInternalOutputNode(portParams: Seq[APBSlavePortParameters]) extends InternalOutputNode(APBImp)(portParams)
+case class APBInternalInputNode(portParams: Seq[APBMasterPortParameters]) extends InternalInputNode(APBImp)(portParams)

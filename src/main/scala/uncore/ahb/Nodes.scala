@@ -52,8 +52,8 @@ case class AHBOutputNode() extends OutputNode(AHBImp)
 case class AHBInputNode() extends InputNode(AHBImp)
 
 // Nodes used for external ports
-case class AHBBlindOutputNode(portParams: AHBSlavePortParameters) extends BlindOutputNode(AHBImp)(portParams)
-case class AHBBlindInputNode(portParams: AHBMasterPortParameters) extends BlindInputNode(AHBImp)(portParams)
+case class AHBBlindOutputNode(portParams: Seq[AHBSlavePortParameters]) extends BlindOutputNode(AHBImp)(portParams)
+case class AHBBlindInputNode(portParams: Seq[AHBMasterPortParameters]) extends BlindInputNode(AHBImp)(portParams)
 
-case class AHBInternalOutputNode(portParams: AHBSlavePortParameters) extends InternalOutputNode(AHBImp)(portParams)
-case class AHBInternalInputNode(portParams: AHBMasterPortParameters) extends InternalInputNode(AHBImp)(portParams)
+case class AHBInternalOutputNode(portParams: Seq[AHBSlavePortParameters]) extends InternalOutputNode(AHBImp)(portParams)
+case class AHBInternalInputNode(portParams: Seq[AHBMasterPortParameters]) extends InternalInputNode(AHBImp)(portParams)
