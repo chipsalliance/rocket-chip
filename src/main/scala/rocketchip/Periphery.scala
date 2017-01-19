@@ -87,11 +87,11 @@ trait PeripheryMasterAXI4Mem {
   private val config = p(ExtMem)
   private val channels = p(BankedL2Config).nMemoryChannels
 
-  val mem_axi4 = Seq.tabulate(channels) { i =>
+  val mem_axi4 = AXI4BlindOutputNode(Seq.tabulate(channels) { i =>
     val c_size = config.size/channels
     val c_base = config.base + c_size*i
 
-    AXI4BlindOutputNode(Seq(AXI4SlavePortParameters(
+    AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
         address       = List(AddressSet(c_base, c_size-1)),
         regionType    = RegionType.UNCACHED,   // cacheable
@@ -99,12 +99,12 @@ trait PeripheryMasterAXI4Mem {
         supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
         supportsRead  = TransferSizes(1, 256),
         interleavedId = Some(0))),             // slave does not interleave read responses
-      beatBytes = config.beatBytes)))
-  }
+      beatBytes = config.beatBytes)
+  })
 
-  val mem = mem_axi4.map { node =>
+  val mem = Seq.fill(channels) {
     val converter = LazyModule(new TLToAXI4(config.idBits))
-    node := AXI4Buffer()(converter.node)
+    mem_axi4 := AXI4Buffer()(converter.node)
     converter.node
   }
 }
@@ -113,7 +113,7 @@ trait PeripheryMasterAXI4MemBundle {
   this: TopNetworkBundle {
     val outer: PeripheryMasterAXI4Mem
   } =>
-  val mem_axi4 = outer.mem_axi4.map(_.bundleOut).toList.headOption // !!! remove headOption when Seq supported
+  val mem_axi4 = outer.mem_axi4.bundleOut
 }
 
 trait PeripheryMasterAXI4MemModule {

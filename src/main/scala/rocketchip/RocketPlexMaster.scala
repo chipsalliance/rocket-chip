@@ -19,7 +19,7 @@ trait RocketPlexMaster extends L2Crossbar {
   coreplex.l2in := l2.node
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
-  (mem zip coreplex.mem) foreach { case (m, c) => m := c }
+  mem.foreach { _ := coreplex.mem }
 }
 
 trait RocketPlexMasterBundle extends L2CrossbarBundle {

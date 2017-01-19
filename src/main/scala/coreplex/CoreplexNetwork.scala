@@ -70,27 +70,23 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
   require (isPow2(l2Config.nBanksPerChannel))
   require (isPow2(l1tol2_lineBytes))
 
-  val mem = Seq.fill(l2Config.nMemoryChannels) {
+  val mem = TLOutputNode()
+  for (i <- 0 until l2Config.nMemoryChannels) {
     val bankBar = LazyModule(new TLXbar)
-    val output = TLOutputNode()
 
-    output := bankBar.node
+    mem := bankBar.node
     val mask = ~BigInt((l2Config.nBanksPerChannel-1) * l1tol2_lineBytes)
     for (i <- 0 until l2Config.nBanksPerChannel) {
       val (in, out) = l2Config.coherenceManager(p)
       in := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(l1tol2.node)
       bankBar.node := out
     }
-
-    output
   }
 }
 
 trait BankedL2CoherenceManagersBundle extends CoreplexNetworkBundle {
   val outer: BankedL2CoherenceManagers
-
-  require (l2Config.nMemoryChannels <= 1, "Seq in Chisel Bundle needed to support > 1") // !!!
-  val mem = outer.mem.map(_.bundleOut).toList.headOption // .headOption should be removed !!!
+  val mem = outer.mem.bundleOut
 }
 
 trait BankedL2CoherenceManagersModule extends CoreplexNetworkModule {

@@ -18,13 +18,8 @@ class TestHarness()(implicit p: Parameters) extends Module {
   for (int <- dut.io.interrupts(0))
     int := Bool(false)
 
-  if (dut.io.mem_axi4.nonEmpty) {
-    val memSize = p(ExtMem).size
-    require(memSize % dut.io.mem_axi4.size == 0)
-    for (axi4 <- dut.io.mem_axi4) {
-      Module(LazyModule(new SimAXIMem(memSize / dut.io.mem_axi4.size)).module).io.axi4 <> axi4
-    }
-  }
+  val channels = p(coreplex.BankedL2Config).nMemoryChannels
+  if (channels > 0) Module(LazyModule(new SimAXIMem(channels)).module).io.axi4 <> dut.io.mem_axi4
 
   if (!p(IncludeJtagDTM)) {
     val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug.get, io.success)
@@ -32,7 +27,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
      val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)		
   }
 
-  val mmio_sim = Module(LazyModule(new SimAXIMem(4096)).module)
+  val mmio_sim = Module(LazyModule(new SimAXIMem(1, 4096)).module)
   mmio_sim.io.axi4 <> dut.io.mmio_axi4
 
   val l2_axi4 = dut.io.l2_axi4(0)
@@ -43,12 +38,19 @@ class TestHarness()(implicit p: Parameters) extends Module {
   l2_axi4.b .ready := Bool(true)
 }
 
-class SimAXIMem(size: BigInt)(implicit p: Parameters) extends LazyModule {
+class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) extends LazyModule {
   val config = p(ExtMem)
+  val totalSize = if (forceSize > 0) forceSize else BigInt(config.size)
+  val size = totalSize / channels
+  require(totalSize % channels == 0)
 
-  val node = AXI4BlindInputNode(Seq(AXI4MasterPortParameters(Seq(AXI4MasterParameters(IdRange(0, 1 << config.idBits))))))
-  val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))
-  sram.node := AXI4Buffer()(AXI4Fragmenter(maxInFlight = 4)(node))
+  val node = AXI4BlindInputNode(Seq.fill(channels) {
+    AXI4MasterPortParameters(Seq(AXI4MasterParameters(IdRange(0, 1 << config.idBits))))})
+
+  for (i <- 0 until channels) {
+    val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))
+    sram.node := AXI4Buffer()(AXI4Fragmenter(maxInFlight = 4)(node))
+  }
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
