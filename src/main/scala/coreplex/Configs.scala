@@ -77,7 +77,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
 })
 
 class WithNCores(n: Int) extends Config((site, here, up) => {
-  case NTiles => n
+  case RocketConfigs => List.fill(n){ RocketConfig(site(XLen)) }
 })
 
 class WithNBanksPerMemChannel(n: Int) extends Config((site, here, up) => {
