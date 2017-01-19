@@ -143,12 +143,11 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  * DO NOT use this configuration.
  */
 class WithStatelessBridge extends Config((site, here, up) => {
-/* !!! FIXME
-    case BankedL2Config => up(BankedL2Config, site).copy(coherenceManager = { case (_, _) =>
-      val pass = LazyModule(new TLBuffer(0)(site))
-      (pass.node, pass.node)
-    })
-*/
+  case BankedL2Config => up(BankedL2Config, site).copy(coherenceManager = { case q =>
+    implicit val p = q
+    val cork = LazyModule(new TLCacheCork(unsafe = true))
+    (cork.node, TLWidthWidget(p(L1toL2Config).beatBytes)(cork.node))
+  })
   case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
 })
 
