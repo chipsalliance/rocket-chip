@@ -58,7 +58,7 @@ endif
 
 ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuiteB)
