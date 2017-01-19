@@ -17,14 +17,13 @@ object dtmJTAGAddrs {
   def DTM_INFO     = 0x10
   def DEBUG_ACCESS = 0x11
 }
-  
 
 class DebugAccessUpdate(addrBits: Int) extends Bundle {
   val op = UInt(width = DbBusConsts.dbOpSize)
   val data = UInt(width = DbBusConsts.dbDataSize)
   val addr = UInt(width = addrBits)
 
-  override def cloneType = new DebugAccessUpdate(addrBits).asInstanceOf[this.type]   
+  override def cloneType = new DebugAccessUpdate(addrBits).asInstanceOf[this.type]
 }
 
 class DebugAccessCapture(addrBits: Int) extends Bundle {
@@ -83,7 +82,7 @@ class DebugTransportModuleJTAG(
   val dbusReqValidReg = Reg(init = Bool(false));
 
   val dbusStatus = Wire(UInt(width = 2))
-  
+
   //--------------------------------------------------------
   // DTM Info Chain Declaration
 
@@ -118,7 +117,6 @@ class DebugTransportModuleJTAG(
   when (io.dbus.resp.fire()) {
     busyReg <= Bool(false)
   }
-  
 
   // We are busy during a given CAPTURE
   // if we haven't received a valid response yet or if we
@@ -146,8 +144,7 @@ class DebugTransportModuleJTAG(
       stickyBusyReg := Bool(false)
     }
   }
-  
- 
+
   // Especially for the first request, we must consider dtmResp.valid,
   // so that we don't consider junk in the FIFO to be an error response.
   // The current specification says that any non-zero response is an error.
@@ -162,7 +159,7 @@ class DebugTransportModuleJTAG(
   nonbusyResp.data := io.dbus.resp.bits.data
 
   //--------------------------------------------------------
-  // Debug Access Chain Implementation 
+  // Debug Access Chain Implementation
 
    debugAccessChain.io.capture.bits := Mux(busy, busyResp, nonbusyResp)
    when (debugAccessChain.io.update.valid) {
@@ -175,7 +172,7 @@ class DebugTransportModuleJTAG(
        stickyBusyReg := busy
        stickyNonzeroRespReg <= nonzeroResp
    }
-  
+
   //--------------------------------------------------------
   // Drive Ready Valid Interface
 
@@ -198,14 +195,11 @@ class DebugTransportModuleJTAG(
      }
    }
 
-
-
-   io.dbus.resp.ready := debugAccessChain.io.capture.capture
+  io.dbus.resp.ready := debugAccessChain.io.capture.capture
   io.dbus.req.valid := dbusReqValidReg
 
   // This is a name-based, not type-based assignment. Do these still work?
   io.dbus.req.bits := dbusReqReg
-
 
   //--------------------------------------------------------
   // Actual JTAG TAP
@@ -215,7 +209,6 @@ class DebugTransportModuleJTAG(
                        dtmJTAGAddrs.DTM_INFO -> dtmInfoChain),
     idcode = Some((dtmJTAGAddrs.IDCODE, JtagIdcode(idcodeVersion, idcodePartNum, idcodeManufId))))
 
-
   //--------------------------------------------------------
   // Reset Generation (this is fed back to us by the instantiating module,
   // and is used to reset the debug registers).
@@ -223,8 +216,6 @@ class DebugTransportModuleJTAG(
   io.fsmReset := tapIO.output.reset
 
 }
-
-
 
 /*  JTAG-based Debug Transport Module
  *  and synchronization logic.
@@ -248,8 +239,8 @@ class DebugTransportModuleJTAG(
  *  synchronized to TCK (for de-assert) outside
  *  of this module. 
  * 
- *  TRST is not a required input. If unused, it 
- *  should be tied low.
+ *  TRSTn is not a required input. If unused, it 
+ *  should be tied high.
  *  
  *  clock and reset of this block should be  TCK and dtmReset
  */
