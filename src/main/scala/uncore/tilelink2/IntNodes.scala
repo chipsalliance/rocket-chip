@@ -95,11 +95,11 @@ case class IntAdapterNode(
 case class IntOutputNode() extends OutputNode(IntImp)
 case class IntInputNode() extends InputNode(IntImp)
 
-case class IntBlindOutputNode() extends BlindOutputNode(IntImp)(IntSinkPortParameters(Seq(IntSinkParameters())))
-case class IntBlindInputNode(num: Int) extends BlindInputNode(IntImp)(IntSourcePortParameters(Seq(IntSourceParameters(num))))
+case class IntBlindOutputNode() extends BlindOutputNode(IntImp)(Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
+case class IntBlindInputNode(num: Int) extends BlindInputNode(IntImp)(Seq(IntSourcePortParameters(Seq(IntSourceParameters(num)))))
 
-case class IntInternalOutputNode() extends InternalOutputNode(IntImp)(IntSinkPortParameters(Seq(IntSinkParameters())))
-case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(IntSourcePortParameters(Seq(IntSourceParameters(num))))
+case class IntInternalOutputNode() extends InternalOutputNode(IntImp)(Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
+case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(Seq(IntSourcePortParameters(Seq(IntSourceParameters(num)))))
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {

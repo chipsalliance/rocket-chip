@@ -164,7 +164,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     for (o <- 0 until out.size) {
       val allowI = Seq.tabulate(in.size) { i =>
         node.edgesIn(i).client.anySupportProbe &&
-        node.edgesOut(o).manager.anySupportAcquire
+        node.edgesOut(o).manager.anySupportAcquireB
       }
       TLArbiter(policy)(out(o).a,       (beatsAI zip portsAOI(o)        ):_*)
       TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), allowI):_*)
@@ -174,7 +174,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     for (i <- 0 until in.size) {
       val allowO = Seq.tabulate(out.size) { o =>
         node.edgesIn(i).client.anySupportProbe &&
-        node.edgesOut(o).manager.anySupportAcquire
+        node.edgesOut(o).manager.anySupportAcquireB
       }
       TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), allowO):_*)
       TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)

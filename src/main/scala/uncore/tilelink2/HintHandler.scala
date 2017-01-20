@@ -27,7 +27,7 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
     val edgeOut = node.edgesOut(0)
 
     // Don't add support for clients if there is no BCE channel
-    val bce = edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe
+    val bce = edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
     require (!supportClients || bce)
 
     // Does it even make sense to add the HintHandler?

@@ -253,7 +253,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       in.d.bits := out.d.bits
     }
 
-    if (edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe) {
+    if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
       in.b.valid := out.b.valid
       out.b.ready := in.b.ready
       in.b.bits := out.b.bits

@@ -22,22 +22,24 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
         endSinkId  = numTrackers,
         managers   = mp.managers.map { m =>
           // We are the last level manager
-          require (m.regionType != RegionType.CACHED)
-          require (m.regionType != RegionType.TRACKED)
-          require (!m.supportsAcquire)
+          require (!m.supportsAcquireB)
           // We only manage addresses which are uncached
-          if (m.regionType == RegionType.UNCACHED && m.supportsGet) {
+          if (m.regionType == RegionType.UNCACHED) {
             // The device had better support line transfers
             val lowerBound = max(m.supportsPutFull.min, m.supportsGet.min)
             require (!m.supportsPutFull || m.supportsPutFull.contains(lineBytes))
             require (!m.supportsGet     || m.supportsGet    .contains(lineBytes))
             m.copy(
               regionType         = RegionType.TRACKED,
-              supportsAcquire    = TransferSizes(lowerBound, lineBytes),
+              supportsAcquireB   = TransferSizes(lowerBound, lineBytes),
+              supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, lineBytes) else TransferSizes.none,
               // truncate supported accesses to lineBytes (we only ever probe for one line)
               supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, lineBytes)),
               supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, lineBytes)),
               supportsGet        = TransferSizes(m.supportsGet       .min, min(m.supportsGet       .max, lineBytes)),
+              supportsHint       = TransferSizes(m.supportsHint      .min, min(m.supportsHint      .max, lineBytes)),
+              supportsArithmetic = TransferSizes(m.supportsArithmetic.min, min(m.supportsArithmetic.max, lineBytes)),
+              supportsLogical    = TransferSizes(m.supportsLogical   .min, min(m.supportsLogical   .max, lineBytes)),
               fifoId             = None // trackers do not respond in FIFO order!
             )
           } else {

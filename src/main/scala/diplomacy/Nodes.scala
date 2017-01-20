@@ -224,29 +224,29 @@ class SinkNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: P
   override lazy val bundleOut = { require(false, s"${name} has no bundleOut; try bundleIn?"); bundleIn }
 }
 
-class BlindOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI)
-  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, 1 to 1)
+class BlindOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: Seq[PI])
+  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (_, Seq()) => pi}, 0 to 0, pi.size to pi.size)
 {
   override val flip = true
   override lazy val bundleOut = bundleIn
 }
 
-class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO)
-  extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, 1 to 1, 0 to 0)
+class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: Seq[PO])
+  extends SimpleNode(imp)({case (_, Seq()) => po}, {case (0, _) => Seq()}, po.size to po.size, 0 to 0)
 {
   override val flip = true
   override lazy val bundleIn = bundleOut
 }
 
-class InternalOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI)
-  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, 1 to 1)
+class InternalOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: Seq[PI])
+  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (_, Seq()) => pi}, 0 to 0, pi.size to pi.size)
 {
   override val wire = true
   override lazy val bundleOut = bundleIn
 }
 
-class InternalInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO)
-  extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, 1 to 1, 0 to 0)
+class InternalInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: Seq[PO])
+  extends SimpleNode(imp)({case (_, Seq()) => po}, {case (0, _) => Seq()}, po.size to po.size, 0 to 0)
 {
   override val wire = true
   override lazy val bundleIn = bundleOut

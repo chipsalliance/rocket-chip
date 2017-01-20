@@ -84,9 +84,9 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true)(implicit p: Parameter
     val a_last    = edgeIn.last(in.a)
 
     // Make sure the fields are within the bounds we assumed
-    assert (a_source  < UInt(1 << sourceBits))
-    assert (a_size    < UInt(1 << sizeBits))
-    assert (a_addr_lo < UInt(1 << addrBits))
+    assert (a_source  < UInt(BigInt(1) << sourceBits))
+    assert (a_size    < UInt(BigInt(1) << sizeBits))
+    assert (a_addr_lo < UInt(BigInt(1) << addrBits))
 
     // Carefully pack/unpack fields into the state we send
     val baseEnd = 0

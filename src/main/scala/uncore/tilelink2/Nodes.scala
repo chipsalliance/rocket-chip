@@ -16,14 +16,9 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 {
   def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeOut = new TLEdgeOut(pd, pu)
   def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeIn  = new TLEdgeIn(pd, pu)
-  def bundleO(eo: Seq[TLEdgeOut]): Vec[TLBundle] = {
-    require (!eo.isEmpty)
-    Vec(eo.size, TLBundle(eo.map(_.bundle).reduce(_.union(_))))
-  }
-  def bundleI(ei: Seq[TLEdgeIn]): Vec[TLBundle] = {
-    require (!ei.isEmpty)
-    Vec(ei.size, TLBundle(ei.map(_.bundle).reduce(_.union(_))))
-  }
+
+  def bundleO(eo: Seq[TLEdgeOut]): Vec[TLBundle] = Vec(eo.size, TLBundle(TLBundleParameters.union(eo.map(_.bundle))))
+  def bundleI(ei: Seq[TLEdgeIn]):  Vec[TLBundle] = Vec(ei.size, TLBundle(TLBundleParameters.union(ei.map(_.bundle))))
 
   def colour = "#000000" // black
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
@@ -120,11 +115,11 @@ case class TLOutputNode() extends OutputNode(TLImp)
 case class TLInputNode() extends InputNode(TLImp)
 
 // Nodes used for external ports
-case class TLBlindOutputNode(portParams: TLManagerPortParameters) extends BlindOutputNode(TLImp)(portParams)
-case class TLBlindInputNode(portParams: TLClientPortParameters) extends BlindInputNode(TLImp)(portParams)
+case class TLBlindOutputNode(portParams: Seq[TLManagerPortParameters]) extends BlindOutputNode(TLImp)(portParams)
+case class TLBlindInputNode(portParams: Seq[TLClientPortParameters]) extends BlindInputNode(TLImp)(portParams)
 
-case class TLInternalOutputNode(portParams: TLManagerPortParameters) extends InternalOutputNode(TLImp)(portParams)
-case class TLInternalInputNode(portParams: TLClientPortParameters) extends InternalInputNode(TLImp)(portParams)
+case class TLInternalOutputNode(portParams: Seq[TLManagerPortParameters]) extends InternalOutputNode(TLImp)(portParams)
+case class TLInternalInputNode(portParams: Seq[TLClientPortParameters]) extends InternalInputNode(TLImp)(portParams)
 
 /** Synthesizeable unit tests */
 import unittest._
@@ -152,14 +147,9 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
 {
   def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
   def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
-  def bundleO(eo: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
-    require (eo.size == 1)
-    Vec(eo.size, new TLAsyncBundle(eo(0).bundle))
-  }
-  def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = {
-    require (ei.size == 1)
-    Vec(ei.size, new TLAsyncBundle(ei(0).bundle))
-  }
+
+  def bundleO(eo: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = Vec(eo.size, new TLAsyncBundle(TLAsyncBundleParameters.union(eo.map(_.bundle))))
+  def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = Vec(ei.size, new TLAsyncBundle(TLAsyncBundleParameters.union(ei.map(_.bundle))))
 
   def colour = "#ff0000" // red
   override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString

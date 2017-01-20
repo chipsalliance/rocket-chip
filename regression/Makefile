@@ -59,6 +59,7 @@ endif
 ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
 CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig
+# FancyMemtestConfig takes too long to compile
 endif
 
 ifeq ($(SUITE),GroundtestSuiteB)

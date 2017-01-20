@@ -11,14 +11,9 @@ object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, A
 {
   def edgeO(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters): AHBEdgeParameters = AHBEdgeParameters(pd, pu)
   def edgeI(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters): AHBEdgeParameters = AHBEdgeParameters(pd, pu)
-  def bundleO(eo: Seq[AHBEdgeParameters]): Vec[AHBBundle] = {
-    require (!eo.isEmpty)
-    Vec(eo.size, AHBBundle(eo.map(_.bundle).reduce(_.union(_))))
-  }
-  def bundleI(ei: Seq[AHBEdgeParameters]): Vec[AHBBundle] = {
-    require (!ei.isEmpty)
-    Vec(ei.size, AHBBundle(ei.map(_.bundle).reduce(_.union(_))))
-  }
+
+  def bundleO(eo: Seq[AHBEdgeParameters]): Vec[AHBBundle] = Vec(eo.size, AHBBundle(AHBBundleParameters.union(eo.map(_.bundle))))
+  def bundleI(ei: Seq[AHBEdgeParameters]): Vec[AHBBundle] = Vec(ei.size, AHBBundle(AHBBundleParameters.union(ei.map(_.bundle))))
 
   def colour = "#00ccff" // bluish
   override def labelI(ei: AHBEdgeParameters) = (ei.slave.beatBytes * 8).toString
@@ -52,8 +47,8 @@ case class AHBOutputNode() extends OutputNode(AHBImp)
 case class AHBInputNode() extends InputNode(AHBImp)
 
 // Nodes used for external ports
-case class AHBBlindOutputNode(portParams: AHBSlavePortParameters) extends BlindOutputNode(AHBImp)(portParams)
-case class AHBBlindInputNode(portParams: AHBMasterPortParameters) extends BlindInputNode(AHBImp)(portParams)
+case class AHBBlindOutputNode(portParams: Seq[AHBSlavePortParameters]) extends BlindOutputNode(AHBImp)(portParams)
+case class AHBBlindInputNode(portParams: Seq[AHBMasterPortParameters]) extends BlindInputNode(AHBImp)(portParams)
 
-case class AHBInternalOutputNode(portParams: AHBSlavePortParameters) extends InternalOutputNode(AHBImp)(portParams)
-case class AHBInternalInputNode(portParams: AHBMasterPortParameters) extends InternalInputNode(AHBImp)(portParams)
+case class AHBInternalOutputNode(portParams: Seq[AHBSlavePortParameters]) extends InternalOutputNode(AHBImp)(portParams)
+case class AHBInternalInputNode(portParams: Seq[AHBMasterPortParameters]) extends InternalInputNode(AHBImp)(portParams)

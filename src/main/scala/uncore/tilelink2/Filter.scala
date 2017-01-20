@@ -22,7 +22,8 @@ class TLFilter(select: AddressSet)(implicit p: Parameters) extends LazyModule
         if (filtered.isEmpty) { None } else {
           Some(m.copy(
             address            = filtered,
-            supportsAcquire    = m.supportsAcquire   .intersect(cap),
+            supportsAcquireT   = m.supportsAcquireT  .intersect(cap),
+            supportsAcquireB   = m.supportsAcquireB  .intersect(cap),
             supportsArithmetic = m.supportsArithmetic.intersect(cap),
             supportsLogical    = m.supportsLogical   .intersect(cap),
             supportsGet        = m.supportsGet       .intersect(cap),
