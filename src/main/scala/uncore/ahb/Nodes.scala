@@ -11,14 +11,9 @@ object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, A
 {
   def edgeO(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters): AHBEdgeParameters = AHBEdgeParameters(pd, pu)
   def edgeI(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters): AHBEdgeParameters = AHBEdgeParameters(pd, pu)
-  def bundleO(eo: Seq[AHBEdgeParameters]): Vec[AHBBundle] = {
-    require (!eo.isEmpty)
-    Vec(eo.size, AHBBundle(eo.map(_.bundle).reduce(_.union(_))))
-  }
-  def bundleI(ei: Seq[AHBEdgeParameters]): Vec[AHBBundle] = {
-    require (!ei.isEmpty)
-    Vec(ei.size, AHBBundle(ei.map(_.bundle).reduce(_.union(_))))
-  }
+
+  def bundleO(eo: Seq[AHBEdgeParameters]): Vec[AHBBundle] = Vec(eo.size, AHBBundle(AHBBundleParameters.union(eo.map(_.bundle))))
+  def bundleI(ei: Seq[AHBEdgeParameters]): Vec[AHBBundle] = Vec(ei.size, AHBBundle(AHBBundleParameters.union(ei.map(_.bundle))))
 
   def colour = "#00ccff" // bluish
   override def labelI(ei: AHBEdgeParameters) = (ei.slave.beatBytes * 8).toString

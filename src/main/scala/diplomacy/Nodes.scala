@@ -227,7 +227,6 @@ class SinkNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: P
 class BlindOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: Seq[PI])
   extends SimpleNode(imp)({case (0, _) => Seq()}, {case (_, Seq()) => pi}, 0 to 0, pi.size to pi.size)
 {
-  require (!pi.isEmpty)
   override val flip = true
   override lazy val bundleOut = bundleIn
 }
@@ -235,7 +234,6 @@ class BlindOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]
 class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: Seq[PO])
   extends SimpleNode(imp)({case (_, Seq()) => po}, {case (0, _) => Seq()}, po.size to po.size, 0 to 0)
 {
-  require (!po.isEmpty)
   override val flip = true
   override lazy val bundleIn = bundleOut
 }
@@ -243,7 +241,6 @@ class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
 class InternalOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: Seq[PI])
   extends SimpleNode(imp)({case (0, _) => Seq()}, {case (_, Seq()) => pi}, 0 to 0, pi.size to pi.size)
 {
-  require (!pi.isEmpty)
   override val wire = true
   override lazy val bundleOut = bundleIn
 }
@@ -251,7 +248,6 @@ class InternalOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI,
 class InternalInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: Seq[PO])
   extends SimpleNode(imp)({case (_, Seq()) => po}, {case (0, _) => Seq()}, po.size to po.size, 0 to 0)
 {
-  require (!po.isEmpty)
   override val wire = true
   override lazy val bundleIn = bundleOut
 }

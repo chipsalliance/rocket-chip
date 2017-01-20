@@ -101,6 +101,9 @@ case class AXI4BundleParameters(
 
 object AXI4BundleParameters
 {
+  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1)
+  def union(x: Seq[AXI4BundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
     new AXI4BundleParameters(
       addrBits = log2Up(slave.maxAddress+1),

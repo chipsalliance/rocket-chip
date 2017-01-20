@@ -273,6 +273,15 @@ case class TLBundleParameters(
 
 object TLBundleParameters
 {
+  val emptyBundleParams = TLBundleParameters(
+    addressBits = 1,
+    dataBits    = 8,
+    sourceBits  = 1,
+    sinkBits    = 1,
+    sizeBits    = 1)
+
+  def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
     new TLBundleParameters(
       addressBits = log2Up(manager.maxAddress + 1),
@@ -297,7 +306,21 @@ case class TLEdgeParameters(
 
 case class TLAsyncManagerPortParameters(depth: Int, base: TLManagerPortParameters) { require (isPow2(depth)) }
 case class TLAsyncClientPortParameters(base: TLClientPortParameters)
-case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters) { require (isPow2(depth)) }
+
+case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters)
+{
+  require (isPow2(depth))
+  def union(x: TLAsyncBundleParameters) = TLAsyncBundleParameters(
+    depth = max(depth, x.depth),
+    base  = base.union(x.base))
+}
+
+object TLAsyncBundleParameters
+{
+  val emptyBundleParams = TLAsyncBundleParameters(depth = 1, base = TLBundleParameters.emptyBundleParams)
+  def union(x: Seq[TLAsyncBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+}
+
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters)
 {
   val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
