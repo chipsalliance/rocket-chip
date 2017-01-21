@@ -77,8 +77,8 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
     val mask = ~BigInt((l2Config.nBanksPerChannel-1) * l1tol2_lineBytes)
     for (i <- 0 until l2Config.nBanksPerChannel) {
       val (in, out) = l2Config.coherenceManager(p)
-      in := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(l1tol2.node)
-      bankBar.node := out
+      in := l1tol2.node
+      bankBar.node := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(out)
     }
   }
 }
