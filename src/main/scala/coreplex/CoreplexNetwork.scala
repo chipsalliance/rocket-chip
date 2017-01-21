@@ -34,9 +34,8 @@ trait CoreplexNetwork extends HasCoreplexParameters {
     l1tol2.node)))
 
   mmio :=
-    TLBuffer()(
     TLWidthWidget(l1tol2_beatBytes)(
-    l1tol2.node))
+    l1tol2.node)
 }
 
 trait CoreplexNetworkBundle extends HasCoreplexParameters {
@@ -78,8 +77,8 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
     val mask = ~BigInt((l2Config.nBanksPerChannel-1) * l1tol2_lineBytes)
     for (i <- 0 until l2Config.nBanksPerChannel) {
       val (in, out) = l2Config.coherenceManager(p)
-      in := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(l1tol2.node)
-      bankBar.node := out
+      in := l1tol2.node
+      bankBar.node := TLFilter(AddressSet(i * l1tol2_lineBytes, mask))(out)
     }
   }
 }
@@ -99,7 +98,7 @@ trait BankedL2CoherenceManagersModule extends CoreplexNetworkModule {
 trait HasL2MasterPort extends CoreplexNetwork {
   val module: HasL2MasterPortModule
   val l2in = TLInputNode()
-  l1tol2.node := l2in
+  l1tol2.node := TLBuffer()(l2in)
 }
 
 trait HasL2MasterPortBundle extends CoreplexNetworkBundle {
