@@ -9,7 +9,7 @@ import uncore.constants._
 import util._
 import Chisel.ImplicitConversions._
 
-case class RocketCoreConfig(
+case class RocketCoreParameters(
   useAtomics: Bool = true,
   useCompressed: Bool = true,
   nBreakpoints: Int = 1,
@@ -34,7 +34,7 @@ case class RocketCoreConfig(
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
-  implicit val rocketConfig: RocketCoreConfig = tileConfig.core
+  val rocketParameters: RocketCoreParameters = tileParameters.core
 
   val fastLoadWord = rocketConfig.fastLoadWord
   val fastLoadByte = rocketConfig.fastLoadByte
@@ -49,49 +49,9 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   require(!fastLoadByte || fastLoadWord)
 }
 
-
-class RegFile(n: Int, w: Int, zero: Boolean = false) {
-  private val rf = Mem(n, UInt(width = w))
-  private def access(addr: UInt) = rf(~addr(log2Up(n)-1,0))
-  private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
-  private var canRead = true
-  def read(addr: UInt) = {
-    require(canRead)
-    reads += addr -> Wire(UInt())
-    reads.last._2 := Mux(Bool(zero) && addr === UInt(0), UInt(0), access(addr))
-    reads.last._2
-  }
-  def write(addr: UInt, data: UInt) = {
-    canRead = false
-    when (addr =/= UInt(0)) {
-      access(addr) := data
-      for ((raddr, rdata) <- reads)
-        when (addr === raddr) { rdata := data }
-    }
-  }
-}
-
-object ImmGen {
-  def apply(sel: UInt, inst: UInt) = {
-    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).asSInt)
-    val b30_20 = Mux(sel === IMM_U, inst(30,20).asSInt, sign)
-    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).asSInt)
-    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
-              Mux(sel === IMM_UJ, inst(20).asSInt,
-              Mux(sel === IMM_SB, inst(7).asSInt, sign)))
-    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
-    val b4_1 = Mux(sel === IMM_U, Bits(0),
-               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
-               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
-    val b0 = Mux(sel === IMM_S, inst(7),
-             Mux(sel === IMM_I, inst(20),
-             Mux(sel === IMM_Z, inst(15), Bits(0))))
-
-    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).asSInt
-  }
-}
-
-class Rocket(implicit val c: RocketCoreConfig, p: Parameters) extends CoreModule()(c,p) with HasCoreIO {
+class Rocket(implicit p: Parameters) extends CoreModule()(p)
+    with HasRocketCoreParameters
+    with HasCoreIO {
 
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
@@ -667,5 +627,46 @@ class Rocket(implicit val c: RocketCoreConfig, p: Parameters) extends CoreModule
       ens = ens || en
       when (ens) { _r := _next }
     }
+  }
+}
+
+class RegFile(n: Int, w: Int, zero: Boolean = false) {
+  private val rf = Mem(n, UInt(width = w))
+  private def access(addr: UInt) = rf(~addr(log2Up(n)-1,0))
+  private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
+  private var canRead = true
+  def read(addr: UInt) = {
+    require(canRead)
+    reads += addr -> Wire(UInt())
+    reads.last._2 := Mux(Bool(zero) && addr === UInt(0), UInt(0), access(addr))
+    reads.last._2
+  }
+  def write(addr: UInt, data: UInt) = {
+    canRead = false
+    when (addr =/= UInt(0)) {
+      access(addr) := data
+      for ((raddr, rdata) <- reads)
+        when (addr === raddr) { rdata := data }
+    }
+  }
+}
+
+object ImmGen {
+  def apply(sel: UInt, inst: UInt) = {
+    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).asSInt)
+    val b30_20 = Mux(sel === IMM_U, inst(30,20).asSInt, sign)
+    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).asSInt)
+    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
+              Mux(sel === IMM_UJ, inst(20).asSInt,
+              Mux(sel === IMM_SB, inst(7).asSInt, sign)))
+    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
+    val b4_1 = Mux(sel === IMM_U, Bits(0),
+               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
+               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
+    val b0 = Mux(sel === IMM_S, inst(7),
+             Mux(sel === IMM_I, inst(20),
+             Mux(sel === IMM_Z, inst(15), Bits(0))))
+
+    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).asSInt
   }
 }

@@ -4,11 +4,10 @@ package rocket
 
 import Chisel._
 import config._
-import uncore.tilelink2.TLEdgeOut
-import uncore.util.{CacheName, CacheBlockBytes}
+import coreplex.{TileKey}
 import util._
 
-case object BuildCore extends Field[(RocketConfig, Parameters) => CoreModule with HasCoreIO]
+case object BuildCore extends Field[Parameters => CoreModule with HasCoreIO]
 
 // These parameters apply to all cores, for now
 case object XLen extends Field[Int]
@@ -17,21 +16,21 @@ case object UseUser extends Field[Boolean]
 case object UseDebug extends Field[Boolean]
 
 // These parameters can be varied per-core
-trait CoreConfig {
-  useAtomics: Bool
-  useCompressed: Bool
-  fpuConfig: Option[FPUConfig]
-  mulDivConfig: Option[MulDivConfig]
-  fetchWidth: Int
-  decodeWidth: Int
-  retireWidth: Int
-  instBits: Int
+trait CoreParameters {
+  val useAtomics: Bool
+  val useCompressed: Bool
+  val fpuConfig: Option[FPUParameters]
+  val mulDivConfig: Option[MulDivParameters]
+  val fetchWidth: Int
+  val decodeWidth: Int
+  val retireWidth: Int
+  val instBits: Int
 }
 
 trait HasCoreParameters {
   implicit val p: Parameters
-  implicit val tileConfig: TileConfig = p(TileKey)
-  implicit val coreConfig = tileConfig.core
+  val TileParameters: TileParameters = p(TileKey)
+  val coreParameters = TileParameters.core
 
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
@@ -41,16 +40,16 @@ trait HasCoreParameters {
   val usingUser = p(UseUser) || usingVM
   val usingDebug = p(UseDebug)
 
-  val usingMulDiv = coreConfig.mulDivConfig.nonEmpty
-  val usingFPU = coreConfig.fpuConfig.nonEmpty
-  val usingAtomics = coreConfig.useAtomics
-  val usingCompressed = coreConfig.useCompressed
+  val usingMulDiv = coreParameters.mulDivConfig.nonEmpty
+  val usingFPU = coreParameters.fpuConfig.nonEmpty
+  val usingAtomics = coreParameters.useAtomics
+  val usingCompressed = coreParameters.useCompressed
 
-  val retireWidth = coreConfig.retireWidth
-  val fetchWidth = coreConfig.fetchWidth
-  val decodeWidth = coreConfig.decodeWidth
+  val retireWidth = coreParameters.retireWidth
+  val fetchWidth = coreParameters.fetchWidth
+  val decodeWidth = coreParameters.decodeWidth
 
-  val coreInstBits = coreConfig.instBits
+  val coreInstBits = coreParameters.instBits
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
@@ -78,7 +77,7 @@ trait HasCoreParameters {
   val enableCommitLog = false
 }
 
-abstract class CoreModule(implicit val coreConfig: CoreConfig, val p: Parameters) extends Module
+abstract class CoreModule(implicit val p: Parameters) extends Module
   with HasCoreParameters
 
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)

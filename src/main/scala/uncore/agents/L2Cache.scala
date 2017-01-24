@@ -20,6 +20,7 @@ case object NPrimaryMisses extends Field[Int]
 case object NSecondaryMisses extends Field[Int]
 
 trait HasOuterCacheParameters extends HasCacheParameters with HasCoherenceAgentParameters {
+  val cacheIdBits = 0
   val cacheId = p(CacheId)
   val idxLSB = cacheIdBits
   val idxMSB = idxLSB + idxBits - 1

@@ -127,7 +127,8 @@ object CSR
   val nCtr = firstHPM + nHPM
 }
 
-class CSRFileIO(implicit p: Parameters) extends CoreBundle {
+class CSRFileIO(implicit p: Parameters) extends CoreBundle
+    with HasRocketCoreParameters {
   val interrupts = new TileInterrupts().asInput
   val hartid = UInt(INPUT, xLen)
   val rw = new Bundle {
@@ -163,7 +164,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)
-{
+    with HasRocketCoreParameters {
   val io = new CSRFileIO
 
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))

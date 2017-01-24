@@ -5,9 +5,22 @@ package coreplex
 import Chisel._
 import config._
 import diplomacy._
-import rocket.{TileInterrupts, XLen}
+import rocket._
 import uncore.tilelink2._
 import util.GenericParameterizedBundle
+
+case object SharedMemoryTLEdge extends Field[TLEdgeOut]
+case object DataScratchpadSize extends Field[Int]
+case object TileKey extends Field[TileParameters]
+
+trait TileParameters {
+  val core: CoreParameters
+  val icache: ICacheParameters
+  val dcache: DCacheParameters
+  val rocc: Seq[RoccParameters]
+  val btb: BTBParameters
+  val dataScratchpadBytes: Int
+}
 
 abstract class BareTile(implicit p: Parameters) extends LazyModule
 
@@ -40,7 +53,7 @@ trait TileNetworkModule {
   val io: TileNetworkBundle
 }
 
-abstract class BaseTile(implicit p: Parameters) extends BareTile
+abstract class BaseTile(val tileConfig: TileConfig)(implicit p: Parameters) extends BareTile
     with TileNetwork {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }

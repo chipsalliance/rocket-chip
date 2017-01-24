@@ -13,24 +13,23 @@ import uncore.util._
 import util.ParameterizedBundle
 import scala.collection.mutable.ListBuffer
 
-case class DCacheConfig(
+case class DCacheParameters(
     nSets: Int = 64,
     nWays: Int = 4,
     rowBits: Int = 128,
     nTLBEntries: Int = 8,
-    cacheIdBits: Int = 0,
     splitMetadata: Boolean = false,
     ecc: Option[Code] = None,
     nMSHRs: Int = 1,
     nSDQ: Int = 17,
     nRPQ: Int = 16,
-    nMMIOs: Int = 1) extends CacheConfig {
+    nMMIOs: Int = 1) extends CacheParameters {
   val replacement = new RandomReplacement(nWays)
 }
 
-case object DCacheKey extends Field[DCacheConfig]
-
 trait HasL1HellaCacheParameters extends HasL1CacheParameters {
+  override val cacheParameters = p(TileKey).dcache
+
   val wordBits = xLen // really, xLen max 
   val wordBytes = wordBits/8
   val wordOffBits = log2Up(wordBytes)
@@ -132,7 +131,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val ordered = Bool(INPUT)
 }
 
-abstract class HellaCache(val cfg: DCacheConfig)(implicit p: Parameters) extends LazyModule {
+abstract class HellaCache(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, cfg.nMSHRs + cfg.nMMIOs),
     supportsProbe = TransferSizes(p(CacheBlockBytes))))

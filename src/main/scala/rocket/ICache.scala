@@ -12,14 +12,26 @@ import uncore.util._
 import util._
 import Chisel.ImplicitConversions._
 
+case class ICacheParameters(
+    nSets: Int = 64,
+    nWays: Int = 4,
+    rowBits: Int = 128,
+    nTLBEntries: Int = 8,
+    cacheIdBits: Int = 0,
+    splitMetadata: Boolean = false,
+    ecc: Option[Code] = None) extends CacheParameters {
+  val replacement = new RandomReplacement(nWays)
+}
+
 trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
+  override val cacheParameters = p(TileKey).icache
+
   val cacheBlockBytes = p(CacheBlockBytes)
   val lgCacheBlockBytes = log2Up(cacheBlockBytes)
   val cacheDataBits = p(SharedMemoryTLEdge).bundle.dataBits
   val cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
   val refillCycles = cacheDataBeats
   val usingDataScratchpad = p(DataScratchpadSize) > 0
-
 }
 
 class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {

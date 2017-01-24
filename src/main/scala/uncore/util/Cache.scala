@@ -17,7 +17,6 @@ trait CacheConfig {
   val nWays:         Int
   val rowBits:       Int
   val nTLBEntries:   Int
-  val cacheIdBits:   Int
   val splitMetadata: Boolean
   val ecc:           Option[Code]
 }
@@ -26,12 +25,11 @@ case object CacheName extends Field[CacheName]
 
 trait HasCacheParameters {
   implicit val p: Parameters
-  implicit val cacheConfig: CacheConfig
+  val cacheConfig: CacheConfig
   val nSets = cacheConfig.nSets
   val blockOffBits = log2Up(p(CacheBlockBytes))
-  val cacheIdBits = cacheConfig.cacheIdBits
   val idxBits = log2Up(cacheConfig.nSets)
-  val untagBits = blockOffBits + cacheIdBits + idxBits
+  val untagBits = blockOffBits + idxBits
   val tagBits = p(PAddrBits) - untagBits
   val nWays = cacheConfig.nWays
   val wayBits = log2Up(nWays)

@@ -8,13 +8,16 @@ import diplomacy._
 import rocket._
 import uncore.tilelink2._
 
-case object RocketConfigs extends Field[Seq[RocketConfig]]
+case object RocketTileConfigs extends Field[Seq[RocketTileConfig]]
 
 trait HasSynchronousRocketTiles extends CoreplexRISCVPlatform {
   val module: HasSynchronousRocketTilesModule
 
-  val rocketTiles: Seq[RocketTile] = p(RocketConfigs).map { c =>
+  val rocketTiles: Seq[RocketTile] = p(RocketTileConfigs).map { c =>
     LazyModule(new RocketTile(c)(p.alterPartial {
+      case TileKey => c
+      case DataScratchpadSize => c.dataScratchpadBytes
+      case BuildRoCC => c.rocc
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
   }))}
@@ -51,6 +54,9 @@ trait HasAsynchronousRocketTiles extends CoreplexRISCVPlatform {
 
   val rocketTiles: Seq[AsyncRocketTile] = p(RocketConfigs).map { c =>
     LazyModule(new AsyncRocketTile(c)(p.alterPartial {
+      case TileKey => c
+      case DataScratchpadSize => c.dataScratchpadBytes
+      case BuildRoCC => c.rocc
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
   }))}

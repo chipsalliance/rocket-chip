@@ -9,17 +9,17 @@ import util._
 import Chisel.ImplicitConversions._
 import uncore.util.PseudoLRU
 
-case class BTBConfig(
+case class BTBParameters(
   nEntries: Int = 40,
   nRAS: Int = 2,
   updatesOutOfOrder: Boolean = false)
 
 trait HasBtbParameters extends HasCoreParameters {
-  val btbConfig = tileConfig.btb
+  val btbParameters = tileParameters.btb
   val matchBits = pgIdxBits
-  val entries = btbConfig.nEntries
-  val nRAS = btbConfig.nRAS
-  val updatesOutOfOrder = btbConfig.updatesOutOfOrder
+  val entries = btbParameters.nEntries
+  val nRAS = btbParameters.nRAS
+  val updatesOutOfOrder = btbParameters.updatesOutOfOrder
   val nPages = ((1 max(log2Up(entries)))+1)/2*2 // control logic assumes 2 divides pages
   val opaqueBits = log2Up(entries)
   val nBHT = 1 << log2Up(entries*2)

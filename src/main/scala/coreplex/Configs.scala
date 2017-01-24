@@ -18,29 +18,20 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PAddrBits => 32
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case ASIdBits => 7
-  //L1InstCache
-  case CacheName("L1I") => CacheConfig(
-    rowBits = site(L1toL2Config).beatBytes*8,
-    latency = 1)
-  case BtbKey => BtbParameters()
-  //L1DataCache
-  case CacheName("L1D") => CacheConfig(
-  case DCacheKey(_) => DCacheConfig(
-    rowBits = site(L1toL2Config).beatBytes*8,
-    nMSHRs  = 2)
-  case DataScratchpadSize => 0
-  //Rocket Core Constants
+  //Rocket Core Constants (for all cores)
   case UseVM => true
   case UseUser => false
   case UseDebug => true
   case XLen => 64
-  //Tile Constants
-  case BuildRoCC => Nil
-  case BuildCore => (c: RocketConfig, p: Parameters) => new Rocket(c)(p)
+  case BuildCore => (p: Parameters) => new Rocket()(p)
+  case RocketTilesParameters => List(
+    RocketTileConfig(
+      dcache = DCacheConfig(rowBits = site(L1toL2Config).beatBytes*8, nMSHRs  = 2),
+      icache = ICacheConfig(rowBits = site(L1toL2Config).beatBytes*8))
+  )
   //Uncore Paramters
   case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
-  case RocketTileConfigs => List(RocketTileConfig())
-  case NTiles => site(RocketTileConfigs).size
+  case NTiles => site(RocketTilesParameters).size
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
   case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth
   case BootROMFile => "./bootrom/bootrom.img"
@@ -50,19 +41,22 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
 })
 
 class WithNCores(n: Int) extends Config((site, here, up) => {
-  case RocketConfigs => List.fill(n-1)(RocketConfig()) :+ up(RocketTileConfigs, site)
+  case RocketTilesParameters => List.fill(n)(up(RocketTilesParameters, site).head)
 })
 
 class WithNSmallCores(n: Int) extends Config((site, here, up) => {
-  val small = RocketTileConfig(
-    core = RocketCoreConfig(
-      fpuCOnfig = None,
-      mulDivConfig = Some(MulDivConfig())),
-    btb = BtbParameters(nEntries = 0),
-    dcache = DCacheConfig(nSets = 64, nWays = 1, nTLBEntries = 4, nMSHRs = 0),
-    icache = ICacheConfig(nSets = 64, nWays = 1, nTLBEntries = 4))
-  case RocketTileConfigs => List.fill(n)(small) :+ up(RocketTileConfigs, site)
-}
+  case UseVM => false
+  case RocketTilesParameters => {
+    val small = RocketTileParameters(
+      core = RocketCoreParameters(
+        fpuConfig = None,
+        mulDivConfig = Some(MulDivParameters())),
+      btb = BTBParameters(nEntries = 0),
+      dcache = DCacheParameters(nSets = 64, nWays = 1, nTLBEntries = 4, nMSHRs = 0),
+      icache = ICacheParameters(nSets = 64, nWays = 1, nTLBEntries = 4))
+    List.fill(n)(small) :+ up(RocketTilesParameters, site)
+  }
+})
 
 class WithNBanksPerMemChannel(n: Int) extends Config((site, here, up) => {
   case BankedL2Config => up(BankedL2Config, site).copy(nBanksPerChannel = n)
@@ -72,22 +66,22 @@ class WithNTrackersPerBank(n: Int) extends Config((site, here, up) => {
   case BroadcastConfig => up(BroadcastConfig, site).copy(nTrackers = n)
 })
 
-// This is the number of sets **per way**
+// This is the number of icache sets for all Rocket tiles
 class WithL1ICacheSets(sets: Int) extends Config((site, here, up) => {
-  case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = sets)
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(icache = r.icache.copy(nSets = sets)) }
 })
 
-// This is the number of sets **per way**
+// This is the number of icache sets for all Rocket tiles
 class WithL1DCacheSets(sets: Int) extends Config((site, here, up) => {
-  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = sets)
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(dcache = r.dcache.copy(nSets = sets)) }
 })
 
 class WithL1ICacheWays(ways: Int) extends Config((site, here, up) => {
-  case CacheName("L1I") => up(CacheName("L1I"), site).copy(nWays = ways)
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(icache = r.icache.copy(nWays = ways)) }
 })
 
 class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
-  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nWays = ways)
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(dcache = r.dcache.copy(nWays = ways)) }
 })
 
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
@@ -95,13 +89,13 @@ class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
 })
 
 class WithDataScratchpad(n: Int) extends Config((site, here, up) => {
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(dcache = r.dcache.copy(nSets = n / site(CacheBlockBytes))) }
   case DataScratchpadSize => n
-  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = n / site(CacheBlockBytes))
 })
 
 // TODO: re-add L2
 class WithL2Cache extends Config((site, here, up) => {
-  case CacheName("L2") => CacheConfig(
+  case CacheName("L2") => DCacheConfig(
     nSets         = 1024,
     nWays         = 1,
     rowBits       = site(L1toL2Config).beatBytes*8,
@@ -133,7 +127,7 @@ class WithStatelessBridge extends Config((site, here, up) => {
       (pass.node, pass.node)
     })
 */
-  case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(dcache = r.dcache.copy(nMSHRs = 0)) }
 })
 
 class WithL2Capacity(size_kb: Int) extends Config(Parameters.empty) // TODO
@@ -144,21 +138,11 @@ class WithNL2Ways(n: Int) extends Config((site, here, up) => {
 
 class WithRV32 extends Config((site, here, up) => {
   case XLen => 32
-  case FPUKey => Some(FPUConfig(divSqrt = false))
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(fpu = r.fpu.copy(divSqrt = false)) }
 })
 
 class WithBlockingL1 extends Config((site, here, up) => {
-  case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
-})
-
-class WithSmallCores extends Config((site, here, up) => {
-  case MulDivKey => Some(MulDivConfig())
-  case FPUKey => None
-  case UseVM => false
-  case BtbKey => BtbParameters(nEntries = 0)
-  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-  case CacheName("L1I") => up(CacheName("L1I"), site).copy(nSets = 64, nWays = 1, nTLBEntries = 4)
-  case DCacheKey => up(DCacheKey, site).copy(nMSHRs = 0)
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(dcache = r.dcache.copy(nMSHRs = 0)) }
 })
 
 class WithRoccExample extends Config((site, here, up) => {
@@ -178,23 +162,25 @@ class WithRoccExample extends Config((site, here, up) => {
 })
 
 class WithDefaultBtb extends Config((site, here, up) => {
-  case BtbKey => BtbParameters()
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(btb = BTBConfig()) }
 })
 
 class WithFastMulDiv extends Config((site, here, up) => {
-  case MulDivKey => Some(MulDivConfig(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true))
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(core = r.core.copy(mulDivConfig = Some(
+    MulDivConfig(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true)
+  )))}
 })
 
 class WithoutMulDiv extends Config((site, here, up) => {
-  case MulDivKey => None
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(core = r.core.copy(mulDivConfig = None)) }
 })
 
 class WithoutFPU extends Config((site, here, up) => {
-  case FPUKey => None
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(core = r.core.copy(fpuConfig = None)) }
 })
 
 class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
-  case FPUKey => Some(FPUConfig(divSqrt = false))
+  case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(core = r.core.copy(fpuConfig = r.core.fpu.copy(divSqrt = false))) }
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {

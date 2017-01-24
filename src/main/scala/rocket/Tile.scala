@@ -12,27 +12,15 @@ import uncore.devices._
 import uncore.tilelink2._
 import util._
 
-case object SharedMemoryTLEdge extends Field[TLEdgeOut]
-case object DataScratchpadSize extends Field[Int]
-
-trait TileConfig {
-  val core: CoreConfig
-  val icache: ICacheConfig
-  val dcache: DCacheConfig
-  val rocc: Seq[RoccParameters]
-  val btb: BTBConfig
-  val dataScratchpadBytes: Int
-}
-
-case class RocketTileConfig(
-  core: RocketCoreConfig = RocketCoreConfig(),
-  icache: ICacheConfig = ICacheConfig(),
-  dcache: DCacheConfig = DCacheConfig(),
+case class RocketTileParameters(
+  core: RocketCoreParameters = RocketCoreParameters(),
+  icache: ICacheParameters = ICacheParameters(),
+  dcache: DCacheParameters = DCacheParameters(),
   rocc: Seq[RoccParameters] = Nil,
-  btb: BTBConfig = BTBConfig()
-  dataScratchpadBytes: Int = 0) extends TileConfig
+  btb: BTBParameters = BTBParameters(),
+  dataScratchpadBytes: Int = 0) extends TileParameters
   
-class RocketTile()(implicit val c: RocketCoreConfig, p: Parameters) extends BaseTile()(p)
+class RocketTile(val rocketConfig: RocketTileParameters)(p: Parameters) extends BaseTile(c)(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 
