@@ -149,7 +149,7 @@ class WithCacheRegressionTest extends Config((site, here, up) => {
 
 class WithTraceGen extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(uncached = 1, cached = 1)
+    GroundTestTileSettings(uncached = 0, cached = 1)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new GroundTestTraceGenerator()(p))
