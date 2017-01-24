@@ -17,15 +17,28 @@ abstract class LazyModule()(implicit val p: Parameters)
   LazyModule.stack = this :: LazyModule.stack
   parent.foreach(p => p.children = this :: p.children)
 
-  lazy val className = getClass.getName.split('.').last
-  lazy val valName = parent.flatMap { p =>
-    p.getClass.getMethods.filter { m =>
+  private var suggestedName: Option[String] = None
+  def suggestName(x: String) = suggestedName = Some(x)
+
+  private lazy val childNames =
+    getClass.getMethods.filter { m =>
       m.getParameterTypes.isEmpty &&
       !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-      classOf[LazyModule].isAssignableFrom(m.getReturnType) &&
-      (m.invoke(p) eq this)
-    }.headOption.map(_.getName)
-  }
+      m.getName != "children"
+    }.flatMap { m =>
+      if (classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
+        Seq((m.getName, m.invoke(this)))
+      } else if (classOf[Seq[LazyModule]].isAssignableFrom(m.getReturnType)) {
+        m.invoke(this).asInstanceOf[Seq[Object]].zipWithIndex.map { case (l, i) =>
+          (m.getName + "_"  + i, l)
+        }
+      } else Seq()
+    }
+  private def findValName =
+    parent.flatMap(_.childNames.find(_._2 eq this)).map(_._1)
+
+  lazy val className = getClass.getName.split('.').last
+  lazy val valName = suggestedName.orElse(findValName)
   lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
   def moduleName = className + valName.orElse(outerName).map("_" + _).getOrElse("")
