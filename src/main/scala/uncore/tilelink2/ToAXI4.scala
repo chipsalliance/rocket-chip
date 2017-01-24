@@ -127,7 +127,8 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true)(implicit p: Parameter
         // We know there can only be as many outstanding requests as TL sources
         // However, AXI read and write queues are not mutually FIFO.
         // Therefore, we want to pop them individually, but share the storage.
-        PositionalMultiQueue(UInt(width=max(1,bankBits)), positions=bankEntries(i), ways=2, combinational=combinational)
+        val bypass = combinational && edgeOut.slave.minLatency == 0
+        PositionalMultiQueue(UInt(width=max(1,bankBits)), positions=bankEntries(i), ways=2, combinational=bypass)
       }
 
       val a_bankPosition = if (posBits == 0) UInt(0) else a_source(sourceBits-1, idBits)
