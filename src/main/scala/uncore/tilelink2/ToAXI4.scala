@@ -19,8 +19,8 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
         aligned = true))
     Seq(AXI4MasterPortParameters(masters))
   },
-  uFn = { case (1, Seq(AXI4SlavePortParameters(slaves, beatBytes))) =>
-    val managers = slaves.map { case s =>
+  uFn = { case (1, Seq(p)) => Seq(TLManagerPortParameters(
+    managers = p.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
         regionType         = s.regionType,
@@ -28,10 +28,10 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
         nodePath           = s.nodePath,
         supportsGet        = s.supportsRead,
         supportsPutFull    = s.supportsWrite,
-        supportsPutPartial = s.supportsWrite)
+        supportsPutPartial = s.supportsWrite)},
         // AXI4 is NEVER fifo in TL sense (R+W are independent)
-    }
-    Seq(TLManagerPortParameters(managers, beatBytes, 1, 0))
+      beatBytes = p.beatBytes,
+      minLatency = p.minLatency))
   },
   numPO = 1 to 1,
   numPI = 1 to 1)
