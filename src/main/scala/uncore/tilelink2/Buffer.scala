@@ -18,8 +18,8 @@ class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe:
   require (e >= 0)
 
   val node = TLAdapterNode(
-    clientFn  = { seq => seq(0).copy(minLatency = seq(0).minLatency + min(1,b) + min(1,c)) },
-    managerFn = { seq => seq(0).copy(minLatency = seq(0).minLatency + min(1,a) + min(1,d)) })
+    clientFn  = { case Seq(p) => p.copy(minLatency = p.minLatency + min(1,b) + min(1,c)) },
+    managerFn = { case Seq(p) => p.copy(minLatency = p.minLatency + min(1,a) + min(1,d)) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

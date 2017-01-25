@@ -19,8 +19,8 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
         aligned = true))
     Seq(AXI4MasterPortParameters(masters))
   },
-  uFn = { case (1, Seq(AXI4SlavePortParameters(slaves, beatBytes))) =>
-    val managers = slaves.map { case s =>
+  uFn = { case (1, Seq(p)) => Seq(TLManagerPortParameters(
+    managers = p.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
         regionType         = s.regionType,
@@ -28,10 +28,10 @@ case class TLToAXI4Node(idBits: Int) extends MixedNode(TLImp, AXI4Imp)(
         nodePath           = s.nodePath,
         supportsGet        = s.supportsRead,
         supportsPutFull    = s.supportsWrite,
-        supportsPutPartial = s.supportsWrite)
+        supportsPutPartial = s.supportsWrite)},
         // AXI4 is NEVER fifo in TL sense (R+W are independent)
-    }
-    Seq(TLManagerPortParameters(managers, beatBytes, 1, 0))
+      beatBytes = p.beatBytes,
+      minLatency = p.minLatency))
   },
   numPO = 1 to 1,
   numPI = 1 to 1)
@@ -127,7 +127,8 @@ class TLToAXI4(idBits: Int, combinational: Boolean = true)(implicit p: Parameter
         // We know there can only be as many outstanding requests as TL sources
         // However, AXI read and write queues are not mutually FIFO.
         // Therefore, we want to pop them individually, but share the storage.
-        PositionalMultiQueue(UInt(width=max(1,bankBits)), positions=bankEntries(i), ways=2, combinational=combinational)
+        val bypass = combinational && edgeOut.slave.minLatency == 0
+        PositionalMultiQueue(UInt(width=max(1,bankBits)), positions=bankEntries(i), ways=2, combinational=bypass)
       }
 
       val a_bankPosition = if (posBits == 0) UInt(0) else a_source(sourceBits-1, idBits)
