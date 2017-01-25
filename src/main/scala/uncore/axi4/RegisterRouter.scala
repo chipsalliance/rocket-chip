@@ -16,7 +16,8 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
       supportsWrite = TransferSizes(1, beatBytes),
       supportsRead  = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes,
+    minLatency = min(concurrency, 1))) // the Queue adds at most one cycle
 {
   require (address.contiguous)
 
