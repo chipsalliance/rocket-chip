@@ -22,6 +22,7 @@ FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Drive
 # Build firrtl.jar and put it where chisel3 can find it.
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
+	$(SBT) publish-local
 	touch $(FIRRTL_JAR)
 	mkdir -p $(base_dir)/chisel3/lib
 	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
