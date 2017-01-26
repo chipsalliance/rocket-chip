@@ -16,8 +16,8 @@ case class AXI4ToTLNode() extends MixedNode(AXI4Imp, TLImp)(
         nodePath = m.nodePath)
     }))
   },
-  uFn = { case (1, Seq(TLManagerPortParameters(managers, beatBytes, _, _))) =>
-    Seq(AXI4SlavePortParameters(beatBytes = beatBytes, slaves = managers.map { m =>
+  uFn = { case (1, Seq(mp)) => Seq(AXI4SlavePortParameters(
+    slaves = mp.managers.map { m =>
       AXI4SlaveParameters(
         address       = m.address,
         regionType    = m.regionType,
@@ -25,8 +25,9 @@ case class AXI4ToTLNode() extends MixedNode(AXI4Imp, TLImp)(
         nodePath      = m.nodePath,
         supportsWrite = m.supportsPutPartial,
         supportsRead  = m.supportsGet,
-        interleavedId = Some(0)) // TL2 never interleaves D beats
-    }))
+        interleavedId = Some(0))}, // TL2 never interleaves D beats
+    beatBytes = mp.beatBytes,
+    minLatency = mp.minLatency))
   },
   numPO = 1 to 1,
   numPI = 1 to 1)

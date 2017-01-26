@@ -169,14 +169,14 @@ case class TLAsyncIdentityNode() extends IdentityNode(TLAsyncImp)
 case class TLAsyncOutputNode() extends OutputNode(TLAsyncImp)
 case class TLAsyncInputNode() extends InputNode(TLAsyncImp)
 
-case class TLAsyncSourceNode() extends MixedNode(TLImp, TLAsyncImp)(
-  dFn = { case (1, s) => s.map(TLAsyncClientPortParameters(_)) },
-  uFn = { case (1, s) => s.map(_.base) },
+case class TLAsyncSourceNode(sync: Int) extends MixedNode(TLImp, TLAsyncImp)(
+  dFn = { case (1, Seq(p)) => Seq(TLAsyncClientPortParameters(p)) },
+  uFn = { case (1, Seq(p)) => Seq(p.base.copy(minLatency = sync+1)) }, // discard cycles in other clock domain
   numPO = 1 to 1,
   numPI = 1 to 1)
 
-case class TLAsyncSinkNode(depth: Int) extends MixedNode(TLAsyncImp, TLImp)(
-  dFn = { case (1, s) => s.map(_.base) },
-  uFn = { case (1, s) => s.map(TLAsyncManagerPortParameters(depth, _)) },
+case class TLAsyncSinkNode(depth: Int, sync: Int) extends MixedNode(TLAsyncImp, TLImp)(
+  dFn = { case (1, Seq(p)) => Seq(p.base.copy(minLatency = sync+1)) },
+  uFn = { case (1, Seq(p)) => Seq(TLAsyncManagerPortParameters(depth, p)) },
   numPO = 1 to 1,
   numPI = 1 to 1)

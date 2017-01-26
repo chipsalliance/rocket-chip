@@ -10,7 +10,7 @@ import util._
 
 class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAsyncSourceNode()
+  val node = TLAsyncSourceNode(sync)
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -44,7 +44,7 @@ class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyM
 
 class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAsyncSinkNode(depth)
+  val node = TLAsyncSinkNode(depth, sync)
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
