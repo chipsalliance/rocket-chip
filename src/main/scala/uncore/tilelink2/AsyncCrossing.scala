@@ -137,7 +137,7 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) ext
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMCrossing(implicit p: Parameters) extends LazyModule {
+class TLRAMAsyncCrossing(implicit p: Parameters) extends LazyModule {
   val model = LazyModule(new TLRAMModel)
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
   val fuzz = LazyModule(new TLFuzzer(5000))
@@ -168,6 +168,6 @@ class TLRAMCrossing(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMCrossingTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
-  io.finished := Module(LazyModule(new TLRAMCrossing).module).io.finished
+class TLRAMAsyncCrossingTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+  io.finished := Module(LazyModule(new TLRAMAsyncCrossing).module).io.finished
 }
