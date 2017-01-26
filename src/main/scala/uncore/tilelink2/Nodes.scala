@@ -180,3 +180,39 @@ case class TLAsyncSinkNode(depth: Int, sync: Int) extends MixedNode(TLAsyncImp, 
   uFn = { case (1, Seq(p)) => Seq(TLAsyncManagerPortParameters(depth, p)) },
   numPO = 1 to 1,
   numPI = 1 to 1)
+
+object TLRationalImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeParameters, TLEdgeParameters, TLRationalBundle]
+{
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeParameters = TLEdgeParameters(pd, pu)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeParameters = TLEdgeParameters(pd, pu)
+
+  def bundleO(eo: Seq[TLEdgeParameters]): Vec[TLRationalBundle] = Vec(eo.size, new TLRationalBundle(TLBundleParameters.union(eo.map(_.bundle))))
+  def bundleI(ei: Seq[TLEdgeParameters]): Vec[TLRationalBundle] = Vec(ei.size, new TLRationalBundle(TLBundleParameters.union(ei.map(_.bundle))))
+
+  def colour = "#00ff00" // green
+
+  def connect(bo: => TLRationalBundle, bi: => TLRationalBundle, ei: => TLEdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    (None, () => { bi <> bo })
+  }
+
+  override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLRationalBundle]): TLClientPortParameters  =
+   pd.copy(clients  = pd.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: TLManagerPortParameters, node: InwardNode[TLClientPortParameters, TLManagerPortParameters, TLRationalBundle]): TLManagerPortParameters =
+   pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
+}
+
+case class TLRationalIdentityNode() extends IdentityNode(TLRationalImp)
+case class TLRationalOutputNode() extends OutputNode(TLRationalImp)
+case class TLRationalInputNode() extends InputNode(TLRationalImp)
+
+case class TLRationalSourceNode() extends MixedNode(TLImp, TLRationalImp)(
+  dFn = { case (_, s) => s },
+  uFn = { case (_, s) => s.map(p => p.copy(minLatency = 1)) }, // discard cycles from other clock domain
+  numPO = 0 to 999,
+  numPI = 0 to 999)
+
+case class TLRationalSinkNode() extends MixedNode(TLRationalImp, TLImp)(
+  dFn = { case (_, s) => s.map(p => p.copy(minLatency = 1)) },
+  uFn = { case (_, s) => s },
+  numPO = 0 to 999,
+  numPI = 0 to 999)
