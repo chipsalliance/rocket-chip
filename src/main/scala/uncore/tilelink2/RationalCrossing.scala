@@ -1,5 +1,12 @@
 // See LICENSE.SiFive for license details.
 
+// If you know two clocks are related with a N:1 or 1:N relationship, you
+// can cross the clock domains with lower latency than an AsyncQueue.
+// This clock crossing behaves almost identically to a TLBuffer(2):
+//   - It adds one cycle latency to each clock domain.
+//   - All outputs of TLRational are registers (bits, valid, and ready).
+//   - It costs 3*bits registers as opposed to 2*bits in a TLBuffer(2)
+
 package uncore.tilelink2
 
 import Chisel._

@@ -1,5 +1,9 @@
 // See LICENSE.SiFive for license details.
 
+// If you know two clocks are related with a N:1 or 1:N relationship, you
+// can cross the clock domains with lower latency than an AsyncQueue. This
+// crossing adds 1 cycle in the target clock domain.
+
 package util
 import Chisel._
 
@@ -34,7 +38,7 @@ class RationalCrossingSource[T <: Data](gen: T) extends Module
 
   deq.valid  := enq.valid
   deq.source := count
-  deq.bits   := Mux(equal, enq.bits, RegEnable(enq.bits, equal && enq.valid))
+  deq.bits   := Mux(equal, enq.bits, RegEnable(enq.bits, equal))
   enq.ready  := Mux(equal, deq.ready, count(1) =/= deq.sink(0))
 
   when (enq.fire()) { count := Cat(count(0), !count(1)) }
