@@ -8,84 +8,85 @@ import diplomacy._
 import rocket._
 import uncore.tilelink2._
 
+sealed trait ClockCrossing
+case object Synchronous extends ClockCrossing
+case object Rational extends ClockCrossing
+case class Asynchronous(depth: Int, sync: Int = 2) extends ClockCrossing
+
 case object RocketConfigs extends Field[Seq[RocketConfig]]
+case object RocketCrossing extends Field[ClockCrossing]
 
-trait HasSynchronousRocketTiles extends CoreplexRISCVPlatform {
-  val module: HasSynchronousRocketTilesModule
+trait HasRocketTiles extends CoreplexRISCVPlatform {
+  val module: HasRocketTilesModule
 
-  val rocketTiles: Seq[RocketTile] = p(RocketConfigs).map { c =>
-    LazyModule(new RocketTile(c)(p.alterPartial {
-      case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
-      case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
-  }))}
-
-  rocketTiles.foreach { r =>
-    r.masterNodes.foreach { l1tol2.node := TLBuffer()(_) }
-    r.slaveNode.foreach { _ := cbus.node }
+  private val crossing = p(RocketCrossing)
+  private val configs = p(RocketConfigs)
+  private val pWithExtra = p.alterPartial {
+    case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
+    case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
   }
 
-  val rocketTileIntNodes = rocketTiles.map { _ => IntInternalOutputNode() }
+  private val rocketTileIntNodes = configs.map { _ => IntInternalOutputNode() }
   rocketTileIntNodes.foreach { _ := plic.intnode }
-}
 
-trait HasSynchronousRocketTilesBundle extends CoreplexRISCVPlatformBundle {
-  val outer: HasSynchronousRocketTiles
-}
+  private def wireInterrupts(x: TileInterrupts, i: Int) {
+    x := clint.module.io.tiles(i)
+    x.debug := debug.module.io.debugInterrupts(i)
+    x.meip := rocketTileIntNodes(i).bundleOut(0)(0)
+    x.seip.foreach { _ := rocketTileIntNodes(i).bundleOut(0)(1) }
+  }
 
-trait HasSynchronousRocketTilesModule extends CoreplexRISCVPlatformModule {
-  val outer: HasSynchronousRocketTiles
-  val io: HasSynchronousRocketTilesBundle
-
-  outer.rocketTiles.map(_.module).zipWithIndex.foreach { case (tile, i) =>
-    tile.io.hartid := UInt(i)
-    tile.io.resetVector := io.resetVector
-    tile.io.interrupts := outer.clint.module.io.tiles(i)
-    tile.io.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-    tile.io.interrupts.meip := outer.rocketTileIntNodes(i).bundleOut(0)(0)
-    tile.io.interrupts.seip.foreach(_ := outer.rocketTileIntNodes(i).bundleOut(0)(1))
+  val rocketWires: Seq[HasRocketTilesBundle => Unit] = configs.zipWithIndex.map { case (c, i) =>
+    crossing match {
+      case Synchronous => {
+        val tile = LazyModule(new RocketTile(c)(pWithExtra))
+        tile.masterNodes.foreach { l1tol2.node := TLBuffer()(_) }
+        tile.slaveNode.foreach { _ := cbus.node }
+        (io: HasRocketTilesBundle) => {
+          // leave clock as default (simpler for hierarchical PnR)
+          tile.module.io.hartid := UInt(i)
+          tile.module.io.resetVector := io.resetVector
+          wireInterrupts(tile.module.io.interrupts, i)
+        }
+      }
+      case Asynchronous(depth, sync) => {
+        val wrapper = LazyModule(new AsyncRocketTile(c)(pWithExtra))
+        wrapper.masterNodes.foreach { l1tol2.node := TLAsyncCrossingSink(depth, sync)(_) }
+        wrapper.slaveNode.foreach { _ := TLAsyncCrossingSource(sync)(cbus.node) }
+        (io: HasRocketTilesBundle) => {
+          wrapper.module.clock := io.tcrs(i).clock
+          wrapper.module.reset := io.tcrs(i).reset
+          wrapper.module.io.hartid := UInt(i)
+          wrapper.module.io.resetVector := io.resetVector
+          wireInterrupts(wrapper.module.io.interrupts, i)
+        }
+      }
+      case Rational => {
+        val wrapper = LazyModule(new RationalRocketTile(c)(pWithExtra))
+        wrapper.masterNodes.foreach { l1tol2.node := TLRationalCrossingSink()(_) }
+        wrapper.slaveNode.foreach { _ := TLRationalCrossingSource()(cbus.node) }
+        (io: HasRocketTilesBundle) => {
+          wrapper.module.clock := io.tcrs(i).clock
+          wrapper.module.reset := io.tcrs(i).reset
+          wrapper.module.io.hartid := UInt(i)
+          wrapper.module.io.resetVector := io.resetVector
+          wireInterrupts(wrapper.module.io.interrupts, i)
+        }
+      }
+    }
   }
 }
 
-trait HasAsynchronousRocketTiles extends CoreplexRISCVPlatform {
-  val module: HasAsynchronousRocketTilesModule
-
-  import rocket.AsyncRocketTile
-  val rocketTiles: Seq[AsyncRocketTile] = p(RocketConfigs).map { c =>
-    LazyModule(new AsyncRocketTile(c)(p.alterPartial {
-      case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
-      case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
-  }))}
-
-  rocketTiles.foreach { r =>
-    r.masterNodes.foreach { l1tol2.node := TLAsyncCrossingSink()(_) }
-    r.slaveNode.foreach { _ := TLAsyncCrossingSource()(cbus.node) }
-  }
-
-  val rocketTileIntNodes = rocketTiles.map { _ => IntInternalOutputNode() }
-  rocketTileIntNodes.foreach { _ := plic.intnode }
-}
-
-trait HasAsynchronousRocketTilesBundle extends CoreplexRISCVPlatformBundle {
-  val outer: HasAsynchronousRocketTiles
-
-  val tcrs = Vec(nTiles, new Bundle {
+trait HasRocketTilesBundle extends CoreplexRISCVPlatformBundle {
+  val outer: HasRocketTiles
+  val tcrs = Vec(p(RocketConfigs).size, new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
   })
 }
 
-trait HasAsynchronousRocketTilesModule extends CoreplexRISCVPlatformModule {
-  val outer: HasAsynchronousRocketTiles
-  val io: HasAsynchronousRocketTilesBundle
-
-  outer.rocketTiles.map(_.module).zipWithIndex.foreach { case (tile, i) =>
-    tile.clock := io.tcrs(i).clock
-    tile.reset := io.tcrs(i).reset
-    tile.io.hartid := UInt(i)
-    tile.io.resetVector := io.resetVector
-    tile.io.interrupts := outer.clint.module.io.tiles(i)
-    tile.io.interrupts.debug := outer.debug.module.io.debugInterrupts(i)
-    tile.io.interrupts.meip := outer.rocketTileIntNodes(i).bundleOut(0)(0)
-    tile.io.interrupts.seip.foreach(_ := outer.rocketTileIntNodes(i).bundleOut(0)(1))
-  }
+trait HasRocketTilesModule extends CoreplexRISCVPlatformModule {
+  val outer: HasRocketTiles
+  val io: HasRocketTilesBundle
+  outer.rocketWires.foreach { _(io) }
 }

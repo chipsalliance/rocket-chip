@@ -18,6 +18,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PAddrBits => 32
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case ASIdBits => 7
+  case RocketCrossing => Synchronous
   //Params used by all caches
   case CacheName("L1I") => CacheConfig(
     nSets         = 64,
@@ -214,4 +215,16 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMFile => bootROMFile
+})
+
+class WithSynchronousRocketTiles extends Config((site, here, up) => {
+  case RocketCrossing => Synchronous
+})
+
+class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
+  case RocketCrossing => Asynchronous(depth, sync)
+})
+
+class WithRationalRocketTiles extends Config((site, here, up) => {
+  case RocketCrossing => Rational
 })

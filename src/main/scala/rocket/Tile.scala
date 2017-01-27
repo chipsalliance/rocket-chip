@@ -73,3 +73,27 @@ class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModul
     rocket.module.io.resetVector := io.resetVector
   }
 }
+
+class RationalRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(c))
+
+  val masterNodes = rocket.masterNodes.map(_ => TLRationalOutputNode())
+  val slaveNode = rocket.slaveNode.map(_ => TLRationalInputNode())
+
+  (rocket.masterNodes zip masterNodes) foreach { case (r,n) => n := TLRationalCrossingSource()(r) }
+  (rocket.slaveNode zip slaveNode) foreach { case (r,n) => r := TLRationalCrossingSink()(n) }
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val master = masterNodes.head.bundleOut // TODO fix after Chisel #366
+      val slave = slaveNode.map(_.bundleIn)
+      val hartid = UInt(INPUT, p(XLen))
+      val interrupts = new TileInterrupts()(p).asInput
+      val resetVector = UInt(INPUT, p(XLen))
+    }
+    rocket.module.io.interrupts := ShiftRegister(io.interrupts, 1)
+    // signals that do not change:
+    rocket.module.io.hartid := io.hartid
+    rocket.module.io.resetVector := io.resetVector
+  }
+}
