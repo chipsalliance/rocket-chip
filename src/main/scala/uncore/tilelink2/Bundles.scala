@@ -251,3 +251,12 @@ class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(p
   val d = new AsyncBundle(params.depth, new TLBundleD(params.base)).flip
   val e = new AsyncBundle(params.depth, new TLBundleE(params.base))
 }
+
+class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val a = RationalIO(new TLBundleA(params))
+  val b = RationalIO(new TLBundleB(params)).flip
+  val c = RationalIO(new TLBundleC(params))
+  val d = RationalIO(new TLBundleD(params)).flip
+  val e = RationalIO(new TLBundleE(params))
+}
