@@ -6,6 +6,48 @@ import Chisel._
 
 import config._
 
+class SimpleRegIO(val w: Int) extends Bundle {
+  val d = UInt(INPUT, width = w)
+  val q = UInt(OUTPUT, width = w)
+  val en = Bool(INPUT)
+
+  override def cloneType = new SimpleRegIO(w).asInstanceOf[this.type]
+}
+
+class IndexedRegIO(val n: Int, val w: Int) extends Bundle {
+  val i = UInt(INPUT, width = log2Up(n))
+  val d = UInt(INPUT, width = w)
+  val q = UInt(OUTPUT, width = w)
+  val en = Bool(INPUT)
+  val clk = Clock(INPUT)
+
+  override def cloneType = new IndexedRegIO(n, w).asInstanceOf[this.type]
+}
+
+class BlackBoxedRegs(nRegs: Int, width: Int) extends BlackBox(Map(
+    "NREGS"    -> chisel3.core.IntParam(nRegs),
+    "WIDTH"    -> chisel3.core.IntParam(width),
+    "IDXWIDTH" -> chisel3.core.IntParam(log2Up(nRegs)))) {
+  val io = new IndexedRegIO(nRegs, width)
+}
+
+// Converts between RegField's desired SimpleRegIO format and
+// a parameterized, indexed blackbox IO
+class BlackBoxedRegsWrapper(nRegs: Int, width: Int) extends Module {
+  val io = new Bundle {
+    val v = Vec(nRegs, new SimpleRegIO(width))
+  }
+  val regs = Module(new BlackBoxedRegs(nRegs, width))
+  val idx = OHToUInt(io.v.map(_.en))
+  regs.io.clk := clock
+  regs.io.i := idx
+  regs.io.d := io.v(idx).d
+  regs.io.en := io.v(idx).en
+  io.v(idx).q := regs.io.q
+}
+
+////////
+
 /** This black-boxes an Async Reset
   *  (or Set)
   * Register.
@@ -41,12 +83,6 @@ class AsyncResetReg extends BlackBox {
     val clk = Clock(INPUT)
     val rst = Bool(INPUT)
   }
-}
-
-class SimpleRegIO(val w: Int) extends Bundle{
-  val d = UInt(INPUT, width = w)
-  val q = UInt(OUTPUT, width = w)
-  val en = Bool(INPUT)
 }
 
 class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
