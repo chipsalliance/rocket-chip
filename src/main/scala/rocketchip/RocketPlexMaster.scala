@@ -29,4 +29,11 @@ trait RocketPlexMasterBundle extends L2CrossbarBundle {
 trait RocketPlexMasterModule extends L2CrossbarModule {
   val outer: RocketPlexMaster
   val io: RocketPlexMasterBundle
+  val clock: Clock
+  val reset: Bool
+
+  outer.coreplex.module.io.tcrs.foreach { case tcr =>
+    tcr.clock := clock
+    tcr.reset := reset
+  }
 }
