@@ -98,7 +98,7 @@ object RegField
 
   // This RegField wraps an explicit register
   // (e.g. Black-Boxed Register) to create a R/W register.
-  def rwReg(n: Int, bb: SimpleRegIO) : RegField =
+  def rwReg(n: Int, bb: SimpleRegIO): RegField =
     RegField(n, bb.q, RegWriteFn((valid, data) => {
       bb.en := valid
       bb.d := data
