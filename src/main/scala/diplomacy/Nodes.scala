@@ -143,15 +143,18 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   val bundleOut: Vec[BO]
 }
 
-class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
-  private val dFn: (Int, Seq[DI]) => Seq[DO],
-  private val uFn: (Int, Seq[UO]) => Seq[UI],
   protected[diplomacy] val numPO: Range.Inclusive,
   protected[diplomacy] val numPI: Range.Inclusive)
   extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
+  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int
+  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
+
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
     val oStars = oBindings.filter { case (_,_,b) => b == BIND_STAR }.size
     val iStars = iBindings.filter { case (_,_,b) => b == BIND_STAR }.size
@@ -164,10 +167,8 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
-    val oStar = iKnown - oKnown
-    val iStar = -oStar
-    require (oStars == 0 || oStar >= 0, s"${name} has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${oStar} edges to resolve :=*${lazyModule.line}")
-    require (iStars == 0 || iStar >= 0, s"${name} has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${iStar} edges to resolve :*=${lazyModule.line}")
+    val oStar = if (oStars > 0) resolveStarO(iKnown, oKnown) else 0
+    val iStar = if (iStars > 0) resolveStarI(iKnown, oKnown) else 0
     val oSum = oBindings.map { case (_, n, b) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
@@ -192,15 +193,14 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     (start until end) map { j => (j, n) }
   }
 
-  private def reqE(o: Int, i: Int) = require(i == o, s"${name} has ${i} inputs and ${o} outputs; they must match${lazyModule.line}")
   protected[diplomacy] lazy val oParams: Seq[DO] = {
-    val o = dFn(oPorts.size, iPorts.map { case (i, n) => n.oParams(i) })
-    reqE(oPorts.size, o.size)
+    val o = mapParamsD(oPorts.size, iPorts.map { case (i, n) => n.oParams(i) })
+    require (o.size == oPorts.size, s"Bug in diplomacy; ${name} has ${o.size} != ${oPorts.size} down/up outer parameters${lazyModule.line}")
     o.map(outer.mixO(_, this))
   }
   protected[diplomacy] lazy val iParams: Seq[UI] = {
-    val i = uFn(iPorts.size, oPorts.map { case (o, n) => n.iParams(o) })
-    reqE(i.size, iPorts.size)
+    val i = mapParamsU(iPorts.size, oPorts.map { case (o, n) => n.iParams(o) })
+    require (i.size == iPorts.size, s"Bug in diplomacy; ${name} has ${i.size} != ${iPorts.size} up/down inner parameters${lazyModule.line}")
     i.map(inner.mixI(_, this))
   }
 
@@ -256,72 +256,139 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def inputs  = iPorts.map(_._2) zip edgesIn .map(e => inner.labelI(e))
 }
 
-class SimpleNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
-  oFn: (Int, Seq[D]) => Seq[D],
-  iFn: (Int, Seq[U]) => Seq[U],
-  numPO: Range.Inclusive,
-  numPI: Range.Inclusive)
-    extends MixedNode[D, U, EI, B, D, U, EO, B](imp, imp)(oFn, iFn, numPO, numPI)
+class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+  inner: InwardNodeImp [DI, UI, EI, BI],
+  outer: OutwardNodeImp[DO, UO, EO, BO])(
+  dFn: DI => DO,
+  uFn: UO => UI,
+  num: Range.Inclusive = 0 to 999)
+  extends MixedNode(inner, outer)(num, num)
+{
+  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
+    require (i >= o, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${i-o} edges to resolve :=*${lazyModule.line}")
+    i - o
+  }
+  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
+    require (o >= i, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${o-i} edges to resolve :*=${lazyModule.line}")
+    o - i
+  }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
+    require(n == p.size, s"${name} has ${p.size} inputs and ${n} outputs; they must match${lazyModule.line}")
+    p.map(dFn)
+  }
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = {
+    require(n == p.size, s"${name} has ${n} inputs and ${p.size} outputs; they must match${lazyModule.line}")
+    p.map(uFn)
+  }
+}
 
-class IdentityNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
-  extends SimpleNode(imp)({case (_, s) => s}, {case (_, s) => s}, 0 to 999, 0 to 999)
+class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+  inner: InwardNodeImp [DI, UI, EI, BI],
+  outer: OutwardNodeImp[DO, UO, EO, BO])(
+  dFn: Seq[DI] => DO,
+  uFn: Seq[UO] => UI,
+  numPO: Range.Inclusive = 1 to 999,
+  numPI: Range.Inclusive = 1 to 999)
+  extends MixedNode(inner, outer)(numPO, numPI)
+{
+  require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
+  require (numPI.end >= 1, s"${name} does not accept inputs${lazyModule.line}")
+  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
+    require (false, "${name} cannot resolve :=*${lazyModule.line}")
+    0
+  }
+  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
+    require (false, s"${name} cannot resolve :*=${lazyModule.line}")
+    0
+  }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = Seq.fill(n) { dFn(p) }
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = Seq.fill(n) { uFn(p) }
+}
 
-class OutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
+class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  dFn: D => D,
+  uFn: U => U,
+  num: Range.Inclusive = 0 to 999)
+    extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, num)
+
+class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  dFn: Seq[D] => D,
+  uFn: Seq[U] => U,
+  numPO: Range.Inclusive = 1 to 999,
+  numPI: Range.Inclusive = 1 to 999)
+    extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
+
+class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])
+  extends AdapterNode(imp)({s => s}, {s => s})
+
+class OutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends IdentityNode(imp)
 {
   override lazy val bundleIn = bundleOut
 }
 
-class InputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B]) extends IdentityNode(imp)
+class InputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends IdentityNode(imp)
 {
   override lazy val bundleOut = bundleIn
 }
 
-class SourceNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: PO, num: Range.Inclusive = 1 to 1)
-  extends SimpleNode(imp)({case (n, Seq()) => Seq.fill(n)(po)}, {case (0, _) => Seq()}, num, 0 to 0)
+class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
+  extends MixedNode(imp, imp)(po.size to po.size, 0 to 0)
 {
-  require (num.end >= 1, s"${name} is a source which does not accept outputs${lazyModule.line}")
+  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
+    require (po.size >= o, s"${name} has ${o} outputs out of ${po.size}; cannot assign ${po.size - o} edges to resolve :=*${lazyModule.line}")
+    po.size - o
+  }
+  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
+    require (false, s"${name} cannot resolve :*=${lazyModule.line}")
+    0
+  }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
+
   override lazy val bundleIn = { require(false, s"${name} has no bundleIn; try bundleOut?"); bundleOut }
 }
 
-class SinkNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: PI, num: Range.Inclusive = 1 to 1)
-  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (n, Seq()) => Seq.fill(n)(pi)}, 0 to 0, num)
+class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
+  extends MixedNode(imp, imp)(0 to 0, pi.size to pi.size)
 {
-  require (num.end >= 1, s"${name} is a sink which does not accept inputs${lazyModule.line}")
+  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
+    require (false, s"${name} cannot resolve :=*${lazyModule.line}")
+    0
+  }
+  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
+    require (pi.size >= i, s"${name} has ${i} inputs out of ${pi.size}; cannot assign ${pi.size - i} edges to resolve :*=${lazyModule.line}")
+    pi.size - i
+  }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
+
   override lazy val bundleOut = { require(false, s"${name} has no bundleOut; try bundleIn?"); bundleIn }
 }
 
-class BlindOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: Seq[PI])
-  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (_, Seq()) => pi}, 0 to 0, pi.size to pi.size)
+class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
+  extends SinkNode(imp)(pi)
 {
   override val flip = true
   override lazy val bundleOut = bundleIn
 }
 
-class BlindInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: Seq[PO])
-  extends SimpleNode(imp)({case (_, Seq()) => po}, {case (0, _) => Seq()}, po.size to po.size, 0 to 0)
+class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
+  extends SourceNode(imp)(po)
 {
   override val flip = true
   override lazy val bundleIn = bundleOut
 }
 
-class InternalOutputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(pi: Seq[PI])
-  extends SimpleNode(imp)({case (0, _) => Seq()}, {case (_, Seq()) => pi}, 0 to 0, pi.size to pi.size)
+class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
+  extends SinkNode(imp)(pi)
 {
   override val wire = true
   override lazy val bundleOut = bundleIn
 }
 
-class InternalInputNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])(po: Seq[PO])
-  extends SimpleNode(imp)({case (_, Seq()) => po}, {case (0, _) => Seq()}, po.size to po.size, 0 to 0)
+class InternalInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
+  extends SourceNode(imp)(po)
 {
   override val wire = true
   override lazy val bundleIn = bundleOut
-}
-
-class InteriorNode[PO, PI, EO, EI, B <: Data](imp: NodeImp[PO, PI, EO, EI, B])
-  (oFn: Seq[PO] => PO, iFn: Seq[PI] => PI, numPO: Range.Inclusive, numPI: Range.Inclusive)
-  extends SimpleNode(imp)({case (n,s) => Seq.fill(n)(oFn(s))}, {case (n,s) => Seq.fill(n)(iFn(s))}, numPO, numPI)
-{
-  require (numPO.end >= 1, s"${name} is an adapter which does not accept outputs${lazyModule.line}")
-  require (numPI.end >= 1, s"${name} is an adapter which does not accept inputs${lazyModule.line}")
 }
