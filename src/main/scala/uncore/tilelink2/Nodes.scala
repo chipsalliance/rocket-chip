@@ -86,29 +86,33 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 
 // Nodes implemented inside modules
 case class TLIdentityNode() extends IdentityNode(TLImp)
-case class TLClientNode(portParams: TLClientPortParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SourceNode(TLImp)(portParams, numPorts)
-case class TLManagerNode(portParams: TLManagerPortParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SinkNode(TLImp)(portParams, numPorts)
+case class TLClientNode(portParams: Seq[TLClientPortParameters]) extends SourceNode(TLImp)(portParams)
+case class TLManagerNode(portParams: Seq[TLManagerPortParameters]) extends SinkNode(TLImp)(portParams)
 
 object TLClientNode
 {
   def apply(params: TLClientParameters) =
-    new TLClientNode(TLClientPortParameters(Seq(params)), 1 to 1)
+    new TLClientNode(Seq(TLClientPortParameters(Seq(params))))
 }
 
 object TLManagerNode
 {
   def apply(beatBytes: Int, params: TLManagerParameters) =
-    new TLManagerNode(TLManagerPortParameters(Seq(params), beatBytes, minLatency = 0), 1 to 1)
+    new TLManagerNode(Seq(TLManagerPortParameters(Seq(params), beatBytes, minLatency = 0)))
 }
 
 case class TLAdapterNode(
+  clientFn:  TLClientPortParameters  => TLClientPortParameters,
+  managerFn: TLManagerPortParameters => TLManagerPortParameters,
+  num:       Range.Inclusive = 0 to 999)
+  extends AdapterNode(TLImp)(clientFn, managerFn, num)
+
+case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
   managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
-  numClientPorts:  Range.Inclusive = 1 to 1,
-  numManagerPorts: Range.Inclusive = 1 to 1)
-  extends InteriorNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
+  numClientPorts:  Range.Inclusive = 1 to 999,
+  numManagerPorts: Range.Inclusive = 1 to 999)
+  extends NexusNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
 // Nodes passed from an inner module
 case class TLOutputNode() extends OutputNode(TLImp)
@@ -169,17 +173,15 @@ case class TLAsyncIdentityNode() extends IdentityNode(TLAsyncImp)
 case class TLAsyncOutputNode() extends OutputNode(TLAsyncImp)
 case class TLAsyncInputNode() extends InputNode(TLAsyncImp)
 
-case class TLAsyncSourceNode(sync: Int) extends MixedNode(TLImp, TLAsyncImp)(
-  dFn = { case (1, Seq(p)) => Seq(TLAsyncClientPortParameters(p)) },
-  uFn = { case (1, Seq(p)) => Seq(p.base.copy(minLatency = sync+1)) }, // discard cycles in other clock domain
-  numPO = 1 to 1,
-  numPI = 1 to 1)
+case class TLAsyncSourceNode(sync: Int)
+  extends MixedAdapterNode(TLImp, TLAsyncImp)(
+    dFn = { p => TLAsyncClientPortParameters(p) },
+    uFn = { p => p.base.copy(minLatency = sync+1) }) // discard cycles in other clock domain
 
-case class TLAsyncSinkNode(depth: Int, sync: Int) extends MixedNode(TLAsyncImp, TLImp)(
-  dFn = { case (1, Seq(p)) => Seq(p.base.copy(minLatency = sync+1)) },
-  uFn = { case (1, Seq(p)) => Seq(TLAsyncManagerPortParameters(depth, p)) },
-  numPO = 1 to 1,
-  numPI = 1 to 1)
+case class TLAsyncSinkNode(depth: Int, sync: Int)
+  extends MixedAdapterNode(TLAsyncImp, TLImp)(
+    dFn = { p => p.base.copy(minLatency = sync+1) },
+    uFn = { p => TLAsyncManagerPortParameters(depth, p) })
 
 object TLRationalImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeParameters, TLEdgeParameters, TLRationalBundle]
 {
@@ -205,14 +207,12 @@ case class TLRationalIdentityNode() extends IdentityNode(TLRationalImp)
 case class TLRationalOutputNode() extends OutputNode(TLRationalImp)
 case class TLRationalInputNode() extends InputNode(TLRationalImp)
 
-case class TLRationalSourceNode() extends MixedNode(TLImp, TLRationalImp)(
-  dFn = { case (_, s) => s },
-  uFn = { case (_, s) => s.map(p => p.copy(minLatency = 1)) }, // discard cycles from other clock domain
-  numPO = 0 to 999,
-  numPI = 0 to 999)
+case class TLRationalSourceNode()
+  extends MixedAdapterNode(TLImp, TLRationalImp)(
+    dFn = { p => p },
+    uFn = { p => p.copy(minLatency = 1) }) // discard cycles from other clock domain
 
-case class TLRationalSinkNode() extends MixedNode(TLRationalImp, TLImp)(
-  dFn = { case (_, s) => s.map(p => p.copy(minLatency = 1)) },
-  uFn = { case (_, s) => s },
-  numPO = 0 to 999,
-  numPI = 0 to 999)
+case class TLRationalSinkNode()
+  extends MixedAdapterNode(TLRationalImp, TLImp)(
+    dFn = { p => p.copy(minLatency = 1) },
+    uFn = { p => p })

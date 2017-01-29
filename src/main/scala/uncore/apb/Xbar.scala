@@ -9,7 +9,7 @@ import regmapper._
 import scala.math.{min,max}
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {
-  val node = APBAdapterNode(
+  val node = APBNexusNode(
     numSlavePorts  = 1 to 1,
     numMasterPorts = 1 to 32,
     masterFn = { case Seq(m) => m },

@@ -31,16 +31,13 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
 
 // Nodes implemented inside modules
 case class AXI4IdentityNode() extends IdentityNode(AXI4Imp)
-case class AXI4MasterNode(portParams: AXI4MasterPortParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SourceNode(AXI4Imp)(portParams, numPorts)
-case class AXI4SlaveNode(portParams: AXI4SlavePortParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SinkNode(AXI4Imp)(portParams, numPorts)
+case class AXI4MasterNode(portParams: Seq[AXI4MasterPortParameters]) extends SourceNode(AXI4Imp)(portParams)
+case class AXI4SlaveNode(portParams: Seq[AXI4SlavePortParameters]) extends SinkNode(AXI4Imp)(portParams)
 case class AXI4AdapterNode(
-  masterFn:       Seq[AXI4MasterPortParameters]  => AXI4MasterPortParameters,
-  slaveFn:        Seq[AXI4SlavePortParameters] => AXI4SlavePortParameters,
-  numMasterPorts: Range.Inclusive = 1 to 1,
-  numSlavePorts:  Range.Inclusive = 1 to 1)
-  extends InteriorNode(AXI4Imp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
+  masterFn:  AXI4MasterPortParameters => AXI4MasterPortParameters,
+  slaveFn:   AXI4SlavePortParameters  => AXI4SlavePortParameters,
+  numPorts:  Range.Inclusive = 0 to 999)
+  extends AdapterNode(AXI4Imp)(masterFn, slaveFn, numPorts)
 
 // Nodes passed from an inner module
 case class AXI4OutputNode() extends OutputNode(AXI4Imp)

@@ -12,8 +12,8 @@ import diplomacy._
 class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => if (!supportClients)  c else c.copy(minLatency = min(1, c.minLatency), clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
-    managerFn = { case Seq(m) => if (!supportManagers) m else m.copy(minLatency = min(1, m.minLatency), managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
+    clientFn  = { c => if (!supportClients)  c else c.copy(minLatency = min(1, c.minLatency), clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
+    managerFn = { m => if (!supportManagers) m else m.copy(minLatency = min(1, m.minLatency), managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -21,79 +21,76 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
       val out = node.bundleOut
     }
 
-    val in  = io.in(0)
-    val out = io.out(0)
-    val edgeIn  = node.edgesIn(0)
-    val edgeOut = node.edgesOut(0)
+    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+      // Don't add support for clients if there is no BCE channel
+      val bce = edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
+      require (!supportClients || bce)
 
-    // Don't add support for clients if there is no BCE channel
-    val bce = edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
-    require (!supportClients || bce)
+      // Does it even make sense to add the HintHandler?
+      val smartClients = edgeIn.client.clients.map(_.supportsHint.max == edgeIn.client.maxTransfer).reduce(_&&_)
+      val smartManagers = edgeOut.manager.managers.map(_.supportsHint.max == edgeOut.manager.maxTransfer).reduce(_&&_)
 
-    // Does it even make sense to add the HintHandler?
-    val smartClients = edgeIn.client.clients.map(_.supportsHint.max == edgeIn.client.maxTransfer).reduce(_&&_)
-    val smartManagers = edgeOut.manager.managers.map(_.supportsHint.max == edgeOut.manager.maxTransfer).reduce(_&&_)
+      if (supportManagers && !(passthrough && smartManagers)) {
+        val address = edgeIn.address(in.a.bits)
+        val handleA = if (passthrough) !edgeOut.manager.supportsHintFast(address, edgeIn.size(in.a.bits)) else Bool(true)
+        val hintBitsAtA = handleA && in.a.bits.opcode === TLMessages.Hint
+        val hint = Wire(out.d)
 
-    if (supportManagers && !(passthrough && smartManagers)) {
-      val address = edgeIn.address(in.a.bits)
-      val handleA = if (passthrough) !edgeOut.manager.supportsHintFast(address, edgeIn.size(in.a.bits)) else Bool(true)
-      val hintBitsAtA = handleA && in.a.bits.opcode === TLMessages.Hint
-      val hint = Wire(out.d)
+        hint.valid  := in.a.valid &&  hintBitsAtA
+        out.a.valid := in.a.valid && !hintBitsAtA
+        in.a.ready := Mux(hintBitsAtA, hint.ready, out.a.ready)
 
-      hint.valid  := in.a.valid &&  hintBitsAtA
-      out.a.valid := in.a.valid && !hintBitsAtA
-      in.a.ready := Mux(hintBitsAtA, hint.ready, out.a.ready)
+        hint.bits := edgeIn.HintAck(in.a.bits, UInt(0))
+        out.a.bits := in.a.bits
 
-      hint.bits := edgeIn.HintAck(in.a.bits, UInt(0))
-      out.a.bits := in.a.bits
+        TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), Queue(hint, 1)))
+      } else {
+        out.a.valid := in.a.valid
+        in.a.ready := out.a.ready
+        out.a.bits := in.a.bits
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), Queue(hint, 1)))
-    } else {
-      out.a.valid := in.a.valid
-      in.a.ready := out.a.ready
-      out.a.bits := in.a.bits
+        in.d.valid := out.d.valid
+        out.d.ready := in.d.ready
+        in.d.bits := out.d.bits
+      }
 
-      in.d.valid := out.d.valid
-      out.d.ready := in.d.ready
-      in.d.bits := out.d.bits
-    }
+      if (supportClients && !(passthrough && smartClients)) {
+        val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
+        val hintBitsAtB = handleB && out.b.bits.opcode === TLMessages.Hint
+        val hint = Wire(in.c)
 
-    if (supportClients && !(passthrough && smartClients)) {
-      val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
-      val hintBitsAtB = handleB && out.b.bits.opcode === TLMessages.Hint
-      val hint = Wire(in.c)
+        hint.valid := out.b.valid &&  hintBitsAtB
+        in.b.valid := out.b.valid && !hintBitsAtB
+        out.b.ready := Mux(hintBitsAtB, hint.ready, in.b.ready)
 
-      hint.valid := out.b.valid &&  hintBitsAtB
-      in.b.valid := out.b.valid && !hintBitsAtB
-      out.b.ready := Mux(hintBitsAtB, hint.ready, in.b.ready)
+        hint.bits := edgeOut.HintAck(out.b.bits)
+        in.b.bits := out.b.bits
 
-      hint.bits := edgeOut.HintAck(out.b.bits)
-      in.b.bits := out.b.bits
+        TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats1(in.c.bits), in.c), (UInt(0), Queue(hint, 1)))
+      } else if (bce) {
+        in.b.valid := out.b.valid
+        out.b.ready := in.b.ready
+        in.b.bits := out.b.bits
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats1(in.c.bits), in.c), (UInt(0), Queue(hint, 1)))
-    } else if (bce) {
-      in.b.valid := out.b.valid
-      out.b.ready := in.b.ready
-      in.b.bits := out.b.bits
+        out.c.valid := in.c.valid
+        in.c.ready := out.c.ready
+        out.c.bits := in.c.bits
+      } else {
+        in.b.valid := Bool(false)
+        in.c.ready := Bool(true)
+        out.b.ready := Bool(true)
+        out.c.valid := Bool(false)
+      }
 
-      out.c.valid := in.c.valid
-      in.c.ready := out.c.ready
-      out.c.bits := in.c.bits
-    } else {
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-    }
-
-    if (bce) {
-      // Pass E through unchanged
-      out.e.valid := in.e.valid
-      in.e.ready := out.e.ready
-      out.e.bits := in.e.bits
-    } else {
-      in.e.ready := Bool(true)
-      out.e.valid := Bool(false)
+      if (bce) {
+        // Pass E through unchanged
+        out.e.valid := in.e.valid
+        in.e.ready := out.e.ready
+        out.e.bits := in.e.bits
+      } else {
+        in.e.ready := Bool(true)
+        out.e.valid := Bool(false)
+      }
     }
   }
 }

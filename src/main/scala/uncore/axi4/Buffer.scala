@@ -18,8 +18,8 @@ class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, p
   require (r  >= 0)
 
   val node = AXI4AdapterNode(
-    masterFn = { case Seq(p) => p },
-    slaveFn  = { case Seq(p) => p.copy(minLatency = p.minLatency + min(1,min(aw,ar)) + min(1,min(r,b))) })
+    masterFn = { p => p },
+    slaveFn  = { p => p.copy(minLatency = p.minLatency + min(1,min(aw,ar)) + min(1,min(r,b))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

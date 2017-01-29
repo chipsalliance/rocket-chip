@@ -34,7 +34,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     }
   }
 
-  val node = TLAdapterNode(
+  val node = TLNexusNode(
     numClientPorts  = 1 to 32,
     numManagerPorts = 1 to 32,
     clientFn  = { seq =>

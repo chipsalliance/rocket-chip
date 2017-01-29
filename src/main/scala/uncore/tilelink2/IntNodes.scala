@@ -81,16 +81,16 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
 
 case class IntIdentityNode() extends IdentityNode(IntImp)
 case class IntSourceNode(num: Int) extends SourceNode(IntImp)(
-  IntSourcePortParameters(Seq(IntSourceParameters(num))), (if (num == 0) 0 else 1) to 1)
+  if (num == 0) Seq() else Seq(IntSourcePortParameters(Seq(IntSourceParameters(num)))))
 case class IntSinkNode() extends SinkNode(IntImp)(
-  IntSinkPortParameters(Seq(IntSinkParameters())))
+  Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
 
-case class IntAdapterNode(
+case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
   sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
-  numSourcePorts: Range.Inclusive = 1 to 1,
-  numSinkPorts:   Range.Inclusive = 1 to 1)
-  extends InteriorNode(IntImp)(sourceFn, sinkFn, numSourcePorts, numSinkPorts)
+  numSourcePorts: Range.Inclusive = 0 to 128,
+  numSinkPorts:   Range.Inclusive = 0 to 128)
+  extends NexusNode(IntImp)(sourceFn, sinkFn, numSourcePorts, numSinkPorts)
 
 case class IntOutputNode() extends OutputNode(IntImp)
 case class IntInputNode() extends InputNode(IntImp)
@@ -103,9 +103,7 @@ case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(Seq(
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {
-  val intnode = IntAdapterNode(
-    numSourcePorts = 0 to 128,
-    numSinkPorts   = 0 to 128,
+  val intnode = IntNexusNode(
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     sourceFn       = { seq =>
       IntSourcePortParameters((seq zip seq.map(_.num).scanLeft(0)(_+_).init).map {

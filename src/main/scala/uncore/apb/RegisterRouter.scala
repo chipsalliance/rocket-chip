@@ -9,13 +9,13 @@ import regmapper._
 import scala.math.{min,max}
 
 class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends APBSlaveNode(APBSlavePortParameters(
+  extends APBSlaveNode(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
       supportsWrite = true,
       supportsRead  = true)),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes)))
 {
   require (address.contiguous)
 

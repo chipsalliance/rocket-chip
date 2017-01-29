@@ -8,7 +8,7 @@ import diplomacy._
 
 class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLManagerNode(TLManagerPortParameters(
+  val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
       regionType         = RegionType.UNCACHED,
@@ -18,7 +18,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = 1)) // no bypass needed for this device
+    minLatency = 1))) // no bypass needed for this device
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
