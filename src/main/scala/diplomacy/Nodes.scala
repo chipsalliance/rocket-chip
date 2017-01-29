@@ -71,7 +71,16 @@ trait InwardNodeHandle[DI, UI, BI <: Data]
   val inward: InwardNode[DI, UI, BI]
   def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
     inward.:=(h)(p, sourceInfo)
+  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+    inward.:*=(h)(p, sourceInfo)
+  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+    inward.:=*(h)(p, sourceInfo)
 }
+
+sealed trait NodeBinding
+case object BIND_ONCE  extends NodeBinding
+case object BIND_QUERY extends NodeBinding
+case object BIND_STAR  extends NodeBinding
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, UI, BI]
 {
@@ -81,21 +90,22 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
   require (numPI.start >= 0, s"${name} accepts a negative number of inputs${lazyModule.line}")
 
-  private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI])]()
+  private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding)]()
   private var iRealized = false
 
   protected[diplomacy] def iPushed = accPI.size
-  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI])(implicit sourceInfo: SourceInfo) {
+  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
     val noIs = numPI.size == 1 && numPI.contains(0)
     require (!noIs, s"${name}${lazyModule.line} was incorrectly connected as a sink" + info)
     require (!iRealized, s"${name}${lazyModule.line} was incorrectly connected as a sink after it's .module was used" + info)
-    accPI += ((index, node))
+    accPI += ((index, node, binding))
   }
 
-  private def reqI() = require(numPI.contains(accPI.size), s"${name} has ${accPI.size} inputs, expected ${numPI}${lazyModule.line}")
-  protected[diplomacy] lazy val iPorts = { iRealized = true; reqI(); accPI.result() }
+  protected[diplomacy] lazy val iBindings = { iRealized = true; accPI.result() }
 
+  protected[diplomacy] val iStar: Int
+  protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val iParams: Seq[UI]
   val bundleIn: Vec[BI]
 }
@@ -113,21 +123,22 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
   require (numPO.start >= 0, s"${name} accepts a negative number of outputs${lazyModule.line}")
 
-  private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO])]()
+  private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding)]()
   private var oRealized = false
 
   protected[diplomacy] def oPushed = accPO.size
-  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO])(implicit sourceInfo: SourceInfo) {
+  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
     val noOs = numPO.size == 1 && numPO.contains(0)
     require (!noOs, s"${name}${lazyModule.line} was incorrectly connected as a source" + info)
     require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after it's .module was used" + info)
-    accPO += ((index, node))
+    accPO += ((index, node, binding))
   }
 
-  private def reqO() = require(numPO.contains(accPO.size), s"${name} has ${accPO.size} outputs, expected ${numPO}${lazyModule.line}")
-  protected[diplomacy] lazy val oPorts = { oRealized = true; reqO(); accPO.result() }
+  protected[diplomacy] lazy val oBindings = { oRealized = true; accPO.result() }
 
+  protected[diplomacy] val oStar: Int
+  protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val oParams: Seq[DO]
   val bundleOut: Vec[BO]
 }
@@ -141,10 +152,45 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] val numPI: Range.Inclusive)
   extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
-  // meta-data for printing the node graph
-  protected[diplomacy] def colour  = inner.colour
-  protected[diplomacy] def outputs = oPorts.map(_._2) zip edgesOut.map(e => outer.labelO(e))
-  protected[diplomacy] def inputs  = iPorts.map(_._2) zip edgesIn .map(e => inner.labelI(e))
+  protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
+    val oStars = oBindings.filter { case (_,_,b) => b == BIND_STAR }.size
+    val iStars = iBindings.filter { case (_,_,b) => b == BIND_STAR }.size
+    require (oStars + iStars <= 1, s"${name} appears beside a :*= ${iStars} times and a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
+    val oKnown = oBindings.map { case (_, n, b) => b match {
+      case BIND_ONCE  => 1
+      case BIND_QUERY => n.iStar
+      case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
+    val iKnown = iBindings.map { case (_, n, b) => b match {
+      case BIND_ONCE  => 1
+      case BIND_QUERY => n.oStar
+      case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
+    val oStar = iKnown - oKnown
+    val iStar = -oStar
+    require (oStars == 0 || oStar >= 0, s"${name} has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${oStar} edges to resolve :=*${lazyModule.line}")
+    require (iStars == 0 || iStar >= 0, s"${name} has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${iStar} edges to resolve :*=${lazyModule.line}")
+    val oSum = oBindings.map { case (_, n, b) => b match {
+      case BIND_ONCE  => 1
+      case BIND_QUERY => n.iStar
+      case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
+    val iSum = iBindings.map { case (_, n, b) => b match {
+      case BIND_ONCE  => 1
+      case BIND_QUERY => n.oStar
+      case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
+    val oTotal = oSum.lastOption.getOrElse(0)
+    val iTotal = iSum.lastOption.getOrElse(0)
+    require(numPO.contains(oTotal), s"${name} has ${oTotal} outputs, expected ${numPO}${lazyModule.line}")
+    require(numPI.contains(iTotal), s"${name} has ${iTotal} inputs, expected ${numPI}${lazyModule.line}")
+    (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
+  }
+
+  lazy val oPorts = oBindings.flatMap { case (i, n, _) =>
+    val (start, end) = n.iPortMapping(i)
+    (start until end) map { j => (j, n) }
+  }
+  lazy val iPorts = iBindings.flatMap { case (i, n, _) =>
+    val (start, end) = n.oPortMapping(i)
+    (start until end) map { j => (j, n) }
+  }
 
   private def reqE(o: Int, i: Int) = require(i == o, s"${name} has ${i} inputs and ${o} outputs; they must match${lazyModule.line}")
   protected[diplomacy] lazy val oParams: Seq[DO] = {
@@ -175,19 +221,39 @@ class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val bundleIn  = wireI(flipI(inner.bundleI(edgesIn)))
 
   // connects the outward part of a node with the inward part of this node
-  override def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = {
+  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = {
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
     require (!LazyModule.stack.isEmpty, s"${y.name} cannot be connected to ${x.name} outside of LazyModule scope" + info)
     val i = x.iPushed
     val o = y.oPushed
-    y.oPush(i, x)
-    x.iPush(o, y)
-    val (out, binding) = inner.connect(y.bundleOut(o), x.bundleIn(i), x.edgesIn(i))
-    LazyModule.stack.head.bindings = binding :: LazyModule.stack.head.bindings
-    out
+    y.oPush(i, x, binding match {
+      case BIND_ONCE  => BIND_ONCE
+      case BIND_STAR  => BIND_QUERY
+      case BIND_QUERY => BIND_STAR })
+    x.iPush(o, y, binding)
+    def connect() {
+      val (iStart, iEnd) = x.iPortMapping(i)
+      val (oStart, oEnd) = y.oPortMapping(o)
+      require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
+      for (i <- 0 until (iEnd - iStart)) {
+        x.bundleIn(iStart+i) <> y.bundleOut(oStart+i)
+      }
+    }
+// !!! val (out, binding) = inner.connect(y.bundleOut(o), x.bundleIn(i), x.edgesIn(i))
+    LazyModule.stack.head.bindings = connect _ :: LazyModule.stack.head.bindings
+    None
   }
+
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_ONCE)
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_STAR)
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_QUERY)
+
+  // meta-data for printing the node graph
+  protected[diplomacy] def colour  = inner.colour
+  protected[diplomacy] def outputs = oPorts.map(_._2) zip edgesOut.map(e => outer.labelO(e))
+  protected[diplomacy] def inputs  = iPorts.map(_._2) zip edgesIn .map(e => inner.labelI(e))
 }
 
 class SimpleNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
