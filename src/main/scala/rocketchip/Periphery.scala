@@ -165,7 +165,7 @@ trait PeripheryMasterAXI4MMIOModule {
 /////
 
 // PeripherySlaveAXI4 is an example, make your own cake pattern like this one.
-trait PeripherySlaveAXI4 extends L2Crossbar {
+trait PeripherySlaveAXI4 extends TopNetwork {
   private val config = p(ExtIn)
   val l2_axi4 = AXI4BlindInputNode(Seq(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
@@ -179,12 +179,12 @@ trait PeripherySlaveAXI4 extends L2Crossbar {
     l2_axi4))))
 }
 
-trait PeripherySlaveAXI4Bundle extends L2CrossbarBundle {
+trait PeripherySlaveAXI4Bundle extends TopNetworkBundle {
   val outer: PeripherySlaveAXI4
   val l2_axi4 = outer.l2_axi4.bundleIn
 }
 
-trait PeripherySlaveAXI4Module extends L2CrossbarModule {
+trait PeripherySlaveAXI4Module extends TopNetworkModule {
   val outer: PeripherySlaveAXI4
   val io: PeripherySlaveAXI4Bundle
   // nothing to do
@@ -231,7 +231,7 @@ trait PeripheryMasterTLMMIOModule {
 /////
 
 // NOTE: this port is NOT allowed to issue Acquires
-trait PeripherySlaveTL extends L2Crossbar {
+trait PeripherySlaveTL extends TopNetwork {
   private val config = p(ExtIn)
   val l2_tl = TLBlindInputNode(Seq(TLClientPortParameters(
     clients = Seq(TLClientParameters(
@@ -243,12 +243,12 @@ trait PeripherySlaveTL extends L2Crossbar {
     l2_tl))
 }
 
-trait PeripherySlaveTLBundle extends L2CrossbarBundle {
+trait PeripherySlaveTLBundle extends TopNetworkBundle {
   val outer: PeripherySlaveTL
   val l2_tl = outer.l2_tl.bundleIn
 }
 
-trait PeripherySlaveTLModule extends L2CrossbarModule {
+trait PeripherySlaveTLModule extends TopNetworkModule {
   val outer: PeripherySlaveTL
   val io: PeripherySlaveTLBundle
   // nothing to do
