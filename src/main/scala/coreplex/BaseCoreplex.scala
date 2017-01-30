@@ -22,15 +22,16 @@ case class BroadcastConfig(
 case object BroadcastConfig extends Field[BroadcastConfig]
 
 /** L2 memory subsystem configuration */
-case class BankedL2Geometry(bank: Int, banks: Int, channel: Int, channels: Int)
 case class BankedL2Config(
   nMemoryChannels:  Int = 1,
   nBanksPerChannel: Int = 1,
-  coherenceManager: (Parameters, CoreplexNetwork, BankedL2Geometry) => (TLInwardNode, TLOutwardNode) = { case (q, _, _) =>
+  coherenceManager: (Parameters, CoreplexNetwork) => (TLInwardNode, TLOutwardNode) = { case (q, _) =>
     implicit val p = q
     val BroadcastConfig(nTrackers, bufferless) = p(BroadcastConfig)
     val bh = LazyModule(new TLBroadcast(p(CacheBlockBytes), nTrackers, bufferless))
-    (bh.node, TLWidthWidget(p(L1toL2Config).beatBytes)(bh.node))
+    val ww = LazyModule(new TLWidthWidget(p(L1toL2Config).beatBytes))
+    ww.node :*= bh.node
+    (bh.node, ww.node)
   }) {
   val nBanks = nMemoryChannels*nBanksPerChannel
 }

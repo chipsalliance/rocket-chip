@@ -27,10 +27,15 @@ abstract class LazyModule()(implicit val p: Parameters)
       m.getName != "children"
     }.flatMap { m =>
       if (classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
-        Seq((m.getName, m.invoke(this)))
+        val obj = m.invoke(this)
+        if (obj eq null) Seq() else Seq((m.getName, obj))
       } else if (classOf[Seq[LazyModule]].isAssignableFrom(m.getReturnType)) {
-        m.invoke(this).asInstanceOf[Seq[Object]].zipWithIndex.map { case (l, i) =>
-          (m.getName + "_"  + i, l)
+        val obj = m.invoke(this)
+        if (obj eq null) Seq() else {
+          val seq = try { obj.asInstanceOf[Seq[Object]] } catch { case _ => null }
+          if (seq eq null) Seq() else {
+            seq.zipWithIndex.map { case (l, i) => (m.getName + "_"  + i, l) }
+          }
         }
       } else Seq()
     }
