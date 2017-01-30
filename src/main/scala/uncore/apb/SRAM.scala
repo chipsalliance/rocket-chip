@@ -8,14 +8,14 @@ import diplomacy._
 
 class APBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
-  val node = APBSlaveNode(APBSlavePortParameters(
+  val node = APBSlaveNode(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(
       address       = List(address),
       regionType    = RegionType.UNCACHED,
       executable    = executable,
       supportsRead  = true,
       supportsWrite = true)),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes)))
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)

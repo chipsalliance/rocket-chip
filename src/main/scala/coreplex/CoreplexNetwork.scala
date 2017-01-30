@@ -24,8 +24,12 @@ trait CoreplexNetwork extends HasCoreplexParameters {
 
   val mmio = TLOutputNode()
   val mmioInt = IntInputNode()
+  val l2in = TLInputNode()
 
   intBar.intnode := mmioInt
+
+  // Allows a variable number of inputs from outside to the Xbar
+  l1tol2.node :=* l2in
 
   cbus.node :=
     TLBuffer()(
@@ -43,6 +47,7 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
 
   val mmio = outer.mmio.bundleOut
   val interrupts = outer.mmioInt.bundleIn
+  val l2in = outer.l2in.bundleIn
 }
 
 trait CoreplexNetworkModule extends HasCoreplexParameters {
@@ -92,22 +97,4 @@ trait BankedL2CoherenceManagersBundle extends CoreplexNetworkBundle {
 trait BankedL2CoherenceManagersModule extends CoreplexNetworkModule {
   val outer: BankedL2CoherenceManagers
   val io: BankedL2CoherenceManagersBundle
-}
-
-/////
-
-trait HasL2MasterPort extends CoreplexNetwork {
-  val module: HasL2MasterPortModule
-  val l2in = TLInputNode()
-  l1tol2.node := TLBuffer()(l2in)
-}
-
-trait HasL2MasterPortBundle extends CoreplexNetworkBundle {
-  val outer: HasL2MasterPort
-  val l2in = outer.l2in.bundleIn
-}
-
-trait HasL2MasterPortModule extends CoreplexNetworkModule {
-  val outer: HasL2MasterPort
-  val io: HasL2MasterPortBundle
 }

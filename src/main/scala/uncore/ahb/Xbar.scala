@@ -9,7 +9,7 @@ import regmapper._
 import scala.math.{min,max}
 
 class AHBFanout()(implicit p: Parameters) extends LazyModule {
-  val node = AHBAdapterNode(
+  val node = AHBNexusNode(
     numSlavePorts  = 1 to 1,
     numMasterPorts = 1 to 32,
     masterFn = { case Seq(m) => m },

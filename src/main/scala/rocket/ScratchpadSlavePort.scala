@@ -13,7 +13,7 @@ import uncore.util._
 
 class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
   val coreDataBytes = p(XLen)/8
-  val node = TLManagerNode(TLManagerPortParameters(
+  val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(AddressSet(0x80000000L, BigInt(p(DataScratchpadSize)-1))),
       regionType         = RegionType.UNCACHED,
@@ -25,7 +25,7 @@ class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
       supportsGet        = TransferSizes(1, coreDataBytes),
       fifoId             = Some(0))), // requests handled in FIFO order
     beatBytes = coreDataBytes,
-    minLatency = 1))
+    minLatency = 1)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

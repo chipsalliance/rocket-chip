@@ -9,13 +9,13 @@ import regmapper._
 import scala.math.{min,max}
 
 class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends AHBSlaveNode(AHBSlavePortParameters(
+  extends AHBSlaveNode(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
       supportsWrite = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)),
       supportsRead  = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)))),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes)))
 {
   require (address.contiguous)
 

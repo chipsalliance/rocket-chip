@@ -19,10 +19,6 @@ object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, A
   override def labelI(ei: AHBEdgeParameters) = (ei.slave.beatBytes * 8).toString
   override def labelO(eo: AHBEdgeParameters) = (eo.slave.beatBytes * 8).toString
 
-  def connect(bo: => AHBBundle, bi: => AHBBundle, ei: => AHBEdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => { bi <> bo })
-  }
-
   override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBBundle]): AHBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
   override def mixI(pu: AHBSlavePortParameters, node: InwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBBundle]): AHBSlavePortParameters =
@@ -31,16 +27,14 @@ object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, A
 
 // Nodes implemented inside modules
 case class AHBIdentityNode() extends IdentityNode(AHBImp)
-case class AHBMasterNode(portParams: AHBMasterPortParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SourceNode(AHBImp)(portParams, numPorts)
-case class AHBSlaveNode(portParams: AHBSlavePortParameters, numPorts: Range.Inclusive = 1 to 1)
-  extends SinkNode(AHBImp)(portParams, numPorts)
-case class AHBAdapterNode(
-  masterFn:       Seq[AHBMasterPortParameters]  => AHBMasterPortParameters,
-  slaveFn:        Seq[AHBSlavePortParameters] => AHBSlavePortParameters,
-  numMasterPorts: Range.Inclusive = 1 to 1,
-  numSlavePorts:  Range.Inclusive = 1 to 1)
-  extends InteriorNode(AHBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
+case class AHBMasterNode(portParams: Seq[AHBMasterPortParameters]) extends SourceNode(AHBImp)(portParams)
+case class AHBSlaveNode(portParams: Seq[AHBSlavePortParameters]) extends SinkNode(AHBImp)(portParams)
+case class AHBNexusNode(
+  masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
+  slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters,
+  numMasterPorts: Range.Inclusive = 1 to 999,
+  numSlavePorts:  Range.Inclusive = 1 to 999)
+  extends NexusNode(AHBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
 
 // Nodes passed from an inner module
 case class AHBOutputNode() extends OutputNode(AHBImp)

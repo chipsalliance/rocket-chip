@@ -8,14 +8,14 @@ import diplomacy._
 
 class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
-  val node = AHBSlaveNode(AHBSlavePortParameters(
+  val node = AHBSlaveNode(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = List(address),
       regionType    = RegionType.UNCACHED,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes)))
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
