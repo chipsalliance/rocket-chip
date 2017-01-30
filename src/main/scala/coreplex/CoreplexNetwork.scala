@@ -77,13 +77,13 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
   val mem = TLOutputNode()
   for (channel <- 0 until l2Config.nMemoryChannels) {
     val bankBar = LazyModule(new TLXbar)
+    val (in, out) = l2Config.coherenceManager(p, this)
 
+    in :*= l1tol2.node
     mem := bankBar.node
+
     val mask = ~BigInt((l2Config.nBanksPerChannel-1) * l1tol2_lineBytes)
     for (bank <- 0 until l2Config.nBanksPerChannel) {
-      val geometry = BankedL2Geometry(bank, l2Config.nBanksPerChannel, channel, l2Config.nMemoryChannels)
-      val (in, out) = l2Config.coherenceManager(p, this, geometry)
-      in := l1tol2.node
       bankBar.node := TLFilter(AddressSet(bank * l1tol2_lineBytes, mask))(out)
     }
   }
