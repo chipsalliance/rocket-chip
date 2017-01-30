@@ -19,10 +19,6 @@ object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, A
   override def labelI(ei: APBEdgeParameters) = (ei.slave.beatBytes * 8).toString
   override def labelO(eo: APBEdgeParameters) = (eo.slave.beatBytes * 8).toString
 
-  def connect(bo: => APBBundle, bi: => APBBundle, ei: => APBEdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => { bi <> bo })
-  }
-
   override def mixO(pd: APBMasterPortParameters, node: OutwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
   override def mixI(pu: APBSlavePortParameters, node: InwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBSlavePortParameters =

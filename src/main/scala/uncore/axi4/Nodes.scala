@@ -19,10 +19,6 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
   override def labelI(ei: AXI4EdgeParameters) = (ei.slave.beatBytes * 8).toString
   override def labelO(eo: AXI4EdgeParameters) = (eo.slave.beatBytes * 8).toString
 
-  def connect(bo: => AXI4Bundle, bi: => AXI4Bundle, ei: => AXI4EdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => { bi <> bo })
-  }
-
   override def mixO(pd: AXI4MasterPortParameters, node: OutwardNode[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]): AXI4MasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
   override def mixI(pu: AXI4SlavePortParameters, node: InwardNode[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]): AXI4SlavePortParameters =

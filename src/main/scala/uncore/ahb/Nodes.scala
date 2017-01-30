@@ -19,10 +19,6 @@ object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, A
   override def labelI(ei: AHBEdgeParameters) = (ei.slave.beatBytes * 8).toString
   override def labelO(eo: AHBEdgeParameters) = (eo.slave.beatBytes * 8).toString
 
-  def connect(bo: => AHBBundle, bi: => AHBBundle, ei: => AHBEdgeParameters)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => { bi <> bo })
-  }
-
   override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBBundle]): AHBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
   override def mixI(pu: AHBSlavePortParameters, node: InwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBBundle]): AHBSlavePortParameters =

@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import config._
 import diplomacy._
 
-case class TLMonitorArgs(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo, p: Parameters)
+case class TLMonitorArgs(edge: () => Seq[TLEdge], sourceInfo: SourceInfo, p: Parameters)
 
 abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
 {
@@ -16,11 +16,12 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
   def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
 
   lazy val module = new LazyModuleImp(this) {
+    val edges = args.edge()
     val io = new Bundle {
-      val in = args.gen().asInput
+      val in = Vec(edges.size, new TLBundleSnoop(TLBundleParameters.union(edges.map(_.bundle)))).flip
     }
 
-    legalize(io.in, args.edge(), reset)
+    (edges zip io.in).foreach { case (e, in) => legalize(in, e, reset) }
   }
 }
 

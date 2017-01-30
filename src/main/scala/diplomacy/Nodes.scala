@@ -16,7 +16,9 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def edgeI(pd: DI, pu: UI): EI
   def bundleI(ei: Seq[EI]): Vec[BI]
   def colour: String
-  def connect(bo: => BI, bi: => BI, e: => EI)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit)
+  def connect(bindings: () => Seq[(EI, BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    (None, () => bindings().foreach { case (_, i, o) => i <> o })
+  }
 
   // optional methods to track node graph
   def mixI(pu: UI, node: InwardNode[DI, UI, BI]): UI = pu // insert node into parameters
@@ -233,17 +235,17 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_STAR  => BIND_QUERY
       case BIND_QUERY => BIND_STAR })
     x.iPush(o, y, binding)
-    def connect() {
+    def bindings() = {
       val (iStart, iEnd) = x.iPortMapping(i)
       val (oStart, oEnd) = y.oPortMapping(o)
       require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
-      for (i <- 0 until (iEnd - iStart)) {
-        x.bundleIn(iStart+i) <> y.bundleOut(oStart+i)
+      Seq.tabulate(iEnd - iStart) { j =>
+        (x.edgesIn(iStart+j), x.bundleIn(iStart+j), y.bundleOut(oStart+j))
       }
     }
-// !!! val (out, binding) = inner.connect(y.bundleOut(o), x.bundleIn(i), x.edgesIn(i))
-    LazyModule.stack.head.bindings = connect _ :: LazyModule.stack.head.bindings
-    None
+    val (out, newbinding) = inner.connect(bindings _)
+    LazyModule.stack.head.bindings = newbinding :: LazyModule.stack.head.bindings
+    out
   }
 
   override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_ONCE)
