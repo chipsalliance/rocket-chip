@@ -12,8 +12,8 @@ import scala.math.{min,max}
 class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => c },
-    managerFn = { case Seq(m) => m.copy(beatBytes = innerBeatBytes) })
+    clientFn  = { case c => c },
+    managerFn = { case m => m.copy(beatBytes = innerBeatBytes) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -139,27 +139,24 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       }
     }
 
-    val edgeOut = node.edgesOut(0)
-    val edgeIn = node.edgesIn(0)
-    val in = io.in(0)
-    val out = io.out(0)
+    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+      splice(edgeIn,  in.a,  edgeOut, out.a)
+      splice(edgeOut, out.d, edgeIn,  in.d)
 
-    splice(edgeIn,  in.a,  edgeOut, out.a)
-    splice(edgeOut, out.d, edgeIn,  in.d)
-
-    if (edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe) {
-      splice(edgeOut, out.b, edgeIn,  in.b)
-      splice(edgeIn,  in.c,  edgeOut, out.c)
-      in.e.ready := out.e.ready
-      out.e.valid := in.e.valid
-      out.e.bits := in.e.bits
-    } else {
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
+      if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
+        splice(edgeOut, out.b, edgeIn,  in.b)
+        splice(edgeIn,  in.c,  edgeOut, out.c)
+        in.e.ready := out.e.ready
+        out.e.valid := in.e.valid
+        out.e.bits := in.e.bits
+      } else {
+        in.b.valid := Bool(false)
+        in.c.ready := Bool(true)
+        in.e.ready := Bool(true)
+        out.b.ready := Bool(true)
+        out.c.valid := Bool(false)
+        out.e.valid := Bool(false)
+      }
     }
   }
 }

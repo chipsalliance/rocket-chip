@@ -9,7 +9,7 @@ import regmapper._
 import scala.math.{min,max}
 
 class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends TLManagerNode(TLManagerPortParameters(
+  extends TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = Seq(address),
       executable         = executable,
@@ -18,7 +18,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int =
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1))) // the Queue adds at least one cycle
+    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
 {
   require (address.contiguous)
 

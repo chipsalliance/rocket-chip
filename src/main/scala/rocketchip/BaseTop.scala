@@ -34,6 +34,7 @@ trait TopNetwork extends HasPeripheryParameters {
   val socBus = LazyModule(new TLXbar)
   val peripheryBus = LazyModule(new TLXbar)
   val intBus = LazyModule(new IntXbar)
+  val l2 = LazyModule(new TLBuffer)
 
   peripheryBus.node :=
     TLBuffer()(
@@ -62,13 +63,3 @@ class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
 
 class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
     with TopNetworkModule
-
-trait L2Crossbar extends TopNetwork {
-  val l2 = LazyModule(new TLXbar)
-}
-
-trait L2CrossbarBundle extends TopNetworkBundle {
-}
-
-trait L2CrossbarModule extends TopNetworkModule {
-}

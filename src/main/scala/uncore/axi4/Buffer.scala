@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import config._
 import diplomacy._
-import scala.math.max
+import scala.math.{min,max}
 
 // pipe is only used if a queue has depth = 1
 class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, pipe: Boolean = true)(implicit p: Parameters) extends LazyModule
@@ -17,7 +17,9 @@ class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, p
   require (ar >= 0)
   require (r  >= 0)
 
-  val node = AXI4IdentityNode()
+  val node = AXI4AdapterNode(
+    masterFn = { p => p },
+    slaveFn  = { p => p.copy(minLatency = p.minLatency + min(1,min(aw,ar)) + min(1,min(r,b))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

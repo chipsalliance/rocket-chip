@@ -18,8 +18,8 @@ class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe:
   require (e >= 0)
 
   val node = TLAdapterNode(
-    clientFn  = { seq => seq(0).copy(minLatency = seq(0).minLatency + min(1,b) + min(1,c)) },
-    managerFn = { seq => seq(0).copy(minLatency = seq(0).minLatency + min(1,a) + min(1,d)) })
+    clientFn  = { p => p.copy(minLatency = p.minLatency + min(1,b) + min(1,c)) },
+    managerFn = { p => p.copy(minLatency = p.minLatency + min(1,a) + min(1,d)) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -31,7 +31,7 @@ class TLBuffer(a: Int = 2, b: Int = 2, c: Int = 2, d: Int = 2, e: Int = 2, pipe:
       if (a>0) { out.a <> Queue(in .a, a, pipe && a<2) } else { out.a <> in.a }
       if (d>0) { in .d <> Queue(out.d, d, pipe && d<2) } else { in.d <> out.d }
 
-      if (edgeOut.manager.anySupportAcquire && edgeOut.client.anySupportProbe) {
+      if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {
         if (b>0) { in .b <> Queue(out.b, b, pipe && b<2) } else { in.b <> out.b }
         if (c>0) { out.c <> Queue(in .c, c, pipe && c<2) } else { out.c <> in.c }
         if (e>0) { out.e <> Queue(in .e, e, pipe && e<2) } else { out.e <> in.e }

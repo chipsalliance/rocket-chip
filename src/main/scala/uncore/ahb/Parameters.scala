@@ -85,6 +85,9 @@ case class AHBBundleParameters(
 
 object AHBBundleParameters
 {
+  val emptyBundleParams = AHBBundleParameters(addrBits = 1, dataBits = 8)
+  def union(x: Seq[AHBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(master: AHBMasterPortParameters, slave: AHBSlavePortParameters) =
     new AHBBundleParameters(
       addrBits = log2Up(slave.maxAddress+1),

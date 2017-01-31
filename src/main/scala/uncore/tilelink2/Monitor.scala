@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import config._
 import diplomacy._
 
-case class TLMonitorArgs(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo, p: Parameters)
+case class TLMonitorArgs(edge: () => Seq[TLEdge], sourceInfo: SourceInfo, p: Parameters)
 
 abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
 {
@@ -16,11 +16,12 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
   def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
 
   lazy val module = new LazyModuleImp(this) {
+    val edges = args.edge()
     val io = new Bundle {
-      val in = args.gen().asInput
+      val in = Vec(edges.size, new TLBundleSnoop(TLBundleParameters.union(edges.map(_.bundle)))).flip
     }
 
-    legalize(io.in, args.edge(), reset)
+    (edges zip io.in).foreach { case (e, in) => legalize(in, e, reset) }
   }
 }
 
@@ -42,7 +43,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Acquire) {
-      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Acquire carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat" + extra)
       assert (is_aligned, "'A' channel Acquire address not aligned to size" + extra)
@@ -189,7 +190,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
       assert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel Release smaller than a beat" + extra)
       assert (is_aligned, "'C' channel Release address not aligned to size" + extra)
@@ -198,7 +199,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
       assert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ReleaseData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
@@ -409,7 +410,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val d_last = edge.last(bundle.d.bits, bundle.d.fire())
 
     if (edge.manager.minLatency > 0) {
-      assert(bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assert(bundle.d.bits.opcode === TLMessages.ReleaseAck || bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))

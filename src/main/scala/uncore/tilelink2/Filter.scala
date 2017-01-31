@@ -11,8 +11,8 @@ import scala.math.{min,max}
 class TLFilter(select: AddressSet)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { case Seq(cp) => cp },
-    managerFn = { case Seq(mp) =>
+    clientFn  = { cp => cp },
+    managerFn = { mp =>
       mp.copy(managers = mp.managers.map { m =>
         val filtered = m.address.map(_.intersect(select)).flatten
         val alignment = select.alignment /* alignment 0 means 'select' selected everything */
@@ -22,7 +22,8 @@ class TLFilter(select: AddressSet)(implicit p: Parameters) extends LazyModule
         if (filtered.isEmpty) { None } else {
           Some(m.copy(
             address            = filtered,
-            supportsAcquire    = m.supportsAcquire   .intersect(cap),
+            supportsAcquireT   = m.supportsAcquireT  .intersect(cap),
+            supportsAcquireB   = m.supportsAcquireB  .intersect(cap),
             supportsArithmetic = m.supportsArithmetic.intersect(cap),
             supportsLogical    = m.supportsLogical   .intersect(cap),
             supportsGet        = m.supportsGet       .intersect(cap),

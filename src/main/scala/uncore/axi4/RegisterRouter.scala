@@ -9,14 +9,15 @@ import regmapper._
 import scala.math.{min,max}
 
 class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends AXI4SlaveNode(AXI4SlavePortParameters(
+  extends AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address       = Seq(address),
       executable    = executable,
       supportsWrite = TransferSizes(1, beatBytes),
       supportsRead  = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes,
+    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
 {
   require (address.contiguous)
 

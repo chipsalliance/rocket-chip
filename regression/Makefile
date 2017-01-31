@@ -58,7 +58,8 @@ endif
 
 ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig
+# FancyMemtestConfig takes too long to compile
 endif
 
 ifeq ($(SUITE),GroundtestSuiteB)
@@ -218,9 +219,10 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 
 # Targets for JTAG DTM full-chain simulation
 
-OPENOCD_HEAD ?= riscv
+#OPENOCD_HEAD ?= riscv
 OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
-OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+#OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+OPENOCD_VERSION = 193f63094891cd3fe6a5032fef2c71d09f063ff4
 OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
 
 $(OPENOCD_DIR)/bin/openocd:
@@ -237,7 +239,7 @@ install_openocd: $(OPENOCD_DIR)/bin/openocd
 
 # If this is defined empty, then all tests would run.
 # Running a list of tests is not supported.
-JTAG_DTM_TEST ?= SimpleRegisterTest.test_s0
+JTAG_DTM_TEST ?= SimpleS0Test
 
 stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
 	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \

@@ -17,7 +17,7 @@ class GroundTestTop(implicit p: Parameters) extends BaseTop
 
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
-  (mem zip coreplex.mem) foreach { case (m, c) => m := c }
+  mem.foreach { _ := coreplex.mem }
 }
 
 class GroundTestTopBundle[+L <: GroundTestTop](_outer: L) extends BaseTopBundle(_outer)

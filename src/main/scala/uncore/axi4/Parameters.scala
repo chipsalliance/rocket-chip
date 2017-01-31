@@ -29,8 +29,9 @@ case class AXI4SlaveParameters(
 }
 
 case class AXI4SlavePortParameters(
-  slaves:    Seq[AXI4SlaveParameters],
-  beatBytes: Int)
+  slaves:     Seq[AXI4SlaveParameters],
+  beatBytes:  Int,
+  minLatency: Int = 1)
 {
   require (!slaves.isEmpty)
   require (isPow2(beatBytes))
@@ -101,6 +102,9 @@ case class AXI4BundleParameters(
 
 object AXI4BundleParameters
 {
+  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1)
+  def union(x: Seq[AXI4BundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
     new AXI4BundleParameters(
       addrBits = log2Up(slave.maxAddress+1),

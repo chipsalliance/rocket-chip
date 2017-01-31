@@ -72,6 +72,9 @@ case class APBBundleParameters(
 
 object APBBundleParameters
 {
+  val emptyBundleParams = APBBundleParameters(addrBits = 1, dataBits = 8)
+  def union(x: Seq[APBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(master: APBMasterPortParameters, slave: APBSlavePortParameters) =
     new APBBundleParameters(
       addrBits = log2Up(slave.maxAddress+1),

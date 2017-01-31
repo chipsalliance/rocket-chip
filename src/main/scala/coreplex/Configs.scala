@@ -24,6 +24,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case UseDebug => true
   case XLen => 64
   case BuildCore => (p: Parameters) => new Rocket()(p)
+  case RocketCrossing => Synchronous
   case RocketTilesParameters => List(
     RocketTileConfig(
       dcache = DCacheConfig(rowBits = site(L1toL2Config).beatBytes*8, nMSHRs  = 2),
@@ -121,12 +122,13 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  * DO NOT use this configuration.
  */
 class WithStatelessBridge extends Config((site, here, up) => {
-/* !!! FIXME
-    case BankedL2Config => up(BankedL2Config, site).copy(coherenceManager = { case (_, _) =>
-      val pass = LazyModule(new TLBuffer(0)(site))
-      (pass.node, pass.node)
-    })
-*/
+  case BankedL2Config => up(BankedL2Config, site).copy(coherenceManager = { case (q, _) =>
+    implicit val p = q
+    val cork = LazyModule(new TLCacheCork(unsafe = true))
+    val ww = LazyModule(new TLWidthWidget(p(L1toL2Config).beatBytes))
+    ww.node :*= cork.node
+    (cork.node, ww.node)
+  })
   case RocketTilesParameters => up(RocketTilesParameters, site) map { r => r.copy(dcache = r.dcache.copy(nMSHRs = 0)) }
 })
 
@@ -185,4 +187,16 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMFile => bootROMFile
+})
+
+class WithSynchronousRocketTiles extends Config((site, here, up) => {
+  case RocketCrossing => Synchronous
+})
+
+class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
+  case RocketCrossing => Asynchronous(depth, sync)
+})
+
+class WithRationalRocketTiles extends Config((site, here, up) => {
+  case RocketCrossing => Rational
 })

@@ -62,7 +62,7 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
     beatBytes = p(rocket.XLen)/8,
     undefZero = false)
 
-  val intnode = IntAdapterNode(
+  val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
     numSinkPorts   = 0 to 1024,
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart))) },

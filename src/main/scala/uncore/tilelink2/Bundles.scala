@@ -210,11 +210,11 @@ final class DecoupledSnoop[+T <: Data](gen: T) extends Bundle
 
 object DecoupledSnoop
 {
-  def apply[T <: Data](i: DecoupledIO[T]) = {
-    val out = Wire(new DecoupledSnoop(i.bits))
-    out.ready := i.ready
-    out.valid := i.valid
-    out.bits  := i.bits
+  def apply[T <: Data](source: DecoupledIO[T], sink: DecoupledIO[T]) = {
+    val out = Wire(new DecoupledSnoop(sink.bits))
+    out.ready := sink.ready
+    out.valid := source.valid
+    out.bits  := source.bits
     out
   }
 }
@@ -230,13 +230,13 @@ class TLBundleSnoop(params: TLBundleParameters) extends TLBundleBase(params)
 
 object TLBundleSnoop
 {
-  def apply(x: TLBundle) = {
-    val out = Wire(new TLBundleSnoop(x.params))
-    out.a <> DecoupledSnoop(x.a)
-    out.b <> DecoupledSnoop(x.b)
-    out.c <> DecoupledSnoop(x.c)
-    out.d <> DecoupledSnoop(x.d)
-    out.e <> DecoupledSnoop(x.e)
+  def apply(source: TLBundle, sink: TLBundle) = {
+    val out = Wire(new TLBundleSnoop(sink.params))
+    out.a := DecoupledSnoop(source.a, sink.a)
+    out.b := DecoupledSnoop(sink.b, source.b)
+    out.c := DecoupledSnoop(source.c, sink.c)
+    out.d := DecoupledSnoop(sink.d, source.d)
+    out.e := DecoupledSnoop(source.e, sink.e)
     out
   }
 }
@@ -250,4 +250,13 @@ class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(p
   val c = new AsyncBundle(params.depth, new TLBundleC(params.base))
   val d = new AsyncBundle(params.depth, new TLBundleD(params.base)).flip
   val e = new AsyncBundle(params.depth, new TLBundleE(params.base))
+}
+
+class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val a = RationalIO(new TLBundleA(params))
+  val b = RationalIO(new TLBundleB(params)).flip
+  val c = RationalIO(new TLBundleC(params))
+  val d = RationalIO(new TLBundleD(params)).flip
+  val e = RationalIO(new TLBundleE(params))
 }

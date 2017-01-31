@@ -40,7 +40,7 @@ class MemtestStatelessConfig extends Config(
 // Test ALL the things
 class FancyMemtestConfig extends Config(
   new WithNGenerators(1, 2) ++ new WithNCores(2) ++ new WithMemtest ++
-  new WithNMemoryChannels(1) ++ new WithNBanksPerMemChannel(4) ++ // !!! waiting on Chisel3 support for 2 channels
+  new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(4) ++
   new WithL2Cache ++ new GroundTestConfig)
 
 class CacheFillTestConfig extends Config(
@@ -149,7 +149,7 @@ class WithCacheRegressionTest extends Config((site, here, up) => {
 
 class WithTraceGen extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(uncached = 1, cached = 1)
+    GroundTestTileSettings(uncached = 0, cached = 1)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new GroundTestTraceGenerator()(p))

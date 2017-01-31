@@ -326,7 +326,7 @@ class MSHRFile(implicit edge: TLEdgeOut, cfg: DCacheConfig, p: Parameters) exten
   }
 
   // determine if the request is cacheable or not
-  val cacheable = edge.manager.supportsAcquireFast(io.req.bits.addr, lgCacheBlockBytes)
+  val cacheable = edge.manager.supportsAcquireBFast(io.req.bits.addr, lgCacheBlockBytes)
 
   val sdq_val = Reg(init=Bits(0, cfg.nSDQ))
   val sdq_alloc_id = PriorityEncoder(~sdq_val(cfg.nSDQ-1,0))

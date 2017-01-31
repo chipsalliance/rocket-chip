@@ -8,7 +8,7 @@ import diplomacy._
 
 class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
-  val node = AXI4SlaveNode(AXI4SlavePortParameters(
+  val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address       = List(address),
       regionType    = RegionType.UNCACHED,
@@ -16,7 +16,8 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
       supportsRead  = TransferSizes(1, beatBytes),
       supportsWrite = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
-    beatBytes  = beatBytes))
+    beatBytes  = beatBytes,
+    minLatency = 0))) // B responds on same cycle
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)

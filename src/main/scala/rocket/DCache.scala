@@ -253,7 +253,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val access_address = s2_req.addr
   val a_size = s2_req.typ(MT_SZ-2, 0)
   val a_data = Fill(beatWords, pstore1_storegen.data)
-  val acquire = if (edge.manager.anySupportAcquire) {
+  val acquire = if (edge.manager.anySupportAcquireB) {
     edge.Acquire(a_source, acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
@@ -373,7 +373,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
                                   b = probe_bits,
                                   reportPermissions = TLPermissions.NtoN)
 
-  val voluntaryReleaseMessage = if (edge.manager.anySupportAcquire) {
+  val voluntaryReleaseMessage = if (edge.manager.anySupportAcquireB) {
                                 edge.Release(
                                   fromSource = UInt(maxUncachedInFlight - 1),
                                   toAddress = probe_bits.address,
