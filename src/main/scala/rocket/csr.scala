@@ -112,8 +112,8 @@ object CSR
   def R = UInt(5,SZ)
 
   val ADDRSZ = 12
-  val debugIntCause = new MIP().getWidth
-  val debugTriggerCause = {
+  def debugIntCause = new MIP().getWidth
+  def debugTriggerCause = {
     require(debugIntCause >= Causes.all.max)
     debugIntCause
   }
