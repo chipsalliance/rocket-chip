@@ -11,10 +11,10 @@ import uncore.constants.MemoryOpConstants
 object ClientStates {
   val width = 2
 
-  val Nothing = UInt(0, width)
-  val Branch  = UInt(1, width)
-  val Trunk   = UInt(2, width)
-  val Dirty   = UInt(3, width)
+  def Nothing = UInt(0, width)
+  def Branch  = UInt(1, width)
+  def Trunk   = UInt(2, width)
+  def Dirty   = UInt(3, width)
 
   def hasReadPermission(state: UInt): Bool = state > Nothing
   def hasWritePermission(state: UInt): Bool = state > Branch

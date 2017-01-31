@@ -103,13 +103,13 @@ object CSR
 {
   // commands
   val SZ = 3
-  val X = BitPat.dontCare(SZ)
-  val N = UInt(0,SZ)
-  val W = UInt(1,SZ)
-  val S = UInt(2,SZ)
-  val C = UInt(3,SZ)
-  val I = UInt(4,SZ)
-  val R = UInt(5,SZ)
+  def X = BitPat.dontCare(SZ)
+  def N = UInt(0,SZ)
+  def W = UInt(1,SZ)
+  def S = UInt(2,SZ)
+  def C = UInt(3,SZ)
+  def I = UInt(4,SZ)
+  def R = UInt(5,SZ)
 
   val ADDRSZ = 12
   val debugIntCause = new MIP().getWidth
