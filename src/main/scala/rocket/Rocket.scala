@@ -5,46 +5,50 @@ package rocket
 
 import Chisel._
 import config._
+import tile._
 import uncore.constants._
 import util._
 import Chisel.ImplicitConversions._
 
-case class RocketCoreParameters(
-  useAtomics: Bool = true,
-  useCompressed: Bool = true,
+case class RocketCoreParams(
+  useVM: Boolean = true,
+  useUser: Boolean = false,
+  useDebug: Boolean = true,
+  useAtomics: Boolean = true,
+  useCompressed: Boolean = true,
   nBreakpoints: Int = 1,
   nPerfCounters: Int = 0,
   nPerfEvents: Int = 0,
   nCustomMRWCSRs: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
-  mtvecWriteable: Bool = true,
-  fastLoadWord: Bool = true,
-  fastLoadByte: Bool = false,
-  fastJAL: Bool = false,
-  fpuConfig: Option[FPUConfig] = Some(FPUConfig()),
-  mulDivConfig: Option[MulDivConfig] = Some(MulDivConfig(
-                                              mulUnroll = 8,
-                                              mulEarlyOut = (site(XLen) > 32),
-                                              divEarlyOut = true))
-) extends CoreConfig {
+  mtvecWritable: Boolean = true,
+  fastLoadWord: Boolean = true,
+  fastLoadByte: Boolean = false,
+  fastJAL: Boolean = false,
+  mulDiv: Option[MulDivParams] = Some(MulDivParams()),
+  fpu: Option[FPUParams] = Some(FPUParams())
+) extends CoreParams {
   val fetchWidth: Int = if (useCompressed) 2 else 1
-  val decodeWidth: Int = fetchWidth / (if (usingCompressed) 2 else 1) // fetchWidth doubled, but coreInstBytes halved, for RVC
+  //  fetchWidth doubled, but coreInstBytes halved, for RVC:
+  val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
-  val rocketParameters: RocketCoreParameters = tileParameters.core
+  val rocketParams: RocketCoreParams = tileParams.core.asInstanceOf[RocketCoreParams]
 
-  val fastLoadWord = rocketConfig.fastLoadWord
-  val fastLoadByte = rocketConfig.fastLoadByte
-  val fastJAL = rocketConfig.fastJAL
-  val nBreakpoints = rocketConfig.nBreakpoints
-  val nPerfCounters = rocketConfig.nPerfCounters
-  val nPerfEvents = rocketConfig.nPerfEvents
-  val nCustomMrwCsrs = rocketConfig.nCustomMRWCSRs
+  val fastLoadWord = rocketParams.fastLoadWord
+  val fastLoadByte = rocketParams.fastLoadByte
+  val fastJAL = rocketParams.fastJAL
+  val nBreakpoints = rocketParams.nBreakpoints
+  val nPerfCounters = rocketParams.nPerfCounters
+  val nPerfEvents = rocketParams.nPerfEvents
+  val nCustomMrwCsrs = rocketParams.nCustomMRWCSRs
+  val mtvecInit = rocketParams.mtvecInit
+  val mtvecWritable = rocketParams.mtvecWritable
 
-  val usingRoCC = !p(BuildRoCC).isEmpty
+  val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
   require(!fastLoadByte || fastLoadWord)
 }
@@ -220,7 +224,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   alu.io.in1 := ex_op1.asUInt
   
   // multiplier and divider
-  val div = Module(new MulDiv(p(MulDivKey).getOrElse(MulDivConfig()), width = xLen))
+  val div = Module(new MulDiv(mulDivParams, width = xLen))
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
   div.io.req.bits.dw := ex_ctrl.alu_dw
   div.io.req.bits.fn := ex_ctrl.alu_fn
@@ -301,9 +305,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || (Bool(!fastJAL) && mem_ctrl.jal)
-  val mem_misprediction =
-    if (p(BtbKey).nEntries == 0) mem_cfi_taken
-    else mem_wrong_npc
+  val mem_misprediction = if (usingBTB) mem_cfi_taken else mem_wrong_npc
   take_pc_mem := mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
 
   mem_reg_valid := !ctrl_killx

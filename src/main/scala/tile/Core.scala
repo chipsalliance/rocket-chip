@@ -1,67 +1,58 @@
 // See LICENSE.SiFive for license details.
 
-package rocket
+package tile
 
 import Chisel._
 import config._
-import coreplex.{TileKey}
+import rocket._
 import util._
 
 case object BuildCore extends Field[Parameters => CoreModule with HasCoreIO]
-
-// These parameters apply to all cores, for now
 case object XLen extends Field[Int]
-case object UseVM extends Field[Boolean]
-case object UseUser extends Field[Boolean]
-case object UseDebug extends Field[Boolean]
 
 // These parameters can be varied per-core
-trait CoreParameters {
-  val useAtomics: Bool
-  val useCompressed: Bool
-  val fpuConfig: Option[FPUParameters]
-  val mulDivConfig: Option[MulDivParameters]
+trait CoreParams {
+  val useVM: Boolean
+  val useUser: Boolean
+  val useDebug: Boolean
+  val useAtomics: Boolean
+  val useCompressed: Boolean
+  val mulDiv: Option[MulDivParams]
+  val fpu: Option[FPUParams]
   val fetchWidth: Int
   val decodeWidth: Int
   val retireWidth: Int
   val instBits: Int
 }
 
-trait HasCoreParameters {
-  implicit val p: Parameters
-  val TileParameters: TileParameters = p(TileKey)
-  val coreParameters = TileParameters.core
+trait HasCoreParameters extends HasTileParameters {
+  val coreParams: CoreParams = tileParams.core
 
   val xLen = p(XLen)
   val fLen = xLen // TODO relax this
   require(xLen == 32 || xLen == 64)
 
-  val usingVM = p(UseVM)
-  val usingUser = p(UseUser) || usingVM
-  val usingDebug = p(UseDebug)
+  val usingMulDiv = coreParams.mulDiv.nonEmpty
+  val usingFPU = coreParams.fpu.nonEmpty
+  val usingAtomics = coreParams.useAtomics
+  val usingCompressed = coreParams.useCompressed
 
-  val usingMulDiv = coreParameters.mulDivConfig.nonEmpty
-  val usingFPU = coreParameters.fpuConfig.nonEmpty
-  val usingAtomics = coreParameters.useAtomics
-  val usingCompressed = coreParameters.useCompressed
+  val retireWidth = coreParams.retireWidth
+  val fetchWidth = coreParams.fetchWidth
+  val decodeWidth = coreParams.decodeWidth
 
-  val retireWidth = coreParameters.retireWidth
-  val fetchWidth = coreParameters.fetchWidth
-  val decodeWidth = coreParameters.decodeWidth
-
-  val coreInstBits = coreParameters.instBits
+  val coreInstBits = coreParams.instBits
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen
   val coreDataBytes = coreDataBits/8
 
-  val dcacheArbPorts = 1 + usingVM.toInt + (p(DataScratchpadSize) > 0).toInt + p(BuildRoCC).size
   val coreDCacheReqTagBits = 6
   val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
 
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = p(PAddrBits)
+  val paddrBits = 32//p(PAddrBits)
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)
@@ -85,7 +76,6 @@ abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundl
 
 trait HasCoreIO {
   implicit val p: Parameters
-  implicit val t: TileConfig 
   val io = new Bundle {
     val interrupts = new TileInterrupts().asInput
     val hartid = UInt(INPUT, p(XLen))

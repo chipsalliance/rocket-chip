@@ -62,8 +62,8 @@ class WithExtMemSize(n: Long) extends Config((site, here, up) => {
 
 class WithScratchpads extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
 
-class DefaultFPGASmallConfig extends Config(new WithSmallCores ++ new DefaultFPGAConfig)
-class DefaultSmallConfig extends Config(new WithSmallCores ++ new BaseConfig)
+class DefaultFPGASmallConfig extends Config(new WithNSmallCores(1) ++ new DefaultFPGAConfig)
+class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig)
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
@@ -109,7 +109,7 @@ class DualCoreConfig extends Config(
 
 class TinyConfig extends Config(
   new WithScratchpads ++
-  new WithSmallCores ++ new WithRV32 ++
+  new WithNSmallCores(1) ++ new WithRV32 ++
   new WithStatelessBridge ++ new BaseConfig)
 
 class WithJtagDTM extends Config ((site, here, up) => {
@@ -133,7 +133,7 @@ class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
 })
 
 class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
-  case NBreakpoints => hwbp
+  case RocketTilesKey => up(RocketTilesKey, site) map { r => r.copy(core = r.core.copy(nBreakpoints = hwbp)) }
 })
 
 class WithRTCPeriod(nCycles: Int) extends Config((site, here, up) => {

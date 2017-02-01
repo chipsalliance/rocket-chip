@@ -6,39 +6,32 @@ package rocket
 import Chisel._
 import config._
 import diplomacy._
-import uncore.agents._
+import tile._
 import uncore.tilelink2._
-import uncore.util._
+import uncore.util.Code
 import util._
 import Chisel.ImplicitConversions._
 
-case class ICacheParameters(
+case class ICacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
     rowBits: Int = 128,
     nTLBEntries: Int = 8,
     cacheIdBits: Int = 0,
     splitMetadata: Boolean = false,
-    ecc: Option[Code] = None) extends CacheParameters {
-  val replacement = new RandomReplacement(nWays)
+    ecc: Option[Code] = None) extends L1CacheParams {
+  def replacement = new RandomReplacement(nWays)
 }
 
-trait HasL1CacheParameters extends HasCacheParameters with HasCoreParameters {
-  override val cacheParameters = p(TileKey).icache
-
-  val cacheBlockBytes = p(CacheBlockBytes)
-  val lgCacheBlockBytes = log2Up(cacheBlockBytes)
-  val cacheDataBits = p(SharedMemoryTLEdge).bundle.dataBits
-  val cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
-  val refillCycles = cacheDataBeats
-  val usingDataScratchpad = p(DataScratchpadSize) > 0
+trait HasL1ICacheParameters extends HasL1CacheParameters with HasCoreParameters {
+  val cacheParams = tileParams.icache
 }
 
-class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {
+class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICacheParameters {
   val addr = UInt(width = vaddrBits)
 }
 
-class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1CacheParameters {
+class ICacheResp(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICacheParameters {
   val data = Bits(width = coreInstBits)
   val datablock = Bits(width = rowBits)
 }
@@ -60,8 +53,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
 }
 
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
-    with HasCoreParameters
-    with HasL1CacheParameters {
+    with HasL1ICacheParameters {
   val io = new ICacheBundle(outer)
   val edge = outer.node.edgesOut(0)
   val tl_out = io.mem(0)

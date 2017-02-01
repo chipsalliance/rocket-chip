@@ -7,20 +7,20 @@ import Chisel._
 import config._
 import coreplex._
 import diplomacy._
-import uncore.converters._
+import tile._
 import uncore.devices._
 import uncore.tilelink2._
 import util._
 
-case class RocketTileParameters(
-  core: RocketCoreParameters = RocketCoreParameters(),
-  icache: ICacheParameters = ICacheParameters(),
-  dcache: DCacheParameters = DCacheParameters(),
-  rocc: Seq[RoccParameters] = Nil,
-  btb: BTBParameters = BTBParameters(),
-  dataScratchpadBytes: Int = 0) extends TileParameters
+case class RocketTileParams(
+  core: RocketCoreParams = RocketCoreParams(),
+  icache: ICacheParams = ICacheParams(),
+  dcache: DCacheParams = DCacheParams(),
+  rocc: Seq[RoCCParams] = Nil,
+  btb: BTBParams = BTBParams(),
+  dataScratchpadBytes: Int = 0) extends TileParams
   
-class RocketTile(val rocketConfig: RocketTileParameters)(p: Parameters) extends BaseTile(c)(p)
+class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 
@@ -36,7 +36,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveLegacyRoccsModule
     with CanHaveScratchpadModule {
 
-  val core = Module(p(BuildCore)(outer.c, outer.p))
+  val core = Module(p(BuildCore)(outer.p))
   core.io.interrupts := io.interrupts
   core.io.hartid := io.hartid
   outer.frontend.module.io.cpu <> core.io.imem
@@ -52,14 +52,19 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     core.io.rocc.interrupt := lr.module.io.core.interrupt
   }
 
+  // TODO eliminate this redundancy
+  val h = dcachePorts.size
+  val c = core.dcacheArbPorts
+  val o = outer.nDCachePorts
+  require(h == c, s"port list size was $h, core expected $c")
+  require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
-  require(dcachePorts.size == core.dcacheArbPorts)
   dcacheArb.io.requestor <> dcachePorts
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
 }
 
-class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(c))
+class AsyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp))
 
   val masterNodes = rocket.masterNodes.map(_ => TLAsyncOutputNode())
   val slaveNode = rocket.slaveNode.map(_ => TLAsyncInputNode())
@@ -82,8 +87,8 @@ class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModul
   }
 }
 
-class RationalRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(c))
+class RationalRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp))
 
   val masterNodes = rocket.masterNodes.map(_ => TLRationalOutputNode())
   val slaveNode = rocket.slaveNode.map(_ => TLRationalInputNode())

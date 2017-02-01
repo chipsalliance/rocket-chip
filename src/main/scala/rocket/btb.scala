@@ -4,22 +4,22 @@
 package rocket
 
 import Chisel._
-import config._
-import util._
 import Chisel.ImplicitConversions._
-import uncore.util.PseudoLRU
+import config._
+import tile.HasCoreParameters
+import util._
 
-case class BTBParameters(
+case class BTBParams(
   nEntries: Int = 40,
   nRAS: Int = 2,
   updatesOutOfOrder: Boolean = false)
 
 trait HasBtbParameters extends HasCoreParameters {
-  val btbParameters = tileParameters.btb
+  val btbParams = tileParams.btb
   val matchBits = pgIdxBits
-  val entries = btbParameters.nEntries
-  val nRAS = btbParameters.nRAS
-  val updatesOutOfOrder = btbParameters.updatesOutOfOrder
+  val entries = btbParams.nEntries
+  val nRAS = btbParams.nRAS
+  val updatesOutOfOrder = btbParams.updatesOutOfOrder
   val nPages = ((1 max(log2Up(entries)))+1)/2*2 // control logic assumes 2 divides pages
   val opaqueBits = log2Up(entries)
   val nBHT = 1 << log2Up(entries*2)

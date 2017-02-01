@@ -4,12 +4,13 @@
 package rocket
 
 import Chisel._
+import Chisel.ImplicitConversions._
 import Instructions._
 import uncore.constants.MemoryOpConstants._
 import ALU._
 import config._
+import tile.HasCoreParameters
 import util._
-import Chisel.ImplicitConversions._
 
 abstract trait DecodeConstants extends HasCoreParameters
 {

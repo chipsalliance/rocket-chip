@@ -4,22 +4,24 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import junctions._
-import diplomacy._
 import config._
+import coreplex.CacheBlockBytes
+import diplomacy._
+import tile._
 import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._
+import util._
 
-class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
-  val coreDataBytes = p(XLen)/8
+class ScratchpadSlavePort(sizeBytes: Int)(implicit p: Parameters) extends LazyModule
+    with HasCoreParameters {
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(AddressSet(0x80000000L, BigInt(p(DataScratchpadSize)-1))),
+      address            = List(AddressSet(0x80000000L, BigInt(sizeBytes-1))),
       regionType         = RegionType.UNCACHED,
       executable         = true,
-      supportsArithmetic = if (p(UseAtomics)) TransferSizes(1, coreDataBytes) else TransferSizes.none,
-      supportsLogical    = if (p(UseAtomics)) TransferSizes(1, coreDataBytes) else TransferSizes.none,
+      supportsArithmetic = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,
+      supportsLogical    = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,
       supportsPutPartial = TransferSizes(1, coreDataBytes),
       supportsPutFull    = TransferSizes(1, coreDataBytes),
       supportsGet        = TransferSizes(1, coreDataBytes),
@@ -106,8 +108,9 @@ class ScratchpadSlavePort(implicit p: Parameters) extends LazyModule {
 trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
 
-  val slaveNode = if (p(DataScratchpadSize) == 0) None else Some(TLInputNode())
-  val scratch = if (p(DataScratchpadSize) == 0) None else Some(LazyModule(new ScratchpadSlavePort()(dcacheParams)))
+  val sizeBytes = tileParams.dataScratchpadBytes
+  val slaveNode = if (sizeBytes > 0) Some(TLInputNode()) else None
+  val scratch   = if (sizeBytes > 0) Some(LazyModule(new ScratchpadSlavePort(sizeBytes))) else None
 
   (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }
 
@@ -118,7 +121,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
     finalNode.get.address(0)
   }
 
-  nDCachePorts += 1 // core TODO dcachePorts += () => module.io.dmem ??
+  nDCachePorts += (sizeBytes > 0).toInt
 }
 
 trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {

@@ -4,13 +4,13 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import config._
 import diplomacy._
 import uncore.constants._
 import uncore.tilelink2._
 import uncore.util._
 import util._
 import TLMessages._
-import config._
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)
@@ -38,22 +38,19 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 }
 
-class DCache(val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache(cfg)(p) {
+class DCache(val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache()(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-
-  val maxUncachedInFlight = cfg.nMMIOs
-
   require(rowBits == encRowBits) // no ECC
 
   val grantackq = Module(new Queue(tl_out.e.bits,1)) // TODO don't need this in scratchpad mode
 
   // tags
-  val replacer = p(Replacer)()
+  val replacer = cacheParams.replacement
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
-  val metaReadArb = Module(new Arbiter(new MetaReadReq, 3))
+  val metaReadArb = Module(new Arbiter(new L1MetaReadReq, 3))
   val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 3))
 
   // data
@@ -104,7 +101,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (!metaReadArb.io.in(2).ready) { io.cpu.req.ready := false }
 
   // address translation
-  val tlb = Module(new TLB)
+  val tlb = Module(new TLB(nTLBEntries))
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid_masked && s1_readwrite
   tlb.io.req.bits.passthrough := s1_req.phys
@@ -126,7 +123,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
     } else {
-      val meta = Module(new MetadataArray(onReset _))
+      val meta = Module(new L1MetadataArray(onReset _))
       meta.io.read <> metaReadArb.io.out
       meta.io.write <> metaWriteArb.io.out
       val s1_meta = meta.io.resp

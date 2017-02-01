@@ -1,13 +1,14 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package tile
 
 import Chisel._
 import Chisel.ImplicitConversions._
 import config._
 import coreplex._
 import diplomacy._
+import rocket._
 import uncore.constants._
 import uncore.agents._
 import uncore.coherence._
@@ -20,7 +21,7 @@ import util._
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
-case object BuildRoCC extends Field[Seq[RoccParameters]]
+case object BuildRoCC extends Field[Seq[RoCCParams]]
 
 trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwork {
   val module: CanHaveLegacyRoccsModule
@@ -38,7 +39,7 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
             nCachingClients = 1,
             nCachelessClients = 1,
             maxClientXacts = List(
-                site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
+                tileParams.dcache.nMSHRs + 1 /* IOMSHR */,
                 if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
             maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
             maxManagerXacts = 8,
@@ -117,7 +118,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
       }))
-      val dcIF = Module(new SimpleHellaCacheIF()(p.alterPartial({ case CacheName => CacheName("L1D") })))
+      val dcIF = Module(new SimpleHellaCacheIF)
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.exception := io.core.exception
       dcIF.io.requestor <> rocc.io.mem
@@ -151,7 +152,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
   }
 }
 
-case class RoccParameters(
+case class RoCCParams(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,

@@ -18,7 +18,7 @@ import rocketchip._
 
 /** Actual testing target Configs */
 
-class GroundTestConfig extends Config(new WithGroundTest ++ new BaseConfig)
+class GroundTestConfig extends Config(new BaseConfig)
 
 class ComparatorConfig extends Config(
   new WithComparator ++ new GroundTestConfig)
@@ -72,15 +72,10 @@ class Edge32BitMemtestConfig extends Config(
   new WithEdgeDataBits(32) ++ new MemtestConfig)
 
 /* Composable Configs to set individual parameters */
-class WithGroundTest extends Config((site, here, up) => {
-  case FPUKey => None
-  case UseAtomics => false
-  case UseCompressed => false
-})
 
 class WithComparator extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(uncached = 2)
+    GroundTestTileParams(uncached = 2)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new ComparatorCore()(p))
@@ -88,14 +83,12 @@ class WithComparator extends Config((site, here, up) => {
     targets    = Seq(site(ExtMem).base, testRamAddr),
     width      = 8,
     operations = 1000,
-    atomics    = site(UseAtomics),
+    atomics    = false,
     prefetches = false)
-  case FPUConfig => None
-  case UseAtomics => false
 })
 
 class WithAtomics extends Config((site, here, up) => {
-  case UseAtomics => true
+  case ComparatorKey => up(ComparatorKey, site).copy(atomics = true)
 })
 
 class WithPrefetches extends Config((site, here, up) => {
@@ -104,7 +97,7 @@ class WithPrefetches extends Config((site, here, up) => {
 
 class WithMemtest extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(1, 1)
+    GroundTestTileParams(1, 1)
   }
   case GeneratorKey => TrafficGeneratorParameters(
     maxRequests = 128,
@@ -115,13 +108,13 @@ class WithMemtest extends Config((site, here, up) => {
 
 class WithNGenerators(nUncached: Int, nCached: Int) extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(nUncached, nCached)
+    GroundTestTileParams(nUncached, nCached)
   }
 })
 
 class WithCacheFillTest extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(uncached = 1)
+    GroundTestTileParams(uncached = 1)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new CacheFillTest()(p))
@@ -129,7 +122,7 @@ class WithCacheFillTest extends Config((site, here, up) => {
 
 class WithBroadcastRegressionTest extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(1, 1, maxXacts = 3)
+    GroundTestTileParams(1, 1, maxXacts = 3)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new RegressionTest()(p))
@@ -139,7 +132,7 @@ class WithBroadcastRegressionTest extends Config((site, here, up) => {
 
 class WithCacheRegressionTest extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(1, 1, maxXacts = 5)
+    GroundTestTileParams(1, 1, maxXacts = 5)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new RegressionTest()(p))
@@ -149,7 +142,7 @@ class WithCacheRegressionTest extends Config((site, here, up) => {
 
 class WithTraceGen extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(site(NTiles)) {
-    GroundTestTileSettings(uncached = 0, cached = 1)
+    GroundTestTileParams(dcache = Some(DCacheParams(nSets = 16, nWays = 1)))
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new GroundTestTraceGenerator()(p))
@@ -160,11 +153,9 @@ class WithTraceGen extends Config((site, here, up) => {
     val nSets = 2
     val nWays = 1
     val blockOffset = site(CacheBlockOffsetBits)
-    val nBeats = site(TLKey("L1toL2")).dataBeats
+    val nBeats = site(CacheBlockBytes)/site(L1toL2Config).beatBytes
     List.tabulate(4 * nWays) { i =>
       Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
     }.flatten
   }
-  case UseAtomics => true
-  case CacheName("L1D") => up(CacheName("L1D"), site).copy(nSets = 16, nWays = 1)
 })

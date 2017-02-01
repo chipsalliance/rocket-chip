@@ -6,6 +6,7 @@ import Chisel._
 import config._
 import diplomacy._
 import rocket._
+import tile._
 import uncore.tilelink2._
 
 sealed trait ClockCrossing
@@ -13,14 +14,14 @@ case object Synchronous extends ClockCrossing
 case object Rational extends ClockCrossing
 case class Asynchronous(depth: Int, sync: Int = 2) extends ClockCrossing
 
-case object RocketTileConfigs extends Field[Seq[RocketTileConfig]]
+case object RocketTilesKey extends Field[Seq[RocketTileParams]]
 case object RocketCrossing extends Field[ClockCrossing]
 
 trait HasRocketTiles extends CoreplexRISCVPlatform {
   val module: HasRocketTilesModule
 
   private val crossing = p(RocketCrossing)
-  private val configs = p(RocketTileConfigs)
+  private val configs = p(RocketTilesKey)
 
   private val rocketTileIntNodes = configs.map { _ => IntInternalOutputNode() }
   rocketTileIntNodes.foreach { _ := plic.intnode }
@@ -35,7 +36,6 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
   val rocketWires: Seq[HasRocketTilesBundle => Unit] = configs.zipWithIndex.map { case (c, i) =>
     val pWithExtra = p.alterPartial {
       case TileKey => c
-      case DataScratchpadSize => c.dataScratchpadBytes
       case BuildRoCC => c.rocc
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
       case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
@@ -83,7 +83,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
 
 trait HasRocketTilesBundle extends CoreplexRISCVPlatformBundle {
   val outer: HasRocketTiles
-  val tcrs = Vec(p(RocketTileConfigs).size, new Bundle {
+  val tcrs = Vec(p(RocketTilesKey).size, new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
   })

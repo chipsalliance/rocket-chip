@@ -1,25 +1,38 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package tile
 
 import Chisel._
 import config._
 import diplomacy._
 import rocket._
 import uncore.tilelink2._
-import util.GenericParameterizedBundle
+import util._
 
 case object SharedMemoryTLEdge extends Field[TLEdgeOut]
-case object DataScratchpadSize extends Field[Int]
-case object TileKey extends Field[TileParameters]
+case object TileKey extends Field[TileParams]
 
-trait TileParameters {
-  val core: CoreParameters
-  val icache: ICacheParameters
-  val dcache: DCacheParameters
-  val rocc: Seq[RoccParameters]
-  val btb: BTBParameters
+trait TileParams {
+  val core: CoreParams
+  val icache: ICacheParams
+  val dcache: DCacheParams
+  val rocc: Seq[RoCCParams]
+  val btb: BTBParams
   val dataScratchpadBytes: Int
+}
+
+trait HasTileParameters {
+  implicit val p: Parameters
+  val tileParams: TileParams = p(TileKey)
+
+  val usingVM = tileParams.core.useVM
+  val usingUser = tileParams.core.useUser || usingVM
+  val usingDebug = tileParams.core.useDebug
+  val usingRoCC = !tileParams.rocc.isEmpty
+  val usingBTB = tileParams.btb.nEntries > 0
+  val usingPTW = usingVM
+
+  def dcacheArbPorts = 1 + usingVM.toInt + (tileParams.dataScratchpadBytes > 0).toInt + tileParams.rocc.size
 }
 
 abstract class BareTile(implicit p: Parameters) extends LazyModule
@@ -35,7 +48,7 @@ abstract class BareTileModule[+L <: BareTile, +B <: BareTileBundle[L]](_outer: L
 }
 
 // Uses a tile-internal crossbar to provide a single TileLink master port
-trait TileNetwork {
+trait TileNetwork extends HasTileParameters {
   implicit val p: Parameters
   val module: TileNetworkModule
   val l1backend = LazyModule(new TLXbar)
@@ -53,7 +66,7 @@ trait TileNetworkModule {
   val io: TileNetworkBundle
 }
 
-abstract class BaseTile(val tileConfig: TileConfig)(implicit p: Parameters) extends BareTile
+abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
     with TileNetwork {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }

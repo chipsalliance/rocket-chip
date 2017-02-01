@@ -4,20 +4,16 @@ package rocketchip
 
 import Chisel._
 import config._
-import junctions._
-import junctions.NastiConstants._
+import coreplex._
 import diplomacy._
-import uncore.tilelink._
+import tile.XLen
 import uncore.tilelink2._
 import uncore.axi4._
 import uncore.converters._
 import uncore.devices._
-import uncore.agents._
 import uncore.util._
 import util._
-import rocket.XLen
 import scala.math.max
-import coreplex._
 
 /** Specifies the size of external memory */
 case class MasterConfig(base: Long, size: Long, beatBytes: Int, idBits: Int)

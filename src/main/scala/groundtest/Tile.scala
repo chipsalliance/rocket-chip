@@ -4,23 +4,29 @@
 package groundtest
 
 import Chisel._
-import coreplex.BareTile
+import config._
+import coreplex._
 import rocket._
+import tile._
 import uncore.tilelink._
-import uncore.util.CacheName
 import uncore.tilelink2._
 import rocketchip.ExtMem
 import diplomacy._
+import util.ParameterizedBundle
+
 import scala.util.Random
 import scala.collection.mutable.ListBuffer
-import util.ParameterizedBundle
-import config._
 
 case object BuildGroundTest extends Field[Parameters => GroundTest]
 
-case class GroundTestTileSettings(
-  uncached: Int = 0, cached: Int = 0, ptw: Int = 0, maxXacts: Int = 1)
-case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
+case class GroundTestTileParams(
+    uncached: Int = 0,
+    ptw: Int = 0,
+    maxXacts: Int = 1,
+    dcache: Option[DCacheParams] = Some(DCacheParams())) {
+  val cached = if(dcache.isDefined) 1 else 0
+}
+case object GroundTestKey extends Field[Seq[GroundTestTileParams]]
 
 trait HasGroundTestConstants {
   val timeoutCodeBits = 4
@@ -103,12 +109,11 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTestParameters {
-  val dcacheParams = p.alterPartial {
-    case CacheName => CacheName("L1D")
-  }
+class GroundTestTile(implicit p: Parameters) extends LazyModule
+    with HasGroundTestParameters
+    with HasTileParameters {
   val slave = None
-  val dcache = HellaCache(p(DCacheKey))(dcacheParams)
+  val dcache = HellaCache(tileParams.dcache.nMSHRs == 0)
   val ucLegacy = LazyModule(new TLLegacy)
 
    val cachedOut = TLOutputNode()
@@ -124,17 +129,17 @@ class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTe
       val success = Bool(OUTPUT)
     }
 
-    val test = p(BuildGroundTest)(dcacheParams)
+    val test = p(BuildGroundTest)(p)
 
     val ptwPorts = ListBuffer.empty ++= test.io.ptw
     val uncachedArbPorts = ListBuffer.empty ++= test.io.mem
 
     if (nCached > 0) {
-      val dcacheArb = Module(new HellaCacheArbiter(nCached)(dcacheParams))
+      val dcacheArb = Module(new HellaCacheArbiter(nCached))
 
       dcacheArb.io.requestor.zip(test.io.cache).foreach {
         case (requestor, cache) =>
-          val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
+          val dcacheIF = Module(new SimpleHellaCacheIF())
           dcacheIF.io.requestor <> cache
           requestor <> dcacheIF.io.cache
       }
@@ -147,7 +152,7 @@ class GroundTestTile(implicit p: Parameters) extends LazyModule with HasGroundTe
     }
 
     if (ptwPorts.size > 0) {
-      val ptw = Module(new DummyPTW(ptwPorts.size)(dcacheParams))
+      val ptw = Module(new DummyPTW(ptwPorts.size))
       ptw.io.requestors <> ptwPorts
     }
 

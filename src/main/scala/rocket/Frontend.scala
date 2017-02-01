@@ -4,13 +4,13 @@
 package rocket
 
 import Chisel._
+import Chisel.ImplicitConversions._
 import config._
 import coreplex._
 import diplomacy._
 import uncore.tilelink2._
-import uncore.util.CacheName
+import tile._
 import util._
-import Chisel.ImplicitConversions._
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -54,12 +54,12 @@ class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasCoreParameters
-    with HasL1CacheParameters {
+    with HasL1ICacheParameters {
   val io = new FrontendBundle(outer)
   implicit val edge = outer.node.edgesOut(0)
   val icache = outer.icache.module
 
-  val tlb = Module(new TLB)
+  val tlb = Module(new TLB(nTLBEntries))
 
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
@@ -106,7 +106,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     s2_valid := Bool(false)
   }
 
-  if (p(BtbKey).nEntries > 0) {
+  if (usingBTB) {
     val btb = Module(new BTB)
     btb.io.req.valid := false
     btb.io.req.bits.addr := s1_pc_
@@ -155,9 +155,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW with TileNetwork {
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend()(p.alterPartial({
-    case CacheName => CacheName("L1I")
-  })))
+  val frontend = LazyModule(new Frontend)
   l1backend.node := frontend.node
   nPTWPorts += 1
 }

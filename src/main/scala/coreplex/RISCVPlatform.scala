@@ -6,14 +6,9 @@ import Chisel._
 import config._
 import junctions._
 import diplomacy._
-import uncore.tilelink._
+import tile._
 import uncore.tilelink2._
-import uncore.coherence._
-import uncore.agents._
 import uncore.devices._
-import uncore.util._
-import uncore.converters._
-import rocket._
 import util._
 
 trait CoreplexRISCVPlatform extends CoreplexNetwork {
