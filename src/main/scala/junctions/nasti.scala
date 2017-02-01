@@ -567,6 +567,25 @@ class NastiRecursiveInterconnect(
   val xbar = Module(new NastiCrossbar(nMasters, addrMap.length, routeSel, queueDepth))
   xbar.io.masters <> io.masters
 
+  def changeAddr[T <: Bundle with HasNastiMetadata](in: DecoupledIO[T], base: BigInt): DecoupledIO[T] = {
+    val out = Wire(Decoupled(in.bits))
+    out.valid := in.valid
+    in.ready := out.ready
+    out.bits := in.bits
+    out.bits.addr := in.bits.addr - UInt(base)
+    out
+  }
+
+  def changeAddr(in: NastiIO, base: BigInt): NastiIO = {
+    val out = Wire(new NastiIO)
+    out.aw <> changeAddr(in.aw, base)
+    out.ar <> changeAddr(in.ar, base)
+    out.w  <> in.w
+    in.b   <> out.b
+    in.r   <> out.r
+    out
+  }
+
   io.slaves <> addrMap.entries.zip(xbar.io.slaves).flatMap {
     case (entry, xbarSlave) => {
       entry.region match {
@@ -579,7 +598,7 @@ class NastiRecursiveInterconnect(
           ic.io.masters.head <> xbarSlave
           ic.io.slaves
         case r: MemRange =>
-          Some(xbarSlave)
+          Some(changeAddr(xbarSlave, r.start))
       }
     }
   }
