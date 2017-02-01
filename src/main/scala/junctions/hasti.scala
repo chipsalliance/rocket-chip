@@ -12,26 +12,26 @@ object HastiConstants
 {
   // Values for htrans
   val SZ_HTRANS     = 2
-  val HTRANS_IDLE   = UInt(0, SZ_HTRANS) // No transfer requested, not in a burst
-  val HTRANS_BUSY   = UInt(1, SZ_HTRANS) // No transfer requested, in a burst
-  val HTRANS_NONSEQ = UInt(2, SZ_HTRANS) // First (potentially only) request in a burst
-  val HTRANS_SEQ    = UInt(3, SZ_HTRANS) // Following requests in a burst
+  def HTRANS_IDLE   = UInt(0, SZ_HTRANS) // No transfer requested, not in a burst
+  def HTRANS_BUSY   = UInt(1, SZ_HTRANS) // No transfer requested, in a burst
+  def HTRANS_NONSEQ = UInt(2, SZ_HTRANS) // First (potentially only) request in a burst
+  def HTRANS_SEQ    = UInt(3, SZ_HTRANS) // Following requests in a burst
 
   // Values for hburst
   val SZ_HBURST     = 3
-  val HBURST_SINGLE = UInt(0, SZ_HBURST) // Single access (no burst)
-  val HBURST_INCR   = UInt(1, SZ_HBURST) // Incrementing burst of arbitrary length, not crossing 1KB
-  val HBURST_WRAP4  = UInt(2, SZ_HBURST) // 4-beat wrapping burst
-  val HBURST_INCR4  = UInt(3, SZ_HBURST) // 4-beat incrementing burst
-  val HBURST_WRAP8  = UInt(4, SZ_HBURST) // 8-beat wrapping burst
-  val HBURST_INCR8  = UInt(5, SZ_HBURST) // 8-beat incrementing burst
-  val HBURST_WRAP16 = UInt(6, SZ_HBURST) // 16-beat wrapping burst
-  val HBURST_INCR16 = UInt(7, SZ_HBURST) // 16-beat incrementing burst
+  def HBURST_SINGLE = UInt(0, SZ_HBURST) // Single access (no burst)
+  def HBURST_INCR   = UInt(1, SZ_HBURST) // Incrementing burst of arbitrary length, not crossing 1KB
+  def HBURST_WRAP4  = UInt(2, SZ_HBURST) // 4-beat wrapping burst
+  def HBURST_INCR4  = UInt(3, SZ_HBURST) // 4-beat incrementing burst
+  def HBURST_WRAP8  = UInt(4, SZ_HBURST) // 8-beat wrapping burst
+  def HBURST_INCR8  = UInt(5, SZ_HBURST) // 8-beat incrementing burst
+  def HBURST_WRAP16 = UInt(6, SZ_HBURST) // 16-beat wrapping burst
+  def HBURST_INCR16 = UInt(7, SZ_HBURST) // 16-beat incrementing burst
 
   // Values for hresp
   val SZ_HRESP      = 1
-  val HRESP_OKAY    = UInt(0, SZ_HRESP)
-  val HRESP_ERROR   = UInt(1, SZ_HRESP)
+  def HRESP_OKAY    = UInt(0, SZ_HRESP)
+  def HRESP_ERROR   = UInt(1, SZ_HRESP)
 
   // Values for hsize are identical to TileLink MT_SZ
   // ie: 8*2^SZ_HSIZE bit transfers
