@@ -32,7 +32,7 @@ abstract class LazyModule()(implicit val p: Parameters)
       } else if (classOf[Seq[LazyModule]].isAssignableFrom(m.getReturnType)) {
         val obj = m.invoke(this)
         if (obj eq null) Seq() else {
-          val seq = try { obj.asInstanceOf[Seq[Object]] } catch { case _ => null }
+          val seq = try { obj.asInstanceOf[Seq[Object]] } catch { case _: Throwable => null }
           if (seq eq null) Seq() else {
             seq.zipWithIndex.map { case (l, i) => (m.getName + "_"  + i, l) }
           }
