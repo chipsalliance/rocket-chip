@@ -39,6 +39,8 @@ case class IdRange(start: Int, end: Int)
 
   def shift(x: Int) = IdRange(start+x, end+x)
   def size = end - start
+  
+  def range = start until end
 }
 
 // An potentially empty inclusive range of 2-powers [min, max] (in bytes)
