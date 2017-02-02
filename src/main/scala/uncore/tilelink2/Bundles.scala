@@ -104,10 +104,13 @@ object TLAtomics
 
 object TLHints
 {
-  val width = 1
+  val width = 3
 
-  def PREFETCH_READ  = UInt(0, width)
-  def PREFETCH_WRITE = UInt(1, width)
+  def GROW_toB = UInt(0, width)
+  def GROW_toT = UInt(1, width)
+  def SHRINK_toN = UInt(4, width)
+  def SHRINK_toB = UInt(5, width)
+  def SHRINK_toT = UInt(6, width)
 }
 
 sealed trait TLChannel extends TLBundleBase {
