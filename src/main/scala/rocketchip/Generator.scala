@@ -77,7 +77,5 @@ object Generator extends util.GeneratorApp {
   val longName = names.topModuleProject + "." + names.configs
   generateFirrtl
   generateTestSuiteMakefrags
-  generateConfigString
-  generateGraphML
-  generateParameterDump
+  generateArtefacts
 }
