@@ -478,7 +478,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   when (insn_ret) {
     when (Bool(usingVM) && !csr_addr_priv(1)) {
       when (reg_mstatus.spp.toBool) { reg_mstatus.sie := reg_mstatus.spie }
-      reg_mstatus.spie := false
+      reg_mstatus.spie := true
       reg_mstatus.spp := PRV.U
       new_prv := reg_mstatus.spp
     }.elsewhen (csr_debug) {
@@ -487,7 +487,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     }.otherwise {
       when (reg_mstatus.mpp(1)) { reg_mstatus.mie := reg_mstatus.mpie }
       .elsewhen (Bool(usingVM) && reg_mstatus.mpp(0)) { reg_mstatus.sie := reg_mstatus.mpie }
-      reg_mstatus.mpie := false
+      reg_mstatus.mpie := true
       reg_mstatus.mpp := legalizePrivilege(PRV.U)
       new_prv := reg_mstatus.mpp
     }
