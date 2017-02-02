@@ -158,6 +158,15 @@ class TLEdge(
     }
   }
 
+  def source(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => a.source
+      case b: TLBundleB => b.source
+      case c: TLBundleC => c.source
+      case d: TLBundleD => d.source
+    }
+  }
+
   def addr_hi(x: UInt): UInt = x >> log2Ceil(manager.beatBytes)
   def addr_lo(x: UInt): UInt =
     if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
