@@ -13,7 +13,7 @@ import util._
 import rocket._
 
 abstract class BareTop(implicit p: Parameters) extends LazyModule {
-  TopModule.contents = Some(this)
+  ElaborationArtefacts.add("graphml", graphML)
 }
 
 abstract class BareTopBundle[+L <: BareTop](_outer: L) extends GenericParameterizedBundle(_outer) {

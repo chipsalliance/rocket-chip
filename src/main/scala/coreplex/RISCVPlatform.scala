@@ -31,9 +31,7 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
 
   lazy val configString = {
     val managers = l1tol2.node.edgesIn(0).manager.managers
-    // Use the existing config string if the user overrode it
-    ConfigStringOutput.contents.getOrElse(
-      rocketchip.GenerateConfigString(p, clint, plic, managers))
+    rocketchip.GenerateConfigString(p, clint, plic, managers)
   }
 }
 
@@ -58,5 +56,5 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
   outer.clint.module.io.rtcTick := Reg(init = Bool(false), next=(rtcSync & (~rtcLast)))
 
   println(s"\nGenerated Configuration String\n${outer.configString}")
-  ConfigStringOutput.contents = Some(outer.configString)
+  ElaborationArtefacts.add("cfg", outer.configString)
 }
