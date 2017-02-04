@@ -29,8 +29,8 @@ object AddressDecoder
       } }
     }
 
-    val maxBits = log2Ceil(ports.map(_.map(_.max).max).max + 1)
-    val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+    val maxBits = log2Ceil(ports.map(_.map(_.base).max).max)
+    val (bitsToTry, bitsToTake) = (0 to maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
     val partitions = Seq(ports.map(_.sorted).sorted(portOrder))
     val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
     val selected = recurse(givenPartitions, bitsToTry.toSeq)
