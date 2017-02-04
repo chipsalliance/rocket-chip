@@ -71,27 +71,26 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
 trait BankedL2CoherenceManagers extends CoreplexNetwork {
   val module: BankedL2CoherenceManagersModule
 
+  require (isPow2(l2Config.nMemoryChannels))
   require (isPow2(l2Config.nBanksPerChannel))
   require (isPow2(l1tol2_lineBytes))
 
-  val mem = TLOutputNode()
-  for (channel <- 0 until l2Config.nMemoryChannels) {
-    val bankBar = LazyModule(new TLXbar)
-    val (in, out) = l2Config.coherenceManager(p, this)
-
-    in :*= l1tol2.node
-    mem := bankBar.node
-
-    val mask = ~BigInt((l2Config.nBanksPerChannel-1) * l1tol2_lineBytes)
+  private val (in, out) = l2Config.coherenceManager(p, this)
+  private val mask = ~BigInt((l2Config.nBanks-1) * l1tol2_lineBytes)
+  val mem = Seq.tabulate(l2Config.nMemoryChannels) { channel =>
+    val node = TLOutputNode()
     for (bank <- 0 until l2Config.nBanksPerChannel) {
-      bankBar.node := TLFilter(AddressSet(bank * l1tol2_lineBytes, mask))(out)
+      val offset = (bank * l2Config.nMemoryChannels) + channel
+      in := l1tol2.node
+      node := TLFilter(AddressSet(offset * l1tol2_lineBytes, mask))(out)
     }
+    node
   }
 }
 
 trait BankedL2CoherenceManagersBundle extends CoreplexNetworkBundle {
   val outer: BankedL2CoherenceManagers
-  val mem = outer.mem.bundleOut
+  val mem = HeterogeneousBag(outer.mem.map(_.bundleOut))
 }
 
 trait BankedL2CoherenceManagersModule extends CoreplexNetworkModule {
