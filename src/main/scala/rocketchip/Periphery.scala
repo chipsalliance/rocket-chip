@@ -34,6 +34,9 @@ case object PeripheryBusConfig extends Field[TLBusConfig]
 case object PeripheryBusArithmetic extends Field[Boolean]
 /* Specifies the SOC-bus configuration */
 case object SOCBusConfig extends Field[TLBusConfig]
+/* Specifies the location of the Zero device */
+case class ZeroConfig(base: Long, size: Long, beatBytes: Int)
+case object ZeroConfig extends Field[ZeroConfig]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasPeripheryParameters {
@@ -116,6 +119,36 @@ trait PeripheryMasterAXI4MemModule {
   this: TopNetworkModule {
     val outer: PeripheryMasterAXI4Mem
     val io: PeripheryMasterAXI4MemBundle
+  } =>
+}
+
+/////
+
+trait PeripheryZero {
+  this: TopNetwork =>
+  val module: PeripheryZeroModule
+
+  private val config = p(ZeroConfig)
+  private val address = AddressSet(config.base, config.size-1)
+  private val lineBytes = p(CacheBlockBytes)
+
+  val zeros = mem map { case xbar =>
+    val zero = LazyModule(new TLZero(address, beatBytes = config.beatBytes))
+    zero.node := TLFragmenter(config.beatBytes, lineBytes)(xbar.node)
+    zero
+  }
+}
+
+trait PeripheryZeroBundle {
+  this: TopNetworkBundle {
+    val outer: PeripheryZero
+  } =>
+}
+
+trait PeripheryZeroModule {
+  this: TopNetworkModule {
+    val outer: PeripheryZero
+    val io: PeripheryZeroBundle
   } =>
 }
 
