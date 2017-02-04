@@ -12,14 +12,15 @@ import coreplex._
 
 trait RocketPlexMaster extends TopNetwork {
   val module: RocketPlexMasterModule
-  val mem: Seq[TLInwardNode]
 
   val coreplex = LazyModule(new DefaultCoreplex)
 
   coreplex.l2in :=* l2.node
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
-  mem.foreach { _ := coreplex.mem }
+
+  require (mem.size == coreplex.mem.size)
+  (mem zip coreplex.mem) foreach { case (xbar, channel) => xbar.node :=* channel }
 }
 
 trait RocketPlexMasterBundle extends TopNetworkBundle {

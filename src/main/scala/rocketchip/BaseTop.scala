@@ -35,6 +35,7 @@ trait TopNetwork extends HasPeripheryParameters {
   val peripheryBus = LazyModule(new TLXbar)
   val intBus = LazyModule(new IntXbar)
   val l2 = LazyModule(new TLBuffer)
+  val mem = Seq.fill(p(coreplex.BankedL2Config).nMemoryChannels) { LazyModule(new TLXbar) }
 
   peripheryBus.node :=
     TLBuffer()(
