@@ -71,7 +71,7 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
 trait BankedL2CoherenceManagers extends CoreplexNetwork {
   val module: BankedL2CoherenceManagersModule
 
-  require (isPow2(l2Config.nMemoryChannels))
+  require (isPow2(l2Config.nMemoryChannels) || l2Config.nMemoryChannels == 0)
   require (isPow2(l2Config.nBanksPerChannel))
   require (isPow2(l1tol2_lineBytes))
 
