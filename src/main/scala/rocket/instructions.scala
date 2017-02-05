@@ -290,7 +290,6 @@ object CSRs {
   val sip = 0x144
   val sptbr = 0x180
   val mstatus = 0x300
-  val misa = 0x301
   val medeleg = 0x302
   val mideleg = 0x303
   val mie = 0x304
@@ -369,6 +368,7 @@ object CSRs {
   val mhpmevent29 = 0x33d
   val mhpmevent30 = 0x33e
   val mhpmevent31 = 0x33f
+  val misa = 0xf10
   val mvendorid = 0xf11
   val marchid = 0xf12
   val mimpid = 0xf13
