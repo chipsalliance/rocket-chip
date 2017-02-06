@@ -21,12 +21,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case XLen => 64 // Applies to all cores
   case BuildCore => (p: Parameters) => new Rocket()(p)
   case RocketCrossing => Synchronous
-  case RocketTilesKey => List(
-    RocketTileParams(
-      core   = RocketCoreParams(mulDiv = Some(MulDivParams(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))),
-      dcache = DCacheParams(rowBits = site(L1toL2Config).beatBytes*8, nMSHRs  = 2),
-      icache = ICacheParams(rowBits = site(L1toL2Config).beatBytes*8))
-  )
+  case RocketTilesKey =>  Nil
   case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
   case NTiles => site(RocketTilesKey).size
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
@@ -37,8 +32,14 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case CacheBlockBytes => 64
 })
 
-class WithNCores(n: Int) extends Config((site, here, up) => {
-  case RocketTilesKey => List.fill(n)(up(RocketTilesKey, site).head)
+class WithNBigCores(n: Int) extends Config((site, here, up) => {
+  case RocketTilesKey => {
+    val big = RocketTileParams(
+      core   = RocketCoreParams(mulDiv = Some(MulDivParams(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))),
+      dcache = DCacheParams(rowBits = site(L1toL2Config).beatBytes*8, nMSHRs  = 2),
+      icache = ICacheParams(rowBits = site(L1toL2Config).beatBytes*8))
+    List.fill(n)(big) ++ up(RocketTilesKey, site)
+  }
 })
 
 class WithNSmallCores(n: Int) extends Config((site, here, up) => {
@@ -82,10 +83,17 @@ class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
   case CacheBlockBytes => linesize
 })
 
-class WithDataScratchpad(n: Int) extends Config((site, here, up) => {
-  case RocketTilesKey => up(RocketTilesKey, site) map { r => r.copy(
-    dcache = r.dcache.copy(nSets = n / site(CacheBlockBytes)),
-    dataScratchpadBytes = n )}
+/** Warning: applies only to the most recently added tile.
+  * TODO: For now, there can only be a single scratchpad in the design
+  *       because its address is hardcoded.
+  */
+class WithDataScratchpad(size: Int) extends Config((site, here, up) => {
+  case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    prev.head.copy(
+      dcache = prev.head.dcache.copy(nSets = size / site(CacheBlockBytes)),
+      dataScratchpadBytes = size) +: prev.tail
+  }
 })
 
 class WithL2Cache extends Config(Parameters.empty) // TODO: re-add L2
@@ -134,6 +142,10 @@ class WithRV32 extends Config((site, here, up) => {
 
 class WithBlockingL1 extends Config((site, here, up) => {
   case RocketTilesKey => up(RocketTilesKey, site) map { r => r.copy(dcache = r.dcache.copy(nMSHRs = 0)) }
+})
+
+class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r => r.copy(core = r.core.copy(nBreakpoints = hwbp)) }
 })
 
 class WithRoccExample extends Config((site, here, up) => {
