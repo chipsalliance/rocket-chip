@@ -16,25 +16,25 @@ abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameter
 object TLMessages 
 {
   //                                  A    B    C    D    E
-  val PutFullData    = UInt(0) //     .    .                   => AccessAck
-  val PutPartialData = UInt(1) //     .    .                   => AccessAck
-  val ArithmeticData = UInt(2) //     .    .                   => AccessAckData
-  val LogicalData    = UInt(3) //     .    .                   => AccessAckData
-  val Get            = UInt(4) //     .    .                   => AccessAckData
-  val Hint           = UInt(5) //     .    .                   => HintAck
-  val Acquire        = UInt(6) //     .                        => Grant[Data]
-  val Probe          = UInt(6) //          .                   => ProbeAck[Data]
-  val AccessAck      = UInt(0) //               .    .
-  val AccessAckData  = UInt(1) //               .    .
-  val HintAck        = UInt(2) //               .    .
-  val ProbeAck       = UInt(4) //               .
-  val ProbeAckData   = UInt(5) //               .
-  val Release        = UInt(6) //               .              => ReleaseAck
-  val ReleaseData    = UInt(7) //               .              => ReleaseAck
-  val Grant          = UInt(4) //                    .         => GrantAck
-  val GrantData      = UInt(5) //                    .         => GrantAck
-  val ReleaseAck     = UInt(6) //                    .
-  val GrantAck       = UInt(0) //                         .
+  def PutFullData    = UInt(0) //     .    .                   => AccessAck
+  def PutPartialData = UInt(1) //     .    .                   => AccessAck
+  def ArithmeticData = UInt(2) //     .    .                   => AccessAckData
+  def LogicalData    = UInt(3) //     .    .                   => AccessAckData
+  def Get            = UInt(4) //     .    .                   => AccessAckData
+  def Hint           = UInt(5) //     .    .                   => HintAck
+  def Acquire        = UInt(6) //     .                        => Grant[Data]
+  def Probe          = UInt(6) //          .                   => ProbeAck[Data]
+  def AccessAck      = UInt(0) //               .    .
+  def AccessAckData  = UInt(1) //               .    .
+  def HintAck        = UInt(2) //               .    .
+  def ProbeAck       = UInt(4) //               .
+  def ProbeAckData   = UInt(5) //               .
+  def Release        = UInt(6) //               .              => ReleaseAck
+  def ReleaseData    = UInt(7) //               .              => ReleaseAck
+  def Grant          = UInt(4) //                    .         => GrantAck
+  def GrantData      = UInt(5) //                    .         => GrantAck
+  def ReleaseAck     = UInt(6) //                    .
+  def GrantAck       = UInt(0) //                         .
  
   def isA(x: UInt) = x <= Acquire
   def isB(x: UInt) = x <= Probe
@@ -58,27 +58,27 @@ object TLPermissions
   val cWidth = 3
 
   // Cap types (Grant = new permissions, Probe = permisions <= target)
-  val toT = UInt(0, bdWidth)
-  val toB = UInt(1, bdWidth)
-  val toN = UInt(2, bdWidth)
+  def toT = UInt(0, bdWidth)
+  def toB = UInt(1, bdWidth)
+  def toN = UInt(2, bdWidth)
   def isCap(x: UInt) = x <= toN
 
   // Grow types (Acquire = permissions >= target)
-  val NtoB = UInt(0, aWidth)
-  val NtoT = UInt(1, aWidth)
-  val BtoT = UInt(2, aWidth)
+  def NtoB = UInt(0, aWidth)
+  def NtoT = UInt(1, aWidth)
+  def BtoT = UInt(2, aWidth)
   def isGrow(x: UInt) = x <= BtoT
 
   // Shrink types (ProbeAck, Release)
-  val TtoB = UInt(0, cWidth)
-  val TtoN = UInt(1, cWidth)
-  val BtoN = UInt(2, cWidth)
+  def TtoB = UInt(0, cWidth)
+  def TtoN = UInt(1, cWidth)
+  def BtoN = UInt(2, cWidth)
   def isShrink(x: UInt) = x <= BtoN
 
   // Report types (ProbeAck)
-  val TtoT = UInt(3, cWidth)
-  val BtoB = UInt(4, cWidth)
-  val NtoN = UInt(5, cWidth)
+  def TtoT = UInt(3, cWidth)
+  def BtoB = UInt(4, cWidth)
+  def NtoN = UInt(5, cWidth)
   def isReport(x: UInt) = x <= NtoN
 }
 
@@ -87,18 +87,18 @@ object TLAtomics
   val width = 3 
 
   // Arithmetic types
-  val MIN  = UInt(0, width)
-  val MAX  = UInt(1, width)
-  val MINU = UInt(2, width)
-  val MAXU = UInt(3, width)
-  val ADD  = UInt(4, width)
+  def MIN  = UInt(0, width)
+  def MAX  = UInt(1, width)
+  def MINU = UInt(2, width)
+  def MAXU = UInt(3, width)
+  def ADD  = UInt(4, width)
   def isArithmetic(x: UInt) = x <= ADD
 
   // Logical types
-  val XOR  = UInt(0, width)
-  val OR   = UInt(1, width)
-  val AND  = UInt(2, width)
-  val SWAP = UInt(3, width)
+  def XOR  = UInt(0, width)
+  def OR   = UInt(1, width)
+  def AND  = UInt(2, width)
+  def SWAP = UInt(3, width)
   def isLogical(x: UInt) = x <= SWAP
 }
 
@@ -106,8 +106,8 @@ object TLHints
 {
   val width = 1
 
-  val PREFETCH_READ  = UInt(0, width)
-  val PREFETCH_WRITE = UInt(1, width)
+  def PREFETCH_READ  = UInt(0, width)
+  def PREFETCH_WRITE = UInt(1, width)
 }
 
 sealed trait TLChannel extends TLBundleBase {

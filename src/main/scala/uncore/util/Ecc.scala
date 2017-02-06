@@ -10,7 +10,7 @@ abstract class Decoding
   def uncorrected: UInt
   def corrected: UInt
   def correctable: Bool
-  def uncorrectable: Bool
+  def uncorrectable: Bool // If true, correctable should be ignored
   def error = correctable || uncorrectable
 }
 
@@ -81,7 +81,7 @@ class SECCode extends Code
     def uncorrected = swizzle(y)
     def corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
     def correctable = syndrome.orR
-    def uncorrectable = Bool(false)
+    def uncorrectable = syndrome > UInt(n)
   }
   private def mapping(i: Int) = i-1-log2Up(i)
 }

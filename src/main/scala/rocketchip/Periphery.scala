@@ -30,6 +30,9 @@ case object PeripheryBusConfig extends Field[TLBusConfig]
 case object PeripheryBusArithmetic extends Field[Boolean]
 /* Specifies the SOC-bus configuration */
 case object SOCBusConfig extends Field[TLBusConfig]
+/* Specifies the location of the Zero device */
+case class ZeroConfig(base: Long, size: Long, beatBytes: Int)
+case object ZeroConfig extends Field[ZeroConfig]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasPeripheryParameters {
@@ -68,28 +71,21 @@ trait PeripheryExtInterruptsModule {
 
 /////
 
-trait PeripheryNoMem extends TopNetwork {
-  private val channels = p(BankedL2Config).nMemoryChannels
-  require (channels == 0)
-  val mem = Seq()
-}
-
-/////
-
 trait PeripheryMasterAXI4Mem {
   this: TopNetwork =>
   val module: PeripheryMasterAXI4MemModule
 
   private val config = p(ExtMem)
   private val channels = p(BankedL2Config).nMemoryChannels
+  private val lineBytes = p(CacheBlockBytes)
 
-  val mem_axi4 = AXI4BlindOutputNode(Seq.tabulate(channels) { i =>
-    val c_size = config.size/channels
-    val c_base = config.base + c_size*i
+  val mem_axi4 = AXI4BlindOutputNode(Seq.tabulate(channels) { channel =>
+    val base = AddressSet(config.base, config.size-1)
+    val filter = AddressSet(channel * lineBytes, ~((channels-1) * lineBytes))
 
     AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
-        address       = List(AddressSet(c_base, c_size-1)),
+        address       = base.intersect(filter).toList,
         regionType    = RegionType.UNCACHED,   // cacheable
         executable    = true,
         supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
@@ -98,10 +94,13 @@ trait PeripheryMasterAXI4Mem {
       beatBytes = config.beatBytes)
   })
 
-  val mem = Seq.fill(channels) {
-    val converter = LazyModule(new TLToAXI4(config.idBits))
-    mem_axi4 := AXI4Buffer()(converter.node)
-    converter.node
+  private val converter = LazyModule(new TLToAXI4(config.idBits))
+  private val buffer = LazyModule(new AXI4Buffer)
+
+  mem foreach { case xbar =>
+    converter.node := xbar.node
+    buffer.node := converter.node
+    mem_axi4 := buffer.node
   }
 }
 
@@ -116,6 +115,36 @@ trait PeripheryMasterAXI4MemModule {
   this: TopNetworkModule {
     val outer: PeripheryMasterAXI4Mem
     val io: PeripheryMasterAXI4MemBundle
+  } =>
+}
+
+/////
+
+trait PeripheryZero {
+  this: TopNetwork =>
+  val module: PeripheryZeroModule
+
+  private val config = p(ZeroConfig)
+  private val address = AddressSet(config.base, config.size-1)
+  private val lineBytes = p(CacheBlockBytes)
+
+  val zeros = mem map { case xbar =>
+    val zero = LazyModule(new TLZero(address, beatBytes = config.beatBytes))
+    zero.node := TLFragmenter(config.beatBytes, lineBytes)(xbar.node)
+    zero
+  }
+}
+
+trait PeripheryZeroBundle {
+  this: TopNetworkBundle {
+    val outer: PeripheryZero
+  } =>
+}
+
+trait PeripheryZeroModule {
+  this: TopNetworkModule {
+    val outer: PeripheryZero
+    val io: PeripheryZeroBundle
   } =>
 }
 

@@ -11,31 +11,31 @@ import Instructions._
 object ALU
 {
   val SZ_ALU_FN = 4
-  val FN_X    = BitPat("b????")
-  val FN_ADD  = UInt(0)
-  val FN_SL   = UInt(1)
-  val FN_SEQ  = UInt(2)
-  val FN_SNE  = UInt(3)
-  val FN_XOR  = UInt(4)
-  val FN_SR   = UInt(5)
-  val FN_OR   = UInt(6)
-  val FN_AND  = UInt(7)
-  val FN_SUB  = UInt(10)
-  val FN_SRA  = UInt(11)
-  val FN_SLT  = UInt(12)
-  val FN_SGE  = UInt(13)
-  val FN_SLTU = UInt(14)
-  val FN_SGEU = UInt(15)
+  def FN_X    = BitPat("b????")
+  def FN_ADD  = UInt(0)
+  def FN_SL   = UInt(1)
+  def FN_SEQ  = UInt(2)
+  def FN_SNE  = UInt(3)
+  def FN_XOR  = UInt(4)
+  def FN_SR   = UInt(5)
+  def FN_OR   = UInt(6)
+  def FN_AND  = UInt(7)
+  def FN_SUB  = UInt(10)
+  def FN_SRA  = UInt(11)
+  def FN_SLT  = UInt(12)
+  def FN_SGE  = UInt(13)
+  def FN_SLTU = UInt(14)
+  def FN_SGEU = UInt(15)
 
-  val FN_DIV  = FN_XOR
-  val FN_DIVU = FN_SR
-  val FN_REM  = FN_OR
-  val FN_REMU = FN_AND
+  def FN_DIV  = FN_XOR
+  def FN_DIVU = FN_SR
+  def FN_REM  = FN_OR
+  def FN_REMU = FN_AND
 
-  val FN_MUL    = FN_ADD
-  val FN_MULH   = FN_SL
-  val FN_MULHSU = FN_SLT
-  val FN_MULHU  = FN_SLTU
+  def FN_MUL    = FN_ADD
+  def FN_MULH   = FN_SL
+  def FN_MULHSU = FN_SLT
+  def FN_MULHU  = FN_SLTU
 
   def isMulFN(fn: UInt, cmp: UInt) = fn(1,0) === cmp(1,0)
   def isSub(cmd: UInt) = cmd(3)

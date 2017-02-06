@@ -408,11 +408,11 @@ class OpcodeSet(val opcodes: Seq[UInt]) {
 }
 
 object OpcodeSet {
-  val custom0 = new OpcodeSet(Seq(Bits("b0001011")))
-  val custom1 = new OpcodeSet(Seq(Bits("b0101011")))
-  val custom2 = new OpcodeSet(Seq(Bits("b1011011")))
-  val custom3 = new OpcodeSet(Seq(Bits("b1111011")))
-  val all = custom0 | custom1 | custom2 | custom3
+  def custom0 = new OpcodeSet(Seq(Bits("b0001011")))
+  def custom1 = new OpcodeSet(Seq(Bits("b0101011")))
+  def custom2 = new OpcodeSet(Seq(Bits("b1011011")))
+  def custom3 = new OpcodeSet(Seq(Bits("b1111011")))
+  def all = custom0 | custom1 | custom2 | custom3
 }
 
 class RoccCommandRouter(opcodes: Seq[OpcodeSet])(implicit p: Parameters)

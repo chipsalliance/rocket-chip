@@ -20,24 +20,24 @@ case class FPUParams(
 
 object FPConstants
 {
-  val FCMD_ADD =    BitPat("b0??00")
-  val FCMD_SUB =    BitPat("b0??01")
-  val FCMD_MUL =    BitPat("b0??10")
-  val FCMD_MADD =   BitPat("b1??00")
-  val FCMD_MSUB =   BitPat("b1??01")
-  val FCMD_NMSUB =  BitPat("b1??10")
-  val FCMD_NMADD =  BitPat("b1??11")
-  val FCMD_DIV =    BitPat("b?0011")
-  val FCMD_SQRT =   BitPat("b?1011")
-  val FCMD_SGNJ =   BitPat("b??1?0")
-  val FCMD_MINMAX = BitPat("b?01?1")
-  val FCMD_CVT_FF = BitPat("b??0??")
-  val FCMD_CVT_IF = BitPat("b?10??")
-  val FCMD_CMP =    BitPat("b?01??")
-  val FCMD_MV_XF =  BitPat("b?11??")
-  val FCMD_CVT_FI = BitPat("b??0??")
-  val FCMD_MV_FX =  BitPat("b??1??")
-  val FCMD_X =      BitPat("b?????")
+  def FCMD_ADD =    BitPat("b0??00")
+  def FCMD_SUB =    BitPat("b0??01")
+  def FCMD_MUL =    BitPat("b0??10")
+  def FCMD_MADD =   BitPat("b1??00")
+  def FCMD_MSUB =   BitPat("b1??01")
+  def FCMD_NMSUB =  BitPat("b1??10")
+  def FCMD_NMADD =  BitPat("b1??11")
+  def FCMD_DIV =    BitPat("b?0011")
+  def FCMD_SQRT =   BitPat("b?1011")
+  def FCMD_SGNJ =   BitPat("b??1?0")
+  def FCMD_MINMAX = BitPat("b?01?1")
+  def FCMD_CVT_FF = BitPat("b??0??")
+  def FCMD_CVT_IF = BitPat("b?10??")
+  def FCMD_CMP =    BitPat("b?01??")
+  def FCMD_MV_XF =  BitPat("b?11??")
+  def FCMD_CVT_FI = BitPat("b??0??")
+  def FCMD_MV_FX =  BitPat("b??1??")
+  def FCMD_X =      BitPat("b?????")
   val FCMD_WIDTH = 5
 
   val RM_SZ = 3
@@ -249,14 +249,21 @@ object RecFNToRecFN_noncompliant {
   }
 }
 
+object CanonicalNaN {
+  def apply(expWidth: Int, sigWidth: Int): UInt =
+    UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 2)), expWidth + sigWidth + 1)
+}
+
 trait HasFPUParameters {
   val fLen: Int
   val (sExpWidth, sSigWidth) = (8, 24)
   val (dExpWidth, dSigWidth) = (11, 53)
-  val (maxExpWidth, maxSigWidth) = fLen match {
-    case 32 => (sExpWidth, sSigWidth)
-    case 64 => (dExpWidth, dSigWidth)
+  val floatWidths = fLen match {
+    case 32 => List((sExpWidth, sSigWidth))
+    case 64 => List((sExpWidth, sSigWidth), (dExpWidth, dSigWidth))
   }
+  val maxExpWidth = floatWidths.map(_._1).max
+  val maxSigWidth = floatWidths.map(_._2).max
 }
 
 abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters
@@ -420,15 +427,17 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
         val isnan2 = IsNaNRecFN(expWidth, sigWidth, in.bits.in2)
         val issnan1 = IsSNaNRecFN(expWidth, sigWidth, in.bits.in1)
         val issnan2 = IsSNaNRecFN(expWidth, sigWidth, in.bits.in2)
-        (isnan2 || in.bits.rm(0) =/= io.lt && !isnan1, issnan1 || issnan2)
+        val invalid = issnan1 || issnan2
+        val isNaNOut = invalid || (isnan1 && isnan2)
+        val cNaN = floatWidths.filter(_._1 >= expWidth).map(x => CanonicalNaN(x._1, x._2)).reduce(_+_)
+        (isnan2 || in.bits.rm(0) =/= io.lt && !isnan1, invalid, isNaNOut, cNaN)
       }
-      val (isLHS, isInvalid) = fLen match {
+      val (isLHS, isInvalid, isNaNOut, cNaN) = fLen match {
         case 32 => doMinMax(sExpWidth, sSigWidth)
         case 64 => MuxT(in.bits.single, doMinMax(sExpWidth, sSigWidth), doMinMax(dExpWidth, dSigWidth))
       }
       mux.exc := isInvalid << 4
-      mux.data := in.bits.in1
-      when (!isLHS) { mux.data := in.bits.in2 }
+      mux.data := Mux(isNaNOut, cNaN, Mux(isLHS, in.bits.in1, in.bits.in2))
     }
 
     fLen match {

@@ -103,26 +103,17 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
   } 
 
-  /** Output a global Parameter dump, which an external script can turn into Verilog headers. */
-  def generateParameterDump {
-    writeOutputFile(td, s"$longName.prm", "")
-  }
-
-  /** Output a global ConfigString, for use by the RISC-V software ecosystem. */
-  def generateConfigString {
-    ConfigStringOutput.contents.foreach(c => writeOutputFile(td, s"${names.configs}.cfg", c))
-  }
-
-  /** Output a global LazyModule topology for documentation purposes. */
-  def generateGraphML {
-    TopModule.contents.foreach(lm => writeOutputFile(td, s"${names.configs}.graphml", lm.graphML))
+  /** Output files created as a side-effect of elaboration */
+  def generateArtefacts {
+    ElaborationArtefacts.files.foreach { case (extension, contents) =>
+      writeOutputFile(td, s"${names.configs}.${extension}", contents ())
+    }
   }
 }
 
-object ConfigStringOutput {
-  var contents: Option[String] = None
-}
-
-object TopModule {
-  var contents: Option[LazyModule] = None
+object ElaborationArtefacts {
+  var files: Seq[(String, () => String)] = Nil
+  def add(extension: String, contents: => String) {
+    files = (extension, () => contents) +: files
+  }
 }

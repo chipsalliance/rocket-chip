@@ -291,10 +291,10 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
 
 object TLBroadcastConstants
 {
-  val TRANSFORM_T = UInt(3)
-  val TRANSFORM_B = UInt(2)
-  val DROP        = UInt(1)
-  val PASS        = UInt(0)
+  def TRANSFORM_T = UInt(3)
+  def TRANSFORM_B = UInt(2)
+  def DROP        = UInt(1)
+  def PASS        = UInt(0)
 }
 
 class TLBroadcastData(params: TLBundleParameters) extends TLBundleBase(params)
