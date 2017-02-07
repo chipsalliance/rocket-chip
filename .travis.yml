@@ -36,7 +36,8 @@ env:
     - SUITE=RocketSuiteA
     - SUITE=RocketSuiteB
     - SUITE=RocketSuiteC
-    - SUITE=GroundtestSuite
+    - SUITE=GroundtestSuiteA
+    - SUITE=GroundtestSuiteB
     - SUITE=UnittestSuite
 
 # blacklist private branches
@@ -54,7 +55,6 @@ before_install:
 
 script:
   - make emulator-ndebug -C regression SUITE=$SUITE
-  - make emulator-regression-tests -C regression SUITE=$SUITE
 
 before_cache:
   - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
