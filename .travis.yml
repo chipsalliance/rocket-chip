@@ -54,7 +54,7 @@ before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make emulator-ndebug -C regression SUITE=$SUITE
+  - ls
 
 before_cache:
   - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
