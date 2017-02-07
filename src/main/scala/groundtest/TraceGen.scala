@@ -180,7 +180,7 @@ class TagMan(val logNumTags : Int) extends Module {
 // ===============
 
 class TraceGenerator(id: Int)
-    (implicit p: Parameters) extends L1HellaCacheModule()(p)
+    (implicit val p: Parameters) extends Module
                                 with HasTraceGenParams
                                 with HasGroundTestParameters {
   val io = new Bundle {

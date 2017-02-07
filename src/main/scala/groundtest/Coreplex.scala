@@ -22,6 +22,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tiles = List.tabulate(p(NTiles)) { i =>
     LazyModule(new GroundTestTile()(p.alter { (site, here, up) => {
       case TileId => i
+      case TileKey => RocketTileParams()
       case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
       case AmoAluOperandBits => site(XLen)
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)

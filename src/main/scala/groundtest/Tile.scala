@@ -35,10 +35,10 @@ trait HasGroundTestConstants {
 
 trait HasGroundTestParameters {
   implicit val p: Parameters
-  val tileSettings = p(GroundTestKey)(p(TileId))
-  val nUncached = tileSettings.uncached
-  val nCached = tileSettings.cached
-  val nPTW = tileSettings.ptw
+  val tileParams = p(GroundTestKey)(p(TileId))
+  val nUncached = tileParams.uncached
+  val nCached = tileParams.cached
+  val nPTW = tileParams.ptw
   val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
 }
@@ -110,15 +110,14 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
 }
 
 class GroundTestTile(implicit p: Parameters) extends LazyModule
-    with HasGroundTestParameters
-    with HasTileParameters {
+    with HasGroundTestParameters {
   val slave = None
-  val dcache = HellaCache(tileParams.dcache.nMSHRs == 0)
+  val dcacheOpt = tileParams.dcache.map { dc => HellaCache(dc.nMSHRs == 0) }
   val ucLegacy = LazyModule(new TLLegacy)
 
    val cachedOut = TLOutputNode()
    val uncachedOut = TLOutputNode()
-   cachedOut := dcache.node
+   dcacheOpt.foreach { cachedOut := _.node }
    uncachedOut := TLHintHandler()(ucLegacy.node)
    val masterNodes = List(cachedOut, uncachedOut)
 
@@ -134,7 +133,7 @@ class GroundTestTile(implicit p: Parameters) extends LazyModule
     val ptwPorts = ListBuffer.empty ++= test.io.ptw
     val uncachedArbPorts = ListBuffer.empty ++= test.io.mem
 
-    if (nCached > 0) {
+    dcacheOpt foreach { dcache =>
       val dcacheArb = Module(new HellaCacheArbiter(nCached))
 
       dcacheArb.io.requestor.zip(test.io.cache).foreach {

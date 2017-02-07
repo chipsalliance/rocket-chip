@@ -17,7 +17,7 @@ import scala.collection.mutable.ListBuffer
 case class DCacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
-    rowBits: Int = 128,
+    rowBits: Int = 64,
     nTLBEntries: Int = 8,
     splitMetadata: Boolean = false,
     ecc: Option[Code] = None,
