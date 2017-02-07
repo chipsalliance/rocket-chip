@@ -25,4 +25,4 @@ before_install:
   - docker pull hcook/docker-riscv:chisel
 
 script:
-  - docker run -v $(pwd):/opt/riscv/test hcook/docker-riscv:chisel /bin/sh -c  "make emulator-ndebug -C regression SUITE=$SUITE; make emulator-regression-tests -C regression SUITE=$SUITE"
+  - travis_wait docker run -v $(pwd):/opt/riscv/test hcook/docker-riscv:chisel /bin/sh -c  "make emulator-ndebug -C regression SUITE=$SUITE; make emulator-regression-tests -C regression SUITE=$SUITE"
