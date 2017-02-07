@@ -109,10 +109,10 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
 
   val sizeBytes = tileParams.dataScratchpadBytes
-  val slaveNode = if (sizeBytes > 0) Some(TLInputNode()) else None
+  val slaveNode = TLInputNode()
   val scratch   = if (sizeBytes > 0) Some(LazyModule(new ScratchpadSlavePort(sizeBytes))) else None
 
-  (slaveNode zip scratch) foreach { case (node, lm) => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(node) }
+  scratch foreach { lm => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(slaveNode) }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
     val finalNode = frontend.node.edgesOut(0).manager.managers.find(_.nodePath.last == s.node)
@@ -126,7 +126,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
 
 trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
   val outer: CanHaveScratchpad
-  val slave = outer.slaveNode.map(_.bundleIn)
+  val slave = outer.slaveNode.bundleIn
 }
 
 trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontendModule {

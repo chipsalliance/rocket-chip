@@ -47,36 +47,34 @@ abstract class BareTileModule[+L <: BareTile, +B <: BareTileBundle[L]](_outer: L
   val io = _io ()
 }
 
-// Uses a tile-internal crossbar to provide a single TileLink master port
-trait TileNetwork extends HasTileParameters {
+// Uses TileLink master port to connect caches and accelerators to the coreplex
+trait HasTileLinkMasterPort extends HasTileParameters {
   implicit val p: Parameters
-  val module: TileNetworkModule
-  val l1backend = LazyModule(new TLXbar)
-  val masterNodes = List(TLOutputNode())
-  masterNodes.head := l1backend.node
+  val module: HasTileLinkMasterPortModule
+  val masterNode = TLOutputNode()
 }
 
-trait TileNetworkBundle {
-  val outer: TileNetwork
-  val master = outer.masterNodes.head.bundleOut
+trait HasTileLinkMasterPortBundle {
+  val outer: HasTileLinkMasterPort
+  val master = outer.masterNode.bundleOut
 }
 
-trait TileNetworkModule {
-  val outer: TileNetwork
-  val io: TileNetworkBundle
+trait HasTileLinkMasterPortModule {
+  val outer: HasTileLinkMasterPort
+  val io: HasTileLinkMasterPortBundle
 }
 
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with TileNetwork {
+    with HasTileLinkMasterPort {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with TileNetworkBundle {
+    with HasTileLinkMasterPortBundle {
   val hartid = UInt(INPUT, p(XLen))
   val interrupts = new TileInterrupts()(p).asInput
   val resetVector = UInt(INPUT, p(XLen))
 }
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
-    with TileNetworkModule
+    with HasTileLinkMasterPortModule

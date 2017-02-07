@@ -153,19 +153,18 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
-trait HasICacheFrontend extends CanHavePTW with TileNetwork {
+trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
   val module: HasICacheFrontendModule
   val frontend = LazyModule(new Frontend)
-  l1backend.node := frontend.node
+  masterNode := frontend.node
   nPTWPorts += 1
 }
 
-trait HasICacheFrontendBundle extends TileNetworkBundle {
+trait HasICacheFrontendBundle extends HasTileLinkMasterPortBundle {
   val outer: HasICacheFrontend
 }
 
-trait HasICacheFrontendModule extends CanHavePTWModule with TileNetworkModule {
+trait HasICacheFrontendModule extends CanHavePTWModule with HasTileLinkMasterPortModule {
   val outer: HasICacheFrontend
-  //val io: HasICacheFrontendBundle
   ptwPorts += outer.frontend.module.io.ptw
 }

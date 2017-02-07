@@ -23,7 +23,7 @@ case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Seq[RoCCParams]]
 
-trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwork {
+trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with HasTileLinkMasterPort {
   val module: CanHaveLegacyRoccsModule
   val legacyRocc = if (p(BuildRoCC).isEmpty) None
     else Some(LazyModule(new LegacyRoccComplex()(p.alter { (site, here, up) => {
@@ -47,15 +47,16 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
             dataBits = site(CacheBlockBytes)*8)
     }})))
 
-  // TODO for now, all legacy rocc mem ports mapped to one external node
   legacyRocc foreach { lr =>
-    lr.masterNodes.foreach { l1backend.node := _ }
+    masterNode := lr.masterNode
     nPTWPorts += lr.nPTWPorts
     nDCachePorts += lr.nRocc
   }
 }
 
-trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule with CanHavePTWModule with TileNetworkModule {
+trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule
+    with CanHavePTWModule
+    with HasTileLinkMasterPortModule {
   val outer: CanHaveLegacyRoccs
 
   fpuOpt foreach { fpu =>
@@ -85,13 +86,13 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
   val nPTWPorts = buildRocc.map(_.nPTWPorts).sum
   val roccOpcodes = buildRocc.map(_.opcodes)
 
+  val masterNode = TLOutputNode()
   val legacies = List.fill(nMemChannels) { LazyModule(new TLLegacy()(p.alterPartial({ case PAddrBits => 32 }))) }
-  val masterNodes = legacies.map(_ => TLOutputNode())
-  legacies.zip(masterNodes).foreach { case(l,m) => m := TLHintHandler()(l.node) }
+  legacies.foreach { leg => masterNode := TLHintHandler()(leg.node) }
 
   lazy val module = new LazyModuleImp(this) with HasCoreParameters {
     val io = new Bundle {
-      val tl = masterNodes.map(_.bundleOut)
+      val tl = masterNode.bundleOut
       val dcache = Vec(nRocc, new HellaCacheIO)
       val fpu = new Bundle {
         val cp_req = Decoupled(new FPInput())
