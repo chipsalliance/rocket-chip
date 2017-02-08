@@ -39,7 +39,7 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with HasTileLi
             nCachingClients = 1,
             nCachelessClients = 1,
             maxClientXacts = List(
-                tileParams.dcache.nMSHRs + 1 /* IOMSHR */,
+                tileParams.dcache.get.nMSHRs + 1 /* IOMSHR */,
                 if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
             maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
             maxManagerXacts = 8,

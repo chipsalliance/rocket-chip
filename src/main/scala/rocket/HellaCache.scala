@@ -30,7 +30,7 @@ case class DCacheParams(
 
 trait HasL1HellaCacheParameters extends HasL1CacheParameters
     with HasCoreParameters {
-  val cacheParams = tileParams.dcache
+  val cacheParams = tileParams.dcache.get
   val cfg = cacheParams
 
   def wordBits = xLen // really, xLen max 
@@ -51,7 +51,6 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters
   def nIOMSHRs = cacheParams.nMMIOs
   def maxUncachedInFlight = cacheParams.nMMIOs
   def dataScratchpadSize = tileParams.dataScratchpadBytes
-  def usingDataScratchpad = tileParams.dataScratchpadBytes > 0
 
   require(isPow2(nSets), s"nSets($nSets) must be pow2")
   require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
@@ -123,7 +122,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 /** Base classes for Diplomatic TL2 HellaCaches */
 
 abstract class HellaCache(implicit p: Parameters) extends LazyModule {
-  private val cfg = p(TileKey).dcache
+  private val cfg = p(TileKey).dcache.get
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, cfg.nMSHRs + cfg.nMMIOs),
     supportsProbe = TransferSizes(1, p(CacheBlockBytes))))
@@ -158,7 +157,7 @@ trait HasHellaCache extends HasTileLinkMasterPort {
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcache = HellaCache(tileParams.dcache.nMSHRs == 0, findScratchpadFromICache _)
+  val dcache = HellaCache(tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
   masterNode := dcache.node
 }
 

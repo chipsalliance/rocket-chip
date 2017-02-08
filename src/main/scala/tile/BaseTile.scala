@@ -14,10 +14,10 @@ case object TileKey extends Field[TileParams]
 
 trait TileParams {
   val core: CoreParams
-  val icache: ICacheParams
-  val dcache: DCacheParams
+  val icache: Option[ICacheParams]
+  val dcache: Option[DCacheParams]
   val rocc: Seq[RoCCParams]
-  val btb: BTBParams
+  val btb: Option[BTBParams]
   val dataScratchpadBytes: Int
 }
 
@@ -29,10 +29,11 @@ trait HasTileParameters {
   val usingUser = tileParams.core.useUser || usingVM
   val usingDebug = tileParams.core.useDebug
   val usingRoCC = !tileParams.rocc.isEmpty
-  val usingBTB = tileParams.btb.nEntries > 0
+  val usingBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
   val usingPTW = usingVM
+  val usingDataScratchpad = tileParams.dcache.isDefined && tileParams.dataScratchpadBytes > 0
 
-  def dcacheArbPorts = 1 + usingVM.toInt + (tileParams.dataScratchpadBytes > 0).toInt + tileParams.rocc.size
+  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
 }
 
 abstract class BareTile(implicit p: Parameters) extends LazyModule

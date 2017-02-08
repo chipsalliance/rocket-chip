@@ -13,12 +13,15 @@ import uncore.tilelink2._
 import util._
 
 case class RocketTileParams(
-  core: RocketCoreParams = RocketCoreParams(),
-  icache: ICacheParams = ICacheParams(),
-  dcache: DCacheParams = DCacheParams(),
-  rocc: Seq[RoCCParams] = Nil,
-  btb: BTBParams = BTBParams(),
-  dataScratchpadBytes: Int = 0) extends TileParams
+    core: RocketCoreParams = RocketCoreParams(),
+    icache: Option[ICacheParams] = Some(ICacheParams()),
+    dcache: Option[DCacheParams] = Some(DCacheParams()),
+    rocc: Seq[RoCCParams] = Nil,
+    btb: Option[BTBParams] = Some(BTBParams()),
+    dataScratchpadBytes: Int = 0) extends TileParams {
+  require(icache.isDefined)
+  require(dcache.isDefined)
+}
   
 class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache

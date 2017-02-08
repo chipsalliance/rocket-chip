@@ -14,7 +14,6 @@ import rocketchip.ExtMem
 import diplomacy._
 import util.ParameterizedBundle
 
-import scala.util.Random
 import scala.collection.mutable.ListBuffer
 
 case object BuildGroundTest extends Field[Parameters => GroundTest]
@@ -23,8 +22,13 @@ case class GroundTestTileParams(
     uncached: Int = 0,
     ptw: Int = 0,
     maxXacts: Int = 1,
-    dcache: Option[DCacheParams] = Some(DCacheParams())) {
+    dcache: Option[DCacheParams] = Some(DCacheParams())) extends TileParams {
+  val icache = None
+  val btb = None
+  val rocc = Nil
+  val core = rocket.RocketCoreParams() //TODO remove this
   val cached = if(dcache.isDefined) 1 else 0
+  val dataScratchpadBytes = 0
 }
 case object GroundTestKey extends Field[Seq[GroundTestTileParams]]
 
@@ -41,53 +45,6 @@ trait HasGroundTestParameters {
   val nPTW = tileParams.ptw
   val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
-}
-
-class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val requestors = Vec(n, new TLBPTWIO).flip
-  }
-
-  val req_arb = Module(new RRArbiter(new PTWReq, n))
-  req_arb.io.in <> io.requestors.map(_.req)
-  req_arb.io.out.ready := Bool(true)
-
-  def vpn_to_ppn(vpn: UInt): UInt = vpn(ppnBits - 1, 0)
-
-  class QueueChannel extends ParameterizedBundle()(p) {
-    val ppn = UInt(width = ppnBits)
-    val chosen = UInt(width = log2Up(n))
-  }
-
-  val s1_ppn = vpn_to_ppn(req_arb.io.out.bits.addr)
-  val s2_ppn = RegEnable(s1_ppn, req_arb.io.out.valid)
-  val s2_chosen = RegEnable(req_arb.io.chosen, req_arb.io.out.valid)
-  val s2_valid = Reg(next = req_arb.io.out.valid)
-
-  val s2_resp = Wire(new PTWResp)
-  s2_resp.pte.ppn := s2_ppn
-  s2_resp.pte.reserved_for_software := UInt(0)
-  s2_resp.pte.d := Bool(true)
-  s2_resp.pte.a := Bool(false)
-  s2_resp.pte.g := Bool(false)
-  s2_resp.pte.u := Bool(true)
-  s2_resp.pte.r := Bool(true)
-  s2_resp.pte.w := Bool(true)
-  s2_resp.pte.x := Bool(false)
-  s2_resp.pte.v := Bool(true)
-
-  io.requestors.zipWithIndex.foreach { case (requestor, i) =>
-    requestor.resp.valid := s2_valid && s2_chosen === UInt(i)
-    requestor.resp.bits := s2_resp
-    requestor.status.vm := UInt("b01000")
-    requestor.status.prv := UInt(PRV.S)
-    requestor.status.debug := Bool(false)
-    requestor.status.mprv  := Bool(true)
-    requestor.status.mpp := UInt(0)
-    requestor.ptbr.asid := UInt(0)
-    requestor.ptbr.ppn := UInt(0)
-    requestor.invalidate := Bool(false)
-  }
 }
 
 class GroundTestStatus extends Bundle with HasGroundTestConstants {

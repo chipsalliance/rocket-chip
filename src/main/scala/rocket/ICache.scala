@@ -24,7 +24,7 @@ case class ICacheParams(
 }
 
 trait HasL1ICacheParameters extends HasL1CacheParameters with HasCoreParameters {
-  val cacheParams = tileParams.icache
+  val cacheParams = tileParams.icache.get
 }
 
 class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICacheParameters {

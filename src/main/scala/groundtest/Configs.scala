@@ -11,6 +11,7 @@ import uncore.coherence._
 import uncore.agents._
 import uncore.util._
 import uncore.devices.NTiles
+import tile.TileKey
 import junctions._
 import config._
 import coreplex._
@@ -75,6 +76,7 @@ class Edge32BitMemtestConfig extends Config(
 /* Composable Configs to set individual parameters */
 
 class WithGroundTestTiles extends Config((site, here, up) => {
+  case TileKey => site(GroundTestKey).head
   case NTiles => site(GroundTestKey).size
 })
 
