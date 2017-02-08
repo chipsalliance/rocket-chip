@@ -55,7 +55,7 @@ before_install:
 
 script:
   - make emulator-ndebug -C regression SUITE=$SUITE
-  - make emulator-regression-tests -C regression SUITE=$SUITE
+  - travis_wait make emulator-regression-tests -C regression SUITE=$SUITE
 
 before_cache:
   - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
