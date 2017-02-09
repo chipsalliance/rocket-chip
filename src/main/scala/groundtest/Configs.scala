@@ -104,7 +104,7 @@ class WithPrefetches extends Config((site, here, up) => {
 
 class WithMemtest(n: Int) extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(n) {
-    GroundTestTileParams(1, 1)
+    GroundTestTileParams(uncached = 1)
   }
   case GeneratorKey => TrafficGeneratorParameters(
     maxRequests = 128,
@@ -115,7 +115,7 @@ class WithMemtest(n: Int) extends Config((site, here, up) => {
 
 class WithCacheFillTest(n: Int) extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(n) {
-    GroundTestTileParams(uncached = 1)
+    GroundTestTileParams(uncached = 1, dcache = None)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new CacheFillTest()(p))
@@ -123,7 +123,7 @@ class WithCacheFillTest(n: Int) extends Config((site, here, up) => {
 
 class WithBroadcastRegressionTest(n: Int) extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(n) {
-    GroundTestTileParams(1, 1, maxXacts = 3)
+    GroundTestTileParams(uncached = 1, maxXacts = 3)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new RegressionTest()(p))
@@ -133,7 +133,7 @@ class WithBroadcastRegressionTest(n: Int) extends Config((site, here, up) => {
 
 class WithCacheRegressionTest(n: Int) extends Config((site, here, up) => {
   case GroundTestKey => Seq.fill(n) {
-    GroundTestTileParams(1, 1, maxXacts = 5)
+    GroundTestTileParams(uncached = 1, maxXacts = 5)
   }
   case BuildGroundTest =>
     (p: Parameters) => Module(new RegressionTest()(p))
