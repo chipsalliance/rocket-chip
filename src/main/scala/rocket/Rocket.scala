@@ -305,7 +305,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || (Bool(!fastJAL) && mem_ctrl.jal)
-  val mem_misprediction = if (usingBTB) mem_cfi_taken else mem_wrong_npc
+  val mem_misprediction = if (usingBTB) mem_wrong_npc else mem_cfi_taken
   take_pc_mem := mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
 
   mem_reg_valid := !ctrl_killx
