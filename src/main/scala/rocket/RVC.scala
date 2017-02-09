@@ -4,8 +4,9 @@ package rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import util._
 import config._
+import tile._
+import util._
 
 class ExpandedInstruction extends Bundle {
   val bits = UInt(width = 32)
@@ -150,14 +151,14 @@ class RVCDecoder(x: UInt)(implicit p: Parameters) {
   }
 }
 
-class RVCExpander(implicit p: Parameters) extends Module {
+class RVCExpander(implicit val p: Parameters) extends Module with HasCoreParameters {
   val io = new Bundle {
     val in = UInt(INPUT, 32)
     val out = new ExpandedInstruction
     val rvc = Bool(OUTPUT)
   }
 
-  if (p(UseCompressed)) {
+  if (usingCompressed) {
     io.rvc := io.in(1,0) =/= UInt(3)
     io.out := new RVCDecoder(io.in).decode
   } else {

@@ -5,76 +5,57 @@ package rocket
 
 import Chisel._
 import config._
+import tile._
 import uncore.constants._
 import util._
 import Chisel.ImplicitConversions._
 
-case class RocketConfig(xLen: Int)
-// TODO replace some of below fields with above Config
-case object XLen extends Field[Int]
-case object FetchWidth extends Field[Int]
-case object RetireWidth extends Field[Int]
-case object FPUKey extends Field[Option[FPUConfig]]
-case object MulDivKey extends Field[Option[MulDivConfig]]
-case object UseVM extends Field[Boolean]
-case object UseUser extends Field[Boolean]
-case object UseDebug extends Field[Boolean]
-case object UseAtomics extends Field[Boolean]
-case object UseCompressed extends Field[Boolean]
-case object FastLoadWord extends Field[Boolean]
-case object FastLoadByte extends Field[Boolean]
-case object FastJAL extends Field[Boolean]
-case object CoreInstBits extends Field[Int]
-case object NCustomMRWCSRs extends Field[Int]
-case object MtvecWritable extends Field[Boolean]
-case object MtvecInit extends Field[Option[BigInt]]
-case object NBreakpoints extends Field[Int]
-case object NPerfCounters extends Field[Int]
-case object NPerfEvents extends Field[Int]
-case object DataScratchpadSize extends Field[Int]
-
-class RegFile(n: Int, w: Int, zero: Boolean = false) {
-  private val rf = Mem(n, UInt(width = w))
-  private def access(addr: UInt) = rf(~addr(log2Up(n)-1,0))
-  private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
-  private var canRead = true
-  def read(addr: UInt) = {
-    require(canRead)
-    reads += addr -> Wire(UInt())
-    reads.last._2 := Mux(Bool(zero) && addr === UInt(0), UInt(0), access(addr))
-    reads.last._2
-  }
-  def write(addr: UInt, data: UInt) = {
-    canRead = false
-    when (addr =/= UInt(0)) {
-      access(addr) := data
-      for ((raddr, rdata) <- reads)
-        when (addr === raddr) { rdata := data }
-    }
-  }
+case class RocketCoreParams(
+  useVM: Boolean = true,
+  useUser: Boolean = false,
+  useDebug: Boolean = true,
+  useAtomics: Boolean = true,
+  useCompressed: Boolean = true,
+  nBreakpoints: Int = 1,
+  nPerfCounters: Int = 0,
+  nPerfEvents: Int = 0,
+  nCustomMRWCSRs: Int = 0,
+  mtvecInit: Option[BigInt] = Some(BigInt(0)),
+  mtvecWritable: Boolean = true,
+  fastLoadWord: Boolean = true,
+  fastLoadByte: Boolean = false,
+  fastJAL: Boolean = false,
+  mulDiv: Option[MulDivParams] = Some(MulDivParams()),
+  fpu: Option[FPUParams] = Some(FPUParams())
+) extends CoreParams {
+  val fetchWidth: Int = if (useCompressed) 2 else 1
+  //  fetchWidth doubled, but coreInstBytes halved, for RVC:
+  val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
+  val retireWidth: Int = 1
+  val instBits: Int = if (useCompressed) 16 else 32
 }
 
-object ImmGen {
-  def apply(sel: UInt, inst: UInt) = {
-    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).asSInt)
-    val b30_20 = Mux(sel === IMM_U, inst(30,20).asSInt, sign)
-    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).asSInt)
-    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
-              Mux(sel === IMM_UJ, inst(20).asSInt,
-              Mux(sel === IMM_SB, inst(7).asSInt, sign)))
-    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
-    val b4_1 = Mux(sel === IMM_U, Bits(0),
-               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
-               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
-    val b0 = Mux(sel === IMM_S, inst(7),
-             Mux(sel === IMM_I, inst(20),
-             Mux(sel === IMM_Z, inst(15), Bits(0))))
+trait HasRocketCoreParameters extends HasCoreParameters {
+  val rocketParams: RocketCoreParams = tileParams.core.asInstanceOf[RocketCoreParams]
 
-    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).asSInt
-  }
+  val fastLoadWord = rocketParams.fastLoadWord
+  val fastLoadByte = rocketParams.fastLoadByte
+  val fastJAL = rocketParams.fastJAL
+  val nBreakpoints = rocketParams.nBreakpoints
+  val nPerfCounters = rocketParams.nPerfCounters
+  val nPerfEvents = rocketParams.nPerfEvents
+  val nCustomMrwCsrs = rocketParams.nCustomMRWCSRs
+  val mtvecInit = rocketParams.mtvecInit
+  val mtvecWritable = rocketParams.mtvecWritable
+
+  val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
+
+  require(!fastLoadByte || fastLoadWord)
 }
 
-class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p) with HasCoreIO {
+class Rocket(implicit p: Parameters) extends CoreModule()(p)
+    with HasRocketCoreParameters
+    with HasCoreIO {
 
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
@@ -243,7 +224,7 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
   alu.io.in1 := ex_op1.asUInt
   
   // multiplier and divider
-  val div = Module(new MulDiv(p(MulDivKey).getOrElse(MulDivConfig()), width = xLen))
+  val div = Module(new MulDiv(mulDivParams, width = xLen))
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
   div.io.req.bits.dw := ex_ctrl.alu_dw
   div.io.req.bits.fn := ex_ctrl.alu_fn
@@ -324,9 +305,7 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || (Bool(!fastJAL) && mem_ctrl.jal)
-  val mem_misprediction =
-    if (p(BtbKey).nEntries == 0) mem_cfi_taken
-    else mem_wrong_npc
+  val mem_misprediction = if (usingBTB) mem_wrong_npc else mem_cfi_taken
   take_pc_mem := mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
 
   mem_reg_valid := !ctrl_killx
@@ -650,5 +629,46 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
       ens = ens || en
       when (ens) { _r := _next }
     }
+  }
+}
+
+class RegFile(n: Int, w: Int, zero: Boolean = false) {
+  private val rf = Mem(n, UInt(width = w))
+  private def access(addr: UInt) = rf(~addr(log2Up(n)-1,0))
+  private val reads = collection.mutable.ArrayBuffer[(UInt,UInt)]()
+  private var canRead = true
+  def read(addr: UInt) = {
+    require(canRead)
+    reads += addr -> Wire(UInt())
+    reads.last._2 := Mux(Bool(zero) && addr === UInt(0), UInt(0), access(addr))
+    reads.last._2
+  }
+  def write(addr: UInt, data: UInt) = {
+    canRead = false
+    when (addr =/= UInt(0)) {
+      access(addr) := data
+      for ((raddr, rdata) <- reads)
+        when (addr === raddr) { rdata := data }
+    }
+  }
+}
+
+object ImmGen {
+  def apply(sel: UInt, inst: UInt) = {
+    val sign = Mux(sel === IMM_Z, SInt(0), inst(31).asSInt)
+    val b30_20 = Mux(sel === IMM_U, inst(30,20).asSInt, sign)
+    val b19_12 = Mux(sel =/= IMM_U && sel =/= IMM_UJ, sign, inst(19,12).asSInt)
+    val b11 = Mux(sel === IMM_U || sel === IMM_Z, SInt(0),
+              Mux(sel === IMM_UJ, inst(20).asSInt,
+              Mux(sel === IMM_SB, inst(7).asSInt, sign)))
+    val b10_5 = Mux(sel === IMM_U || sel === IMM_Z, Bits(0), inst(30,25))
+    val b4_1 = Mux(sel === IMM_U, Bits(0),
+               Mux(sel === IMM_S || sel === IMM_SB, inst(11,8),
+               Mux(sel === IMM_Z, inst(19,16), inst(24,21))))
+    val b0 = Mux(sel === IMM_S, inst(7),
+             Mux(sel === IMM_I, inst(20),
+             Mux(sel === IMM_Z, inst(15), Bits(0))))
+
+    Cat(sign, b30_20, b19_12, b11, b10_5, b4_1, b0).asSInt
   }
 }

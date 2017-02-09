@@ -4,11 +4,12 @@
 package rocket
 
 import Chisel._
-import config._
-import uncore.constants._
-import uncore.util.PseudoLRU
-import util._
 import Chisel.ImplicitConversions._
+import config._
+import tile._
+import uncore.constants._
+import util._
+
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -224,11 +225,12 @@ trait CanHavePTW extends HasHellaCache {
   implicit val p: Parameters
   val module: CanHavePTWModule
   var nPTWPorts = 1
+  nDCachePorts += usingPTW.toInt
 }
 
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptwOpt = if (outer.p(UseVM)) { Some(Module(new PTW(outer.nPTWPorts)(outer.p))) } else None
+  val ptwOpt = if (outer.usingPTW) { Some(Module(new PTW(outer.nPTWPorts)(outer.p))) } else None
   ptwOpt foreach { ptw => dcachePorts += ptw.io.mem }
 }

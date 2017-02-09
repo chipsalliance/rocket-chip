@@ -5,6 +5,7 @@ package rocket
 
 import Chisel._
 import config._
+import tile._
 import Instructions._
 
 object ALU

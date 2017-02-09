@@ -103,14 +103,13 @@ class IOGetAfterPutBlockRegression(implicit p: Parameters) extends Regression()(
  * acknowledge both of them when the first one finished.
  * This caused the state to go funky since the next time around it would
  * start the put in the middle */
-class PutBlockMergeRegression(implicit p: Parameters)
+class PutBlockMergeRegression(nSets: Int)(implicit p: Parameters)
     extends Regression()(p) with HasTileLinkParameters {
   val s_idle :: s_put :: s_wait :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
 
   disableCache()
 
-  val nSets = p(CacheName("L2")).nSets
   val addr_blocks = Vec(Seq(0, 0, nSets).map(num => UInt(num + memStartBlock)))
   val nSteps = addr_blocks.size
   val (acq_beat, acq_done) = Counter(io.mem.acquire.fire(), tlDataBeats)
@@ -391,11 +390,8 @@ class PrefetchHitRegression(implicit p: Parameters) extends Regression()(p) {
  * set. This assumes that there is only a single cache bank. If we want to
  * test multibank configurations, we'll have to think of some other way to
  * determine which banks are conflicting */
-class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
+class WritebackRegression(nSets: Int, nWays: Int)(implicit p: Parameters) extends Regression()(p) {
   disableCache()
-
-  val nSets = p(CacheName("L2")).nSets
-  val nWays = p(CacheName("L2")).nWays
 
   val addr_blocks = Vec.tabulate(nWays + 1) { i => UInt(memStartBlock + i * nSets) }
   val data = Vec.tabulate(nWays + 1) { i => UInt((i + 1) * 1423) }
@@ -443,11 +439,9 @@ class WritebackRegression(implicit p: Parameters) extends Regression()(p) {
   io.errored := data_mismatch
 }
 
-class ReleaseRegression(implicit p: Parameters) extends Regression()(p) {
+class ReleaseRegression(nSets: Int, nWays: Int)(implicit p: Parameters) extends Regression()(p) {
   disableMem()
 
-  val nSets = p(CacheName("L1D")).nSets
-  val nWays = p(CacheName("L1D")).nWays
   val blockOffset = p(CacheBlockOffsetBits)
 
   val startBlock = memStartBlock + 10
@@ -530,11 +524,8 @@ class PutBeforePutBlockRegression(implicit p: Parameters) extends Regression()(p
  * Make sure that multiple gets to the same line and beat are merged
  * correctly, even if it is a cache miss.
  */
-class MergedGetRegression(implicit p: Parameters) extends Regression()(p) {
+class MergedGetRegression(nSets: Int, nWays: Int)(implicit p: Parameters) extends Regression()(p) {
   disableCache()
-
-  val nSets = p(CacheName("L2")).nSets
-  val nWays = p(CacheName("L2")).nWays
 
   val (s_idle :: s_put :: s_get :: s_done :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
@@ -697,23 +688,27 @@ class PutAfterReleaseRegression(implicit p: Parameters) extends Regression()(p) 
 }
 
 object RegressionTests {
+  val l1sets = 16 // TODO
+  val l1ways = 1  // TODO
+  val l2sets = 32 // TODO
+  val l2ways = 2  // TODO
   def cacheRegressions(implicit p: Parameters) = Seq(
-    Module(new PutBlockMergeRegression),
+    Module(new PutBlockMergeRegression(l2sets)),
     Module(new NoAllocPutHitRegression),
     Module(new RepeatedNoAllocPutRegression),
     Module(new WriteMaskedPutBlockRegression),
     Module(new PrefetchHitRegression),
-    Module(new WritebackRegression),
+    Module(new WritebackRegression(l2sets, l2ways)),
     Module(new PutBeforePutBlockRegression),
     Module(new MixedAllocPutRegression),
-    Module(new ReleaseRegression),
-    Module(new MergedGetRegression),
+    Module(new ReleaseRegression(l1sets, l1ways)),
+    Module(new MergedGetRegression(l2sets, l2ways)),
     Module(new MergedPutRegression))
   def broadcastRegressions(implicit p: Parameters) = Seq(
     Module(new IOGetAfterPutBlockRegression),
     Module(new WriteMaskedPutBlockRegression),
     Module(new PutBeforePutBlockRegression),
-    Module(new ReleaseRegression),
+    Module(new ReleaseRegression(l1sets, l1ways)),
     Module(new PutAfterReleaseRegression))
 }
 

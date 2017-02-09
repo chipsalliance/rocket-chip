@@ -5,15 +5,18 @@ package coreplex
 import Chisel._
 import config._
 import diplomacy._
-import rocket.{TileInterrupts, XLen}
+import tile.XLen
+import tile.TileInterrupts
 import uncore.tilelink2._
-import uncore.util._
 import util._
 
 /** Widths of various points in the SoC */
 case class TLBusConfig(beatBytes: Int)
 case object CBusConfig extends Field[TLBusConfig]
 case object L1toL2Config extends Field[TLBusConfig]
+
+// These parameters apply to all caches, for now
+case object CacheBlockBytes extends Field[Int]
 
 /** L2 Broadcast Hub configuration */
 case class BroadcastConfig(
@@ -42,10 +45,11 @@ case object BootROMFile extends Field[String]
 
 trait HasCoreplexParameters {
   implicit val p: Parameters
+  lazy val tilesParams = p(RocketTilesKey)
   lazy val cbusConfig = p(CBusConfig)
   lazy val l1tol2Config = p(L1toL2Config)
-  lazy val nTiles = p(uncore.devices.NTiles)
-  lazy val hasSupervisor = p(rocket.UseVM)
+  lazy val nTiles = tilesParams.size
+  lazy val hasSupervisor = tilesParams.exists(_.core.useVM) // TODO ask andrew about this
   lazy val l2Config = p(BankedL2Config)
 }
 
