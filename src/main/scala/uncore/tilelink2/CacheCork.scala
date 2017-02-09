@@ -29,7 +29,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       require (edgeIn.client.clients.size == 1 || unsafe, "Only one client can safely use a TLCacheCork")
-      require (edgeIn.client.clients.filter(_.supportsProbe).size == 1, "Only one caching client allowed")
+      require (edgeIn.client.clients.filter(_.supportsProbe).size <= 1, "Only one caching client allowed")
       edgeOut.manager.managers.foreach { case m =>
         require (!m.supportsAcquireB, "Cannot support caches beyond the Cork")
       }
