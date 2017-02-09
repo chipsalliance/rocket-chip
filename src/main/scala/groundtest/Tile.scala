@@ -72,16 +72,13 @@ class GroundTestTile(implicit p: Parameters) extends LazyModule
   val dcacheOpt = tileParams.dcache.map { dc => HellaCache(dc.nMSHRs == 0) }
   val ucLegacy = LazyModule(new TLLegacy)
 
-   val cachedOut = TLOutputNode()
-   val uncachedOut = TLOutputNode()
-   dcacheOpt.foreach { cachedOut := _.node }
-   uncachedOut := TLHintHandler()(ucLegacy.node)
-   val masterNodes = List(cachedOut, uncachedOut)
+   val masterNode = TLOutputNode()
+   dcacheOpt.foreach { masterNode := _.node }
+   masterNode := TLHintHandler()(ucLegacy.node)
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val cached = cachedOut.bundleOut
-      val uncached = uncachedOut.bundleOut
+      val out = masterNode.bundleOut
       val success = Bool(OUTPUT)
     }
 

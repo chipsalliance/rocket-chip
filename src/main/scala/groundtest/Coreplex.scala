@@ -40,10 +40,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
     }}))
   }
 
-  tiles.foreach { lm =>
-    l1tol2.node := lm.cachedOut
-    l1tol2.node := lm.uncachedOut
-  }
+  tiles.foreach { l1tol2.node :=* _.masterNode }
 
   val cbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, cbus_beatBytes))
   cbusRAM.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
@@ -51,8 +48,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
 }
 
-class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexBundle(_outer)
-{
+class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexBundle(_outer) {
   val success = Bool(OUTPUT)
 }
 
