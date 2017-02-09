@@ -16,7 +16,7 @@ case class BTBParams(
 
 trait HasBtbParameters extends HasCoreParameters {
   val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
-  val matchBits = pgIdxBits max log2Ceil(p(coreplex.CacheBlockBytes) * tileParams.icache.get.nSets)
+  val matchBits = pgIdxBits
   val entries = btbParams.nEntries
   val nRAS = btbParams.nRAS
   val updatesOutOfOrder = btbParams.updatesOutOfOrder
