@@ -4,6 +4,7 @@
 package groundtest
 
 import Chisel._
+import coreplex.CacheBlockBytes
 import uncore.tilelink._
 import uncore.constants._
 import uncore.util._
@@ -12,8 +13,9 @@ import config._
 
 class CacheFillTest(implicit p: Parameters) extends GroundTest()(p)
     with HasTileLinkParameters {
-  val l2Config = p(CacheName("L2"))
-  val capacityKb = l2Config.nSets * l2Config.nWays * l2Config.rowBits / (1024*8)
+  //val l2Config = p(CacheName("L2"))
+  //val capacityKb = l2Config.nSets * l2Config.nWays * l2Config.rowBits / (1024*8)
+  val capacityKb = 1024 // TODO
   val nblocks = capacityKb * 1024 / p(CacheBlockBytes)
   val s_start :: s_prefetch :: s_retrieve :: s_finished :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_start)

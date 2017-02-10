@@ -1,13 +1,14 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package tile
 
 import Chisel._
 import Chisel.ImplicitConversions._
 import config._
 import coreplex._
 import diplomacy._
+import rocket._
 import uncore.constants._
 import uncore.agents._
 import uncore.coherence._
@@ -20,9 +21,9 @@ import util._
 case object RoccMaxTaggedMemXacts extends Field[Int]
 case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
-case object BuildRoCC extends Field[Seq[RoccParameters]]
+case object BuildRoCC extends Field[Seq[RoCCParams]]
 
-trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwork {
+trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with HasTileLinkMasterPort {
   val module: CanHaveLegacyRoccsModule
   val legacyRocc = if (p(BuildRoCC).isEmpty) None
     else Some(LazyModule(new LegacyRoccComplex()(p.alter { (site, here, up) => {
@@ -38,7 +39,7 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
             nCachingClients = 1,
             nCachelessClients = 1,
             maxClientXacts = List(
-                site(DCacheKey).nMSHRs + 1 /* IOMSHR */,
+                tileParams.dcache.get.nMSHRs + 1 /* IOMSHR */,
                 if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
             maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
             maxManagerXacts = 8,
@@ -46,15 +47,16 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with TileNetwo
             dataBits = site(CacheBlockBytes)*8)
     }})))
 
-  // TODO for now, all legacy rocc mem ports mapped to one external node
   legacyRocc foreach { lr =>
-    lr.masterNodes.foreach { l1backend.node := _ }
+    masterNode := lr.masterNode
     nPTWPorts += lr.nPTWPorts
     nDCachePorts += lr.nRocc
   }
 }
 
-trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule with CanHavePTWModule with TileNetworkModule {
+trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule
+    with CanHavePTWModule
+    with HasTileLinkMasterPortModule {
   val outer: CanHaveLegacyRoccs
 
   fpuOpt foreach { fpu =>
@@ -84,13 +86,13 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
   val nPTWPorts = buildRocc.map(_.nPTWPorts).sum
   val roccOpcodes = buildRocc.map(_.opcodes)
 
+  val masterNode = TLOutputNode()
   val legacies = List.fill(nMemChannels) { LazyModule(new TLLegacy()(p.alterPartial({ case PAddrBits => 32 }))) }
-  val masterNodes = legacies.map(_ => TLOutputNode())
-  legacies.zip(masterNodes).foreach { case(l,m) => m := TLHintHandler()(l.node) }
+  legacies.foreach { leg => masterNode := TLHintHandler()(leg.node) }
 
   lazy val module = new LazyModuleImp(this) with HasCoreParameters {
     val io = new Bundle {
-      val tl = masterNodes.map(_.bundleOut)
+      val tl = masterNode.bundleOut
       val dcache = Vec(nRocc, new HellaCacheIO)
       val fpu = new Bundle {
         val cp_req = Decoupled(new FPInput())
@@ -117,7 +119,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
       }))
-      val dcIF = Module(new SimpleHellaCacheIF()(p.alterPartial({ case CacheName => CacheName("L1D") })))
+      val dcIF = Module(new SimpleHellaCacheIF)
       rocc.io.cmd <> cmdRouter.io.out(i)
       rocc.io.exception := io.core.exception
       dcIF.io.requestor <> rocc.io.mem
@@ -151,7 +153,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
   }
 }
 
-case class RoccParameters(
+case class RoCCParams(
   opcodes: OpcodeSet,
   generator: Parameters => RoCC,
   nMemChannels: Int = 0,

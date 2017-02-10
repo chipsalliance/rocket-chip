@@ -129,7 +129,7 @@ class UncachedTileLinkGenerator(id: Int)
 }
 
 class HellaCacheGenerator(id: Int)
-    (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasTrafficGeneratorParameters {
+    (implicit val p: Parameters) extends Module with HasTrafficGeneratorParameters {
   val io = new Bundle {
     val mem = new HellaCacheIO
     val status = new GroundTestStatus
