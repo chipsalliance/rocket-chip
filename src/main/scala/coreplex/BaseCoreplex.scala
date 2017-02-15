@@ -95,7 +95,8 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle](
       val isMemory = globalAddrMap.isInRegion("mem", addr << log2Up(p(CacheBlockBytes)))
       Mux(isMemory, addr.extract(lsb + log2Ceil(nBanks) - 1, lsb), UInt(nBanks))
     }
-    val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId))
+    val preBuffering = TileLinkDepths(4,4,4,4,4)
+    val l1tol2net = Module(new PortedTileLinkCrossbar(addrToBank, sharerToClientId, preBuffering))
 
     // Create point(s) of coherence serialization
     val managerEndpoints = List.tabulate(nBanks){id => p(BuildL2CoherenceManager)(id, p)}

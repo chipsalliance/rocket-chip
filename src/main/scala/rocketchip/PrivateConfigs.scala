@@ -103,3 +103,5 @@ class ISCA2016LOVL4B8Config extends Config(new WithNLanes(4) ++ new ISCA2016LOVB
 
 class DecoupledISCA2016Config extends Config(new WithDecoupledRoCC ++ new ISCA2016Config)
 class DualCoreISCA2016L2Config extends Config(new WithNCores(2) ++ new WithNLanes(2) ++ new ISCA2016Config)
+
+class HurricaneSimilarConfig extends Config(new WithNLanes(2) ++ new WithL2Capacity(512) ++ new WithNMemoryChannels(8) ++ new WithNBanksPerMemChannel(1) ++ new WithNL2AcquireXacts(9) ++ new ISCA2016Config)

@@ -13,7 +13,7 @@ trait DirectConnection {
   val uncoreTileIOs: Seq[TileIO]
 
   val tlBuffering = TileLinkDepths(1,1,2,2,0)
-  val ultBuffering = UncachedTileLinkDepths(1,2)
+  val ultBuffering = UncachedTileLinkDepths(4,4)
 
   (tiles zip uncoreTileIOs) foreach { case (tile, uncore) =>
     (uncore.cached zip tile.io.cached) foreach { case (u, t) => u <> TileLinkEnqueuer(t, tlBuffering) }
