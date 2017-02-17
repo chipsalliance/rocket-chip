@@ -4,7 +4,15 @@ package util
 
 import Chisel._
 
-/** Divide the clock by 2 */
+/** This black-boxes a Clock Divider by 2.
+  * The output clock is phase-aligned to the input clock.
+  * If you use this in synthesis, make sure your sdc
+  * declares that you want it to do the same.
+  *
+  * Because Chisel does not support
+  * blocking assignments, it is impossible
+  * to create a deterministic divided clock.
+  */
 class ClockDivider2 extends BlackBox {
   val io = new Bundle {
     val clk_out = Clock(OUTPUT)

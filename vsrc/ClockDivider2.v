@@ -1,6 +1,9 @@
 // See LICENSE.SiFive for license details.
 
-/** This black-boxes a Clock Divider.
+/** This black-boxes a Clock Divider by 2.
+  * The output clock is phase-aligned to the input clock.
+  * If you use this in synthesis, make sure your sdc
+  * declares that you want it to do the same.
   *
   * Because Chisel does not support
   * blocking assignments, it is impossible
