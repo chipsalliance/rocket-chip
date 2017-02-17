@@ -103,7 +103,7 @@ class RationalRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends 
   masterNode :=* source.node
 
   val slaveNode = TLRationalInputNode()
-  val sink = LazyModule(new TLRationalCrossingSink)
+  val sink = LazyModule(new TLRationalCrossingSink(util.SlowToFast))
   rocket.slaveNode :*= sink.node
   sink.node :*= slaveNode
 

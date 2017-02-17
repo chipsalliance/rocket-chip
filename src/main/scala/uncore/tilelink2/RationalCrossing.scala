@@ -27,14 +27,15 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
+      val direction = edgeOut.manager.direction
 
-      out.a <> ToRational(in.a)
-      in.d <> FromRational(out.d)
+      out.a <> ToRational(in.a, direction)
+      in.d <> FromRational(out.d, direction.flip)
 
       if (bce) {
-        in.b <> FromRational(out.b)
-        out.c <> ToRational(in.c)
-        out.e <> ToRational(in.e)
+        in.b <> FromRational(out.b, direction.flip)
+        out.c <> ToRational(in.c, direction)
+        out.e <> ToRational(in.e, direction)
       } else {
         in.b.valid   := Bool(false)
         in.c.ready   := Bool(true)
@@ -50,9 +51,9 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
   }
 }
 
-class TLRationalCrossingSink(implicit p: Parameters) extends LazyModule
+class TLRationalCrossingSink(direction: RationalDirection = Symmetric)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLRationalSinkNode()
+  val node = TLRationalSinkNode(direction)
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -62,14 +63,15 @@ class TLRationalCrossingSink(implicit p: Parameters) extends LazyModule
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
+      val direction = edgeIn.manager.direction
 
-      out.a <> FromRational(in.a)
-      in.d <> ToRational(out.d)
+      out.a <> FromRational(in.a, direction)
+      in.d <> ToRational(out.d, direction.flip)
 
       if (bce) {
-        in.b <> ToRational(out.b)
-        out.c <> FromRational(in.c)
-        out.e <> FromRational(in.e)
+        in.b <> ToRational(out.b, direction.flip)
+        out.c <> FromRational(in.c, direction)
+        out.e <> FromRational(in.e, direction)
       } else {
         out.b.ready := Bool(true)
         out.c.valid := Bool(false)
@@ -98,21 +100,21 @@ object TLRationalCrossingSource
 object TLRationalCrossingSink
 {
   // applied to the TL source node; y.node := TLRationalCrossingSink()(x.node)
-  def apply()(x: TLRationalOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val sink = LazyModule(new TLRationalCrossingSink)
+  def apply(direction: RationalDirection = Symmetric)(x: TLRationalOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
+    val sink = LazyModule(new TLRationalCrossingSink(direction))
     sink.node := x
     sink.node
   }
 }
 
-class TLRationalCrossing(implicit p: Parameters) extends LazyModule
+class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: Parameters) extends LazyModule
 {
   val nodeIn = TLInputNode()
   val nodeOut = TLOutputNode()
   val node = NodeHandle(nodeIn, nodeOut)
 
   val source = LazyModule(new TLRationalCrossingSource)
-  val sink = LazyModule(new TLRationalCrossingSink)
+  val sink = LazyModule(new TLRationalCrossingSink(direction))
 
   val _    = (sink.node := source.node) // no monitor
   val in   = (source.node := nodeIn)
@@ -147,35 +149,73 @@ class TLRationalCrossing(implicit p: Parameters) extends LazyModule
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
+class TLRAMRationalCrossingSource(implicit p: Parameters) extends LazyModule {
+  val node = TLRationalOutputNode()
   val fuzz  = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
-  val cross = LazyModule(new TLRationalCrossing)
-  val delay = LazyModule(new TLDelayer(0.25))
-  val ram   = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
   model.node := fuzz.node
-  cross.node := TLDelayer(0.25)(TLFragmenter(4, 256)(model.node))
-  val monitor1 = (delay.node := cross.node)
-  val monitor2 = (ram.node := delay.node)
-  val monitors = monitor1.toList ++ monitor2.toList
+  node := TLRationalCrossingSource()(TLDelayer(0.25)(model.node))
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val finished = Bool(OUTPUT)
+      val out = node.bundleOut
+    }
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMRationalCrossingSink(direction: RationalDirection)(implicit p: Parameters) extends LazyModule {
+  val node = TLRationalInputNode()
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+
+  ram.node := TLFragmenter(4, 256)(TLDelayer(0.25)(TLRationalCrossingSink(direction)(node)))
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in = node.bundleIn
+    }
+  }
+}
+
+class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
+  val sym_fast_source = LazyModule(new TLRAMRationalCrossingSource)
+  val sym_slow_sink   = LazyModule(new TLRAMRationalCrossingSink(Symmetric))
+  sym_slow_sink.node := sym_fast_source.node
+
+  val sym_slow_source = LazyModule(new TLRAMRationalCrossingSource)
+  val sym_fast_sink   = LazyModule(new TLRAMRationalCrossingSink(Symmetric))
+  sym_fast_sink.node := sym_slow_source.node
+
+  val fix_fast_source = LazyModule(new TLRAMRationalCrossingSource)
+  val fix_slow_sink   = LazyModule(new TLRAMRationalCrossingSink(FastToSlow))
+  fix_slow_sink.node := fix_fast_source.node
+
+  val fix_slow_source = LazyModule(new TLRAMRationalCrossingSource)
+  val fix_fast_sink   = LazyModule(new TLRAMRationalCrossingSink(SlowToFast))
+  fix_fast_sink.node := fix_slow_source.node
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
-    io.finished := fuzz.module.io.finished
+    io.finished :=
+      sym_fast_source.module.io.finished &&
+      sym_slow_source.module.io.finished &&
+      fix_fast_source.module.io.finished &&
+      fix_slow_source.module.io.finished
 
-    // Shove the RAM into another clock domain
-    val clocks = Module(new util.Pow2ClockDivider(2))
-    ram.module.clock := clocks.io.clock_out
-    delay.module.clock := clocks.io.clock_out
+    // Generate faster clock (still divided so verilator approves)
+    val fast = Module(new util.Pow2ClockDivider(1))
+    sym_fast_source.module.clock := fast.io.clock_out
+    sym_fast_sink  .module.clock := fast.io.clock_out
+    fix_fast_source.module.clock := fast.io.clock_out
+    fix_fast_sink  .module.clock := fast.io.clock_out
 
-    // ... and safely cross TL2 into it
-    cross.module.io.in_clock := clock
-    cross.module.io.in_reset := reset
-    cross.module.io.out_clock := clocks.io.clock_out
-    cross.module.io.out_reset := reset
-
-    // Push the Monitors into the right clock domain
-    monitors.foreach { m => m.module.clock := clocks.io.clock_out }
+    // Generate slower clock
+    val slow = Module(new util.Pow2ClockDivider(2))
+    sym_slow_source.module.clock := slow.io.clock_out
+    sym_slow_sink  .module.clock := slow.io.clock_out
+    fix_slow_source.module.clock := slow.io.clock_out
+    fix_slow_sink  .module.clock := slow.io.clock_out
   }
 }
 

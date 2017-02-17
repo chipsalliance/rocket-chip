@@ -73,7 +73,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       }
       case Rational => {
         val wrapper = LazyModule(new RationalRocketTile(c)(pWithExtra))
-        val sink = LazyModule(new TLRationalCrossingSink)
+        val sink = LazyModule(new TLRationalCrossingSink(util.FastToSlow))
         val source = LazyModule(new TLRationalCrossingSource)
         sink.node :=* wrapper.masterNode
         l1tol2.node :=* sink.node
