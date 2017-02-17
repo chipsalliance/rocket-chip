@@ -7,6 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import config._
 import diplomacy._
 import scala.collection.mutable.ListBuffer
+import util.RationalDirection
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => Option[TLMonitorBase]]
 case object TLFuzzReadyValid extends Field[Boolean]
@@ -182,20 +183,20 @@ case class TLAsyncSinkNode(depth: Int, sync: Int)
     dFn = { p => p.base.copy(minLatency = sync+1) },
     uFn = { p => TLAsyncManagerPortParameters(depth, p) })
 
-object TLRationalImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeParameters, TLEdgeParameters, TLRationalBundle]
+object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
-  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeParameters = TLEdgeParameters(pd, pu)
-  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeParameters = TLEdgeParameters(pd, pu)
+  def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu)
+  def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu)
 
-  def bundleO(eo: Seq[TLEdgeParameters]): Vec[TLRationalBundle] = Vec(eo.size, new TLRationalBundle(TLBundleParameters.union(eo.map(_.bundle))))
-  def bundleI(ei: Seq[TLEdgeParameters]): Vec[TLRationalBundle] = Vec(ei.size, new TLRationalBundle(TLBundleParameters.union(ei.map(_.bundle))))
+  def bundleO(eo: Seq[TLRationalEdgeParameters]): Vec[TLRationalBundle] = Vec(eo.size, new TLRationalBundle(TLBundleParameters.union(eo.map(_.bundle))))
+  def bundleI(ei: Seq[TLRationalEdgeParameters]): Vec[TLRationalBundle] = Vec(ei.size, new TLRationalBundle(TLBundleParameters.union(ei.map(_.bundle))))
 
   def colour = "#00ff00" // green
 
-  override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLRationalBundle]): TLClientPortParameters  =
-   pd.copy(clients  = pd.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
-  override def mixI(pu: TLManagerPortParameters, node: InwardNode[TLClientPortParameters, TLManagerPortParameters, TLRationalBundle]): TLManagerPortParameters =
-   pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
+  override def mixO(pd: TLRationalClientPortParameters, node: OutwardNode[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalBundle]): TLRationalClientPortParameters  =
+   pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))
+  override def mixI(pu: TLRationalManagerPortParameters, node: InwardNode[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalBundle]): TLRationalManagerPortParameters =
+   pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
 case class TLRationalIdentityNode() extends IdentityNode(TLRationalImp)
@@ -204,10 +205,10 @@ case class TLRationalInputNode() extends InputNode(TLRationalImp)
 
 case class TLRationalSourceNode()
   extends MixedAdapterNode(TLImp, TLRationalImp)(
-    dFn = { p => p },
-    uFn = { p => p.copy(minLatency = 1) }) // discard cycles from other clock domain
+    dFn = { p => TLRationalClientPortParameters(p) },
+    uFn = { p => p.base.copy(minLatency = 1) }) // discard cycles from other clock domain
 
-case class TLRationalSinkNode()
+case class TLRationalSinkNode(direction: RationalDirection)
   extends MixedAdapterNode(TLRationalImp, TLImp)(
-    dFn = { p => p.copy(minLatency = 1) },
-    uFn = { p => p })
+    dFn = { p => p.base.copy(minLatency = 1) },
+    uFn = { p => TLRationalManagerPortParameters(direction, p) })

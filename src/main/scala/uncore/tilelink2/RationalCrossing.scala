@@ -27,14 +27,15 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
+      val direction = edgeOut.manager.direction
 
-      out.a <> ToRational(in.a)
-      in.d <> FromRational(out.d)
+      out.a <> ToRational(in.a, direction)
+      in.d <> FromRational(out.d, direction.flip)
 
       if (bce) {
-        in.b <> FromRational(out.b)
-        out.c <> ToRational(in.c)
-        out.e <> ToRational(in.e)
+        in.b <> FromRational(out.b, direction.flip)
+        out.c <> ToRational(in.c, direction)
+        out.e <> ToRational(in.e, direction)
       } else {
         in.b.valid   := Bool(false)
         in.c.ready   := Bool(true)
@@ -50,9 +51,9 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
   }
 }
 
-class TLRationalCrossingSink(implicit p: Parameters) extends LazyModule
+class TLRationalCrossingSink(direction: RationalDirection = Symmetric)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLRationalSinkNode()
+  val node = TLRationalSinkNode(direction)
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -62,14 +63,15 @@ class TLRationalCrossingSink(implicit p: Parameters) extends LazyModule
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
+      val direction = edgeIn.manager.direction
 
-      out.a <> FromRational(in.a)
-      in.d <> ToRational(out.d)
+      out.a <> FromRational(in.a, direction)
+      in.d <> ToRational(out.d, direction.flip)
 
       if (bce) {
-        in.b <> ToRational(out.b)
-        out.c <> FromRational(in.c)
-        out.e <> FromRational(in.e)
+        in.b <> ToRational(out.b, direction.flip)
+        out.c <> FromRational(in.c, direction)
+        out.e <> FromRational(in.e, direction)
       } else {
         out.b.ready := Bool(true)
         out.c.valid := Bool(false)
@@ -98,21 +100,21 @@ object TLRationalCrossingSource
 object TLRationalCrossingSink
 {
   // applied to the TL source node; y.node := TLRationalCrossingSink()(x.node)
-  def apply()(x: TLRationalOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val sink = LazyModule(new TLRationalCrossingSink)
+  def apply(direction: RationalDirection = Symmetric)(x: TLRationalOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
+    val sink = LazyModule(new TLRationalCrossingSink(direction))
     sink.node := x
     sink.node
   }
 }
 
-class TLRationalCrossing(implicit p: Parameters) extends LazyModule
+class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: Parameters) extends LazyModule
 {
   val nodeIn = TLInputNode()
   val nodeOut = TLOutputNode()
   val node = NodeHandle(nodeIn, nodeOut)
 
   val source = LazyModule(new TLRationalCrossingSource)
-  val sink = LazyModule(new TLRationalCrossingSink)
+  val sink = LazyModule(new TLRationalCrossingSink(direction))
 
   val _    = (sink.node := source.node) // no monitor
   val in   = (source.node := nodeIn)
@@ -150,7 +152,7 @@ import unittest._
 class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
   val fuzz  = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
-  val cross = LazyModule(new TLRationalCrossing)
+  val cross = LazyModule(new TLRationalCrossing(FastToSlow))
   val delay = LazyModule(new TLDelayer(0.25))
   val ram   = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
