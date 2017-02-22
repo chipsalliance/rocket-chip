@@ -47,6 +47,11 @@ $(output_dir)/%.vpd: $(output_dir)/% $(emu_debug)
 	vcd2vpd $@.vcd $@ > /dev/null &
 	./$(emu_debug) +max-cycles=$(timeout_cycles) +verbose -v$@.vcd $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
+$(output_dir)/%.fst: $(output_dir)/% $(emu_debug)
+	rm -rf $@.vcd && mkfifo $@.vcd
+	vcd2fst -Z $@.vcd $@ &
+	./$(emu_debug) +max-cycles=$(timeout_cycles) +verbose -v$@.vcd $< $(disasm) $(patsubst %.fst,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+
 run: run-asm-tests run-bmark-tests
 run-debug: run-asm-tests-debug run-bmark-tests-debug
 run-fast: run-asm-tests-fast run-bmark-tests-fast

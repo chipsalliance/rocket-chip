@@ -3,9 +3,10 @@
 package rocket
 
 import Chisel._
-import util._
 import Chisel.ImplicitConversions._
 import config._
+import tile._
+import util._
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
   val ttype = UInt(width = 4)

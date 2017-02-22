@@ -1,17 +1,18 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package tile
 
 import Chisel._
-import Instructions._
-import util._
 import Chisel.ImplicitConversions._
 import FPConstants._
+import rocket.DecodeLogic
+import rocket.Instructions._
 import uncore.constants.MemoryOpConstants._
 import config._
+import util._
 
-case class FPUConfig(
+case class FPUParams(
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
   dfmaLatency: Int = 4
@@ -496,7 +497,7 @@ class FPUFMAPipe(val latency: Int, expWidth: Int, sigWidth: Int)(implicit p: Par
   io.out := Pipe(valid, res, latency-1)
 }
 
-class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
+class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val io = new FPUIO
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
@@ -742,12 +743,10 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
 }
 
 /** Mix-ins for constructing tiles that may have an FPU external to the core pipeline */
-trait CanHaveSharedFPU {
-  implicit val p: Parameters
-}
+trait CanHaveSharedFPU extends HasTileParameters
 
 trait CanHaveSharedFPUModule {
   val outer: CanHaveSharedFPU
-  val fpuOpt = outer.p(FPUKey).map(cfg => Module(new FPU(cfg)(outer.p)))
+  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
   // TODO fpArb could go here instead of inside LegacyRoccComplex
 }

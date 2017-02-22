@@ -424,11 +424,11 @@ post, so please stay tuned.
 To override specific configuration items, such as the number of external interrupts,
 you can create your own Configuration(s) and compose them with Config's ++ operator
 
-    class WithNExtInterrupts extends Config (nExt: Int) {
-      (pname, site, here) => pname match {
-      case (NExtInterrupts => nExt)
-      }
-    } 
+    class WithNExtInterrupts(nExt: Int) extends Config {
+        (site, here, up) => {
+            case NExtInterrupts => nExt
+        }
+    }
     class MyConfig extends Config (new WithNExtInterrupts(16) ++ new DefaultSmallConfig)
 
 Then you can build as usual with CONFIG=MyConfig.

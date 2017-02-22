@@ -6,7 +6,7 @@ import config._
 import junctions._
 import diplomacy._
 import uncore.devices._
-import rocket._
+import tile.XLen
 import coreplex._
 import uncore.tilelink2._
 import util._
@@ -59,14 +59,15 @@ object GenerateConfigString {
     res append plic.globalConfigString
     res append clint.globalConfigString
     res append  "core {\n"
-    for (i <- 0 until c.nTiles) { // TODO heterogeneous tiles
+    c.tilesParams.zipWithIndex.map { case(t, i) => 
       val isa = {
-        val m = if (p(MulDivKey).nonEmpty) "m" else ""
-        val a = if (p(UseAtomics)) "a" else ""
-        val f = if (p(FPUKey).nonEmpty) "f" else ""
-        val d = if (p(FPUKey).nonEmpty && p(XLen) > 32) "d" else ""
-        val s = if (c.hasSupervisor) "s" else ""
-        s"rv${p(XLen)}i$m$a$f$d$s"
+        val m = if (t.core.mulDiv.nonEmpty) "m" else ""
+        val a = if (t.core.useAtomics) "a" else ""
+        val f = if (t.core.fpu.nonEmpty) "f" else ""
+        val d = if (t.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
+        val c = if (t.core.useCompressed) "c" else ""
+        val s = if (t.core.useVM) "s" else ""
+        s"rv${p(XLen)}i$m$a$f$d$c$s"
       }
       res append s"  $i {\n"
       res append  "    0 {\n"

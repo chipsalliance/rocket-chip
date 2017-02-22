@@ -5,6 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import diplomacy._
 import scala.math.max
+import util.RationalDirection
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
@@ -27,7 +28,7 @@ case class TLManagerParameters(
   require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
 
-  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
+  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
   require (supportsPutFull.contains(supportsPutPartial))
   require (supportsPutFull.contains(supportsArithmetic))
   require (supportsPutFull.contains(supportsLogical))
@@ -324,6 +325,14 @@ object TLAsyncBundleParameters
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters)
 {
   val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
+}
+
+case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters)
+case class TLRationalClientPortParameters(base: TLClientPortParameters)
+
+case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters)
+{
+  val bundle = TLBundleParameters(client.base, manager.base)
 }
 
 object ManagerUnification

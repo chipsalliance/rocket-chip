@@ -53,6 +53,9 @@ abstract class BaseNode
   val index = lazyModule.nodes.size
   lazyModule.nodes = this :: lazyModule.nodes
 
+  val externalIn: Boolean
+  val externalOut: Boolean
+
   def nodename = getClass.getName.split('.').last
   def name = lazyModule.name + "." + nodename
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
@@ -211,6 +214,8 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   lazy val edgesOut = (oPorts zip oParams).map { case ((i, n), o) => outer.edgeO(o, n.iParams(i)) }
   lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n), i) => inner.edgeI(n.oParams(o), i) }
+  lazy val externalEdgesOut = if (externalOut) {edgesOut} else { Seq() }
+  lazy val externalEdgesIn = if (externalIn) {edgesIn} else { Seq() }
 
   val flip = false // needed for blind nodes
   private def flipO(b: Vec[BO]) = if (flip) b.flip else b
@@ -266,6 +271,9 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   num: Range.Inclusive = 0 to 999)
   extends MixedNode(inner, outer)(num, num)
 {
+  val externalIn: Boolean = true
+  val externalOut: Boolean = true
+
   protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
     require (i >= o, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${i-o} edges to resolve :=*${lazyModule.line}")
     i - o
@@ -295,6 +303,10 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 {
   require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
   require (numPI.end >= 1, s"${name} does not accept inputs${lazyModule.line}")
+
+  val externalIn: Boolean = true
+  val externalOut: Boolean = true
+
   protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
     require (false, "${name} cannot resolve :=*${lazyModule.line}")
     0
@@ -325,17 +337,25 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])
 
 class OutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends IdentityNode(imp)
 {
+  override val externalIn: Boolean = false
+  override val externalOut: Boolean = true
   override lazy val bundleIn = bundleOut
 }
 
 class InputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends IdentityNode(imp)
 {
+  override val externalIn: Boolean = true
+  override val externalOut: Boolean = false
+
   override lazy val bundleOut = bundleIn
 }
 
 class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
   extends MixedNode(imp, imp)(po.size to po.size, 0 to 0)
 {
+  override val externalIn: Boolean = false
+  override val externalOut: Boolean = true
+
   protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
     require (po.size >= o, s"${name} has ${o} outputs out of ${po.size}; cannot assign ${po.size - o} edges to resolve :=*${lazyModule.line}")
     po.size - o
@@ -353,6 +373,9 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
 class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
   extends MixedNode(imp, imp)(0 to 0, pi.size to pi.size)
 {
+  override val externalIn: Boolean = true
+  override val externalOut: Boolean = false
+
   protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
     require (false, s"${name} cannot resolve :=*${lazyModule.line}")
     0
@@ -370,6 +393,7 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
 class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
   extends SinkNode(imp)(pi)
 {
+  override val externalIn: Boolean = false
   override val flip = true
   override lazy val bundleOut = bundleIn
 }
@@ -377,6 +401,7 @@ class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi
 class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
   extends SourceNode(imp)(po)
 {
+  override val externalOut: Boolean = false
   override val flip = true
   override lazy val bundleIn = bundleOut
 }
@@ -384,6 +409,8 @@ class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po:
 class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
   extends SinkNode(imp)(pi)
 {
+  override val externalIn: Boolean = false
+  override val externalOut: Boolean = false
   override val wire = true
   override lazy val bundleOut = bundleIn
 }
@@ -391,6 +418,8 @@ class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])
 class InternalInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
   extends SourceNode(imp)(po)
 {
+  override val externalIn: Boolean = false
+  override val externalOut: Boolean = false
   override val wire = true
   override lazy val bundleIn = bundleOut
 }

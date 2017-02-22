@@ -29,13 +29,13 @@ class MultiplierIO(dataBits: Int, tagBits: Int) extends Bundle {
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
 }
 
-case class MulDivConfig(
+case class MulDivParams(
   mulUnroll: Int = 1,
   mulEarlyOut: Boolean = false,
   divEarlyOut: Boolean = false
 )
 
-class MulDiv(cfg: MulDivConfig, width: Int, nXpr: Int = 32) extends Module {
+class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   val io = new MultiplierIO(width, log2Up(nXpr))
   val w = io.req.bits.in1.getWidth
   val mulw = (w + cfg.mulUnroll - 1) / cfg.mulUnroll * cfg.mulUnroll

@@ -85,8 +85,8 @@ class TLFuzzer(
     noiseMaker: (Int, Bool, Int) => UInt = {
                   (wide: Int, increment: Bool, abs_values: Int) =>
                    LFSRNoiseMaker(wide=wide, increment=increment)
-                  }
-              )(implicit p: Parameters) extends LazyModule
+                  },
+    noModify: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -169,10 +169,10 @@ class TLFuzzer(
 
     val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       UInt("b000") -> glegal,
-      UInt("b001") -> pflegal,
-      UInt("b010") -> pplegal,
-      UInt("b011") -> alegal,
-      UInt("b100") -> llegal,
+      UInt("b001") -> (pflegal && !Bool(noModify)),
+      UInt("b010") -> (pplegal && !Bool(noModify)),
+      UInt("b011") -> (alegal && !Bool(noModify)),
+      UInt("b100") -> (llegal && !Bool(noModify)),
       UInt("b101") -> hlegal))
 
     val bits = MuxLookup(a_type_sel, gbits, Seq(

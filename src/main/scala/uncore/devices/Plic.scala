@@ -11,6 +11,7 @@ import regmapper._
 import uncore.tilelink2._
 import config._
 import scala.math.min
+import tile.XLen
 
 class GatewayPLICIO extends Bundle {
   val valid = Bool(OUTPUT)
@@ -59,7 +60,7 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
 
   val node = TLRegisterNode(
     address   = AddressSet(address, PLICConsts.size-1),
-    beatBytes = p(rocket.XLen)/8,
+    beatBytes = p(XLen)/8,
     undefZero = false)
 
   val intnode = IntNexusNode(

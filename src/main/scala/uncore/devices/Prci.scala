@@ -12,6 +12,7 @@ import uncore.util._
 import util._
 import scala.math.{min,max}
 import config._
+import tile.XLen
 
 /** Number of tiles */
 case object NTiles extends Field[Int]
@@ -83,7 +84,7 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
 class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Parameters)
-  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(rocket.XLen)/8, undefZero = true)(
+  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(XLen)/8, undefZero = true)(
   new TLRegBundle((), _)    with CoreplexLocalInterrupterBundle)(
   new TLRegModule((), _, _) with CoreplexLocalInterrupterModule)
 {
