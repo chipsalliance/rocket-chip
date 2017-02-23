@@ -18,8 +18,8 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeOut = new TLEdgeOut(pd, pu)
   def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeIn  = new TLEdgeIn(pd, pu)
 
-  def bundleO(eo: Seq[TLEdgeOut]): Vec[TLBundle] = Vec(eo.size, TLBundle(TLBundleParameters.union(eo.map(_.bundle))))
-  def bundleI(ei: Seq[TLEdgeIn]):  Vec[TLBundle] = Vec(ei.size, TLBundle(TLBundleParameters.union(ei.map(_.bundle))))
+  def bundleO(eo: TLEdgeOut): TLBundle = TLBundle(eo.bundle)
+  def bundleI(ei: TLEdgeIn):  TLBundle = TLBundle(ei.bundle)
 
   def colour = "#000000" // black
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
@@ -156,8 +156,8 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
   def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
   def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
 
-  def bundleO(eo: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = Vec(eo.size, new TLAsyncBundle(TLAsyncBundleParameters.union(eo.map(_.bundle))))
-  def bundleI(ei: Seq[TLAsyncEdgeParameters]): Vec[TLAsyncBundle] = Vec(ei.size, new TLAsyncBundle(TLAsyncBundleParameters.union(ei.map(_.bundle))))
+  def bundleO(eo: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(eo.bundle)
+  def bundleI(ei: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(ei.bundle)
 
   def colour = "#ff0000" // red
   override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString
@@ -188,8 +188,8 @@ object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalM
   def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu)
   def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu)
 
-  def bundleO(eo: Seq[TLRationalEdgeParameters]): Vec[TLRationalBundle] = Vec(eo.size, new TLRationalBundle(TLBundleParameters.union(eo.map(_.bundle))))
-  def bundleI(ei: Seq[TLRationalEdgeParameters]): Vec[TLRationalBundle] = Vec(ei.size, new TLRationalBundle(TLBundleParameters.union(ei.map(_.bundle))))
+  def bundleO(eo: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(eo.bundle)
+  def bundleI(ei: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(ei.bundle)
 
   def colour = "#00ff00" // green
 

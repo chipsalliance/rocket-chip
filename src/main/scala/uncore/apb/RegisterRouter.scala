@@ -64,7 +64,7 @@ abstract class APBRegisterRouterBase(address: AddressSet, interrupts: Int, concu
   val intnode = uncore.tilelink2.IntSourceNode(interrupts)
 }
 
-case class APBRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[APBBundle])(implicit val p: Parameters)
+case class APBRegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[APBBundle])(implicit val p: Parameters)
 
 class APBRegBundleBase(arg: APBRegBundleArg) extends Bundle
 {
