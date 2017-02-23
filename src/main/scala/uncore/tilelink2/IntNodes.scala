@@ -126,6 +126,8 @@ class IntXing()(implicit p: Parameters) extends LazyModule
       val out = intnode.bundleOut
     }
 
-    io.out := RegNext(RegNext(RegNext(io.in)))
+    (io.in zip io.out) foreach { case (in, out) =>
+      out := RegNext(RegNext(RegNext(in)))
+    }
   }
 }
