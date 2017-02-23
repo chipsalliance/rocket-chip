@@ -13,18 +13,18 @@ import coreplex._
 
 /// Core with JTAG for debug only
 
-trait PeripheryJTAG extends TopNetwork {
+trait PeripheryJTAG extends HasTopLevelNetworks {
   val module: PeripheryJTAGModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait PeripheryJTAGBundle extends TopNetworkBundle {
+trait PeripheryJTAGBundle extends HasTopLevelNetworksBundle {
   val outer: PeripheryJTAG
 
   val jtag = new JTAGIO(true).flip
 }
 
-trait PeripheryJTAGModule extends TopNetworkModule {
+trait PeripheryJTAGModule extends HasTopLevelNetworksModule {
   val outer: PeripheryJTAG
   val io: PeripheryJTAGBundle
 
@@ -38,18 +38,18 @@ trait PeripheryJTAGModule extends TopNetworkModule {
 
 /// Core with DTM for debug only
 
-trait PeripheryDTM extends TopNetwork {
+trait PeripheryDTM extends HasTopLevelNetworks {
   val module: PeripheryDTMModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait PeripheryDTMBundle extends TopNetworkBundle {
+trait PeripheryDTMBundle extends HasTopLevelNetworksBundle {
   val outer: PeripheryDTM
 
   val debug = new DebugBusIO().flip
 }
 
-trait PeripheryDTMModule extends TopNetworkModule {
+trait PeripheryDTMModule extends HasTopLevelNetworksModule {
   val outer: PeripheryDTM
   val io: PeripheryDTMBundle
 
@@ -58,19 +58,19 @@ trait PeripheryDTMModule extends TopNetworkModule {
 
 /// Core with DTM or JTAG based on a parameter
 
-trait PeripheryDebug extends TopNetwork {
+trait PeripheryDebug extends HasTopLevelNetworks {
   val module: PeripheryDebugModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait PeripheryDebugBundle extends TopNetworkBundle {
+trait PeripheryDebugBundle extends HasTopLevelNetworksBundle {
   val outer: PeripheryDebug
 
   val debug = (!p(IncludeJtagDTM)).option(new DebugBusIO().flip)
   val jtag = (p(IncludeJtagDTM)).option(new JTAGIO(true).flip)
 }
 
-trait PeripheryDebugModule extends TopNetworkModule {
+trait PeripheryDebugModule extends HasTopLevelNetworksModule {
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
 
@@ -86,16 +86,16 @@ trait PeripheryDebugModule extends TopNetworkModule {
 
 /// Real-time clock is based on RTCPeriod relative to Top clock
 
-trait PeripheryCounter extends TopNetwork {
+trait PeripheryCounter extends HasTopLevelNetworks {
   val module: PeripheryCounterModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait PeripheryCounterBundle extends TopNetworkBundle {
+trait PeripheryCounterBundle extends HasTopLevelNetworksBundle {
   val outer: PeripheryCounter
 }
 
-trait PeripheryCounterModule extends TopNetworkModule {
+trait PeripheryCounterModule extends HasTopLevelNetworksModule {
   val outer: PeripheryCounter
   val io: PeripheryCounterBundle
   
@@ -111,16 +111,16 @@ trait PeripheryCounterModule extends TopNetworkModule {
 
 /// Coreplex will power-on running at 0x1000 (BootROM)
 
-trait HardwiredResetVector extends TopNetwork {
+trait HardwiredResetVector extends HasTopLevelNetworks {
   val module: HardwiredResetVectorModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait HardwiredResetVectorBundle extends TopNetworkBundle {
+trait HardwiredResetVectorBundle extends HasTopLevelNetworksBundle {
   val outer: HardwiredResetVector
 }
 
-trait HardwiredResetVectorModule extends TopNetworkModule {
+trait HardwiredResetVectorModule extends HasTopLevelNetworksModule {
   val outer: HardwiredResetVector
   val io: HardwiredResetVectorBundle
 

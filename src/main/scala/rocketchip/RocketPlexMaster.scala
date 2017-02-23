@@ -10,12 +10,12 @@ import uncore.devices._
 import util._
 import coreplex._
 
-trait RocketPlexMaster extends TopNetwork {
+trait RocketPlexMaster extends HasTopLevelNetworks {
   val module: RocketPlexMasterModule
 
   val coreplex = LazyModule(new DefaultCoreplex)
 
-  coreplex.l2in :=* l2.node
+  coreplex.l2in :=* l2FrontendBus.node
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
 
@@ -23,11 +23,11 @@ trait RocketPlexMaster extends TopNetwork {
   (mem zip coreplex.mem) foreach { case (xbar, channel) => xbar.node :=* channel }
 }
 
-trait RocketPlexMasterBundle extends TopNetworkBundle {
+trait RocketPlexMasterBundle extends HasTopLevelNetworksBundle {
   val outer: RocketPlexMaster
 }
 
-trait RocketPlexMasterModule extends TopNetworkModule {
+trait RocketPlexMasterModule extends HasTopLevelNetworksModule {
   val outer: RocketPlexMaster
   val io: RocketPlexMasterBundle
   val clock: Clock
