@@ -48,7 +48,8 @@ trait HasPeripheryParameters {
 trait PeripheryExtInterrupts {
   this: TopNetwork =>
 
-  val extInterrupts = IntBlindInputNode(p(NExtTopInterrupts))
+  val nExtInterrupts = p(NExtTopInterrupts)
+  val extInterrupts = IntInternalInputNode(nExtInterrupts)
   val extInterruptXing = LazyModule(new IntXing)
 
   intBus.intnode := extInterruptXing.intnode
@@ -59,7 +60,7 @@ trait PeripheryExtInterruptsBundle {
   this: TopNetworkBundle {
     val outer: PeripheryExtInterrupts
   } =>
-  val interrupts = outer.extInterrupts.bundleIn
+  val interrupts = UInt(INPUT, width = outer.nExtInterrupts)
 }
 
 trait PeripheryExtInterruptsModule {
@@ -67,6 +68,7 @@ trait PeripheryExtInterruptsModule {
     val outer: PeripheryExtInterrupts
     val io: PeripheryExtInterruptsBundle
   } =>
+  outer.extInterrupts.bundleIn(0).zipWithIndex.foreach { case(o, i) => o := io.interrupts(i) }
 }
 
 /////
