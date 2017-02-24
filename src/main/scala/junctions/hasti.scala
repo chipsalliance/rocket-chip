@@ -470,7 +470,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   
   // Calculate the bitmask of which bytes are being accessed
   val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
-  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
+  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Ceil(i+1)) }
   val mask_shift  = if (hastiAlignment == 0) UInt(1) else
                     mask_wide.asUInt() << io.haddr(hastiAlignment-1,0)
   
