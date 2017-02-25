@@ -95,7 +95,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
   val (_, _, refill_done, refill_cnt) = edge.count(tl_out.d)
-  tl_out.d.ready := state === s_refill
+  tl_out.d.ready := Bool(true)
+  require (edge.manager.minLatency > 0)
 
   val repl_way = if (isDM) UInt(0) else LFSR16(s1_miss)(log2Up(nWays)-1,0)
   val entagbits = code.width(tagBits)
