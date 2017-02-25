@@ -5,6 +5,7 @@ package uncore.axi4
 import Chisel._
 import config._
 import diplomacy._
+import util._
 
 class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
@@ -62,8 +63,7 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
     }
 
     val ren = in.ar.fire()
-    def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
-    val rdata = holdUnless(mem.read(r_addr, ren), RegNext(ren))
+    val rdata = mem.readAndHold(r_addr, ren)
 
     in.r.bits.id   := r_id
     in.r.bits.resp := AXI4Parameters.RESP_OKAY
