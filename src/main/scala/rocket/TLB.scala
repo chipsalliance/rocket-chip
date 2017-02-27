@@ -86,7 +86,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   }
 
   val lookup_tag = Cat(io.ptw.ptbr.asid, io.req.bits.vpn(vpnBits-1,0))
-  val vm_enabled = Bool(usingVM) && io.ptw.status.vm(3) && priv_uses_vm && !io.req.bits.passthrough
+  val vm_enabled = Bool(usingVM) && io.ptw.ptbr.mode(io.ptw.ptbr.mode.getWidth-1) && priv_uses_vm && !io.req.bits.passthrough
   val hitsVec = (0 until entries).map(i => valid(i) && vm_enabled && tags(i) === lookup_tag) :+ !vm_enabled
   val hits = hitsVec.asUInt
   
@@ -98,7 +98,6 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val sr_array = Reg(UInt(width = entries)) // read permission
   val xr_array = Reg(UInt(width = entries)) // read permission to executable page
   val cash_array = Reg(UInt(width = entries)) // cacheable
-  val dirty_array = Reg(UInt(width = entries)) // PTE dirty bit
   when (do_refill) {
     val pte = io.ptw.resp.bits.pte
     ppns(r_refill_waddr) := pte.ppn
@@ -112,7 +111,6 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
     sr_array := Mux(pte.sr() && prot_r, sr_array | mask, sr_array & ~mask)
     xr_array := Mux(pte.sx() && prot_r, xr_array | mask, xr_array & ~mask)
     cash_array := Mux(cacheable, cash_array | mask, cash_array & ~mask)
-    dirty_array := Mux(pte.d, dirty_array | mask, dirty_array & ~mask)
   }
  
   val plru = new PseudoLRU(entries)
@@ -121,15 +119,13 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.pum, u_array, UInt(0)), u_array)
   val w_array = Cat(prot_w, priv_ok & sw_array)
   val x_array = Cat(prot_x, priv_ok & sx_array)
-  val r_array = Cat(prot_r, priv_ok & (sr_array | Mux(io.ptw.status.mxr, xr_array, UInt(0))))
+  val r_array = Cat(prot_r | (prot_x & io.ptw.status.mxr), priv_ok & (sr_array | Mux(io.ptw.status.mxr, xr_array, UInt(0))))
   val c_array = Cat(cacheable, cash_array)
 
   val bad_va =
     if (vpnBits == vpnBitsExtended) Bool(false)
     else io.req.bits.vpn(vpnBits) =/= io.req.bits.vpn(vpnBits-1)
-  // it's only a store hit if the dirty bit is set
-  val tlb_hits = hits(entries-1, 0) & (dirty_array | ~Mux(io.req.bits.store, w_array, UInt(0)))
-  val tlb_hit = tlb_hits.orR
+  val tlb_hit = hits(entries-1, 0).orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit
 
   when (io.req.valid && !tlb_miss) {

@@ -60,7 +60,7 @@ trait HasCoreParameters extends HasTileParameters {
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
-  val maxPAddrBits = xLen match { case 32 => 34; case 64 => 50 }
+  val maxPAddrBits = xLen match { case 32 => 34; case 64 => 56 }
   require(paddrBits <= maxPAddrBits)
 
   // Print out log of committed instructions and their writeback values.

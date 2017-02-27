@@ -18,11 +18,13 @@ class MStatus extends Bundle {
 
   val prv = UInt(width = PRV.SZ) // not truly part of mstatus, but convenient
   val sd = Bool()
-  val zero3 = UInt(width = 31)
+  val zero2 = UInt(width = 27)
+  val sxl = UInt(width = 2)
+  val uxl = UInt(width = 2)
   val sd_rv32 = Bool()
-  val zero2 = UInt(width = 2)
-  val vm = UInt(width = 5)
-  val zero1 = UInt(width = 4)
+  val zero1 = UInt(width = 9)
+  val tw = Bool()
+  val tvm = Bool()
   val mxr = Bool()
   val pum = Bool()
   val mprv = Bool()
@@ -78,8 +80,18 @@ class MIP extends Bundle {
 }
 
 class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
-  require(maxPAddrBits - pgIdxBits + asIdBits <= xLen)
-  val asid = UInt(width = asIdBits)
+  def pgLevelsToMode(i: Int) = (xLen, i) match {
+    case (32, 2) => 1
+    case (64, x) if x >= 3 && x <= 6 => x + 5
+  }
+  val (modeBits, maxASIdBits) = xLen match {
+    case 32 => (1, 9)
+    case 64 => (4, 16)
+  }
+  require(modeBits + maxASIdBits + maxPAddrBits - pgIdxBits == xLen)
+
+  val mode = UInt(width = modeBits)
+  val asid = UInt(width = maxASIdBits)
   val ppn = UInt(width = maxPAddrBits - pgIdxBits)
 }
 
@@ -112,12 +124,12 @@ object CSR
   }
 
   val firstCtr = CSRs.cycle
+  val firstHPC = CSRs.hpmcounter3
+  val firstHPE = CSRs.mhpmevent3
+  val firstMHPC = CSRs.mhpmcounter3
   val firstHPM = 3
-  val firstHPC = CSRs.cycle + firstHPM
-  val firstHPE = CSRs.mucounteren + firstHPM
-  val firstMHPC = CSRs.mcycle + firstHPM
-  val nHPM = 29
-  val nCtr = firstHPM + nHPM
+  val nCtr = 32
+  val nHPM = nCtr - firstHPM
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
@@ -200,6 +212,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val exception = io.exception || io.csr_xcpt
   val reg_debug = Reg(init=Bool(false))
+  val effective_prv = Cat(reg_debug, reg_mstatus.prv)
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
   val reg_dscratch = Reg(UInt(width = xLen))
 
@@ -225,8 +238,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     case Some(addr) => Reg(init=UInt(addr, mtvecWidth))
     case None => Reg(UInt(width = mtvecWidth))
   }
-  val reg_mucounteren = Reg(UInt(width = 32))
-  val reg_mscounteren = Reg(UInt(width = 32))
+  val reg_mcounteren = Reg(UInt(width = 32))
+  val reg_scounteren = Reg(UInt(width = 32))
   val delegable_counters = (BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1
 
   val reg_sepc = Reg(UInt(width = vaddrBitsExtended))
@@ -250,12 +263,12 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val read_mip = mip.asUInt & supported_interrupts
 
   val pending_interrupts = read_mip & reg_mie
-  val m_interrupts = Mux(!reg_debug && (reg_mstatus.prv < PRV.M || (reg_mstatus.prv === PRV.M && reg_mstatus.mie)), pending_interrupts & ~reg_mideleg, UInt(0))
-  val s_interrupts = Mux(!reg_debug && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & reg_mideleg, UInt(0))
+  val m_interrupts = Mux(reg_mstatus.prv <= PRV.S || (reg_mstatus.prv === PRV.M && reg_mstatus.mie), pending_interrupts & ~reg_mideleg, UInt(0))
+  val s_interrupts = Mux(m_interrupts === 0 && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & reg_mideleg, UInt(0))
   val all_interrupts = m_interrupts | s_interrupts
   val interruptMSB = BigInt(1) << (xLen-1)
   val interruptCause = UInt(interruptMSB) + PriorityEncoder(all_interrupts)
-  io.interrupt := all_interrupts.orR && !io.singleStep || reg_singleStepped
+  io.interrupt := all_interrupts.orR && !reg_debug && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
 
@@ -332,7 +345,6 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     val read_sie = reg_mie & reg_mideleg
     val read_sip = read_mip & reg_mideleg
     val read_sstatus = Wire(init=io.status)
-    read_sstatus.vm := 0
     read_sstatus.mprv := 0
     read_sstatus.mpp := 0
     read_sstatus.hpp := 0
@@ -350,11 +362,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += CSRs.sptbr -> reg_sptbr.asUInt
     read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
-    read_mapping += CSRs.mscounteren -> reg_mscounteren
+    read_mapping += CSRs.scounteren -> reg_scounteren
   }
 
   if (usingUser) {
-    read_mapping += CSRs.mucounteren -> reg_mucounteren
+    read_mapping += CSRs.mcounteren -> reg_mcounteren
     read_mapping += CSRs.cycle -> reg_cycle
     read_mapping += CSRs.instret -> reg_instret
   }
@@ -379,9 +391,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val addr_valid = decoded_addr.values.reduce(_||_)
   val fp_csr = if (usingFPU) decoded_addr.filterKeys(fp_csrs contains _ ).values reduce(_||_) else Bool(false)
   val hpm_csr = if (usingUser) io.rw.addr >= CSR.firstCtr && io.rw.addr < CSR.firstCtr + CSR.nCtr else Bool(false)
-  val hpm_en = reg_debug || reg_mstatus.prv === PRV.M ||
-    (reg_mstatus.prv === PRV.S && reg_mscounteren(io.rw.addr(log2Ceil(CSR.nCtr)-1, 0))) ||
-    (reg_mstatus.prv === PRV.U && reg_mucounteren(io.rw.addr(log2Ceil(CSR.nCtr)-1, 0)))
+  val hpm_en = effective_prv > PRV.S || (reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren))(io.rw.addr(log2Ceil(CSR.nCtr)-1, 0))
   val csr_addr_priv = io.rw.addr(9,8)
 
   val debug_csr_mask = 0x090 // only debug CSRs have address bits 7 and 4 set
@@ -392,25 +402,37 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val read_only = io.rw.addr(11,10).andR
   val wen = cpu_wen && priv_sufficient && !read_only
 
-  val wdata = (Mux(io.rw.cmd.isOneOf(CSR.S, CSR.C), io.rw.rdata, UInt(0)) |
-               Mux(io.rw.cmd =/= CSR.C, io.rw.wdata, UInt(0))) &
+  val wdata = (Mux(io.rw.cmd.isOneOf(CSR.S, CSR.C), io.rw.rdata, UInt(0)) | io.rw.wdata) &
               ~Mux(io.rw.cmd === CSR.C, io.rw.wdata, UInt(0))
 
   val do_system_insn = priv_sufficient && system_insn
   val opcode = UInt(1) << io.rw.addr(2,0)
-  val insn_call = do_system_insn && opcode(0)
+  val insn_rs2 = io.rw.addr(5)
+  val insn_call = do_system_insn && !insn_rs2 && opcode(0)
   val insn_break = do_system_insn && opcode(1)
   val insn_ret = do_system_insn && opcode(2)
-  val insn_sfence_vm = do_system_insn && opcode(4)
-  val insn_wfi = do_system_insn && opcode(5)
+  val allow_wfi = effective_prv > PRV.S || !reg_mstatus.tw
+  val want_wfi = do_system_insn && opcode(5)
+  val insn_wfi = want_wfi && allow_wfi
+  val allow_sfence_vma = effective_prv > PRV.S || !reg_mstatus.tvm
+  val want_sfence_vma = do_system_insn && insn_rs2
+  val insn_sfence_vma = want_sfence_vma && allow_sfence_vma
+  val allow_fcsr = io.status.fs.orR && reg_misa('f'-'a')
 
   io.csr_xcpt := (cpu_wen && read_only) ||
-    (cpu_ren && (!priv_sufficient || !addr_valid || (hpm_csr && !hpm_en) || (fp_csr && !(io.status.fs.orR && reg_misa('f'-'a'))))) ||
+    (cpu_ren &&
+      (!priv_sufficient ||
+       !addr_valid ||
+       (if (usingVM) decoded_addr(CSRs.sptbr) && !allow_sfence_vma else false.B) ||
+       (hpm_csr && !hpm_en) ||
+       (fp_csr && !allow_fcsr))) ||
     (system_insn && !priv_sufficient) ||
-    insn_call || insn_break
+    insn_call || insn_break ||
+    want_wfi && !allow_wfi ||
+    want_sfence_vma && !allow_sfence_vma
 
   when (insn_wfi) { reg_wfi := true }
-  when (pending_interrupts.orR) { reg_wfi := false }
+  when (pending_interrupts.orR || exception) { reg_wfi := false }
 
   val cause =
     Mux(!io.csr_xcpt, io.cause,
@@ -421,12 +443,12 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
-  val delegate = Bool(usingVM) && reg_mstatus.prv < PRV.M && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
+  val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
   val debugTVec = Mux(reg_debug, UInt(0x808), UInt(0x800))
   val tvec = Mux(trapToDebug, debugTVec, Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec))
   val epc = Mux(csr_debug, reg_dpc, Mux(Bool(usingVM) && !csr_addr_priv(1), reg_sepc, reg_mepc))
-  io.fatc := insn_sfence_vm
-  io.evec := Mux(exception, tvec, epc)
+  io.fatc := insn_sfence_vma
+  io.evec := Mux(insn_ret, epc, tvec)
   io.ptbr := reg_sptbr
   io.eret := insn_ret
   io.singleStep := reg_dcsr.step && !reg_debug
@@ -434,6 +456,8 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   io.status.sd := io.status.fs.andR || io.status.xs.andR
   io.status.debug := reg_debug
   io.status.isa := reg_misa
+  io.status.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
+  io.status.sxl := (if (usingVM) log2Ceil(xLen) - 4 else 0)
   if (xLen == 32)
     io.status.sd_rv32 := io.status.sd
 
@@ -508,21 +532,17 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
       if (usingUser) {
         reg_mstatus.mprv := new_mstatus.mprv
         reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
+        reg_mstatus.mxr := new_mstatus.mxr
         if (usingVM) {
-          reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.pum := new_mstatus.pum
           reg_mstatus.spp := new_mstatus.spp
           reg_mstatus.spie := new_mstatus.spie
           reg_mstatus.sie := new_mstatus.sie
+          reg_mstatus.tw := new_mstatus.tw
+          reg_mstatus.tvm := new_mstatus.tvm
         }
       }
 
-      if (usingVM) {
-        require(if (xLen == 32) pgLevels == 2 else pgLevels > 2 && pgLevels < 6)
-        val vm_on = 6 + pgLevels // TODO Sv48 support should imply Sv39 support
-        when (new_mstatus.vm === 0) { reg_mstatus.vm := 0 }
-        when (new_mstatus.vm === vm_on) { reg_mstatus.vm := vm_on }
-      }
       if (usingVM || usingFPU) reg_mstatus.fs := Fill(2, new_mstatus.fs.orR)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
@@ -554,7 +574,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     writeCounter(CSRs.mcycle, reg_cycle, wdata)
     writeCounter(CSRs.minstret, reg_instret, wdata)
 
-    if (usingFPU) {
+    if (usingFPU) when (allow_fcsr) {
       when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
       when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
       when (decoded_addr(CSRs.fcsr))   { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
@@ -586,19 +606,28 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
         val new_sip = new MIP().fromBits(wdata)
         reg_mip.ssip := new_sip.ssip
       }
+      when (decoded_addr(CSRs.sptbr) && allow_sfence_vma) {
+        val new_sptbr = new PTBR().fromBits(wdata)
+        val valid_mode = new_sptbr.pgLevelsToMode(pgLevels)
+        when (new_sptbr.mode === 0) { reg_sptbr.mode := 0 }
+        when (new_sptbr.mode === valid_mode) { reg_sptbr.mode := valid_mode }
+        when (new_sptbr.mode === 0 || new_sptbr.mode === valid_mode) {
+          reg_sptbr.ppn := new_sptbr.ppn(ppnBits-1,0)
+          if (asIdBits > 0) reg_sptbr.asid := new_sptbr.asid(asIdBits-1,0)
+        }
+      }
       when (decoded_addr(CSRs.sie))      { reg_mie := (reg_mie & ~reg_mideleg) | (wdata & reg_mideleg) }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
-      when (decoded_addr(CSRs.sptbr))    { reg_sptbr.ppn := wdata(ppnBits-1,0) }
       when (decoded_addr(CSRs.sepc))     { reg_sepc := formEPC(wdata) }
       when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata >> 2 << 2 }
       when (decoded_addr(CSRs.scause))   { reg_scause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
       when (decoded_addr(CSRs.sbadaddr)) { reg_sbadaddr := wdata(vaddrBitsExtended-1,0) }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
-      when (decoded_addr(CSRs.mscounteren)) { reg_mscounteren := wdata & UInt(delegable_counters) }
+      when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata & UInt(delegable_counters) }
     }
     if (usingUser) {
-      when (decoded_addr(CSRs.mucounteren)) { reg_mucounteren := wdata & UInt(delegable_counters) }
+      when (decoded_addr(CSRs.mcounteren)) { reg_mcounteren := wdata & UInt(delegable_counters) }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
@@ -623,11 +652,11 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   if (!usingVM) {
     reg_mideleg := 0
     reg_medeleg := 0
-    reg_mscounteren := 0
+    reg_scounteren := 0
   }
 
   if (!usingUser) {
-    reg_mucounteren := 0
+    reg_mcounteren := 0
   }
 
   reg_sptbr.asid := 0

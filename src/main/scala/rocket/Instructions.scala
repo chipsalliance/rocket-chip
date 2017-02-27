@@ -100,7 +100,7 @@ object Instructions {
   def HRET               = BitPat("b00100000001000000000000001110011")
   def MRET               = BitPat("b00110000001000000000000001110011")
   def DRET               = BitPat("b01111011001000000000000001110011")
-  def SFENCE_VM          = BitPat("b000100000100?????000000001110011")
+  def SFENCE_VMA         = BitPat("b0001001??????????000000001110011")
   def WFI                = BitPat("b00010000010100000000000001110011")
   def CSRRW              = BitPat("b?????????????????001?????1110011")
   def CSRRS              = BitPat("b?????????????????010?????1110011")
@@ -283,6 +283,7 @@ object CSRs {
   val sstatus = 0x100
   val sie = 0x104
   val stvec = 0x105
+  val scounteren = 0x106
   val sscratch = 0x140
   val sepc = 0x141
   val scause = 0x142
@@ -295,6 +296,7 @@ object CSRs {
   val mideleg = 0x303
   val mie = 0x304
   val mtvec = 0x305
+  val mcounteren = 0x306
   val mscratch = 0x340
   val mepc = 0x341
   val mcause = 0x342
@@ -338,8 +340,6 @@ object CSRs {
   val mhpmcounter29 = 0xb1d
   val mhpmcounter30 = 0xb1e
   val mhpmcounter31 = 0xb1f
-  val mucounteren = 0x320
-  val mscounteren = 0x321
   val mhpmevent3 = 0x323
   val mhpmevent4 = 0x324
   val mhpmevent5 = 0x325
@@ -476,6 +476,7 @@ object CSRs {
     res += sstatus
     res += sie
     res += stvec
+    res += scounteren
     res += sscratch
     res += sepc
     res += scause
@@ -488,6 +489,7 @@ object CSRs {
     res += mideleg
     res += mie
     res += mtvec
+    res += mcounteren
     res += mscratch
     res += mepc
     res += mcause
@@ -531,8 +533,6 @@ object CSRs {
     res += mhpmcounter29
     res += mhpmcounter30
     res += mhpmcounter31
-    res += mucounteren
-    res += mscounteren
     res += mhpmevent3
     res += mhpmevent4
     res += mhpmevent5
