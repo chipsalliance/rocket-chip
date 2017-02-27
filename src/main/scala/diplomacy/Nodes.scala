@@ -4,6 +4,7 @@ package diplomacy
 
 import Chisel._
 import config._
+import util.HeterogeneousBag
 import scala.collection.mutable.ListBuffer
 import chisel3.internal.sourceinfo.SourceInfo
 
@@ -14,7 +15,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 trait InwardNodeImp[DI, UI, EI, BI <: Data]
 {
   def edgeI(pd: DI, pu: UI): EI
-  def bundleI(ei: Seq[EI]): Vec[BI]
+  def bundleI(ei: EI): BI
   def colour: String
   def connect(bindings: () => Seq[(EI, BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => bindings().foreach { case (_, i, o) => i <> o })
@@ -33,7 +34,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
 trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 {
   def edgeO(pd: DO, pu: UO): EO
-  def bundleO(eo: Seq[EO]): Vec[BO]
+  def bundleO(eo: EO): BO
 
   // optional methods to track node graph
   def mixO(pd: DO, node: OutwardNode[DO, UO, BO]): DO = pd // insert node into parameters
@@ -112,7 +113,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val iParams: Seq[UI]
-  val bundleIn: Vec[BI]
+  val bundleIn: HeterogeneousBag[BI]
 }
 
 trait OutwardNodeHandle[DO, UO, BO <: Data]
@@ -145,7 +146,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val oParams: Seq[DO]
-  val bundleOut: Vec[BO]
+  val bundleOut: HeterogeneousBag[BO]
 }
 
 abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
@@ -218,14 +219,14 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val externalEdgesIn = if (externalIn) {edgesIn} else { Seq() }
 
   val flip = false // needed for blind nodes
-  private def flipO(b: Vec[BO]) = if (flip) b.flip else b
-  private def flipI(b: Vec[BI]) = if (flip) b      else b.flip
+  private def flipO(b: HeterogeneousBag[BO]) = if (flip) b.flip else b
+  private def flipI(b: HeterogeneousBag[BI]) = if (flip) b      else b.flip
   val wire = false // needed if you want to grab access to from inside a module
-  private def wireO(b: Vec[BO]) = if (wire) Wire(b) else b
-  private def wireI(b: Vec[BI]) = if (wire) Wire(b) else b
+  private def wireO(b: HeterogeneousBag[BO]) = if (wire) Wire(b) else b
+  private def wireI(b: HeterogeneousBag[BI]) = if (wire) Wire(b) else b
 
-  lazy val bundleOut = wireO(flipO(outer.bundleO(edgesOut)))
-  lazy val bundleIn  = wireI(flipI(inner.bundleI(edgesIn)))
+  lazy val bundleOut = wireO(flipO(HeterogeneousBag(edgesOut.map(outer.bundleO(_)))))
+  lazy val bundleIn  = wireI(flipI(HeterogeneousBag(edgesIn .map(inner.bundleI(_)))))
 
   // connects the outward part of a node with the inward part of this node
   private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = {

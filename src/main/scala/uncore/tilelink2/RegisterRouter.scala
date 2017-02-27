@@ -86,7 +86,7 @@ abstract class TLRegisterRouterBase(val address: AddressSet, interrupts: Int, co
   val intnode = IntSourceNode(interrupts)
 }
 
-case class TLRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[TLBundle])(implicit val p: Parameters)
+case class TLRegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[TLBundle])(implicit val p: Parameters)
 
 class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
 {

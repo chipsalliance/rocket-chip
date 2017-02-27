@@ -85,7 +85,7 @@ abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, conc
   val intnode = uncore.tilelink2.IntSourceNode(interrupts)
 }
 
-case class AXI4RegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[AXI4Bundle])(implicit val p: Parameters)
+case class AXI4RegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[AXI4Bundle])(implicit val p: Parameters)
 
 class AXI4RegBundleBase(arg: AXI4RegBundleArg) extends Bundle
 {
