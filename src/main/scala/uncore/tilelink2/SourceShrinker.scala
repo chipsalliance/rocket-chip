@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import config._
 import diplomacy._
+import util._
 import scala.math.{min,max}
 
 class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyModule
@@ -54,7 +55,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         in.a.ready := out.a.ready && !block
         out.a.valid := in.a.valid && !block
         out.a.bits := in.a.bits
-        out.a.bits.source := holdUnless(nextFree, a_first)
+        out.a.bits.source := nextFree holdUnless a_first
 
         in.d <> out.d
         in.d.bits.source := sourceIdMap(out.d.bits.source)

@@ -5,6 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import config._
 import diplomacy._
+import util._
 
 class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
@@ -73,7 +74,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
       mem.write(memAddress, wdata, in.a.bits.mask.toBools)
     }
     val ren = in.a.fire() && read
-    rdata := holdUnless(mem.read(memAddress, ren), RegNext(ren))
+    rdata := mem.readAndHold(memAddress, ren)
 
     // Tie off unused channels
     in.b.valid := Bool(false)
