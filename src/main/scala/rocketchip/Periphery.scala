@@ -38,7 +38,9 @@ case object ZeroConfig extends Field[ZeroConfig]
 trait HasPeripheryParameters {
   implicit val p: Parameters
   def peripheryBusConfig = p(PeripheryBusConfig)
+  def peripheryBusBytes = peripheryBusConfig.beatBytes
   def socBusConfig = p(SOCBusConfig)
+  def socBusBytes = socBusConfig.beatBytes
   def cacheBlockBytes = p(CacheBlockBytes)
   def peripheryBusArithmetic = p(PeripheryBusArithmetic)
   def nMemoryChannels = p(coreplex.BankedL2Config).nMemoryChannels
