@@ -160,3 +160,15 @@ object Random
   private def partition(value: UInt, slices: Int) =
     Seq.tabulate(slices)(i => value < UInt(round((i << value.getWidth).toDouble / slices)))
 }
+
+object Majority {
+  def apply(in: Set[Bool]): Bool = {
+    val n = (in.size >> 1) + 1
+    val clauses = in.subsets(n).map(_.reduce(_ && _))
+    clauses.reduce(_ || _)
+  }
+
+  def apply(in: Seq[Bool]): Bool = apply(in.toSet)
+
+  def apply(in: UInt): Bool = apply(in.toBools.toSet)
+}
