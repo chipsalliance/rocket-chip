@@ -18,20 +18,22 @@ case class IntRange(start: Int, end: Int)
   def overlaps(x: IntRange) = start < x.end && x.start < end
   def offset(x: Int) = IntRange(x+start, x+end)
 }
+
 object IntRange
 {
   implicit def apply(end: Int): IntRange = apply(0, end)
 }
 
 case class IntSourceParameters(
-  range:    IntRange,
-  nodePath: Seq[BaseNode] = Seq())
+  range:     IntRange,
+  resources: Seq[Resource] = Seq(),
+  nodePath:  Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
 case class IntSinkParameters(
-  nodePath: Seq[BaseNode] = Seq())
+  nodePath:  Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
@@ -74,8 +76,8 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
 }
 
 case class IntIdentityNode() extends IdentityNode(IntImp)
-case class IntSourceNode(num: Int) extends SourceNode(IntImp)(
-  if (num == 0) Seq() else Seq(IntSourcePortParameters(Seq(IntSourceParameters(num)))))
+case class IntSourceNode(num: Int, resources: Seq[Resource] = Nil) extends SourceNode(IntImp)(
+  if (num == 0) Seq() else Seq(IntSourcePortParameters(Seq(IntSourceParameters(num, resources)))))
 case class IntSinkNode() extends SinkNode(IntImp)(
   Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
 
@@ -90,10 +92,12 @@ case class IntOutputNode() extends OutputNode(IntImp)
 case class IntInputNode() extends InputNode(IntImp)
 
 case class IntBlindOutputNode() extends BlindOutputNode(IntImp)(Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
-case class IntBlindInputNode(num: Int) extends BlindInputNode(IntImp)(Seq(IntSourcePortParameters(Seq(IntSourceParameters(num)))))
+case class IntBlindInputNode(num: Int, resources: Seq[Resource] = Nil) extends BlindInputNode(IntImp)(
+  Seq(IntSourcePortParameters(Seq(IntSourceParameters(num, resources)))))
 
 case class IntInternalOutputNode() extends InternalOutputNode(IntImp)(Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
-case class IntInternalInputNode(num: Int) extends InternalInputNode(IntImp)(Seq(IntSourcePortParameters(Seq(IntSourceParameters(num)))))
+case class IntInternalInputNode(num: Int, resources: Seq[Resource] = Nil) extends InternalInputNode(IntImp)(
+  Seq(IntSourcePortParameters(Seq(IntSourceParameters(num, resources)))))
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {

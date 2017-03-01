@@ -9,6 +9,7 @@ import util.RationalDirection
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
+  resources:          Seq[Resource] = Seq(),
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
@@ -67,6 +68,13 @@ case class TLManagerParameters(
   // The device had better not support a transfer larger than it's alignment
   val minAlignment = address.map(_.alignment).min
   require (minAlignment >= maxTransfer)
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address,
+      r = supportsAcquireB || supportsGet,
+      w = supportsAcquireT || supportsPutFull,
+      x = executable)
+  }
 }
 
 case class TLManagerPortParameters(
