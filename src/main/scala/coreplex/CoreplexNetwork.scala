@@ -11,6 +11,7 @@ import util._
 
 trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
+  def bindingTree: ResourceMap
 
   val l1tol2 = LazyModule(new TLXbar)
   val l1tol2_beatBytes = l1tol2Config.beatBytes
@@ -40,6 +41,53 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   mmio :=
     TLWidthWidget(l1tol2_beatBytes)(
     l1tol2.node)
+
+  val root = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      Description("/", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "model"          -> Seq(ResourceString(p(DTSModel))),
+        "compatible"     -> (p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-dev"))))
+    }
+  }
+
+  val soc = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      Description("soc", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "compatible"     -> (p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-soc")),
+        "ranges"         -> Nil))
+    }
+  }
+
+  val cpus = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      Description("cpus", Map(
+        "#address-cells"     -> Seq(ResourceInt(1)),
+        "#size-cells"        -> Seq(ResourceInt(0)),
+        "timebase-frequency" -> Seq(ResourceInt(p(DTSTimebase)))))
+    }
+  }
+
+  ResourceBinding {
+    val managers = l1tol2.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)
+    val max = managers.flatMap(_.address).map(_.max).max
+    val width = ResourceInt((log2Ceil(max)+31) / 32)
+    Resource(root, "width").bind(width)
+    Resource(soc,  "width").bind(width)
+    Resource(cpus, "null").bind(ResourceString(""))
+
+    managers.foreach { case manager =>
+      val value = manager.toResource
+      manager.resources.foreach { case resource =>
+        resource.bind(value)
+      }
+    }
+  }
 }
 
 trait CoreplexNetworkBundle extends HasCoreplexParameters {

@@ -55,7 +55,7 @@ trait HasCoreplexParameters {
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
 
-abstract class BareCoreplex(implicit p: Parameters) extends LazyModule
+abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with BindingScope
 
 abstract class BareCoreplexBundle[+L <: BareCoreplex](_outer: L) extends GenericParameterizedBundle(_outer) {
   val outer = _outer

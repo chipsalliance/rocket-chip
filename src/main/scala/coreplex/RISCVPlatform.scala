@@ -28,6 +28,8 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
     val managers = l1tol2.node.edgesIn(0).manager.managers
     rocketchip.GenerateConfigString(p, clint, plic, managers)
   }
+
+  lazy val dts = DTS(bindingTree)
 }
 
 trait CoreplexRISCVPlatformBundle extends CoreplexNetworkBundle {
@@ -52,4 +54,7 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
 
   println(s"\nGenerated Configuration String\n${outer.configString}")
   ElaborationArtefacts.add("cfg", outer.configString)
+
+  println(outer.dts)
+  ElaborationArtefacts.add("dts", outer.dts)
 }
