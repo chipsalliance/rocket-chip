@@ -5,6 +5,7 @@ package uncore.ahb
 import Chisel._
 import config._
 import diplomacy._
+import util._
 
 class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
@@ -52,15 +53,12 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     // result must bypass data from the pending write into the read if they
     // happen to have matching address.
 
-    // Remove this once HoldUnless is in chisel3
-    def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
-
     // Pending write?
     val p_valid     = RegInit(Bool(false))
     val p_address   = Reg(a_address)
     val p_mask      = Reg(a_mask)
     val p_latch_d   = Reg(Bool())
-    val p_wdata     = holdUnless(d_wdata, p_latch_d)
+    val p_wdata     = d_wdata holdUnless p_latch_d
 
     // Use single-ported memory with byte-write enable
     val mem = SeqMem(1 << mask.filter(b=>b).size, Vec(beatBytes, Bits(width = 8)))
@@ -68,7 +66,7 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     // Decide is the SRAM port is used for reading or (potentially) writing
     val read = a_request && !a_write
     // In case we choose to stall, we need to hold the read data
-    val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
+    val d_rdata = mem.readAndHold(a_address, read)
     // Whenever the port is not needed for reading, execute pending writes
     when (!read && p_valid) {
       p_valid := Bool(false)

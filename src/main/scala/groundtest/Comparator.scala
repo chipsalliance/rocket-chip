@@ -10,6 +10,7 @@ import rocket._
 import util.Timer
 import scala.util.Random
 import config._
+import util._
 
 case class ComparatorParameters(
   targets:    Seq[Long], 
@@ -239,14 +240,11 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
   val isFirstBeatOut= Mux(isMultiOut, beatOut === UInt(0),  Bool(true))
   val isLastBeatOut = Mux(isMultiOut, beatOut === lastBeat, Bool(true))
   val isLastBeatIn  = Mux(isMultiIn,  io.tl.grant.bits.addr_beat === lastBeat, Bool(true))
-  
-  // Remove this once HoldUnless is in chisel3
-  def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
 
   // Potentially issue a request, using a free xact id
   // NOTE: we may retract valid and change xact_id on a !ready (allowed by spec)
   val allow_acq = NoiseMaker(1)(0) && issued.map(!_).reduce(_ || _)
-  val xact_id   = holdUnless(PriorityEncoder(issued.map(!_)), isFirstBeatOut)
+  val xact_id   = PriorityEncoder(issued.map(!_)) holdUnless isFirstBeatOut
   buffer.ready        := allow_acq && io.tl.acquire.ready && isLastBeatOut
   io.tl.acquire.valid := allow_acq && buffer.valid
   io.tl.acquire.bits  := buffer.bits

@@ -6,7 +6,7 @@ package junctions
 import Chisel._
 import config._
 import unittest.UnitTest
-import util.ParameterizedBundle
+import util._
 
 object HastiConstants
 {
@@ -470,7 +470,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   
   // Calculate the bitmask of which bytes are being accessed
   val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
-  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
+  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Ceil(i+1)) }
   val mask_shift  = if (hastiAlignment == 0) UInt(1) else
                     mask_wide.asUInt() << io.haddr(hastiAlignment-1,0)
   
@@ -506,15 +506,12 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // result must bypass data from the pending write into the read if they
   // happen to have matching address.
   
-  // Remove this once HoldUnless is in chisel3
-  def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
-  
   // Pending write?
   val p_valid     = RegInit(Bool(false))
   val p_address   = Reg(a_address)
   val p_mask      = Reg(a_mask)
   val p_latch_d   = RegNext(ready && a_request && a_write, Bool(false))
-  val p_wdata     = holdUnless(d_wdata, p_latch_d)
+  val p_wdata     = d_wdata holdUnless p_latch_d
   
   // Use single-ported memory with byte-write enable
   val mem = SeqMem(1 << (depth-hastiAlignment), Vec(hastiDataBytes, Bits(width = 8)))
@@ -522,7 +519,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // Decide is the SRAM port is used for reading or (potentially) writing
   val read = ready && a_request && !a_write
   // In case we are stalled, we need to hold the read data
-  val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
+  val d_rdata = mem.readAndHold(a_address, read)
   // Whenever the port is not needed for reading, execute pending writes
   when (!read && p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
   when (!read) { p_valid := Bool(false) }
