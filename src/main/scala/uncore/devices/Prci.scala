@@ -83,8 +83,9 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
+// prci0 => at most 4095 devices
 class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Parameters)
-  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(XLen)/8, undefZero = true)(
+  extends TLRegisterRouter(address, "clint", Seq("riscv,clint0"), size = ClintConsts.size, beatBytes = p(XLen)/8, undefZero = true)(
   new TLRegBundle((), _)    with CoreplexLocalInterrupterBundle)(
   new TLRegModule((), _, _) with CoreplexLocalInterrupterModule)
 {

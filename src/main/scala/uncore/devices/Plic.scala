@@ -58,19 +58,34 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
   val contextsPerHart = if (supervisor) 2 else 1
   require (maxPriorities >= 0)
 
+  // plic0 => max devices 1023
+  val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
+    override val alwaysExtended = true
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      val extra = Map(
+        "interrupt-controller" -> Nil,
+        "riscv,ndev" -> Seq(ResourceInt(nDevices)),
+        "#interrupt-cells" -> Seq(ResourceInt(1)),
+        "#address-cells" -> Seq(ResourceInt(0)))
+      Description(name, mapping ++ extra)
+    }
+  }
+
   val node = TLRegisterNode(
     address   = AddressSet(address, PLICConsts.size-1),
+    device    = device,
     beatBytes = p(XLen)/8,
     undefZero = false)
 
   val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
     numSinkPorts   = 0 to 1024,
-    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart))) },
+    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart, Seq(Resource(device, "int"))))) },
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
   /* Negotiated sizes */
-  def nDevices = intnode.edgesIn.map(_.source.num).sum
+  def nDevices: Int = intnode.edgesIn.map(_.source.num).sum
   def nPriorities = min(maxPriorities, nDevices)
   def nHarts = intnode.edgesOut.map(_.source.num).sum
 
@@ -106,6 +121,19 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
     s"      };\n")).mkString
   }
 
+  // Assign all the devices unique ranges
+  lazy val sources = intnode.edgesIn.map(_.source)
+  lazy val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
+    case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
+  }.flatten
+
+  ResourceBinding {
+    flatSources.foreach { s => s.resources.foreach { r =>
+      // +1 because interrupt 0 is reserved
+      (s.range.start until s.range.end).foreach { i => r.bind(device, ResourceInt(i+1)) }
+    } }
+  }
+
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val tl_in = node.bundleIn
@@ -113,11 +141,6 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
       val harts = intnode.bundleOut
     }
 
-    // Assign all the devices unique ranges
-    val sources = intnode.edgesIn.map(_.source)
-    val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
-      case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
-    }.flatten
     // Compact the interrupt vector the same way
     val interrupts = (intnode.edgesIn zip io.devices).map { case (e, i) => i.take(e.source.num) }.flatten
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence

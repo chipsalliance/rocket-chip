@@ -8,9 +8,12 @@ import diplomacy._
 
 class TLZero(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
+  val device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero"))
+
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
+      resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),
