@@ -37,9 +37,10 @@ of riscv-tools:
     $ cd rocket-chip/riscv-tools
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
+    $ export MAKEFLAGS="$MAKEFLAGS -jN" # Assuming you have N cores on your host system
     $ ./build.sh
     $ ./build-rv32ima.sh (if you are using RV32).
-   
+
 For more information (or if you run into any issues), please consult the
 [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
 
