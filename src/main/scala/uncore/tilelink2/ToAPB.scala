@@ -19,6 +19,7 @@ case class TLToAPBNode() extends MixedAdapterNode(TLImp, APBImp)(
     val managers = slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
+        resources          = s.resources,
         regionType         = s.regionType,
         executable         = s.executable,
         nodePath           = s.nodePath,
