@@ -66,7 +66,7 @@ object Str
   def apply(x: SInt): UInt = apply(x, 10)
   def apply(x: SInt, radix: Int): UInt = {
     val neg = x < SInt(0)
-    val abs = x.abs
+    val abs = x.abs.asUInt
     if (radix != 10) {
       Cat(Mux(neg, Str('-'), Str(' ')), Str(abs, radix))
     } else {
