@@ -89,38 +89,6 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
   def nPriorities = min(maxPriorities, nDevices)
   def nHarts = intnode.edgesOut.map(_.source.num).sum
 
-  def context(i: Int, mode: Char) = mode match {
-    case 'M' => i * contextsPerHart
-    case 'S' => require(supervisor); i * contextsPerHart + 1
-  }
-  def claimAddr(i: Int, mode: Char)  = address + PLICConsts.hartBase(context(i, mode)) + PLICConsts.claimOffset
-  def threshAddr(i: Int, mode: Char) = address + PLICConsts.hartBase(context(i, mode))
-  def enableAddr(i: Int, mode: Char) = address + PLICConsts.enableBase(context(i, mode))
-
-  // Create the global PLIC config string
-  lazy val globalConfigString = Seq(
-    s"plic {\n",
-    s"  priority 0x${address.toString(16)};\n",
-    s"  pending 0x${(address + PLICConsts.pendingBase).toString(16)};\n",
-    s"  ndevs ${nDevices};\n",
-    s"};\n").mkString
-
-  // Create the per-Hart config string
-  lazy val hartConfigStrings = Seq.tabulate(intnode.edgesOut.size) { i => (Seq(
-    s"      plic {\n",
-    s"        m {\n",
-    s"         ie 0x${enableAddr(i, 'M').toString(16)};\n",
-    s"         thresh 0x${threshAddr(i, 'M').toString(16)};\n",
-    s"         claim 0x${claimAddr(i, 'M').toString(16)};\n",
-    s"        };\n") ++ (if (!supervisor) Seq() else Seq(
-    s"        s {\n",
-    s"         ie 0x${enableAddr(i, 'S').toString(16)};\n",
-    s"         thresh 0x${threshAddr(i, 'S').toString(16)};\n",
-    s"         claim 0x${claimAddr(i, 'S').toString(16)};\n",
-    s"        };\n")) ++ Seq(
-    s"      };\n")).mkString
-  }
-
   // Assign all the devices unique ranges
   lazy val sources = intnode.edgesIn.map(_.source)
   lazy val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
@@ -146,11 +114,12 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
     val harts = io.harts.flatten
 
-    println("\nInterrupt map:")
+    println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>
       // +1 because 0 is reserved, +1-1 because the range is half-open
       println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
+    println("")
 
     require (nDevices == interrupts.size)
     require (nHarts == harts.size)

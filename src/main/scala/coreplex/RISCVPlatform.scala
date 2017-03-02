@@ -24,11 +24,6 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
 
   plic.intnode := intBar.intnode
 
-  lazy val configString = {
-    val managers = l1tol2.node.edgesIn(0).manager.managers
-    rocketchip.GenerateConfigString(p, clint, plic, managers)
-  }
-
   lazy val dts = DTS(bindingTree)
 }
 
@@ -51,9 +46,6 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
   val rtcSync = ShiftRegister(io.rtcToggle, 3)
   val rtcLast = Reg(init = Bool(false), next=rtcSync)
   outer.clint.module.io.rtcTick := Reg(init = Bool(false), next=(rtcSync & (~rtcLast)))
-
-  println(s"\nGenerated Configuration String\n${outer.configString}")
-  ElaborationArtefacts.add("cfg", outer.configString)
 
   println(outer.dts)
   ElaborationArtefacts.add("dts", outer.dts)

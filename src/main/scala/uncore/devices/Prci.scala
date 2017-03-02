@@ -50,16 +50,6 @@ class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Paramet
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
-  // Legacy stuff:
-  val globalConfigString = Seq(
-    s"rtc {\n",
-    s"  addr 0x${(address + timeOffset).toString(16)};\n",
-    s"};\n").mkString
-  val hartConfigStrings = (0 until p(NTiles)).map { i => Seq(
-    s"      timecmp 0x${(address + timecmpOffset(i)).toString(16)};\n",
-    s"      ipi 0x${(address + msipOffset(i)).toString(16)};\n").mkString
-  }
-
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val rtcTick = Bool(INPUT)
