@@ -53,14 +53,8 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
 {
   def edgeO(pd: IntSourcePortParameters, pu: IntSinkPortParameters): IntEdge = IntEdge(pd, pu)
   def edgeI(pd: IntSourcePortParameters, pu: IntSinkPortParameters): IntEdge = IntEdge(pd, pu)
-  def bundleO(eo: Seq[IntEdge]): Vec[Vec[Bool]] = {
-    if (eo.isEmpty) Vec(0, Vec(0, Bool())) else
-    Vec(eo.size, Vec(eo.map(_.source.num).max, Bool()))
-  }
-  def bundleI(ei: Seq[IntEdge]): Vec[Vec[Bool]] = {
-    if (ei.isEmpty) Vec(0, Vec(0, Bool())) else
-    Vec(ei.size, Vec(ei.map(_.source.num).max, Bool()))
-  }
+  def bundleO(eo: IntEdge): Vec[Bool] = Vec(eo.source.num, Bool())
+  def bundleI(ei: IntEdge): Vec[Bool] = Vec(ei.source.num, Bool())
 
   def colour = "#0000ff" // blue
   override def labelI(ei: IntEdge) = ei.source.sources.map(_.range.size).sum.toString
@@ -132,6 +126,8 @@ class IntXing()(implicit p: Parameters) extends LazyModule
       val out = intnode.bundleOut
     }
 
-    io.out := RegNext(RegNext(RegNext(io.in)))
+    (io.in zip io.out) foreach { case (in, out) =>
+      out := RegNext(RegNext(RegNext(in)))
+    }
   }
 }

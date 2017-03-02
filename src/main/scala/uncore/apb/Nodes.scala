@@ -12,8 +12,8 @@ object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, A
   def edgeO(pd: APBMasterPortParameters, pu: APBSlavePortParameters): APBEdgeParameters = APBEdgeParameters(pd, pu)
   def edgeI(pd: APBMasterPortParameters, pu: APBSlavePortParameters): APBEdgeParameters = APBEdgeParameters(pd, pu)
 
-  def bundleO(eo: Seq[APBEdgeParameters]): Vec[APBBundle] = Vec(eo.size, APBBundle(APBBundleParameters.union(eo.map(_.bundle))))
-  def bundleI(ei: Seq[APBEdgeParameters]): Vec[APBBundle] = Vec(ei.size, APBBundle(APBBundleParameters.union(ei.map(_.bundle))))
+  def bundleO(eo: APBEdgeParameters): APBBundle = APBBundle(eo.bundle)
+  def bundleI(ei: APBEdgeParameters): APBBundle = APBBundle(ei.bundle)
 
   def colour = "#00ccff" // bluish
   override def labelI(ei: APBEdgeParameters) = (ei.slave.beatBytes * 8).toString

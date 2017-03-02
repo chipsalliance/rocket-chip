@@ -80,7 +80,7 @@ abstract class AHBRegisterRouterBase(address: AddressSet, interrupts: Int, concu
   val intnode = uncore.tilelink2.IntSourceNode(interrupts)
 }
 
-case class AHBRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[AHBBundle])(implicit val p: Parameters)
+case class AHBRegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[AHBBundle])(implicit val p: Parameters)
 
 class AHBRegBundleBase(arg: AHBRegBundleArg) extends Bundle
 {

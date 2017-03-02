@@ -12,6 +12,7 @@ import uncore.devices._
 import util._
 import rocket._
 
+/** BareTop is the root class for creating a top-level RTL module */
 abstract class BareTop(implicit p: Parameters) extends LazyModule {
   ElaborationArtefacts.add("graphml", graphML)
 }
@@ -26,17 +27,20 @@ abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _
   val io = _io ()
 }
 
-/** Base Top with no Periphery */
-trait TopNetwork extends HasPeripheryParameters {
-  val module: TopNetworkModule
+/** HasTopLevelNetworks provides buses that will serve as attachment points,
+  * for use in sub-traits that connect individual agents or external ports.
+  */
+trait HasTopLevelNetworks extends HasPeripheryParameters {
+  val module: HasTopLevelNetworksModule
 
-  // Add a SoC and peripheral bus
-  val socBus = LazyModule(new TLXbar)
-  val peripheryBus = LazyModule(new TLXbar)
-  val intBus = LazyModule(new IntXbar)
-  val l2 = LazyModule(new TLBuffer)
-  val mem = Seq.fill(p(coreplex.BankedL2Config).nMemoryChannels) { LazyModule(new TLXbar) }
+  val socBus = LazyModule(new TLXbar)          // Wide or unordered-access slave devices (TL-UH)
+  val peripheryBus = LazyModule(new TLXbar)    // Narrow and ordered-access slave devices (TL-UL)
+  val intBus = LazyModule(new IntXbar)         // Interrupts
+  val l2FrontendBus = LazyModule(new TLBuffer) // Master devices talking to the frontside of the L2
+  val mem = Seq.fill(nMemoryChannels) { LazyModule(new TLXbar) } // Ports out to DRAM
 
+  // The peripheryBus hangs off of socBus;
+  // here we convert TL-UH -> TL-UL
   peripheryBus.node :=
     TLBuffer()(
     TLWidthWidget(socBusConfig.beatBytes)(
@@ -44,23 +48,23 @@ trait TopNetwork extends HasPeripheryParameters {
     socBus.node)))
 }
 
-trait TopNetworkBundle extends HasPeripheryParameters {
-  val outer: TopNetwork
+trait HasTopLevelNetworksBundle extends HasPeripheryParameters {
+  val outer: HasTopLevelNetworks
 }
 
-trait TopNetworkModule extends HasPeripheryParameters {
-  val io: TopNetworkBundle
-  val outer: TopNetwork
+trait HasTopLevelNetworksModule extends HasPeripheryParameters {
+  val outer: HasTopLevelNetworks
+  val io: HasTopLevelNetworksBundle
 }
 
-/** Base Top with no Periphery */
+/** Base Top class with no peripheral devices or ports added */
 class BaseTop(implicit p: Parameters) extends BareTop
-    with TopNetwork {
+    with HasTopLevelNetworks {
   override lazy val module = new BaseTopModule(this, () => new BaseTopBundle(this))
 }
 
 class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
-    with TopNetworkBundle
+    with HasTopLevelNetworksBundle
 
 class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
-    with TopNetworkModule
+    with HasTopLevelNetworksModule

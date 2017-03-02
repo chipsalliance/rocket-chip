@@ -15,8 +15,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
   }
   val dut = Module(LazyModule(new ExampleRocketTop).module)
 
-  for (int <- dut.io.interrupts(0))
-    int := Bool(false)
+  dut.io.interrupts := UInt(0)
 
   val channels = p(coreplex.BankedL2Config).nMemoryChannels
   if (channels > 0) Module(LazyModule(new SimAXIMem(channels)).module).io.axi4 <> dut.io.mem_axi4
@@ -30,7 +29,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
   val mmio_sim = Module(LazyModule(new SimAXIMem(1, 4096)).module)
   mmio_sim.io.axi4 <> dut.io.mmio_axi4
 
-  val l2_axi4 = dut.io.l2_axi4(0)
+  val l2_axi4 = dut.io.l2_frontend_bus_axi4(0)
   l2_axi4.ar.valid := Bool(false)
   l2_axi4.aw.valid := Bool(false)
   l2_axi4.w .valid := Bool(false)
