@@ -127,7 +127,7 @@ class IntXbar()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class IntXing()(implicit p: Parameters) extends LazyModule
+class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val intnode = IntIdentityNode()
 
@@ -138,7 +138,7 @@ class IntXing()(implicit p: Parameters) extends LazyModule
     }
 
     (io.in zip io.out) foreach { case (in, out) =>
-      out := RegNext(RegNext(RegNext(in)))
+      out := (0 to sync).foldLeft(in) { case (a, _) => RegNext(a) }
     }
   }
 }
