@@ -102,16 +102,17 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val outer: CoreplexNetwork
   val io: CoreplexNetworkBundle
 
-  println("\nGenerated Address Map")
+  println("Generated Address Map")
   for (manager <- outer.l1tol2.node.edgesIn(0).manager.managers) {
     val prot = (if (manager.supportsGet)     "R" else "") +
                (if (manager.supportsPutFull) "W" else "") +
                (if (manager.executable)      "X" else "") +
                (if (manager.supportsAcquireB) " [C]" else "")
-    manager.address.foreach { a =>
-      println(f"\t${manager.name}%s ${a.base}%x - ${a.base+a.mask+1}%x, $prot")
+    AddressRange.fromSets(manager.address).foreach { r =>
+      println(f"\t${manager.name}%s ${r.base}%x - ${r.base+r.size}%x, $prot")
     }
   }
+  println("")
 }
 
 /////
