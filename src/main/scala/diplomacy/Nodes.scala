@@ -302,8 +302,8 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   numPI: Range.Inclusive = 1 to 999)
   extends MixedNode(inner, outer)(numPO, numPI)
 {
-  require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
-  require (numPI.end >= 1, s"${name} does not accept inputs${lazyModule.line}")
+//  require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
+//  require (numPI.end >= 1, s"${name} does not accept inputs${lazyModule.line}")
 
   val externalIn: Boolean = true
   val externalOut: Boolean = true
