@@ -23,7 +23,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
   private val crossing = p(RocketCrossing)
   private val configs = p(RocketTilesKey)
 
-  private val rocketTileIntNodes = configs.map { _ => IntInternalOutputNode() }
+  private val rocketTileIntNodes = configs.map { _ => IntInternalOutputNode(IntSinkPortSimple()) }
   rocketTileIntNodes.foreach { _ := plic.intnode }
 
   private def wireInterrupts(x: TileInterrupts, i: Int) {

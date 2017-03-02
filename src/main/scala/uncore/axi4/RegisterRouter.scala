@@ -82,7 +82,7 @@ object AXI4RegisterNode
 abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4RegisterNode(address, concurrency, beatBytes, undefZero, executable)
-  val intnode = uncore.tilelink2.IntSourceNode(interrupts)
+  val intnode = uncore.tilelink2.IntSourceNode(uncore.tilelink2.IntSourcePortSimple(num = interrupts))
 }
 
 case class AXI4RegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[AXI4Bundle])(implicit val p: Parameters)

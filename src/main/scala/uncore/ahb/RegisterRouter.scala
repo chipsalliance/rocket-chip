@@ -77,7 +77,7 @@ object AHBRegisterNode
 abstract class AHBRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AHBRegisterNode(address, concurrency, beatBytes, undefZero, executable)
-  val intnode = uncore.tilelink2.IntSourceNode(interrupts)
+  val intnode = uncore.tilelink2.IntSourceNode(uncore.tilelink2.IntSourcePortSimple(num = interrupts))
 }
 
 case class AHBRegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[AHBBundle])(implicit val p: Parameters)

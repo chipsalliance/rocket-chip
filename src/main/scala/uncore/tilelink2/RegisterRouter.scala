@@ -99,7 +99,7 @@ abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val
 {
   val device = new SimpleDevice(devname, devcompat)
   val node = TLRegisterNode(address, device, "reg", concurrency, beatBytes, undefZero, executable)
-  val intnode = IntSourceNode(interrupts, Seq(Resource(device, "int")))
+  val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
 
 case class TLRegBundleArg(interrupts: util.HeterogeneousBag[Vec[Bool]], in: util.HeterogeneousBag[TLBundle])(implicit val p: Parameters)

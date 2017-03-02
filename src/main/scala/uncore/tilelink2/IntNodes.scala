@@ -46,8 +46,19 @@ case class IntSourcePortParameters(sources: Seq[IntSourceParameters])
   // The interrupts must perfectly cover the range
   require (sources.isEmpty || sources.map(_.range.end).max == num)
 }
+object IntSourcePortSimple
+{
+  def apply(num: Int = 1, ports: Int = 1, sources: Int = 1, resources: Seq[Resource] = Nil) =
+    if (num == 0) Nil else
+    Seq.fill(ports)(IntSourcePortParameters(Seq.fill(sources)(IntSourceParameters(range = IntRange(0, num), resources = resources))))
+}
 
 case class IntSinkPortParameters(sinks: Seq[IntSinkParameters])
+object IntSinkPortSimple
+{
+  def apply(ports: Int = 1, sinks: Int = 1) =
+    Seq.fill(ports)(IntSinkPortParameters(Seq.fill(sinks)(IntSinkParameters())))
+}
 
 case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters)
 
@@ -76,10 +87,8 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
 }
 
 case class IntIdentityNode() extends IdentityNode(IntImp)
-case class IntSourceNode(num: Int, resources: Seq[Resource] = Nil) extends SourceNode(IntImp)(
-  if (num == 0) Seq() else Seq(IntSourcePortParameters(Seq(IntSourceParameters(num, resources)))))
-case class IntSinkNode() extends SinkNode(IntImp)(
-  Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
+case class IntSourceNode(portParams: Seq[IntSourcePortParameters]) extends SourceNode(IntImp)(portParams)
+case class IntSinkNode(portParams: Seq[IntSinkPortParameters]) extends SinkNode(IntImp)(portParams)
 
 case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
@@ -91,13 +100,11 @@ case class IntNexusNode(
 case class IntOutputNode() extends OutputNode(IntImp)
 case class IntInputNode() extends InputNode(IntImp)
 
-case class IntBlindOutputNode() extends BlindOutputNode(IntImp)(Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
-case class IntBlindInputNode(num: Int, resources: Seq[Resource] = Nil) extends BlindInputNode(IntImp)(
-  Seq(IntSourcePortParameters(Seq(IntSourceParameters(num, resources)))))
+case class IntBlindOutputNode(portParams: Seq[IntSinkPortParameters]) extends BlindOutputNode(IntImp)(portParams)
+case class IntBlindInputNode(portParams: Seq[IntSourcePortParameters]) extends BlindInputNode(IntImp)(portParams)
 
-case class IntInternalOutputNode() extends InternalOutputNode(IntImp)(Seq(IntSinkPortParameters(Seq(IntSinkParameters()))))
-case class IntInternalInputNode(num: Int, resources: Seq[Resource] = Nil) extends InternalInputNode(IntImp)(
-  Seq(IntSourcePortParameters(Seq(IntSourceParameters(num, resources)))))
+case class IntInternalOutputNode(portParams: Seq[IntSinkPortParameters]) extends InternalOutputNode(IntImp)(portParams)
+case class IntInternalInputNode(portParams: Seq[IntSourcePortParameters]) extends InternalInputNode(IntImp)(portParams)
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {
