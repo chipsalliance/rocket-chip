@@ -53,9 +53,8 @@ object PLICConsts
 }
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
+class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
 {
-  val contextsPerHart = if (supervisor) 2 else 1
   require (maxPriorities >= 0)
 
   // plic0 => max devices 1023
@@ -81,7 +80,7 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
   val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
     numSinkPorts   = 0 to 1024,
-    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart, Seq(Resource(device, "int"))))) },
+    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
   /* Negotiated sizes */

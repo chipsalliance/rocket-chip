@@ -49,7 +49,6 @@ trait HasCoreplexParameters {
   lazy val cbusConfig = p(CBusConfig)
   lazy val l1tol2Config = p(L1toL2Config)
   lazy val nTiles = tilesParams.size
-  lazy val hasSupervisor = tilesParams.exists(_.core.useVM) // TODO ask andrew about this
   lazy val l2Config = p(BankedL2Config)
 }
 

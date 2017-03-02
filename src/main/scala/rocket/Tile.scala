@@ -87,6 +87,19 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 
   ResourceBinding {
     Resource(device, "reg").bind(ResourceInt(BigInt(hartid)))
+
+    // debug, msip, mtip, meip, seip offsets in CSRs
+    val intMap = Seq(65535, 3, 7, 11, 9)
+
+    intNode.edgesIn.flatMap(_.source.sources).map { case s =>
+      for (i <- s.range.start until s.range.end) {
+       intMap.lift(i).foreach { j =>
+          s.resources.foreach { r =>
+            r.bind(device, ResourceInt(j))
+          }
+        }
+      }
+    }
   }
 
   override lazy val module = new RocketTileModule(this)
@@ -100,7 +113,6 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveScratchpadModule {
 
   val core = Module(p(BuildCore)(outer.p))
-  core.io.interrupts := io.interrupts
   core.io.hartid := io.hartid
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.resetVector := io.resetVector
@@ -114,6 +126,13 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     core.io.rocc.busy := lr.module.io.core.busy
     core.io.rocc.interrupt := lr.module.io.core.interrupt
   }
+
+  // Decode the interrupt vector
+  core.io.interrupts.debug := io.interrupts(0)(0)
+  core.io.interrupts.msip  := io.interrupts(0)(1)
+  core.io.interrupts.mtip  := io.interrupts(0)(2)
+  core.io.interrupts.meip  := io.interrupts(0)(3)
+  core.io.interrupts.seip.foreach { _ := io.interrupts(0)(4) }
 
   // TODO eliminate this redundancy
   val h = dcachePorts.size
@@ -139,15 +158,19 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
   rocket.slaveNode :*= sink.node
   sink.node :*= slaveNode
 
+  val intNode = IntInputNode()
+  val xing = LazyModule(new IntXing(3))
+  rocket.intNode := xing.intnode
+  xing.intnode := intNode
+
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
+      val interrupts = intNode.bundleIn
       val hartid = UInt(INPUT, p(XLen))
-      val interrupts = new TileInterrupts()(p).asInput
       val resetVector = UInt(INPUT, p(XLen))
     }
-    rocket.module.io.interrupts := ShiftRegister(io.interrupts, 3)
     // signals that do not change:
     rocket.module.io.hartid := io.hartid
     rocket.module.io.resetVector := io.resetVector
@@ -167,15 +190,19 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   rocket.slaveNode :*= sink.node
   sink.node :*= slaveNode
 
+  val intNode = IntInputNode()
+  val xing = LazyModule(new IntXing(1))
+  rocket.intNode := xing.intnode
+  xing.intnode := intNode
+
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
+      val interrupts = intNode.bundleIn
       val hartid = UInt(INPUT, p(XLen))
-      val interrupts = new TileInterrupts()(p).asInput
       val resetVector = UInt(INPUT, p(XLen))
     }
-    rocket.module.io.interrupts := ShiftRegister(io.interrupts, 1)
     // signals that do not change:
     rocket.module.io.hartid := io.hartid
     rocket.module.io.resetVector := io.resetVector

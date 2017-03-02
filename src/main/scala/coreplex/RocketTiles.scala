@@ -23,20 +23,6 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
   private val crossing = p(RocketCrossing)
   private val configs = p(RocketTilesKey)
 
-  private val rocketTileIntNodes = configs.map { _ => IntInternalOutputNode(IntSinkPortSimple(ports = 2)) }
-  rocketTileIntNodes.foreach { n =>
-    n := plic.intnode
-    n := clint.intnode
-  }
-
-  private def wireInterrupts(x: TileInterrupts, i: Int) {
-    x.debug := debug.module.io.debugInterrupts(i)
-    x.meip := rocketTileIntNodes(i).bundleOut(0)(0)
-    x.seip.foreach { _ := rocketTileIntNodes(i).bundleOut(0)(1) } // optional
-    x.msip := rocketTileIntNodes(i).bundleOut(1)(0)
-    x.mtip := rocketTileIntNodes(i).bundleOut(1)(1)
-  }
-
   val rocketWires: Seq[HasRocketTilesBundle => Unit] = configs.zipWithIndex.map { case (c, i) =>
     val pWithExtra = p.alterPartial {
       case TileKey => c
@@ -45,6 +31,15 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
     }
 
+    // Hack debug interrupt into a node (future debug module should use diplomacy)
+    val debugNode = IntInternalInputNode(IntSourcePortSimple())
+
+    val intBar = LazyModule(new IntXbar)
+    intBar.intnode := debugNode
+    intBar.intnode := clint.intnode // msip+mtip
+    intBar.intnode := plic.intnode // meip
+    if (c.core.useVM) intBar.intnode := plic.intnode // seip
+
     crossing match {
       case Synchronous => {
         val tile = LazyModule(new RocketTile(c, i)(pWithExtra))
@@ -52,21 +47,12 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         buffer.node :=* tile.masterNode
         l1tol2.node :=* buffer.node
         tile.slaveNode :*= cbus.node
-        ResourceBinding {
-          rocketTileIntNodes(i).edgesIn(0).source.sources.flatMap(_.resources).foreach { r =>
-            r.bind(tile.device, ResourceInt(11)) // meip
-            if (c.core.useVM) r.bind(tile.device, ResourceInt(9)) // seip
-          }
-          rocketTileIntNodes(i).edgesIn(1).source.sources.flatMap(_.resources).foreach { r =>
-            r.bind(tile.device, ResourceInt(3)) // msip
-            r.bind(tile.device, ResourceInt(7)) // mtip
-          }
-        }
+        tile.intNode := intBar.intnode
         (io: HasRocketTilesBundle) => {
           // leave clock as default (simpler for hierarchical PnR)
           tile.module.io.hartid := UInt(i)
           tile.module.io.resetVector := io.resetVector
-          wireInterrupts(tile.module.io.interrupts, i)
+          debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
       case Asynchronous(depth, sync) => {
@@ -76,23 +62,14 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         sink.node :=* wrapper.masterNode
         l1tol2.node :=* sink.node
         wrapper.slaveNode :*= source.node
+        wrapper.intNode := intBar.intnode
         source.node :*= cbus.node
-        ResourceBinding {
-          rocketTileIntNodes(i).edgesIn(0).source.sources.flatMap(_.resources).foreach { r =>
-            r.bind(wrapper.rocket.device, ResourceInt(11)) // meip
-            if (c.core.useVM) r.bind(wrapper.rocket.device, ResourceInt(9)) // seip
-          }
-          rocketTileIntNodes(i).edgesIn(1).source.sources.flatMap(_.resources).foreach { r =>
-            r.bind(wrapper.rocket.device, ResourceInt(3)) // msip
-            r.bind(wrapper.rocket.device, ResourceInt(7)) // mtip
-          }
-        }
         (io: HasRocketTilesBundle) => {
           wrapper.module.clock := io.tcrs(i).clock
           wrapper.module.reset := io.tcrs(i).reset
           wrapper.module.io.hartid := UInt(i)
           wrapper.module.io.resetVector := io.resetVector
-          wireInterrupts(wrapper.module.io.interrupts, i)
+          debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
       case Rational => {
@@ -102,23 +79,14 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         sink.node :=* wrapper.masterNode
         l1tol2.node :=* sink.node
         wrapper.slaveNode :*= source.node
+        wrapper.intNode := intBar.intnode
         source.node :*= cbus.node
-        ResourceBinding {
-          rocketTileIntNodes(i).edgesIn(0).source.sources.flatMap(_.resources).foreach { r =>
-            r.bind(wrapper.rocket.device, ResourceInt(11)) // meip
-            if (c.core.useVM) r.bind(wrapper.rocket.device, ResourceInt(9)) // seip
-          }
-          rocketTileIntNodes(i).edgesIn(1).source.sources.flatMap(_.resources).foreach { r =>
-            r.bind(wrapper.rocket.device, ResourceInt(3)) // msip
-            r.bind(wrapper.rocket.device, ResourceInt(7)) // mtip
-          }
-        }
         (io: HasRocketTilesBundle) => {
           wrapper.module.clock := io.tcrs(i).clock
           wrapper.module.reset := io.tcrs(i).reset
           wrapper.module.io.hartid := UInt(i)
           wrapper.module.io.resetVector := io.resetVector
-          wireInterrupts(wrapper.module.io.interrupts, i)
+          debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
     }

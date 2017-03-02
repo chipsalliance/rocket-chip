@@ -15,7 +15,7 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   val module: CoreplexRISCVPlatformModule
 
   val debug = LazyModule(new TLDebugModule())
-  val plic  = LazyModule(new TLPLIC(hasSupervisor, maxPriorities = 7))
+  val plic  = LazyModule(new TLPLIC(maxPriorities = 7))
   val clint = LazyModule(new CoreplexLocalInterrupter)
 
   debug.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
