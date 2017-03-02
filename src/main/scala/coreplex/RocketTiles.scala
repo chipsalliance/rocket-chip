@@ -43,7 +43,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
 
     crossing match {
       case Synchronous => {
-        val tile = LazyModule(new RocketTile(c)(pWithExtra))
+        val tile = LazyModule(new RocketTile(c, i)(pWithExtra))
         val buffer = LazyModule(new TLBuffer)
         buffer.node :=* tile.masterNode
         l1tol2.node :=* buffer.node
@@ -56,7 +56,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         }
       }
       case Asynchronous(depth, sync) => {
-        val wrapper = LazyModule(new AsyncRocketTile(c)(pWithExtra))
+        val wrapper = LazyModule(new AsyncRocketTile(c, i)(pWithExtra))
         val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
         val source = LazyModule(new TLAsyncCrossingSource(sync))
         sink.node :=* wrapper.masterNode
@@ -72,7 +72,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         }
       }
       case Rational => {
-        val wrapper = LazyModule(new RationalRocketTile(c)(pWithExtra))
+        val wrapper = LazyModule(new RationalRocketTile(c, i)(pWithExtra))
         val sink = LazyModule(new TLRationalCrossingSink(util.FastToSlow))
         val source = LazyModule(new TLRationalCrossingSource)
         sink.node :=* wrapper.masterNode

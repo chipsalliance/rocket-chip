@@ -23,11 +23,71 @@ case class RocketTileParams(
   require(dcache.isDefined)
 }
   
-class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
+class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 
   nDCachePorts += 1 // core TODO dcachePorts += () => module.core.io.dmem ??
+
+  val device = new Device {
+    def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
+    def ofStr(x: String) = Seq(ResourceString(x))
+    def describe(resources: ResourceBindings): Description = {
+      val block =  p(CacheBlockBytes)
+      val m = if (rocketParams.core.mulDiv.nonEmpty) "m" else ""
+      val a = if (rocketParams.core.useAtomics) "a" else ""
+      val f = if (rocketParams.core.fpu.nonEmpty) "f" else ""
+      val d = if (rocketParams.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
+      val c = if (rocketParams.core.useCompressed) "c" else ""
+      val s = if (rocketParams.core.useVM) "s" else ""
+      val isa = s"rv${p(XLen)}i$m$a$f$d$c$s"
+
+      val dcache = rocketParams.dcache.map(d => Map(
+        "d-tlb-size"           -> ofInt(d.nTLBEntries),
+        "d-tlb-sets"           -> ofInt(1),
+        "d-cache-block-size"   -> ofInt(block),
+        "d-cache-sets"         -> ofInt(d.nSets),
+        "d-cache-size"         -> ofInt(d.nSets * d.nWays * block))).getOrElse(Map())
+
+      val icache = rocketParams.icache.map(i => Map(
+        "i-tlb-size"           -> ofInt(i.nTLBEntries),
+        "i-tlb-sets"           -> ofInt(1),
+        "i-cache-block-size"   -> ofInt(block),
+        "i-cache-sets"         -> ofInt(i.nSets),
+        "i-cache-size"         -> ofInt(i.nSets * i.nWays * block))).getOrElse(Map())
+
+      // Find all the caches
+      val outer = masterNode.edgesOut
+        .flatMap(_.manager.managers)
+        .filter(_.supportsAcquireB)
+        .flatMap(_.resources.headOption)
+        .map(_.owner.label)
+        .distinct
+      val nextlevel: Option[(String, Seq[ResourceValue])] =
+        if (outer.isEmpty) None else
+        Some("next-level-cache" -> outer.map(l => ResourceReference(l)).toList)
+
+      Description(s"cpus/cpu@${hartid}", Map(
+        "reg"                  -> resources("reg").map(_.value),
+        "device_type"          -> ofStr("cpu"),
+        "compatible"           -> ofStr("riscv"),
+        "status"               -> ofStr("okay"),
+        "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
+        "riscv,isa"            -> ofStr(isa),
+        "mmu-type"             -> ofStr(p(PgLevels) match {
+                                    case 2 => "riscv,sv32"
+                                    case 3 => "riscv,sv39"
+                                    case 4 => "riscv,sv48" }),
+        "tlb-split"            -> Nil,
+        "interrupt-controller" -> Nil,
+        "#interrupt-cells"     -> ofInt(1))
+        ++ dcache ++ icache ++ nextlevel)
+    }
+  }
+
+  ResourceBinding {
+    Resource(device, "reg").bind(ResourceInt(BigInt(hartid)))
+  }
 
   override lazy val module = new RocketTileModule(this)
 }
@@ -66,8 +126,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
 }
 
-class AsyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(rtp))
+class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp, hartid))
 
   val masterNode = TLAsyncOutputNode()
   val source = LazyModule(new TLAsyncCrossingSource)
@@ -94,8 +154,8 @@ class AsyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends Laz
   }
 }
 
-class RationalRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(rtp))
+class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp, hartid))
 
   val masterNode = TLRationalOutputNode()
   val source = LazyModule(new TLRationalCrossingSource)
