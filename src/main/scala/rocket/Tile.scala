@@ -43,18 +43,30 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       val isa = s"rv${p(XLen)}i$m$a$f$d$c$s"
 
       val dcache = rocketParams.dcache.map(d => Map(
-        "d-tlb-size"           -> ofInt(d.nTLBEntries),
-        "d-tlb-sets"           -> ofInt(1),
         "d-cache-block-size"   -> ofInt(block),
         "d-cache-sets"         -> ofInt(d.nSets),
         "d-cache-size"         -> ofInt(d.nSets * d.nWays * block))).getOrElse(Map())
 
       val icache = rocketParams.icache.map(i => Map(
-        "i-tlb-size"           -> ofInt(i.nTLBEntries),
-        "i-tlb-sets"           -> ofInt(1),
         "i-cache-block-size"   -> ofInt(block),
         "i-cache-sets"         -> ofInt(i.nSets),
         "i-cache-size"         -> ofInt(i.nSets * i.nWays * block))).getOrElse(Map())
+
+      val dtlb = rocketParams.dcache.filter(_ => rocketParams.core.useVM).map(d => Map(
+        "d-tlb-size"           -> ofInt(d.nTLBEntries),
+        "d-tlb-sets"           -> ofInt(1))).getOrElse(Map())
+
+      val itlb = rocketParams.icache.filter(_ => rocketParams.core.useVM).map(i => Map(
+        "i-tlb-size"           -> ofInt(i.nTLBEntries),
+        "i-tlb-sets"           -> ofInt(1))).getOrElse(Map())
+
+      val mmu = if (!rocketParams.core.useVM) Map() else Map(
+        "tlb-split" -> Nil,
+        "mmu-type"  -> ofStr(p(PgLevels) match {
+          case 2 => "riscv,sv32"
+          case 3 => "riscv,sv39"
+          case 4 => "riscv,sv48"
+      }))
 
       // Find all the caches
       val outer = masterNode.edgesOut
@@ -74,14 +86,9 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
         "riscv,isa"            -> ofStr(isa),
-        "mmu-type"             -> ofStr(p(PgLevels) match {
-                                    case 2 => "riscv,sv32"
-                                    case 3 => "riscv,sv39"
-                                    case 4 => "riscv,sv48" }),
-        "tlb-split"            -> Nil,
         "interrupt-controller" -> Nil,
         "#interrupt-cells"     -> ofInt(1))
-        ++ dcache ++ icache ++ nextlevel)
+        ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb)
     }
   }
 
