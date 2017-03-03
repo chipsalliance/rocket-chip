@@ -25,6 +25,7 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   plic.intnode := intBar.intnode
 
   lazy val dts = DTS(bindingTree)
+  lazy val json = JSON(bindingTree)
 }
 
 trait CoreplexRISCVPlatformBundle extends CoreplexNetworkBundle {
@@ -49,4 +50,5 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
 
   println(outer.dts)
   ElaborationArtefacts.add("dts", outer.dts)
+  ElaborationArtefacts.add("json", outer.json)
 }
