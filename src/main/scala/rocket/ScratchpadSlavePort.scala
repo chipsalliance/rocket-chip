@@ -15,9 +15,11 @@ import util._
 
 class ScratchpadSlavePort(sizeBytes: Int)(implicit p: Parameters) extends LazyModule
     with HasCoreParameters {
+  val device = new MemoryDevice
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(AddressSet(0x80000000L, BigInt(sizeBytes-1))),
+      resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,

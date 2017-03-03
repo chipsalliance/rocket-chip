@@ -126,9 +126,9 @@ trait BindingScope
   protected[diplomacy] var resourceBindings: Seq[(Resource, Option[Device], ResourceValue)] = Nil
 
   private case class ExpandedValue(path: Seq[String], labels: Seq[String], value: Seq[ResourceValue])
-  private def eval() {
+  private lazy val eval: Unit = {
     require (LazyModule.stack.isEmpty, "May not evaluate binding while still constructing LazyModules")
-    parentScope.foreach { _.eval() }
+    parentScope.foreach { _.eval }
     resourceBindings = parentScope.map(_.resourceBindings).getOrElse(Nil)
     BindingScope.active = Some(this)
     resourceBindingFns.reverse.foreach { _() }
@@ -142,7 +142,6 @@ trait BindingScope
     val labels = values_p.flatMap(_.labels)
     val keys = keys_p.groupBy(_.path.head).toList.map { case (key, seq) =>
       (key -> makeTree(seq.map { x => x.copy(path = x.path.tail) }))
-      // case ExpandedValue(keys, values) => ExpandedValue(keys.tail, values) }))
     }
     if (keys.isEmpty) values else ResourceMap(SortedMap(keys:_*), labels) +: values
   }
@@ -158,7 +157,7 @@ trait BindingScope
   }
 
   def bindingTree: ResourceMap = {
-    eval()
+    eval
     val map: Map[Device, ResourceBindings] =
       resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
         seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)))))
