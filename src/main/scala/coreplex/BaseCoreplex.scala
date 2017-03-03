@@ -49,13 +49,12 @@ trait HasCoreplexParameters {
   lazy val cbusConfig = p(CBusConfig)
   lazy val l1tol2Config = p(L1toL2Config)
   lazy val nTiles = tilesParams.size
-  lazy val hasSupervisor = tilesParams.exists(_.core.useVM) // TODO ask andrew about this
   lazy val l2Config = p(BankedL2Config)
 }
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
 
-abstract class BareCoreplex(implicit p: Parameters) extends LazyModule
+abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with BindingScope
 
 abstract class BareCoreplexBundle[+L <: BareCoreplex](_outer: L) extends GenericParameterizedBundle(_outer) {
   val outer = _outer

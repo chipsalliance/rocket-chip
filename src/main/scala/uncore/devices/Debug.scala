@@ -849,7 +849,7 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
   */
 
 class TLDebugModule(address: BigInt = 0)(implicit p: Parameters)
-  extends TLRegisterRouter(address, beatBytes=p(XLen)/8, executable=true)(
+  extends TLRegisterRouter(address, "debug", Nil, beatBytes=p(XLen)/8, executable=true)(
   new TLRegBundle((), _ )    with DebugModuleBundle)(
   new TLRegModule((), _, _)  with DebugModule)
 

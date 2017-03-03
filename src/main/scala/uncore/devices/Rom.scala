@@ -14,8 +14,11 @@ import config._
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
+  val device = new SimpleDevice("rom", Nil)
+
   val node = TLManagerNode(beatBytes, TLManagerParameters(
     address     = List(AddressSet(base, size-1)),
+    resources   = device.reg,
     regionType  = RegionType.UNCACHED,
     executable  = executable,
     supportsGet = TransferSizes(1, beatBytes),

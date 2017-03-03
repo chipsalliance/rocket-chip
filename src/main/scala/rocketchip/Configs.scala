@@ -20,6 +20,10 @@ import DefaultTestSuites._
 import config._
 
 class BasePlatformConfig extends Config((site, here, up) => {
+  // DTS descriptive parameters
+  case DTSModel => "ucbbar,rocketchip-unknown"
+  case DTSCompat => Nil
+  case DTSTimebase => BigInt(0)
   // TileLink connection parameters
   case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
   case TLFuzzReadyValid => false
@@ -137,6 +141,11 @@ class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
 
 class WithExtMemSize(n: Long) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).copy(size = n)
+})
+
+class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
+  case DTSModel => model
+  case DTSCompat => compat
 })
 
 class WithScratchpad extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))

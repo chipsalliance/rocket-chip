@@ -23,6 +23,7 @@ case class TLToAXI4Node(idBits: Int) extends MixedAdapterNode(TLImp, AXI4Imp)(
     managers = p.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
+        resources          = s.resources,
         regionType         = s.regionType,
         executable         = s.executable,
         nodePath           = s.nodePath,

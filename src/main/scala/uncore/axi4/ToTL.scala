@@ -20,6 +20,7 @@ case class AXI4ToTLNode() extends MixedAdapterNode(AXI4Imp, TLImp)(
     slaves = mp.managers.map { m =>
       AXI4SlaveParameters(
         address       = m.address,
+        resources     = m.resources,
         regionType    = m.regionType,
         executable    = m.executable,
         nodePath      = m.nodePath,

@@ -51,8 +51,14 @@ trait HasPeripheryParameters {
 trait PeripheryExtInterrupts {
   this: HasTopLevelNetworks =>
 
+  private val device = new Device with DeviceInterrupts {
+    def describe(resources: ResourceBindings): Description = {
+      Description("soc/offchip-interrupts", describeInterrupts(resources))
+    }
+  }
+
   val nExtInterrupts = p(NExtTopInterrupts)
-  val extInterrupts = IntInternalInputNode(nExtInterrupts)
+  val extInterrupts = IntInternalInputNode(IntSourcePortSimple(num = nExtInterrupts, resources = device.int))
   val extInterruptXing = LazyModule(new IntXing)
 
   intBus.intnode := extInterruptXing.intnode
@@ -84,6 +90,8 @@ trait PeripheryMasterAXI4Mem {
   private val channels = p(BankedL2Config).nMemoryChannels
   private val lineBytes = p(CacheBlockBytes)
 
+  private val device = new MemoryDevice
+
   val mem_axi4 = AXI4BlindOutputNode(Seq.tabulate(channels) { channel =>
     val base = AddressSet(config.base, config.size-1)
     val filter = AddressSet(channel * lineBytes, ~((channels-1) * lineBytes))
@@ -91,6 +99,7 @@ trait PeripheryMasterAXI4Mem {
     AXI4SlavePortParameters(
       slaves = Seq(AXI4SlaveParameters(
         address       = base.intersect(filter).toList,
+        resources     = device.reg,
         regionType    = RegionType.UNCACHED,   // cacheable
         executable    = true,
         supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
@@ -160,9 +169,11 @@ trait PeripheryMasterAXI4MMIO {
   this: HasTopLevelNetworks =>
 
   private val config = p(ExtBus)
+  private val device = new SimpleDevice("mmio", Nil)
   val mmio_axi4 = AXI4BlindOutputNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
       address       = List(AddressSet(BigInt(config.base), config.size-1)),
+      resources     = device.reg,
       executable    = true,                  // Can we run programs on this memory?
       supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
       supportsRead  = TransferSizes(1, 256),
@@ -227,9 +238,11 @@ trait PeripheryMasterTLMMIO {
   this: HasTopLevelNetworks =>
 
   private val config = p(ExtBus)
+  private val device = new SimpleDevice("mmio", Nil)
   val mmio_tl = TLBlindOutputNode(Seq(TLManagerPortParameters(
     managers = Seq(TLManagerParameters(
       address            = List(AddressSet(BigInt(config.base), config.size-1)),
+      resources          = device.reg,
       executable         = true,
       supportsGet        = TransferSizes(1, cacheBlockBytes),
       supportsPutFull    = TransferSizes(1, cacheBlockBytes),
@@ -292,7 +305,7 @@ trait PeripheryBootROM {
 
   private val bootrom_address = 0x1000
   private val bootrom_size = 0x1000
-  private lazy val bootrom_contents = GenerateBootROM(p, bootrom_address, coreplex.configString)
+  private lazy val bootrom_contents = GenerateBootROM(p, bootrom_address, coreplex.dts)
   val bootrom = LazyModule(new TLROM(bootrom_address, bootrom_size, bootrom_contents, true, peripheryBusConfig.beatBytes))
   bootrom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }

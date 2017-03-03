@@ -9,6 +9,7 @@ import util.RationalDirection
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
+  resources:          Seq[Resource] = Seq(),
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
@@ -22,8 +23,7 @@ case class TLManagerParameters(
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       TransferSizes = TransferSizes.none,
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  fifoId:             Option[Int]   = None,
-  customDTS:          Option[String]= None)
+  fifoId:             Option[Int]   = None)
 {
   require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
@@ -53,20 +53,16 @@ case class TLManagerParameters(
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 
-  // Generate the config string (in future device tree)
-  lazy val dts = customDTS.getOrElse {
-    val header = s"${name} {\n"
-    val middle = address.map { a =>
-      require (a.contiguous) // Config String is not so flexible
-      "  addr 0x%x;\n  size 0x%x;\n".format(a.base, a.mask+1)
-    }
-    val footer = "}\n"
-    header + middle.reduce(_ + _) + footer
-  }
-
   // The device had better not support a transfer larger than it's alignment
   val minAlignment = address.map(_.alignment).min
   require (minAlignment >= maxTransfer)
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address,
+      r = supportsAcquireB || supportsGet,
+      w = supportsAcquireT || supportsPutFull,
+      x = executable)
+  }
 }
 
 case class TLManagerPortParameters(

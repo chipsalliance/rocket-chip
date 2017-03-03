@@ -9,6 +9,7 @@ import scala.math.max
 
 case class APBSlaveParameters(
   address:       Seq[AddressSet],
+  resources:     Seq[Resource] = Nil,
   regionType:    RegionType.T  = RegionType.GET_EFFECTS,
   executable:    Boolean       = false, // processor can execute from this memory
   nodePath:      Seq[BaseNode] = Seq(),

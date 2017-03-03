@@ -11,6 +11,7 @@ import util._
 import Chisel.ImplicitConversions._
 
 case class RocketCoreParams(
+  bootFreqHz: BigInt = 0,
   useVM: Boolean = true,
   useUser: Boolean = false,
   useDebug: Boolean = true,

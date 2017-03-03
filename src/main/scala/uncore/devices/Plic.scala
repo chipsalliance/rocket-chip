@@ -53,57 +53,52 @@ object PLICConsts
 }
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
+class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
 {
-  val contextsPerHart = if (supervisor) 2 else 1
   require (maxPriorities >= 0)
+
+  // plic0 => max devices 1023
+  val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
+    override val alwaysExtended = true
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      val extra = Map(
+        "interrupt-controller" -> Nil,
+        "riscv,ndev" -> Seq(ResourceInt(nDevices)),
+        "#interrupt-cells" -> Seq(ResourceInt(1)),
+        "#address-cells" -> Seq(ResourceInt(0)))
+      Description(name, mapping ++ extra)
+    }
+  }
 
   val node = TLRegisterNode(
     address   = AddressSet(address, PLICConsts.size-1),
+    device    = device,
     beatBytes = p(XLen)/8,
     undefZero = false)
 
   val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
     numSinkPorts   = 0 to 1024,
-    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart))) },
+    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
   /* Negotiated sizes */
-  def nDevices = intnode.edgesIn.map(_.source.num).sum
+  def nDevices: Int = intnode.edgesIn.map(_.source.num).sum
   def nPriorities = min(maxPriorities, nDevices)
   def nHarts = intnode.edgesOut.map(_.source.num).sum
 
-  def context(i: Int, mode: Char) = mode match {
-    case 'M' => i * contextsPerHart
-    case 'S' => require(supervisor); i * contextsPerHart + 1
-  }
-  def claimAddr(i: Int, mode: Char)  = address + PLICConsts.hartBase(context(i, mode)) + PLICConsts.claimOffset
-  def threshAddr(i: Int, mode: Char) = address + PLICConsts.hartBase(context(i, mode))
-  def enableAddr(i: Int, mode: Char) = address + PLICConsts.enableBase(context(i, mode))
+  // Assign all the devices unique ranges
+  lazy val sources = intnode.edgesIn.map(_.source)
+  lazy val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
+    case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
+  }.flatten
 
-  // Create the global PLIC config string
-  lazy val globalConfigString = Seq(
-    s"plic {\n",
-    s"  priority 0x${address.toString(16)};\n",
-    s"  pending 0x${(address + PLICConsts.pendingBase).toString(16)};\n",
-    s"  ndevs ${nDevices};\n",
-    s"};\n").mkString
-
-  // Create the per-Hart config string
-  lazy val hartConfigStrings = Seq.tabulate(intnode.edgesOut.size) { i => (Seq(
-    s"      plic {\n",
-    s"        m {\n",
-    s"         ie 0x${enableAddr(i, 'M').toString(16)};\n",
-    s"         thresh 0x${threshAddr(i, 'M').toString(16)};\n",
-    s"         claim 0x${claimAddr(i, 'M').toString(16)};\n",
-    s"        };\n") ++ (if (!supervisor) Seq() else Seq(
-    s"        s {\n",
-    s"         ie 0x${enableAddr(i, 'S').toString(16)};\n",
-    s"         thresh 0x${threshAddr(i, 'S').toString(16)};\n",
-    s"         claim 0x${claimAddr(i, 'S').toString(16)};\n",
-    s"        };\n")) ++ Seq(
-    s"      };\n")).mkString
+  ResourceBinding {
+    flatSources.foreach { s => s.resources.foreach { r =>
+      // +1 because interrupt 0 is reserved
+      (s.range.start until s.range.end).foreach { i => r.bind(device, ResourceInt(i+1)) }
+    } }
   }
 
   lazy val module = new LazyModuleImp(this) {
@@ -113,21 +108,17 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
       val harts = intnode.bundleOut
     }
 
-    // Assign all the devices unique ranges
-    val sources = intnode.edgesIn.map(_.source)
-    val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
-      case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
-    }.flatten
     // Compact the interrupt vector the same way
     val interrupts = (intnode.edgesIn zip io.devices).map { case (e, i) => i.take(e.source.num) }.flatten
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
     val harts = io.harts.flatten
 
-    println("\nInterrupt map:")
+    println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>
       // +1 because 0 is reserved, +1-1 because the range is half-open
       println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
+    println("")
 
     require (nDevices == interrupts.size)
     require (nHarts == harts.size)
