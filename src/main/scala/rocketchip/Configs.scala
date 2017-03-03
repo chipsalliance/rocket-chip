@@ -148,6 +148,10 @@ class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up
   case DTSCompat => compat
 })
 
+class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
+  case DTSTimebase => hertz
+})
+
 class WithScratchpad extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
 
 class DefaultFPGASmallConfig extends Config(new WithNSmallCores(1) ++ new DefaultFPGAConfig)
