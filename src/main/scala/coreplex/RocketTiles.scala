@@ -23,6 +23,9 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
   private val crossing = p(RocketCrossing)
   private val configs = p(RocketTilesKey)
 
+  // TODO: hack to fix deduplication; see PR https://github.com/ucb-bar/berkeley-hardfloat/pull/14
+  hardfloat.consts
+
   val rocketWires: Seq[HasRocketTilesBundle => Unit] = configs.zipWithIndex.map { case (c, i) =>
     val pWithExtra = p.alterPartial {
       case TileKey => c
