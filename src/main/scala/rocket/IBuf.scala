@@ -80,6 +80,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val xcpt_if = valid & (Mux(buf.xcpt_if, bufMask, UInt(0)) | Mux(io.imem.bits.xcpt_if, ~bufMask, UInt(0)))
   val ic_replay = valid & (Mux(buf.replay, bufMask, UInt(0)) | Mux(io.imem.bits.replay, ~bufMask, UInt(0)))
   val ibufBTBHitMask = Mux(ibufBTBHit, UIntToOH(ibufBTBResp.bridx), UInt(0))
+  assert(!io.imem.bits.btb.valid || io.imem.bits.btb.bits.bridx >= pcWordBits)
   val icBTBHitMask = Mux(io.imem.bits.btb.valid, UIntToOH(io.imem.bits.btb.bits.bridx +& nBufValid - pcWordBits), UInt(0))
   val btbHitMask = ibufBTBHitMask & bufMask | icBTBHitMask & ~bufMask
 
