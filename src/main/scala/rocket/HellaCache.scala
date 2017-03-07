@@ -24,12 +24,22 @@ case class DCacheParams(
     nMSHRs: Int = 1,
     nSDQ: Int = 17,
     nRPQ: Int = 16,
-    nMMIOs: Int = 1) extends L1CacheParams {
+    nMMIOs: Int = 1,
+    blockBytes: Int = 64,
+    scratch: Option[BigInt] = None) extends L1CacheParams {
+
+  def dataScratchpadBytes: Int = scratch.map(_ => nSets*blockBytes).getOrElse(0)
+
   def replacement = new RandomReplacement(nWays)
+
+  require((!scratch.isDefined || nWays == 1),
+    "Scratchpad only allowed in direct-mapped cache.")
+  require((!scratch.isDefined || nMSHRs == 0),
+    "Scratchpad only allowed in blocking cache.")
+  require(isPow2(nSets), s"nSets($nSets) must be pow2")
 }
 
-trait HasL1HellaCacheParameters extends HasL1CacheParameters
-    with HasCoreParameters {
+trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParameters {
   val cacheParams = tileParams.dcache.get
   val cfg = cacheParams
 
@@ -50,9 +60,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters
   def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
   def nIOMSHRs = cacheParams.nMMIOs
   def maxUncachedInFlight = cacheParams.nMMIOs
-  def dataScratchpadSize = tileParams.dataScratchpadBytes
+  def dataScratchpadSize = cacheParams.dataScratchpadBytes
 
-  require(isPow2(nSets), s"nSets($nSets) must be pow2")
   require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
   // TODO should rowBits even be seperably specifiable?
   require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)") 
@@ -123,9 +132,13 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 abstract class HellaCache(implicit p: Parameters) extends LazyModule {
   private val cfg = p(TileKey).dcache.get
-  val node = TLClientNode(TLClientParameters(
-    sourceId = IdRange(0, cfg.nMSHRs + cfg.nMMIOs),
-    supportsProbe = TransferSizes(1, p(CacheBlockBytes))))
+  val node = TLClientNode(cfg.scratch.map { _ =>
+      TLClientParameters(sourceId = IdRange(0, cfg.nMMIOs))
+    } getOrElse {
+      TLClientParameters(
+        sourceId = IdRange(0, cfg.nMSHRs+cfg.nMMIOs),
+        supportsProbe = TransferSizes(1, cfg.blockBytes))
+    })
   val module: HellaCacheModule
 }
 

@@ -35,9 +35,17 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
 class WithNBigCores(n: Int) extends Config((site, here, up) => {
   case RocketTilesKey => {
     val big = RocketTileParams(
-      core   = RocketCoreParams(mulDiv = Some(MulDivParams(mulUnroll = 8, mulEarlyOut = true, divEarlyOut = true))),
-      dcache = Some(DCacheParams(rowBits = site(L1toL2Config).beatBytes*8, nMSHRs  = 2)),
-      icache = Some(ICacheParams(rowBits = site(L1toL2Config).beatBytes*8)))
+      core   = RocketCoreParams(mulDiv = Some(MulDivParams(
+        mulUnroll = 8,
+        mulEarlyOut = true,
+        divEarlyOut = true))),
+      dcache = Some(DCacheParams(
+        rowBits = site(L1toL2Config).beatBytes*8,
+        nMSHRs  = 2,
+        blockBytes = site(CacheBlockBytes))),
+      icache = Some(ICacheParams(
+        rowBits = site(L1toL2Config).beatBytes*8,
+        blockBytes = site(CacheBlockBytes))))
     List.fill(n)(big) ++ up(RocketTilesKey, site)
   }
 })
@@ -47,8 +55,19 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
-      dcache = Some(DCacheParams(rowBits = site(L1toL2Config).beatBytes*8, nSets = 64, nWays = 1, nTLBEntries = 4, nMSHRs = 0)),
-      icache = Some(ICacheParams(rowBits = site(L1toL2Config).beatBytes*8, nSets = 64, nWays = 1, nTLBEntries = 4)))
+      dcache = Some(DCacheParams(
+        rowBits = site(L1toL2Config).beatBytes*8,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        nMSHRs = 0,
+        blockBytes = site(CacheBlockBytes))),
+      icache = Some(ICacheParams(
+        rowBits = site(L1toL2Config).beatBytes*8,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        blockBytes = site(CacheBlockBytes))))
     List.fill(n)(small) ++ up(RocketTilesKey, site)
   }
 })
@@ -87,19 +106,6 @@ class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
 
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
   case CacheBlockBytes => linesize
-})
-
-/** Warning: applies only to the most recently added tile.
-  * TODO: For now, there can only be a single scratchpad in the design
-  *       because its address is hardcoded.
-  */
-class WithDataScratchpad(size: Int) extends Config((site, here, up) => {
-  case RocketTilesKey => {
-    val prev = up(RocketTilesKey, site)
-    prev.head.copy(
-      dcache = prev.head.dcache.map(_.copy(nSets = size / site(CacheBlockBytes))),
-      dataScratchpadBytes = size) +: prev.tail
-  }
 })
 
 class WithL2Cache extends Config(Parameters.empty) // TODO: re-add L2

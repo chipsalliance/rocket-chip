@@ -18,7 +18,6 @@ trait TileParams {
   val dcache: Option[DCacheParams]
   val rocc: Seq[RoCCParams]
   val btb: Option[BTBParams]
-  val dataScratchpadBytes: Int
 }
 
 trait HasTileParameters {
@@ -31,7 +30,7 @@ trait HasTileParameters {
   val usingRoCC = !tileParams.rocc.isEmpty
   val usingBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
   val usingPTW = usingVM
-  val usingDataScratchpad = tileParams.dcache.isDefined && tileParams.dataScratchpadBytes > 0
+  val usingDataScratchpad = tileParams.dcache.flatMap(_.scratch).isDefined
 
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
 }
