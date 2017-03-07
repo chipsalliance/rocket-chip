@@ -17,13 +17,14 @@ trait L1CacheParams {
   def nTLBEntries:   Int
   def splitMetadata: Boolean
   def ecc:           Option[Code]
+  def blockBytes:    Int
 }
 
 trait HasL1CacheParameters {
   implicit val p: Parameters
   val cacheParams: L1CacheParams
 
-  def cacheBlockBytes = p(CacheBlockBytes)
+  def cacheBlockBytes = cacheParams.blockBytes
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
   def nSets = cacheParams.nSets
   def blockOffBits = lgCacheBlockBytes

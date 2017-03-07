@@ -116,7 +116,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_victim_way = Wire(init = replacer.way)
   val (s1_hit_way, s1_hit_state, s1_victim_meta) =
     if (usingDataScratchpad) {
-      require(nWays == 1)
       metaWriteArb.io.out.ready := true
       metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
       val inScratchpad = outer.scratch().map(_.contains(s1_paddr)).getOrElse(Bool(false))

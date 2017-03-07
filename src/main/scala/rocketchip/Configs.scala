@@ -18,6 +18,7 @@ import scala.collection.mutable.{LinkedHashSet, ListBuffer}
 import scala.collection.immutable.HashMap
 import DefaultTestSuites._
 import config._
+import tile.XLen
 
 class BasePlatformConfig extends Config((site, here, up) => {
   // DTS descriptive parameters
@@ -99,10 +100,31 @@ class HeterogeneousDualCoreConfig extends Config(
   new WithNSmallCores(1) ++ new WithNBigCores(1) ++ new WithL2Cache ++ new BaseConfig)
 
 class TinyConfig extends Config(
-  new WithScratchpad ++
-  new WithRV32 ++
+  new WithNMemoryChannels(0) ++
   new WithStatelessBridge ++
-  new WithNSmallCores(1) ++ new BaseConfig)
+  new BaseConfig().alter((site, here, up) => {
+    case XLen => 32
+    case RocketTilesKey => Seq(
+      RocketTileParams(
+        core = RocketCoreParams(
+          useVM = false,
+          fpu = None,
+          mulDiv = Some(MulDivParams(mulUnroll = 8))),
+        btb = None,
+        dcache = Some(DCacheParams(
+          rowBits = site(L1toL2Config).beatBytes*8,
+          nSets = 256, // 16Kb scratchpad
+          nWays = 1,
+          nTLBEntries = 4,
+          nMSHRs = 0,
+          blockBytes = site(CacheBlockBytes),
+          scratch = Some(0x80000000L))),
+        icache = Some(ICacheParams(
+          rowBits = site(L1toL2Config).beatBytes*8,
+          nSets = 64,
+          nWays = 1,
+          nTLBEntries = 4,
+          blockBytes = site(CacheBlockBytes)))))}))
 
 /* Composable partial function Configs to set individual parameters */
 
@@ -151,7 +173,5 @@ class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up
 class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
   case DTSTimebase => hertz
 })
-
-class WithScratchpad extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
 
 class DefaultFPGASmallConfig extends Config(new WithNSmallCores(1) ++ new DefaultFPGAConfig)

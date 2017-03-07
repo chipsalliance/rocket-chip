@@ -13,12 +13,12 @@ import uncore.tilelink2._
 import uncore.util._
 import util._
 
-class ScratchpadSlavePort(sizeBytes: Int)(implicit p: Parameters) extends LazyModule
+class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends LazyModule
     with HasCoreParameters {
   val device = new MemoryDevice
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(AddressSet(0x80000000L, BigInt(sizeBytes-1))),
+      address            = List(address),
       resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = true,
@@ -110,9 +110,9 @@ class ScratchpadSlavePort(sizeBytes: Int)(implicit p: Parameters) extends LazyMo
 trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
 
-  val sizeBytes = tileParams.dataScratchpadBytes
+  val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
+    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1)))))
   val slaveNode = TLInputNode()
-  val scratch   = if (sizeBytes > 0) Some(LazyModule(new ScratchpadSlavePort(sizeBytes))) else None
 
   scratch foreach { lm => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(slaveNode) }
 
@@ -123,7 +123,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
     finalNode.get.address(0)
   }
 
-  nDCachePorts += (sizeBytes > 0).toInt
+  nDCachePorts += (scratch.isDefined).toInt
 }
 
 trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
