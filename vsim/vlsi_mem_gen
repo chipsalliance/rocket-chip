@@ -117,7 +117,7 @@ def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
     combinational.append('    ram[latch_%saddr] <= latch_%sdata;' % (prefix, prefix))
 
   decl.append('reg [%d:0] ram [%d:0];' % (width-1, depth-1))
-  decl.append('`ifdef RANDOMIZE')
+  decl.append('`ifdef RANDOMIZE_MEM_INIT')
   decl.append('  integer initvar;')
   decl.append('  initial begin')
   decl.append('    #0.002 begin end')
