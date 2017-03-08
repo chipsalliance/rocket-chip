@@ -252,6 +252,8 @@ object RecFNToRecFN_noncompliant {
 object CanonicalNaN {
   def apply(expWidth: Int, sigWidth: Int): UInt =
     UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 2)), expWidth + sigWidth + 1)
+  def signaling(expWidth: Int, sigWidth: Int): UInt =
+    UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 3)), expWidth + sigWidth + 1)
 }
 
 trait HasFPUParameters {
@@ -381,19 +383,22 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
     l2s.io.signedIn := ~in.bits.typ(0)
     l2s.io.in := intValue
     l2s.io.roundingMode := in.bits.rm
-    mux.data := Cat(UInt((BigInt(1) << (fLen - 32)) - 1), l2s.io.out)
-    mux.exc := l2s.io.exceptionFlags
 
     fLen match {
       case 32 =>
+        mux.data := l2s.io.out
+        mux.exc := l2s.io.exceptionFlags
       case 64 =>
         val l2d = Module(new hardfloat.INToRecFN(xLen, dExpWidth, dSigWidth))
         l2d.io.signedIn := ~in.bits.typ(0)
         l2d.io.in := intValue
         l2d.io.roundingMode := in.bits.rm
+
+        mux.data := Cat(l2d.io.out >> l2s.io.out.getWidth, l2s.io.out)
+        mux.exc := l2s.io.exceptionFlags
         when (!in.bits.single) {
-            mux.data := Cat(UInt((BigInt(1) << (fLen - 64)) - 1), l2d.io.out)
-            mux.exc := l2d.io.exceptionFlags
+          mux.data := l2d.io.out
+          mux.exc := l2d.io.exceptionFlags
         }
       }
     }
@@ -440,20 +445,22 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
       mux.data := Mux(isNaNOut, cNaN, Mux(isLHS, in.bits.in1, in.bits.in2))
     }
 
-    fLen match {
-      case 32 =>
-      case 64 =>
-        when (in.bits.cmd === FCMD_CVT_FF) {
-          when (in.bits.single) {
-            val d2s = Module(new hardfloat.RecFNToRecFN(dExpWidth, dSigWidth, sExpWidth, sSigWidth))
-            d2s.io.in := in.bits.in1
-            d2s.io.roundingMode := in.bits.rm
-          mux.data := Cat(UInt((BigInt(1) << (fLen - 32)) - 1), d2s.io.out)
+  fLen match {
+    case 32 =>
+    case 64 =>
+      when (in.bits.cmd === FCMD_CVT_FF) {
+        val d2s = Module(new hardfloat.RecFNToRecFN(dExpWidth, dSigWidth, sExpWidth, sSigWidth))
+        d2s.io.in := in.bits.in1
+        d2s.io.roundingMode := in.bits.rm
+
+        val s2d = Module(new hardfloat.RecFNToRecFN(sExpWidth, sSigWidth, dExpWidth, dSigWidth))
+        s2d.io.in := in.bits.in1
+        s2d.io.roundingMode := in.bits.rm
+
+        when (in.bits.single) {
+          mux.data := Cat(s2d.io.out >> d2s.io.out.getWidth, d2s.io.out)
           mux.exc := d2s.io.exceptionFlags
         }.otherwise {
-          val s2d = Module(new hardfloat.RecFNToRecFN(sExpWidth, sSigWidth, dExpWidth, dSigWidth))
-          s2d.io.in := in.bits.in1
-          s2d.io.roundingMode := in.bits.rm
           mux.data := s2d.io.out
           mux.exc := s2d.io.exceptionFlags
         }
@@ -492,7 +499,7 @@ class FPUFMAPipe(val latency: Int, expWidth: Int, sigWidth: Int)(implicit p: Par
   fma.io.c := in.in3
 
   val res = Wire(new FPResult)
-  res.data := Cat(UInt((BigInt(1) << (fLen - (expWidth + sigWidth))) - 1), fma.io.out)
+  res.data := fma.io.out
   res.exc := fma.io.exceptionFlags
   io.out := Pipe(valid, res, latency-1)
 }
@@ -534,7 +541,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     case 32 => rec_s
     case 64 =>
       val rec_d = hardfloat.recFNFromFN(dExpWidth, dSigWidth, load_wb_data)
-      Mux(load_wb_single, Cat(UInt((BigInt(1) << (fLen - 32)) - 1), rec_s), rec_d)
+      Mux(load_wb_single, rec_s | CanonicalNaN.signaling(maxExpWidth, maxSigWidth), rec_d)
   }
 
   // regfile
@@ -602,6 +609,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_wen = Reg(next=Bool(false))
   val divSqrt_inReady = Wire(init=Bool(false))
   val divSqrt_waddr = Reg(UInt(width = 5))
+  val divSqrt_single = Reg(Bool())
   val divSqrt_wdata = Wire(UInt(width = fLen+1))
   val divSqrt_flags = Wire(UInt(width = 5))
   val divSqrt_in_flight = Reg(init=Bool(false))
@@ -659,7 +667,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   val waddr = Mux(divSqrt_wen, divSqrt_waddr, wbInfo(0).rd)
-  val wdata = Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid))
+  val wdata0 = Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid))
+  val wsingle = Mux(divSqrt_wen, divSqrt_single, wbInfo(0).single)
+  val wdata = fLen match {
+    case 32 => wdata0
+    case 64 => Mux(wsingle,  wdata0(32, 0) | CanonicalNaN.signaling(maxExpWidth, maxSigWidth), wdata0)
+  }
   val wexc = (pipes.map(_.res.exc): Seq[UInt])(wbInfo(0).pipeid)
   when ((!wbInfo(0).cp && wen(0)) || divSqrt_wen) {
     regfile(waddr) := wdata
@@ -669,7 +682,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
         case 32 => wdata_unrec_s
         case 64 =>
           val wdata_unrec_d = hardfloat.fNFromRecFN(dExpWidth, dSigWidth, wdata)
-          Mux(wbInfo(0).single, wdata_unrec_s, wdata_unrec_d)
+          Mux(wsingle, wdata_unrec_s, wdata_unrec_d)
       }
       printf("f%d p%d 0x%x\n", waddr, waddr + 32, unrec)
     }
@@ -703,7 +716,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   divSqrt_flags := 0
   if (cfg.divSqrt) {
     require(fLen == 64)
-    val divSqrt_single = Reg(Bool())
     val divSqrt_rm = Reg(Bits())
     val divSqrt_flags_double = Reg(Bits())
     val divSqrt_wdata_double = Reg(Bits())
