@@ -307,7 +307,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       s2_req.cmd := req.cmd
       s2_req.typ := req.typ
       s2_req.tag := req.tag
-      s2_req.addr := Cat(s1_paddr >> wordOffBits /* don't-care */, req.addr(wordOffBits-1, 0))
+      s2_req.addr := Cat(s1_paddr >> beatOffBits /* don't-care */, req.addr(beatOffBits-1, 0))
     } .elsewhen (grantIsVoluntary) {
       assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.") // TODO should handle Ack coming back on same cycle!
       release_ack_wait := false
