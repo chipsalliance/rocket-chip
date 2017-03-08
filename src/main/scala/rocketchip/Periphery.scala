@@ -376,3 +376,19 @@ trait CouldHavePeripheryTLBlackBoxRegisterRouter extends HasTopLevelNetworks {
     tlbbrm.node := TLFragmenter(peripheryBusBytes, cacheBlockBytes)(peripheryBus.node)
   }
 }
+
+trait HasPeripheryExampleWithMasterAndSlaveAgents extends HasTopLevelNetworks {
+  val coreplex: CoreplexRISCVPlatform // We must be mixed-into something with a coreplex
+
+  // Make an instance of the example peripheral using default parameters
+  val example = LazyModule(new ExampleWithMasterAndSlaveAgents(EwMaSAParams()))
+
+  // Connect the peripheral's interrupts
+  intBus.intnode := example.intNode
+
+  // Connect the regmapped slave-side interface
+  example.regNode := TLFragmenter(peripheryBusBytes, cacheBlockBytes)(peripheryBus.node)
+
+  // Connect the master interface into the coreplex
+  l2FrontendBus.node := TLWidthWidget(4)(example.masterNode)
+}
