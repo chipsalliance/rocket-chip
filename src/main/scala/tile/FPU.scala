@@ -536,7 +536,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     case 32 => rec_s
     case 64 =>
       val rec_d = hardfloat.recFNFromFN(dExpWidth, dSigWidth, load_wb_data)
-      Mux(load_wb_single, Cat(UInt((BigInt(1) << (fLen - 32)) - 1), rec_s), rec_d)
+      Mux(load_wb_single, rec_s | CanonicalNaN.signaling(maxExpWidth, maxSigWidth), rec_d)
   }
 
   // regfile
