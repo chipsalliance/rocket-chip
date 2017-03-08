@@ -251,6 +251,8 @@ object RecFNToRecFN_noncompliant {
 object CanonicalNaN {
   def apply(expWidth: Int, sigWidth: Int): UInt =
     UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 2)), expWidth + sigWidth + 1)
+  def signaling(expWidth: Int, sigWidth: Int): UInt =
+    UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 3)), expWidth + sigWidth + 1)
 }
 
 trait HasFPUParameters {
@@ -601,6 +603,7 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_wen = Reg(next=Bool(false))
   val divSqrt_inReady = Wire(init=Bool(false))
   val divSqrt_waddr = Reg(UInt(width = 5))
+  val divSqrt_single = Reg(Bool())
   val divSqrt_wdata = Wire(UInt(width = fLen+1))
   val divSqrt_flags = Wire(UInt(width = 5))
   val divSqrt_in_flight = Reg(init=Bool(false))
@@ -658,7 +661,12 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   val waddr = Mux(divSqrt_wen, divSqrt_waddr, wbInfo(0).rd)
-  val wdata = Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid))
+  val wdata0 = Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid))
+  val wsingle = Mux(divSqrt_wen, divSqrt_single, wbInfo(0).single)
+  val wdata = fLen match {
+    case 32 => wdata0
+    case 64 => Mux(wsingle,  wdata0(32, 0) | CanonicalNaN.signaling(maxExpWidth, maxSigWidth), wdata0)
+  }
   val wexc = (pipes.map(_.res.exc): Seq[UInt])(wbInfo(0).pipeid)
   when ((!wbInfo(0).cp && wen(0)) || divSqrt_wen) {
     regfile(waddr) := wdata
@@ -668,7 +676,7 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
         case 32 => wdata_unrec_s
         case 64 =>
           val wdata_unrec_d = hardfloat.fNFromRecFN(dExpWidth, dSigWidth, wdata)
-          Mux(wbInfo(0).single, wdata_unrec_s, wdata_unrec_d)
+          Mux(wsingle, wdata_unrec_s, wdata_unrec_d)
       }
       printf("f%d p%d 0x%x\n", waddr, waddr + 32, unrec)
     }
@@ -702,7 +710,6 @@ class FPU(cfg: FPUConfig)(implicit p: Parameters) extends FPUModule()(p) {
   divSqrt_flags := 0
   if (cfg.divSqrt) {
     require(fLen == 64)
-    val divSqrt_single = Reg(Bool())
     val divSqrt_rm = Reg(Bits())
     val divSqrt_flags_double = Reg(Bits())
     val divSqrt_wdata_double = Reg(Bits())
