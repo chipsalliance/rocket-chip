@@ -121,6 +121,10 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s1_data = Bits(OUTPUT, coreDataBits) // data for previous cycle's req
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
 
+  // performance events
+  val acquire = Bool(INPUT)
+  val release = Bool(INPUT)
+
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val xcpt = (new HellaCacheExceptions).asInput

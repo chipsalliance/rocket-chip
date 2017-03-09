@@ -124,12 +124,21 @@ object CSR
   }
 
   val firstCtr = CSRs.cycle
+  val firstCtrH = CSRs.cycleh
   val firstHPC = CSRs.hpmcounter3
+  val firstHPCH = CSRs.hpmcounter3h
   val firstHPE = CSRs.mhpmevent3
   val firstMHPC = CSRs.mhpmcounter3
+  val firstMHPCH = CSRs.mhpmcounter3h
   val firstHPM = 3
   val nCtr = 32
   val nHPM = nCtr - firstHPM
+}
+
+class PerfCounterIO(implicit p: Parameters) extends CoreBundle
+    with HasRocketCoreParameters {
+  val eventSel = UInt(OUTPUT, xLen)
+  val inc = UInt(INPUT, log2Ceil(1+retireWidth))
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
@@ -174,10 +183,10 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
-  val events = Vec(nPerfEvents, Bool()).asInput
+  val counters = Vec(nPerfCounters, new PerfCounterIO)
 }
 
-class CSRFile(implicit p: Parameters) extends CoreModule()(p)
+class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters {
   val io = new CSRFileIO
 
@@ -258,8 +267,9 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
-  val reg_hpmevent = Seq.fill(nPerfCounters)(if (nPerfEvents > 1) Reg(UInt(width = log2Ceil(nPerfEvents))) else UInt(0))
-  val reg_hpmcounter = reg_hpmevent.map(e => WideCounter(64, ((UInt(0) +: io.events): Seq[UInt])(e)))
+  val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
+  (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
+  val reg_hpmcounter = io.counters.map(c => WideCounter(40, c.inc, reset = false))
   val hpm_mask = reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren)
 
   val mip = Wire(init=reg_mip)
@@ -339,6 +349,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     read_mapping += (i + CSR.firstHPE) -> e // mhpmeventN
     read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
     if (usingUser) read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
+    if (xLen == 32) {
+      read_mapping += (i + CSR.firstMHPCH) -> c // mhpmcounterNh
+      if (usingUser) read_mapping += (i + CSR.firstHPCH) -> c // hpmcounterNh
+    }
   }
 
   if (usingVM) {
@@ -407,7 +421,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   io.decode.read_illegal := effective_prv < io.decode.csr(9,8) ||
     !read_mapping.keys.map(io.decode.csr === _).reduce(_||_) ||
     io.decode.csr === CSRs.sptbr && !allow_sfence_vma ||
-    io.decode.csr >= CSR.firstCtr && io.decode.csr < CSR.firstCtr + CSR.nCtr && effective_prv <= PRV.S && hpm_mask(io.decode.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
+    (io.decode.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io.decode.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && effective_prv <= PRV.S && hpm_mask(io.decode.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
     Bool(usingDebug) && !reg_debug && debug_csrs.keys.map(io.decode.csr === _).reduce(_||_) ||
     Bool(usingFPU) && fp_csrs.keys.map(io.decode.csr === _).reduce(_||_) && io.decode.fp_illegal
   io.decode.write_illegal := io.decode.csr(11,10).andR
@@ -561,8 +575,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
 
     for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
       writeCounter(i + CSR.firstMHPC, c, wdata)
-      if (nPerfEvents > 1)
-        when (decoded_addr(i + CSR.firstHPE)) { e := wdata }
+      when (decoded_addr(i + CSR.firstHPE)) { e := perfEventSets.maskEventSelector(wdata) }
     }
     writeCounter(CSRs.mcycle, reg_cycle, wdata)
     writeCounter(CSRs.minstret, reg_instret, wdata)
@@ -688,10 +701,10 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   def writeCounter(lo: Int, ctr: WideCounter, wdata: UInt) = {
     if (xLen == 32) {
       val hi = lo + CSRs.mcycleh - CSRs.mcycle
-      when (decoded_addr(lo)) { ctr := Cat(ctr(63, 32), wdata) }
-      when (decoded_addr(hi)) { ctr := Cat(wdata, ctr(31, 0)) }
+      when (decoded_addr(lo)) { ctr := Cat(ctr(ctr.getWidth-1, 32), wdata) }
+      when (decoded_addr(hi)) { ctr := Cat(wdata(ctr.getWidth-33, 0), ctr(31, 0)) }
     } else {
-      when (decoded_addr(lo)) { ctr := wdata }
+      when (decoded_addr(lo)) { ctr := wdata(ctr.getWidth-1, 0) }
     }
   }
   def formEPC(x: UInt) = ~(~x | Cat(!reg_misa('c'-'a'), UInt(1)))

@@ -503,4 +503,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       flushing := false
     }
   }
+
+  // performance events
+  io.cpu.acquire := tl_out.a.fire()
+  io.cpu.release := tl_out.c.fire()
 }
