@@ -724,7 +724,7 @@ trait DebugModule extends Module with HasDebugModuleParameters with HasRegMap {
   // This logic assumes only up to 128 components.
   rdHaltnotStatus := Bits(0)
   for (ii <- 0 until numHaltnotStatus) {
-    when (dbReq.addr === UInt(ii)) {
+    when (dbReq.addr(1, 0) === UInt(ii)) {
       rdHaltnotStatus := haltnotStatus(ii)
     }
   }
