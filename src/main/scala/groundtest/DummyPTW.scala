@@ -34,7 +34,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   s2_resp.pte.ppn := s2_ppn
   s2_resp.pte.reserved_for_software := UInt(0)
   s2_resp.pte.d := Bool(true)
-  s2_resp.pte.a := Bool(false)
+  s2_resp.pte.a := Bool(true)
   s2_resp.pte.g := Bool(false)
   s2_resp.pte.u := Bool(true)
   s2_resp.pte.r := Bool(true)
