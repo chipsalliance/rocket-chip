@@ -132,12 +132,19 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
     plru.access(OHToUInt(hits(entries-1, 0)))
   }
 
+  // Superpages create the possibility that two entries in the TLB may match.
+  // This corresponds to a software bug, but we can't return complete garbage;
+  // we must return either the old translation or the new translation.  This
+  // isn't compatible with the Mux1H approach.  So, flush the TLB and report
+  // a miss on duplicate entries.
+  val multipleHits = PopCountAtLeast(hits(entries-1, 0), 2)
+
   io.req.ready := state === s_ready
   io.resp.xcpt_ld := bad_va || (~r_array & hits).orR
   io.resp.xcpt_st := bad_va || (~w_array & hits).orR
   io.resp.xcpt_if := bad_va || (~x_array & hits).orR
   io.resp.cacheable := (c_array & hits).orR
-  io.resp.miss := do_refill || tlb_miss
+  io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.ppn := Mux1H(hitsVec, ppns :+ passthrough_ppn)
 
   io.ptw.req.valid := state === s_request
@@ -169,7 +176,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
       state := s_ready
     }
 
-    when (io.ptw.invalidate) {
+    when (io.ptw.invalidate || multipleHits) {
       valid := 0
     }
   }
