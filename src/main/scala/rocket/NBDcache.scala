@@ -975,6 +975,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 
   // performance events
-  io.cpu.acquire := tl_out.a.fire()
-  io.cpu.release := tl_out.c.fire()
+  io.cpu.acquire := edge.last(tl_out.a)
+  io.cpu.release := edge.last(tl_out.c)
 }
