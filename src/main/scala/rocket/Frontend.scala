@@ -155,7 +155,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
 
   // performance events
-  io.cpu.acquire := edge.last(icache.io.mem(0).a)
+  io.cpu.acquire := edge.done(icache.io.mem(0).a)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */

@@ -505,6 +505,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // performance events
-  io.cpu.acquire := edge.last(tl_out.a)
-  io.cpu.release := edge.last(tl_out.c)
+  io.cpu.acquire := edge.done(tl_out.a)
+  io.cpu.release := edge.done(tl_out.c)
 }

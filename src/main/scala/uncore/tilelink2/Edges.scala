@@ -224,6 +224,10 @@ class TLEdge(
   def last(x: DecoupledIO[TLChannel]): Bool = last(x.bits, x.fire())
   def last(x: ValidIO[TLChannel]): Bool = last(x.bits, x.valid)
 
+  def done(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._3
+  def done(x: DecoupledIO[TLChannel]): Bool = done(x.bits, x.fire())
+  def done(x: ValidIO[TLChannel]): Bool = done(x.bits, x.valid)
+
   def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, Bool) = {
     val r = firstlastHelper(bits, fire)
     (r._1, r._2, r._3)
