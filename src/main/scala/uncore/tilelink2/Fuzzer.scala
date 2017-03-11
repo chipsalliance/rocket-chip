@@ -34,16 +34,11 @@ class IDMapGenerator(numIds: Int) extends Module {
 
 object LFSR64
 { 
-  private var counter = 0 
-  private def next: Int = {
-    counter += 1
-    counter
-  }
-  
-  def apply(increment: Bool = Bool(true), seed: Int = next): UInt =
+  def apply(increment: Bool = Bool(true)): UInt =
   { 
     val wide = 64
-    val lfsr = RegInit(UInt((seed * 0xDEADBEEFCAFEBAB1L) >>> 1, width = wide))
+    val undef = Reg(UInt(width = wide)) // random value based on simulation seed
+    val lfsr = RegInit(Mux(undef === UInt(0), UInt(1), undef))
     val xor = lfsr(0) ^ lfsr(1) ^ lfsr(3) ^ lfsr(4)
     when (increment) { lfsr := Cat(xor, lfsr(wide-1,1)) }
     lfsr
