@@ -30,7 +30,7 @@ case class TLToAHBNode() extends MixedAdapterNode(TLImp, AHBImp)(
     TLManagerPortParameters(managers, beatBytes, 1, 1)
   })
 
-class TLToAHB(combinational: Boolean = true)(implicit p: Parameters) extends LazyModule
+class TLToAHB(val combinational: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAHBNode()
 
