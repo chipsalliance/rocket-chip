@@ -70,9 +70,9 @@ object TLBPageLookup
       def simplify(x: Seq[AddressSet]) = AddressSet.unify(x.map(_.widen(~decisionMask)).distinct)
       val (yesf, nof) = (simplify(yes), simplify(no))
       if (yesf.size < no.size) {
-        (x: UInt) => yesf.map(_.contains(x)).reduce(_ || _)
+        (x: UInt) => yesf.map(_.contains(x)).foldLeft(false.B)(_ || _)
       } else {
-        (x: UInt) => !nof.map(_.contains(x)).reduce(_ || _)
+        (x: UInt) => !nof.map(_.contains(x)).foldLeft(false.B)(_ || _)
       }
     }
 
@@ -86,7 +86,7 @@ object TLBPageLookup
 
     val homo = AddressSet.unify(grouped.values.flatten.toList)
     (x: UInt) => TLBPermissions(
-      homogeneous = homo.map(_.contains(x)).reduce(_ || _),
+      homogeneous = homo.map(_.contains(x)).foldLeft(false.B)(_ || _),
       r = rfn(x),
       w = wfn(x),
       x = xfn(x),
