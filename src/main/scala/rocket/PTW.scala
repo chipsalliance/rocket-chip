@@ -23,6 +23,7 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
 
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val pte = new PTE
+  val level = UInt(width = log2Ceil(pgLevels))
 }
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
@@ -131,11 +132,11 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.s1_kill := s1_kill
   io.mem.invalidate_lr := Bool(false)
   
-  val resp_ppns = (0 until pgLevels-1).map(i => Cat(pte_addr >> (pgIdxBits + pgLevelBits*(pgLevels-i-1)), r_req.addr(pgLevelBits*(pgLevels-i-1)-1,0))) :+ (pte_addr >> pgIdxBits)
   for (i <- 0 until io.requestor.size) {
     io.requestor(i).resp.valid := resp_valid && (r_req_dest === i)
     io.requestor(i).resp.bits.pte := r_pte
-    io.requestor(i).resp.bits.pte.ppn := resp_ppns(count)
+    io.requestor(i).resp.bits.level := count
+    io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
