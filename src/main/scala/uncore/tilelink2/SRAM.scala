@@ -78,11 +78,6 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
     }
     val ren = in.a.fire() && read
     rdata := mem.readAndHold(memAddress, ren)
-
-    // Tie off unused channels
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(true)
-    in.e.ready := Bool(true)
   }
 }
 

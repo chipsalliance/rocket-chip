@@ -27,7 +27,7 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       when (!sink.valid) { sink.bits := noise }
     }
 
-    (io.in zip io.out) foreach { case (in, out) =>
+    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       val anoise = Wire(in.a.bits)
       anoise.opcode  := LFSRNoiseMaker(3)
       anoise.param   := LFSRNoiseMaker(3)
@@ -69,10 +69,12 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       enoise.sink := LFSRNoiseMaker(enoise.params.sinkBits)
 
       feed(out.a, in.a, anoise)
-      feed(out.c, in.c, cnoise)
-      feed(out.e, in.e, enoise)
-      feed(in.b, out.b, bnoise)
       feed(in.d, out.d, dnoise)
+      if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
+        feed(in.b, out.b, bnoise)
+        feed(out.c, in.c, cnoise)
+        feed(out.e, in.e, enoise)
+      }
     }
   }
 }

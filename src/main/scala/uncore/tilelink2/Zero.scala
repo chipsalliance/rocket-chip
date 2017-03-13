@@ -38,10 +38,5 @@ class TLZero(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     in.d.valid := a.valid
     in.d.bits := edge.AccessAck(a.bits, UInt(0))
     in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
-
-    // Tie off unused channels
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(true)
-    in.e.ready := Bool(true)
   }
 }

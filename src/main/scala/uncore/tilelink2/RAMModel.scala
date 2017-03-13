@@ -59,14 +59,6 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       in.d.valid := out.d.valid && !wipe
       in.d.bits  := out.d.bits
 
-      // BCE unsupported
-      in.b.valid := Bool(false)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
-      out.b.ready := Bool(true)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-
       val params = TLRAMModel.MonitorParameters(addressBits, sizeBits)
 
       // Infer as simple dual port BRAM/M10k with write-first/new-data semantics (bypass needed)

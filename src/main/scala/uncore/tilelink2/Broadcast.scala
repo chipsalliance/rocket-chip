@@ -196,11 +196,6 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
             TLPermissions.NtoT      -> TLPermissions.toN,
             TLPermissions.BtoT      -> TLPermissions.toN))))
       }
-
-      // The outer TL connections may not be cached
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
     }
   }
 }

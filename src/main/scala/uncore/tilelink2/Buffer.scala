@@ -62,13 +62,6 @@ class TLBuffer(
         in .b <> buffer(b, out.b)
         out.c <> buffer(c, in .c)
         out.e <> buffer(e, in .e)
-      } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
       }
     }
   }

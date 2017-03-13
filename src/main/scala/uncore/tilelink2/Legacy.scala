@@ -130,10 +130,5 @@ class TLLegacy(implicit p: Parameters) extends LazyModule with HasTileLinkParame
     grant.manager_xact_id := UInt(0)
     grant.data            := out.d.bits.data
     grant.addr_beat       := beatCounter
-
-    // Tie off unused channels
-    out.b.ready := Bool(true)
-    out.c.valid := Bool(false)
-    out.e.valid := Bool(false)
   }
 }

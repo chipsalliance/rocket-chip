@@ -215,11 +215,6 @@ class TLToAXI4(val idBits: Int, val combinational: Boolean = true)(implicit p: P
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux
-
-      // Tie off unused channels
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
     }
   }
 }
