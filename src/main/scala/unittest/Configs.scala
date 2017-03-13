@@ -28,6 +28,7 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new uncore.tilelink2.TLRAMSimpleTest(1)),
       Module(new uncore.tilelink2.TLRAMSimpleTest(4)),
       Module(new uncore.tilelink2.TLRAMSimpleTest(16)),
+      Module(new uncore.tilelink2.TLRAMZeroDelayTest(4)),
       Module(new uncore.tilelink2.TLRR0Test),
       Module(new uncore.tilelink2.TLRR1Test),
       Module(new uncore.tilelink2.TLRAMRationalCrossingTest),
