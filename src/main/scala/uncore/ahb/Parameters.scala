@@ -43,10 +43,6 @@ case class AHBSlavePortParameters(
   // Check that the link can be implemented in AHB
   require (maxTransfer <= beatBytes * AHBParameters.maxTransfer)
 
-  lazy val routingMask = AddressDecoder(slaves.map(_.address))
-  def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
-  def findFast(address: UInt) = Vec(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
-
   // Require disjoint ranges for addresses
   slaves.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
