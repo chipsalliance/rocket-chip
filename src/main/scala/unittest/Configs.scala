@@ -13,6 +13,7 @@ class WithUncoreUnitTests extends Config((site, here, up) => {
     Seq(
       Module(new uncore.tilelink2.TLFuzzRAMTest),
       Module(new uncore.ahb.AHBBridgeTest),
+      Module(new uncore.ahb.AHBNativeTest),
       Module(new uncore.apb.APBBridgeTest),
       Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
       Module(new uncore.axi4.AXI4FullFuzzRAMTest),
