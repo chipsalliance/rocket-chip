@@ -22,7 +22,8 @@ class MStatus extends Bundle {
   val sxl = UInt(width = 2)
   val uxl = UInt(width = 2)
   val sd_rv32 = Bool()
-  val zero1 = UInt(width = 9)
+  val zero1 = UInt(width = 8)
+  val tsr = Bool()
   val tw = Bool()
   val tvm = Bool()
   val mxr = Bool()
@@ -416,6 +417,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val allow_wfi = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tw
   val allow_sfence_vma = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tvm
+  val allow_sret = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tsr
   io.decode.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
   io.decode.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
   io.decode.read_illegal := effective_prv < io.decode.csr(9,8) ||
@@ -427,7 +429,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.decode.write_illegal := io.decode.csr(11,10).andR
   io.decode.write_flush := !(io.decode.csr >= CSRs.mscratch && io.decode.csr <= CSRs.mbadaddr || io.decode.csr >= CSRs.sscratch && io.decode.csr <= CSRs.sbadaddr)
   io.decode.system_illegal := effective_prv < io.decode.csr(9,8) ||
-    io.decode.csr(2) && !allow_wfi ||
+    !io.decode.csr(5) && io.decode.csr(2) && !allow_wfi ||
+    !io.decode.csr(5) && io.decode.csr(1) && !allow_sret ||
     io.decode.csr(5) && !allow_sfence_vma
 
   val cause =
@@ -547,6 +550,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
           reg_mstatus.sie := new_mstatus.sie
           reg_mstatus.tw := new_mstatus.tw
           reg_mstatus.tvm := new_mstatus.tvm
+          reg_mstatus.tsr := new_mstatus.tsr
         }
       }
 
