@@ -144,7 +144,7 @@ class TLRAMAsyncCrossing(implicit p: Parameters) extends LazyModule {
   val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
-  cross.node := TLFragmenter(4, 256)(model.node)
+  cross.node := TLFragmenter(4, 256)(TLDelayer(0.1)(model.node))
   val monitor = (ram.node := cross.node)
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
