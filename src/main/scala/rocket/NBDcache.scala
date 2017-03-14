@@ -700,7 +700,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.ptw <> dtlb.io.ptw
   dtlb.io.req.valid := s1_valid_masked && s1_readwrite
   dtlb.io.req.bits.passthrough := s1_req.phys
-  dtlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
+  dtlb.io.req.bits.vaddr := s1_req.addr
   dtlb.io.req.bits.instruction := Bool(false)
   dtlb.io.req.bits.store := s1_write
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
@@ -722,7 +722,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   when (s2_recycle) {
     s1_req := s2_req
   }
-  val s1_addr = Cat(dtlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
+  val s1_addr = dtlb.io.resp.paddr
 
   when (s1_clk_en) {
     s2_req.typ := s1_req.typ
@@ -973,4 +973,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+
+  // performance events
+  io.cpu.acquire := edge.done(tl_out.a)
+  io.cpu.release := edge.done(tl_out.c)
 }

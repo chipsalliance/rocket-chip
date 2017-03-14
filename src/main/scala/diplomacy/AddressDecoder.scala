@@ -19,33 +19,36 @@ object AddressDecoder
   // Find the minimum subset of bits needed to disambiguate port addresses.
   // ie: inspecting only the bits in the output, you can look at an address
   //     and decide to which port (outer Seq) the address belongs.
-  def apply(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = if (ports.size <= 1) givenBits else {
-    // Every port must have at least one address!
-    ports.foreach { p => require (!p.isEmpty) }
-    // Verify the user did not give us an impossible problem
-    ports.combinations(2).foreach { case Seq(x, y) =>
-      x.foreach { a => y.foreach { b =>
-        require (!a.overlaps(b)) // it must be possible to disambiguate ports!
-      } }
+  def apply(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = {
+    val nonEmptyPorts = ports.filter(_.nonEmpty)
+    if (nonEmptyPorts.size <= 1) {
+      givenBits
+    } else {
+      // Verify the user did not give us an impossible problem
+      nonEmptyPorts.combinations(2).foreach { case Seq(x, y) =>
+        x.foreach { a => y.foreach { b =>
+          require (!a.overlaps(b)) // it must be possible to disambiguate ports!
+        } }
+      }
+
+      val maxBits = log2Ceil(nonEmptyPorts.map(_.map(_.base).max).max)
+      val (bitsToTry, bitsToTake) = (0 to maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+      val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
+      val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
+      val selected = recurse(givenPartitions, bitsToTry.toSeq)
+      val output = selected.reduceLeft(_ | _) | givenBits
+
+      // Modify the AddressSets to allow the new wider match functions
+      val widePorts = nonEmptyPorts.map { _.map { _.widen(~output) } }
+      // Verify that it remains possible to disambiguate all ports
+      widePorts.combinations(2).foreach { case Seq(x, y) =>
+        x.foreach { a => y.foreach { b =>
+          require (!a.overlaps(b))
+        } }
+      }
+
+      output
     }
-
-    val maxBits = log2Ceil(ports.map(_.map(_.base).max).max)
-    val (bitsToTry, bitsToTake) = (0 to maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
-    val partitions = Seq(ports.map(_.sorted).sorted(portOrder))
-    val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
-    val selected = recurse(givenPartitions, bitsToTry.toSeq)
-    val output = selected.reduceLeft(_ | _) | givenBits
-
-    // Modify the AddressSets to allow the new wider match functions
-    val widePorts = ports.map { _.map { _.widen(~output) } }
-    // Verify that it remains possible to disambiguate all ports
-    widePorts.combinations(2).foreach { case Seq(x, y) =>
-      x.foreach { a => y.foreach { b =>
-        require (!a.overlaps(b))
-      } }
-    }
-
-    output
   }
 
   // A simpler version that works for a Seq[Int]

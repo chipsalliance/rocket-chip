@@ -56,6 +56,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       resp.valid := io.mem.resp.valid && tag_hit
       io.requestor(i).xcpt := io.mem.xcpt
       io.requestor(i).ordered := io.mem.ordered
+      io.requestor(i).acquire := io.mem.acquire
+      io.requestor(i).release := io.mem.release
       io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === UInt(i)
       resp.bits := io.mem.resp.bits
       resp.bits.tag := io.mem.resp.bits.tag >> log2Up(n)

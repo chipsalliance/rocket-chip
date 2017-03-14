@@ -105,13 +105,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid_masked && s1_readwrite
   tlb.io.req.bits.passthrough := s1_req.phys
-  tlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
+  tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.instruction := false
   tlb.io.req.bits.store := s1_write
   when (!tlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
 
-  val s1_paddr = Cat(tlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
+  val s1_paddr = tlb.io.resp.paddr
   val s1_tag = Mux(s1_probe, probe_bits.address, s1_paddr)(paddrBits-1, untagBits)
   val s1_victim_way = Wire(init = replacer.way)
   val (s1_hit_way, s1_hit_state, s1_victim_meta) =
@@ -503,4 +503,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       flushing := false
     }
   }
+
+  // performance events
+  io.cpu.acquire := edge.done(tl_out.a)
+  io.cpu.release := edge.done(tl_out.c)
 }

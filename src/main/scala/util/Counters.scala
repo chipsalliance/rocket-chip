@@ -50,7 +50,7 @@ case class WideCounter(width: Int, inc: UInt = UInt(1), reset: Boolean = true)
 
   private val large = if (isWide) {
     val r = if (reset) Reg(init=UInt(0, width - smallWidth)) else Reg(UInt(width = width - smallWidth))
-    when (nextSmall(smallWidth)) { r := r +& UInt(1) }
+    when (nextSmall(smallWidth)) { r := r + UInt(1) }
     r
   } else null
 

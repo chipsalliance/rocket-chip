@@ -43,6 +43,8 @@ package object util {
       if (hi == lo-1) UInt(0)
       else x(hi, lo)
     }
+
+    def inRange(base: UInt, bounds: UInt) = x >= base && x < bounds
   }
 
   implicit class BooleanToAugmentedBoolean(val x: Boolean) extends AnyVal {

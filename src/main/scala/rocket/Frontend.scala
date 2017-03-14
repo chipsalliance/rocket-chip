@@ -35,6 +35,9 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val flush_tlb = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
+
+  // performance events
+  val acquire = Bool(INPUT)
 }
 
 class Frontend(implicit p: Parameters) extends LazyModule {
@@ -126,7 +129,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := !stall && !icmiss
-  tlb.io.req.bits.vpn := s1_pc >> pgIdxBits
+  tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)
@@ -134,7 +137,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
-  icache.io.s1_ppn := tlb.io.resp.ppn
+  icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss || io.cpu.flush_tlb
   icache.io.s2_kill := s2_speculative && !s2_cacheable
   icache.io.resp.ready := !stall && !s1_same_block
@@ -150,6 +153,9 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt_if
   io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
   io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
+
+  // performance events
+  io.cpu.acquire := edge.done(icache.io.mem(0).a)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
