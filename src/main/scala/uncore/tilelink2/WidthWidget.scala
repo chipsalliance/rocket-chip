@@ -180,11 +180,11 @@ class TLRAMWidthWidget(first: Int, second: Int)(implicit p: Parameters) extends 
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
   model.node := fuzz.node
-  ram.node := TLFragmenter(4, 256)(
-                if (first == second ) { TLWidthWidget(first)(model.node) }
+  ram.node := TLDelayer(0.1)(TLFragmenter(4, 256)(
+                if (first == second ) { TLWidthWidget(first)(TLDelayer(0.1)(model.node)) }
                 else {
                   TLWidthWidget(second)(
-                    TLWidthWidget(first)(model.node))})
+                    TLWidthWidget(first)(TLDelayer(0.1)(model.node)))}))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
