@@ -95,7 +95,7 @@ class TLRAMSimple(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule 
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
   model.node := fuzz.node
-  ram.node := model.node
+  ram.node := TLDelayer(0.25)(model.node)
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished

@@ -299,7 +299,7 @@ class TLRAMAtomicAutomata()(implicit p: Parameters) extends LazyModule {
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
   model.node := fuzz.node
-  ram.node := TLFragmenter(4, 256)(TLAtomicAutomata()(model.node))
+  ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(TLAtomicAutomata()(TLDelayer(0.1)(model.node))))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished

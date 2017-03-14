@@ -282,7 +282,10 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
     // However, if no slave is connected, for progress report ready anyway, if:
     //   bad address (swallow request) OR idle (permit stupid masters to move FSM)
     val autoready = nowhereM(m) || masters(m).isIdle()
-    val hready = Mux1H(unionGrantMS(m), slaves.map(_.hready ^ autoready)) ^ autoready
+    val hready    = if (nSlaves == 1)
+                      Mux(unionGrantMS(m)(0), slaves(0).hready ^ autoready, Bool(false)) ^ autoready
+                    else
+                      Mux1H(unionGrantMS(m), slaves.map(_.hready ^ autoready)) ^ autoready
     masters(m).hready := hready
     // If we diverted a master, we need to absorb his address phase to replay later
     diversions(m).io.divert := (bubbleM(m) || blockedM(m)) && NSeq(m) && hready
