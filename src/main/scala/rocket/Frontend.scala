@@ -28,12 +28,12 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
 
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
+  val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
   val flush_icache = Bool(OUTPUT)
-  val flush_tlb = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
 
   // performance events
@@ -133,12 +133,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)
+  tlb.io.req.bits.sfence := io.cpu.sfence
 
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
-  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss || io.cpu.flush_tlb
+  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss
   icache.io.s2_kill := s2_speculative && !s2_cacheable
   icache.io.resp.ready := !stall && !s1_same_block
 

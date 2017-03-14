@@ -176,7 +176,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
   val badaddr = UInt(INPUT, vaddrBitsExtended)
-  val fatc = Bool(OUTPUT)
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
@@ -408,12 +407,10 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val system_insn = io.rw.cmd === CSR.I
   val opcode = UInt(1) << io.rw.addr(2,0)
-  val insn_rs2 = io.rw.addr(5)
-  val insn_call = system_insn && !insn_rs2 && opcode(0)
+  val insn_call = system_insn && opcode(0)
   val insn_break = system_insn && opcode(1)
   val insn_ret = system_insn && opcode(2)
   val insn_wfi = system_insn && opcode(5)
-  val insn_sfence_vma = system_insn && insn_rs2
 
   val allow_wfi = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tw
   val allow_sfence_vma = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tvm
@@ -444,7 +441,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
   val debugTVec = Mux(reg_debug, UInt(0x808), UInt(0x800))
   val tvec = Mux(trapToDebug, debugTVec, Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec))
-  io.fatc := insn_sfence_vma
   io.evec := tvec
   io.ptbr := reg_sptbr
   io.eret := insn_call || insn_break || insn_ret
