@@ -231,7 +231,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     Causes.user_ecall).map(1 << _).sum)
 
   val reg_debug = Reg(init=Bool(false))
-  val effective_prv = Cat(reg_debug, reg_mstatus.prv)
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
   val reg_dscratch = Reg(UInt(width = xLen))
   val reg_singleStepped = Reg(Bool())
@@ -415,20 +414,20 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val insn_wfi = system_insn && opcode(5)
 
   private def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io.decode.csr === k }.reduce(_||_)
-  val allow_wfi = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tw
-  val allow_sfence_vma = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tvm
-  val allow_sret = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tsr
+  val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
+  val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
+  val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
   io.decode.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
   io.decode.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
-  io.decode.read_illegal := effective_prv < io.decode.csr(9,8) ||
+  io.decode.read_illegal := reg_mstatus.prv < io.decode.csr(9,8) ||
     !decodeAny(read_mapping) ||
     io.decode.csr === CSRs.sptbr && !allow_sfence_vma ||
-    (io.decode.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io.decode.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && effective_prv <= PRV.S && hpm_mask(io.decode.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
+    (io.decode.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io.decode.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && reg_mstatus.prv <= PRV.S && hpm_mask(io.decode.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
     Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
     Bool(usingFPU) && decodeAny(fp_csrs) && io.decode.fp_illegal
   io.decode.write_illegal := io.decode.csr(11,10).andR
   io.decode.write_flush := !(io.decode.csr >= CSRs.mscratch && io.decode.csr <= CSRs.mbadaddr || io.decode.csr >= CSRs.sscratch && io.decode.csr <= CSRs.sbadaddr)
-  io.decode.system_illegal := effective_prv < io.decode.csr(9,8) ||
+  io.decode.system_illegal := reg_mstatus.prv < io.decode.csr(9,8) ||
     !io.decode.csr(5) && io.decode.csr(2) && !allow_wfi ||
     !io.decode.csr(5) && io.decode.csr(1) && !allow_sret ||
     io.decode.csr(5) && !allow_sfence_vma
@@ -482,6 +481,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_dpc := epc
       reg_dcsr.cause := Mux(reg_singleStepped, 4, Mux(causeIsDebugInt, 3, Mux[UInt](causeIsDebugTrigger, 2, 1)))
       reg_dcsr.prv := trimPrivilege(reg_mstatus.prv)
+      new_prv := PRV.M
     }.elsewhen (delegate) {
       reg_sepc := formEPC(epc)
       reg_scause := cause
