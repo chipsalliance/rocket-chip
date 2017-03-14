@@ -16,11 +16,18 @@ case object PAddrBits extends Field[Int]
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
 
+class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
+  val rs1 = Bool()
+  val rs2 = Bool()
+  val asid = UInt(width = asIdBits max 1) // TODO zero-width
+}
+
 class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
   val vaddr = UInt(width = vaddrBitsExtended)
   val passthrough = Bool()
   val instruction = Bool()
   val store = Bool()
+  val sfence = Valid(new SFenceReq)
 }
 
 class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
@@ -63,6 +70,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val (vpn, pgOffset) = Split(io.req.bits.vaddr, pgIdxBits)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
+  val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
   val mpu_ppn = Mux(do_refill, refill_ppn,
                 Mux(vm_enabled, ppns.last, vpn(ppnBits-1, 0)))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
@@ -76,7 +84,6 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val isSpecial = {
     val homogeneous = Wire(init = false.B)
     for (i <- 0 until pgLevels) {
-      println(BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))
       when (io.ptw.resp.bits.level === i) { homogeneous := TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(mpu_physaddr).homogeneous }
     }
     !homogeneous
@@ -108,7 +115,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val sr_array = Reg(UInt(width = totalEntries)) // read permission
   val xr_array = Reg(UInt(width = totalEntries)) // read permission to executable page
   val cash_array = Reg(UInt(width = normalEntries)) // cacheable
-  when (do_refill) {
+  when (do_refill && !invalidate_refill) {
     val waddr = Mux(isSpecial, specialEntry.U, r_refill_waddr)
     val pte = io.ptw.resp.bits.pte
     ppns(waddr) := pte.ppn
@@ -138,7 +145,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
     if (vpnBits == vpnBitsExtended) Bool(false)
     else vpn(vpnBits) =/= vpn(vpnBits-1)
   val tlb_hit = hits(totalEntries-1, 0).orR
-  val tlb_miss = vm_enabled && !bad_va && !tlb_hit
+  val tlb_miss = vm_enabled && !bad_va && !tlb_hit && !io.req.bits.sfence.valid
 
   when (io.req.valid && !tlb_miss && !hits(specialEntry)) {
     plru.access(OHToUInt(hits(normalEntries-1, 0)))
@@ -166,6 +173,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   io.ptw.req.bits.fetch := r_req.instruction
 
   if (usingVM) {
+    val sfence = io.req.valid && io.req.bits.sfence.valid
     when (io.req.fire() && tlb_miss) {
       state := s_request
       r_refill_tag := lookup_tag
@@ -173,22 +181,20 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
       r_req := io.req.bits
     }
     when (state === s_request) {
-      when (io.ptw.invalidate) {
-        state := s_ready
-      }
-      when (io.ptw.req.ready) {
-        state := s_wait
-        when (io.ptw.invalidate) { state := s_wait_invalidate }
-      }
+      when (sfence) { state := s_ready }
+      when (io.ptw.req.ready) { state := Mux(sfence, s_wait_invalidate, s_wait) }
     }
-    when (state === s_wait && io.ptw.invalidate) {
+    when (state === s_wait && sfence) {
       state := s_wait_invalidate
     }
     when (io.ptw.resp.valid) {
       state := s_ready
     }
 
-    when (io.ptw.invalidate || multipleHits) {
+    when (sfence && io.req.bits.sfence.bits.rs1) {
+      valid := valid & ~hits(totalEntries-1, 0)
+    }
+    when (sfence && !io.req.bits.sfence.bits.rs1 || multipleHits) {
       valid := 0
     }
   }

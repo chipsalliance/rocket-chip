@@ -141,6 +141,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_reg_slow_bypass     = Reg(Bool())
   val mem_reg_load            = Reg(Bool())
   val mem_reg_store           = Reg(Bool())
+  val mem_reg_sfence = Reg(Bool())
   val mem_reg_pc = Reg(UInt())
   val mem_reg_inst = Reg(Bits())
   val mem_reg_wdata = Reg(Bits())
@@ -151,6 +152,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_cause           = Reg(UInt())
+  val wb_reg_sfence = Reg(Bool())
+  val wb_reg_sfence_done = Reg(Bool())
   val wb_reg_pc = Reg(UInt())
   val wb_reg_inst = Reg(Bits())
   val wb_reg_wdata = Reg(Bits())
@@ -189,7 +192,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val id_system_insn = id_ctrl.csr >= CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
   val id_csr = Mux(id_csr_ren, CSR.R, id_ctrl.csr)
-  val id_csr_flush = id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode.write_flush)
+  val id_sfence = id_ctrl.mem && id_ctrl.mem_cmd === M_SFENCE
+  val id_csr_flush = id_sfence || id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode.write_flush)
 
   val id_illegal_insn = !id_ctrl.legal ||
     id_ctrl.div && !csr.io.status.isa('m'-'a') ||
@@ -199,7 +203,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
     id_ctrl.rocc && csr.io.decode.rocc_illegal ||
     id_csr_en && (csr.io.decode.read_illegal || !id_csr_ren && csr.io.decode.write_illegal) ||
-    id_system_insn && csr.io.decode.system_illegal
+    (id_sfence || id_system_insn) && csr.io.decode.system_illegal
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
@@ -297,6 +301,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     }
     ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush || csr.io.singleStep
     ex_reg_load_use := id_load_use
+    when (id_sfence) {
+      ex_ctrl.mem_type := Cat(id_raddr2 =/= UInt(0), id_raddr1 =/= UInt(0))
+      when (wb_reg_sfence_done) { ex_ctrl.mem := false }
+    }
 
     when (id_ctrl.jalr && csr.io.status.debug) {
       ex_reg_flush_pipe := true
@@ -340,9 +348,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Mux(mem_ctrl.branch && mem_br_taken, ImmGen(IMM_SB, mem_reg_inst),
     Mux(Bool(!fastJAL) && mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst),
     Mux(mem_reg_rvc, SInt(2), SInt(4))))
-  val mem_npc = (Mux(mem_ctrl.jalr, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).asSInt, mem_br_target) & SInt(-2)).asUInt
+  val mem_npc = (Mux(mem_ctrl.jalr || mem_reg_sfence, encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).asSInt, mem_br_target) & SInt(-2)).asUInt
   val mem_wrong_npc = Mux(ex_pc_valid, mem_npc =/= ex_reg_pc, Mux(ibuf.io.inst(0).valid, mem_npc =/= ibuf.io.pc, Bool(true)))
-  val mem_npc_misaligned = !csr.io.status.isa('c'-'a') && mem_npc(1)
+  val mem_npc_misaligned = !csr.io.status.isa('c'-'a') && mem_npc(1) && !mem_reg_sfence
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || (Bool(!fastJAL) && mem_ctrl.jal)
@@ -361,6 +369,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_rvc := ex_reg_rvc
     mem_reg_load := ex_ctrl.mem && isRead(ex_ctrl.mem_cmd)
     mem_reg_store := ex_ctrl.mem && isWrite(ex_ctrl.mem_cmd)
+    mem_reg_sfence := Bool(usingVM) && ex_ctrl.mem && ex_ctrl.mem_cmd === M_SFENCE
     mem_reg_btb_hit := ex_reg_btb_hit
     when (ex_reg_btb_hit) { mem_reg_btb_resp := ex_reg_btb_resp }
     mem_reg_flush_pipe := ex_reg_flush_pipe
@@ -391,7 +400,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
-  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
+  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem || mem_reg_valid && mem_reg_sfence
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   div.io.kill := killm_common && Reg(next = div.io.req.fire())
   val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem
@@ -403,8 +412,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   when (mem_xcpt) { wb_reg_cause := mem_cause }
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
+    wb_reg_sfence := mem_reg_sfence
     wb_reg_wdata := Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
-    when (mem_ctrl.rocc) {
+    when (mem_ctrl.rocc || mem_reg_sfence) {
       wb_reg_rs2 := mem_reg_rs2
     }
     wb_reg_inst := mem_reg_inst
@@ -448,6 +458,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   }
 
   val wb_valid = wb_reg_valid && !replay_wb && !wb_xcpt
+  when (wb_valid || wb_xcpt) { wb_reg_sfence_done := false }
+  when (io.imem.sfence.valid) { wb_reg_sfence_done := true }
   val wb_wen = wb_valid && wb_ctrl.wxd
   val rf_wen = wb_wen || ll_wen 
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
@@ -470,7 +482,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.pc := wb_reg_pc
   csr.io.badaddr := encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata)
   io.ptw.ptbr := csr.io.ptbr
-  io.ptw.invalidate := csr.io.fatc
   io.ptw.status := csr.io.status
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
@@ -542,7 +553,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Mux(take_pc_mem || Bool(!fastJAL), mem_npc,     // branch misprediction
                                        id_npc)))    // JAL
   io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !io.dmem.s2_nack
-  io.imem.flush_tlb := csr.io.fatc
+  io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
+  io.imem.sfence.bits.rs1 := wb_ctrl.mem_type(0)
+  io.imem.sfence.bits.rs2 := wb_ctrl.mem_type(1)
+  io.imem.sfence.bits.asid := wb_reg_rs2
+  io.ptw.invalidate := io.imem.sfence.valid && !io.imem.sfence.bits.rs1
 
   ibuf.io.inst(0).ready := !ctrl_stalld || csr.io.interrupt
 

@@ -29,6 +29,7 @@ trait MemoryOpConstants {
   def M_FLUSH   = UInt("b10000") // write back dirty data and cede R/W permissions
   def M_PRODUCE = UInt("b10001") // write back dirty data and cede W permissions
   def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
+  def M_SFENCE  = UInt("b10100") // flush TLB
 
   def isAMO(cmd: UInt) = cmd(3) || cmd === M_XA_SWAP
   def isPrefetch(cmd: UInt) = cmd === M_PFR || cmd === M_PFW

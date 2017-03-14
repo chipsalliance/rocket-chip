@@ -30,7 +30,6 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new PTWReq)
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
-  val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
 }
 
@@ -138,7 +137,6 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     io.requestor(i).resp.bits.level := count
     io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
     io.requestor(i).ptbr := io.dpath.ptbr
-    io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
   }
 
