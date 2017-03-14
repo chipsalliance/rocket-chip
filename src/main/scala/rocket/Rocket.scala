@@ -651,4 +651,7 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
       when (ens) { _r := _next }
     }
   }
+
+  // hook up counter events
+  csr.io.events := io.events
 }
