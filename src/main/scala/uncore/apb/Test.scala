@@ -25,9 +25,14 @@ class APBFuzzBridge()(implicit p: Parameters) extends LazyModule
   val gpio  = LazyModule(new RRTest0(0x100))
 
   model.node := fuzz.node
-  xbar.node := TLToAPB()(TLDelayer(0.1)(model.node))
   ram.node  := xbar.node
   gpio.node := xbar.node
+  xbar.node :=
+    TLToAPB()(
+    TLDelayer(0.2)(
+    TLBuffer(TLBufferParams.flow)(
+    TLDelayer(0.2)(
+    model.node))))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
