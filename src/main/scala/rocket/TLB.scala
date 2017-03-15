@@ -62,7 +62,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
 
   val do_mprv = io.ptw.status.mprv && !io.req.bits.instruction
   val priv = Mux(do_mprv, io.ptw.status.mpp, io.ptw.status.prv)
-  val priv_s = priv === PRV.S
+  val priv_s = priv(0)
   val priv_uses_vm = priv <= PRV.S
   val vm_enabled = Bool(usingVM) && io.ptw.ptbr.mode(io.ptw.ptbr.mode.getWidth-1) && priv_uses_vm && !io.req.bits.passthrough
 
@@ -78,7 +78,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   pmp.io.addr := mpu_physaddr
   pmp.io.size := 2
   pmp.io.pmp := io.ptw.pmp
-  pmp.io.prv := priv
+  pmp.io.prv := Mux(io.req.bits.passthrough /* PTW */, PRV.S, priv)
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
