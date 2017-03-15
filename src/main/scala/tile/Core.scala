@@ -43,7 +43,7 @@ trait HasCoreParameters extends HasTileParameters {
 
   val coreInstBits = coreParams.instBits
   val coreInstBytes = coreInstBits/8
-  val coreDataBits = xLen
+  val coreDataBits = xLen max fLen
   val coreDataBytes = coreDataBits/8
 
   val coreDCacheReqTagBits = 6

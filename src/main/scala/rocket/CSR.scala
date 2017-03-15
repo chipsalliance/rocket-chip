@@ -185,6 +185,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
+  val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
 }
 
@@ -237,6 +238,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
   val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
+  val reg_pmp = Reg(Vec(nPMPs, new PMP))
 
   val reg_mie = Reg(UInt(width = xLen))
   val reg_mideleg = Reg(UInt(width = xLen))
@@ -286,6 +288,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.interrupt := all_interrupts.orR && !reg_debug && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
+  io.pmp := reg_pmp
 
   // debug interrupts are only masked by being in debug mode
   when (Bool(usingDebug) && reg_dcsr.debugint && !reg_debug) {
@@ -394,6 +397,13 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       read_mapping += CSRs.instreth -> (reg_instret >> 32)
     }
   }
+
+  val pmpCfgPerCSR = xLen / new PMPConfig().getWidth
+  def pmpCfgIndex(i: Int) = (xLen / 32) * (i / pmpCfgPerCSR)
+  for (i <- 0 until reg_pmp.size by pmpCfgPerCSR)
+    read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> reg_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
+  for ((pmp, i) <- reg_pmp zipWithIndex)
+    read_mapping += (CSRs.pmpaddr0 + i) -> pmp.addr
 
   for (i <- 0 until nCustomMrwCsrs) {
     val addr = 0xff0 + i
@@ -653,6 +663,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
       }
     }
+    for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
+      require(xLen % pmp.cfg.getWidth == 0)
+      when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.locked) {
+        pmp.cfg := new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
+      }
+      when (decoded_addr(CSRs.pmpaddr0 + i) && !pmp.addrLocked(next)) {
+        pmp.addr := wdata
+      }
+    }
   }
 
   reg_mip <> io.interrupts
@@ -691,6 +710,12 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   }
   for (bp <- reg_bp drop nBreakpoints)
     bp := new BP().fromBits(0)
+  if (reg_pmp.nonEmpty) {
+    for (pmp <- reg_pmp) {
+      if (!usingUser) pmp.cfg.m := true
+      when (reset) { pmp.cfg.p := 0 }
+    }
+  }
 
   def legalizePrivilege(priv: UInt): UInt =
     if (usingVM) Mux(priv === PRV.H, PRV.U, priv)
