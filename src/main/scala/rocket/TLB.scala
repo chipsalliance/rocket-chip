@@ -22,12 +22,15 @@ class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
   val asid = UInt(width = asIdBits max 1) // TODO zero-width
 }
 
-class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
+class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val vaddr = UInt(width = vaddrBitsExtended)
   val passthrough = Bool()
   val instruction = Bool()
   val store = Bool()
   val sfence = Valid(new SFenceReq)
+  val size = UInt(width = log2Ceil(lgMaxSize + 1))
+
+  override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
 
 class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
@@ -40,9 +43,9 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val cacheable = Bool(OUTPUT)
 }
 
-class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
+class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val req = Decoupled(new TLBReq).flip
+    val req = Decoupled(new TLBReq(lgMaxSize)).flip
     val resp = new TLBResp
     val ptw = new TLBPTWIO
   }
@@ -58,7 +61,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val state = Reg(init=s_ready)
   val r_refill_tag = Reg(UInt(width = asIdBits + vpnBits))
   val r_refill_waddr = Reg(UInt(width = log2Ceil(normalEntries)))
-  val r_req = Reg(new TLBReq)
+  val r_req = Reg(new TLBReq(lgMaxSize))
 
   val do_mprv = io.ptw.status.mprv && !io.req.bits.instruction
   val priv = Mux(do_mprv, io.ptw.status.mpp, io.ptw.status.prv)
@@ -74,9 +77,9 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val mpu_ppn = Mux(do_refill, refill_ppn,
                 Mux(vm_enabled, ppns.last, vpn(ppnBits-1, 0)))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
-  val pmp = Module(new PMPChecker(8))
+  val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
-  pmp.io.size := 2
+  pmp.io.size := io.req.bits.size
   pmp.io.pmp := io.ptw.pmp
   pmp.io.prv := Mux(io.req.bits.passthrough /* PTW */, PRV.S, priv)
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)

@@ -103,7 +103,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (!metaReadArb.io.in(2).ready) { io.cpu.req.ready := false }
 
   // address translation
-  val tlb = Module(new TLB(nTLBEntries))
+  val tlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid_masked && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
@@ -114,6 +114,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.instruction := false
   tlb.io.req.bits.store := s1_write
+  tlb.io.req.bits.size := s1_req.typ
   when (!tlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
 

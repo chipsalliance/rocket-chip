@@ -62,7 +62,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edgesOut(0)
   val icache = outer.icache.module
 
-  val tlb = Module(new TLB(nTLBEntries))
+  val tlb = Module(new TLB(log2Ceil(coreInstBytes*fetchWidth), nTLBEntries))
 
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
@@ -134,6 +134,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.store := Bool(false)
   tlb.io.req.bits.sfence := io.cpu.sfence
+  tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
 
   icache.io.req.valid := !stall && !s0_same_block
   icache.io.req.bits.addr := io.cpu.npc

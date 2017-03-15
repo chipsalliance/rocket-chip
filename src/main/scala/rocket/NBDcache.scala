@@ -697,7 +697,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
 
-  val dtlb = Module(new TLB(nTLBEntries))
+  val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
   dtlb.io.req.valid := s1_valid_masked && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
@@ -708,6 +708,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.req.bits.vaddr := s1_req.addr
   dtlb.io.req.bits.instruction := Bool(false)
   dtlb.io.req.bits.store := s1_write
+  dtlb.io.req.bits.size := s1_req.typ
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
   
   when (io.cpu.req.valid) {
