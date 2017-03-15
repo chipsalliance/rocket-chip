@@ -105,7 +105,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val tlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
-  tlb.io.req.valid := s1_valid_masked && (s1_readwrite || s1_sfence)
+  tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
   tlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)

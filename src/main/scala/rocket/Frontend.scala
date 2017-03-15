@@ -140,8 +140,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
-  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss
-  icache.io.s2_kill := s2_speculative && !s2_cacheable
+  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss
+  icache.io.s2_kill := s2_speculative && !s2_cacheable || s2_xcpt_if
   icache.io.resp.ready := !stall && !s1_same_block
 
   io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill || s2_xcpt_if)
