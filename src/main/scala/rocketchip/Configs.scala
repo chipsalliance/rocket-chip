@@ -46,7 +46,7 @@ class BasePlatformConfig extends Config((site, here, up) => {
 /** Actual elaboratable target Configs */
 
 class BaseConfig extends Config(new BaseCoreplexConfig ++ new BasePlatformConfig)
-class DefaultConfig extends Config(new WithBlockingL1 ++ new WithNBigCores(1) ++ new BaseConfig)
+class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)
 
 class DefaultL2Config extends Config(new WithL2Cache ++ new WithNBigCores(1) ++ new BaseConfig)
 class DefaultBufferlessConfig extends Config(

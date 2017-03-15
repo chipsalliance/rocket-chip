@@ -41,7 +41,7 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
         divEarlyOut = true))),
       dcache = Some(DCacheParams(
         rowBits = site(L1toL2Config).beatBytes*8,
-        nMSHRs  = 2,
+        nMSHRs  = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(L1toL2Config).beatBytes*8,
@@ -147,9 +147,9 @@ class WithRV32 extends Config((site, here, up) => {
   }
 })
 
-class WithBlockingL1 extends Config((site, here, up) => {
+class WithNonblockingL1(nMSHRs: Int) extends Config((site, here, up) => {
   case RocketTilesKey => up(RocketTilesKey, site) map { r =>
-    r.copy(dcache = r.dcache.map(_.copy(nMSHRs = 0)))
+    r.copy(dcache = r.dcache.map(_.copy(nMSHRs = nMSHRs)))
   }
 })
 
