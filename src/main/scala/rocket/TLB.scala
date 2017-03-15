@@ -63,8 +63,7 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   val r_refill_waddr = Reg(UInt(width = log2Ceil(normalEntries)))
   val r_req = Reg(new TLBReq(lgMaxSize))
 
-  val do_mprv = io.ptw.status.mprv && !io.req.bits.instruction
-  val priv = Mux(do_mprv, io.ptw.status.mpp, io.ptw.status.prv)
+  val priv = Mux(io.req.bits.instruction, io.ptw.status.prv, io.ptw.status.dprv)
   val priv_s = priv(0)
   val priv_uses_vm = priv <= PRV.S
   val vm_enabled = Bool(usingVM) && io.ptw.ptbr.mode(io.ptw.ptbr.mode.getWidth-1) && priv_uses_vm && !io.req.bits.passthrough
