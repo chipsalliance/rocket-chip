@@ -283,7 +283,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   ex_reg_replay := !take_pc && ibuf.io.inst(0).valid && ibuf.io.inst(0).bits.replay
   ex_reg_xcpt := !ctrl_killd && id_xcpt
   ex_reg_xcpt_interrupt := !take_pc && ibuf.io.inst(0).valid && csr.io.interrupt
-  when (id_xcpt) { ex_reg_cause := id_cause }
   ex_reg_btb_hit := ibuf.io.inst(0).bits.btb_hit
   when (ibuf.io.inst(0).bits.btb_hit) { ex_reg_btb_resp := ibuf.io.btb_resp }
 
@@ -325,6 +324,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     }
   }
   when (!ctrl_killd || csr.io.interrupt || ibuf.io.inst(0).bits.replay) {
+    ex_reg_cause := id_cause
     ex_reg_inst := id_inst(0)
     ex_reg_pc := ibuf.io.pc
   }
@@ -364,7 +364,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   mem_reg_replay := !take_pc_mem_wb && replay_ex
   mem_reg_xcpt := !ctrl_killx && ex_xcpt
   mem_reg_xcpt_interrupt := !take_pc_mem_wb && ex_reg_xcpt_interrupt
-  when (ex_xcpt) { mem_reg_cause := ex_cause }
 
   when (ex_pc_valid) {
     mem_ctrl := ex_ctrl
@@ -377,6 +376,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_flush_pipe := ex_reg_flush_pipe
     mem_reg_slow_bypass := ex_slow_bypass
 
+    mem_reg_cause := ex_cause
     mem_reg_inst := ex_reg_inst
     mem_reg_pc := ex_reg_pc
     mem_reg_wdata := alu.io.out
@@ -411,7 +411,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   wb_reg_valid := !ctrl_killm
   wb_reg_replay := replay_mem && !take_pc_wb
   wb_reg_xcpt := mem_xcpt && !take_pc_wb
-  when (mem_xcpt) { wb_reg_cause := mem_cause }
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
     wb_reg_sfence := mem_reg_sfence
@@ -419,6 +418,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     when (mem_ctrl.rocc || mem_reg_sfence) {
       wb_reg_rs2 := mem_reg_rs2
     }
+    wb_reg_cause := mem_cause
     wb_reg_inst := mem_reg_inst
     wb_reg_pc := mem_reg_pc
   }
