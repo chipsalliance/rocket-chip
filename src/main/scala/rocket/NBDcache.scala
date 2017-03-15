@@ -983,4 +983,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+
+  // counter events
+  io.cpu.dc_miss := edge.firstlast(tl_out.a)._3
+  io.cpu.tlb_miss := dtlb.io.miss
 }

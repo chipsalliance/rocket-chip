@@ -35,6 +35,10 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val flush_tlb = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
+
+  // counter event
+  val ic_miss = Bool(INPUT)
+  val tlb_miss = Bool(INPUT)
 }
 
 class Frontend(implicit p: Parameters) extends LazyModule {
@@ -150,6 +154,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt_if
   io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
   io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
+
+  // counter event
+  io.cpu.ic_miss := edge.firstlast(icache.io.mem(0).a)._3
+  io.cpu.tlb_miss := tlb.io.miss
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */

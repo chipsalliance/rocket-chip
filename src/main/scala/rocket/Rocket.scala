@@ -653,5 +653,12 @@ class Rocket(val c: RocketConfig)(implicit p: Parameters) extends CoreModule()(p
   }
 
   // hook up counter events
-  csr.io.events := io.events
+  assert(p(NPerfEvents) >= 35)
+  csr.io.events foreach (_ := Bool(false))
+  csr.io.events(3) := io.dmem.dc_miss // d$ miss
+  csr.io.events(4) := io.imem.ic_miss // i$ miss
+  csr.io.events(31) := io.dmem.req.fire()  // d$ accesses
+  csr.io.events(32) := io.imem.resp.fire() // i$ accesses
+  csr.io.events(33) := io.dmem.tlb_miss // DTLB miss
+  csr.io.events(34) := io.imem.tlb_miss // ITLB miss
 }

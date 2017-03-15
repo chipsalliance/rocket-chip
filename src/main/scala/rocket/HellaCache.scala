@@ -117,6 +117,10 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val xcpt = (new HellaCacheExceptions).asInput
   val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
+
+  // counter event
+  val dc_miss = Bool(INPUT)
+  val tlb_miss = Bool(INPUT)
 }
 
 abstract class HellaCache(val cfg: DCacheConfig)(implicit p: Parameters) extends LazyModule {

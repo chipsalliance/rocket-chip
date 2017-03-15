@@ -49,14 +49,9 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   dcacheArb.io.requestor <> dcachePorts
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
 
-  // Event counters
-  if (p(NPerfEvents) >= 33) {
-    core.io.events foreach (_ := Bool(false))
-    core.io.events(3) := outer.dcache.module.io.mem(0).a.fire() // d$ miss
-    core.io.events(4) := outer.frontend.module.io.mem(0).a.fire() // i$ miss
-    core.io.events(31) := dcacheArb.io.mem.req.fire() // d$ req
-    core.io.events(32) := core.io.imem.req.valid // i$ req
-  }
+  // Conenct counter events
+  core.io.dmem.dc_miss := outer.dcache.module.io.cpu.dc_miss
+  core.io.dmem.tlb_miss := outer.dcache.module.io.cpu.tlb_miss
 }
 
 class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {

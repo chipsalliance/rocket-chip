@@ -507,4 +507,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       flushing := false
     }
   }
+
+  // counter events
+  io.cpu.dc_miss := edge.firstlastHelper(tl_out.a.bits, tl_out.a.fire())._3
+  io.cpu.tlb_miss := tlb.io.miss
 }

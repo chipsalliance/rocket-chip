@@ -44,6 +44,7 @@ class TLB(implicit edge: TLEdgeOut, val p: Parameters) extends Module with HasTL
     val req = Decoupled(new TLBReq).flip
     val resp = new TLBResp
     val ptw = new TLBPTWIO
+    val miss = Bool(OUTPUT)
   }
 
   val valid = Reg(init = UInt(0, entries))
@@ -134,6 +135,7 @@ class TLB(implicit edge: TLEdgeOut, val p: Parameters) extends Module with HasTL
   val tlb_hits = hits(entries-1, 0) & (dirty_array | ~Mux(io.req.bits.store, w_array, UInt(0)))
   val tlb_hit = tlb_hits.orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit
+  io.miss := io.req.fire() && tlb_miss // counter event
 
   when (io.req.valid && !tlb_miss) {
     plru.access(OHToUInt(hits(entries-1, 0)))
