@@ -115,6 +115,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   
   // permission bit arrays
   val u_array = Reg(UInt(width = totalEntries)) // user permission
+  val g_array = Reg(UInt(width = totalEntries)) // global mapping
   val sw_array = Reg(UInt(width = totalEntries)) // write permission
   val sx_array = Reg(UInt(width = totalEntries)) // execute permission
   val sr_array = Reg(UInt(width = totalEntries)) // read permission
@@ -130,6 +131,7 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
     val mask = UIntToOH(waddr)
     valid := valid | mask
     u_array := Mux(pte.u, u_array | mask, u_array & ~mask)
+    g_array := Mux(pte.g, g_array | mask, g_array & ~mask)
     sw_array := Mux(pte.sw() && (isSpecial || prot_w), sw_array | mask, sw_array & ~mask)
     sx_array := Mux(pte.sx() && (isSpecial || prot_x), sx_array | mask, sx_array & ~mask)
     sr_array := Mux(pte.sr() && (isSpecial || prot_r), sr_array | mask, sr_array & ~mask)
@@ -196,10 +198,11 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
       state := s_ready
     }
 
-    when (sfence && io.req.bits.sfence.bits.rs1) {
-      valid := valid & ~hits(totalEntries-1, 0)
+    when (sfence) {
+      valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
+               Mux(io.req.bits.sfence.bits.rs2, valid & g_array, 0))
     }
-    when (sfence && !io.req.bits.sfence.bits.rs1 || multipleHits) {
+    when (multipleHits) {
       valid := 0
     }
   }
