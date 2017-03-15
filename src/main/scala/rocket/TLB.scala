@@ -74,12 +74,17 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
   val mpu_ppn = Mux(do_refill, refill_ppn,
                 Mux(vm_enabled, ppns.last, vpn(ppnBits-1, 0)))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
+  val pmp = Module(new PMPChecker(8))
+  pmp.io.addr := mpu_physaddr
+  pmp.io.size := 2
+  pmp.io.pmp := io.ptw.pmp
+  pmp.io.prv := priv
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
-  val prot_r = fastCheck(_.supportsGet)
-  val prot_w = fastCheck(_.supportsPutFull)
-  val prot_x = fastCheck(_.executable)
+  val prot_r = fastCheck(_.supportsGet) && !pmp.io.xcpt_ld
+  val prot_w = fastCheck(_.supportsPutFull) && !pmp.io.xcpt_st
+  val prot_x = fastCheck(_.executable) && !pmp.io.xcpt_if
   val cacheable = fastCheck(_.supportsAcquireB)
   val isSpecial = {
     val homogeneous = Wire(init = false.B)

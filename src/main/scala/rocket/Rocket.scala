@@ -18,6 +18,7 @@ case class RocketCoreParams(
   useAtomics: Boolean = true,
   useCompressed: Boolean = true,
   nBreakpoints: Int = 1,
+  nPMPs: Int = 16,
   nPerfCounters: Int = 0,
   nCustomMRWCSRs: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
@@ -42,6 +43,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val fastLoadByte = rocketParams.fastLoadByte
   val fastJAL = rocketParams.fastJAL
   val nBreakpoints = rocketParams.nBreakpoints
+  val nPMPs = rocketParams.nPMPs
   val nPerfCounters = rocketParams.nPerfCounters
   val nCustomMrwCsrs = rocketParams.nCustomMRWCSRs
   val mtvecInit = rocketParams.mtvecInit
@@ -483,6 +485,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.badaddr := encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata)
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.status := csr.io.status
+  io.ptw.pmp := csr.io.pmp
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
   csr.io.rw.wdata := wb_reg_wdata
