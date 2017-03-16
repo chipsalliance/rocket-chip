@@ -49,7 +49,7 @@ class AHBFuzzMaster(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
   node :=
     TLToAHB(aFlow)(
     TLDelayer(0.2)(
-    TLBuffer(TLBufferParams.flow)(
+    TLBuffer(BufferParams.flow)(
     TLDelayer(0.2)(
     model.node))))
 
@@ -71,7 +71,7 @@ class AHBFuzzSlave()(implicit p: Parameters) extends LazyModule
   ram.node :=
     TLFragmenter(4, 16)(
     TLDelayer(0.2)(
-    TLBuffer(TLBufferParams.flow)(
+    TLBuffer(BufferParams.flow)(
     TLDelayer(0.2)(
     AHBToTL()(
     node)))))

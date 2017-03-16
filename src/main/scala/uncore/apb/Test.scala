@@ -30,7 +30,7 @@ class APBFuzzBridge()(implicit p: Parameters) extends LazyModule
   xbar.node :=
     TLToAPB()(
     TLDelayer(0.2)(
-    TLBuffer(TLBufferParams.flow)(
+    TLBuffer(BufferParams.flow)(
     TLDelayer(0.2)(
     model.node))))
 
