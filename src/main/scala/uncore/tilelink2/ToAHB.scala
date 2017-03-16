@@ -68,6 +68,10 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
       resetState.full  := Bool(false)
       resetState.send  := Bool(false)
       resetState.first := Bool(true)
+      // These are needed to appease AHB VIP:
+      resetState.hsize := UInt(0)
+      resetState.hburst:= UInt(0)
+      resetState.addr  := UInt(0)
 
       // The stages of the combinational pipeline
       val reg  = RegInit(resetState)
