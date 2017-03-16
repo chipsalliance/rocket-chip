@@ -482,7 +482,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   when (exception) {
     val epc = ~(~io.pc | (coreInstBytes-1))
-    val pie = read_mstatus(reg_mstatus.prv)
 
     val write_badaddr = cause isOneOf (Causes.breakpoint,
       Causes.misaligned_load, Causes.misaligned_store, Causes.misaligned_fetch,
@@ -498,7 +497,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_sepc := formEPC(epc)
       reg_scause := cause
       when (write_badaddr) { reg_sbadaddr := io.badaddr }
-      reg_mstatus.spie := pie
+      reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
       new_prv := PRV.S
@@ -506,7 +505,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_mepc := formEPC(epc)
       reg_mcause := cause
       when (write_badaddr) { reg_mbadaddr := io.badaddr }
-      reg_mstatus.mpie := pie
+      reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
       new_prv := PRV.M
@@ -515,7 +514,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   when (insn_ret) {
     when (Bool(usingVM) && !io.rw.addr(9)) {
-      when (reg_mstatus.spp.toBool) { reg_mstatus.sie := reg_mstatus.spie }
+      reg_mstatus.sie := reg_mstatus.spie
       reg_mstatus.spie := true
       reg_mstatus.spp := PRV.U
       new_prv := reg_mstatus.spp
@@ -525,8 +524,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_debug := false
       io.evec := reg_dpc
     }.otherwise {
-      when (reg_mstatus.mpp(1)) { reg_mstatus.mie := reg_mstatus.mpie }
-      .elsewhen (Bool(usingVM) && reg_mstatus.mpp(0)) { reg_mstatus.sie := reg_mstatus.mpie }
+      reg_mstatus.mie := reg_mstatus.mpie
       reg_mstatus.mpie := true
       reg_mstatus.mpp := legalizePrivilege(PRV.U)
       new_prv := reg_mstatus.mpp
