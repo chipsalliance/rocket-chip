@@ -293,7 +293,6 @@ class ComparatorClient(val target: Long)(implicit val p: Parameters) extends Mod
 
   val (idx, acq_done) = Counter(
     io.tl.acquire.fire() && io.tl.acquire.bits.last(), nOperations)
-  debug(idx)
 
   val timer = Module(new Timer(8192, xacts))
   timer.io.start.valid := io.tl.acquire.fire() && io.tl.acquire.bits.first()
