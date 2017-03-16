@@ -12,8 +12,9 @@ class WithUncoreUnitTests extends Config((site, here, up) => {
     implicit val p = q
     Seq(
       Module(new uncore.tilelink2.TLFuzzRAMTest),
-      Module(new uncore.ahb.AHBBridgeTest),
-      Module(new uncore.ahb.AHBNativeTest),
+      Module(new uncore.ahb.AHBBridgeTest(true)),
+      Module(new uncore.ahb.AHBNativeTest(true)),
+      Module(new uncore.ahb.AHBNativeTest(false)),
       Module(new uncore.apb.APBBridgeTest),
       Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
       Module(new uncore.axi4.AXI4FullFuzzRAMTest),
