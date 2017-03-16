@@ -36,16 +36,6 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
         in.b <> FromRational(out.b, direction.flip)
         out.c <> ToRational(in.c, direction)
         out.e <> ToRational(in.e, direction)
-      } else {
-        in.b.valid   := Bool(false)
-        in.c.ready   := Bool(true)
-        in.e.ready   := Bool(true)
-        out.b.ready  := Bool(true)
-        out.c.valid  := Bool(false)
-        out.e.valid  := Bool(false)
-        out.b.sink   := UInt(0)
-        out.c.source := UInt(0)
-        out.e.source := UInt(0)
       }
     }
   }
@@ -72,16 +62,6 @@ class TLRationalCrossingSink(direction: RationalDirection = Symmetric)(implicit 
         in.b <> ToRational(out.b, direction.flip)
         out.c <> FromRational(in.c, direction)
         out.e <> FromRational(in.e, direction)
-      } else {
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
-        in.b.valid  := Bool(false)
-        in.c.ready  := Bool(true)
-        in.e.ready  := Bool(true)
-        in.b.source := UInt(0)
-        in.c.sink   := UInt(0)
-        in.e.sink   := UInt(0)
       }
     }
   }

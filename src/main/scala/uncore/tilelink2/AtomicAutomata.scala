@@ -252,13 +252,6 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         out.e.valid := in.e.valid
         in.e.ready := out.e.ready
         out.e.bits := in.e.bits
-      } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
       }
     }
   }

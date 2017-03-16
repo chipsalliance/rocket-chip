@@ -120,11 +120,6 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       in.hrdata    := out.d.bits.data
       in.hresp     := inject_error
       in.hreadyout := (!inject_error || d_pause) && Mux(d_write, (!d_send || out.a.ready) && (!d_last || !d_recv || out.d.valid), out.d.valid || !d_recv)
-
-      // Unused channels
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
     }
   }
 }

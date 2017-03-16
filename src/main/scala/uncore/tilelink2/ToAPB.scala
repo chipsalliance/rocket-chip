@@ -45,11 +45,6 @@ class TLToAPB(combinational: Boolean = true)(implicit p: Parameters) extends Laz
       val beatBytes = edgeOut.slave.beatBytes
       val lgBytes = log2Ceil(beatBytes)
 
-      // APB has no cache coherence
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
       // presented it on D as valid.  We also can't back-pressure APB in the

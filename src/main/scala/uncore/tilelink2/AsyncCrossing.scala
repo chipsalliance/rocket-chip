@@ -30,13 +30,6 @@ class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyM
         in.b <> FromAsyncBundle(out.b, sync)
         out.c <> ToAsyncBundle(in.c, depth, sync)
         out.e <> ToAsyncBundle(in.e, depth, sync)
-      } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ridx := UInt(0)
-        out.c.widx := UInt(0)
-        out.e.widx := UInt(0)
       }
     }
   }
@@ -63,13 +56,6 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
         in.b <> ToAsyncBundle(out.b, depth, sync)
         out.c <> FromAsyncBundle(in.c, sync)
         out.e <> FromAsyncBundle(in.e, sync)
-      } else {
-        in.b.widx := UInt(0)
-        in.c.ridx := UInt(0)
-        in.e.ridx := UInt(0)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
       }
     }
   }

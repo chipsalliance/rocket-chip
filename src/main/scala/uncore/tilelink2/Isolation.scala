@@ -44,15 +44,6 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       y.sink_reset_n   := ISOo(x.sink_reset_n)
     }
 
-    def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
-      x.widx           := UInt(0)
-      x.widx_valid     := Bool(false)
-      x.source_reset_n := Bool(false)
-      y.ridx           := UInt(0)
-      y.ridx_valid     := Bool(false)
-      y.sink_reset_n   := Bool(false)
-    }
-
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
       ABo(out.a, in .a)
       ABi(in .d, out.d)
@@ -61,10 +52,6 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
         ABi(in .b, out.b)
         ABo(out.c, in .c)
         ABo(out.e, in .e)
-      } else {
-        ABz(in .b, out.b)
-        ABz(out.c, in .c)
-        ABz(out.e, in .e)
       }
     }
   }

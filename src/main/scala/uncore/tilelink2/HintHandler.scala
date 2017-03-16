@@ -75,11 +75,6 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
         out.c.valid := in.c.valid
         in.c.ready := out.c.ready
         out.c.bits := in.c.bits
-      } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
       }
 
       if (bce) {
@@ -87,9 +82,6 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
         out.e.valid := in.e.valid
         in.e.ready := out.e.ready
         out.e.bits := in.e.bits
-      } else {
-        in.e.ready := Bool(true)
-        out.e.valid := Bool(false)
       }
     }
   }

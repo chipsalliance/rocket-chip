@@ -158,11 +158,6 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       val w_set = in.aw.fire().asUInt << in.aw.bits.id
       val w_clr = in.b.fire().asUInt << in.b.bits.id
       w_inflight := (w_inflight | w_set) & ~w_clr
-
-      // Unused channels
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
     }
   }
 }

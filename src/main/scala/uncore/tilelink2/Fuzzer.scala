@@ -186,10 +186,7 @@ class TLFuzzer(
       out.a.valid := legal && alloc.valid
     }
     out.a.bits  := bits
-    out.b.ready := Bool(true)
-    out.c.valid := Bool(false)
     out.d.ready := Bool(true)
-    out.e.valid := Bool(false)
 
     // Increment the various progress-tracking states
     inc := !legal || req_done

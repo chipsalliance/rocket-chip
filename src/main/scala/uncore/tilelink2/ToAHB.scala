@@ -46,11 +46,6 @@ class TLToAHB(val combinational: Boolean = true)(implicit p: Parameters) extends
       val lgMax = log2Ceil(maxTransfer)
       val lgBytes = log2Ceil(beatBytes)
 
-      // AHB has no cache coherence
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
       // presented it on D as valid.  We also can't back-pressure AHB in the

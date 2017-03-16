@@ -106,11 +106,6 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       // Combine the sources of messages into the channels
       TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (edgeOut.numBeats1(c_a.bits), c_a), (edgeOut.numBeats1(a_a.bits), a_a))
       TLArbiter(TLArbiter.lowestIndexFirst)(in.d,  (edgeIn .numBeats1(d_d.bits), d_d), (UInt(0), Queue(c_d, 2)))
-
-      // Tie off unused ports
-      in.b.valid := Bool(false)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
     }
   }
 }

@@ -30,13 +30,6 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
       require (!edgeIn.client.anySupportProbe || 
                !edgeOut.manager.anySupportAcquireB)
 
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-
       if (maxInFlight >= edgeIn.client.endSourceId) {
         out.a <> in.a
         in.d <> out.d
