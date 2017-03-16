@@ -15,7 +15,8 @@ class WithUncoreUnitTests extends Config((site, here, up) => {
       Module(new uncore.ahb.AHBBridgeTest(true)),
       Module(new uncore.ahb.AHBNativeTest(true)),
       Module(new uncore.ahb.AHBNativeTest(false)),
-      Module(new uncore.apb.APBBridgeTest),
+      Module(new uncore.apb.APBBridgeTest(true)),
+      Module(new uncore.apb.APBBridgeTest(false)),
       Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
       Module(new uncore.axi4.AXI4FullFuzzRAMTest),
       Module(new uncore.axi4.AXI4BridgeTest)) }
