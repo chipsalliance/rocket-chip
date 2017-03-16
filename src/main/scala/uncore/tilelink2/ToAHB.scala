@@ -45,9 +45,9 @@ class AHBControlBundle(params: TLEdge) extends util.GenericParameterizedBundle(p
   val data   = UInt(width = params.bundle.dataBits)
 }
 
-// The input side has either a flow queue (a_pipe=false) or a pipe queue (a_pipe=true)
+// The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
 // The output side always has a flow queue
-class TLToAHB(val a_pipe: Boolean = true)(implicit p: Parameters) extends LazyModule
+class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAHBNode()
 
@@ -97,8 +97,8 @@ class TLToAHB(val a_pipe: Boolean = true)(implicit p: Parameters) extends LazyMo
       }
 
       val d_block = Wire(Bool())
-      val pre  = if (a_pipe) step else reg
-      val post = if (a_pipe) next else send
+      val pre  = if (aFlow) reg else step
+      val post = if (aFlow) send else next
 
       // Transform TL size into AHB hsize+hburst
       val a_sizeDelta = Cat(UInt(0, width = 1), in.a.bits.size) - UInt(lgBytes+1)
@@ -150,8 +150,8 @@ class TLToAHB(val a_pipe: Boolean = true)(implicit p: Parameters) extends LazyMo
       // presented it on D as valid.  We also can't back-pressure AHB in the
       // data phase.  Therefore, we must have enough space to save the all
       // commited AHB requests (A+D phases = 2). To decouple d_ready from
-      // a_ready and htrans, we add another entry for a_pipe=true.
-      val depth = if (a_pipe) 3 else 2
+      // a_ready and htrans, we add another entry for aFlow=false.
+      val depth = if (aFlow) 2 else 3
       val d = Wire(in.d)
       in.d <> Queue(d, depth, flow=true)
       assert (!d.valid || d.ready)
@@ -189,8 +189,8 @@ class TLToAHB(val a_pipe: Boolean = true)(implicit p: Parameters) extends LazyMo
 object TLToAHB
 {
   // applied to the TL source node; y.node := TLToAHB()(x.node)
-  def apply(a_pipe: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AHBOutwardNode = {
-    val ahb = LazyModule(new TLToAHB(a_pipe))
+  def apply(aFlow: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AHBOutwardNode = {
+    val ahb = LazyModule(new TLToAHB(aFlow))
     ahb.node := x
     ahb.node
   }
