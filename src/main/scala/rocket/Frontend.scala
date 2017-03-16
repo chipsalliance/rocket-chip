@@ -72,7 +72,9 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
-  val s2_xcpt_if = Reg(init=Bool(false))
+  val s2_maybe_xcpt_if = Reg(init=Bool(false))
+  val s2_tlb_miss = Reg(Bool())
+  val s2_xcpt_if = s2_maybe_xcpt_if && !s2_tlb_miss
   val s2_speculative = Reg(init=Bool(false))
   val s2_cacheable = Reg(init=Bool(false))
 
@@ -99,7 +101,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       s2_pc := s1_pc
       s2_speculative := s1_speculative
       s2_cacheable := tlb.io.resp.cacheable
-      s2_xcpt_if := tlb.io.resp.xcpt_if && !tlb.io.resp.miss
+      s2_maybe_xcpt_if := tlb.io.resp.xcpt_if
+      s2_tlb_miss := tlb.io.resp.miss
     }
   }
   when (io.cpu.req.valid) {

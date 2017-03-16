@@ -392,9 +392,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     (mem_breakpoint,                     UInt(Causes.breakpoint)),
     (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch)),
     (mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
-    (mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load)),
-    (mem_ctrl.mem && io.dmem.xcpt.pf.st, UInt(Causes.fault_store)),
-    (mem_ctrl.mem && io.dmem.xcpt.pf.ld, UInt(Causes.fault_load))))
+    (mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load))))
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
@@ -423,12 +421,17 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_pc := mem_reg_pc
   }
 
+  val (wb_xcpt, wb_cause) = checkExceptions(List(
+    (wb_reg_xcpt,  wb_reg_cause),
+    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.st, mem_pc_valid), UInt(Causes.fault_store)),
+    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.ld, mem_pc_valid), UInt(Causes.fault_load))
+  ))
+
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val replay_wb = replay_wb_common || replay_wb_rocc
-  val wb_xcpt = wb_reg_xcpt
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret
 
   // writeback arbitration
@@ -473,8 +476,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   // hook up control/status regfile
   csr.io.decode.csr := ibuf.io.inst(0).bits.raw(31,20)
-  csr.io.exception := wb_reg_xcpt
-  csr.io.cause := wb_reg_cause
+  csr.io.exception := wb_xcpt
+  csr.io.cause := wb_cause
   csr.io.retire := wb_valid
   csr.io.interrupts := io.interrupts
   csr.io.hartid := io.hartid
@@ -536,7 +539,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val dcache_blocked = Reg(Bool())
   dcache_blocked := !io.dmem.req.ready && (io.dmem.req.valid || dcache_blocked)
   val rocc_blocked = Reg(Bool())
-  rocc_blocked := !wb_reg_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
+  rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||

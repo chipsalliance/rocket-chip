@@ -79,6 +79,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Bool(false))
+  val exception = Reg(next = io.mem.xcpt.pf.ld)
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
@@ -156,7 +157,6 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     is (s_req) {
       when (pte_cache_hit) {
         s1_kill := true
-        state := s_req
         count := count + 1
         r_pte.ppn := pte_cache_data
       }.elsewhen (io.mem.req.ready) {
@@ -165,11 +165,6 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     }
     is (s_wait1) {
       state := s_wait2
-      when (io.mem.xcpt.pf.ld) {
-        r_pte.v := false
-        state := s_ready
-        resp_valid := true
-      }
     }
     is (s_wait2) {
       when (io.mem.s2_nack) {
@@ -184,6 +179,11 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
           state := s_ready
           resp_valid := true
         }
+      }
+      when (exception) {
+        r_pte.v := false
+        state := s_ready
+        resp_valid := true
       }
     }
   }

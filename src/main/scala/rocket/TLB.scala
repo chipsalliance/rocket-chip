@@ -84,9 +84,9 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
-  val prot_r = fastCheck(_.supportsGet) && !pmp.io.xcpt_ld
-  val prot_w = fastCheck(_.supportsPutFull) && !pmp.io.xcpt_st
-  val prot_x = fastCheck(_.executable) && !pmp.io.xcpt_if
+  val prot_r = fastCheck(_.supportsGet) && pmp.io.r
+  val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
+  val prot_x = fastCheck(_.executable) && pmp.io.x
   val cacheable = fastCheck(_.supportsAcquireB)
   val isSpecial = {
     val homogeneous = Wire(init = false.B)

@@ -30,7 +30,7 @@ class PMP(implicit p: Parameters) extends CoreBundle()(p) {
 
   def pow2AddressMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
     val m = mask
-    def checkOne(a: UInt) = (~(a >> lgAlign) | m) === (~addr | m)
+    def checkOne(a: UInt) = (((a >> lgAlign) ^ addr) & ~m) === 0
     var res = checkOne(x)
     for (i <- (1 << lgAlign) until (1 << lgMaxSize) by (1 << lgAlign))
       res = res || (lgSize > log2Ceil(i) && checkOne(x | i))
@@ -49,9 +49,9 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     val pmp = Vec(nPMPs, new PMP).asInput
     val addr = UInt(INPUT, paddrBits)
     val size = UInt(INPUT, log2Ceil(lgMaxSize + 1))
-    val xcpt_if = Bool(OUTPUT)
-    val xcpt_ld = Bool(OUTPUT)
-    val xcpt_st = Bool(OUTPUT)
+    val r = Bool(OUTPUT)
+    val w = Bool(OUTPUT)
+    val x = Bool(OUTPUT)
   }
 
   def hits = io.pmp.map(_.hit(io.prv, io.addr, io.size, lgMaxSize))
@@ -60,7 +60,7 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     MuxT(hit && pmp.cfg.p >= pri, (pmp.cfg.r, pmp.cfg.w, pmp.cfg.x, pmp.cfg.p), (r, w, x, pri))
   }
 
-  io.xcpt_if := !x
-  io.xcpt_ld := !r
-  io.xcpt_st := !w
+  io.r := r
+  io.w := w
+  io.x := x
 }
