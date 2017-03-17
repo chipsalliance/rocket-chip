@@ -56,16 +56,12 @@ PROJECT=rocketchip
 CONFIGS=DefaultL2Config TinyConfig
 endif
 
-ifeq ($(SUITE),GroundtestSuiteA)
+ifeq ($(SUITE),GroundtestSuite)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig
-# FancyMemtestConfig takes too long to compile
-endif
-
-ifeq ($(SUITE),GroundtestSuiteB)
-PROJECT=groundtest
-CONFIGS=BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig \
+        BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
 	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
+# FancyMemtestConfig takes too long to compile
 endif
 
 ifeq ($(SUITE),UnittestSuite)
