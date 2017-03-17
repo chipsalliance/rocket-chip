@@ -31,7 +31,9 @@ case class TLToAPBNode() extends MixedAdapterNode(TLImp, APBImp)(
     TLManagerPortParameters(managers, beatBytes, 1, 0)
   })
 
-class TLToAPB(combinational: Boolean = true)(implicit p: Parameters) extends LazyModule
+// The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
+// The output side always has a flow queue
+class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAPBNode()
 
@@ -60,7 +62,7 @@ class TLToAPB(combinational: Boolean = true)(implicit p: Parameters) extends Laz
       in.d <> Queue(d, 1, flow = true)
 
       // We need an irrevocable input for APB to stall
-      val a = Queue(in.a, 1, flow = combinational, pipe = !combinational)
+      val a = Queue(in.a, 1, flow = aFlow, pipe = !aFlow)
 
       val a_enable = RegInit(Bool(false))
       val a_sel    = a.valid && RegNext(!in.d.valid || in.d.ready)
@@ -90,8 +92,8 @@ class TLToAPB(combinational: Boolean = true)(implicit p: Parameters) extends Laz
 object TLToAPB
 {
   // applied to the TL source node; y.node := TLToAPB()(x.node)
-  def apply(combinational: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): APBOutwardNode = {
-    val apb = LazyModule(new TLToAPB(combinational))
+  def apply(aFlow: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): APBOutwardNode = {
+    val apb = LazyModule(new TLToAPB(aFlow))
     apb.node := x
     apb.node
   }

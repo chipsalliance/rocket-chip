@@ -56,7 +56,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       val d_addr  = Reg(in.haddr)
       val d_size  = Reg(in.hsize)
 
-      when (out.d.valid) { d_recv := Bool(false); d_error := d_error || out.d.bits.error }
+      when (out.d.valid) { d_recv := Bool(false) }
       when (out.a.ready) { d_send := Bool(false) }
 
       val a_count  = RegInit(UInt(0, width = 4))
@@ -87,14 +87,12 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
 
       when (a_accept) {
         a_count := a_count - UInt(1)
-        d_error := d_error || !a_legal
         when ( in.hwrite) { d_send := Bool(true) }
         when (!in.hwrite) { d_recv := Bool(true) }
         when (a_first) {
           a_count := Mux(a_burst_ok, a_burst_mask >> log2Ceil(beatBytes), UInt(0))
           d_send  := a_legal
           d_recv  := a_legal
-          d_error := !a_legal
           d_pause := Bool(false)
           d_write := in.hwrite
           d_addr  := in.haddr
@@ -111,7 +109,11 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       out.a.bits.data    := in.hwdata
       out.a.bits.mask    := maskGen(d_addr, d_size, beatBytes)
 
-      // Save the error for the last beat (so the master can't cancel the burst)
+      d_error :=
+        (d_error  && !(a_first && in.hready)) || // clear error when a new beat starts
+        (a_accept && !a_legal)                || // error if the address requested is illegal
+        (out.d.valid && out.d.bits.error)        // error if TL reports an error
+
       // When we report an error, we need to be hreadyout LOW for one cycle
       val inject_error = d_last && (d_error || (out.d.valid && out.d.bits.error))
       when (inject_error) { d_pause := Bool(true) }

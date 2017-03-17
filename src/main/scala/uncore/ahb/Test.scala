@@ -16,7 +16,7 @@ class RRTest1(address: BigInt)(implicit p: Parameters) extends AHBRegisterRouter
   new AHBRegBundle((), _)    with RRTest1Bundle)(
   new AHBRegModule((), _, _) with RRTest1Module)
 
-class AHBFuzzNative()(implicit p: Parameters) extends LazyModule
+class AHBFuzzNative(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel("AHBFuzzNative"))
@@ -25,7 +25,7 @@ class AHBFuzzNative()(implicit p: Parameters) extends LazyModule
   val gpio  = LazyModule(new RRTest0(0x100))
 
   model.node := fuzz.node
-  xbar.node := TLToAHB()(TLDelayer(0.1)(model.node))
+  xbar.node := TLToAHB(aFlow)(TLDelayer(0.1)(model.node))
   ram.node  := xbar.node
   gpio.node := xbar.node
 
@@ -34,12 +34,12 @@ class AHBFuzzNative()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AHBNativeTest()(implicit p: Parameters) extends UnitTest(500000) {
-  val dut = Module(LazyModule(new AHBFuzzNative).module)
+class AHBNativeTest(aFlow: Boolean)(implicit p: Parameters) extends UnitTest(500000) {
+  val dut = Module(LazyModule(new AHBFuzzNative(aFlow)).module)
   io.finished := dut.io.finished
 }
 
-class AHBFuzzMaster()(implicit p: Parameters) extends LazyModule
+class AHBFuzzMaster(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node  = AHBOutputNode()
   val fuzz  = LazyModule(new TLFuzzer(5000))
@@ -47,9 +47,9 @@ class AHBFuzzMaster()(implicit p: Parameters) extends LazyModule
 
   model.node := fuzz.node
   node :=
-    TLToAHB()(
+    TLToAHB(aFlow)(
     TLDelayer(0.2)(
-    TLBuffer(TLBufferParams.flow)(
+    TLBuffer(BufferParams.flow)(
     TLDelayer(0.2)(
     model.node))))
 
@@ -71,7 +71,7 @@ class AHBFuzzSlave()(implicit p: Parameters) extends LazyModule
   ram.node :=
     TLFragmenter(4, 16)(
     TLDelayer(0.2)(
-    TLBuffer(TLBufferParams.flow)(
+    TLBuffer(BufferParams.flow)(
     TLDelayer(0.2)(
     AHBToTL()(
     node)))))
@@ -83,9 +83,9 @@ class AHBFuzzSlave()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AHBFuzzBridge()(implicit p: Parameters) extends LazyModule
+class AHBFuzzBridge(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
 {
-  val master = LazyModule(new AHBFuzzMaster)
+  val master = LazyModule(new AHBFuzzMaster(aFlow))
   val slave  = LazyModule(new AHBFuzzSlave)
 
   slave.node := master.node
@@ -95,7 +95,7 @@ class AHBFuzzBridge()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AHBBridgeTest()(implicit p: Parameters) extends UnitTest(500000) {
-  val dut = Module(LazyModule(new AHBFuzzBridge).module)
+class AHBBridgeTest(aFlow: Boolean)(implicit p: Parameters) extends UnitTest(500000) {
+  val dut = Module(LazyModule(new AHBFuzzBridge(aFlow)).module)
   io.finished := dut.io.finished
 }
