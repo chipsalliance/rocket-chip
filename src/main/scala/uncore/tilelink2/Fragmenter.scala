@@ -129,7 +129,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
        */
 
       val counterBits = log2Up(maxSize/beatBytes)
-      val maxDownSize = if (alwaysMin) minSize else manager.maxTransfer
+      val maxDownSize = if (alwaysMin) minSize else min(manager.maxTransfer, maxSize)
 
       // First, handle the return path
       val acknum = RegInit(UInt(0, width = counterBits))
@@ -226,7 +226,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
       repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
       out.a <> in_a
-      out.a.bits.address := in_a.bits.address | (~aFragnum << log2Ceil(minSize) & aOrigOH1)
+      out.a.bits.address := in_a.bits.address | ~(old_gennum1 << log2Ceil(beatBytes) | ~aOrigOH1 | aFragOH1 | UInt(minSize-1))
       out.a.bits.source := Cat(in_a.bits.source, aFragnum)
       out.a.bits.size := aFrag
 
@@ -267,7 +267,17 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) e
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
   model.node := fuzz.node
-  ram.node := TLDelayer(0.1)(TLFragmenter(ramBeatBytes, maxSize)(TLDelayer(0.1)(model.node)))
+  ram.node :=
+    TLDelayer(0.1)(
+    TLBuffer(BufferParams.flow)(
+    TLDelayer(0.1)(
+    TLFragmenter(ramBeatBytes, maxSize)(
+    TLDelayer(0.1)(
+    TLBuffer(BufferParams.flow)(
+    TLFragmenter(ramBeatBytes, maxSize/2)(
+    TLDelayer(0.1)(
+    TLBuffer(BufferParams.flow)(
+    model.node)))))))))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
