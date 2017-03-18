@@ -85,6 +85,16 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       val a_access = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ
       val a_accept = in.hready && in.hsel && a_access
 
+      // Make the error persistent
+      d_error :=
+        ((d_error || (out.d.valid && out.d.bits.error)) // OR in a new error report
+           && !(a_first && in.hready))                  // clear error when a new beat starts
+        (a_accept && !a_legal)                          // error if the address requested is illegal
+
+      // When we report an error, we need to be hreadyout LOW for one cycle
+      val inject_error = d_last && (d_error || (out.d.valid && out.d.bits.error))
+      when (inject_error) { d_pause := Bool(true) }
+
       when (a_accept) {
         a_count := a_count - UInt(1)
         when ( in.hwrite) { d_send := Bool(true) }
@@ -108,16 +118,6 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       out.a.bits.address := d_addr
       out.a.bits.data    := in.hwdata
       out.a.bits.mask    := maskGen(d_addr, d_size, beatBytes)
-
-      d_error :=
-        (d_error  && !(a_first && in.hready)) || // clear error when a new beat starts
-        (a_accept && !a_legal)                || // error if the address requested is illegal
-        (out.d.valid && out.d.bits.error)        // error if TL reports an error
-
-      // When we report an error, we need to be hreadyout LOW for one cycle
-      val inject_error = d_last && (d_error || (out.d.valid && out.d.bits.error))
-      when (inject_error) { d_pause := Bool(true) }
-
       out.d.ready  := d_recv // backpressure AccessAckData arriving faster than AHB beats
       in.hrdata    := out.d.bits.data
       in.hresp     := inject_error
