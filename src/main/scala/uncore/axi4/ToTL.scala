@@ -9,10 +9,12 @@ import diplomacy._
 import uncore.tilelink2._
 
 case class AXI4ToTLNode() extends MixedAdapterNode(AXI4Imp, TLImp)(
-  dFn = { case AXI4MasterPortParameters(masters) =>
+  dFn = { case AXI4MasterPortParameters(masters, userBits, maxFlight) =>
+    require (userBits == 0, "AXI4 user bits cannot be transported by TL")
+    require (maxFlight > 0, "AXI4 must include a maximum transactions per ID to convert to TL")
     TLClientPortParameters(clients = masters.map { m =>
       TLClientParameters(
-        sourceId = IdRange(m.id.start << 1, m.id.end << 1), // R+W ids are distinct
+        sourceId = IdRange((maxFlight * m.id.start) << 1, (maxFlight * m.id.end) << 1), // R+W ids are distinct
         nodePath = m.nodePath)
     })
   },

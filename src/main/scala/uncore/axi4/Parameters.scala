@@ -70,9 +70,13 @@ case class AXI4MasterParameters(
 }
 
 case class AXI4MasterPortParameters(
-  masters: Seq[AXI4MasterParameters])
+  masters:   Seq[AXI4MasterParameters],
+  userBits:  Int = 0,
+  maxFlight: Int = 0) // at most X transactions per ID (0 = unlimited)
 {
   val endId = masters.map(_.id.end).max
+  require (userBits >= 0)
+  require (maxFlight >= 0)
 
   // Require disjoint ranges for ids
   masters.combinations(2).foreach { case Seq(x,y) => require (!x.id.overlaps(y.id), s"$x and $y overlap") }
@@ -81,7 +85,8 @@ case class AXI4MasterPortParameters(
 case class AXI4BundleParameters(
   addrBits: Int,
   dataBits: Int,
-  idBits:   Int)
+  idBits:   Int,
+  userBits: Int)
 {
   require (dataBits >= 8, s"AXI4 data bits must be >= 8 (got $dataBits)")
   require (addrBits >= 1, s"AXI4 addr bits must be >= 1 (got $addrBits)")
@@ -102,19 +107,21 @@ case class AXI4BundleParameters(
     AXI4BundleParameters(
       max(addrBits, x.addrBits),
       max(dataBits, x.dataBits),
-      max(idBits,   x.idBits))
+      max(idBits,   x.idBits),
+      max(userBits, x.userBits))
 }
 
 object AXI4BundleParameters
 {
-  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1)
+  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1, userBits=0)
   def union(x: Seq[AXI4BundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
   def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
     new AXI4BundleParameters(
       addrBits = log2Up(slave.maxAddress+1),
       dataBits = slave.beatBytes * 8,
-      idBits   = log2Up(master.endId))
+      idBits   = log2Up(master.endId),
+      userBits = master.userBits)
 }
 
 case class AXI4EdgeParameters(
