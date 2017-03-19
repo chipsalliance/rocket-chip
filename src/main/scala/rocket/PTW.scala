@@ -75,6 +75,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val dpath = new DatapathPTWIO
   }
 
+   println("Building PTW with n=" + n + " requestor ports.")
   require(usingAtomics, "PTW requires atomic memory operations")
 
   val s_ready :: s_req :: s_wait1 :: s_wait2 :: s_set_dirty :: s_wait1_dirty :: s_wait2_dirty :: s_done :: Nil = Enum(UInt(), 8)
@@ -224,7 +225,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
 trait CanHavePTW extends HasHellaCache {
   implicit val p: Parameters
   val module: CanHavePTWModule
-  var nPTWPorts = 1
+//  var nPTWPorts = 1
+  var nPTWPorts = 2 // because BOOM is being a jerk
   nDCachePorts += usingPTW.toInt
 }
 

@@ -7,7 +7,7 @@ import config._
 import rocket._
 import util._
 
-case object BuildCore extends Field[Parameters => CoreModule with HasCoreIO]
+case object BuildCore extends Field[(Parameters, uncore.tilelink2.TLEdgeOut) => CoreModule with HasCoreIO]
 case object XLen extends Field[Int]
 
 // These parameters can be varied per-core
@@ -84,5 +84,6 @@ trait HasCoreIO {
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
+    val ptw_tlb = new TLBPTWIO()
   }
 }

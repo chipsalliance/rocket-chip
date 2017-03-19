@@ -11,6 +11,7 @@ import util._
 import Chisel.ImplicitConversions._
 
 case class RocketCoreParams(
+  fWidth: Int = 1,
   useVM: Boolean = true,
   useUser: Boolean = false,
   useDebug: Boolean = true,
@@ -28,10 +29,10 @@ case class RocketCoreParams(
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {
-  val fetchWidth: Int = if (useCompressed) 2 else 1
+  val fetchWidth: Int = if (useCompressed) 2*fWidth else fWidth //1
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
   val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
-  val retireWidth: Int = 1
+  val retireWidth: Int = decodeWidth
   val instBits: Int = if (useCompressed) 16 else 32
 }
 
@@ -432,6 +433,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
   csr.io.rw.wdata := wb_reg_wdata
+
+  io.ptw_tlb.req.valid := Bool(false)
 
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= UInt(0), id_raddr1),
                            (id_ctrl.rxs2 && id_raddr2 =/= UInt(0), id_raddr2),

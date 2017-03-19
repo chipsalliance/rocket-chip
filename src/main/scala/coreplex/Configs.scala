@@ -19,7 +19,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case ASIdBits => 7
   case XLen => 64 // Applies to all cores
-  case BuildCore => (p: Parameters) => new Rocket()(p)
+  case BuildCore => (p: Parameters, e: TLEdgeOut) => new Rocket()(p)
   case RocketCrossing => Synchronous
   case RocketTilesKey =>  Nil
   case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))

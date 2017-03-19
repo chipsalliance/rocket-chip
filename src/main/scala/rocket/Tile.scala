@@ -39,7 +39,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveLegacyRoccsModule
     with CanHaveScratchpadModule {
 
-  val core = Module(p(BuildCore)(outer.p))
+  val core = Module(p(BuildCore)(outer.p, outer.dcache.module.edge))
   core.io.interrupts := io.interrupts
   core.io.hartid := io.hartid
   outer.frontend.module.io.cpu <> core.io.imem
@@ -63,6 +63,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
   dcacheArb.io.requestor <> dcachePorts
+  ptwPorts += core.io.ptw_tlb
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
 }
 
