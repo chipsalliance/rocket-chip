@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 package uncore.converters
 
 import Chisel._
@@ -5,7 +7,7 @@ import junctions._
 import uncore.tilelink._
 import uncore.util._
 import uncore.constants._
-import cde.{Parameters, Field}
+import config._
 import HastiConstants._
 
 /* We need to translate TileLink requests into operations we can actually execute on AHB.
@@ -35,8 +37,7 @@ class AHBRequestIO(implicit p: Parameters) extends HastiMasterIO
 // AHB stage1: translate TileLink Acquires into AHBRequests
 class AHBTileLinkIn(supportAtomics: Boolean = false)(implicit val p: Parameters) extends Module
     with HasHastiParameters
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
+    with HasTileLinkParameters {
   val io = new Bundle {
     val acquire = new DecoupledIO(new Acquire).flip // NOTE: acquire must be either a Queue or a Pipe
     val request = new DecoupledIO(new AHBRequestIO)
@@ -238,8 +239,7 @@ class AHBTileLinkIn(supportAtomics: Boolean = false)(implicit val p: Parameters)
 // AHB stage2: execute AHBRequests
 class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) extends Module
     with HasHastiParameters
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
+    with HasTileLinkParameters {
   val io = new Bundle {
     val request = new DecoupledIO(new AHBRequestIO).flip
     val grant   = new DecoupledIO(new Grant)
@@ -390,8 +390,7 @@ class AHBBusMaster(supportAtomics: Boolean = false)(implicit val p: Parameters) 
 
 class AHBBridge(supportAtomics: Boolean = true)(implicit val p: Parameters) extends Module
     with HasHastiParameters
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
+    with HasTileLinkParameters {
   val io = new Bundle {
     val tl  = new ClientUncachedTileLinkIO().flip
     val ahb = new HastiMasterIO()
@@ -399,7 +398,7 @@ class AHBBridge(supportAtomics: Boolean = true)(implicit val p: Parameters) exte
   
   // Hasti and TileLink widths must agree at this point in the topology
   require (tlDataBits == hastiDataBits)
-  require (p(PAddrBits) == hastiAddrBits)
+  require (p(rocket.PAddrBits) == hastiAddrBits)
   
   // AHB does not permit bursts to cross a 1KB boundary
   require (tlDataBits * tlDataBeats <= 1024*8)

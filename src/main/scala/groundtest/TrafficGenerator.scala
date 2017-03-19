@@ -1,3 +1,6 @@
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
+
 package groundtest
 
 import Chisel._
@@ -8,7 +11,7 @@ import junctions._
 import rocket._
 import util.SimpleTimer
 import scala.util.Random
-import cde.{Parameters, Field}
+import config._
 
 case class TrafficGeneratorParameters(
   maxRequests: Int,
@@ -126,7 +129,7 @@ class UncachedTileLinkGenerator(id: Int)
 }
 
 class HellaCacheGenerator(id: Int)
-    (implicit p: Parameters) extends L1HellaCacheModule()(p) with HasTrafficGeneratorParameters {
+    (implicit val p: Parameters) extends Module with HasTrafficGeneratorParameters {
   val io = new Bundle {
     val mem = new HellaCacheIO
     val status = new GroundTestStatus

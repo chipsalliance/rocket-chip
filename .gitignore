@@ -3,3 +3,4 @@ project/target
 *.swp
 *~
 .addons-dont-touch
+/lib/

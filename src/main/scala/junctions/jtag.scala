@@ -1,6 +1,8 @@
+// See LICENSE.SiFive for license details.
+
 package junctions
 import Chisel._
-import cde.{Parameters}
+import config._
 
 class JTAGIO(drvTdo: Boolean = false) extends Bundle {
   val TCK = Clock(OUTPUT)

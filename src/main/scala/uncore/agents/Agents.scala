@@ -1,10 +1,11 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.agents
 
 import Chisel._
-import cde.{Parameters, Field}
-import junctions.PAddrBits
+import config._
+import rocket.PAddrBits
 import uncore.tilelink._
 import uncore.converters._
 import uncore.coherence._

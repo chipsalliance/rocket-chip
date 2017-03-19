@@ -1,11 +1,12 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
-class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
+class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: Parameters) extends LazyModule
 {
   def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
@@ -33,7 +34,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     }
   }
 
-  val node = TLAdapterNode(
+  val node = TLNexusNode(
     numClientPorts  = 1 to 32,
     numManagerPorts = 1 to 32,
     clientFn  = { seq =>
@@ -55,6 +56,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
         minLatency = seq.map(_.minLatency).min,
         endSinkId = outputIdRanges.map(_.end).max,
         managers = ManagerUnification(seq.flatMap { port =>
+          // println(s"${port.managers.map(_.name)} ${port.beatBytes} vs ${seq(0).managers.map(_.name)} ${seq(0).beatBytes}")
           require (port.beatBytes == seq(0).beatBytes)
           val fifoIdMapper = fifoIdFactory()
           port.managers map { manager => manager.copy(
@@ -162,7 +164,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     for (o <- 0 until out.size) {
       val allowI = Seq.tabulate(in.size) { i =>
         node.edgesIn(i).client.anySupportProbe &&
-        node.edgesOut(o).manager.anySupportAcquire
+        node.edgesOut(o).manager.anySupportAcquireB
       }
       TLArbiter(policy)(out(o).a,       (beatsAI zip portsAOI(o)        ):_*)
       TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), allowI):_*)
@@ -172,7 +174,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     for (i <- 0 until in.size) {
       val allowO = Seq.tabulate(out.size) { o =>
         node.edgesIn(i).client.anySupportProbe &&
-        node.edgesOut(o).manager.anySupportAcquire
+        node.edgesOut(o).manager.anySupportAcquireB
       }
       TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), allowO):_*)
       TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)
@@ -183,7 +185,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMXbar(nManagers: Int) extends LazyModule {
+class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel)
   val xbar = LazyModule(new TLXbar)
@@ -200,11 +202,11 @@ class TLRAMXbar(nManagers: Int) extends LazyModule {
   }
 }
 
-class TLRAMXbarTest(nManagers: Int) extends UnitTest(timeout = 500000) {
+class TLRAMXbarTest(nManagers: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMXbar(nManagers)).module).io.finished
 }
 
-class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
+class TLMulticlientXbar(nManagers: Int, nClients: Int)(implicit p: Parameters) extends LazyModule {
   val xbar = LazyModule(new TLXbar)
 
   val fuzzers = (0 until nClients) map { n =>
@@ -223,6 +225,6 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
   }
 }
 
-class TLMulticlientXbarTest(nManagers: Int, nClients: Int) extends UnitTest(timeout = 5000000) {
+class TLMulticlientXbarTest(nManagers: Int, nClients: Int)(implicit p: Parameters) extends UnitTest(timeout = 5000000) {
   io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients)).module).io.finished
 }

@@ -1,11 +1,12 @@
-/// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package junctions
 import Chisel._
 import scala.math.max
 import scala.collection.mutable.ArraySeq
 import util._
-import cde.{Parameters, Field}
+import config._
 
 case object NastiKey extends Field[NastiParameters]
 
@@ -127,19 +128,19 @@ class NastiReadDataChannel(implicit p: Parameters) extends NastiResponseChannel(
 }
 
 object NastiConstants {
-  val BURST_FIXED = UInt("b00")
-  val BURST_INCR  = UInt("b01")
-  val BURST_WRAP  = UInt("b10")
+  def BURST_FIXED = UInt("b00")
+  def BURST_INCR  = UInt("b01")
+  def BURST_WRAP  = UInt("b10")
 
-  val RESP_OKAY = UInt("b00")
-  val RESP_EXOKAY = UInt("b01")
-  val RESP_SLVERR = UInt("b10")
-  val RESP_DECERR = UInt("b11")
+  def RESP_OKAY = UInt("b00")
+  def RESP_EXOKAY = UInt("b01")
+  def RESP_SLVERR = UInt("b10")
+  def RESP_DECERR = UInt("b11")
 
-  val CACHE_DEVICE_NOBUF = UInt("b0000")
-  val CACHE_DEVICE_BUF   = UInt("b0001")
-  val CACHE_NORMAL_NOCACHE_NOBUF = UInt("b0010")
-  val CACHE_NORMAL_NOCACHE_BUF   = UInt("b0011")
+  def CACHE_DEVICE_NOBUF = UInt("b0000")
+  def CACHE_DEVICE_BUF   = UInt("b0001")
+  def CACHE_NORMAL_NOCACHE_NOBUF = UInt("b0010")
+  def CACHE_NORMAL_NOCACHE_BUF   = UInt("b0011")
 
   def AXPROT(instruction: Bool, nonsecure: Bool, privileged: Bool): UInt =
     Cat(instruction, nonsecure, privileged)

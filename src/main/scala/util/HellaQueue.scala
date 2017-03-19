@@ -1,7 +1,9 @@
+// See LICENSE.Berkeley for license details.
+
 package util
 
 import Chisel._
-import cde.Parameters
+import config._
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val io = new QueueIO(data, entries)

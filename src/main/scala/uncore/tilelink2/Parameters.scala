@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
@@ -12,7 +12,8 @@ case class TLManagerParameters(
   executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
-  supportsAcquire:    TransferSizes = TransferSizes.none,
+  supportsAcquireT:   TransferSizes = TransferSizes.none,
+  supportsAcquireB:   TransferSizes = TransferSizes.none,
   supportsArithmetic: TransferSizes = TransferSizes.none,
   supportsLogical:    TransferSizes = TransferSizes.none,
   supportsGet:        TransferSizes = TransferSizes.none,
@@ -26,12 +27,22 @@ case class TLManagerParameters(
   require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
 
-  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
+  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
   require (supportsPutFull.contains(supportsPutPartial))
+  require (supportsPutFull.contains(supportsArithmetic))
+  require (supportsPutFull.contains(supportsLogical))
+  require (supportsGet.contains(supportsArithmetic))
+  require (supportsGet.contains(supportsLogical))
+  require (supportsAcquireB.contains(supportsAcquireT))
+
+  // Make sure that the regionType agrees with the capabilities
+  require ((regionType == RegionType.CACHED || regionType == RegionType.TRACKED) != supportsAcquireB.none)
+  require (regionType != RegionType.UNCACHED || supportsGet)
 
   // Largest support transfer of all types
   val maxTransfer = List(
-    supportsAcquire.max,
+    supportsAcquireT.max,
+    supportsAcquireB.max,
     supportsArithmetic.max,
     supportsLogical.max,
     supportsGet.max,
@@ -73,7 +84,8 @@ case class TLManagerPortParameters(
   def maxTransfer = managers.map(_.maxTransfer).max
   
   // Operation sizes supported by all outward Managers
-  val allSupportAcquire    = managers.map(_.supportsAcquire)   .reduce(_ intersect _)
+  val allSupportAcquireT   = managers.map(_.supportsAcquireT)  .reduce(_ intersect _)
+  val allSupportAcquireB   = managers.map(_.supportsAcquireB)  .reduce(_ intersect _)
   val allSupportArithmetic = managers.map(_.supportsArithmetic).reduce(_ intersect _)
   val allSupportLogical    = managers.map(_.supportsLogical)   .reduce(_ intersect _)
   val allSupportGet        = managers.map(_.supportsGet)       .reduce(_ intersect _)
@@ -82,7 +94,8 @@ case class TLManagerPortParameters(
   val allSupportHint       = managers.map(_.supportsHint)      .reduce(_ intersect _)
 
   // Operation supported by at least one outward Managers
-  val anySupportAcquire    = managers.map(!_.supportsAcquire.none)   .reduce(_ || _)
+  val anySupportAcquireT   = managers.map(!_.supportsAcquireT.none)  .reduce(_ || _)
+  val anySupportAcquireB   = managers.map(!_.supportsAcquireB.none)  .reduce(_ || _)
   val anySupportArithmetic = managers.map(!_.supportsArithmetic.none).reduce(_ || _)
   val anySupportLogical    = managers.map(!_.supportsLogical.none)   .reduce(_ || _)
   val anySupportGet        = managers.map(!_.supportsGet.none)       .reduce(_ || _)
@@ -122,7 +135,8 @@ case class TLManagerPortParameters(
   }
 
   // Check for support of a given operation at a specific address
-  val supportsAcquireSafe    = safe_helper(_.supportsAcquire) _
+  val supportsAcquireTSafe   = safe_helper(_.supportsAcquireT) _
+  val supportsAcquireBSafe   = safe_helper(_.supportsAcquireB) _
   val supportsArithmeticSafe = safe_helper(_.supportsArithmetic) _
   val supportsLogicalSafe    = safe_helper(_.supportsLogical) _
   val supportsGetSafe        = safe_helper(_.supportsGet) _
@@ -130,7 +144,8 @@ case class TLManagerPortParameters(
   val supportsPutPartialSafe = safe_helper(_.supportsPutPartial) _
   val supportsHintSafe       = safe_helper(_.supportsHint) _
 
-  val supportsAcquireFast    = fast_helper(_.supportsAcquire) _
+  val supportsAcquireTFast   = fast_helper(_.supportsAcquireT) _
+  val supportsAcquireBFast   = fast_helper(_.supportsAcquireB) _
   val supportsArithmeticFast = fast_helper(_.supportsArithmetic) _
   val supportsLogicalFast    = fast_helper(_.supportsLogical) _
   val supportsGetFast        = fast_helper(_.supportsGet) _
@@ -258,6 +273,15 @@ case class TLBundleParameters(
 
 object TLBundleParameters
 {
+  val emptyBundleParams = TLBundleParameters(
+    addressBits = 1,
+    dataBits    = 8,
+    sourceBits  = 1,
+    sinkBits    = 1,
+    sizeBits    = 1)
+
+  def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
     new TLBundleParameters(
       addressBits = log2Up(manager.maxAddress + 1),
@@ -282,7 +306,21 @@ case class TLEdgeParameters(
 
 case class TLAsyncManagerPortParameters(depth: Int, base: TLManagerPortParameters) { require (isPow2(depth)) }
 case class TLAsyncClientPortParameters(base: TLClientPortParameters)
-case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters) { require (isPow2(depth)) }
+
+case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters)
+{
+  require (isPow2(depth))
+  def union(x: TLAsyncBundleParameters) = TLAsyncBundleParameters(
+    depth = max(depth, x.depth),
+    base  = base.union(x.base))
+}
+
+object TLAsyncBundleParameters
+{
+  val emptyBundleParams = TLAsyncBundleParameters(depth = 1, base = TLBundleParameters.emptyBundleParams)
+  def union(x: Seq[TLAsyncBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+}
+
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters)
 {
   val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
@@ -296,7 +334,8 @@ object ManagerUnification
       regionType:         RegionType.T,
       executable:         Boolean,
       lastNode:           BaseNode,
-      supportsAcquire:    TransferSizes,
+      supportsAcquireT:   TransferSizes,
+      supportsAcquireB:   TransferSizes,
       supportsArithmetic: TransferSizes,
       supportsLogical:    TransferSizes,
       supportsGet:        TransferSizes,
@@ -307,7 +346,8 @@ object ManagerUnification
       regionType         = x.regionType,
       executable         = x.executable,
       lastNode           = x.nodePath.last,
-      supportsAcquire    = x.supportsAcquire,
+      supportsAcquireT   = x.supportsAcquireT,
+      supportsAcquireB   = x.supportsAcquireB,
       supportsArithmetic = x.supportsArithmetic,
       supportsLogical    = x.supportsLogical,
       supportsGet        = x.supportsGet,

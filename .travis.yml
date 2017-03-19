@@ -33,9 +33,12 @@ addons:
 
 env:
   matrix:
-    - SUITE=RocketSuite
-    - SUITE=GroundtestSuite
     - SUITE=BOOMSuite
+    - SUITE=RocketSuiteA
+    - SUITE=RocketSuiteB
+    - SUITE=RocketSuiteC
+    - SUITE=GroundtestSuiteA
+    - SUITE=GroundtestSuiteB
     - SUITE=UnittestSuite
 
 # blacklist private branches
@@ -45,12 +48,15 @@ branches:
     - boom
     - /^hurricane.*$/
 
+install:
+  - make tools verilator -C regression SUITE=none
+
 before_install:
   - export CXX=g++-4.8 CC=gcc-4.8
 
 script:
-  - make emulator-ndebug -C regression SUITE=$SUITE TORTURE_CONFIG=default
-  - make emulator-regression-tests -C regression SUITE=$SUITE TORTURE_CONFIG=default
+  - make emulator-ndebug -C regression SUITE=$SUITE
+  - travis_wait make emulator-regression-tests -C regression SUITE=$SUITE
 
 before_cache:
-  - ls -tr regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
+  - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf

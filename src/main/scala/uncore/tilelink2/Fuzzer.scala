@@ -1,7 +1,9 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
 class IDMapGenerator(numIds: Int) extends Module {
@@ -84,7 +86,7 @@ class TLFuzzer(
                   (wide: Int, increment: Bool, abs_values: Int) =>
                    LFSRNoiseMaker(wide=wide, increment=increment)
                   }
-              ) extends LazyModule
+              )(implicit p: Parameters) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -107,18 +109,20 @@ class TLFuzzer(
     val dataBits     = edge.bundle.dataBits
 
     // Progress through operations
-    val num_reqs = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
-    val num_resps = Reg(init = UInt(nOperations-1, log2Up(nOperations)))
-    io.finished  := num_resps === UInt(0)
+    val num_reqs = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
+    val num_resps = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
+    if (nOperations>0) {
+      io.finished  := num_resps === UInt(0)
+    } else {
+      io.finished := Bool(false)
+    }
 
     // Progress within each operation
     val a = out.a.bits
-    val (a_first, a_last, _) = edge.firstlast(out.a)
-    val req_done = out.a.fire() && a_last
+    val (a_first, a_last, req_done) = edge.firstlast(out.a)
 
     val d = out.d.bits
-    val (d_first, d_last, _) = edge.firstlast(out.d)
-    val resp_done = out.d.fire() && d_last
+    val (d_first, d_last, resp_done) = edge.firstlast(out.d)
 
     // Source ID generation
     val idMap = Module(new IDMapGenerator(inFlight))
@@ -180,7 +184,11 @@ class TLFuzzer(
       UInt("b101") -> hbits))
 
     // Wire both the used and un-used channel signals
-    out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
+    if (nOperations>0) {
+      out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
+    } else {
+      out.a.valid := legal && alloc.valid
+    }
     out.a.bits  := bits
     out.b.ready := Bool(true)
     out.c.valid := Bool(false)
@@ -191,12 +199,14 @@ class TLFuzzer(
     inc := !legal || req_done
     inc_beat := !legal || out.a.fire()
 
-    when (out.a.fire() && a_last) {
-      num_reqs := num_reqs - UInt(1)
-    }
+    if (nOperations>0) {
+      when (out.a.fire() && a_last) {
+        num_reqs := num_reqs - UInt(1)
+      }
 
-    when (out.d.fire() && d_last) {
-      num_resps := num_resps - UInt(1)
+      when (out.d.fire() && d_last) {
+        num_resps := num_resps - UInt(1)
+      }
     }
   }
 }
@@ -204,7 +214,7 @@ class TLFuzzer(
 /** Synthesizeable integration test */
 import unittest._
 
-class TLFuzzRAM extends LazyModule
+class TLFuzzRAM()(implicit p: Parameters) extends LazyModule
 {
   val model = LazyModule(new TLRAMModel("TLFuzzRAM"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
@@ -244,7 +254,7 @@ class TLFuzzRAM extends LazyModule
   }
 }
 
-class TLFuzzRAMTest extends UnitTest(500000) {
+class TLFuzzRAMTest()(implicit p: Parameters) extends UnitTest(500000) {
   val dut = Module(LazyModule(new TLFuzzRAM).module)
   io.finished := dut.io.finished
 }

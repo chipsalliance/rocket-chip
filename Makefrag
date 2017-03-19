@@ -25,11 +25,14 @@ FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Drive
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 	touch $(FIRRTL_JAR)
+	mkdir -p $(base_dir)/lib
+	cp -p $(FIRRTL_JAR) $(base_dir)/lib
+# When chisel3 pr 448 is merged, the following extraneous copy may be removed.
 	mkdir -p $(base_dir)/chisel3/lib
 	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
 
 src_path := src/main/scala
-default_submodules := . hardfloat context-dependent-environments chisel3
+default_submodules := . hardfloat chisel3
 chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
 
 disasm := 2>
@@ -51,27 +54,6 @@ bootrom_img = $(base_dir)/bootrom/bootrom.img
 
 %.riscv.hex: %.riscv
 	$(MAKE) -C $(dir $@) $(notdir $@)
-
-#---------------------------------------------------------------------
-# Constants Header Files
-#---------------------------------------------------------------------
-
-# sed uses -E (instead of -r) for BSD support
-params_file = $(generated_dir)/$(long_name).prm
-consts_header = $(generated_dir)/consts.$(CONFIG).h
-$(consts_header): $(params_file)
-	echo "#ifndef __CONST_H__" > $@
-	echo "#define __CONST_H__" >> $@
-	sed -E 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
-	echo "#endif // __CONST_H__" >> $@
-
-params_file_debug = $(generated_dir_debug)/$(long_name).prm
-consts_header_debug = $(generated_dir_debug)/consts.$(CONFIG).h
-$(consts_header_debug): $(params_file_debug)
-	echo "#ifndef __CONST_H__" > $@
-	echo "#define __CONST_H__" >> $@
-	sed -E 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/#define \1 \2/' $< >> $@
-	echo "#endif // __CONST_H__" >> $@
 
 clean-run-output:
 	rm -f $(output_dir)/{*.out,*.run,*.vpd}

@@ -1,12 +1,12 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package rocketchip
 
-import cde.{Parameters, Dump}
+import config._
 import junctions._
 import diplomacy._
 import uncore.devices._
-import rocket._
+import tile.XLen
 import coreplex._
 import uncore.tilelink2._
 import util._
@@ -52,71 +52,28 @@ class GlobalVariable[T] {
   def get: T = { require(assigned); variable }
 }
 
-object GenerateGlobalAddrMap {
-  def apply(p: Parameters, peripheryManagers: Seq[TLManagerParameters]) = {
-    val tl2Devices = peripheryManagers.map { manager =>
-      val cacheable = manager.regionType match {
-        case RegionType.CACHED   => true
-        case RegionType.TRACKED  => true
-        case _ => false
-      }
-      val attr = MemAttr(
-        (if (manager.supportsGet)     AddrMapProt.R else 0) |
-        (if (manager.supportsPutFull) AddrMapProt.W else 0) |
-        (if (manager.executable)      AddrMapProt.X else 0), cacheable)
-      val multi = manager.address.size > 1
-      manager.address.zipWithIndex.map { case (address, i) =>
-        require (address.contiguous) // TL1 needs this
-        val name = manager.name + (if (multi) ".%d".format(i) else "")
-        AddrMapEntry(name, MemRange(address.base, address.mask+1, attr))
-      }
-    }.flatten
-
-    val uniquelyNamedTL2Devices =
-      tl2Devices.groupBy(_.name).values.map(_.zipWithIndex.map {
-        case (e, i) => if (i == 0) e else e.copy(name = e.name + "_" + i)
-      }).flatten.toList
-
-    val memBase = 0x80000000L
-    val memSize = p(ExtMemSize)
-    Dump("MEM_BASE", memBase)
-
-    val tl2 = AddrMapEntry("TL2", new AddrMap(uniquelyNamedTL2Devices, collapse = true))
-    val mem = AddrMapEntry("mem", MemRange(memBase, memSize, MemAttr(AddrMapProt.RWX, true)))
-    AddrMap((tl2 +: (p(NMemoryChannels) > 0).option(mem).toSeq):_*)
-  }
-}
-
 object GenerateConfigString {
   def apply(p: Parameters, clint: CoreplexLocalInterrupter, plic: TLPLIC, peripheryManagers: Seq[TLManagerParameters]) = {
     val c = CoreplexParameters()(p)
-    val addrMap = p(GlobalAddrMap)
     val res = new StringBuilder
-    res append plic.module.globalConfigString
-    res append clint.module.globalConfigString
-    if (addrMap contains "mem") {
-      res append  "ram {\n"
-      res append  "  0 {\n"
-      res append s"    addr 0x${addrMap("mem").start.toString(16)};\n"
-      res append s"    size 0x${addrMap("mem").size.toString(16)};\n"
-      res append  "  };\n"
-      res append  "};\n"
-    }
+    res append plic.globalConfigString
+    res append clint.globalConfigString
     res append  "core {\n"
-    for (i <- 0 until c.nTiles) { // TODO heterogeneous tiles
+    c.tilesParams.zipWithIndex.map { case(t, i) => 
       val isa = {
-        val m = if (p(MulDivKey).nonEmpty) "m" else ""
-        val a = if (p(UseAtomics)) "a" else ""
-        val f = if (p(FPUKey).nonEmpty) "f" else ""
-        val d = if (p(FPUKey).nonEmpty && p(XLen) > 32) "d" else ""
-        val s = if (c.hasSupervisor) "s" else ""
-        s"rv${p(XLen)}i$m$a$f$d$s"
+        val m = if (t.core.mulDiv.nonEmpty) "m" else ""
+        val a = if (t.core.useAtomics) "a" else ""
+        val f = if (t.core.fpu.nonEmpty) "f" else ""
+        val d = if (t.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
+        val c = if (t.core.useCompressed) "c" else ""
+        val s = if (t.core.useVM) "s" else ""
+        s"rv${p(XLen)}i$m$a$f$d$c$s"
       }
       res append s"  $i {\n"
       res append  "    0 {\n"
       res append s"      isa $isa;\n"
-      res append clint.module.hartConfigStrings(i)
-      res append plic.module.hartConfigStrings(i)
+      res append clint.hartConfigStrings(i)
+      res append plic.hartConfigStrings(i)
       res append  "    };\n"
       res append  "  };\n"
     }
@@ -128,7 +85,7 @@ object GenerateConfigString {
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters, address: BigInt) = {
+  def apply(p: Parameters, address: BigInt, configString: String) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
 
@@ -139,6 +96,6 @@ object GenerateBootROM {
     require(rom.getInt(12) == 0,
       "Config string address position should not be occupied by code")
     rom.putInt(12, configStringAddr)
-    rom.array() ++ (ConfigStringOutput.contents.get.getBytes.toSeq)
+    rom.array() ++ (configString.getBytes.toSeq)
   }
 }

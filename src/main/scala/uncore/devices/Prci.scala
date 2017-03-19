@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.devices
 
@@ -11,7 +11,8 @@ import uncore.tilelink2._
 import uncore.util._
 import util._
 import scala.math.{min,max}
-import cde.{Parameters, Field}
+import config._
+import tile.XLen
 
 /** Number of tiles */
 case object NTiles extends Field[Int]
@@ -32,8 +33,7 @@ object ClintConsts
 }
 
 trait MixCoreplexLocalInterrupterParameters {
-  val params: Parameters
-  implicit val p = params
+  implicit val p: Parameters
 }
 
 trait CoreplexLocalInterrupterBundle extends Bundle with MixCoreplexLocalInterrupterParameters {
@@ -63,15 +63,6 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
     tile.mtip := time.asUInt >= timecmp(i).asUInt
   }
 
-  val globalConfigString = Seq(
-    s"rtc {\n",
-    s"  addr 0x${(address.base + ClintConsts.timeOffset).toString(16)};\n",
-    s"};\n").mkString
-  val hartConfigStrings = (0 until p(NTiles)).map { i => Seq(
-    s"      timecmp 0x${(address.base + ClintConsts.timecmpOffset(i)).toString(16)};\n",
-    s"      ipi 0x${(address.base + ClintConsts.msipOffset(i)).toString(16)};\n").mkString
-  }
-
   /* 0000 msip hart 0
    * 0004 msip hart 1
    * 4000 mtimecmp hart 0 lo
@@ -92,7 +83,17 @@ trait CoreplexLocalInterrupterModule extends Module with HasRegMap with MixCorep
 
 /** Power, Reset, Clock, Interrupt */
 // Magic TL2 Incantation to create a TL2 Slave
-class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit val p: Parameters)
-  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(rocket.XLen)/8, undefZero = false)(
-  new TLRegBundle(p, _)    with CoreplexLocalInterrupterBundle)(
-  new TLRegModule(p, _, _) with CoreplexLocalInterrupterModule)
+class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Parameters)
+  extends TLRegisterRouter(address, size = ClintConsts.size, beatBytes = p(XLen)/8, undefZero = true)(
+  new TLRegBundle((), _)    with CoreplexLocalInterrupterBundle)(
+  new TLRegModule((), _, _) with CoreplexLocalInterrupterModule)
+{
+  val globalConfigString = Seq(
+    s"rtc {\n",
+    s"  addr 0x${(address + ClintConsts.timeOffset).toString(16)};\n",
+    s"};\n").mkString
+  val hartConfigStrings = (0 until p(NTiles)).map { i => Seq(
+    s"      timecmp 0x${(address + ClintConsts.timecmpOffset(i)).toString(16)};\n",
+    s"      ipi 0x${(address + ClintConsts.msipOffset(i)).toString(16)};\n").mkString
+  }
+}

@@ -1,10 +1,11 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink
 
 import Chisel._
 import uncore.util._
-import cde.{Parameters, Field}
+import config._
 
 case object LNEndpoints extends Field[Int]
 case object LNHeaderBits extends Field[Int]

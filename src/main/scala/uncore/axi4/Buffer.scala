@@ -1,14 +1,15 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.axi4
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
-import scala.math.max
+import scala.math.{min,max}
 
 // pipe is only used if a queue has depth = 1
-class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, pipe: Boolean = true) extends LazyModule
+class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, pipe: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   require (aw >= 0)
   require (w  >= 0)
@@ -16,7 +17,9 @@ class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, p
   require (ar >= 0)
   require (r  >= 0)
 
-  val node = AXI4IdentityNode()
+  val node = AXI4AdapterNode(
+    masterFn = { p => p },
+    slaveFn  = { p => p.copy(minLatency = p.minLatency + min(1,min(aw,ar)) + min(1,min(r,b))) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -37,12 +40,12 @@ class AXI4Buffer(aw: Int = 2, w: Int = 2, b: Int = 2, ar: Int = 2, r: Int = 2, p
 object AXI4Buffer
 {
   // applied to the AXI4 source node; y.node := AXI4Buffer(x.node)
-  def apply()                               (x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = apply(2)(x)
-  def apply(entries: Int)                   (x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = apply(entries, true)(x)
-  def apply(entries: Int, pipe: Boolean)    (x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = apply(entries, entries, pipe)(x)
-  def apply(aw: Int, br: Int)               (x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = apply(aw, br, true)(x)
-  def apply(aw: Int, br: Int, pipe: Boolean)(x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = apply(aw, aw, br, aw, br, pipe)(x)
-  def apply(aw: Int, w: Int, b: Int, ar: Int, r: Int, pipe: Boolean = true)(x: AXI4OutwardNode)(implicit sourceInfo: SourceInfo): AXI4OutwardNode = {
+  def apply()                               (x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(2)(x)
+  def apply(entries: Int)                   (x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(entries, true)(x)
+  def apply(entries: Int, pipe: Boolean)    (x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(entries, entries, pipe)(x)
+  def apply(aw: Int, br: Int)               (x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(aw, br, true)(x)
+  def apply(aw: Int, br: Int, pipe: Boolean)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(aw, aw, br, aw, br, pipe)(x)
+  def apply(aw: Int, w: Int, b: Int, ar: Int, r: Int, pipe: Boolean = true)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val buffer = LazyModule(new AXI4Buffer(aw, w, b, ar, r, pipe))
     buffer.node := x
     buffer.node

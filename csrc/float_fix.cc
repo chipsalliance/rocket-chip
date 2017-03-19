@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 #include <assert.h>
 #include <cinttypes>
 #include <cstdio>

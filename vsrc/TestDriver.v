@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 `ifndef RESET_DELAY
  `define RESET_DELAY 777.7

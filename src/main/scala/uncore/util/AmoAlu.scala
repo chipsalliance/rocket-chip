@@ -1,10 +1,11 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
 
 package uncore.util
 
 import Chisel._
 import uncore.tilelink._
-import cde.Parameters
+import config._
 import uncore.constants._
 
 class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {

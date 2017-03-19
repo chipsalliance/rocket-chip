@@ -52,6 +52,10 @@ def main():
       numFinished = numFinished + 1
       if numFinished == total:
         break
+    elif line[0:15] == "Completed after":
+      break
+    elif line[0:7] == "testing":
+      continue
     else:
       print line,
 

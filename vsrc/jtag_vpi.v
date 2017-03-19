@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 /*
  * TCP/IP controlled VPI JTAG Interface.
  * Based on Julius Baxter's work on jp_vpi.c

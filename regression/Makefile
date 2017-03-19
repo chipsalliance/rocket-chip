@@ -1,3 +1,6 @@
+base_dir = $(abspath ..)
+generated_dir = $(abspath ./generated-src)
+
 # The default target, which runs all regression targets.
 regression: vsim-regression emulator-regression
 
@@ -37,30 +40,41 @@ clean:
 ifeq ($(SUITE),)
 $(error Set SUITE to the regression suite you want to run)
 endif
- 
-ifeq ($(SUITE),RocketSuite)
-PROJECT=rocketchip
-CONFIGS=DefaultConfig DefaultL2Config DefaultBufferlessConfig TinyConfig
-CFG_PROJECT=rocketchip
-endif
- 
+
 ifeq ($(SUITE),BOOMSuite)
 CONFIGS=BOOMConfig BOOML1Config
 CFG_PROJECT=boom
+
+ifeq ($(SUITE),RocketSuiteA)
+PROJECT=rocketchip
+CONFIGS=DefaultConfig
 endif
 
-ifeq ($(SUITE),GroundtestSuite)
+ifeq ($(SUITE),RocketSuiteB)
+PROJECT=rocketchip
+CONFIGS=DefaultBufferlessConfig
+endif
+
+ifeq ($(SUITE),RocketSuiteC)
+PROJECT=rocketchip
+CONFIGS=DefaultL2Config TinyConfig
+endif
+
+ifeq ($(SUITE),GroundtestSuiteA)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig FancyMemtestConfig \
-	BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorL2Config ComparatorStatelessConfig
-CFG_PROJECT=rocketchip
+CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig
+# FancyMemtestConfig takes too long to compile
+endif
+
+ifeq ($(SUITE),GroundtestSuiteB)
+PROJECT=groundtest
+CONFIGS=BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
+	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=unittest
-CONFIGS=JunctionsUnitTestConfig UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig TLXbarUnitTestConfig
-CFG_PROJECT=rocketchip
+CONFIGS=UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig TLXbarUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)
@@ -77,6 +91,8 @@ endif
 # commandline a bit cleaner.
 submodules: stamps/other-submodules.stamp
 tools: $(RISCV)/install.stamp
+verilator:
+	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/emulator) verilator
 
 EMU_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-debug.stamp)
 EMU_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-ndebug.stamp)
@@ -108,7 +124,7 @@ vsim-bmark-tests: $(VSIM_BMARK_TEST_STAMPS)
 vsim-regression-tests: $(VSIM_REGRESSION_TEST_STAMPS)
 vsim-torture: $(VSIM_TORTURE_STAMPS)
 
-submodule_names = chisel3 context-dependent-environments firrtl torture hardfloat $(ROCKETCHIP_ADDONS)
+submodule_names = chisel3 firrtl torture hardfloat $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:
@@ -208,9 +224,10 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 
 # Targets for JTAG DTM full-chain simulation
 
-OPENOCD_HEAD ?= riscv
+#OPENOCD_HEAD ?= riscv
 OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
-OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+#OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+OPENOCD_VERSION = 193f63094891cd3fe6a5032fef2c71d09f063ff4
 OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
 
 $(OPENOCD_DIR)/bin/openocd:
@@ -227,7 +244,7 @@ install_openocd: $(OPENOCD_DIR)/bin/openocd
 
 # If this is defined empty, then all tests would run.
 # Running a list of tests is not supported.
-JTAG_DTM_TEST ?= SimpleRegisterTest.test_s0
+JTAG_DTM_TEST ?= SimpleS0Test
 
 stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
 	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
@@ -255,6 +272,3 @@ jtag-dtm-tests-64 : $(JTAG_DTM_64_TEST_STAMPS)
 
 # Targets for JTAG DTM full-chain simulation
 jtag-dtm-regression: jtag-dtm-tests-32 jtag-dtm-tests-64
-
-
-

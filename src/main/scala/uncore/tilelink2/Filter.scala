@@ -1,17 +1,18 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.math.{min,max}
 
-class TLFilter(select: AddressSet) extends LazyModule
+class TLFilter(select: AddressSet)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { case Seq(cp) => cp },
-    managerFn = { case Seq(mp) =>
+    clientFn  = { cp => cp },
+    managerFn = { mp =>
       mp.copy(managers = mp.managers.map { m =>
         val filtered = m.address.map(_.intersect(select)).flatten
         val alignment = select.alignment /* alignment 0 means 'select' selected everything */
@@ -21,7 +22,8 @@ class TLFilter(select: AddressSet) extends LazyModule
         if (filtered.isEmpty) { None } else {
           Some(m.copy(
             address            = filtered,
-            supportsAcquire    = m.supportsAcquire   .intersect(cap),
+            supportsAcquireT   = m.supportsAcquireT  .intersect(cap),
+            supportsAcquireB   = m.supportsAcquireB  .intersect(cap),
             supportsArithmetic = m.supportsArithmetic.intersect(cap),
             supportsLogical    = m.supportsLogical   .intersect(cap),
             supportsGet        = m.supportsGet       .intersect(cap),
@@ -44,7 +46,7 @@ class TLFilter(select: AddressSet) extends LazyModule
 object TLFilter
 {
   // applied to the TL source node; y.node := TLBuffer(x.node)
-  def apply(select: AddressSet)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply(select: AddressSet)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val filter = LazyModule(new TLFilter(select))
     filter.node := x
     filter.node

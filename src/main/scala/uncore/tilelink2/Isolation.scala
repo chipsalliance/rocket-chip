@@ -1,13 +1,15 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
+import util.AsyncBundle
 
 // READ the comments in the TLIsolation object before you instantiate this module
-class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends LazyModule
+class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAsyncIdentityNode()
 
@@ -55,7 +57,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt) extends
       ABo(out.a, in .a)
       ABi(in .d, out.d)
 
-      if (edgeOut.manager.base.anySupportAcquire && edgeOut.client.base.anySupportProbe) {
+      if (edgeOut.manager.base.anySupportAcquireB && edgeOut.client.base.anySupportProbe) {
         ABi(in .b, out.b)
         ABo(out.c, in .c)
         ABo(out.e, in .e)
@@ -75,7 +77,7 @@ object TLIsolation
   // fOut is applied to data flowing from client to manager
   // fIn  is applied to data flowing from manager to client
   // **** WARNING: the isolation functions must bring the values to 0 ****
-  def apply(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(x: TLAsyncOutwardNode)(implicit sourceInfo: SourceInfo): (TLAsyncOutwardNode, () => (Bool, Bool)) = {
+  def apply(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(x: TLAsyncOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): (TLAsyncOutwardNode, () => (Bool, Bool)) = {
     val iso = LazyModule(new TLIsolation(fOut, fIn))
     iso.node := x
     (iso.node, () => (iso.module.io.iso_out, iso.module.io.iso_in))

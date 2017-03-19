@@ -1,7 +1,10 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package uncore.devices
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import unittest.UnitTest
 import junctions._
 import uncore.tilelink._

@@ -1,14 +1,17 @@
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
+
 package uncore.converters
 
 import Chisel._
 import util.{ReorderQueue, DecoupledHelper}
-import junctions.PAddrBits
+import rocket.PAddrBits
 import uncore.tilelink._
 import uncore.util._
 import uncore.constants._
 import uncore.devices.TileLinkTestRAM
 import unittest.UnitTest
-import cde.Parameters
+import config._
 
 /** Utilities for safely wrapping a *UncachedTileLink by pinning probe.ready and release.valid low */
 object TileLinkIOWrapper {

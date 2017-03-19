@@ -1,14 +1,15 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 import regmapper._
 import scala.math.{min,max}
 
 class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends TLManagerNode(TLManagerPortParameters(
+  extends TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = Seq(address),
       executable         = executable,
@@ -17,7 +18,7 @@ class TLRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int =
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1))) // the Queue adds at least one cycle
+    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
 {
   require (address.contiguous)
 
@@ -79,21 +80,22 @@ object TLRegisterNode
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegisterRouterBase(val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean) extends LazyModule
+abstract class TLRegisterRouterBase(val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = TLRegisterNode(address, concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(interrupts)
 }
 
-case class TLRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[TLBundle])
+case class TLRegBundleArg(interrupts: Vec[Vec[Bool]], in: Vec[TLBundle])(implicit val p: Parameters)
 
 class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
 {
+  implicit val p = arg.p
   val interrupts = arg.interrupts
   val in = arg.in
 }
 
-class TLRegBundle[P](val params: P, arg: TLRegBundleArg) extends TLRegBundleBase(arg)
+class TLRegBundle[P](val params: P, arg: TLRegBundleArg)(implicit p: Parameters) extends TLRegBundleBase(arg)
 
 class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
@@ -107,7 +109,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp]
    (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
    (bundleBuilder: TLRegBundleArg => B)
-   (moduleBuilder: (=> B, TLRegisterRouterBase) => M)
+   (moduleBuilder: (=> B, TLRegisterRouterBase) => M)(implicit p: Parameters)
   extends TLRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
 {
   require (isPow2(size))

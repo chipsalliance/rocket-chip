@@ -1,11 +1,11 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import chisel3.util.{ReadyValidIO}
 import diplomacy._
-import util.{AsyncQueueSource, AsyncQueueSink, GenericParameterizedBundle}
+import util._
 
 abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 
@@ -16,26 +16,25 @@ abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameter
 object TLMessages 
 {
   //                                  A    B    C    D    E
-  val PutFullData    = UInt(0) //     .    .                   => AccessAck
-  val PutPartialData = UInt(1) //     .    .                   => AccessAck
-  val ArithmeticData = UInt(2) //     .    .                   => AccessAckData
-  val LogicalData    = UInt(3) //     .    .                   => AccessAckData
-  val Get            = UInt(4) //     .    .                   => AccessAckData
-  val Hint           = UInt(5) //     .    .                   => HintAck
-  val Acquire        = UInt(6) //     .                        => Grant[Data]
-  val Probe          = UInt(6) //          .                   => ProbeAck[Data]
-  val AccessAck      = UInt(0) //               .    .
-  val AccessAckData  = UInt(1) //               .    .
-  val HintAck        = UInt(2) //               .    .
-//val PutThroughData = UInt(3) //               .              // future extension ?
-  val ProbeAck       = UInt(4) //               .
-  val ProbeAckData   = UInt(5) //               .
-  val Release        = UInt(6) //               .              => ReleaseAck
-  val ReleaseData    = UInt(7) //               .              => ReleaseAck
-  val Grant          = UInt(4) //                    .         => GrantAck
-  val GrantData      = UInt(5) //                    .         => GrantAck
-  val ReleaseAck     = UInt(6) //                    .
-  val GrantAck       = UInt(0) //                         .
+  def PutFullData    = UInt(0) //     .    .                   => AccessAck
+  def PutPartialData = UInt(1) //     .    .                   => AccessAck
+  def ArithmeticData = UInt(2) //     .    .                   => AccessAckData
+  def LogicalData    = UInt(3) //     .    .                   => AccessAckData
+  def Get            = UInt(4) //     .    .                   => AccessAckData
+  def Hint           = UInt(5) //     .    .                   => HintAck
+  def Acquire        = UInt(6) //     .                        => Grant[Data]
+  def Probe          = UInt(6) //          .                   => ProbeAck[Data]
+  def AccessAck      = UInt(0) //               .    .
+  def AccessAckData  = UInt(1) //               .    .
+  def HintAck        = UInt(2) //               .    .
+  def ProbeAck       = UInt(4) //               .
+  def ProbeAckData   = UInt(5) //               .
+  def Release        = UInt(6) //               .              => ReleaseAck
+  def ReleaseData    = UInt(7) //               .              => ReleaseAck
+  def Grant          = UInt(4) //                    .         => GrantAck
+  def GrantData      = UInt(5) //                    .         => GrantAck
+  def ReleaseAck     = UInt(6) //                    .
+  def GrantAck       = UInt(0) //                         .
  
   def isA(x: UInt) = x <= Acquire
   def isB(x: UInt) = x <= Probe
@@ -43,55 +42,72 @@ object TLMessages
   def isD(x: UInt) = x <= ReleaseAck
 }
 
+/**
+  * The three primary TileLink permissions are:
+  *   (T)runk: the agent is (or is on inwards path to) the global point of serialization.
+  *   (B)ranch: the agent is on an outwards path to
+  *   (N)one: 
+  * These permissions are permuted by transfer operations in various ways.
+  * Operations can cap permissions, request for them to be grown or shrunk,
+  * or for a report on their current status.
+  */
 object TLPermissions
 {
+  val aWidth = 2
+  val bdWidth = 2
+  val cWidth = 3
+
   // Cap types (Grant = new permissions, Probe = permisions <= target)
-  val toT = UInt(0)
-  val toB = UInt(1)
-  val toN = UInt(2)
+  def toT = UInt(0, bdWidth)
+  def toB = UInt(1, bdWidth)
+  def toN = UInt(2, bdWidth)
   def isCap(x: UInt) = x <= toN
 
   // Grow types (Acquire = permissions >= target)
-  val NtoB = UInt(0)
-  val NtoT = UInt(1)
-  val BtoT = UInt(2)
+  def NtoB = UInt(0, aWidth)
+  def NtoT = UInt(1, aWidth)
+  def BtoT = UInt(2, aWidth)
   def isGrow(x: UInt) = x <= BtoT
 
   // Shrink types (ProbeAck, Release)
-  val TtoB = UInt(0)
-  val TtoN = UInt(1)
-  val BtoN = UInt(2)
+  def TtoB = UInt(0, cWidth)
+  def TtoN = UInt(1, cWidth)
+  def BtoN = UInt(2, cWidth)
   def isShrink(x: UInt) = x <= BtoN
 
   // Report types (ProbeAck)
-  val TtoT = UInt(3)
-  val BtoB = UInt(4)
-  val NtoN = UInt(5)
+  def TtoT = UInt(3, cWidth)
+  def BtoB = UInt(4, cWidth)
+  def NtoN = UInt(5, cWidth)
   def isReport(x: UInt) = x <= NtoN
 }
 
 object TLAtomics
 {
+  val width = 3 
+
   // Arithmetic types
-  val MIN  = UInt(0)
-  val MAX  = UInt(1)
-  val MINU = UInt(2)
-  val MAXU = UInt(3)
-  val ADD  = UInt(4)
+  def MIN  = UInt(0, width)
+  def MAX  = UInt(1, width)
+  def MINU = UInt(2, width)
+  def MAXU = UInt(3, width)
+  def ADD  = UInt(4, width)
   def isArithmetic(x: UInt) = x <= ADD
 
   // Logical types
-  val XOR  = UInt(0)
-  val OR   = UInt(1)
-  val AND  = UInt(2)
-  val SWAP = UInt(3)
+  def XOR  = UInt(0, width)
+  def OR   = UInt(1, width)
+  def AND  = UInt(2, width)
+  def SWAP = UInt(3, width)
   def isLogical(x: UInt) = x <= SWAP
 }
 
 object TLHints
 {
-  val PREFETCH_READ  = UInt(0)
-  val PREFETCH_WRITE = UInt(1)
+  val width = 1
+
+  def PREFETCH_READ  = UInt(0, width)
+  def PREFETCH_WRITE = UInt(1, width)
 }
 
 sealed trait TLChannel extends TLBundleBase {
@@ -106,7 +122,7 @@ final class TLBundleA(params: TLBundleParameters)
   val channelName = "'A' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3) // amo_opcode || perms || hint
+  val param   = UInt(width = List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max) // amo_opcode || grow perms || hint
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
   val address = UInt(width = params.addressBits) // to
@@ -121,7 +137,7 @@ final class TLBundleB(params: TLBundleParameters)
   val channelName = "'B' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3)
+  val param   = UInt(width = TLPermissions.bdWidth) // cap perms
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
   val address = UInt(width = params.addressBits) // from
@@ -136,7 +152,7 @@ final class TLBundleC(params: TLBundleParameters)
   val channelName = "'C' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 3)
+  val param   = UInt(width = TLPermissions.cWidth) // shrink or report perms
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
   val address = UInt(width = params.addressBits) // to
@@ -151,7 +167,7 @@ final class TLBundleD(params: TLBundleParameters)
   val channelName = "'D' channel"
   // fixed fields during multibeat:
   val opcode  = UInt(width = 3)
-  val param   = UInt(width = 2)
+  val param   = UInt(width = TLPermissions.bdWidth) // cap perms
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
   val sink    = UInt(width = params.sinkBits)   // from
@@ -194,11 +210,11 @@ final class DecoupledSnoop[+T <: Data](gen: T) extends Bundle
 
 object DecoupledSnoop
 {
-  def apply[T <: Data](i: DecoupledIO[T]) = {
-    val out = Wire(new DecoupledSnoop(i.bits))
-    out.ready := i.ready
-    out.valid := i.valid
-    out.bits  := i.bits
+  def apply[T <: Data](source: DecoupledIO[T], sink: DecoupledIO[T]) = {
+    val out = Wire(new DecoupledSnoop(sink.bits))
+    out.ready := sink.ready
+    out.valid := source.valid
+    out.bits  := source.bits
     out
   }
 }
@@ -214,65 +230,13 @@ class TLBundleSnoop(params: TLBundleParameters) extends TLBundleBase(params)
 
 object TLBundleSnoop
 {
-  def apply(x: TLBundle) = {
-    val out = Wire(new TLBundleSnoop(x.params))
-    out.a <> DecoupledSnoop(x.a)
-    out.b <> DecoupledSnoop(x.b)
-    out.c <> DecoupledSnoop(x.c)
-    out.d <> DecoupledSnoop(x.d)
-    out.e <> DecoupledSnoop(x.e)
-    out
-  }
-}
-
-final class AsyncBundle[T <: Data](val depth: Int, gen: T) extends Bundle
-{
-  require (isPow2(depth))
-  val mem  = Vec(depth, gen)
-  val ridx = UInt(width = log2Up(depth)+1).flip
-  val widx = UInt(width = log2Up(depth)+1)
-  val ridx_valid = Bool().flip
-  val widx_valid = Bool()
-  val source_reset_n = Bool()
-  val sink_reset_n = Bool().flip
-
-  override def cloneType: this.type = new AsyncBundle(depth, gen).asInstanceOf[this.type]
-}
-
-object FromAsyncBundle
-{
-  def apply[T <: Data](x: AsyncBundle[T], sync: Int = 3): DecoupledIO[T] = {
-    val sink = Module(new AsyncQueueSink(x.mem(0), x.depth, sync))
-    x.ridx := sink.io.ridx
-    x.ridx_valid := sink.io.ridx_valid
-    sink.io.widx := x.widx
-    sink.io.widx_valid := x.widx_valid
-    sink.io.mem  := x.mem
-    sink.io.source_reset_n := x.source_reset_n
-    x.sink_reset_n := !sink.reset
-    val out = Wire(Decoupled(x.mem(0)))
-    out.valid := sink.io.deq.valid
-    out.bits := sink.io.deq.bits
-    sink.io.deq.ready := out.ready
-    out
-  }
-}
-
-object ToAsyncBundle
-{
-  def apply[T <: Data](x: ReadyValidIO[T], depth: Int = 8, sync: Int = 3): AsyncBundle[T] = {
-    val source = Module(new AsyncQueueSource(x.bits, depth, sync))
-    source.io.enq.valid := x.valid
-    source.io.enq.bits := x.bits
-    x.ready := source.io.enq.ready
-    val out = Wire(new AsyncBundle(depth, x.bits))
-    source.io.ridx := out.ridx
-    source.io.ridx_valid := out.ridx_valid
-    out.mem := source.io.mem
-    out.widx := source.io.widx
-    out.widx_valid := source.io.widx_valid
-    source.io.sink_reset_n := out.sink_reset_n
-    out.source_reset_n := !source.reset
+  def apply(source: TLBundle, sink: TLBundle) = {
+    val out = Wire(new TLBundleSnoop(sink.params))
+    out.a := DecoupledSnoop(source.a, sink.a)
+    out.b := DecoupledSnoop(sink.b, source.b)
+    out.c := DecoupledSnoop(source.c, sink.c)
+    out.d := DecoupledSnoop(sink.d, source.d)
+    out.e := DecoupledSnoop(source.e, sink.e)
     out
   }
 }
@@ -286,4 +250,13 @@ class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(p
   val c = new AsyncBundle(params.depth, new TLBundleC(params.base))
   val d = new AsyncBundle(params.depth, new TLBundleD(params.base)).flip
   val e = new AsyncBundle(params.depth, new TLBundleE(params.base))
+}
+
+class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val a = RationalIO(new TLBundleA(params))
+  val b = RationalIO(new TLBundleB(params)).flip
+  val c = RationalIO(new TLBundleC(params))
+  val d = RationalIO(new TLBundleD(params)).flip
+  val e = RationalIO(new TLBundleE(params))
 }

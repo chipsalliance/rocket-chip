@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
 
 package util
 

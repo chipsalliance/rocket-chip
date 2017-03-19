@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 package uncore
 
 import Chisel._
@@ -8,11 +10,13 @@ package object tilelink2
   type TLInwardNode = InwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle]
   type TLOutwardNode = OutwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle]
   type TLAsyncOutwardNode = OutwardNodeHandle[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]
+  type TLRationalOutwardNode = OutwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLRationalBundle]
   type IntOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
 
   def OH1ToOH(x: UInt) = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
   def OH1ToUInt(x: UInt) = OHToUInt(OH1ToOH(x))
   def UIntToOH1(x: UInt, width: Int) = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
+  def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
   def trailingZeros(x: Int) = if (x > 0) Some(log2Ceil(x & -x)) else None
   // Fill 1s from low bits to high bits
   def leftOR(x: UInt) = {

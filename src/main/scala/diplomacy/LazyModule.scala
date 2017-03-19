@@ -1,11 +1,12 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package diplomacy
 
 import Chisel._
+import config._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
-abstract class LazyModule
+abstract class LazyModule()(implicit val p: Parameters)
 {
   protected[diplomacy] var bindings = List[() => Unit]()
   protected[diplomacy] var children = List[LazyModule]()
@@ -16,15 +17,33 @@ abstract class LazyModule
   LazyModule.stack = this :: LazyModule.stack
   parent.foreach(p => p.children = this :: p.children)
 
-  lazy val className = getClass.getName.split('.').last
-  lazy val valName = parent.flatMap { p =>
-    p.getClass.getMethods.filter { m =>
+  private var suggestedName: Option[String] = None
+  def suggestName(x: String) = suggestedName = Some(x)
+
+  private lazy val childNames =
+    getClass.getMethods.filter { m =>
       m.getParameterTypes.isEmpty &&
       !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-      classOf[LazyModule].isAssignableFrom(m.getReturnType) &&
-      (m.invoke(p) eq this)
-    }.headOption.map(_.getName)
-  }
+      m.getName != "children"
+    }.flatMap { m =>
+      if (classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
+        val obj = m.invoke(this)
+        if (obj eq null) Seq() else Seq((m.getName, obj))
+      } else if (classOf[Seq[LazyModule]].isAssignableFrom(m.getReturnType)) {
+        val obj = m.invoke(this)
+        if (obj eq null) Seq() else {
+          val seq = try { obj.asInstanceOf[Seq[Object]] } catch { case _ => null }
+          if (seq eq null) Seq() else {
+            seq.zipWithIndex.map { case (l, i) => (m.getName + "_"  + i, l) }
+          }
+        }
+      } else Seq()
+    }
+  private def findValName =
+    parent.flatMap(_.childNames.find(_._2 eq this)).map(_._1)
+
+  lazy val className = getClass.getName.split('.').last
+  lazy val valName = suggestedName.orElse(findValName)
   lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
   def moduleName = className + valName.orElse(outerName).map("_" + _).getOrElse("")
@@ -84,6 +103,11 @@ abstract class LazyModule
     } }
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
+  
+  def nodeIterator(iterfunc: (LazyModule) => Unit): Unit = {
+    iterfunc(this)
+    children.foreach( _.nodeIterator(iterfunc) )
+  }
 }
 
 object LazyModule
@@ -112,4 +136,5 @@ abstract class LazyModuleImp(outer: LazyModule) extends Module
   suggestName(outer.instanceName)
 
   outer.instantiate()
+  implicit val p = outer.p
 }

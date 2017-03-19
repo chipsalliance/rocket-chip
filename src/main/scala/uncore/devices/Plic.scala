@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.devices
 
@@ -9,8 +9,9 @@ import junctions._
 import diplomacy._
 import regmapper._
 import uncore.tilelink2._
-import cde.Parameters
+import config._
 import scala.math.min
+import tile.XLen
 
 class GatewayPLICIO extends Bundle {
   val valid = Bool(OUTPUT)
@@ -52,21 +53,58 @@ object PLICConsts
 }
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit val p: Parameters) extends LazyModule
+class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
 {
   val contextsPerHart = if (supervisor) 2 else 1
   require (maxPriorities >= 0)
 
   val node = TLRegisterNode(
     address   = AddressSet(address, PLICConsts.size-1),
-    beatBytes = p(rocket.XLen)/8,
+    beatBytes = p(XLen)/8,
     undefZero = false)
 
-  val intnode = IntAdapterNode(
+  val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
     numSinkPorts   = 0 to 1024,
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(contextsPerHart))) },
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
+
+  /* Negotiated sizes */
+  def nDevices = intnode.edgesIn.map(_.source.num).sum
+  def nPriorities = min(maxPriorities, nDevices)
+  def nHarts = intnode.edgesOut.map(_.source.num).sum
+
+  def context(i: Int, mode: Char) = mode match {
+    case 'M' => i * contextsPerHart
+    case 'S' => require(supervisor); i * contextsPerHart + 1
+  }
+  def claimAddr(i: Int, mode: Char)  = address + PLICConsts.hartBase(context(i, mode)) + PLICConsts.claimOffset
+  def threshAddr(i: Int, mode: Char) = address + PLICConsts.hartBase(context(i, mode))
+  def enableAddr(i: Int, mode: Char) = address + PLICConsts.enableBase(context(i, mode))
+
+  // Create the global PLIC config string
+  lazy val globalConfigString = Seq(
+    s"plic {\n",
+    s"  priority 0x${address.toString(16)};\n",
+    s"  pending 0x${(address + PLICConsts.pendingBase).toString(16)};\n",
+    s"  ndevs ${nDevices};\n",
+    s"};\n").mkString
+
+  // Create the per-Hart config string
+  lazy val hartConfigStrings = Seq.tabulate(intnode.edgesOut.size) { i => (Seq(
+    s"      plic {\n",
+    s"        m {\n",
+    s"         ie 0x${enableAddr(i, 'M').toString(16)};\n",
+    s"         thresh 0x${threshAddr(i, 'M').toString(16)};\n",
+    s"         claim 0x${claimAddr(i, 'M').toString(16)};\n",
+    s"        };\n") ++ (if (!supervisor) Seq() else Seq(
+    s"        s {\n",
+    s"         ie 0x${enableAddr(i, 'S').toString(16)};\n",
+    s"         thresh 0x${threshAddr(i, 'S').toString(16)};\n",
+    s"         claim 0x${claimAddr(i, 'S').toString(16)};\n",
+    s"        };\n")) ++ Seq(
+    s"      };\n")).mkString
+  }
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -91,51 +129,18 @@ class TLPLIC(supervisor: Boolean, maxPriorities: Int, address: BigInt = 0xC00000
       println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
 
-    val nDevices = interrupts.size
-    val nPriorities = min(maxPriorities, nDevices)
-    val nHarts = harts.size
+    require (nDevices == interrupts.size)
+    require (nHarts == harts.size)
 
     require(nDevices <= PLICConsts.maxDevices)
     require(nHarts > 0 && nHarts <= PLICConsts.maxHarts)
-
-    def context(i: Int, mode: Char) = mode match {
-      case 'M' => i * contextsPerHart
-      case 'S' => require(supervisor); i * contextsPerHart + 1
-    }
-    def claimAddr(i: Int, mode: Char)  = address + PLICConsts.hartBase(context(i, mode)) + PLICConsts.claimOffset
-    def threshAddr(i: Int, mode: Char) = address + PLICConsts.hartBase(context(i, mode))
-    def enableAddr(i: Int, mode: Char) = address + PLICConsts.enableBase(context(i, mode))
-
-    // Create the global PLIC config string
-    val globalConfigString = Seq(
-      s"plic {\n",
-      s"  priority 0x${address.toString(16)};\n",
-      s"  pending 0x${(address + PLICConsts.pendingBase).toString(16)};\n",
-      s"  ndevs ${nDevices};\n",
-      s"};\n").mkString
-
-    // Create the per-Hart config string
-    val hartConfigStrings = io.harts.zipWithIndex.map { case (_, i) => (Seq(
-      s"      plic {\n",
-      s"        m {\n",
-      s"         ie 0x${enableAddr(i, 'M').toString(16)};\n",
-      s"         thresh 0x${threshAddr(i, 'M').toString(16)};\n",
-      s"         claim 0x${claimAddr(i, 'M').toString(16)};\n",
-      s"        };\n") ++ (if (!supervisor) Seq() else Seq(
-      s"        s {\n",
-      s"         ie 0x${enableAddr(i, 'S').toString(16)};\n",
-      s"         thresh 0x${threshAddr(i, 'S').toString(16)};\n",
-      s"         claim 0x${claimAddr(i, 'S').toString(16)};\n",
-      s"        };\n")) ++ Seq(
-      s"      };\n")).mkString
-    }
 
     // For now, use LevelGateways for all TL2 interrupts
     val gateways = Vec(interrupts.map { case i =>
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
       gateway.io.plic
-    })
+    } ++ (if (interrupts.isEmpty) Some(Wire(new GatewayPLICIO)) else None))
 
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))

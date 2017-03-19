@@ -1,3 +1,6 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package uncore.devices
 
 import Chisel._
@@ -7,9 +10,9 @@ import diplomacy._
 import uncore.tilelink._
 import uncore.tilelink2._
 import uncore.util._
-import cde.{Parameters, Field}
+import config._
 
-class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
+class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
   val node = TLManagerNode(beatBytes, TLManagerParameters(
     address     = List(AddressSet(base, size-1)),
@@ -47,8 +50,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
 }
 
 class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
-    with HasTileLinkParameters
-    with HasAddrMapParameters {
+    with HasTileLinkParameters {
   val io = new ClientUncachedTileLinkIO().flip
 
   val acq = Queue(io.acquire, 1)

@@ -9,7 +9,7 @@ the RISC-V Rocket Core. For more information on Rocket Chip, please consult our 
 + [Quick instructions](#quick) for those who want to dive directly into the details without knowing exactly what's in the repository.
 + [What's in the Rocket chip generator repository?](#what)
 + [How should I use the Rocket chip generator?](#how)
-    + [Using the high-performance cycle-accurate C++ emulator](#emulator)
+    + [Using the cycle-accurate Verilator simulation](#emulator)
     + [Mapping a Rocket core down to an FPGA](#fpga)
     + [Pushing a Rocket core through the VLSI tools](#vlsi)
 + [How can I parameterize my Rocket chip?](#param)
@@ -96,146 +96,124 @@ If riscv-tools version changes, you should recompile and install riscv-tools acc
 
 ## <a name="what"></a> What's in the Rocket chip generator repository?
 
-The rocket-chip repository is the head git repository that points to
-many sub-repositories (e.g. the riscv-tools repository) using [git
-submodules](http://git-scm.com/book/en/Git-Tools-Submodules).  While
-we're aware of the ongoing debate as to how meta-projects should be
-managed (i.e. a big monolithic repository vs. smaller repositories
-tracked as submodules), we've found that for our chip-building projects
-at Berkeley, the ability to compose a subset of private and public
-sub-repositories on a per-chip basis is a killer feature of git
-submodule.
+The rocket-chip repository is a meta-repository that points to several
+sub-repositories using [Git submodules](http://git-scm.com/book/en/Git-Tools-Submodules). 
+Those repositories contain tools needed to generate and test SoC designs.
+This respository also contains code that is used to generate RTL.
+Hardware generation is done using [Chisel](http://chisel.eecs.berkeley.edu),
+a hardware construction language embedded in Scala.
+The rocket-chip generator is a Scala program that invokes the Chisel compiler
+in order to emit RTL describing a complete SoC.
+The following sections describe the components of this repository.
 
-### <a name="what_submodules"></a>The Submodules
+### <a name="what_submodules"></a>Git Submodules
 
-Here's a look at all the git submodules that are currently tracked in
-the rocket-chip repository:
+[Git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules) allow you to keep a Git repository as a subdirectory of another Git repository.
+For projects being co-developed with the Rocket Chip Generator, we have often found it expedient to track them as submodules,
+allowing for rapid exploitation of new features while keeping commit histories separate.
+As submoduled projects adopt stable public APIs, we transition them to external dependencies.
+Here are the submodules that are currently being tracked in the rocket-chip repository:
 
 * **chisel3**
 ([https://github.com/ucb-bar/chisel3](https://github.com/ucb-bar/chisel3)):
-At Berkeley, we write RTL in Chisel. For those who are not familiar
-with Chisel, please go take a look at
-[http://chisel.eecs.berkeley.edu](http://chisel.eecs.berkeley.edu). We
-have submoduled a specific git commit tag of the Chisel compiler rather
-than pointing to a versioned Chisel release as an external dependency;
-so far we were developing Chisel and the rocket core at the same time,
-and hence it was easiest to use submodule to track bleeding edge commits
-to Chisel, which contained a bunch of new features and bug fixes. As
-Chisel gets more stable, we will likely replace this submodule with an
-external dependency.
+The Rocket Chip Generator uses [Chisel](http://chisel.eecs.berkeley.edu) to generate RTL.
 * **firrtl**
 ([https://github.com/ucb-bar/firrtl](https://github.com/ucb-bar/firrtl)):
-FIRRTL (Flexible Internal Representation for RTL) is the intermediate format
-which Chisel3 is based upon. The Chisel3 compiler generates a FIRRTL representation,
+[Firrtl (Flexible Internal Representation for RTL)](http://bar.eecs.berkeley.edu/projects/2015-firrtl.html)
+is the intermediate representation of RTL constructions used by Chisel3.
+The Chisel3 compiler generates a Firrtl representation,
 from which the final product (Verilog code, C code, etc) is generated.
 * **hardfloat**
 ([https://github.com/ucb-bar/berkeley-hardfloat](https://github.com/ucb-bar/berkeley-hardfloat)):
-This repository holds the parameterized IEEE 754-2008 compliant
-floating-point units for fused multiply-add operations, conversions
+Hardfloat holds Chisel code that generates parameterized IEEE 754-2008 compliant
+floating-point units used for fused multiply-add operations, conversions
 between integer and floating-point numbers, and conversions between
-floating-point conversions with different precision. The floating-point
-units in this repository work on an internal recoded format (exponent
-has an additional bit) to handle subnormal numbers more efficiently in
-the processor. Please take a look at the
-[README](https://github.com/ucb-bar/berkeley-hardfloat/blob/master/README.md)
-in the repository for more information.
-* **context-dependent-environments**
-([https://github.com/ucb-bar/context-dependent-environments](https://github.com/ucb-bar/context-dependent-environments)):
-The rocket-chip Chisel code is highly parameterizable, and utilizes the classes in 
-this subrepo to set and pass parameters to different levels of the design. Note that in 
-Chisel2, this was handled by Chisel itself, but has been moved into a seperate
-library for use with Chisel3. 
+floating-point conversions with different precision.
 * **riscv-tools**
 ([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
-We tag a version of riscv-tools that works with the RTL committed in the
-rocket-chip repository.  Once the software toolchain stabilizes, we
-might turn this submodule into an external dependency.
+We tag a version of the RISC-V software ecosystem that works with the RTL committed in this repository.
 * **torture**
-([https://github.com/ucb-bar/torture](https://github.com/ucb-bar/torture)):
-The torture test code is used to generate randomized instruction streams which
-are then run as code on the rocket core(s). These are constrained random tests
-to stress-test both the core and uncore portions of the design.
+([https://github.com/ucb-bar/riscv-torture](https://github.com/ucb-bar/riscv-torture)):
+This module is used to generate and execture constrained random instruction streams that can
+be used to stress-test both the core and uncore portions of the design.
 
-### <a name="what_submodules"></a>The Sub Packages
+### <a name="what_packages"></a>Scala Packages
 
-In addition to submodules, which are tracked as different git repositories,
-the rocket-chip Chisel code base is factored into a number of Scala packages. 
+In addition to submodules that track independent git repositories,
+the rocket-chip code base is itself factored into a number of Scala packages.
+These packages are all found within the src/main/scala directory.
+Some of these packages provide Scala utilities for generator configuration,
+while other contain the actual Chisel RTL generators themselves.
 Here is a brief description of what can be found in each package:
 
+* **config**
+This utility package provides Scala interfaces for configuring a generator via a dynamically-scoped
+parameterization library.
+* **coreplex**
+This RTL package generates a complete coreplex by gluing together a variety of other components,
+including tiled Rocket cores, an L1-to-L2 network, L2 coherence agents, and internal devices
+such as the debug unit and interrupt handlers.
+* **diplomacy**
+This utility package extends Chisel by allowing for two-phase hardware elaboration, in which certain parameters
+are dynamically negotiated between modules.
+* **groundtest**
+This RTL package generates synthesizeable hardware testers that emit randomized
+memory access streams in order to stress-tests the uncore memory hierarchy.
+* **junctions**
+This RTL package provides definitions for bus interfaces and generates a variety of protocol converters. 
+* **regmapper**
+This utility package generates slave devices with a standardized interface for accessing their memory-mapped registers.
 * **rocket**
-The rocket package holds the actual source code of the Rocket core.
-Note that the L1 blocking I$ and the L1 non-blocking D$ are considered
-part of the core, and hence we keep the L1 cache source code in this
-repository. This repository is not meant to stand alone; it needs to be
-included in a chip repository (e.g.  rocket-chip) that instantiates the
+This RTL package generates the Rocket in-order pipelined core,
+as well as the L1 instruction and data caches.
+This library is intended to be used by a chip generator that instantiates the
 core within a memory system and connects it to the outside world.
 * **uncore**
-This package implements the uncore logic, such as the L2 coherence hub
-(the agent that keeps multiple L1 D$ coherent). The definition of the
-coherent interfaces between tiles ("tilelink") and the debug interface
-also live in this repository.
-* **junctions**
-This package contains code and
-converters for various bus protocols and interfaces. 
-* **groundtest**
-This package contains code which can test the uncore by generating randomized
-instruction streams. It replaces the rocket processor with an instruction
-stream generator to stress-test the uncore portions of the design.
-* **coreplex**
-This package pieces together the parts of a working coreplex, including
-the rocket tiles, L1-to-L2 network, L2 coherence agents, and internal devices
-like the debug unit and boot ROM.
+This RTL package generates a variety of uncore logic and devices, such as
+such as the L2 coherence hub and Debug modules, as well as defining their interfaces and protocols.
+Contains implementations of both TileLink and AXI4.
+* **unittest**
+This utility package contains a framework for generateing synthesizeable hardware testers of individual modules.
 * **rocketchip**
-The top-level package instantiates the coreplex and drops in any
-external-facing devices. It also includes clock-crossers and converters
-from TileLink to external bus protocols (like AXI or AHB).
+This top-level RTL package instantiates a coreplex and drops in any additional
+externally-facing peripheral devices. It also includes clock-crossers and converters
+from TileLink to external bus protocols (e.g. AXI or AHB).
+* **util**
+This utility package provides a variety of common Scala and Chisel constructs that are re-used across
+multiple other packages,
 
-### <a name="what_toplevel"></a>The Top Level Module
+### <a name="what_else"></a>Other Resources
 
-Take a look at the src/main/scala/rocketchip directory.
-This directory has the Chisel source files including the top level
-RocketChip.scala.
+Outside of Scala, we also provide a variety of resources to create a complete SoC implementation and
+test the generated designs.
 
-Take a look at the top-level I/O pins. Open up
-src/main/scala/rocketchip/RocketChip.scala, and search for TopIO.
-You will read the following:
+* **bootrom**
+Sources for the first-stage bootloader included in the BootROM.
+* **csrc**
+C sources for use with Verilator simulation.
+* **emulator**
+Directory in which Verilator simulations are compiled and run.
+* **project**
+Directory used by SBT for Scala compilation and build.
+* **regression**
+Defines continuous integration and nightly regression suites.
+* **scripts**
+Utilities for parsing the output of simulations or manipulating the contents of source files.
+* **vsim**
+Directory in which Synopsys VCS simulations are compiled and run.
+* **vsrc**
+Verilog sources containing interfaces, harnesses and VPI.
 
-    /** Top-level io for the chip */
-    class BasicTopIO(implicit val p: Parameters) extends ParameterizedBundle()(p)
-        with HasTopLevelParameters
 
-    class TopIO(implicit p: Parameters) extends BasicTopIO()(p) {
+### <a name="what_toplevel"></a>Extending the Top-Level Design
 
-      val mem_axi = Vec(nMemAXIChannels, new NastiIO)
-      val mem_ahb = Vec(nMemAHBChannels, new HastiMasterIO)
-      val interrupts = Vec(p(NExtInterrupts), Bool()).asInput
-      val mmio_axi = Vec(p(NExtMMIOAXIChannels), new NastiIO)
-      val mmio_ahb = Vec(p(NExtMMIOAHBChannels), new HastiMasterIO)
-      val debug = new DebugBusIO()(p).flip
-    }
-
-    
-There are 4 major I/O ports coming out of the top-level module:
-
-* **Debug interface (debug)**:
-The debug interface can be used to both debug the processor as
-it is executing, and to read and write memory. 
-* **High-performance memory interface (mem_\*)**:
-Memory requests from the processor comes out the mem_\* ports.
-Depending on the configuration of the design, these may be visible as
-AXI or AHB protocol. The mem_\* port(s) uses the same uncore clock, and
-is intended to be connected to something on the same chip.
-* **Memory mapped I/O interface (mmio_\*)**:
-The optional mmio_\* interfaces can be used to communicate with devices
-on the chip but outside of the rocket-chip boundary. Depending on the
-configuration of the design, these may be visible as AXI or AHB.
-* **Interrupts interface (interrupts)**: This interface is used to
-deliver external interrupts to the processor core.
+See [this description](https://github.com/ucb-bar/project-template) of how to create
+you own top-level design with custom devices.
 
 ## <a name="how"></a> How should I use the Rocket chip generator?
 
 Chisel can generate code for three targets: a high-performance
-cycle-accurate C++ emulator, Verilog optimized for FPGAs, and Verilog
+cycle-accurate Verilator, Verilog optimized for FPGAs, and Verilog
 for VLSI. The rocket-chip generator can target all three backends.  You
 will need a Java runtime installed on your machine, since Chisel is
 overlaid on top of [Scala](http://www.scala-lang.org/). Chisel RTL (i.e.
@@ -262,9 +240,9 @@ command in the rocket-chip generator:
 
     *** Please set environment variable RISCV. Please take a look at README.
 
-### <a name="emulator"></a> 1) Using the high-performance cycle-accurate C++ emulator
+### <a name="emulator"></a> 1) Using the high-performance cycle-accurate Verilator
 
-Your next step is to get the C++ emulator working. Assuming you have N
+Your next step is to get the Verilator working. Assuming you have N
 cores on your host system, do the following:
 
     $ cd $ROCKETCHIP/emulator
@@ -336,15 +314,6 @@ writeback stage, perhaps, because of a instruction cache miss at PC
 
 ### <a name="fpga"></a> 2) Mapping a Rocket core to an FPGA
 
-We use Synopsys VCS for Verilog simulation. We acknowledge that using a
-proprietary Verilog simulation tool for an open-source project is not
-ideal; we ask the community to help us move DirectC routines (VCS's way
-of gluing Verilog testbenches to arbitrary C/C++ code) into DPI/VPI
-routines so that we can make Verilog simulation work with an open-source
-Verilog simulator. In the meantime, you can use the C++ emulator to
-generate vcd waveforms, which you can view with an open-source waveform
-viewer such as GTKWave.
-
 You can generate synthesizable Verilog with the following commands:
 
     $ cd $ROCKETCHIP/vsim
@@ -355,9 +324,10 @@ vsim/generated-src. Please proceed further with the directions shown in
 the [README](https://github.com/ucb-bar/fpga-zynq/blob/master/README.md)
 of the fpga-zynq repository.
 
-However, if you have access to VCS, you will be able to run assembly
-tests and benchmarks with the following commands (again assuming you
-have N cores on your host machine):
+
+If you have access to VCS, you will be able to run assembly
+tests and benchmarks in simulation with the following commands
+(again assuming you have N cores on your host machine):
 
     $ cd $ROCKETCHIP/vsim
     $ make -jN run CONFIG=DefaultFPGAConfig
@@ -453,23 +423,18 @@ post, so please stay tuned.
 To override specific configuration items, such as the number of external interrupts,
 you can create your own Configuration(s) and compose them with Config's ++ operator
 
-    class WithNExtInterrupts extends Config (nExt: Int) {
-      (pname, site, here) => pname match {
-      case (NExtInterrupts => nExt)
-      }
-    } 
+    class WithNExtInterrupts(nExt: Int) extends Config {
+        (site, here, up) => {
+            case NExtInterrupts => nExt
+        }
+    }
     class MyConfig extends Config (new WithNExtInterrupts(16) ++ new DefaultSmallConfig)
 
 Then you can build as usual with CONFIG=MyConfig.
 
 ## <a name="contributors"></a> Contributors
 
-- Scott Beamer
-- Henry Cook
-- Yunsup Lee
-- Stephen Twigg
-- Huy Vo
-- Andrew Waterman
+Can be found [here](https://github.com/ucb-bar/rocket-chip/graphs/contributors).
 
 ## <a name="attribution"></a> Attribution
 
