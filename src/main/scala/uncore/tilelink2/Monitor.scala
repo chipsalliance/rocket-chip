@@ -295,10 +295,16 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
   def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     when (bundle.a.valid) { legalizeFormatA(bundle.a.bits, edge) }
-    when (bundle.b.valid) { legalizeFormatB(bundle.b.bits, edge) }
-    when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
     when (bundle.d.valid) { legalizeFormatD(bundle.d.bits, edge) }
-    when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      when (bundle.b.valid) { legalizeFormatB(bundle.b.bits, edge) }
+      when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
+      when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
+    } else {
+      assert (!bundle.b.valid, "'B' channel valid and not TL-C" + extra)
+      assert (!bundle.c.valid, "'C' channel valid and not TL-C" + extra)
+      assert (!bundle.e.valid, "'E' channel valid and not TL-C" + extra)
+    }
   }
 
   def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
@@ -398,9 +404,11 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
   def legalizeMultibeat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeMultibeatA(bundle.a, edge)
-    legalizeMultibeatB(bundle.b, edge)
-    legalizeMultibeatC(bundle.c, edge)
     legalizeMultibeatD(bundle.d, edge)
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      legalizeMultibeatB(bundle.b, edge)
+      legalizeMultibeatC(bundle.c, edge)
+    }
   }
 
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
