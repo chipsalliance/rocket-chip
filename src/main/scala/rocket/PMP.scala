@@ -94,9 +94,11 @@ class PMP(implicit p: Parameters) extends PMPReg {
     endsBeforeLower || beginsAfterUpper || (beginsAfterLower && endsBeforeUpper)
   }
 
+  // returns whether this PMP completely contains, or contains none of, a page
   def homogeneous(x: UInt, pgLevel: UInt, lgMaxSize: Int, prev: PMP): Bool =
     !cfg.p(0) || Mux(cfg.a(1), rangeHomogeneous(x, pgLevel, lgMaxSize, prev), pow2Homogeneous(x, pgLevel))
 
+  // returns whether this matching PMP fully contains the access
   def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = {
     val alignMask = ~(((BigInt(1) << lgMaxSize) - 1).U << lgSize)(lgMaxSize-1, 0)
     val rangeAligned = (prev.comparand(lgMaxSize-1, 0) & alignMask) === 0 && (comparand(lgMaxSize-1, 0) & alignMask) === 0
@@ -104,6 +106,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
     Mux(cfg.a(1), rangeAligned, pow2Aligned)
   }
 
+  // returns whether this PMP matches at least one byte of the access
   def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool =
     cfg.p(0) && Mux(cfg.a(1), rangeMatch(x, lgSize, lgMaxSize, prev), pow2Match(x, lgSize, lgMaxSize))
 }
