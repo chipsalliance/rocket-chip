@@ -56,17 +56,16 @@ class PMP(implicit p: Parameters) extends PMPReg {
     }
   }
 
-  private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) = {
-    if (lgMaxSize <= lgAlign) {
-      x < comparand
-    } else {
-      // break up the circuit; the MSB part will be CSE'd
-      val msbsLess = (x >> lgMaxSize) < (comparand >> lgMaxSize)
-      val msbsEqual = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0
-      val lsbsLess = x(lgMaxSize-1, 0) < (comparand(lgMaxSize-1, 0) & lsbMask(lgMaxSize-1, 0))
-      msbsLess || (msbsEqual && lsbsLess)
-    }
+  private def decomposedBoundMatch(xHi: UInt, xLo: UInt, lsbMask: UInt, lgMaxSize: Int) = {
+    val msbsLess = xHi < (comparand >> lgMaxSize)
+    val msbsEqual = (xHi ^ (comparand >> lgMaxSize)) === 0
+    val lsbsLess = xLo < (comparand(lgMaxSize-1, 0) & lsbMask(lgMaxSize-1, 0))
+    msbsLess || (msbsEqual && lsbsLess)
   }
+
+  private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) =
+    if (lgMaxSize <= lgAlign) x < comparand
+    else decomposedBoundMatch(x >> lgMaxSize, x(lgMaxSize-1, 0), lsbMask, lgMaxSize)
 
   private def lowerBoundMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) =
     !boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U << lgSize, lgMaxSize)
@@ -99,9 +98,12 @@ class PMP(implicit p: Parameters) extends PMPReg {
     !cfg.p(0) || Mux(cfg.a(1), rangeHomogeneous(x, pgLevel, lgMaxSize, prev), pow2Homogeneous(x, pgLevel))
 
   // returns whether this matching PMP fully contains the access
-  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = {
-    val alignMask = ~(((BigInt(1) << lgMaxSize) - 1).U << lgSize)(lgMaxSize-1, 0)
-    val rangeAligned = (prev.comparand(lgMaxSize-1, 0) & alignMask) === 0 && (comparand(lgMaxSize-1, 0) & alignMask) === 0
+  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= lgAlign) true.B else {
+    val lsbMask = ((BigInt(1) << lgMaxSize) - 1).U << lgSize
+    val alignMask = ~lsbMask(lgMaxSize-1, 0)
+    val lowerBoundOK = !prev.upperBoundMatch(x, lgMaxSize)
+    val upperBoundOK = decomposedBoundMatch(x >> lgMaxSize, x(lgMaxSize-1, 0) | alignMask, lsbMask, lgMaxSize)
+    val rangeAligned = lowerBoundOK && upperBoundOK
     val pow2Aligned = (alignMask & ~mask(lgMaxSize-1, 0)) === 0
     Mux(cfg.a(1), rangeAligned, pow2Aligned)
   }
