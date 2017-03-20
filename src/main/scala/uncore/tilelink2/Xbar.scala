@@ -103,24 +103,50 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     val in = Wire(Vec(io.in.size, TLBundle(wide_bundle)))
     for (i <- 0 until in.size) {
       val r = inputIdRanges(i)
-      in(i) <> io.in(i)
-      // prefix sources
+
+      in(i).a <> io.in(i).a
+      io.in(i).d <> in(i).d
       in(i).a.bits.source := io.in(i).a.bits.source | UInt(r.start)
-      in(i).c.bits.source := io.in(i).c.bits.source | UInt(r.start)
-      // defix sources
-      io.in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
       io.in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
+
+      if (node.edgesIn(i).client.anySupportProbe && node.edgesOut.exists(_.manager.anySupportAcquireB)) {
+        in(i).c <> io.in(i).c
+        in(i).e <> io.in(i).e
+        io.in(i).b <> in(i).b
+        in(i).c.bits.source := io.in(i).c.bits.source | UInt(r.start)
+        io.in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
+      } else {
+        in(i).c.valid := Bool(false)
+        in(i).e.valid := Bool(false)
+        in(i).b.ready := Bool(false)
+        io.in(i).c.ready := Bool(true)
+        io.in(i).e.ready := Bool(true)
+        io.in(i).b.valid := Bool(false)
+      }
     }
 
     // Transform output bundle sinks (sources use global namespace on both sides)
     val out = Wire(Vec(io.out.size, TLBundle(wide_bundle)))
     for (i <- 0 until out.size) {
       val r = outputIdRanges(i)
-      io.out(i) <> out(i)
-      // prefix sinks
+
+      io.out(i).a <> out(i).a
+      out(i).d <> io.out(i).d
       out(i).d.bits.sink := io.out(i).d.bits.sink | UInt(r.start)
-      // defix sinks
-      io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
+
+      if (node.edgesOut(i).manager.anySupportAcquireB && node.edgesIn.exists(_.client.anySupportProbe)) {
+        io.out(i).c <> out(i).c
+        io.out(i).e <> out(i).e
+        out(i).b <> io.out(i).b
+        io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
+      } else {
+        out(i).c.ready := Bool(false)
+        out(i).e.ready := Bool(false)
+        out(i).b.valid := Bool(false)
+        io.out(i).c.valid := Bool(false)
+        io.out(i).e.valid := Bool(false)
+        io.out(i).b.ready := Bool(true)
+      }
     }
 
     val addressA = (in zip node.edgesIn) map { case (i, e) => e.address(i.a.bits) }
