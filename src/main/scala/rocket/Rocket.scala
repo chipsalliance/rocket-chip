@@ -91,7 +91,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ("D$ blocked", () => id_ctrl.mem && dcache_blocked),
       ("branch misprediction", () => take_pc_mem && mem_direction_misprediction),
       ("control-flow target misprediction", () => take_pc_mem && mem_misprediction && !mem_direction_misprediction),
-      ("flush", () => take_pc_mem && mem_reg_flush_pipe),
+      ("flush", () => wb_reg_flush_pipe),
       ("replay", () => replay_wb))
       ++ (if (!usingMulDiv) Seq() else Seq(
         ("mul/div interlock", () => id_ex_hazard && ex_ctrl.div || id_mem_hazard && mem_ctrl.div || id_wb_hazard && wb_ctrl.div)))
@@ -151,11 +151,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val take_pc_mem = Wire(Bool())
 
   val wb_reg_valid           = Reg(Bool())
+  val wb_reg_rvc             = Reg(Bool())
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
+  val wb_reg_flush_pipe      = Reg(Bool())
   val wb_reg_cause           = Reg(UInt())
   val wb_reg_sfence = Reg(Bool())
-  val wb_reg_sfence_done = Reg(Bool())
   val wb_reg_pc = Reg(UInt())
   val wb_reg_inst = Reg(Bits())
   val wb_reg_wdata = Reg(Bits())
@@ -304,12 +305,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     ex_reg_load_use := id_load_use
     when (id_sfence) {
       ex_ctrl.mem_type := Cat(id_raddr2 =/= UInt(0), id_raddr1 =/= UInt(0))
-      when (wb_reg_sfence_done) { ex_ctrl.mem := false }
-    }
-
-    when (id_ctrl.jalr && csr.io.status.debug) {
-      ex_reg_flush_pipe := true
-      ex_ctrl.fence_i := true
     }
 
     for (i <- 0 until id_raddr.size) {
@@ -358,7 +353,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || (Bool(!fastJAL) && mem_ctrl.jal)
   val mem_direction_misprediction = mem_reg_btb_hit && mem_ctrl.branch && mem_br_taken =/= mem_reg_btb_resp.taken
   val mem_misprediction = if (usingBTB) mem_wrong_npc else mem_cfi_taken
-  take_pc_mem := mem_reg_valid && (mem_misprediction || mem_reg_flush_pipe)
+  take_pc_mem := mem_reg_valid && (mem_misprediction || mem_reg_sfence || (mem_ctrl.jalr && csr.io.status.debug))
 
   mem_reg_valid := !ctrl_killx
   mem_reg_replay := !take_pc_mem_wb && replay_ex
@@ -400,7 +395,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
-  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem || mem_reg_valid && mem_reg_sfence
+  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   div.io.kill := killm_common && Reg(next = div.io.req.fire())
   val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem
@@ -409,16 +404,21 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   wb_reg_valid := !ctrl_killm
   wb_reg_replay := replay_mem && !take_pc_wb
   wb_reg_xcpt := mem_xcpt && !take_pc_wb
+  wb_reg_flush_pipe := !ctrl_killm && mem_reg_flush_pipe
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
+    wb_reg_rvc := mem_reg_rvc
     wb_reg_sfence := mem_reg_sfence
     wb_reg_wdata := Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
-    when (mem_ctrl.rocc || mem_reg_sfence) {
+    when (mem_ctrl.rocc) {
       wb_reg_rs2 := mem_reg_rs2
     }
     wb_reg_cause := mem_cause
     wb_reg_inst := mem_reg_inst
     wb_reg_pc := mem_reg_pc
+    when (mem_ctrl.jalr && csr.io.status.debug) {
+      wb_ctrl.fence_i := true
+    }
   }
 
   val (wb_xcpt, wb_cause) = checkExceptions(List(
@@ -432,7 +432,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val replay_wb = replay_wb_common || replay_wb_rocc
-  take_pc_wb := replay_wb || wb_xcpt || csr.io.eret
+  val wb_npc = encodeVirtualAddress(wb_reg_pc, wb_reg_pc + Mux(replay_wb, 0.U, Mux(wb_reg_rvc, 2.U, 4.U)))
+  take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
   val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
@@ -463,8 +464,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   }
 
   val wb_valid = wb_reg_valid && !replay_wb && !wb_xcpt
-  when (wb_valid || wb_xcpt) { wb_reg_sfence_done := false }
-  when (io.imem.sfence.valid) { wb_reg_sfence_done := true }
   val wb_wen = wb_valid && wb_ctrl.wxd
   val rf_wen = wb_wen || ll_wen 
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
@@ -554,10 +553,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.imem.req.valid := take_pc
   io.imem.req.bits.speculative := !take_pc_wb
   io.imem.req.bits.pc :=
-    Mux(wb_xcpt || csr.io.eret,        csr.io.evec, // exception or [m|s]ret
-    Mux(replay_wb,                     wb_reg_pc,   // replay
-    Mux(take_pc_mem || Bool(!fastJAL), mem_npc,     // branch misprediction
-                                       id_npc)))    // JAL
+    Mux(wb_xcpt || csr.io.eret,         csr.io.evec, // exception or [m|s]ret
+    Mux(replay_wb || wb_reg_flush_pipe, wb_npc,      // replay or flush
+    Mux(take_pc_mem || Bool(!fastJAL),  mem_npc,     // branch misprediction
+                                        id_npc)))    // JAL
   io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !io.dmem.s2_nack
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
   io.imem.sfence.bits.rs1 := wb_ctrl.mem_type(0)
