@@ -185,7 +185,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ProbeAckData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ProbeAckData address not aligned to size" + extra)
       assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAckData carries invalid report param" + extra)
-      assert (!bundle.error, "'C' channel ProbeData carries an error" + extra)
     }
 
     when (bundle.opcode === TLMessages.Release) {
@@ -203,7 +202,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ReleaseData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
       assert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param" + extra)
-      assert (!bundle.error, "'C' channel ReleaseData carries an error" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
