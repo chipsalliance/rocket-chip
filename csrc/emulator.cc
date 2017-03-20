@@ -34,33 +34,39 @@ extern "C" int vpi_get_vlog_info(void* arg)
   return 0;
 }
 
-static void usage(const char * program_name) {
-  printf("Usage: %s [OPTION]... BINARY [BINARY ARGS]\n", program_name);
+static void usage(const char * program_name)
+{
+  printf("Usage: %s [EMULATOR OPTION]... [HOST OPTION]... BINARY [TARGET OPTION]...\n",
+         program_name);
   fputs("\
 Run a BINARY on the Rocket Chip emulator.\n\
 \n\
 Mandatory arguments to long options are mandatory for short options too.\n\
-  -c, --cycle-count          print the cycle count before exiting\n\
+\n\
+EMULATOR OPTIONS\n\
+  -c, --cycle-count          Print the cycle count before exiting\n\
        +cycle-count\n\
-  -h, --help                 display this help and exit\n\
-  -m, --max-cycles=CYCLES    kill the emulation after CYCLES\n\
-       +max-cycles=CYCLES\n\
-  -s, --seed=SEED            use random number seed SEED\n\
-  -V, --verbose              enable all Chisel printfs\n\
+  -h, --help                 Display this help and exit\n\
+  -m, --max-cycles=[CYCLES]  Kill the emulation after CYCLES\n\
+       +max-cycles=[CYCLES]\n\
+  -s, --seed=[SEED]          Use random number seed SEED\n\
+  -V, --verbose              Enable all Chisel printfs\n\
        +verbose\n\
 ", stdout);
 #if VM_TRACE
   fputs("\
-  -v, --vcd=FILE,            write vcd trace to FILE (or '-' for stdout)\n\
-  -x, --dump-start=CYCLE     start VCD tracing at CYCLE\n\
+  -v, --vcd=[FILE],          write vcd trace to FILE (or '-' for stdout)\n\
+  -x, --dump-start=[CYCLE]   start VCD tracing at CYCLE\n\
       +dump-start\n\
+\n\
+EMULATOR OPTIONS (unsupported in non-debug build -- try `make debug`)\n\
 ", stdout);
-#else
+#endif
   fputs("\
 VCD options (e.g., -v, +dump-start) require a debug-enabled emulator.\n\
 Try `make debug`.\n\
 ", stdout);
-#endif
+  fputs(HTIF_USAGE_OPTIONS, stdout);
 }
 
 int main(int argc, char** argv)
@@ -73,8 +79,8 @@ int main(int argc, char** argv)
   FILE * vcdfile = NULL;
   uint64_t start = 0;
 #endif
+  char ** htif_argv = NULL;
 
-  std::vector<std::string> to_dtm;
   while (1) {
     static struct option long_options[] = {
       {"cycle-count", no_argument,       0, 'c' },
@@ -86,7 +92,7 @@ int main(int argc, char** argv)
       {"vcd",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
 #endif
-      {0, 0, 0, 0}
+      HTIF_LONG_OPTIONS
     };
     int option_index = 0;
 #if VM_TRACE
@@ -95,8 +101,9 @@ int main(int argc, char** argv)
     int c = getopt_long(argc, argv, "-chm:s:V", long_options, &option_index);
 #endif
     if (c == -1) break;
+ retry:
     switch (c) {
-      // Process "normal" options with '--' long options or '-' short options
+      // Process long and short EMULATOR options
       case '?': usage(argv[0]);             return 1;
       case 'c': print_cycles = true;        break;
       case 'h': usage(argv[0]);             return 0;
@@ -114,39 +121,67 @@ int main(int argc, char** argv)
       }
       case 'x': start = atoll(optarg);      break;
 #endif
-      // Processing of legacy '+' options and recognition of when
-      // we've hit the binary. The binary is expected to be a
-      // non-option and not start with '-' or '+'.
+      // Process legacy '+' EMULATOR arguments by replacing them with
+      // their getopt equivalents
       case 1: {
         std::string arg = optarg;
-        if (arg == "+verbose")
-          verbose = true;
-        else if (arg.substr(0, 12) == "+max-cycles=")
-          max_cycles = atoll(optarg+12);
-#if VM_TRACE
-        else if (arg.substr(0, 12) == "+dump-start=")
-          start = atoll(optarg+12);
-#endif
-        else if (arg.substr(0, 12) == "+cycle-count")
-          print_cycles = true;
-        else {
-          to_dtm.push_back(optarg);
+        if (arg.substr(0, 1) != "+") {
+          optind--;
           goto done_processing;
         }
-        break;
+        if (arg == "+verbose")
+          c = 'V';
+        else if (arg.substr(0, 12) == "+max-cycles=") {
+          c = 'm';
+          optarg = optarg+12;
+        }
+#if VM_TRACE
+        else if (arg.substr(0, 12) == "+dump-start=")
+          c = 'x';
+          optarg = optarg+12;
+        }
+#endif
+        else if (arg.substr(0, 12) == "+cycle-count")
+          c = 'c';
+        // If we don't find a legacy '+' argument, it still could be
+        // an HTIF (HOST) argument and not an error. If this is the
+        // case, then we're doing processing EMULATOR arguments.
+        else {
+          static struct option htif_long_options [] = { HTIF_LONG_OPTIONS };
+          struct option * htif_option = &htif_long_options[0];
+          while (htif_option->name) {
+            if (arg.substr(1, strlen(htif_option->name)) == htif_option->name) {
+              optind--;
+              goto done_processing;
+            }
+            htif_option++;
+          }
+          std::cerr << argv[0] << ": invalid HTIF legacy plus-arg \"" << arg << "\"\n";
+          c = '?';
+        }
+        goto retry;
       }
+      // Realize that we've hit HTIF (HOST) arguments or error out
+      default:
+        if (c >= HTIF_LONG_OPTIONS_OPTIND) {
+          optind--;
+          goto done_processing;
+        }
+        c = '?';
+        goto retry;
     }
   }
 
 done_processing:
-  if (optind < argc)
-    while (optind < argc)
-      to_dtm.push_back(argv[optind++]);
-  if (!to_dtm.size()) {
+  if (optind == argc) {
     std::cerr << "No binary specified for emulator\n";
     usage(argv[0]);
     return 1;
   }
+  int htif_argc = 1 + argc - optind;
+  htif_argv = (char **) malloc((htif_argc) * sizeof (char *));
+  htif_argv[0] = argv[0];
+  for (int i = 1; optind < argc;) htif_argv[i++] = argv[optind++];
 
   if (verbose)
     fprintf(stderr, "using random seed %u\n", random_seed);
@@ -168,7 +203,7 @@ done_processing:
   }
 #endif
 
-  dtm = new dtm_t(to_dtm);
+  dtm = new dtm_t(htif_argc, htif_argv);
 
   signal(SIGTERM, handle_sigterm);
 
@@ -225,5 +260,6 @@ done_processing:
 
   if (dtm) delete dtm;
   if (tile) delete tile;
+  if (htif_argv) free(htif_argv);
   return ret;
 }
