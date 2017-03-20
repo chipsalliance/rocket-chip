@@ -16,7 +16,7 @@ case class ICacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
     rowBits: Int = 128,
-    nTLBEntries: Int = 8,
+    nTLBEntries: Int = 32,
     cacheIdBits: Int = 0,
     splitMetadata: Boolean = false,
     ecc: Option[Code] = None,

@@ -19,7 +19,7 @@ case class DCacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
     rowBits: Int = 64,
-    nTLBEntries: Int = 8,
+    nTLBEntries: Int = 32,
     splitMetadata: Boolean = false,
     ecc: Option[Code] = None,
     nMSHRs: Int = 1,
