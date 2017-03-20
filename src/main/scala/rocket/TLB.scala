@@ -73,14 +73,14 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
-  val mpu_ppn = Mux(do_refill, refill_ppn,
-                Mux(vm_enabled, ppns.last, vpn(ppnBits-1, 0)))
-  val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
+  val mpu_physaddr = Mux(do_refill, refill_ppn << pgIdxBits,
+                     Cat(Mux(vm_enabled, ppns.last, vpn(ppnBits-1, 0)), io.req.bits.vaddr(pgIdxBits-1, 0)))
   val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
   pmp.io.size := io.req.bits.size
   pmp.io.pmp := io.ptw.pmp
-  pmp.io.prv := Mux(io.req.bits.passthrough /* PTW */, PRV.S, priv)
+  pmp.io.prv := Mux(do_refill || io.req.bits.passthrough /* PTW */, PRV.S, priv)
+  pmp.io.pgLevel := io.ptw.resp.bits.level
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
@@ -88,10 +88,12 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val cacheable = fastCheck(_.supportsAcquireB)
-  val isSpecial = {
+  val isSpecial = !pmp.io.homogeneous || {
     val homogeneous = Wire(init = false.B)
     for (i <- 0 until pgLevels) {
-      when (io.ptw.resp.bits.level === i) { homogeneous := TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(mpu_physaddr).homogeneous }
+      when (io.ptw.resp.bits.level >= i) {
+        homogeneous := TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(mpu_physaddr).homogeneous
+      }
     }
     !homogeneous
   }
@@ -114,7 +116,7 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
       ppn = Cat(ppn, (Mux(level < i, vpn, 0.U) | partialPPN)(vpnBits - i*pgLevelBits - 1, vpnBits - (i + 1)*pgLevelBits))
     ppn
   }
-  
+
   // permission bit arrays
   val u_array = Reg(UInt(width = totalEntries)) // user permission
   val g_array = Reg(UInt(width = totalEntries)) // global mapping
@@ -140,9 +142,9 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
     xr_array := Mux(pte.sx() && (isSpecial || prot_r), xr_array | mask, xr_array & ~mask)
     cash_array := Mux(cacheable, cash_array | mask, cash_array & ~mask)
   }
- 
+
   val plru = new PseudoLRU(normalEntries)
-  val repl_waddr = Mux(!valid.andR, PriorityEncoder(~valid), plru.replace)
+  val repl_waddr = Mux(!valid(normalEntries-1, 0).andR, PriorityEncoder(~valid(normalEntries-1, 0)), plru.replace)
 
   val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), u_array), u_array)
   val w_array = Cat(prot_w, priv_ok & ~(~prot_w << specialEntry) & sw_array)

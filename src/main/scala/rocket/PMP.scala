@@ -17,29 +17,80 @@ class PMPConfig extends Bundle {
   val r = Bool()
 }
 
+object PMP {
+  def lgAlign = 2
+}
+
 class PMP(implicit p: Parameters) extends CoreBundle()(p) {
+  import PMP._
+
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - lgAlign)
 
-  def enabled(prv: UInt) = cfg.p.orR && (cfg.m || prv <= PRV.S)
-  def locked = cfg.p.andR
+  def locked = cfg.p(1)
   def addrLocked(next: PMP) = locked || next.locked && next.cfg.a(1)
 
-  private def lgAlign = 2
-  private def mask = (0 until paddrBits - lgAlign).scanLeft(cfg.a(0))((m, i) => m && addr(i)).asUInt
+  private lazy val mask = Cat((0 until paddrBits - lgAlign).scanLeft(cfg.a(0))((m, i) => m && addr(i)).asUInt, UInt((BigInt(1) << lgAlign) - 1, lgAlign))
+  private lazy val comparand = addr << lgAlign
 
-  def pow2AddressMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
-    val m = mask
-    def checkOne(a: UInt) = (((a >> lgAlign) ^ addr) & ~m) === 0
-    var res = checkOne(x)
-    for (i <- (1 << lgAlign) until (1 << lgMaxSize) by (1 << lgAlign))
-      res = res || (lgSize > log2Ceil(i) && checkOne(x | i))
-    res
+  private def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
+    def eval(a: UInt, b: UInt, m: UInt) = ((a ^ b) & ~m) === 0
+    if (lgMaxSize <= lgAlign) {
+      eval(x, comparand, mask)
+    } else {
+      // break up the circuit; the MSB part will be CSE'd
+      val lsbMask = mask | ~(((BigInt(1) << lgMaxSize) - 1).U << lgSize)
+      val msbMatch = eval(x >> lgMaxSize, comparand >> lgMaxSize, mask >> lgMaxSize)
+      val lsbMatch = eval(x(lgMaxSize-1, 0), comparand(lgMaxSize-1, 0), lsbMask(lgMaxSize-1, 0))
+      msbMatch && lsbMatch
+    }
   }
 
-  def hit(prv: UInt, x: UInt, lgSize: UInt, lgMaxSize: Int) = {
-    enabled(prv) && pow2AddressMatch(x, lgSize, lgMaxSize)
+  private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) = {
+    if (lgMaxSize <= lgAlign) {
+      x < comparand
+    } else {
+      // break up the circuit; the MSB part will be CSE'd
+      val msbsLess = (x >> lgMaxSize) < (comparand >> lgMaxSize)
+      val msbsEqual = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0
+      val lsbsLess = x(lgMaxSize-1, 0) < (comparand(lgMaxSize-1, 0) & lsbMask(lgMaxSize-1, 0))
+      msbsLess || (msbsEqual && lsbsLess)
+    }
   }
+
+  private def lowerBoundMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) =
+    !boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U << lgSize, lgMaxSize)
+
+  private def upperBoundMatch(x: UInt, lgMaxSize: Int) =
+    boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U, lgMaxSize)
+
+  private def rangeMatch(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP) =
+    prev.lowerBoundMatch(x, lgSize, lgMaxSize) && upperBoundMatch(x, lgMaxSize)
+
+  private def pow2Homogeneous(x: UInt, pgMask: UInt) = {
+    (mask & ~pgMask & (pgMask >> 1.U)) =/= 0 || ((x ^ comparand) & pgMask) =/= 0
+  }
+
+  private def rangeHomogeneous(x: UInt, pgMask: UInt, lgMaxSize: Int, prev: PMP) = {
+    val beginsAfterLower = !prev.boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U, lgMaxSize) // CSE with rangeMatch
+    val beginsAfterUpper = !boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U, lgMaxSize) // CSE with rangeMatch
+    val endsBeforeLower = (x & pgMask) < (prev.comparand & pgMask)
+    val endsBeforeUpper = (x & pgMask) > (comparand & pgMask)
+    endsBeforeLower || beginsAfterUpper || (beginsAfterLower && endsBeforeUpper)
+  }
+
+  def homogeneous(x: UInt, pgMask: UInt, lgMaxSize: Int, prev: PMP): Bool =
+    !cfg.p(0) || Mux(cfg.a(1), rangeHomogeneous(x, pgMask, lgMaxSize, prev), pow2Homogeneous(x, pgMask))
+
+  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = {
+    val alignMask = ~(((BigInt(1) << lgMaxSize) - 1).U << lgSize)(lgMaxSize-1, 0)
+    val rangeAligned = (prev.comparand(lgMaxSize-1, 0) & alignMask) === 0 && (comparand(lgMaxSize-1, 0) & alignMask) === 0
+    val pow2Aligned = (alignMask & ~mask(lgMaxSize-1, 0)) === 0
+    Mux(cfg.a(1), rangeAligned, pow2Aligned)
+  }
+
+  def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool =
+    cfg.p(0) && Mux(cfg.a(1), rangeMatch(x, lgSize, lgMaxSize, prev), pow2Match(x, lgSize, lgMaxSize))
 }
 
 class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
@@ -52,15 +103,39 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     val r = Bool(OUTPUT)
     val w = Bool(OUTPUT)
     val x = Bool(OUTPUT)
+    val pgLevel = UInt(INPUT, log2Ceil(pgLevels))
+    val homogeneous = Bool(OUTPUT)
   }
 
-  def hits = io.pmp.map(_.hit(io.prv, io.addr, io.size, lgMaxSize))
   val default = io.prv > PRV.S
-  val (r, w, x, _) = ((default, default, default, 0.U) /: (io.pmp zip hits).reverse) { case ((r, w, x, pri), (pmp, hit)) =>
-    MuxT(hit && pmp.cfg.p >= pri, (pmp.cfg.r, pmp.cfg.w, pmp.cfg.x, pmp.cfg.p), (r, w, x, pri))
+  val pmp0 = Wire(init = 0.U.asTypeOf(new PMP))
+  pmp0.cfg.r := default
+  pmp0.cfg.w := default
+  pmp0.cfg.x := default
+
+  val pgMask = (0 until pgLevels).map { i =>
+    val idxBits = pgIdxBits + (pgLevels - 1 - i) * pgLevelBits
+    require(idxBits < paddrBits)
+    val mask = (BigInt(1) << paddrBits) - (BigInt(1) << idxBits)
+    Mux(io.pgLevel >= i, mask.U, 0.U)
+  }.reduce(_|_)
+
+  io.homogeneous := ((true.B, pmp0) /: io.pmp) { case ((h, prev), pmp) =>
+    (h && pmp.homogeneous(io.addr, pgMask, lgMaxSize, prev), pmp)
+  }._1
+
+  val res = (pmp0 /: (io.pmp zip (pmp0 +: io.pmp)).reverse) { case (prev, (pmp, prevPMP)) =>
+    val hit = pmp.hit(io.addr, io.size, lgMaxSize, prevPMP)
+    val ignore = default && !pmp.cfg.m
+    val aligned = pmp.aligned(io.addr, io.size, lgMaxSize, prevPMP)
+    val cur = Wire(init = pmp)
+    cur.cfg.r := (aligned && pmp.cfg.r) || ignore
+    cur.cfg.w := (aligned && pmp.cfg.w) || ignore
+    cur.cfg.x := (aligned && pmp.cfg.x) || ignore
+    Mux(hit, cur, prev)
   }
 
-  io.r := r
-  io.w := w
-  io.x := x
+  io.r := res.cfg.r
+  io.w := res.cfg.w
+  io.x := res.cfg.x
 }
