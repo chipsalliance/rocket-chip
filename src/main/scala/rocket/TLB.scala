@@ -144,7 +144,7 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   val plru = new PseudoLRU(normalEntries)
   val repl_waddr = Mux(!valid.andR, PriorityEncoder(~valid), plru.replace)
 
-  val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.pum, u_array, UInt(0)), u_array)
+  val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), u_array), u_array)
   val w_array = Cat(prot_w, priv_ok & ~(~prot_w << specialEntry) & sw_array)
   val x_array = Cat(prot_x, priv_ok & ~(~prot_x << specialEntry) & sx_array)
   val r_array = Cat(prot_r, priv_ok & ~(~prot_r << specialEntry) & (sr_array | Mux(io.ptw.status.mxr, xr_array, UInt(0))))
@@ -178,8 +178,6 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   io.ptw.req.valid := state === s_request
   io.ptw.req.bits <> io.ptw.status
   io.ptw.req.bits.addr := r_refill_tag
-  io.ptw.req.bits.store := r_req.store
-  io.ptw.req.bits.fetch := r_req.instruction
 
   if (usingVM) {
     val sfence = io.req.valid && io.req.bits.sfence.valid

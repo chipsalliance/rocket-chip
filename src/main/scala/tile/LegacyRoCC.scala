@@ -308,8 +308,6 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
 
   ptw.req.valid := (state === s_ptw_req)
   ptw.req.bits.addr := req_vpn
-  ptw.req.bits.store := Bool(false)
-  ptw.req.bits.fetch := Bool(false)
 
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := req_rd

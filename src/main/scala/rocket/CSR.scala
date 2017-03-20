@@ -30,7 +30,7 @@ class MStatus extends Bundle {
   val tw = Bool()
   val tvm = Bool()
   val mxr = Bool()
-  val pum = Bool()
+  val sum = Bool()
   val mprv = Bool()
   val xs = UInt(width = 2)
   val fs = UInt(width = 2)
@@ -553,7 +553,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
         reg_mstatus.mxr := new_mstatus.mxr
         if (usingVM) {
-          reg_mstatus.pum := new_mstatus.pum
+          reg_mstatus.sum := new_mstatus.sum
           reg_mstatus.spp := new_mstatus.spp
           reg_mstatus.spie := new_mstatus.spie
           reg_mstatus.sie := new_mstatus.sie
@@ -617,7 +617,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_mstatus.sie := new_sstatus.sie
         reg_mstatus.spie := new_sstatus.spie
         reg_mstatus.spp := new_sstatus.spp
-        reg_mstatus.pum := new_sstatus.pum
+        reg_mstatus.sum := new_sstatus.sum
         reg_mstatus.fs := Fill(2, new_sstatus.fs.orR) // even without an FPU
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }

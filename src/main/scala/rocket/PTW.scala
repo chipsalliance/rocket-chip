@@ -13,12 +13,7 @@ import util._
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
-  val prv = Bits(width = 2)
-  val pum = Bool()
-  val mxr = Bool()
   val addr = UInt(width = vpnBits)
-  val store = Bool()
-  val fetch = Bool()
 }
 
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
