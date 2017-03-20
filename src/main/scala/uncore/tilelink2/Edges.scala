@@ -57,7 +57,7 @@ class TLEdge(
     }
   }
 
-  def hasFollowUp(x: TLChannel): Bool = {
+  def isRequest(x: TLChannel): Bool = {
     x match {
       case a: TLBundleA => Bool(true)
       case b: TLBundleB => Bool(true)
@@ -68,6 +68,18 @@ class TLEdge(
         //    opcode === TLMessages.Grant     ||
         //    opcode === TLMessages.GrantData
       case e: TLBundleE => Bool(false)
+    }
+  }
+
+  def isResponse(x: TLChannel): Bool = {
+    x match {
+      case a: TLBundleA => Bool(false)
+      case b: TLBundleB => Bool(false)
+      case c: TLBundleC => !c.opcode(2) || !c.opcode(1)
+        //    opcode =/= TLMessages.Release &&
+        //    opcode =/= TLMessages.ReleaseData
+      case d: TLBundleD => Bool(true) // Grant isResponse + isRequest
+      case e: TLBundleE => Bool(true)
     }
   }
 

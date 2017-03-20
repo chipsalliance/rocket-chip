@@ -246,7 +246,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 
   val grantackq = Module(new Queue(io.mem_finish.bits, 1))
   val can_finish = state.isOneOf(s_invalid, s_refill_req)
-  grantackq.io.enq.valid := refill_done && edge.hasFollowUp(io.mem_grant.bits)
+  grantackq.io.enq.valid := refill_done && edge.isRequest(io.mem_grant.bits)
   grantackq.io.enq.bits := edge.GrantAck(io.mem_grant.bits)
   io.mem_finish.valid := grantackq.io.deq.valid && can_finish
   io.mem_finish.bits := grantackq.io.deq.bits
