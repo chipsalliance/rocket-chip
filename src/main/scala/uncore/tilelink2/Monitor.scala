@@ -414,23 +414,31 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
   def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
+    val a_first = edge.first(bundle.a.bits, bundle.a.fire())
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
     val a_last = edge.last(bundle.a.bits, bundle.a.fire())
     val d_last = edge.last(bundle.d.bits, bundle.d.fire())
 
     if (edge.manager.minLatency > 0) {
-      assert(bundle.d.bits.opcode === TLMessages.ReleaseAck || bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+//      assert(bundle.d.bits.opcode === TLMessages.ReleaseAck || bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      // Since now can perform early response, we can only check this only if a_first
+      assert(bundle.d.bits.opcode === TLMessages.ReleaseAck || bundle.a.bits.source =/= bundle.d.bits.source ||
+             !bundle.a.valid || !bundle.d.valid || !a_first,
+             s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
-    when (bundle.a.fire()) {
-      when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
+      // change this because now can perform early response
+    when (bundle.a.fire() && a_first) {
+      a_set := UIntToOH(bundle.a.bits.source)
       assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
     when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
       when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
-      assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+      // change this because now can perform early response
+      assert((a_first | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
