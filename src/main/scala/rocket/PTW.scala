@@ -73,7 +73,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val state = Reg(init=s_ready)
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
-  val resp_valid = Reg(next = Bool(false))
+  val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
   val exception = Reg(next = io.mem.xcpt.pf.ld)
 
   val r_req = Reg(new PTWReq)
@@ -132,7 +132,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.mem.invalidate_lr := Bool(false)
   
   for (i <- 0 until io.requestor.size) {
-    io.requestor(i).resp.valid := resp_valid && (r_req_dest === i)
+    io.requestor(i).resp.valid := resp_valid(i)
     io.requestor(i).resp.bits.pte := r_pte
     io.requestor(i).resp.bits.level := count
     io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
@@ -172,13 +172,13 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
           count := count + 1
         }.otherwise {
           state := s_ready
-          resp_valid := true
+          resp_valid(r_req_dest) := true
         }
       }
       when (exception) {
         r_pte.v := false
         state := s_ready
-        resp_valid := true
+        resp_valid(r_req_dest) := true
       }
     }
   }
