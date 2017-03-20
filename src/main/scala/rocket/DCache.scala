@@ -64,7 +64,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val probe_bits = RegEnable(tl_out.b.bits, tl_out.b.fire()) // TODO has data now :(
   val s1_nack = Wire(init=Bool(false))
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill && !io.cpu.xcpt.asUInt.orR
-  val s1_valid_not_nacked = s1_valid_masked && !s1_nack
+  val s1_valid_not_nacked = s1_valid && !s1_nack
   val s1_req = Reg(io.cpu.req.bits)
   when (metaReadArb.io.out.valid) {
     s1_req := io.cpu.req.bits
