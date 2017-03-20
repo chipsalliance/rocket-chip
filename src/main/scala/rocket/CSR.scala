@@ -239,7 +239,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
   val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
-  val reg_pmp = Reg(Vec(nPMPs, new PMP))
+  val reg_pmp = Reg(Vec(nPMPs, new PMPReg))
 
   val reg_mie = Reg(UInt(width = xLen))
   val reg_mideleg = Reg(UInt(width = xLen))
@@ -289,7 +289,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.interrupt := all_interrupts.orR && !reg_debug && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
-  io.pmp := reg_pmp
+  io.pmp := reg_pmp.map(PMP(_))
 
   // debug interrupts are only masked by being in debug mode
   when (Bool(usingDebug) && reg_dcsr.debugint && !reg_debug) {

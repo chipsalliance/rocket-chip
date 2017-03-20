@@ -19,18 +19,28 @@ class PMPConfig extends Bundle {
 
 object PMP {
   def lgAlign = 2
+
+  def apply(reg: PMPReg): PMP = {
+    val pmp = Wire(new PMP()(reg.p))
+    pmp := reg
+    pmp.mask := pmp.computeMask
+    pmp
+  }
 }
 
-class PMP(implicit p: Parameters) extends CoreBundle()(p) {
-  import PMP._
-
+class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
-  val addr = UInt(width = paddrBits - lgAlign)
+  val addr = UInt(width = paddrBits - PMP.lgAlign)
 
   def locked = cfg.p(1)
-  def addrLocked(next: PMP) = locked || next.locked && next.cfg.a(1)
+  def addrLocked(next: PMPReg) = locked || next.locked && next.cfg.a(1)
+}
 
-  private lazy val mask = Cat((0 until paddrBits - lgAlign).scanLeft(cfg.a(0))((m, i) => m && addr(i)).asUInt, UInt((BigInt(1) << lgAlign) - 1, lgAlign))
+class PMP(implicit p: Parameters) extends PMPReg {
+  val mask = UInt(width = paddrBits)
+
+  import PMP._
+  def computeMask = Cat((0 until paddrBits - lgAlign).scanLeft(cfg.a(0))((m, i) => m && addr(i)).asUInt, UInt((BigInt(1) << lgAlign) - 1, lgAlign))
   private lazy val comparand = addr << lgAlign
 
   private def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
