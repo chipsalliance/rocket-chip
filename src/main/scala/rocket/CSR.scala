@@ -363,14 +363,17 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   if (usingVM) {
     val read_sie = reg_mie & reg_mideleg
     val read_sip = read_mip & reg_mideleg
-    val read_sstatus = Wire(init=io.status)
-    read_sstatus.mprv := 0
-    read_sstatus.mpp := 0
-    read_sstatus.hpp := 0
-    read_sstatus.mpie := 0
-    read_sstatus.hpie := 0
-    read_sstatus.mie := 0
-    read_sstatus.hie := 0
+    val read_sstatus = Wire(init = 0.U.asTypeOf(new MStatus))
+    read_sstatus.sd := io.status.sd
+    read_sstatus.uxl := io.status.uxl
+    read_sstatus.sd_rv32 := io.status.sd_rv32
+    read_sstatus.mxr := io.status.mxr
+    read_sstatus.sum := io.status.sum
+    read_sstatus.xs := io.status.xs
+    read_sstatus.fs := io.status.fs
+    read_sstatus.spp := io.status.spp
+    read_sstatus.spie := io.status.spie
+    read_sstatus.sie := io.status.sie
 
     read_mapping += CSRs.sstatus -> (read_sstatus.asUInt())(xLen-1,0)
     read_mapping += CSRs.sip -> read_sip.asUInt
@@ -551,8 +554,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       if (usingUser) {
         reg_mstatus.mprv := new_mstatus.mprv
         reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
-        reg_mstatus.mxr := new_mstatus.mxr
         if (usingVM) {
+          reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.sum := new_mstatus.sum
           reg_mstatus.spp := new_mstatus.spp
           reg_mstatus.spie := new_mstatus.spie
@@ -617,6 +620,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_mstatus.sie := new_sstatus.sie
         reg_mstatus.spie := new_sstatus.spie
         reg_mstatus.spp := new_sstatus.spp
+        reg_mstatus.mxr := new_sstatus.mxr
         reg_mstatus.sum := new_sstatus.sum
         reg_mstatus.fs := Fill(2, new_sstatus.fs.orR) // even without an FPU
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
