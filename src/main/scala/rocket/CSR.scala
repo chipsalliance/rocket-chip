@@ -325,8 +325,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     CSRs.mtvec -> reg_mtvec,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
-    CSRs.mideleg -> reg_mideleg,
-    CSRs.medeleg -> reg_medeleg,
     CSRs.mscratch -> reg_mscratch,
     CSRs.mepc -> reg_mepc.sextTo(xLen),
     CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
@@ -385,6 +383,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
     read_mapping += CSRs.scounteren -> reg_scounteren
+    read_mapping += CSRs.mideleg -> reg_mideleg
+    read_mapping += CSRs.medeleg -> reg_medeleg
   }
 
   if (usingUser) {
