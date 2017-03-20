@@ -189,7 +189,7 @@ case class TLClientParameters(
 case class TLClientPortParameters(
   clients:       Seq[TLClientParameters],
   unsafeAtomics: Boolean = false,
-  minLatency:    Int = 0) // Atomics are executed as get+put
+  minLatency:    Int = 0) // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)

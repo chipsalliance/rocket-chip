@@ -345,7 +345,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // Finish TileLink transaction by issuing a GrantAck
-  grantackq.io.enq.valid := d_done && edge.hasFollowUp(tl_out.d.bits)
+  grantackq.io.enq.valid := d_done && edge.isRequest(tl_out.d.bits)
   grantackq.io.enq.bits := edge.GrantAck(tl_out.d.bits)
   tl_out.e <> grantackq.io.deq
   assert(!grantackq.io.enq.valid || grantackq.io.enq.ready, "Too many Grants received by dcache.")
