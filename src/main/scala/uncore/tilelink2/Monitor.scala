@@ -110,10 +110,9 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     when (bundle.opcode === TLMessages.Probe) {
       assert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
       assert (address_ok, "'B' channel Probe carries unmanaged address" + extra)
-      assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'B' channel Probe smaller than a beat" + extra)
       assert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
       assert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      assert (~bundle.mask === UInt(0), "'B' channel Probe contains invalid mask" + extra)
+      assert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
