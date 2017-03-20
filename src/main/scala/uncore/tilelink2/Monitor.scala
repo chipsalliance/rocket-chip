@@ -408,34 +408,66 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeADSource(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
-    val a_last = edge.last(bundle.a.bits, bundle.a.fire())
-    val d_last = edge.last(bundle.d.bits, bundle.d.fire())
-
-    if (edge.manager.minLatency > 0) {
-      assert(bundle.d.bits.opcode === TLMessages.ReleaseAck || bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
-    }
+    val a_first = edge.first(bundle.a.bits, bundle.a.fire())
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
-    when (bundle.a.fire()) {
-      when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
+    when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
+      a_set := UIntToOH(bundle.a.bits.source)
       assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
-    when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
-      when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
+    val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
+    when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      d_clr := UIntToOH(bundle.d.bits.source)
       assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+    }
+
+    if (edge.manager.minLatency > 0) {
+      assert(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
   }
 
+  def legalizeDESink(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+    val inflight = RegInit(UInt(0, width = edge.manager.endSinkId))
+
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+    val e_first = Bool(true)
+
+    val d_set = Wire(init = UInt(0, width = edge.manager.endSinkId))
+    when (bundle.d.fire() && d_first && edge.isRequest(bundle.d.bits)) {
+      d_set := UIntToOH(bundle.d.bits.sink)
+      assert(!inflight(bundle.d.bits.sink), "'D' channel re-used a sink ID" + extra)
+    }
+
+    val e_clr = Wire(init = UInt(0, width = edge.manager.endSinkId))
+    when (bundle.e.fire() && e_first && edge.isResponse(bundle.e.bits)) {
+      e_clr := UIntToOH(bundle.e.bits.sink)
+      assert((d_set | inflight)(bundle.e.bits.sink), "'E' channel acknowledged for nothing inflight" + extra)
+    }
+
+    // edge.client.minLatency applies to BC, not DE
+
+    inflight := (inflight | d_set) & ~e_clr
+  }
+
+  def legalizeUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+    legalizeADSource(bundle, edge)
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
+      legalizeDESink(bundle, edge)
+    }
+  }
+
   def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool) {
-    legalizeFormat      (bundle, edge)
-    legalizeMultibeat   (bundle, edge)
-    legalizeSourceUnique(bundle, edge)
+    legalizeFormat   (bundle, edge)
+    legalizeMultibeat(bundle, edge)
+    legalizeUnique   (bundle, edge)
   }
 }
