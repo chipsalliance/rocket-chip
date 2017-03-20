@@ -598,7 +598,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
          wb_reg_inst, wb_reg_inst)
   }
 
-  if (nPerfEvents >= 30) {
+  if (nPerfEvents >= 35) {
     println ("HPM enabled: " + nPerfEvents + " events supported.")
     csr.io.events.map(_ := UInt(0))
     // event mappings set to match BOOM's event numbers.
@@ -607,6 +607,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     csr.io.events(2) := wb_valid && csr.io.status.prv === PRV.U
     csr.io.events(28) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && csr.io.status.prv === PRV.U
     csr.io.events(29) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc && csr.io.status.prv === PRV.U
+
+    // hook up counter events
+    csr.io.events(3) := io.dmem.dc_miss // d$ miss
+    csr.io.events(4) := io.imem.ic_miss // i$ miss
+    csr.io.events(31) := io.dmem.req.fire()  // d$ accesses
+    csr.io.events(32) := io.imem.resp.fire() // i$ accesses
+    csr.io.events(33) := io.dmem.tlb_miss // DTLB miss
+    csr.io.events(34) := io.imem.tlb_miss // ITLB miss
   }
 
 
@@ -645,16 +653,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       when (ens) { _r := _next }
     }
   }
-
-  // hook up counter events
-  assert(p(NPerfEvents) >= 35)
-  csr.io.events foreach (_ := Bool(false))
-  csr.io.events(3) := io.dmem.dc_miss // d$ miss
-  csr.io.events(4) := io.imem.ic_miss // i$ miss
-  csr.io.events(31) := io.dmem.req.fire()  // d$ accesses
-  csr.io.events(32) := io.imem.resp.fire() // i$ accesses
-  csr.io.events(33) := io.dmem.tlb_miss // DTLB miss
-  csr.io.events(34) := io.imem.tlb_miss // ITLB miss
 }
 
 class RegFile(n: Int, w: Int, zero: Boolean = false) {
