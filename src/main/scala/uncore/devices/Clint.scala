@@ -40,7 +40,7 @@ class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Paramet
   }
 
   val node = TLRegisterNode(
-    address   = AddressSet(address, size-1),
+    address   = Seq(AddressSet(address, size-1)),
     device    = device,
     beatBytes = p(XLen)/8)
 
