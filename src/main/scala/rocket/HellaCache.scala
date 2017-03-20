@@ -7,43 +7,58 @@ import Chisel._
 import config.{Parameters, Field}
 import coreplex._
 import diplomacy._
+import tile._
 import uncore.constants._
 import uncore.tilelink2._
-import uncore.util._
-import util.ParameterizedBundle
+import uncore.util.Code
+import util.{ParameterizedBundle, RandomReplacement}
 import scala.collection.mutable.ListBuffer
 
-case class DCacheConfig(
-  nMSHRs: Int = 1,
-  nSDQ: Int = 17,
-  nRPQ: Int = 16,
-  nMMIOs: Int = 1)
+case class DCacheParams(
+    nSets: Int = 64,
+    nWays: Int = 4,
+    rowBits: Int = 64,
+    nTLBEntries: Int = 8,
+    splitMetadata: Boolean = false,
+    ecc: Option[Code] = None,
+    nMSHRs: Int = 1,
+    nSDQ: Int = 17,
+    nRPQ: Int = 16,
+    nMMIOs: Int = 1) extends L1CacheParams {
+  def replacement = new RandomReplacement(nWays)
+}
 
-case object DCacheKey extends Field[DCacheConfig]
+trait HasL1HellaCacheParameters extends HasL1CacheParameters
+    with HasCoreParameters {
+  val cacheParams = tileParams.dcache.get
+  val cfg = cacheParams
 
-trait HasL1HellaCacheParameters extends HasL1CacheParameters {
-  val wordBits = xLen // really, xLen max 
-  val wordBytes = wordBits/8
-  val wordOffBits = log2Up(wordBytes)
-  val beatBytes = cacheBlockBytes / cacheDataBeats
-  val beatWords = beatBytes / wordBytes
-  val beatOffBits = log2Up(beatBytes)
-  val idxMSB = untagBits-1
-  val idxLSB = blockOffBits
-  val offsetmsb = idxLSB-1
-  val offsetlsb = wordOffBits
-  val rowWords = rowBits/wordBits
-  val doNarrowRead = coreDataBits * nWays % rowBits == 0
-  val encDataBits = code.width(coreDataBits)
-  val encRowBits = encDataBits*rowWords
-  val nIOMSHRs = 1
-  val lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
+  def wordBits = xLen // really, xLen max 
+  def wordBytes = wordBits/8
+  def wordOffBits = log2Up(wordBytes)
+  def beatBytes = cacheBlockBytes / cacheDataBeats
+  def beatWords = beatBytes / wordBytes
+  def beatOffBits = log2Up(beatBytes)
+  def idxMSB = untagBits-1
+  def idxLSB = blockOffBits
+  def offsetmsb = idxLSB-1
+  def offsetlsb = wordOffBits
+  def rowWords = rowBits/wordBits
+  def doNarrowRead = coreDataBits * nWays % rowBits == 0
+  def encDataBits = code.width(coreDataBits)
+  def encRowBits = encDataBits*rowWords
+  def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
+  def nIOMSHRs = cacheParams.nMMIOs
+  def maxUncachedInFlight = cacheParams.nMMIOs
+  def dataScratchpadSize = tileParams.dataScratchpadBytes
 
-  require(isPow2(nSets))
-  require(rowBits >= coreDataBits)
-  require(rowBits == cacheDataBits) // TODO should rowBits even be seperably specifiable?
-  require(xLen <= cacheDataBits) // would need offset addr for puts if data width < xlen
-  require(!usingVM || untagBits <= pgIdxBits)
+  require(isPow2(nSets), s"nSets($nSets) must be pow2")
+  require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
+  // TODO should rowBits even be seperably specifiable?
+  require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)") 
+  // would need offset addr for puts if data width < xlen
+  require(xLen <= cacheDataBits, s"xLen($xLen) > cacheDataBits($cacheDataBits)")
+  require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -52,25 +67,7 @@ abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
 abstract class L1HellaCacheBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasL1HellaCacheParameters
 
-class L1Metadata(implicit p: Parameters) extends Metadata()(p) with HasL1HellaCacheParameters {
-  val coh = new ClientMetadata
-}
-object L1Metadata {
-  def apply(tag: Bits, coh: ClientMetadata)(implicit p: Parameters) = {
-    val meta = Wire(new L1Metadata)
-    meta.tag := tag
-    meta.coh := coh
-    meta
-  }
-}
-
-class L1MetaReadReq(implicit p: Parameters) extends MetaReadReq {
-  val tag = Bits(width = tagBits)
-  override def cloneType = new L1MetaReadReq()(p).asInstanceOf[this.type] //TODO remove
-}
-
-class L1MetaWriteReq(implicit p: Parameters) extends 
-  MetaWriteReq[L1Metadata](new L1Metadata)
+/** Bundle definitions for HellaCache interfaces */
 
 trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
@@ -81,6 +78,10 @@ trait HasCoreMemOp extends HasCoreParameters {
 
 trait HasCoreData extends HasCoreParameters {
   val data = Bits(width = coreDataBits)
+}
+
+class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
+  val phys = Bool()
 }
 
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
@@ -104,7 +105,6 @@ class HellaCacheExceptions extends Bundle {
   val pf = new AlignmentExceptions
 }
 
-
 // interface between D$ and processor/DTLB
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
@@ -123,10 +123,13 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val tlb_miss = Bool(INPUT)
 }
 
-abstract class HellaCache(val cfg: DCacheConfig)(implicit p: Parameters) extends LazyModule {
+/** Base classes for Diplomatic TL2 HellaCaches */
+
+abstract class HellaCache(implicit p: Parameters) extends LazyModule {
+  private val cfg = p(TileKey).dcache.get
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, cfg.nMSHRs + cfg.nMMIOs),
-    supportsProbe = TransferSizes(p(CacheBlockBytes))))
+    supportsProbe = TransferSizes(1, p(CacheBlockBytes))))
   val module: HellaCacheModule
 }
 
@@ -139,38 +142,101 @@ class HellaCacheBundle(outer: HellaCache) extends Bundle {
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
-  implicit val cfg = outer.cfg
   implicit val edge = outer.node.edgesOut(0)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
 }
 
 object HellaCache {
-  def apply(cfg: DCacheConfig, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
-    if (cfg.nMSHRs == 0) LazyModule(new DCache(cfg, scratch))
-    else LazyModule(new NonBlockingDCache(cfg))
+  def apply(blocking: Boolean, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
+    if (blocking) LazyModule(new DCache(scratch))
+    else LazyModule(new NonBlockingDCache)
   }
 }
 
 /** Mix-ins for constructing tiles that have a HellaCache */
-trait HasHellaCache extends TileNetwork {
+
+trait HasHellaCache extends HasTileLinkMasterPort {
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcacheParams = p.alterPartial({ case CacheName => CacheName("L1D") })
-  val dcache = HellaCache(p(DCacheKey), findScratchpadFromICache _)(dcacheParams)
-  l1backend.node := dcache.node
+  val dcache = HellaCache(tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
+  masterNode := dcache.node
 }
 
-trait HasHellaCacheBundle extends TileNetworkBundle {
+trait HasHellaCacheBundle extends HasTileLinkMasterPortBundle {
   val outer: HasHellaCache
 }
 
-trait HasHellaCacheModule extends TileNetworkModule {
+trait HasHellaCacheModule extends HasTileLinkMasterPortModule {
   val outer: HasHellaCache
   //val io: HasHellaCacheBundle
   val dcachePorts = ListBuffer[HellaCacheIO]()
-  val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.dcacheParams))
+  val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
+}
+
+/** Metadata array used for all HellaCaches */
+
+class L1Metadata(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
+  val coh = new ClientMetadata
+  val tag = UInt(width = tagBits)
+}
+
+object L1Metadata {
+  def apply(tag: Bits, coh: ClientMetadata)(implicit p: Parameters) = {
+    val meta = Wire(new L1Metadata)
+    meta.tag := tag
+    meta.coh := coh
+    meta
+  }
+}
+
+class L1MetaReadReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
+  val idx    = UInt(width = idxBits)
+  val way_en = UInt(width = nWays)
+  val tag    = UInt(width = tagBits)
+}
+
+class L1MetaWriteReq(implicit p: Parameters) extends L1MetaReadReq()(p) {
+  val data = new L1Metadata
+}
+
+class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters) extends L1HellaCacheModule()(p) {
+  val rstVal = onReset()
+  val io = new Bundle {
+    val read = Decoupled(new L1MetaReadReq).flip
+    val write = Decoupled(new L1MetaWriteReq).flip
+    val resp = Vec(nWays, rstVal.cloneType).asOutput
+  }
+  val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
+  val rst = rst_cnt < UInt(nSets)
+  val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
+  val wdata = Mux(rst, rstVal, io.write.bits.data).asUInt
+  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.asSInt).toBools
+  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.asSInt).toBools
+  when (rst) { rst_cnt := rst_cnt+UInt(1) }
+
+  val metabits = rstVal.getWidth
+
+  if (hasSplitMetadata) {
+    val tag_arrs = List.fill(nWays){ SeqMem(nSets, UInt(width = metabits)) }
+    val tag_readout = Wire(Vec(nWays,rstVal.cloneType))
+    (0 until nWays).foreach { (i) =>
+      when (rst || (io.write.valid && wmask(i))) {
+        tag_arrs(i).write(waddr, wdata)
+      }
+      io.resp(i) := rstVal.fromBits(tag_arrs(i).read(io.read.bits.idx, io.read.valid && rmask(i)))
+    }
+  } else {
+    val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
+    when (rst || io.write.valid) {
+      tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
+    }
+    io.resp := tag_arr.read(io.read.bits.idx, io.read.valid).map(rstVal.fromBits(_))
+  }
+
+  io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
+  io.write.ready := !rst
 }

@@ -7,6 +7,7 @@ import config._
 import diplomacy._
 import coreplex._
 import rocket._
+import tile._
 import uncore.agents._
 import uncore.coherence._
 import uncore.devices._
@@ -31,9 +32,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
           nManagers = site(BankedL2Config).nBanks + 1,
           nCachingClients = 1,
           nCachelessClients = 1,
-          maxClientXacts = ((site(DCacheKey).nMSHRs + 1) +:
-                             site(GroundTestKey).map(_.maxXacts))
-                               .reduce(max(_, _)),
+          maxClientXacts = site(GroundTestKey).map(_.maxXacts).reduce(max(_, _)),
           maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
           maxManagerXacts = 8,
           dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
@@ -41,10 +40,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
     }}))
   }
 
-  tiles.foreach { lm =>
-    l1tol2.node := lm.cachedOut
-    l1tol2.node := lm.uncachedOut
-  }
+  tiles.foreach { l1tol2.node :=* _.masterNode }
 
   val cbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, cbus_beatBytes))
   cbusRAM.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
@@ -52,8 +48,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
 }
 
-class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexBundle(_outer)
-{
+class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexBundle(_outer) {
   val success = Bool(OUTPUT)
 }
 

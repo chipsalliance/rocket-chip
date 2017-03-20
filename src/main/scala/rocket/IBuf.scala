@@ -3,9 +3,10 @@
 package rocket
 
 import Chisel._
-import util._
 import Chisel.ImplicitConversions._
 import config._
+import tile._
+import util._
 
 class Instruction(implicit val p: Parameters) extends ParameterizedBundle with HasCoreParameters {
   val pf0 = Bool() // page fault on first half of instruction

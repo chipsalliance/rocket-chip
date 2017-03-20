@@ -4,23 +4,17 @@
 package rocket
 
 import Chisel._
-import util._
 import Chisel.ImplicitConversions._
-import scala.math._
 import config._
 import diplomacy._
-import uncore.util._
+import coreplex.CacheBlockBytes
+import tile.{XLen, CoreModule, CoreBundle}
 import uncore.tilelink2._
+import util._
 
 case object PAddrBits extends Field[Int]
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
-
-trait HasTLBParameters extends HasL1CacheParameters {
-  val entries = p(p(CacheName)).nTLBEntries
-  val camAddrBits = log2Ceil(entries)
-  val camTagBits = asIdBits + vpnBits
-}
 
 class TLBReq(implicit p: Parameters) extends CoreBundle()(p) {
   val vpn = UInt(width = vpnBitsExtended)
@@ -39,13 +33,16 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val cacheable = Bool(OUTPUT)
 }
 
-class TLB(implicit edge: TLEdgeOut, val p: Parameters) extends Module with HasTLBParameters {
+class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
     val resp = new TLBResp
     val ptw = new TLBPTWIO
     val miss = Bool(OUTPUT)
   }
+  val cacheBlockBytes = p(CacheBlockBytes)
+  val camAddrBits = log2Ceil(entries)
+  val camTagBits = asIdBits + vpnBits
 
   val valid = Reg(init = UInt(0, entries))
   val ppns = Reg(Vec(entries, UInt(width = ppnBits)))
@@ -184,7 +181,7 @@ class TLB(implicit edge: TLEdgeOut, val p: Parameters) extends Module with HasTL
   }
 }
 
-class DecoupledTLB(implicit edge: TLEdgeOut, p: Parameters) extends Module {
+class DecoupledTLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends Module {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
     val resp = Decoupled(new TLBResp)
@@ -193,7 +190,7 @@ class DecoupledTLB(implicit edge: TLEdgeOut, p: Parameters) extends Module {
 
   val req = Reg(new TLBReq)
   val resp = Reg(new TLBResp)
-  val tlb = Module(new TLB)
+  val tlb = Module(new TLB(entries))
 
   val s_idle :: s_tlb_req :: s_tlb_resp :: s_done :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)

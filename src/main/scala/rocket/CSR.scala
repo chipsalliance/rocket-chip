@@ -6,6 +6,7 @@ package rocket
 import Chisel._
 import Instructions._
 import config._
+import tile._
 import uncore.devices._
 import util._
 import Chisel.ImplicitConversions._
@@ -58,14 +59,6 @@ class DCSR extends Bundle {
   val halt = Bool()
   val step = Bool()
   val prv = UInt(width = PRV.SZ)
-}
-
-class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
-  val debug = Bool()
-  val mtip = Bool()
-  val msip = Bool()
-  val meip = Bool()
-  val seip = usingVM.option(Bool())
 }
 
 class MIP extends Bundle {
@@ -127,7 +120,8 @@ object CSR
   val nCtr = firstHPM + nHPM
 }
 
-class CSRFileIO(implicit p: Parameters) extends CoreBundle {
+class CSRFileIO(implicit p: Parameters) extends CoreBundle
+    with HasRocketCoreParameters {
   val interrupts = new TileInterrupts().asInput
   val hartid = UInt(INPUT, xLen)
   val rw = new Bundle {
@@ -159,11 +153,11 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle {
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
-  val events = Vec(nPerfEvents, Bool()).asInput
+  val events = Vec(nPerfEvents, UInt(log2Up(1+retireWidth))).asInput
 }
 
 class CSRFile(implicit p: Parameters) extends CoreModule()(p)
-{
+    with HasRocketCoreParameters {
   val io = new CSRFileIO
 
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))
@@ -227,7 +221,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_mbadaddr = Reg(UInt(width = vaddrBitsExtended))
   val reg_mscratch = Reg(Bits(width = xLen))
   val mtvecWidth = paddrBits min xLen
-  val reg_mtvec = p(MtvecInit) match {
+  val reg_mtvec = mtvecInit match {
     case Some(addr) => Reg(init=UInt(addr, mtvecWidth))
     case None => Reg(UInt(width = mtvecWidth))
   }
@@ -375,7 +369,14 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   }
 
   for (i <- 0 until nCustomMrwCsrs) {
-    val addr = 0xff0 + i
+    val addr = 0xcc0 + i
+    require(addr < (1 << CSR.ADDRSZ))
+    require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
+    read_mapping += addr -> io.custom_mrw_csrs(i)
+  }
+
+  for (i <- 0 until nCustomMrwCsrs) {
+    val addr = 0xfc0 + i
     require(addr < (1 << CSR.ADDRSZ))
     require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
     read_mapping += addr -> io.custom_mrw_csrs(i)
@@ -547,7 +548,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
     when (decoded_addr(CSRs.mie))      { reg_mie := wdata & supported_interrupts }
     when (decoded_addr(CSRs.mepc))     { reg_mepc := formEPC(wdata) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
-    if (p(MtvecWritable))
+    if (mtvecWritable)
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata >> 2 << 2 }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }

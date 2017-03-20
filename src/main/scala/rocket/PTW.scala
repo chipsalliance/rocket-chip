@@ -4,11 +4,12 @@
 package rocket
 
 import Chisel._
-import config._
-import uncore.constants._
-import uncore.util.PseudoLRU
-import util._
 import Chisel.ImplicitConversions._
+import config._
+import tile._
+import uncore.constants._
+import util._
+
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -74,6 +75,7 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val dpath = new DatapathPTWIO
   }
 
+   println("Building PTW with n=" + n + " requestor ports.")
   require(usingAtomics, "PTW requires atomic memory operations")
 
   val s_ready :: s_req :: s_wait1 :: s_wait2 :: s_set_dirty :: s_wait1_dirty :: s_wait2_dirty :: s_done :: Nil = Enum(UInt(), 8)
@@ -223,12 +225,14 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
 trait CanHavePTW extends HasHellaCache {
   implicit val p: Parameters
   val module: CanHavePTWModule
-  var nPTWPorts = 1
+//  var nPTWPorts = 1
+  var nPTWPorts = 2 // because BOOM is being a jerk
+  nDCachePorts += usingPTW.toInt
 }
 
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptwOpt = if (outer.p(UseVM)) { Some(Module(new PTW(outer.nPTWPorts)(outer.p))) } else None
+  val ptwOpt = if (outer.usingPTW) { Some(Module(new PTW(outer.nPTWPorts)(outer.p))) } else None
   ptwOpt foreach { ptw => dcachePorts += ptw.io.mem }
 }

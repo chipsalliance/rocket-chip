@@ -41,6 +41,10 @@ ifeq ($(SUITE),)
 $(error Set SUITE to the regression suite you want to run)
 endif
 
+ifeq ($(SUITE),BOOMSuite)
+CONFIGS=BOOMConfig BOOML1Config
+CFG_PROJECT=boom
+
 ifeq ($(SUITE),RocketSuiteA)
 PROJECT=rocketchip
 CONFIGS=DefaultConfig
@@ -78,6 +82,7 @@ CONFIGS_32=WithJtagDTM_DefaultRV32Config
 CONFIGS_64=WithJtagDTM_DefaultConfig
 CONFIGS += $(CONFIGS_32)
 CONFIGS += $(CONFIGS_64)
+CFG_PROJECT=rocketchip
 endif
 
 # These are the named regression targets.  While it's expected you run them in

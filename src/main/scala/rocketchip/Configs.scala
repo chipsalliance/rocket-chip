@@ -38,33 +38,21 @@ class BasePlatformConfig extends Config((site, here, up) => {
   case RTCPeriod => 100 // gives 10 MHz RTC assuming 1 GHz uncore clock
 })
 
+/** Actual elaboratable target Configs */
+
 class BaseConfig extends Config(new BaseCoreplexConfig ++ new BasePlatformConfig)
-class DefaultConfig extends Config(new WithBlockingL1 ++ new BaseConfig)
+class DefaultConfig extends Config(new WithBlockingL1 ++ new WithNBigCores(1) ++ new BaseConfig)
 
-class DefaultL2Config extends Config(new WithL2Cache ++ new BaseConfig)
+class DefaultL2Config extends Config(new WithL2Cache ++ new WithNBigCores(1) ++ new BaseConfig)
 class DefaultBufferlessConfig extends Config(
-  new WithBufferlessBroadcastHub ++ new BaseConfig)
+  new WithBufferlessBroadcastHub ++ new WithNBigCores(1) ++ new BaseConfig)
 
-class FPGAConfig extends Config ((site, here, up) => {
-  case NAcquireTransactors => 4
-})
-
+class FPGAConfig extends Config(Parameters.empty)
 class DefaultFPGAConfig extends Config(new FPGAConfig ++ new BaseConfig)
 class DefaultL2FPGAConfig extends Config(
   new WithL2Capacity(64) ++ new WithL2Cache ++ new DefaultFPGAConfig)
 
-class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
-  case BankedL2Config => up(BankedL2Config, site).copy(nMemoryChannels = n)
-})
-
-class WithExtMemSize(n: Long) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).copy(size = n)
-})
-
-class WithScratchpads extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
-
-class DefaultFPGASmallConfig extends Config(new WithSmallCores ++ new DefaultFPGAConfig)
-class DefaultSmallConfig extends Config(new WithSmallCores ++ new BaseConfig)
+class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig)
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
@@ -83,12 +71,7 @@ class DualChannelDualBankL2Config extends Config(
   new WithNMemoryChannels(2) ++ new WithNBanksPerMemChannel(2) ++
   new WithL2Cache ++ new BaseConfig)
 
-class RoccExampleConfig extends Config(new WithRoccExample ++ new BaseConfig)
-
-class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).copy(beatBytes = dataBits/8)
-  case ZeroConfig => up(ZeroConfig, site).copy(beatBytes = dataBits/8)
-})
+class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
 class Edge128BitConfig extends Config(
   new WithEdgeDataBits(128) ++ new BaseConfig)
@@ -107,12 +90,22 @@ class OctoChannelBenchmarkConfig extends Config(new WithNMemoryChannels(8) ++ ne
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseConfig)
 
 class DualCoreConfig extends Config(
-  new WithNCores(2) ++ new WithL2Cache ++ new BaseConfig)
+  new WithNBigCores(2) ++ new WithL2Cache ++ new BaseConfig)
+class HeterogeneousDualCoreConfig extends Config(
+  new WithNSmallCores(1) ++ new WithNBigCores(1) ++ new WithL2Cache ++ new BaseConfig)
 
 class TinyConfig extends Config(
-  new WithScratchpads ++
-  new WithSmallCores ++ new WithRV32 ++
-  new WithStatelessBridge ++ new BaseConfig)
+  new WithScratchpad ++
+  new WithRV32 ++
+  new WithStatelessBridge ++
+  new WithNSmallCores(1) ++ new BaseConfig)
+
+/* Composable partial function Configs to set individual parameters */
+
+class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
+  case ExtMem => up(ExtMem, site).copy(beatBytes = dataBits/8)
+  case ZeroConfig => up(ZeroConfig, site).copy(beatBytes = dataBits/8)
+})
 
 class WithJtagDTM extends Config ((site, here, up) => {
   case IncludeJtagDTM => true
@@ -134,10 +127,18 @@ class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
   case NExtTopInterrupts => nExtInts
 })
 
-class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
-  case NBreakpoints => hwbp
-})
-
 class WithRTCPeriod(nCycles: Int) extends Config((site, here, up) => {
   case RTCPeriod => nCycles
 })
+
+class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
+  case BankedL2Config => up(BankedL2Config, site).copy(nMemoryChannels = n)
+})
+
+class WithExtMemSize(n: Long) extends Config((site, here, up) => {
+  case ExtMem => up(ExtMem, site).copy(size = n)
+})
+
+class WithScratchpad extends Config(new WithNMemoryChannels(0) ++ new WithDataScratchpad(16384))
+
+class DefaultFPGASmallConfig extends Config(new WithNSmallCores(1) ++ new DefaultFPGAConfig)

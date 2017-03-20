@@ -27,7 +27,7 @@ case class TLManagerParameters(
   require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
 
-  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
+  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
   require (supportsPutFull.contains(supportsPutPartial))
   require (supportsPutFull.contains(supportsArithmetic))
   require (supportsPutFull.contains(supportsLogical))

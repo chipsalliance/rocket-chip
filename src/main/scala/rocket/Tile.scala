@@ -7,12 +7,23 @@ import Chisel._
 import config._
 import coreplex._
 import diplomacy._
-import uncore.converters._
+import tile._
 import uncore.devices._
 import uncore.tilelink2._
 import util._
 
-class RocketTile(val c: RocketConfig)(implicit p: Parameters) extends BaseTile()(p)
+case class RocketTileParams(
+    core: RocketCoreParams = RocketCoreParams(),
+    icache: Option[ICacheParams] = Some(ICacheParams()),
+    dcache: Option[DCacheParams] = Some(DCacheParams()),
+    rocc: Seq[RoCCParams] = Nil,
+    btb: Option[BTBParams] = Some(BTBParams()),
+    dataScratchpadBytes: Int = 0) extends TileParams {
+  require(icache.isDefined)
+  require(dcache.isDefined)
+}
+  
+class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
     with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 
@@ -28,7 +39,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveLegacyRoccsModule
     with CanHaveScratchpadModule {
 
-  val core = Module(p(BuildCore)(outer.c, outer.p))
+  val core = Module(p(BuildCore)(outer.p, outer.dcache.module.edge))
   core.io.interrupts := io.interrupts
   core.io.hartid := io.hartid
   outer.frontend.module.io.cpu <> core.io.imem
@@ -44,9 +55,15 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     core.io.rocc.interrupt := lr.module.io.core.interrupt
   }
 
+  // TODO eliminate this redundancy
+  val h = dcachePorts.size
+  val c = core.dcacheArbPorts
+  val o = outer.nDCachePorts
+  require(h == c, s"port list size was $h, core expected $c")
+  require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
-  require(dcachePorts.size == core.dcacheArbPorts)
   dcacheArb.io.requestor <> dcachePorts
+  ptwPorts += core.io.ptw_tlb
   ptwOpt foreach { ptw => ptw.io.requestor <> ptwPorts }
 
   // Conenct counter events
@@ -54,19 +71,23 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   core.io.dmem.tlb_miss := outer.dcache.module.io.cpu.tlb_miss
 }
 
-class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(c))
+class AsyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp))
 
-  val masterNodes = rocket.masterNodes.map(_ => TLAsyncOutputNode())
-  val slaveNode = rocket.slaveNode.map(_ => TLAsyncInputNode())
+  val masterNode = TLAsyncOutputNode()
+  val source = LazyModule(new TLAsyncCrossingSource)
+  source.node :=* rocket.masterNode
+  masterNode :=* source.node
 
-  (rocket.masterNodes zip masterNodes) foreach { case (r,n) => n := TLAsyncCrossingSource()(r) }
-  (rocket.slaveNode zip slaveNode) foreach { case (r,n) => r := TLAsyncCrossingSink()(n) }
+  val slaveNode = TLAsyncInputNode()
+  val sink = LazyModule(new TLAsyncCrossingSink)
+  rocket.slaveNode :*= sink.node
+  sink.node :*= slaveNode
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val master = masterNodes.head.bundleOut // TODO fix after Chisel #366
-      val slave = slaveNode.map(_.bundleIn)
+      val master = masterNode.bundleOut
+      val slave = slaveNode.bundleIn
       val hartid = UInt(INPUT, p(XLen))
       val interrupts = new TileInterrupts()(p).asInput
       val resetVector = UInt(INPUT, p(XLen))
@@ -78,19 +99,23 @@ class AsyncRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModul
   }
 }
 
-class RationalRocketTile(c: RocketConfig)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(c))
+class RationalRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp))
 
-  val masterNodes = rocket.masterNodes.map(_ => TLRationalOutputNode())
-  val slaveNode = rocket.slaveNode.map(_ => TLRationalInputNode())
+  val masterNode = TLRationalOutputNode()
+  val source = LazyModule(new TLRationalCrossingSource)
+  source.node :=* rocket.masterNode
+  masterNode :=* source.node
 
-  (rocket.masterNodes zip masterNodes) foreach { case (r,n) => n := TLRationalCrossingSource()(r) }
-  (rocket.slaveNode zip slaveNode) foreach { case (r,n) => r := TLRationalCrossingSink()(n) }
+  val slaveNode = TLRationalInputNode()
+  val sink = LazyModule(new TLRationalCrossingSink)
+  rocket.slaveNode :*= sink.node
+  sink.node :*= slaveNode
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
-      val master = masterNodes.head.bundleOut // TODO fix after Chisel #366
-      val slave = slaveNode.map(_.bundleIn)
+      val master = masterNode.bundleOut
+      val slave = slaveNode.bundleIn
       val hartid = UInt(INPUT, p(XLen))
       val interrupts = new TileInterrupts()(p).asInput
       val resetVector = UInt(INPUT, p(XLen))

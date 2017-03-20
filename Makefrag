@@ -5,13 +5,15 @@ endif
 
 MODEL ?= TestHarness
 PROJECT ?= rocketchip
-CFG_PROJECT ?= $(PROJECT)
-CONFIG ?= DefaultConfig
+CFG_PROJECT ?= boom
+CONFIG ?= BOOMConfig
 # TODO: For now must match rocketchip.Generator
 long_name = $(PROJECT).$(CONFIG)
 
 CXX ?= g++
 CXXFLAGS := -O1
+
+export ROCKETCHIP_ADDONS ?= boom
 
 SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
