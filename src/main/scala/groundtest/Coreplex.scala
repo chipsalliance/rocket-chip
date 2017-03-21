@@ -40,7 +40,9 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
     }}))
   }
 
-  tiles.foreach { l1tol2.node :=* _.masterNode }
+  val fixer = LazyModule(new TLFIFOFixer)
+  l1tol2.node :=* fixer.node
+  tiles.foreach { fixer.node :=* _.masterNode }
 
   val cbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, cbus_beatBytes))
   cbusRAM.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)

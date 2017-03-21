@@ -13,6 +13,7 @@ import uncore.tilelink2._
 import uncore.util.Code
 import util.{ParameterizedBundle, RandomReplacement}
 import scala.collection.mutable.ListBuffer
+import scala.math.max
 
 case class DCacheParams(
     nSets: Int = 64,
@@ -136,13 +137,22 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 abstract class HellaCache(implicit p: Parameters) extends LazyModule {
   private val cfg = p(TileKey).dcache.get
-  val node = TLClientNode(cfg.scratch.map { _ =>
-      TLClientParameters(sourceId = IdRange(0, cfg.nMMIOs))
-    } getOrElse {
+  val firstMMIO = max(1, cfg.nMSHRs)
+
+  val node = TLClientNode(Seq(TLClientPortParameters(
+    clients = cfg.scratch.map { _ => Seq(
       TLClientParameters(
-        sourceId = IdRange(0, cfg.nMSHRs+cfg.nMMIOs),
-        supportsProbe = TransferSizes(1, cfg.blockBytes))
-    })
+        sourceId      = IdRange(0, cfg.nMMIOs),
+        requestFifo   = true))
+    } getOrElse { Seq(
+      TLClientParameters(
+         sourceId      = IdRange(0, firstMMIO),
+         supportsProbe = TransferSizes(1, cfg.blockBytes)),
+      TLClientParameters(
+        sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
+        requestFifo   = true))
+    },
+    minLatency = 1)))
   val module: HellaCacheModule
 }
 
@@ -158,6 +168,9 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edgesOut(0)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
+
+  // IOMSHRs must be FIFO
+  edge.manager.requireFifo()
 }
 
 object HellaCache {

@@ -106,7 +106,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val a_addr_hi = edge.addr_hi(a_address)
       val a_base = edge.address(a)
       val a_mask = edge.mask(a_base, a_size)
-      val a_fifo = edge.manager.hasFifoIdFast(a_base)
+      val a_fifo = edge.manager.hasFifoIdFast(a_base) && edge.client.requestFifo(a.source)
 
       // Grab the concurrency state we need
       val a_inc_bytes = inc_bytes.map(_.read(a_addr_hi))
@@ -192,7 +192,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val d_address = d_base | d_address_inc
       val d_addr_hi = edge.addr_hi(d_address)
       val d_mask = edge.mask(d_base, d_size)
-      val d_fifo = edge.manager.hasFifoIdFast(d_flight.base)
+      val d_fifo = edge.manager.hasFifoIdFast(d_flight.base) && edge.client.requestFifo(d.source)
 
       // Grab the concurrency state we need
       val d_inc_bytes = inc_bytes.map(_.read(d_addr_hi))
