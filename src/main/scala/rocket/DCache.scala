@@ -172,7 +172,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
   io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && tl_out.a.ready && !uncachedInFlight.asUInt.andR)
-  when (s2_valid && (!s2_valid_hit || s2_update_meta)) { s1_nack := true }
+  when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
 
   // exceptions
   val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
