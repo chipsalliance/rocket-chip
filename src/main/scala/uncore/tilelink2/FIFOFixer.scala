@@ -27,7 +27,7 @@ class TLFIFOFixer(implicit p: Parameters) extends LazyModule
       val a_nid = a_id === UInt(0) // no id = not FIFO
 
       val a_first = edgeIn.first(in.a)
-      val d_first = edgeOut.first(out.d)
+      val d_first = edgeOut.first(out.d) && out.d.bits.opcode =/= TLMessages.ReleaseAck
 
       val stalls = edgeIn.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
         val a_sel = c.sourceId.contains(in.a.bits.source)
