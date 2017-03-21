@@ -297,6 +297,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (d_first, d_last, d_done, d_address_inc) = edge.addr_inc(tl_out.d)
   val grantIsCached = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
   val grantIsUncached = tl_out.d.bits.opcode.isOneOf(AccessAck, AccessAckData, HintAck)
+  val grantIsUncachedData = tl_out.d.bits.opcode === AccessAckData
   val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
   val grantIsRefill = tl_out.d.bits.opcode === GrantData     // Writes the data array
   tl_out.d.ready := true
@@ -313,11 +314,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
           f := false
         }
       }
-      s2_data := tl_out.d.bits.data
-      s2_req.cmd := req.cmd
-      s2_req.typ := req.typ
-      s2_req.tag := req.tag
-      s2_req.addr := Cat(s1_paddr >> beatOffBits /* don't-care */, req.addr(beatOffBits-1, 0))
+      when (grantIsUncachedData) {
+        s2_data := tl_out.d.bits.data
+        s2_req.cmd := req.cmd
+        s2_req.typ := req.typ
+        s2_req.tag := req.tag
+        s2_req.addr := Cat(s1_paddr >> beatOffBits /* don't-care */, req.addr(beatOffBits-1, 0))
+      }
     } .elsewhen (grantIsVoluntary) {
       assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.") // TODO should handle Ack coming back on same cycle!
       release_ack_wait := false
@@ -343,7 +346,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // don't accept uncached grants if there's a structural hazard on s2_data...
   val blockUncachedGrant = Reg(Bool())
   blockUncachedGrant := dataArb.io.out.valid
-  when (grantIsUncached) {
+  when (grantIsUncachedData) {
     tl_out.d.ready := !(blockUncachedGrant || s1_valid)
     // ...but insert bubble to guarantee grant's eventual forward progress
     when (tl_out.d.valid && !tl_out.d.ready) {
@@ -458,7 +461,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
   // uncached response
-  io.cpu.replay_next := tl_out.d.fire() && grantIsUncached
+  io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
   val doUncachedResp = Reg(next = io.cpu.replay_next)
   when (doUncachedResp) {
     assert(!s2_valid_hit)
