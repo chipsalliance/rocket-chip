@@ -56,22 +56,23 @@ class PMP(implicit p: Parameters) extends PMPReg {
     }
   }
 
-  private def decomposedBoundMatch(xHi: UInt, xLo: UInt, lsbMask: UInt, lgMaxSize: Int) = {
-    val msbsLess = xHi < (comparand >> lgMaxSize)
-    val msbsEqual = (xHi ^ (comparand >> lgMaxSize)) === 0
-    val lsbsLess = xLo < (comparand(lgMaxSize-1, 0) & lsbMask(lgMaxSize-1, 0))
-    msbsLess || (msbsEqual && lsbsLess)
+  private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) = {
+    if (lgMaxSize <= lgAlign) {
+      x < comparand
+    } else {
+      // break up the circuit; the MSB part will be CSE'd
+      val msbsLess = (x >> lgMaxSize) < (comparand >> lgMaxSize)
+      val msbsEqual = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0
+      val lsbsLess =  (x(lgMaxSize-1, 0) | lsbMask) < comparand(lgMaxSize-1, 0)
+      msbsLess || (msbsEqual && lsbsLess)
+    }
   }
 
-  private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) =
-    if (lgMaxSize <= lgAlign) x < comparand
-    else decomposedBoundMatch(x >> lgMaxSize, x(lgMaxSize-1, 0), lsbMask, lgMaxSize)
-
   private def lowerBoundMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) =
-    !boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U << lgSize, lgMaxSize)
+    !boundMatch(x, ~(((BigInt(1) << lgMaxSize) - 1).U << lgSize)(lgMaxSize-1, 0), lgMaxSize)
 
   private def upperBoundMatch(x: UInt, lgMaxSize: Int) =
-    boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U, lgMaxSize)
+    boundMatch(x, 0.U, lgMaxSize)
 
   private def rangeMatch(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP) =
     prev.lowerBoundMatch(x, lgSize, lgMaxSize) && upperBoundMatch(x, lgMaxSize)
@@ -85,32 +86,39 @@ class PMP(implicit p: Parameters) extends PMPReg {
     f(pgIdxBits + (pgLevels - 1 - i) * pgLevelBits)
   }
 
-  private def rangeHomogeneous(x: UInt, pgLevel: UInt, lgMaxSize: Int, prev: PMP) = {
-    val beginsAfterLower = !prev.boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U, lgMaxSize) // CSE with rangeMatch
-    val beginsAfterUpper = !boundMatch(x, ((BigInt(1) << lgMaxSize) - 1).U, lgMaxSize) // CSE with rangeMatch
+  private def rangeHomogeneous(x: UInt, pgLevel: UInt, prev: PMP) = {
+    val beginsAfterLower = !(x < prev.comparand)
+    val beginsAfterUpper = !(x < comparand)
     val endsBeforeLower = pgLevelMap { idxBits => (x >> idxBits) < (prev.comparand << idxBits) } (pgLevel)
-    val endsBeforeUpper = pgLevelMap { idxBits => (x >> idxBits) > (comparand << idxBits) } (pgLevel)
+    val endsBeforeUpper = pgLevelMap { idxBits => (x >> idxBits) < (comparand << idxBits) } (pgLevel)
     endsBeforeLower || beginsAfterUpper || (beginsAfterLower && endsBeforeUpper)
   }
 
   // returns whether this PMP completely contains, or contains none of, a page
-  def homogeneous(x: UInt, pgLevel: UInt, lgMaxSize: Int, prev: PMP): Bool =
-    !cfg.p(0) || Mux(cfg.a(1), rangeHomogeneous(x, pgLevel, lgMaxSize, prev), pow2Homogeneous(x, pgLevel))
+  def homogeneous(x: UInt, pgLevel: UInt, prev: PMP): Bool =
+    !cfg.p(0) || Mux(cfg.a(1), rangeHomogeneous(x, pgLevel, prev), pow2Homogeneous(x, pgLevel))
 
   // returns whether this matching PMP fully contains the access
   def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= lgAlign) true.B else {
-    val lsbMask = ((BigInt(1) << lgMaxSize) - 1).U << lgSize
-    val alignMask = ~lsbMask(lgMaxSize-1, 0)
-    val lowerBoundOK = !prev.upperBoundMatch(x, lgMaxSize)
-    val upperBoundOK = decomposedBoundMatch(x >> lgMaxSize, x(lgMaxSize-1, 0) | alignMask, lsbMask, lgMaxSize)
-    val rangeAligned = lowerBoundOK && upperBoundOK
-    val pow2Aligned = (alignMask & ~mask(lgMaxSize-1, 0)) === 0
+    val lsbMask = ~(((BigInt(1) << lgMaxSize) - 1).U << lgSize)(lgMaxSize-1, 0)
+    val straddlesLowerBound = ((x >> lgMaxSize) ^ (prev.comparand >> lgMaxSize)) === 0 && (prev.comparand(lgMaxSize-1, 0) & ~x(lgMaxSize-1, 0)) =/= 0
+    val straddlesUpperBound = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0 && (comparand(lgMaxSize-1, 0) & (x(lgMaxSize-1, 0) | lsbMask)) =/= 0
+    val rangeAligned = !(straddlesLowerBound || straddlesUpperBound)
+    val pow2Aligned = (lsbMask & ~mask(lgMaxSize-1, 0)) === 0
     Mux(cfg.a(1), rangeAligned, pow2Aligned)
   }
 
   // returns whether this PMP matches at least one byte of the access
   def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool =
     cfg.p(0) && Mux(cfg.a(1), rangeMatch(x, lgSize, lgMaxSize, prev), pow2Match(x, lgSize, lgMaxSize))
+}
+
+class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {
+  def apply(addr: UInt, pgLevel: UInt): Bool = {
+    ((true.B, 0.U.asTypeOf(new PMP)) /: pmps) { case ((h, prev), pmp) =>
+      (h && pmp.homogeneous(addr, pgLevel, prev), pmp)
+    }._1
+  }
 }
 
 class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
@@ -123,8 +131,6 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     val r = Bool(OUTPUT)
     val w = Bool(OUTPUT)
     val x = Bool(OUTPUT)
-    val pgLevel = UInt(INPUT, log2Ceil(pgLevels))
-    val homogeneous = Bool(OUTPUT)
   }
 
   val default = io.prv > PRV.S
@@ -132,10 +138,6 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
   pmp0.cfg.r := default
   pmp0.cfg.w := default
   pmp0.cfg.x := default
-
-  io.homogeneous := ((true.B, pmp0) /: io.pmp) { case ((h, prev), pmp) =>
-    (h && pmp.homogeneous(io.addr, io.pgLevel, lgMaxSize, prev), pmp)
-  }._1
 
   val res = (pmp0 /: (io.pmp zip (pmp0 +: io.pmp)).reverse) { case (prev, (pmp, prevPMP)) =>
     val hit = pmp.hit(io.addr, io.size, lgMaxSize, prevPMP)
