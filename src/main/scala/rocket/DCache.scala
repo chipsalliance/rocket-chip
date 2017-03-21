@@ -86,8 +86,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
 
   // I/O MSHRs
-  val uncachedInFlight = Reg(init=Vec.fill(maxUncachedInFlight)(Bool(false)))
-  val uncachedReqs = Reg(Vec(maxUncachedInFlight, new HellaCacheReq))
+  val mmioOffset = if (outer.scratch().isDefined) 0 else 1
+  val uncachedInFlight = Seq.fill(maxUncachedInFlight) { RegInit(Bool(false)) }
+  val uncachedReqs = Seq.fill(maxUncachedInFlight) { Reg(new HellaCacheReq) }
 
   // hit initiation path
   dataArb.io.in(3).valid := io.cpu.req.valid && isRead(io.cpu.req.bits.cmd)
@@ -244,13 +245,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaWriteArb.io.in(0).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
 
   // Prepare a TileLink request message that initiates a transaction
-  val a_source = PriorityEncoder(~uncachedInFlight.asUInt)
+  val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
   val acquire_address = s2_req_block_addr
   val access_address = s2_req.addr
   val a_size = s2_req.typ(MT_SZ-2, 0)
   val a_data = Fill(beatWords, pstore1_storegen.data)
   val acquire = if (edge.manager.anySupportAcquireB) {
-    edge.Acquire(a_source, acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
+    edge.Acquire(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
   }
@@ -278,10 +279,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out.a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!pstore1_amo, put, atomics)))
 
   // Set pending bits for outstanding TileLink transaction
+  val a_sel = UIntToOH(a_source, maxUncachedInFlight+mmioOffset) >> mmioOffset
   when (tl_out.a.fire()) {
     when (s2_uncached) {
-      uncachedInFlight(a_source) := true
-      uncachedReqs(a_source) := s2_req
+      (a_sel.toBools zip (uncachedInFlight zip uncachedReqs)) foreach { case (s, (f, r)) =>
+        when (s) {
+          f := Bool(true)
+          r := s2_req
+        }
+      }
     }.otherwise {
       cached_grant_wait := true
     }
@@ -299,10 +305,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
       when(d_last) { cached_grant_wait := false }
     } .elsewhen (grantIsUncached) {
-      val id = tl_out.d.bits.source
-      val req = uncachedReqs(id)
-      assert(uncachedInFlight(id), "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
-      when(d_last) { uncachedInFlight(id) := false }
+      val d_sel = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
+      val req = Mux1H(d_sel, uncachedReqs)
+      (d_sel.toBools zip uncachedInFlight) foreach { case (s, f) =>
+        when (s && d_last) {
+          assert(f, "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
+          f := false
+        }
+      }
       s2_data := tl_out.d.bits.data
       s2_req.cmd := req.cmd
       s2_req.typ := req.typ
