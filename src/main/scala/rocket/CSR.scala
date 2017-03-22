@@ -3,6 +3,8 @@
 
 package rocket
 
+import collection.mutable.LinkedHashMap
+
 import Chisel._
 import Instructions._
 import config._
@@ -307,7 +309,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val reg_misa = Reg(init=UInt(isaMax))
   val read_mstatus = io.status.asUInt()(xLen-1,0)
 
-  val read_mapping = collection.mutable.LinkedHashMap[Int,Bits](
+  val read_mapping = LinkedHashMap[Int,Bits](
     CSRs.tselect -> reg_tselect,
     CSRs.tdata1 -> reg_bp(reg_tselect).control.asUInt,
     CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
@@ -329,12 +331,12 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.hartid)
 
-  val debug_csrs = collection.immutable.ListMap(
+  val debug_csrs = LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> reg_dpc.asUInt,
     CSRs.dscratch -> reg_dscratch.asUInt)
 
-  val fp_csrs = collection.immutable.ListMap(
+  val fp_csrs = LinkedHashMap[Int,Bits](
     CSRs.fflags -> reg_fflags,
     CSRs.frm -> reg_frm,
     CSRs.fcsr -> Cat(reg_frm, reg_fflags))
@@ -415,17 +417,18 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val insn_wfi = system_insn && opcode(5)
   val insn_sfence_vma = system_insn && insn_rs2
 
+  private def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io.decode.csr === k }.reduce(_||_)
   val allow_wfi = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tw
   val allow_sfence_vma = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tvm
   val allow_sret = Bool(!usingVM) || effective_prv > PRV.S || !reg_mstatus.tsr
   io.decode.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
   io.decode.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
   io.decode.read_illegal := effective_prv < io.decode.csr(9,8) ||
-    !read_mapping.keys.map(io.decode.csr === _).reduce(_||_) ||
+    !decodeAny(read_mapping) ||
     io.decode.csr === CSRs.sptbr && !allow_sfence_vma ||
     (io.decode.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io.decode.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && effective_prv <= PRV.S && hpm_mask(io.decode.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
-    Bool(usingDebug) && !reg_debug && debug_csrs.keys.map(io.decode.csr === _).reduce(_||_) ||
-    Bool(usingFPU) && fp_csrs.keys.map(io.decode.csr === _).reduce(_||_) && io.decode.fp_illegal
+    Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
+    Bool(usingFPU) && decodeAny(fp_csrs) && io.decode.fp_illegal
   io.decode.write_illegal := io.decode.csr(11,10).andR
   io.decode.write_flush := !(io.decode.csr >= CSRs.mscratch && io.decode.csr <= CSRs.mbadaddr || io.decode.csr >= CSRs.sscratch && io.decode.csr <= CSRs.sbadaddr)
   io.decode.system_illegal := effective_prv < io.decode.csr(9,8) ||
