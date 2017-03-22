@@ -52,6 +52,5 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     requestor.ptbr.mode := requestor.ptbr.pgLevelsToMode(pgLevels).U
     requestor.ptbr.asid := UInt(0)
     requestor.ptbr.ppn := UInt(0)
-    requestor.invalidate := Bool(false)
   }
 }

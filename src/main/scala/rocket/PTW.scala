@@ -26,18 +26,21 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val level = UInt(width = log2Ceil(pgLevels))
 }
 
-class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
+class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
+    with HasRocketCoreParameters {
   val req = Decoupled(new PTWReq)
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
-  val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
+  val pmp = Vec(nPMPs, new PMP).asInput
 }
 
-class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p) {
+class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
+    with HasRocketCoreParameters {
   val ptbr = new PTBR().asInput
   val invalidate = Bool(INPUT)
   val status = new MStatus().asInput
+  val pmp = Vec(nPMPs, new PMP).asInput
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -138,8 +141,8 @@ class PTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     io.requestor(i).resp.bits.level := count
     io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
     io.requestor(i).ptbr := io.dpath.ptbr
-    io.requestor(i).invalidate := io.dpath.invalidate
     io.requestor(i).status := io.dpath.status
+    io.requestor(i).pmp := io.dpath.pmp
   }
 
   // control state machine

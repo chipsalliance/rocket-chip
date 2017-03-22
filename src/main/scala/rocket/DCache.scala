@@ -73,6 +73,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_read = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write
+  val s1_sfence = s1_req.cmd === M_SFENCE
   val s1_flush_valid = Reg(Bool())
 
   val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 7)
@@ -104,7 +105,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val tlb = Module(new TLB(nTLBEntries))
   io.ptw <> tlb.io.ptw
-  tlb.io.req.valid := s1_valid_masked && s1_readwrite
+  tlb.io.req.valid := s1_valid_masked && (s1_readwrite || s1_sfence)
+  tlb.io.req.bits.sfence.valid := s1_sfence
+  tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
+  tlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
+  tlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.instruction := false
@@ -136,7 +141,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
 
-  val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
   val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
