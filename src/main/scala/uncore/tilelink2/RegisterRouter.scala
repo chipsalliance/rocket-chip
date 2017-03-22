@@ -9,7 +9,7 @@ import regmapper._
 import scala.math.{min,max}
 
 class TLRegisterNode(
-    address:     AddressSet,
+    address:     Seq[AddressSet],
     device:      Device,
     deviceKey:   String  = "reg",
     concurrency: Int     = 0,
@@ -18,7 +18,7 @@ class TLRegisterNode(
     executable:  Boolean = false)
   extends TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = Seq(address),
+      address            = address,
       resources          = Seq(Resource(device, deviceKey)),
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),
@@ -28,7 +28,12 @@ class TLRegisterNode(
     beatBytes  = beatBytes,
     minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
 {
-  require (address.contiguous)
+  val size = 1 << log2Ceil(1 + address.map(_.max).max - address.map(_.base).min)
+  require (size >= beatBytes)
+  address.foreach { case a =>
+    require (a.widen(size-1).base == address.head.widen(size-1).base,
+      s"TLRegisterNode addresses (${address}) must be aligned to its size ${size}")
+  }
 
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
@@ -43,7 +48,7 @@ class TLRegisterNode(
     val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
     val (addrLoEnd, addrLoOff) = (log2Up(beatBytes)      + sourceEnd, sourceEnd)
 
-    val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, addrLoEnd)
+    val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, addrLoEnd)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
     in.bits.index := edge.addr_hi(a.bits)
@@ -81,7 +86,7 @@ class TLRegisterNode(
 object TLRegisterNode
 {
   def apply(
-      address:     AddressSet,
+      address:     Seq[AddressSet],
       device:      Device,
       deviceKey:   String  = "reg",
       concurrency: Int     = 0,
@@ -98,7 +103,7 @@ object TLRegisterNode
 abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val device = new SimpleDevice(devname, devcompat)
-  val node = TLRegisterNode(address, device, "reg", concurrency, beatBytes, undefZero, executable)
+  val node = TLRegisterNode(Seq(address), device, "reg", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
 

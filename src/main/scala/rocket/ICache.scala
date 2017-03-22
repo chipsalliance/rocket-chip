@@ -156,6 +156,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
                     fromSource = UInt(0),
                     toAddress = (refill_addr >> blockOffBits) << blockOffBits,
                     lgSize = lgCacheBlockBytes)._2
+  tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)
   tl_out.e.valid := Bool(false)
 

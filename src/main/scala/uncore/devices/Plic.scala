@@ -72,7 +72,7 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
   }
 
   val node = TLRegisterNode(
-    address   = AddressSet(address, PLICConsts.size-1),
+    address   = Seq(AddressSet(address, PLICConsts.size-1)),
     device    = device,
     beatBytes = p(XLen)/8,
     undefZero = false)

@@ -23,7 +23,8 @@ case class TLManagerParameters(
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       TransferSizes = TransferSizes.none,
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  fifoId:             Option[Int]   = None)
+  // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+  fifoId:             Option[Int] = None)
 {
   require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
@@ -75,6 +76,8 @@ case class TLManagerPortParameters(
   require (isPow2(beatBytes))
   require (endSinkId > 0)
   require (minLatency >= 0)
+
+  def requireFifo() = managers.foreach { m =>require (m.fifoId == Some(0))  }
 
   // Bounds on required sizes
   def maxAddress  = managers.map(_.maxAddress).max
@@ -157,6 +160,7 @@ case class TLManagerPortParameters(
 case class TLClientParameters(
   sourceId:            IdRange       = IdRange(0,1),
   nodePath:            Seq[BaseNode] = Seq(),
+  requestFifo:         Boolean       = false, // only a request, not a requirement
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,
@@ -174,6 +178,8 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutFull))
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
+  // If you need FIFO, you better not be TL-C (due to independent A vs. C order)
+  require (!requestFifo || !supportsProbe)
 
   val maxTransfer = List(
     supportsProbe.max,
@@ -189,7 +195,7 @@ case class TLClientParameters(
 case class TLClientPortParameters(
   clients:       Seq[TLClientParameters],
   unsafeAtomics: Boolean = false,
-  minLatency:    Int = 0) // Atomics are executed as get+put
+  minLatency:    Int = 0) // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)
@@ -227,6 +233,8 @@ case class TLClientPortParameters(
   // Synthesizable lookup methods
   def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
+
+  def requestFifo(id: UInt) = Mux1H(find(id), clients.map(c => Bool(c.requestFifo)))
 
   private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
     val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
