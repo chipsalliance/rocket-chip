@@ -312,7 +312,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       val req = uncachedReqs(tl_out.d.bits.source)
       when (grantIsUncachedData) {
         s2_data := tl_out.d.bits.data
-        s2_req.cmd := req.cmd
+        s2_req.cmd := M_XRD
         s2_req.typ := req.typ
         s2_req.tag := req.tag
         s2_req.addr := Cat(s1_paddr >> beatOffBits /* don't-care */, req.addr(beatOffBits-1, 0))
