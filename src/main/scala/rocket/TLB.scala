@@ -43,19 +43,32 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val cacheable = Bool(OUTPUT)
 }
 
-class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
+class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
     val resp = new TLBResp
     val ptw = new TLBPTWIO
   }
-  val totalEntries = entries + 1
-  val normalEntries = entries
-  val specialEntry = entries
+
+  class Entry extends Bundle {
+    val ppn = UInt(width = ppnBits)
+    val tag = UInt(width = asIdBits + vpnBits)
+    val level = UInt(width = log2Ceil(pgLevels))
+    val u = Bool()
+    val g = Bool()
+    val sw = Bool()
+    val sx = Bool()
+    val sr = Bool()
+    val xr = Bool()
+    val cacheable = Bool()
+  }
+
+  val totalEntries = nEntries + 1
+  val normalEntries = nEntries
+  val specialEntry = nEntries
   val valid = Reg(init = UInt(0, totalEntries))
-  val ppns = Reg(Vec(totalEntries, UInt(width = ppnBits)))
-  val tags = Reg(Vec(totalEntries, UInt(width = asIdBits + vpnBits)))
-  val levels = Reg(Vec(totalEntries, UInt(width = log2Ceil(pgLevels))))
+  val reg_entries = Reg(Vec(totalEntries, UInt(width = new Entry().getWidth)))
+  val entries = reg_entries.map(_.asTypeOf(new Entry))
 
   val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
@@ -74,7 +87,7 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
   val mpu_ppn = Mux(do_refill, refill_ppn,
-                Mux(vm_enabled, ppns.last, vpn(ppnBits-1, 0)))
+                Mux(vm_enabled, entries.last.ppn, vpn(ppnBits-1, 0)))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
@@ -95,13 +108,13 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
     var tagMatch = valid(i)
     for (j <- 0 until pgLevels) {
       val base = vpnBits - (j + 1) * pgLevelBits
-      tagMatch = tagMatch && (levels(i) < j || tags(i)(base + pgLevelBits - 1, base) === vpn(base + pgLevelBits - 1, base))
+      tagMatch = tagMatch && (entries(i).level < j || entries(i).tag(base + pgLevelBits - 1, base) === vpn(base + pgLevelBits - 1, base))
     }
     tagMatch
   }} :+ !vm_enabled
   val hits = hitsVec.asUInt
-  val level = Mux1H(hitsVec.init, levels)
-  val partialPPN = Mux1H(hitsVec.init, ppns)
+  val level = Mux1H(hitsVec.init, entries.map(_.level))
+  val partialPPN = Mux1H(hitsVec.init, entries.map(_.ppn))
   val ppn = {
     var ppn = Mux(vm_enabled, partialPPN, vpn)(pgLevelBits*pgLevels - 1, pgLevelBits*(pgLevels - 1))
     for (i <- 1 until pgLevels)
@@ -110,39 +123,40 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
   }
 
   // permission bit arrays
-  val u_array = Reg(UInt(width = totalEntries)) // user permission
-  val g_array = Reg(UInt(width = totalEntries)) // global mapping
-  val sw_array = Reg(UInt(width = totalEntries)) // write permission
-  val sx_array = Reg(UInt(width = totalEntries)) // execute permission
-  val sr_array = Reg(UInt(width = totalEntries)) // read permission
-  val xr_array = Reg(UInt(width = totalEntries)) // read permission to executable page
-  val cash_array = Reg(UInt(width = normalEntries)) // cacheable
+  val u_array = Reg(Vec(totalEntries, Bool())) // user permission
+  val g_array = Reg(Vec(totalEntries, Bool())) // global mapping
+  val sw_array = Reg(Vec(totalEntries, Bool())) // write permission
+  val sx_array = Reg(Vec(totalEntries, Bool())) // execute permission
+  val sr_array = Reg(Vec(totalEntries, Bool())) // read permission
+  val xr_array = Reg(Vec(totalEntries, Bool())) // read permission to executable page
+  val cash_array = Reg(Vec(normalEntries, Bool())) // cacheable
   when (do_refill && !invalidate_refill) {
     val waddr = Mux(isSpecial, specialEntry.U, r_refill_waddr)
     val pte = io.ptw.resp.bits.pte
-    ppns(waddr) := pte.ppn
-    tags(waddr) := r_refill_tag
-    levels(waddr) := io.ptw.resp.bits.level
+    val newEntry = Wire(new Entry)
+    newEntry.ppn := pte.ppn
+    newEntry.tag := r_refill_tag
+    newEntry.level := io.ptw.resp.bits.level
+    newEntry.u := pte.u
+    newEntry.g := pte.g
+    newEntry.sw := pte.sw() && (isSpecial || prot_w)
+    newEntry.sx := pte.sx() && (isSpecial || prot_x)
+    newEntry.sr := pte.sr() && (isSpecial || prot_r)
+    newEntry.xr := pte.sx() && (isSpecial || prot_r)
+    newEntry.cacheable := isSpecial || cacheable
 
-    val mask = UIntToOH(waddr)
-    valid := valid | mask
-    u_array := Mux(pte.u, u_array | mask, u_array & ~mask)
-    g_array := Mux(pte.g, g_array | mask, g_array & ~mask)
-    sw_array := Mux(pte.sw() && (isSpecial || prot_w), sw_array | mask, sw_array & ~mask)
-    sx_array := Mux(pte.sx() && (isSpecial || prot_x), sx_array | mask, sx_array & ~mask)
-    sr_array := Mux(pte.sr() && (isSpecial || prot_r), sr_array | mask, sr_array & ~mask)
-    xr_array := Mux(pte.sx() && (isSpecial || prot_r), xr_array | mask, xr_array & ~mask)
-    cash_array := Mux(cacheable, cash_array | mask, cash_array & ~mask)
+    valid := valid | UIntToOH(waddr)
+    reg_entries(waddr) := newEntry.asUInt
   }
 
   val plru = new PseudoLRU(normalEntries)
   val repl_waddr = Mux(!valid(normalEntries-1, 0).andR, PriorityEncoder(~valid(normalEntries-1, 0)), plru.replace)
 
-  val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), u_array), u_array)
-  val w_array = Cat(prot_w, priv_ok & ~(~prot_w << specialEntry) & sw_array)
-  val x_array = Cat(prot_x, priv_ok & ~(~prot_x << specialEntry) & sx_array)
-  val r_array = Cat(prot_r, priv_ok & ~(~prot_r << specialEntry) & (sr_array | Mux(io.ptw.status.mxr, xr_array, UInt(0))))
-  val c_array = Cat(cacheable, cacheable, cash_array)
+  val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), entries.map(_.u).asUInt), entries.map(_.u).asUInt)
+  val w_array = Cat(prot_w, priv_ok & ~(~prot_w << specialEntry) & entries.map(_.sw).asUInt)
+  val x_array = Cat(prot_x, priv_ok & ~(~prot_x << specialEntry) & entries.map(_.sx).asUInt)
+  val r_array = Cat(prot_r, priv_ok & ~(~prot_r << specialEntry) & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.xr).asUInt, UInt(0))))
+  val c_array = Cat(cacheable, ~(~cacheable << specialEntry) & entries.map(_.cacheable).asUInt)
 
   val bad_va =
     if (vpnBits == vpnBitsExtended) Bool(false)
@@ -194,7 +208,7 @@ class TLB(lgMaxSize: Int, entries: Int)(implicit edge: TLEdgeOut, p: Parameters)
 
     when (sfence) {
       valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
-               Mux(io.req.bits.sfence.bits.rs2, valid & g_array, 0))
+               Mux(io.req.bits.sfence.bits.rs2, valid & g_array.asUInt, 0))
     }
     when (multipleHits) {
       valid := 0
