@@ -8,14 +8,16 @@ import diplomacy._
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: Parameters) extends LazyModule
 {
-  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
+  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId)).map(_.get)
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
 
   def assignRanges(sizes: Seq[Int]) = {
-    val pow2Sizes = sizes.map(1 << log2Ceil(_))
+    val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
     val tuples = pow2Sizes.zipWithIndex.sortBy(_._1) // record old index, then sort by increasing size
     val starts = tuples.scanRight(0)(_._1 + _).tail // suffix-sum of the sizes = the start positions
-    val ranges = (tuples zip starts) map { case ((sz, i), st) => (IdRange(st, st+sz), i) }
+    val ranges = (tuples zip starts) map { case ((sz, i), st) =>
+      (if (sz == 0) None else Some(IdRange(st, st+sz)), i)
+    }
     ranges.sortBy(_._2).map(_._1) // Restore orignal order
   }
 
@@ -54,7 +56,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
       val outputIdRanges = mapOutputIds(seq)
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
-        endSinkId = outputIdRanges.map(_.end).max,
+        endSinkId = outputIdRanges.map(_.map(_.end).getOrElse(0)).max,
         managers = ManagerUnification(seq.flatMap { port =>
           // println(s"${port.managers.map(_.name)} ${port.beatBytes} vs ${seq(0).managers.map(_.name)} ${seq(0).beatBytes}")
           require (port.beatBytes == seq(0).beatBytes)
@@ -132,13 +134,13 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
 
       io.out(i).a <> out(i).a
       out(i).d <> io.out(i).d
-      out(i).d.bits.sink := io.out(i).d.bits.sink | UInt(r.start)
+      out(i).d.bits.sink := io.out(i).d.bits.sink | UInt(r.map(_.start).getOrElse(0))
 
       if (node.edgesOut(i).manager.anySupportAcquireB && node.edgesIn.exists(_.client.anySupportProbe)) {
         io.out(i).c <> out(i).c
         io.out(i).e <> out(i).e
         out(i).b <> io.out(i).b
-        io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
+        io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.map(_.size).getOrElse(0))
       } else {
         out(i).c.ready := Bool(false)
         out(i).e.ready := Bool(false)
@@ -156,7 +158,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     val requestCIO = Vec(addressC.map { i => Vec(outputPorts.map { o => o(i) }) })
     val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.b.bits.source) }) })
     val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.d.bits.source) }) })
-    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.contains(i.e.bits.sink)   }) })
+    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.map(_.contains(i.e.bits.sink)).getOrElse(Bool(false)) }) })
 
     val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) })
     val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) })
