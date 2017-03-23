@@ -467,7 +467,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.status.isa := reg_misa
   io.status.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
   io.status.sxl := (if (usingVM) log2Ceil(xLen) - 4 else 0)
-  io.status.dprv := Reg(next = Mux(reg_mstatus.mprv, reg_mstatus.mpp, reg_mstatus.prv))
+  io.status.dprv := Reg(next = Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpp, reg_mstatus.prv))
   if (xLen == 32)
     io.status.sd_rv32 := io.status.sd
 
