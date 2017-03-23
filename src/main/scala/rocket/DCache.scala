@@ -87,8 +87,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
 
   // I/O MSHRs
-  val uncachedInFlight = Seq.fill(cacheParams.nMMIOs) { RegInit(Bool(false)) }
-  val uncachedReqs = Seq.fill(cacheParams.nMMIOs) { Reg(new HellaCacheReq) }
+  val uncachedInFlight = Reg(init = Vec.fill(cacheParams.nMMIOs)(false.B))
+  val uncachedReqs = Reg(Vec(cacheParams.nMMIOs, new HellaCacheReq))
 
   // hit initiation path
   dataArb.io.in(3).valid := io.cpu.req.valid && isRead(io.cpu.req.bits.cmd)
@@ -284,15 +284,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out.a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!pstore1_amo, put, atomics)))
 
   // Set pending bits for outstanding TileLink transaction
-  val a_sel = UIntToOH(a_source, cacheParams.nMMIOs)
   when (tl_out.a.fire()) {
     when (s2_uncached) {
-      (a_sel.toBools zip (uncachedInFlight zip uncachedReqs)) foreach { case (s, (f, r)) =>
-        when (s) {
-          f := Bool(true)
-          r := s2_req
-        }
-      }
+      uncachedInFlight(a_source) := true
+      uncachedReqs(a_source) := s2_req
     }.otherwise {
       cached_grant_wait := true
     }
@@ -311,14 +306,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
       when(d_last) { cached_grant_wait := false }
     } .elsewhen (grantIsUncached) {
-      val d_sel = UIntToOH(tl_out.d.bits.source, cacheParams.nMMIOs)
-      val req = Mux1H(d_sel, uncachedReqs)
-      (d_sel.toBools zip uncachedInFlight) foreach { case (s, f) =>
-        when (s && d_last) {
-          assert(f, "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
-          f := false
-        }
-      }
+      assert(d_last, "DCache MMIO responses must be single-beat")
+      assert(uncachedInFlight(tl_out.d.bits.source), "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
+      uncachedInFlight(tl_out.d.bits.source) := false
+      val req = uncachedReqs(tl_out.d.bits.source)
       when (grantIsUncachedData) {
         s2_data := tl_out.d.bits.data
         s2_req.cmd := req.cmd
