@@ -69,12 +69,12 @@ case class TLManagerParameters(
 case class TLManagerPortParameters(
   managers:   Seq[TLManagerParameters],
   beatBytes:  Int,
-  endSinkId:  Int = 1,
+  endSinkId:  Int = 0, // 0 = no sink ids, 1 = a reusable sink id, >1 = unique sink ids
   minLatency: Int = 0)
 {
   require (!managers.isEmpty)
   require (isPow2(beatBytes))
-  require (endSinkId > 0)
+  require (endSinkId >= 0)
   require (minLatency >= 0)
 
   def requireFifo() = managers.foreach { m =>require (m.fifoId == Some(0))  }

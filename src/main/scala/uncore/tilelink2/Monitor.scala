@@ -232,7 +232,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.addr_lo, bundle.size)
-    val sink_ok = bundle.sink < UInt(edge.manager.endSinkId)
+    val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assert (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
@@ -286,7 +286,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
   }
 
   def legalizeFormatE(bundle: TLBundleE, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val sink_ok = bundle.sink < UInt(edge.manager.endSinkId)
+    val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
     assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
@@ -461,7 +461,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     legalizeADSource(bundle, edge)
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
       // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
-      legalizeDESink(bundle, edge)
+      if (edge.manager.endSinkId > 1) legalizeDESink(bundle, edge)
     }
   }
 

@@ -16,10 +16,12 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       cp.copy(clients = cp.clients.map { c => c.copy(
         sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
     managerFn = { case mp =>
-      mp.copy(managers = mp.managers.map { m => m.copy(
-        regionType         = if (m.regionType == RegionType.UNCACHED) RegionType.TRACKED else m.regionType,
-        supportsAcquireB   = m.supportsGet,
-        supportsAcquireT   = m.supportsPutFull)})})
+      mp.copy(
+        endSinkId = 1,
+        managers = mp.managers.map { m => m.copy(
+          regionType         = if (m.regionType == RegionType.UNCACHED) RegionType.TRACKED else m.regionType,
+          supportsAcquireB   = m.supportsGet,
+          supportsAcquireT   = m.supportsPutFull)})})
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
