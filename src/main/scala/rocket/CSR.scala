@@ -65,7 +65,12 @@ class DCSR extends Bundle {
   val prv = UInt(width = PRV.SZ)
 }
 
-class MIP extends Bundle {
+class MIP(implicit p: Parameters) extends CoreBundle()(p)
+    with HasRocketCoreParameters {
+  val lip = Vec(coreParams.nLocalInterrupts, Bool())
+  val zero2 = Bool()
+  val debug = Bool() // keep in sync with CSR.debugIntCause
+  val zero1 = Bool()
   val rocc = Bool()
   val meip = Bool()
   val heip = Bool()
@@ -119,13 +124,9 @@ object CSR
   def R = UInt(5,SZ)
 
   val ADDRSZ = 12
-  def debugIntCause = {
-    val res = 14
-    require(res >= new MIP().getWidth)
-    res
-  }
+  def debugIntCause = 14 // keep in sync with MIP.debug
   def debugTriggerCause = {
-    val res = 14
+    val res = debugIntCause
     require(!(Causes.all contains res))
     res
   }
@@ -211,14 +212,24 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val reg_dcsr = Reg(init=reset_dcsr)
 
   val (supported_interrupts, delegable_interrupts) = {
-    val sup = Wire(init=new MIP().fromBits(0))
+    val sup = Wire(new MIP)
+    sup.usip := false
     sup.ssip := Bool(usingVM)
+    sup.hsip := false
     sup.msip := true
+    sup.utip := false
     sup.stip := Bool(usingVM)
+    sup.htip := false
     sup.mtip := true
-    sup.meip := true
+    sup.ueip := false
     sup.seip := Bool(usingVM)
+    sup.heip := false
+    sup.meip := true
     sup.rocc := usingRoCC
+    sup.zero1 := false
+    sup.debug := false
+    sup.zero2 := false
+    sup.lip foreach { _ := true }
 
     val del = Wire(init=sup)
     del.msip := false
@@ -680,7 +691,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
 
-  reg_mip <> io.interrupts
+  reg_mip := io.interrupts
   reg_dcsr.debugint := io.interrupts.debug
 
   if (!usingVM) {
