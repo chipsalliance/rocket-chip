@@ -667,7 +667,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
       }
     }
-    for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
+    if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
       require(xLen % pmp.cfg.getWidth == 0)
       when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.locked) {
         pmp.cfg := new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))

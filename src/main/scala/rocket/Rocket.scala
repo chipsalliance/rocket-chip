@@ -18,7 +18,7 @@ case class RocketCoreParams(
   useAtomics: Boolean = true,
   useCompressed: Boolean = true,
   nBreakpoints: Int = 1,
-  nPMPs: Int = 16,
+  nPMPs: Int = 8,
   nPerfCounters: Int = 0,
   nCustomMRWCSRs: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),

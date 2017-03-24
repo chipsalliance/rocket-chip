@@ -26,7 +26,7 @@ case class GroundTestTileParams(
   val icache = None
   val btb = None
   val rocc = Nil
-  val core = rocket.RocketCoreParams() //TODO remove this
+  val core = rocket.RocketCoreParams(nPMPs = 0) //TODO remove this
   val cached = if(dcache.isDefined) 1 else 0
   val dataScratchpadBytes = 0
 }

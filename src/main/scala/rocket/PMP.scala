@@ -136,7 +136,7 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     val x = Bool(OUTPUT)
   }
 
-  val default = io.prv > PRV.S
+  val default = if (io.pmp.isEmpty) true.B else io.prv > PRV.S
   val pmp0 = Wire(init = 0.U.asTypeOf(new PMP))
   pmp0.cfg.r := default
   pmp0.cfg.w := default
