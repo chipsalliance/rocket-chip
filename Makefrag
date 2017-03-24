@@ -13,7 +13,7 @@ CONFIG ?= DefaultConfig
 long_name = $(MODEL).$(CONFIG)
 
 CXX ?= g++
-CXXFLAGS := -O1
+CXXFLAGS := -O0
 
 SBT ?= java -Xmx8G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash

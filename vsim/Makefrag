@@ -31,6 +31,8 @@ sim_csrcs = \
 
 scr_header = $(generated_dir)/$(CONFIG).scr.h \
 
+scr_header_debug = $(generated_dir_debug)/$(CONFIG).scr.h \
+
 #--------------------------------------------------------------------
 # Build Verilog
 #--------------------------------------------------------------------

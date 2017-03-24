@@ -7,8 +7,10 @@ sim_dir = .
 output_dir = $(sim_dir)/output
 
 include $(base_dir)/Makefrag
+#get extra verilog sources from vsim Makefrag
+include $(base_dir)/vsim/Makefrag
 
-CXXSRCS := emulator SimDTM
+CXXSRCS := emulator SimDTM SimSerial HurricaneTSI
 CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include -I$(base_dir)/csrc
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L$(abspath $(sim_dir)) -lfesvr -lpthread
 

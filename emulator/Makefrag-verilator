@@ -46,6 +46,12 @@ verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 	mkdir -p $(dir $@)
 	wget http://www.veripool.org/ftp/verilator-$(VERILATOR_VERSION).tgz -O $@
 
+ifeq ($(PROJECT),hurricane)
+cppfiles = $(base_dir)/testchipip/csrc/SimSerial.cc $(base_dir)/csrc/HurricaneTSI.cc $(base_dir)/testchipip/csrc/verilator-harness.cc
+CXXFLAGS +=  -DHURRICANE
+else
+cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
+endif
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
 VERILATOR_FLAGS := --top-module $(MODEL) \
@@ -55,22 +61,21 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
 	-Wno-STMTDLY --x-assign unique \
   -I$(base_dir)/vsrc \
   -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -include $(base_dir)/csrc/verilator.h"
-cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
 headers = $(wildcard $(base_dir)/csrc/*.h)
 
 model_header = $(generated_dir)/$(long_name)/V$(MODEL).h
 model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h
 
-$(emu): $(verilog) $(cppfiles) $(headers) $(consts_header) $(INSTALLED_VERILATOR)
+$(emu): $(verilog) $(cppfiles) $(headers) $(consts_header) $(scr_header) $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir)/$(long_name)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(long_name) \
-	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
-	-CFLAGS "-I$(generated_dir) -include $(model_header) -include $(consts_header)"
-	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir)/$(long_name) -f V$(MODEL).mk
+	-o $(abspath $(sim_dir))/$@ $< $(addprefix -v ,$(hbwif_vsrcs)$(filter-out %jtag_vpi.v,$(bb_vsrcs))) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-CFLAGS "-I$(generated_dir) -include $(model_header) -include $(consts_header) -include $(scr_header)"
+	$(MAKE) -j`nproc` VM_PARALLEL_BUILDS=1 -C $(generated_dir)/$(long_name) -f V$(MODEL).mk
 
-$(emu_debug): $(verilog_debug) $(cppfiles) $(headers) $(consts_header_debug) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
+$(emu_debug): $(verilog_debug) $(cppfiles) $(headers) $(consts_header_debug) $(scr_header_debug) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(long_name)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(long_name)  --trace \
-	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
-	-CFLAGS "-I$(generated_dir_debug) -include $(model_header_debug) -include $(consts_header_debug)"
-	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir_debug)/$(long_name) -f V$(MODEL).mk
+	-o $(abspath $(sim_dir))/$@ $< $(addprefix -v ,$(hbwif_vsrcs)$(filter-out %jtag_vpi.v,$(bb_vsrcs))) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-CFLAGS "-I$(generated_dir_debug) -include $(model_header_debug) -include $(consts_header_debug) -include $(scr_header_debug)"
+	$(MAKE) -j`nproc` VM_PARALLEL_BUILDS=1 -C $(generated_dir_debug)/$(long_name) -f V$(MODEL).mk
