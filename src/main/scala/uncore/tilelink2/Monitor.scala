@@ -461,7 +461,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     legalizeADSource(bundle, edge)
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
       // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
-      if (edge.manager.endSinkId > 0) legalizeDESink(bundle, edge)
+      if (edge.manager.endSinkId > 1) legalizeDESink(bundle, edge)
     }
   }
 

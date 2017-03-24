@@ -69,7 +69,7 @@ case class TLManagerParameters(
 case class TLManagerPortParameters(
   managers:   Seq[TLManagerParameters],
   beatBytes:  Int,
-  endSinkId:  Int = 0, // 0 means no sink ids used
+  endSinkId:  Int = 0, // 0 = no sink ids, 1 = a reusable sink id, >1 = unique sink ids
   minLatency: Int = 0)
 {
   require (!managers.isEmpty)
