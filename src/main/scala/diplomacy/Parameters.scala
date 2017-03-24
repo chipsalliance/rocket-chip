@@ -19,8 +19,8 @@ object RegionType {
 // A non-empty half-open range; [start, end)
 case class IdRange(start: Int, end: Int)
 {
-  require (start >= 0)
-  require (start < end) // not empty
+  require (start >= 0, s"Ids cannot be negative, but got: $start.")
+  require (start < end, "Id ranges cannot be empty.")
 
   // This is a strict partial ordering
   def <(x: IdRange) = end <= x.start
@@ -48,11 +48,11 @@ case class TransferSizes(min: Int, max: Int)
 {
   def this(x: Int) = this(x, x)
 
-  require (min <= max)
-  require (min >= 0 && max >= 0)
-  require (max == 0 || isPow2(max))
-  require (min == 0 || isPow2(min))
-  require (max == 0 || min != 0) // 0 is forbidden unless (0,0)
+  require (min <= max, s"Min transfer $min > max transfer $max")
+  require (min >= 0 && max >= 0, s"TransferSizes must be positive, got: ($min, $max)")
+  require (max == 0 || isPow2(max), s"TransferSizes must be a power of 2, got: $max")
+  require (min == 0 || isPow2(min), s"TransferSizes must be a power of 2, got: $min")
+  require (max == 0 || min != 0, s"TransferSize 0 is forbidden unless (0,0), got: ($min, $max)")
 
   def none = min == 0
   def contains(x: Int) = isPow2(x) && min <= x && x <= max
@@ -81,8 +81,8 @@ case class AddressRange(base: BigInt, size: BigInt) extends Ordered[AddressRange
 {
   val end = base + size
 
-  require (base >= 0)
-  require (size > 0)
+  require (base >= 0, s"AddressRange base must be positive, got: $base")
+  require (size > 0, s"AddressRange size must be > 0, got: $size")
 
   def compare(x: AddressRange) = {
     val primary   = (this.base - x.base).signum
@@ -109,8 +109,8 @@ case class AddressRange(base: BigInt, size: BigInt) extends Ordered[AddressRange
 case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 {
   // Forbid misaligned base address (and empty sets)
-  require ((base & mask) == 0)
-  require (base >= 0) // TL2 address widths are not fixed => negative is ambiguous
+  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, got: ($base, $mask)")
+  require (base >= 0, s"AddressSet negative base is ambiguous: $base") // TL2 address widths are not fixed => negative is ambiguous
   // We do allow negative mask (=> ignore all high bits)
 
   def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
