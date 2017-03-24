@@ -53,17 +53,17 @@ class GlobalVariable[T] {
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters, address: BigInt, dts: String) = {
+  def apply(p: Parameters, address: BigInt, dtb: DTB) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
 
     rom.order(ByteOrder.LITTLE_ENDIAN)
 
     require(address == address.toInt)
-    val dtsAddr = address.toInt + rom.capacity
+    val dtbAddr = address.toInt + rom.capacity
     require(rom.getInt(12) == 0,
       "DTS address position should not be occupied by code")
-    rom.putInt(12, dtsAddr)
-    rom.array() ++ (dts.getBytes.toSeq)
+    rom.putInt(12, dtbAddr)
+    rom.array() ++ dtb.contents
   }
 }
