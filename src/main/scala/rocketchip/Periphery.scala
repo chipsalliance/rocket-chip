@@ -305,8 +305,8 @@ trait PeripheryBootROM {
   this: HasTopLevelNetworks =>
   val coreplex: CoreplexRISCVPlatform
 
-  private val bootrom_address = 0x1000
-  private val bootrom_size = 0x1000
+  private val bootrom_address = 0x10000
+  private val bootrom_size = 0x10000
   private lazy val bootrom_contents = GenerateBootROM(coreplex.dtb)
   val bootrom = LazyModule(new TLROM(bootrom_address, bootrom_size, bootrom_contents, true, peripheryBusConfig.beatBytes))
   bootrom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
