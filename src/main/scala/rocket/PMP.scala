@@ -89,8 +89,11 @@ class PMP(implicit p: Parameters) extends PMPReg {
   private def rangeHomogeneous(x: UInt, pgLevel: UInt, prev: PMP) = {
     val beginsAfterLower = !(x < prev.comparand)
     val beginsAfterUpper = !(x < comparand)
-    val endsBeforeLower = pgLevelMap { idxBits => (x >> idxBits) < (prev.comparand >> idxBits) } (pgLevel)
-    val endsBeforeUpper = pgLevelMap { idxBits => (x >> idxBits) < (comparand >> idxBits) } (pgLevel)
+
+    val pgMask = pgLevelMap { idxBits => ((BigInt(1) << paddrBits) - (BigInt(1) << idxBits)).U } (pgLevel)
+    val endsBeforeLower = (x & pgMask) < (prev.comparand & pgMask)
+    val endsBeforeUpper = (x & pgMask) < (comparand & pgMask)
+
     endsBeforeLower || beginsAfterUpper || (beginsAfterLower && endsBeforeUpper)
   }
 
