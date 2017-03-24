@@ -53,17 +53,9 @@ class GlobalVariable[T] {
 }
 
 object GenerateBootROM {
-  def apply(p: Parameters, address: BigInt, dtb: DTB) = {
+  def apply(dtb: DTB)(implicit p: Parameters) = {
     val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
     val rom = ByteBuffer.wrap(romdata)
-
-    rom.order(ByteOrder.LITTLE_ENDIAN)
-
-    require(address == address.toInt)
-    val dtbAddr = address.toInt + rom.capacity
-    require(rom.getInt(12) == 0,
-      "DTS address position should not be occupied by code")
-    rom.putInt(12, dtbAddr)
     rom.array() ++ dtb.contents
   }
 }
