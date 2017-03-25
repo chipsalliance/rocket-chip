@@ -36,7 +36,8 @@ trait HasTopLevelNetworks extends HasPeripheryParameters {
   val socBus = LazyModule(new TLXbar)          // Wide or unordered-access slave devices (TL-UH)
   val peripheryBus = LazyModule(new TLXbar)    // Narrow and ordered-access slave devices (TL-UL)
   val intBus = LazyModule(new IntXbar)         // Interrupts
-  val l2FrontendBus = LazyModule(new TLBuffer) // Master devices talking to the frontside of the L2
+  val fsb = LazyModule(new TLBuffer)           // Master devices talking to the frontside of the L2
+  val bsb = LazyModule(new TLBuffer)           // Slave devices talking to the backside of the L2
   val mem = Seq.fill(nMemoryChannels) { LazyModule(new TLXbar) } // Ports out to DRAM
 
   // The peripheryBus hangs off of socBus;

@@ -214,7 +214,7 @@ trait PeripherySlaveAXI4 extends HasTopLevelNetworks {
     masters = Seq(AXI4MasterParameters(
       id = IdRange(0, 1 << config.idBits))))))
 
-  l2FrontendBus.node :=
+  fsb.node :=
     TLSourceShrinker(1 << config.sourceBits)(
     TLWidthWidget(config.beatBytes)(
     AXI4ToTL()(
@@ -282,7 +282,7 @@ trait PeripherySlaveTL extends HasTopLevelNetworks {
     clients = Seq(TLClientParameters(
       sourceId = IdRange(0, 1 << config.idBits))))))
 
-  l2FrontendBus.node :=
+  fsb.node :=
     TLSourceShrinker(1 << config.sourceBits)(
     TLWidthWidget(config.beatBytes)(
     l2FrontendTLNode))
