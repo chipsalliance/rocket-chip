@@ -30,6 +30,7 @@ addons:
       - bison
       - flex
       - texinfo
+      - device-tree-compiler
 
 env:
   matrix:
