@@ -8,6 +8,7 @@ import junctions._
 import diplomacy._
 import coreplex._
 import uncore.axi4._
+import jtag.JTAGIO
 
 class TestHarness()(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -23,7 +24,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
   if (!p(IncludeJtagDTM)) {
     val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug.get, io.success)
   } else {
-     val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)		
+    val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)
   }
 
   val mmio_sim = Module(LazyModule(new SimAXIMem(1, 4096)).module)
@@ -81,7 +82,7 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
 
 class JTAGVPI(implicit val p: Parameters) extends BlackBox {
   val io = new Bundle {
-    val jtag = new JTAGIO(false)
+    val jtag = new JTAGIO()
     val enable = Bool(INPUT)
     val init_done = Bool(INPUT)
   }
@@ -96,8 +97,8 @@ class JTAGVPI(implicit val p: Parameters) extends BlackBox {
     // HW may drive this signal.
     // Neither OpenOCD nor JtagVPI drive TRST.
 
-    dutio.TRST := tbreset
-    io.enable := ~tbreset
+    dutio.TRSTn  := ~tbreset
+    io.enable    := ~tbreset
     io.init_done := ~tbreset
 
     // Success is determined by the gdbserver

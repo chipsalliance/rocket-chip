@@ -13,3 +13,6 @@
 [submodule "firrtl"]
 	path = firrtl
 	url = https://github.com/ucb-bar/firrtl.git
+[submodule "chisel-jtag"]
+	path = chisel-jtag
+	url = https://github.com/mwachs5/chisel-jtag

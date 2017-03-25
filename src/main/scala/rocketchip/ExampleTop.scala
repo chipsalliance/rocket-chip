@@ -12,7 +12,7 @@ abstract class ExampleTop(implicit p: Parameters) extends BaseTop
     with PeripheryExtInterrupts
     with PeripheryMasterAXI4Mem
     with PeripheryMasterAXI4MMIO
-    with PeripherySlaveAXI4 {
+    with PeripherySlaveAXI4{
   override lazy val module = new ExampleTopModule(this, () => new ExampleTopBundle(this))
 }
 
