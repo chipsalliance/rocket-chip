@@ -4,6 +4,8 @@ package diplomacy
 
 import Chisel._
 import config._
+import sys.process._
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 case object DTSModel    extends Field[String]
 case object DTSCompat   extends Field[Seq[String]] // -dev, -soc
@@ -113,5 +115,19 @@ object DTS
     case x: ResourceString => fmtString(x)
     case x: ResourceReference => Seq("&" + x.value)
     case x: ResourceMap => fmtMap(x, indent, cells)
+  }
+}
+
+case class DTB(contents: Seq[Byte])
+object DTB
+{
+  def apply(dts: String): DTB = {
+    val instream = new ByteArrayInputStream(dts.getBytes("UTF-8"))
+    val outstream = new ByteArrayOutputStream
+    val proc = "dtc -O dtb" #< instream #> outstream
+    require (proc.! == 0, "Failed to run dtc; is it in your path?")
+    instream.close
+    outstream.close
+    DTB(outstream.toByteArray)
   }
 }

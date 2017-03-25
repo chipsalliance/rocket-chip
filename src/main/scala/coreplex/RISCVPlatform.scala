@@ -25,6 +25,7 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   plic.intnode := intBar.intnode
 
   lazy val dts = DTS(bindingTree)
+  lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
 }
 
