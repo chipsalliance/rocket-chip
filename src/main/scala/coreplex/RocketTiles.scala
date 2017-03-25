@@ -31,7 +31,6 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       case TileKey => c
       case BuildRoCC => c.rocc
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
-      case PAddrBits => l1tol2.node.edgesIn(0).bundle.addressBits
     }
 
     // Hack debug interrupt into a node (future debug module should use diplomacy)
