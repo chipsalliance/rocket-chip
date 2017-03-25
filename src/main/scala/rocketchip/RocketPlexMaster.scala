@@ -15,7 +15,8 @@ trait RocketPlexMaster extends HasTopLevelNetworks {
 
   val coreplex = LazyModule(new DefaultCoreplex)
 
-  coreplex.l2in :=* l2FrontendBus.node
+  coreplex.l2in :=* fsb.node
+  bsb.node :*= coreplex.l2out
   socBus.node := coreplex.mmio
   coreplex.mmioInt := intBus.intnode
 

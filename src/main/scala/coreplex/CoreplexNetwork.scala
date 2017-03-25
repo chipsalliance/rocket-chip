@@ -26,11 +26,18 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val mmio = TLOutputNode()
   val mmioInt = IntInputNode()
   val l2in = TLInputNode()
+  val l2out = TLOutputNode()
 
   intBar.intnode := mmioInt
 
   // Allows a variable number of inputs from outside to the Xbar
-  l1tol2.node :=* l2in
+  private val l2in_buffer = LazyModule(new TLBuffer)
+  l1tol2.node :=* l2in_buffer.node
+  l2in_buffer.node :=* l2in
+
+  private val l2out_buffer = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none))
+  l2out :*= l2out_buffer.node
+  l2out_buffer.node :*= l1tol2.node
 
   cbus.node :=
     TLBuffer()(
@@ -96,6 +103,7 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
   val mmio = outer.mmio.bundleOut
   val interrupts = outer.mmioInt.bundleIn
   val l2in = outer.l2in.bundleIn
+  val l2out = outer.l2out.bundleOut
 }
 
 trait CoreplexNetworkModule extends HasCoreplexParameters {
@@ -130,7 +138,7 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
     val node = TLOutputNode()
     for (bank <- 0 until l2Config.nBanksPerChannel) {
       val offset = (bank * l2Config.nMemoryChannels) + channel
-      in := TLBuffer(BufferParams.flow)(l1tol2.node)
+      in := TLBuffer(BufferParams.flow, BufferParams.none)(l1tol2.node)
       node := TLFilter(AddressSet(offset * l1tol2_lineBytes, mask))(out)
     }
     node
