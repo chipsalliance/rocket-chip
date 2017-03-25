@@ -52,7 +52,7 @@ trait HasCoreParameters extends HasTileParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = 32//p(PAddrBits)
+  val paddrBits = p(PAddrBits)
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)

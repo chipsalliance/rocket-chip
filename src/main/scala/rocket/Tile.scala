@@ -119,6 +119,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveLegacyRoccsModule
     with CanHaveScratchpadModule {
 
+  require(outer.p(PAddrBits) >= outer.masterNode.edgesIn(0).bundle.addressBits)
+
   val core = Module(p(BuildCore)(outer.p))
   core.io.hartid := io.hartid
   outer.frontend.module.io.cpu <> core.io.imem
