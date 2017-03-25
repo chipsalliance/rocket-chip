@@ -231,6 +231,13 @@ object IsSNaNRecFN {
     IsNaNRecFN(expWidth, sigWidth, in) && !in(sigWidth - 2)
 }
 
+class FType(val exp: Int, val sig: Int)
+
+object FType {
+  val S = new FType(8, 24)
+  val D = new FType(11, 53)
+}
+
 /** Format conversion without rounding or NaN handling */
 object RecFNToRecFN_noncompliant {
   def apply(in: UInt, inExpWidth: Int, inSigWidth: Int, outExpWidth: Int, outSigWidth: Int) = {
@@ -249,22 +256,23 @@ object RecFNToRecFN_noncompliant {
 }
 
 object CanonicalNaN {
-  def apply(expWidth: Int, sigWidth: Int): UInt =
-    UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 2)), expWidth + sigWidth + 1)
-  def signaling(expWidth: Int, sigWidth: Int): UInt =
-    UInt((BigInt(7) << (expWidth + sigWidth - 3)) + (BigInt(1) << (sigWidth - 3)), expWidth + sigWidth + 1)
+  def apply(t: FType): UInt =
+    UInt((BigInt(7) << (t.exp + t.sig - 3)) + (BigInt(1) << (t.sig - 2)), t.exp + t.sig + 1)
+  def signaling(t: FType): UInt =
+    UInt((BigInt(7) << (t.exp + t.sig - 3)) + (BigInt(1) << (t.sig - 3)), t.exp + t.sig + 1)
 }
 
 trait HasFPUParameters {
   val fLen: Int
-  val (sExpWidth, sSigWidth) = (8, 24)
-  val (dExpWidth, dSigWidth) = (11, 53)
-  val floatWidths = fLen match {
-    case 32 => List((sExpWidth, sSigWidth))
-    case 64 => List((sExpWidth, sSigWidth), (dExpWidth, dSigWidth))
+  val (sExpWidth, sSigWidth) = (FType.S.exp, FType.S.sig)
+  val (dExpWidth, dSigWidth) = (FType.D.exp, FType.D.sig)
+  val floatTypes = fLen match {
+    case 32 => List(FType.S)
+    case 64 => List(FType.S, FType.D)
   }
-  val maxExpWidth = floatWidths.map(_._1).max
-  val maxSigWidth = floatWidths.map(_._2).max
+  val maxType = floatTypes.sortWith(_.exp > _.exp).head
+  val maxExpWidth = maxType.exp
+  val maxSigWidth = maxType.sig
 }
 
 abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters
@@ -433,7 +441,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
         val issnan2 = IsSNaNRecFN(expWidth, sigWidth, in.bits.in2)
         val invalid = issnan1 || issnan2
         val isNaNOut = invalid || (isnan1 && isnan2)
-        val cNaN = floatWidths.filter(_._1 >= expWidth).map(x => CanonicalNaN(x._1, x._2)).reduce(_+_)
+        val cNaN = floatTypes.filter(_.exp >= expWidth).map(CanonicalNaN(_)).reduce(_+_)
         (isnan2 || in.bits.rm(0) =/= io.lt && !isnan1, invalid, isNaNOut, cNaN)
       }
       val (isLHS, isInvalid, isNaNOut, cNaN) = fLen match {
@@ -530,6 +538,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
+  def expand(x: UInt, t: FType) = RecFNToRecFN_noncompliant(x, t.exp, t.sig, maxType.exp, maxType.sig)
+  def contract(x: UInt, t: FType) = RecFNToRecFN_noncompliant(x, maxType.exp, maxType.sig, t.exp, t.sig)
+
   // load response
   val load_wb = Reg(next=io.dmem_resp_val)
   val load_wb_single = RegEnable(!io.dmem_resp_type(0), io.dmem_resp_val)
@@ -540,7 +551,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     case 32 => rec_s
     case 64 =>
       val rec_d = hardfloat.recFNFromFN(dExpWidth, dSigWidth, load_wb_data)
-      Mux(load_wb_single, rec_s | CanonicalNaN.signaling(maxExpWidth, maxSigWidth), rec_d)
+      Mux(load_wb_single, rec_s | CanonicalNaN.signaling(maxType), rec_d)
   }
 
   // regfile
@@ -670,7 +681,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wsingle = Mux(divSqrt_wen, divSqrt_single, wbInfo(0).single)
   val wdata = fLen match {
     case 32 => wdata0
-    case 64 => Mux(wsingle,  wdata0(32, 0) | CanonicalNaN.signaling(maxExpWidth, maxSigWidth), wdata0)
+    case 64 => Mux(wsingle,  wdata0(32, 0) | CanonicalNaN.signaling(maxType), wdata0)
   }
   val wexc = (pipes.map(_.res.exc): Seq[UInt])(wbInfo(0).pipeid)
   when ((!wbInfo(0).cp && wen(0)) || divSqrt_wen) {
