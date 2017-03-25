@@ -26,6 +26,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val mmio = TLOutputNode()
   val mmioInt = IntInputNode()
   val l2in = TLInputNode()
+  val l2out = TLOutputNode()
 
   intBar.intnode := mmioInt
 
@@ -41,6 +42,8 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   mmio :=
     TLWidthWidget(l1tol2_beatBytes)(
     l1tol2.node)
+
+  l2out :*= l1tol2.node
 
   val root = new Device {
     def describe(resources: ResourceBindings): Description = {
@@ -96,6 +99,7 @@ trait CoreplexNetworkBundle extends HasCoreplexParameters {
   val mmio = outer.mmio.bundleOut
   val interrupts = outer.mmioInt.bundleIn
   val l2in = outer.l2in.bundleIn
+  val l2out = outer.l2out.bundleOut
 }
 
 trait CoreplexNetworkModule extends HasCoreplexParameters {
