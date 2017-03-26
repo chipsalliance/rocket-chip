@@ -33,6 +33,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val s2_resp = Wire(new PTWResp)
   s2_resp.pte.ppn := s2_ppn
   s2_resp.pte.reserved_for_software := UInt(0)
+  s2_resp.level := UInt(pgLevels-1)
   s2_resp.pte.d := Bool(true)
   s2_resp.pte.a := Bool(true)
   s2_resp.pte.g := Bool(false)
@@ -45,10 +46,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.requestors.zipWithIndex.foreach { case (requestor, i) =>
     requestor.resp.valid := s2_valid && s2_chosen === UInt(i)
     requestor.resp.bits := s2_resp
-    requestor.status.prv := UInt(PRV.S)
-    requestor.status.debug := Bool(false)
-    requestor.status.mprv  := Bool(true)
-    requestor.status.mpp := UInt(0)
+    requestor.status := 0.U.asTypeOf(requestor.status)
     requestor.ptbr.mode := requestor.ptbr.pgLevelsToMode(pgLevels).U
     requestor.ptbr.asid := UInt(0)
     requestor.ptbr.ppn := UInt(0)
