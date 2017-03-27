@@ -391,7 +391,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val voluntaryReleaseMessage = if (edge.manager.anySupportAcquireB) {
                                 edge.Release(
-                                  fromSource = UInt(maxUncachedInFlight - 1),
+                                  fromSource = UInt(0),
                                   toAddress = probe_bits.address,
                                   lgSize = lgCacheBlockBytes,
                                   shrinkPermissions = s2_shrink_param,
