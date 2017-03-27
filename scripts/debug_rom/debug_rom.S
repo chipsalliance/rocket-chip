@@ -33,7 +33,7 @@ _entry:
         fence
         csrw CSR_DSCRATCH, s0  // Save s0 to allow signaling MHARTID
 
-        // We continue to let the hart know that we are halted in order that
+        // We continue to let the debug module know that we are halted so that
         // a DM which was reset is still made aware that a hart is halted.
         // We keep checking both whether there is something the debugger wants
         // us to do, or whether we should not be halted anymore.
