@@ -291,6 +291,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val hpm_mask = reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren)
 
   val mip = Wire(init=reg_mip)
+  // seip is the OR of reg_mip.seip and the actual line from the PLIC
+  io.interrupts.seip.foreach { mip.seip := reg_mip.seip || RegNext(_) }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
 
@@ -430,8 +432,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   }
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
-  val wdata = (Mux(io.rw.cmd.isOneOf(CSR.S, CSR.C), io.rw.rdata, UInt(0)) | io.rw.wdata) &
-              ~Mux(io.rw.cmd === CSR.C, io.rw.wdata, UInt(0))
+  val wdata = readModifyWriteCSR(io.rw.cmd, io.rw.rdata, io.rw.wdata)
 
   val system_insn = io.rw.cmd === CSR.I
   val opcode = UInt(1) << io.rw.addr(2,0)
@@ -588,10 +589,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_misa := ~(~wdata | (!f << ('d' - 'a'))) & mask | reg_misa & ~mask
     }
     when (decoded_addr(CSRs.mip)) {
-      val new_mip = new MIP().fromBits(wdata)
+      // MIP should be modified based on the value in reg_mip, not the value
+      // in read_mip, since read_mip.seip is the OR of reg_mip.seip and
+      // io.interrupts.seip.  We don't want the value on the PLIC line to
+      // inadvertently be OR'd into read_mip.seip.
+      val new_mip = readModifyWriteCSR(io.rw.cmd, reg_mip.asUInt, io.rw.wdata).asTypeOf(new MIP)
       if (usingVM) {
         reg_mip.ssip := new_mip.ssip
         reg_mip.stip := new_mip.stip
+        reg_mip.seip := new_mip.seip
       }
     }
     when (decoded_addr(CSRs.mie))      { reg_mie := wdata & supported_interrupts }
@@ -691,7 +697,10 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
 
-  reg_mip := io.interrupts
+  reg_mip.lip zip io.interrupts.lip foreach { case (r, i) => r := i }
+  reg_mip.mtip := io.interrupts.mtip
+  reg_mip.msip := io.interrupts.msip
+  reg_mip.meip := io.interrupts.meip
   reg_dcsr.debugint := io.interrupts.debug
 
   if (!usingVM) {
@@ -733,6 +742,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       when (reset) { pmp.cfg.p := 0 }
     }
   }
+
+  def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) =
+    (Mux(cmd.isOneOf(CSR.S, CSR.C), rdata, UInt(0)) | wdata) & ~Mux(cmd === CSR.C, wdata, UInt(0))
 
   def legalizePrivilege(priv: UInt): UInt =
     if (usingVM) Mux(priv === PRV.H, PRV.U, priv)
