@@ -1,7 +1,6 @@
 SECTIONS
 {
-    DRAM_BASE = 0x80000000;
-    ROM_BASE = 0x10000;
+    ROM_BASE = 0x10000; /* ... but actually position independent */
 
     . = ROM_BASE;
     .text.start : { *(.text.start) }
