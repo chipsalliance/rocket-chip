@@ -218,12 +218,13 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 #OPENOCD_HEAD ?= riscv
 OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
 #OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
-OPENOCD_VERSION = 193f63094891cd3fe6a5032fef2c71d09f063ff4
+OPENOCD_VERSION = 7df6804934c13590fffb98012a3728225bd21c99
+
 OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
 
 $(OPENOCD_DIR)/bin/openocd:
 	rm -rf openocd
-	git clone http://github.com/sifive/openocd.git 
+	git clone http://github.com/sifive/openocd.git
 	cd openocd ; \
 	git checkout $(OPENOCD_VERSION) ; \
 	./bootstrap ; \
@@ -237,19 +238,29 @@ install_openocd: $(OPENOCD_DIR)/bin/openocd
 # Running a list of tests is not supported.
 JTAG_DTM_TEST ?= SimpleS0Test
 
-stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
-	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
-	--run "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*" \
-	--cmd="$(OPENOCD_DIR)/bin/openocd -d \
+ifdef DEBUG
+JTAG_STAMP_SUFFIX=-debug
+JTAG_DEBUG_SUFFIX=-debug
+JTAG_VCDPLUS_32= +vcdplusfile=regression32.vcd
+JTAG_VCDPLUS_64= +vcdplusfile=regression64.vcd
+OPENOCD_DEBUG= -d
+else
+JTAG_STAMP_SUFFIX=-ndebug
+endif
+
+stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
+	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_32)" \
+	--cmd="$(OPENOCD_DIR)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(OPENOCD_DIR)/share/openocd/scripts" \
 	--freedom-e300-sim \
 	$(JTAG_DTM_TEST)
 	date > $@
 
-stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim-ndebug.stamp
-	$(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
-	--run $(abspath $(TOP))/vsim/simv-$(PROJECT)-$* \
-	--cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd -d \
+stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: install_openocd stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
+	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_64)" \
+	--cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
 	--freedom-u500-sim \
 	$(JTAG_DTM_TEST)
