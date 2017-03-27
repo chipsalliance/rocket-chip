@@ -40,7 +40,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
   val mask = UInt(width = paddrBits)
 
   import PMP._
-  def computeMask = Cat((0 until paddrBits - lgAlign).scanLeft(cfg.a(0))((m, i) => m && addr(i)).asUInt, UInt((BigInt(1) << lgAlign) - 1, lgAlign))
+  def computeMask = Cat((Cat(addr, cfg.a(0)) + 1) ^ Cat(addr, cfg.a(0)), UInt((BigInt(1) << (lgAlign-1)) - 1, lgAlign-1))
   private def comparand = addr << lgAlign
 
   private def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
