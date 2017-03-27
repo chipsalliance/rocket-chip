@@ -154,6 +154,38 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   ptw.io.requestor <> ptwPorts
 }
 
+class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
+  val rocket = LazyModule(new RocketTile(rtp, hartid))
+
+  val masterNode = TLOutputNode()
+  masterNode :=* rocket.masterNode
+
+  val slaveNode = TLInputNode()
+  rocket.slaveNode :*= slaveNode
+
+  val intNode = IntInputNode()
+
+  // Some interrupt sources may be completely asynchronous, even
+  // if tlClk and coreClk are the same (e.g. Debug Interrupt, which
+  // is coming directly from e.g. TCK)
+  val xing = LazyModule(new IntXing(3))
+  rocket.intNode := xing.intnode
+  xing.intnode := intNode
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val master = masterNode.bundleOut
+      val slave = slaveNode.bundleIn
+      val interrupts = intNode.bundleIn
+      val hartid = UInt(INPUT, p(XLen))
+      val resetVector = UInt(INPUT, p(XLen))
+    }
+    // signals that do not change:
+    rocket.module.io.hartid := io.hartid
+    rocket.module.io.resetVector := io.resetVector
+  }
+}
+
 class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
   val rocket = LazyModule(new RocketTile(rtp, hartid))
 
@@ -200,7 +232,11 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   sink.node :*= slaveNode
 
   val intNode = IntInputNode()
-  val xing = LazyModule(new IntXing(1))
+
+  // Some interrupt sources may be completely asynchronous, even
+  // if tlClk and coreClk are related (e.g. Debug Interrupt, which
+  // is coming directly from e.g. TCK)
+  val xing = LazyModule(new IntXing(3))
   rocket.intNode := xing.intnode
   xing.intnode := intNode
 

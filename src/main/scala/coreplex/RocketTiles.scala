@@ -44,18 +44,18 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
 
     crossing match {
       case Synchronous => {
-        val tile = LazyModule(new RocketTile(c, i)(pWithExtra))
+        val wrapper = LazyModule(new SyncRocketTile(c, i)(pWithExtra))
         val buffer = LazyModule(new TLBuffer)
         val fixer = LazyModule(new TLFIFOFixer)
-        buffer.node :=* tile.masterNode
+        buffer.node :=* wrapper.masterNode
         fixer.node :=* buffer.node
         l1tol2.node :=* fixer.node
-        tile.slaveNode :*= cbus.node
-        tile.intNode := intBar.intnode
+        wrapper.slaveNode :*= cbus.node
+        wrapper.intNode := intBar.intnode
         (io: HasRocketTilesBundle) => {
           // leave clock as default (simpler for hierarchical PnR)
-          tile.module.io.hartid := UInt(i)
-          tile.module.io.resetVector := io.resetVector
+          wrapper.module.io.hartid := UInt(i)
+          wrapper.module.io.resetVector := io.resetVector
           debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
