@@ -60,6 +60,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def encRowBits = encDataBits*rowWords
   def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
   def nIOMSHRs = cacheParams.nMMIOs
+  def maxUncachedInFlight = cacheParams.nMMIOs
   def dataScratchpadSize = cacheParams.dataScratchpadBytes
 
   require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
