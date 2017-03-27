@@ -185,8 +185,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val no_xcpt = Bool(usingDataScratchpad) && s1_req.phys /* slave port */ && s1_hit_state.isValid()
   io.cpu.xcpt.ma.ld := !no_xcpt && s1_read && s1_storegen.misaligned
   io.cpu.xcpt.ma.st := !no_xcpt && s1_write && s1_storegen.misaligned
-  io.cpu.xcpt.pf.ld := !no_xcpt && s1_read && tlb.io.resp.xcpt_ld
-  io.cpu.xcpt.pf.st := !no_xcpt && s1_write && tlb.io.resp.xcpt_st
+  io.cpu.xcpt.pf.ld := !no_xcpt && s1_read && tlb.io.resp.pf.ld
+  io.cpu.xcpt.pf.st := !no_xcpt && s1_write && tlb.io.resp.pf.st
+  io.cpu.xcpt.ae.ld := !no_xcpt && s1_read && tlb.io.resp.ae.ld
+  io.cpu.xcpt.ae.st := !no_xcpt && s1_write && tlb.io.resp.ae.st
 
   // load reservations
   val s2_lr = Bool(usingAtomics) && s2_req.cmd === M_XLR

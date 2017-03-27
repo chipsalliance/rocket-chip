@@ -119,10 +119,15 @@ object CSR
   def R = UInt(5,SZ)
 
   val ADDRSZ = 12
-  def debugIntCause = new MIP().getWidth
+  def debugIntCause = {
+    val res = 14
+    require(res >= new MIP().getWidth)
+    res
+  }
   def debugTriggerCause = {
-    require(debugIntCause >= Causes.all.max)
-    debugIntCause
+    val res = 14
+    require(!(Causes.all contains res))
+    res
   }
 
   val firstCtr = CSRs.cycle
@@ -224,10 +229,10 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   }
   val delegable_exceptions = UInt(Seq(
     Causes.misaligned_fetch,
-    Causes.fault_fetch,
+    Causes.fetch_page_fault,
     Causes.breakpoint,
-    Causes.fault_load,
-    Causes.fault_store,
+    Causes.load_page_fault,
+    Causes.store_page_fault,
     Causes.user_ecall).map(1 << _).sum)
 
   val reg_debug = Reg(init=Bool(false))
@@ -483,7 +488,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
     val write_badaddr = cause isOneOf (Causes.breakpoint,
       Causes.misaligned_load, Causes.misaligned_store, Causes.misaligned_fetch,
-      Causes.fault_load, Causes.fault_store, Causes.fault_fetch)
+      Causes.load_access, Causes.store_access, Causes.fetch_access,
+      Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault
+      )
 
     when (trapToDebug) {
       reg_debug := true

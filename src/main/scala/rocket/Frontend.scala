@@ -22,7 +22,8 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
   val data = UInt(width = fetchWidth * coreInstBits)
   val mask = Bits(width = fetchWidth)
-  val xcpt_if = Bool()
+  val pf = Bool()
+  val ae = Bool()
   val replay = Bool()
 }
 
@@ -72,9 +73,12 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
-  val s2_maybe_xcpt_if = Reg(init=Bool(false))
+  val s2_maybe_pf = Reg(init=Bool(false))
+  val s2_maybe_ae = Reg(init=Bool(false))
   val s2_tlb_miss = Reg(Bool())
-  val s2_xcpt_if = s2_maybe_xcpt_if && !s2_tlb_miss
+  val s2_pf = s2_maybe_pf && !s2_tlb_miss
+  val s2_ae = s2_maybe_ae && !s2_tlb_miss
+  val s2_xcpt = s2_pf || s2_ae
   val s2_speculative = Reg(init=Bool(false))
   val s2_cacheable = Reg(init=Bool(false))
 
@@ -101,7 +105,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       s2_pc := s1_pc
       s2_speculative := s1_speculative
       s2_cacheable := tlb.io.resp.cacheable
-      s2_maybe_xcpt_if := tlb.io.resp.xcpt_if
+      s2_maybe_pf := tlb.io.resp.pf.inst
+      s2_maybe_ae := tlb.io.resp.ae.inst
       s2_tlb_miss := tlb.io.resp.miss
     }
   }
@@ -144,18 +149,19 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss
-  icache.io.s2_kill := s2_speculative && !s2_cacheable || s2_xcpt_if
+  icache.io.s2_kill := s2_speculative && !s2_cacheable || s2_xcpt
   icache.io.resp.ready := !stall && !s1_same_block
 
-  io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill || s2_xcpt_if)
+  io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill || s2_xcpt)
   io.cpu.resp.bits.pc := s2_pc
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
   require(fetchWidth * coreInstBytes <= rowBytes && isPow2(fetchWidth))
   io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc.extract(log2Ceil(rowBytes)-1,log2Ceil(fetchWidth*coreInstBytes)) << log2Ceil(fetchWidth*coreInstBits))
   io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  io.cpu.resp.bits.xcpt_if := s2_xcpt_if
-  io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt_if
+  io.cpu.resp.bits.pf := s2_pf
+  io.cpu.resp.bits.ae := s2_ae
+  io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
   io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
   io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
 

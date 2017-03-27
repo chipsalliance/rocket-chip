@@ -33,20 +33,25 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
 
+class TLBExceptions extends Bundle {
+  val ld = Bool()
+  val st = Bool()
+  val inst = Bool()
+}
+
 class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   // lookup responses
-  val miss = Bool(OUTPUT)
-  val paddr = UInt(OUTPUT, paddrBits)
-  val xcpt_ld = Bool(OUTPUT)
-  val xcpt_st = Bool(OUTPUT)
-  val xcpt_if = Bool(OUTPUT)
-  val cacheable = Bool(OUTPUT)
+  val miss = Bool()
+  val paddr = UInt(width = paddrBits)
+  val pf = new TLBExceptions
+  val ae = new TLBExceptions
+  val cacheable = Bool()
 }
 
 class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
-    val resp = new TLBResp
+    val resp = new TLBResp().asOutput
     val ptw = new TLBPTWIO
   }
 
@@ -59,8 +64,10 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     val sw = Bool()
     val sx = Bool()
     val sr = Bool()
-    val xr = Bool()
-    val cacheable = Bool()
+    val pw = Bool()
+    val px = Bool()
+    val pr = Bool()
+    val c = Bool()
   }
 
   val totalEntries = nEntries + 1
@@ -101,7 +108,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val cacheable = fastCheck(_.supportsAcquireB)
-  val isSpecial = !io.ptw.resp.bits.homogeneous
+  val isSpecial = !(io.ptw.resp.bits.homogeneous || io.ptw.resp.bits.ae)
 
   val lookup_tag = Cat(io.ptw.ptbr.asid, vpn(vpnBits-1,0))
   val hitsVec = (0 until totalEntries).map { i => vm_enabled && {
@@ -123,13 +130,6 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   }
 
   // permission bit arrays
-  val u_array = Reg(Vec(totalEntries, Bool())) // user permission
-  val g_array = Reg(Vec(totalEntries, Bool())) // global mapping
-  val sw_array = Reg(Vec(totalEntries, Bool())) // write permission
-  val sx_array = Reg(Vec(totalEntries, Bool())) // execute permission
-  val sr_array = Reg(Vec(totalEntries, Bool())) // read permission
-  val xr_array = Reg(Vec(totalEntries, Bool())) // read permission to executable page
-  val cash_array = Reg(Vec(normalEntries, Bool())) // cacheable
   when (do_refill && !invalidate_refill) {
     val waddr = Mux(isSpecial, specialEntry.U, r_refill_waddr)
     val pte = io.ptw.resp.bits.pte
@@ -137,13 +137,15 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     newEntry.ppn := pte.ppn
     newEntry.tag := r_refill_tag
     newEntry.level := io.ptw.resp.bits.level
+    newEntry.c := cacheable
     newEntry.u := pte.u
     newEntry.g := pte.g
-    newEntry.sw := pte.sw() && (isSpecial || prot_w)
-    newEntry.sx := pte.sx() && (isSpecial || prot_x)
-    newEntry.sr := pte.sr() && (isSpecial || prot_r)
-    newEntry.xr := pte.sx() && (isSpecial || prot_r)
-    newEntry.cacheable := isSpecial || cacheable
+    newEntry.sr := pte.sr()
+    newEntry.sw := pte.sw()
+    newEntry.sx := pte.sx()
+    newEntry.pr := prot_r && !io.ptw.resp.bits.ae
+    newEntry.pw := prot_w && !io.ptw.resp.bits.ae
+    newEntry.px := prot_x && !io.ptw.resp.bits.ae
 
     valid := valid | UIntToOH(waddr)
     reg_entries(waddr) := newEntry.asUInt
@@ -153,10 +155,13 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val repl_waddr = Mux(!valid(normalEntries-1, 0).andR, PriorityEncoder(~valid(normalEntries-1, 0)), plru.replace)
 
   val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), entries.map(_.u).asUInt), entries.map(_.u).asUInt)
-  val w_array = Cat(prot_w, priv_ok & ~(~prot_w << specialEntry) & entries.map(_.sw).asUInt)
-  val x_array = Cat(prot_x, priv_ok & ~(~prot_x << specialEntry) & entries.map(_.sx).asUInt)
-  val r_array = Cat(prot_r, priv_ok & ~(~prot_r << specialEntry) & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.xr).asUInt, UInt(0))))
-  val c_array = Cat(cacheable, ~(~cacheable << specialEntry) & entries.map(_.cacheable).asUInt)
+  val r_array = Cat(true.B, priv_ok & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.sx).asUInt, UInt(0))))
+  val w_array = Cat(true.B, priv_ok & entries.map(_.sw).asUInt)
+  val x_array = Cat(true.B, priv_ok & entries.map(_.sx).asUInt)
+  val pr_array = Cat(Fill(2, prot_r), entries.init.map(_.pr).asUInt)
+  val pw_array = Cat(Fill(2, prot_w), entries.init.map(_.pw).asUInt)
+  val px_array = Cat(Fill(2, prot_x), entries.init.map(_.px).asUInt)
+  val c_array = Cat(Fill(2, cacheable), entries.init.map(_.c).asUInt)
 
   val bad_va =
     if (vpnBits == vpnBitsExtended) Bool(false)
@@ -176,9 +181,12 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val multipleHits = PopCountAtLeast(hits(totalEntries-1, 0), 2)
 
   io.req.ready := state === s_ready
-  io.resp.xcpt_ld := bad_va || (~r_array & hits).orR
-  io.resp.xcpt_st := bad_va || (~w_array & hits).orR
-  io.resp.xcpt_if := bad_va || (~x_array & hits).orR
+  io.resp.pf.ld := bad_va || (~r_array & hits).orR
+  io.resp.pf.st := bad_va || (~w_array & hits).orR
+  io.resp.pf.inst := bad_va || (~x_array & hits).orR
+  io.resp.ae.ld := (~pr_array & hits).orR
+  io.resp.ae.st := (~pw_array & hits).orR
+  io.resp.ae.inst := (~px_array & hits).orR
   io.resp.cacheable := (c_array & hits).orR
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, pgOffset)
@@ -208,7 +216,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
 
     when (sfence) {
       valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
-               Mux(io.req.bits.sfence.bits.rs2, valid & g_array.asUInt, 0))
+               Mux(io.req.bits.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }
     when (multipleHits) {
       valid := 0

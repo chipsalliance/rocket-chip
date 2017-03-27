@@ -113,6 +113,7 @@ class AlignmentExceptions extends Bundle {
 class HellaCacheExceptions extends Bundle {
   val ma = new AlignmentExceptions
   val pf = new AlignmentExceptions
+  val ae = new AlignmentExceptions
 }
 
 // interface between D$ and processor/DTLB

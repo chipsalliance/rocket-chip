@@ -225,12 +225,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
 
-  val id_xcpt_if = ibuf.io.inst(0).bits.pf0 || ibuf.io.inst(0).bits.pf1
+  val id_xcpt_pf = ibuf.io.inst(0).bits.pf0 || ibuf.io.inst(0).bits.pf1
+  val id_xcpt_ae = ibuf.io.inst(0).bits.ae0 || ibuf.io.inst(0).bits.ae1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
     (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
-    (id_xcpt_if,       UInt(Causes.fault_fetch)),
+    (id_xcpt_pf,       UInt(Causes.fetch_page_fault)),
+    (id_xcpt_ae,       UInt(Causes.fetch_access)),
     (id_illegal_insn,  UInt(Causes.illegal_instruction))))
 
   val dcache_bypass_data =
@@ -423,8 +425,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val (wb_xcpt, wb_cause) = checkExceptions(List(
     (wb_reg_xcpt,  wb_reg_cause),
-    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.st, mem_pc_valid), UInt(Causes.fault_store)),
-    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.ld, mem_pc_valid), UInt(Causes.fault_load))
+    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.st, mem_pc_valid), UInt(Causes.store_page_fault)),
+    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.ld, mem_pc_valid), UInt(Causes.load_page_fault)),
+    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.ae.st, mem_pc_valid), UInt(Causes.store_access)),
+    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.ae.ld, mem_pc_valid), UInt(Causes.load_access))
   ))
 
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
