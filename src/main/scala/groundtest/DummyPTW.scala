@@ -30,7 +30,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val s2_chosen = RegEnable(req_arb.io.chosen, req_arb.io.out.valid)
   val s2_valid = Reg(next = req_arb.io.out.valid)
 
-  val s2_resp = Wire(new PTWResp)
+  val s2_resp = Wire(init = 0.U.asTypeOf(new PTWResp))
   s2_resp.pte.ppn := s2_ppn
   s2_resp.pte.reserved_for_software := UInt(0)
   s2_resp.level := UInt(pgLevels-1)
