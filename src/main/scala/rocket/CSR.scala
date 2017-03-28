@@ -47,8 +47,7 @@ class MStatus extends Bundle {
 
 class DCSR extends Bundle {
   val xdebugver = UInt(width = 2)
-  val ndreset = Bool()
-  val fullreset = Bool()
+  val zero4 = UInt(width=2)
   val zero3 = UInt(width = 12)
   val ebreakm = Bool()
   val ebreakh = Bool()
@@ -58,9 +57,9 @@ class DCSR extends Bundle {
   val stopcycle = Bool()
   val stoptime = Bool()
   val cause = UInt(width = 3)
+  // TODO: debugint is not in the Debug Spec v13
   val debugint = Bool()
-  val zero1 = Bool()
-  val halt = Bool()
+  val zero1 = UInt(width=2)
   val step = Bool()
   val prv = UInt(width = PRV.SZ)
 }
@@ -468,8 +467,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
+  val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
-  val debugTVec = Mux(reg_debug, UInt(0x808), UInt(0x800))
   val tvec = Mux(trapToDebug, debugTVec, Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec))
   io.evec := tvec
   io.ptbr := reg_sptbr
@@ -505,11 +504,13 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       )
 
     when (trapToDebug) {
-      reg_debug := true
-      reg_dpc := epc
-      reg_dcsr.cause := Mux(reg_singleStepped, 4, Mux(causeIsDebugInt, 3, Mux[UInt](causeIsDebugTrigger, 2, 1)))
-      reg_dcsr.prv := trimPrivilege(reg_mstatus.prv)
-      new_prv := PRV.M
+      when (!reg_debug) {
+        reg_debug := true
+        reg_dpc := epc
+        reg_dcsr.cause := Mux(reg_singleStepped, 4, Mux(causeIsDebugInt, 3, Mux[UInt](causeIsDebugTrigger, 2, 1)))
+        reg_dcsr.prv := trimPrivilege(reg_mstatus.prv)
+        new_prv := PRV.M
+      }
     }.elsewhen (delegate) {
       reg_sepc := formEPC(epc)
       reg_scause := cause
@@ -623,7 +624,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
         val new_dcsr = new DCSR().fromBits(wdata)
-        reg_dcsr.halt := new_dcsr.halt
         reg_dcsr.step := new_dcsr.step
         reg_dcsr.ebreakm := new_dcsr.ebreakm
         if (usingVM) reg_dcsr.ebreaks := new_dcsr.ebreaks
