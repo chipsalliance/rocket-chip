@@ -6,8 +6,6 @@ This is because someone committed a PR to `master` which bumped `riscv-tools` an
 This is the procedure to follow to get 
 things fast again. We don't generally build on merges to master, just PRs.
 
-##
-
 1. Wait for your PR that you want to merge to go green. This will take a long time.
 2. On Travis, click `More Options -> Caches` on the upper right.
 3. Click `Delete all Repository Caches`. 
