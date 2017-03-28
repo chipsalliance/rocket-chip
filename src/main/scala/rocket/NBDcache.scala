@@ -745,8 +745,10 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
   io.cpu.xcpt.ma.ld := s1_read && misaligned
   io.cpu.xcpt.ma.st := s1_write && misaligned
-  io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
-  io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
+  io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.pf.ld
+  io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.pf.st
+  io.cpu.xcpt.ae.ld := s1_read && dtlb.io.resp.ae.ld
+  io.cpu.xcpt.ae.st := s1_write && dtlb.io.resp.ae.st
 
   // tags
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)

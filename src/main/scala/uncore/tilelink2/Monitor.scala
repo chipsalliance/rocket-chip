@@ -44,6 +44,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.Acquire) {
       assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries Acquire from a client which does not support Probe" + extra)
       assert (source_ok, "'A' channel Acquire carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat" + extra)
       assert (is_aligned, "'A' channel Acquire address not aligned to size" + extra)
@@ -189,6 +190,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.Release) {
       assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       assert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel Release smaller than a beat" + extra)
       assert (is_aligned, "'C' channel Release address not aligned to size" + extra)
@@ -198,6 +200,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.ReleaseData) {
       assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       assert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ReleaseData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
