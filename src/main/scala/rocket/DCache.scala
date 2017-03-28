@@ -167,7 +167,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_hit, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_valid_hit = s2_valid_masked && s2_readwrite && s2_hit
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_hit && !(pstore1_valid || pstore2_valid) && !release_ack_wait
-  val s2_valid_cached_miss = s2_valid_miss && !s2_uncached
+  val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   val s2_victimize = s2_valid_cached_miss || s2_flush_valid
   val s2_valid_uncached = s2_valid_miss && s2_uncached
   val s2_victim_way = Mux(s2_hit_valid && !s2_flush_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
