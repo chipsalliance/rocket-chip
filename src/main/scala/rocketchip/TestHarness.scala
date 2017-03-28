@@ -8,6 +8,7 @@ import junctions._
 import diplomacy._
 import coreplex._
 import uncore.axi4._
+import jtag.JTAGIO
 
 class TestHarness()(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -23,7 +24,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
   if (!p(IncludeJtagDTM)) {
     val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug.get, io.success)
   } else {
-     val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, reset, io.success)		
+    val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, dut.io.jtag_reset.get, reset, io.success)
   }
 
   val mmio_sim = Module(LazyModule(new SimAXIMem(1, 4096)).module)
@@ -62,14 +63,16 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
   val io = new Bundle {
     val clk = Clock(INPUT)
     val reset = Bool(INPUT)
-    val debug = new uncore.devices.DebugBusIO
+    val debug = new uncore.devices.DMIIO
     val exit = UInt(OUTPUT, 32)
   }
 
-  def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.DebugBusIO, tbsuccess: Bool) = {
+  def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.ClockedDMIIO, tbsuccess: Bool) = {
     io.clk := tbclk
     io.reset := tbreset
     dutio <> io.debug
+    dutio.dmiClock := tbclk
+    dutio.dmiReset := tbreset
 
     tbsuccess := io.exit === UInt(1)
     when (io.exit >= UInt(2)) {
@@ -81,23 +84,18 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
 
 class JTAGVPI(implicit val p: Parameters) extends BlackBox {
   val io = new Bundle {
-    val jtag = new JTAGIO(false)
+    val jtag = new JTAGIO(hasTRSTn = false)
     val enable = Bool(INPUT)
     val init_done = Bool(INPUT)
   }
 
-  def connect(dutio: JTAGIO, tbreset: Bool, tbsuccess: Bool) = {
+  def connect(dutio: JTAGIO, jtag_reset: Bool, tbreset: Bool, tbsuccess: Bool) = {
     dutio <> io.jtag
 
-    // To be proper,
-    // TRST should really be synchronized
-    // with TCK. But this is a fairly
-    // accurate representation of how
-    // HW may drive this signal.
-    // Neither OpenOCD nor JtagVPI drive TRST.
+    dutio.TRSTn.foreach{ _:= false.B}
+    jtag_reset := tbreset
 
-    dutio.TRST := tbreset
-    io.enable := ~tbreset
+    io.enable    := ~tbreset
     io.init_done := ~tbreset
 
     // Success is determined by the gdbserver
