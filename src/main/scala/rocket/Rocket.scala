@@ -297,9 +297,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     when (id_xcpt) { // pass PC down ALU writeback pipeline for badaddr
       ex_ctrl.alu_fn := ALU.FN_ADD
       ex_ctrl.alu_dw := DW_XPR
-      ex_ctrl.sel_alu1 := A1_PC
+      ex_ctrl.sel_alu1 := A1_RS1 // badaddr := instruction
       ex_ctrl.sel_alu2 := A2_ZERO
-      when (!bpu.io.xcpt_if && !ibuf.io.inst(0).bits.pf0 && ibuf.io.inst(0).bits.pf1) { // PC+2
+      when (bpu.io.xcpt_if || id_xcpt_pf || id_xcpt_ae) { // badaddr := PC
+        ex_ctrl.sel_alu1 := A1_PC
+      }
+      val pf_second = !ibuf.io.inst(0).bits.pf0 && ibuf.io.inst(0).bits.pf1
+      val ae_second = !ibuf.io.inst(0).bits.ae0 && ibuf.io.inst(0).bits.ae1
+      when (!bpu.io.xcpt_if && (pf_second || (!id_xcpt_pf && ae_second))) { // badaddr := PC+2
         ex_ctrl.sel_alu2 := A2_SIZE
         ex_reg_rvc := true
       }
@@ -316,9 +321,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ex_reg_rs_bypass(i) := do_bypass
       ex_reg_rs_lsb(i) := bypass_src
       when (id_ren(i) && !do_bypass) {
-        ex_reg_rs_lsb(i) := id_rs(i)(bypass_src.getWidth-1,0)
-        ex_reg_rs_msb(i) := id_rs(i) >> bypass_src.getWidth
+        ex_reg_rs_lsb(i) := id_rs(i)(log2Ceil(bypass_sources.size)-1, 0)
+        ex_reg_rs_msb(i) := id_rs(i) >> log2Ceil(bypass_sources.size)
       }
+    }
+    when (id_illegal_insn) {
+      val inst = Mux(ibuf.io.inst(0).bits.rvc, ibuf.io.inst(0).bits.raw(15, 0), ibuf.io.inst(0).bits.raw)
+      ex_reg_rs_bypass(0) := false
+      ex_reg_rs_lsb(0) := inst(log2Ceil(bypass_sources.size)-1, 0)
+      ex_reg_rs_msb(0) := inst >> log2Ceil(bypass_sources.size)
     }
   }
   when (!ctrl_killd || csr.io.interrupt || ibuf.io.inst(0).bits.replay) {
