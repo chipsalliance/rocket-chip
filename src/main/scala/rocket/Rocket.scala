@@ -598,25 +598,55 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
          wb_reg_inst, wb_reg_inst)
   }
 
-  if (nPerfEvents >= 35) {
-    println ("HPM enabled: " + nPerfEvents + " events supported.")
-    csr.io.events.map(_ := UInt(0))
-    // event mappings set to match BOOM's event numbers.
-    csr.io.events(0) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch
-    csr.io.events(1) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc
-    csr.io.events(2) := wb_valid && csr.io.status.prv === PRV.U
-    csr.io.events(28) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && csr.io.status.prv === PRV.U
-    csr.io.events(29) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc && csr.io.status.prv === PRV.U
+  assert(nPerfEvents >= 45)
+  println ("HPM enabled: " + nPerfEvents + " events supported.")
+  csr.io.events.map(_ := UInt(0))
+  // event mappings set to match BOOM's event numbers.
+  csr.io.events(0) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch
+  csr.io.events(1) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc
+  csr.io.events(2) := wb_valid && csr.io.status.prv === PRV.U
+  csr.io.events(28) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && csr.io.status.prv === PRV.U
+  csr.io.events(29) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc && csr.io.status.prv === PRV.U
 
-    // hook up counter events
-    csr.io.events(3) := io.dmem.dc_miss // d$ miss
-    csr.io.events(4) := io.imem.ic_miss // i$ miss
-    csr.io.events(31) := io.dmem.req.fire()  // d$ accesses
-    csr.io.events(32) := io.imem.resp.fire() // i$ accesses
-    csr.io.events(33) := io.dmem.tlb_miss // DTLB miss
-    csr.io.events(34) := io.imem.tlb_miss // ITLB miss
+  // hook up counter events
+  csr.io.events(3) := io.dmem.dc_miss // d$ miss
+  csr.io.events(4) := io.imem.ic_miss // i$ miss
+  csr.io.events(31) := io.dmem.req.fire()  // d$ accesses
+  csr.io.events(32) := io.imem.resp.fire() // i$ accesses
+  csr.io.events(33) := io.dmem.tlb_miss // DTLB miss
+  csr.io.events(34) := io.imem.tlb_miss // ITLB miss
+  /*** HTIF Counters ***/
+  val enterHTIF = wb_reg_inst === UInt(0x02010013) && wb_valid
+  val exitHTIF  = wb_reg_inst === UInt(0x02110013) && wb_valid
+  val inHTIF = RegInit(Bool(false))
+  when(!inHTIF && enterHTIF) {
+    inHTIF := Bool(true)
+  }.elsewhen(inHTIF && exitHTIF) {
+    inHTIF := Bool(false)
   }
-
+  csr.io.events(35) := inHTIF // cycles in HTIF
+  csr.io.events(36) := inHTIF && wb_valid // insts in HTIF
+  /*** Java Counters ***/
+  csr.io.events(37) := wb_reg_inst === UInt(0x01710013) && wb_valid // enter GC
+  csr.io.events(38) := wb_reg_inst === UInt(0x01910013) && wb_valid // exit GC
+  csr.io.events(39) := wb_reg_inst === UInt(0x01b10013) && wb_valid // enter JIT
+  csr.io.events(40) := wb_reg_inst === UInt(0x01d10013) && wb_valid // exit JIT
+  val inGC = RegInit(Bool(false))
+  when(!inGC && csr.io.events(37).toBool) {
+    inGC := Bool(true)
+  }.elsewhen(inGC && csr.io.events(38).toBool) {
+    inGC := Bool(false)
+  }
+  val inJIT = RegInit(Bool(false))
+  when(!inJIT && csr.io.events(39).toBool) {
+    inJIT := Bool(true)
+  }.elsewhen(inJIT && csr.io.events(40).toBool) {
+    inJIT := Bool(false)
+  }
+  csr.io.events(41) := inGC  // cycles in GC
+  csr.io.events(42) := inJIT // cycles in JIT
+  csr.io.events(43) := inGC && wb_valid // insts in GC
+  csr.io.events(44) := inJIT && wb_valid // insts in JIT
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
