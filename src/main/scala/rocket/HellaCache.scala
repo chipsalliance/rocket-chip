@@ -60,6 +60,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def encRowBits = encDataBits*rowWords
   def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
   def nIOMSHRs = cacheParams.nMMIOs
+  def maxUncachedInFlight = cacheParams.nMMIOs
   def dataScratchpadSize = cacheParams.dataScratchpadBytes
 
   require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
@@ -112,6 +113,7 @@ class AlignmentExceptions extends Bundle {
 class HellaCacheExceptions extends Bundle {
   val ma = new AlignmentExceptions
   val pf = new AlignmentExceptions
+  val ae = new AlignmentExceptions
 }
 
 // interface between D$ and processor/DTLB

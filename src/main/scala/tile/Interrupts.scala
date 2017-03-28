@@ -7,6 +7,7 @@ import config.Parameters
 import util._
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
+  val lip = Vec(coreParams.nLocalInterrupts, Bool())
   val debug = Bool()
   val mtip = Bool()
   val msip = Bool()

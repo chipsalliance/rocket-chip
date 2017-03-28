@@ -23,6 +23,7 @@ trait CoreParams {
   val decodeWidth: Int
   val retireWidth: Int
   val instBits: Int
+  val nLocalInterrupts: Int
 }
 
 trait HasCoreParameters extends HasTileParameters {

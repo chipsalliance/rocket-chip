@@ -19,6 +19,7 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
+  val ae = Bool()
   val pte = new PTE
   val level = UInt(width = log2Ceil(pgLevels))
   val homogeneous = Bool()
@@ -77,7 +78,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
-  val exception = Reg(next = io.mem.xcpt.pf.ld)
+  val ae = Reg(next = io.mem.xcpt.ae.ld)
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
@@ -90,14 +91,15 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
-  val pte = {
+  val (pte, invalid_paddr) = {
     val tmp = new PTE().fromBits(io.mem.resp.bits.data)
     val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data))
     res.ppn := tmp.ppn(ppnBits-1, 0)
-    when ((tmp.ppn >> ppnBits) =/= 0) { res.v := false }
-    res
+    (res, (tmp.ppn >> ppnBits) =/= 0)
   }
+  val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
   val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+  val resp_ae = Reg(next = ae || invalid_paddr)
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
@@ -114,7 +116,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
-    when (io.mem.resp.valid && pte.table() && !hit) {
+    when (io.mem.resp.valid && traverse && !hit) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
       tags(r) := pte_addr
@@ -142,6 +144,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   for (i <- 0 until io.requestor.size) {
     io.requestor(i).resp.valid := resp_valid(i)
+    io.requestor(i).resp.bits.ae := resp_ae
     io.requestor(i).resp.bits.pte := r_pte
     io.requestor(i).resp.bits.level := count
     io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
@@ -177,16 +180,17 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       }
       when (io.mem.resp.valid) {
         r_pte := pte
-        when (pte.table() && count < pgLevels-1) {
+        when (traverse) {
           state := s_req
           count := count + 1
         }.otherwise {
+          resp_ae := invalid_paddr
           state := s_ready
           resp_valid(r_req_dest) := true
         }
       }
-      when (exception) {
-        r_pte.v := false
+      when (ae) {
+        resp_ae := true
         state := s_ready
         resp_valid(r_req_dest) := true
       }
