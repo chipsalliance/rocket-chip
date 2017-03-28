@@ -697,7 +697,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
 
-  reg_mip.lip zip io.interrupts.lip foreach { case (r, i) => r := i }
+  reg_mip.lip := (io.interrupts.lip: Seq[Bool])
   reg_mip.mtip := io.interrupts.mtip
   reg_mip.msip := io.interrupts.msip
   reg_mip.meip := io.interrupts.meip
