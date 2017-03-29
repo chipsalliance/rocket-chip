@@ -617,8 +617,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
         ABSTRACTCSReg.cmderr := DebugAbstractCommandError.ErrHaltResume.id.U
       }.otherwise {
         //TODO: Should be write-1-to-clear & ~ABSTRACTCSWrData.cmderr
-        when (ABSTRACTCSWrEn && ABSTRACTCSWrData.cmderr === 0.U){
-          ABSTRACTCSReg.cmderr := 0.U
+        when (ABSTRACTCSWrEn /* && ABSTRACTCSWrData.cmderr === 0.U*/){
+          ABSTRACTCSReg.cmderr := ABSTRACTCSReg.cmderr & ~(ABSTRACTCSWrData.cmderr);
         }
       }
     }
