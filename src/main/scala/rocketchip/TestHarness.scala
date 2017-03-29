@@ -70,7 +70,7 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
   def connect(tbclk: Clock, tbreset: Bool, dutio: uncore.devices.ClockedDMIIO, tbsuccess: Bool) = {
     io.clk := tbclk
     io.reset := tbreset
-    dutio <> io.debug
+    dutio.dmi <> io.debug
     dutio.dmiClock := tbclk
     dutio.dmiReset := tbreset
 
