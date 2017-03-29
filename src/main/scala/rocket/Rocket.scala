@@ -616,8 +616,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.events(33) := io.dmem.tlb_miss // DTLB miss
   csr.io.events(34) := io.imem.tlb_miss // ITLB miss
   /*** HTIF Counters ***/
-  val enterHTIF = wb_reg_inst === UInt(0x02010013) && wb_valid
-  val exitHTIF  = wb_reg_inst === UInt(0x02110013) && wb_valid
+  val enterHTIF = wb_reg_inst === UInt(0x02010013, 32) && wb_valid
+  val exitHTIF  = wb_reg_inst === UInt(0x02110013, 32) && wb_valid
   val inHTIF = RegInit(Bool(false))
   when(!inHTIF && enterHTIF) {
     inHTIF := Bool(true)
@@ -627,20 +627,20 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.events(35) := inHTIF // cycles in HTIF
   csr.io.events(36) := inHTIF && wb_valid // insts in HTIF
   /*** Java Counters ***/
-  csr.io.events(37) := wb_reg_inst === UInt(0x01710013) && wb_valid // enter GC
-  csr.io.events(38) := wb_reg_inst === UInt(0x01910013) && wb_valid // exit GC
-  csr.io.events(39) := wb_reg_inst === UInt(0x01b10013) && wb_valid // enter JIT
-  csr.io.events(40) := wb_reg_inst === UInt(0x01d10013) && wb_valid // exit JIT
+  csr.io.events(37) := wb_reg_inst === UInt(0x01710013, 32) && wb_valid // enter GC
+  csr.io.events(38) := wb_reg_inst === UInt(0x01910013, 32) && wb_valid // exit GC
+  csr.io.events(39) := wb_reg_inst === UInt(0x01b10013, 32) && wb_valid // enter JIT
+  csr.io.events(40) := wb_reg_inst === UInt(0x01d10013, 32) && wb_valid // exit JIT
   val inGC = RegInit(Bool(false))
-  when(!inGC && csr.io.events(37).toBool) {
+  when(!inGC && csr.io.events(37).orR) {
     inGC := Bool(true)
-  }.elsewhen(inGC && csr.io.events(38).toBool) {
+  }.elsewhen(inGC && csr.io.events(38).orR) {
     inGC := Bool(false)
   }
   val inJIT = RegInit(Bool(false))
-  when(!inJIT && csr.io.events(39).toBool) {
+  when(!inJIT && csr.io.events(39).orR) {
     inJIT := Bool(true)
-  }.elsewhen(inJIT && csr.io.events(40).toBool) {
+  }.elsewhen(inJIT && csr.io.events(40).orR) {
     inJIT := Bool(false)
   }
   csr.io.events(41) := inGC  // cycles in GC
