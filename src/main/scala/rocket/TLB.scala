@@ -61,6 +61,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     val level = UInt(width = log2Ceil(pgLevels))
     val u = Bool()
     val g = Bool()
+    val ae = Bool()
     val sw = Bool()
     val sx = Bool()
     val sr = Bool()
@@ -140,9 +141,13 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     newEntry.c := cacheable
     newEntry.u := pte.u
     newEntry.g := pte.g
-    newEntry.sr := pte.sr()
-    newEntry.sw := pte.sw()
-    newEntry.sx := pte.sx()
+    // if an access exception occurs during PTW, pretend the page has full
+    // permissions so that a page fault will not occur, but clear the
+    // phyiscal memory permissions, so that an access exception will occur.
+    newEntry.ae := io.ptw.resp.bits.ae
+    newEntry.sr := pte.sr() || io.ptw.resp.bits.ae
+    newEntry.sw := pte.sw() || io.ptw.resp.bits.ae
+    newEntry.sx := pte.sx() || io.ptw.resp.bits.ae
     newEntry.pr := prot_r && !io.ptw.resp.bits.ae
     newEntry.pw := prot_w && !io.ptw.resp.bits.ae
     newEntry.px := prot_x && !io.ptw.resp.bits.ae
@@ -154,7 +159,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val plru = new PseudoLRU(normalEntries)
   val repl_waddr = Mux(!valid(normalEntries-1, 0).andR, PriorityEncoder(~valid(normalEntries-1, 0)), plru.replace)
 
-  val priv_ok = Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), entries.map(_.u).asUInt), entries.map(_.u).asUInt)
+  val priv_ok = entries.map(_.ae).asUInt | Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), entries.map(_.u).asUInt), entries.map(_.u).asUInt)
   val r_array = Cat(true.B, priv_ok & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.sx).asUInt, UInt(0))))
   val w_array = Cat(true.B, priv_ok & entries.map(_.sw).asUInt)
   val x_array = Cat(true.B, priv_ok & entries.map(_.sx).asUInt)
