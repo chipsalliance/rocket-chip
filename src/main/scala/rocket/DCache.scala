@@ -180,6 +180,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && tl_out.a.ready && !uncachedInFlight.asUInt.andR)
   when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
 
+  val s3_valid = Reg(next = s2_valid, init=Bool(false))
+  val s3_uncached = Reg(next = s2_uncached, init=Bool(false))
+  when (s2_valid_cached_miss) {
+    assert( !(s3_valid && s3_uncached) )
+  }
+
   // exceptions
   val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
   val no_xcpt = Bool(usingDataScratchpad) && s1_req.phys /* slave port */ && s1_hit_state.isValid()
