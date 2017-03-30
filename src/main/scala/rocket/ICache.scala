@@ -127,8 +127,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
   s1_any_tag_hit := s1_tag_hit.reduceLeft(_||_) && !s1_disparity.reduceLeft(_||_)
 
-  for (i <- 0 until nWays) {
-    val data_array = SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits)))
+  val data_arrays = Seq.fill(nWays) { SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits))) }
+  for ((data_array, i) <- data_arrays zipWithIndex) {
     val wen = tl_out.d.valid && repl_way === UInt(i)
     when (wen) {
       val e_d = code.encode(tl_out.d.bits.data)
