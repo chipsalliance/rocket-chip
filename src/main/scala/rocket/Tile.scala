@@ -29,9 +29,10 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 
   nDCachePorts += 1 // core TODO dcachePorts += () => module.core.io.dmem ??
 
-  val device = new Device {
-    def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
-    def ofStr(x: String) = Seq(ResourceString(x))
+  private def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
+  private def ofStr(x: String) = Seq(ResourceString(x))
+
+  val cpuDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
       val block =  p(CacheBlockBytes)
       val m = if (rocketParams.core.mulDiv.nonEmpty) "m" else ""
@@ -85,21 +86,28 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
         "compatible"           -> ofStr("riscv"),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
-        "riscv,isa"            -> ofStr(isa),
-        "interrupt-controller" -> Nil,
-        "#interrupt-cells"     -> ofInt(1))
+        "riscv,isa"            -> ofStr(isa))
         ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb)
+    }
+  }
+  val intcDevice = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      Description(s"cpus/cpu@${hartid}/interrupt-controller", Map(
+        "compatible"           -> ofStr("riscv,cpu-intc"),
+        "interrupt-controller" -> Nil,
+        "#interrupt-cells"     -> ofInt(1)))
     }
   }
 
   ResourceBinding {
-    Resource(device, "reg").bind(ResourceInt(BigInt(hartid)))
+    Resource(cpuDevice, "reg").bind(ResourceInt(BigInt(hartid)))
+    Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartid)))
 
     intNode.edgesIn.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
        csrIntMap.lift(i).foreach { j =>
           s.resources.foreach { r =>
-            r.bind(device, ResourceInt(j))
+            r.bind(intcDevice, ResourceInt(j))
           }
         }
       }
