@@ -18,7 +18,6 @@ case class ICacheParams(
     rowBits: Int = 128,
     nTLBEntries: Int = 32,
     cacheIdBits: Int = 0,
-    splitMetadata: Boolean = false,
     ecc: Option[Code] = None,
     blockBytes: Int = 64) extends L1CacheParams {
   def replacement = new RandomReplacement(nWays)
