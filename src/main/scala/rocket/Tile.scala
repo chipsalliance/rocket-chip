@@ -95,12 +95,9 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
   ResourceBinding {
     Resource(device, "reg").bind(ResourceInt(BigInt(hartid)))
 
-    // debug, msip, mtip, meip, seip offsets in CSRs
-    val intMap = Seq(65535, 3, 7, 11, 9)
-
     intNode.edgesIn.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
-       intMap.lift(i).foreach { j =>
+       csrIntMap.lift(i).foreach { j =>
           s.resources.foreach { r =>
             r.bind(device, ResourceInt(j))
           }
@@ -122,7 +119,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   require(outer.p(PAddrBits) >= outer.masterNode.edgesIn(0).bundle.addressBits)
 
   val core = Module(p(BuildCore)(outer.p))
-  core.io.hartid := io.hartid
+  decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
+  core.io.hartid := io.hartid // Pass through the hartid
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.resetVector := io.resetVector
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
@@ -136,12 +134,6 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     core.io.rocc.interrupt := lr.module.io.core.interrupt
   }
 
-  // Decode the interrupt vector
-  core.io.interrupts.debug := io.interrupts(0)(0)
-  core.io.interrupts.msip  := io.interrupts(0)(1)
-  core.io.interrupts.mtip  := io.interrupts(0)(2)
-  core.io.interrupts.meip  := io.interrupts(0)(3)
-  core.io.interrupts.seip.foreach { _ := io.interrupts(0)(4) }
 
   // TODO eliminate this redundancy
   val h = dcachePorts.size

@@ -52,13 +52,11 @@ trait HasTileLinkMasterPort extends HasTileParameters {
   implicit val p: Parameters
   val module: HasTileLinkMasterPortModule
   val masterNode = TLOutputNode()
-  val intNode = IntSinkNode(IntSinkPortSimple())
 }
 
 trait HasTileLinkMasterPortBundle {
   val outer: HasTileLinkMasterPort
   val master = outer.masterNode.bundleOut
-  val interrupts = outer.intNode.bundleIn
 }
 
 trait HasTileLinkMasterPortModule {
@@ -67,15 +65,18 @@ trait HasTileLinkMasterPortModule {
 }
 
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with HasTileLinkMasterPort {
+    with HasTileLinkMasterPort
+    with HasExternalInterrupts {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with HasTileLinkMasterPortBundle {
+    with HasTileLinkMasterPortBundle
+    with HasExternalInterruptsBundle {
   val hartid = UInt(INPUT, p(XLen))
   val resetVector = UInt(INPUT, p(XLen))
 }
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
     with HasTileLinkMasterPortModule
+    with HasExternalInterruptsModule
