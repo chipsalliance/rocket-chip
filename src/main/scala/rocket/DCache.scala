@@ -26,9 +26,9 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val resp = Vec(nWays, Bits(OUTPUT, rowBits))
   }
 
+  val data_arrays = Seq.fill(nWays) { SeqMem(nSets*refillCycles, Vec(rowBytes, Bits(width=8))) }
   val addr = io.req.bits.addr >> rowOffBits
-  for (w <- 0 until nWays) {
-    val array = SeqMem(nSets*refillCycles, Vec(rowBytes, Bits(width=8)))
+  for ((array, w) <- data_arrays zipWithIndex) {
     val valid = io.req.valid && (Bool(nWays == 1) || io.req.bits.way_en(w))
     when (valid && io.req.bits.write) {
       val data = Vec.tabulate(rowBytes)(i => io.req.bits.wdata(8*(i+1)-1, 8*i))
