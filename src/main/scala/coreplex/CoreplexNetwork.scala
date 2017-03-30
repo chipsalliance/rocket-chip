@@ -66,7 +66,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
       Description("soc", Map(
         "#address-cells" -> width,
         "#size-cells"    -> width,
-        "compatible"     -> (p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-soc")),
+        "compatible"     -> ((p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-soc")) :+ ResourceString("simple-bus")),
         "ranges"         -> Nil))
     }
   }
