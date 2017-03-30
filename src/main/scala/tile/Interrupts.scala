@@ -45,7 +45,7 @@ trait HasExternalInterruptsModule {
 
   // go from flat diplomatic Interrupts to bundled TileInterrupts
   def decodeCoreInterrupts(core: TileInterrupts) {
-    val core_ips = Vec(
+    val core_ips = Seq(
       core.debug,
       core.msip,
       core.mtip,
