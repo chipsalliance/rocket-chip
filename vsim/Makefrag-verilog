@@ -25,6 +25,7 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 #--------------------------------------------------------------------
 # Run
 #--------------------------------------------------------------------
+.PRECIOUS: $(output_dir)/%.vpd
 
 $(output_dir)/%.run: $(output_dir)/% $(simv)
 	cd $(sim_dir) && $(exec_simv) +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
