@@ -693,7 +693,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
     if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
       require(xLen % pmp.cfg.getWidth == 0)
-      when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.locked) {
+      when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.cfgLocked) {
         pmp.cfg := new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
       }
       when (decoded_addr(CSRs.pmpaddr0 + i) && !pmp.addrLocked(next)) {
@@ -741,10 +741,11 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   }
   for (bp <- reg_bp drop nBreakpoints)
     bp := new BP().fromBits(0)
-  if (reg_pmp.nonEmpty) {
-    for (pmp <- reg_pmp) {
-      if (!usingUser) pmp.cfg.m := true
-      when (reset) { pmp.cfg.p := 0 }
+  for (pmp <- reg_pmp) {
+    pmp.cfg.res := 0
+    when (reset) {
+      pmp.cfg.a := 0
+      pmp.cfg.l := 0
     }
   }
 
