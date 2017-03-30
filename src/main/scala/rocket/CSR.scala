@@ -141,6 +141,8 @@ object CSR
   val firstHPM = 3
   val nCtr = 32
   val nHPM = nCtr - firstHPM
+
+  val maxPMPs = 16
 }
 
 class PerfCounterIO(implicit p: Parameters) extends CoreBundle
@@ -419,10 +421,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val pmpCfgPerCSR = xLen / new PMPConfig().getWidth
   def pmpCfgIndex(i: Int) = (xLen / 32) * (i / pmpCfgPerCSR)
-  for (i <- 0 until reg_pmp.size by pmpCfgPerCSR)
-    read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> reg_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
-  for ((pmp, i) <- reg_pmp zipWithIndex)
-    read_mapping += (CSRs.pmpaddr0 + i) -> pmp.addr
+  if (reg_pmp.nonEmpty) {
+    require(reg_pmp.size <= CSR.maxPMPs)
+    val read_pmp = reg_pmp.padTo(CSR.maxPMPs, 0.U.asTypeOf(new PMP))
+    for (i <- 0 until read_pmp.size by pmpCfgPerCSR)
+      read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> read_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
+    for ((pmp, i) <- read_pmp zipWithIndex)
+      read_mapping += (CSRs.pmpaddr0 + i) -> pmp.addr
+  }
 
   for (i <- 0 until nCustomMrwCsrs) {
     val addr = 0xff0 + i
