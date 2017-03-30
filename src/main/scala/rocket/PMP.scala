@@ -9,9 +9,9 @@ import tile._
 import util._
 
 class PMPConfig extends Bundle {
-  val p = UInt(width = 2)
+  val l = Bool()
+  val res = UInt(width = 2)
   val a = UInt(width = 2)
-  val m = Bool()
   val x = Bool()
   val w = Bool()
   val r = Bool()
@@ -32,8 +32,10 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
-  def locked = cfg.p(1)
-  def addrLocked(next: PMPReg) = locked || next.locked && next.cfg.a(1)
+  def napot = cfg.a(1)
+  def torNotNAPOT = cfg.a(0)
+  def cfgLocked = cfg.l
+  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.cfg.a(1)
 }
 
 class PMP(implicit p: Parameters) extends PMPReg {
@@ -99,7 +101,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
 
   // returns whether this PMP completely contains, or contains none of, a page
   def homogeneous(x: UInt, pgLevel: UInt, prev: PMP): Bool =
-    !cfg.p(0) || Mux(cfg.a(1), rangeHomogeneous(x, pgLevel, prev), pow2Homogeneous(x, pgLevel))
+    Mux(napot, pow2Homogeneous(x, pgLevel), !torNotNAPOT || rangeHomogeneous(x, pgLevel, prev))
 
   // returns whether this matching PMP fully contains the access
   def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= lgAlign) true.B else {
@@ -108,12 +110,12 @@ class PMP(implicit p: Parameters) extends PMPReg {
     val straddlesUpperBound = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0 && (comparand(lgMaxSize-1, 0) & (x(lgMaxSize-1, 0) | lsbMask)) =/= 0
     val rangeAligned = !(straddlesLowerBound || straddlesUpperBound)
     val pow2Aligned = (lsbMask & ~mask(lgMaxSize-1, 0)) === 0
-    Mux(cfg.a(1), rangeAligned, pow2Aligned)
+    Mux(napot, pow2Aligned, rangeAligned)
   }
 
   // returns whether this PMP matches at least one byte of the access
   def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool =
-    cfg.p(0) && Mux(cfg.a(1), rangeMatch(x, lgSize, lgMaxSize, prev), pow2Match(x, lgSize, lgMaxSize))
+    Mux(napot, pow2Match(x, lgSize, lgMaxSize), torNotNAPOT && rangeMatch(x, lgSize, lgMaxSize, prev))
 }
 
 class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {
@@ -144,7 +146,7 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
 
   val res = (pmp0 /: (io.pmp zip (pmp0 +: io.pmp)).reverse) { case (prev, (pmp, prevPMP)) =>
     val hit = pmp.hit(io.addr, io.size, lgMaxSize, prevPMP)
-    val ignore = default && !pmp.cfg.m
+    val ignore = default && !pmp.cfg.l
     val aligned = pmp.aligned(io.addr, io.size, lgMaxSize, prevPMP)
     val cur = Wire(init = pmp)
     cur.cfg.r := (aligned && pmp.cfg.r) || ignore

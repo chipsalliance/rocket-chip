@@ -79,6 +79,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
   val ae = Reg(next = io.mem.xcpt.ae.ld)
+  val resp_ae = Reg(Bool())
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
@@ -99,7 +100,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
   val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
-  val resp_ae = Reg(next = ae || invalid_paddr)
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits

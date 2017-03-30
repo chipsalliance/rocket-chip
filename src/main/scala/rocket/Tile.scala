@@ -29,9 +29,10 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 
   nDCachePorts += 1 // core TODO dcachePorts += () => module.core.io.dmem ??
 
-  val device = new Device {
-    def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
-    def ofStr(x: String) = Seq(ResourceString(x))
+  private def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
+  private def ofStr(x: String) = Seq(ResourceString(x))
+
+  val cpuDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
       val block =  p(CacheBlockBytes)
       val m = if (rocketParams.core.mulDiv.nonEmpty) "m" else ""
@@ -85,24 +86,28 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
         "compatible"           -> ofStr("riscv"),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
-        "riscv,isa"            -> ofStr(isa),
-        "interrupt-controller" -> Nil,
-        "#interrupt-cells"     -> ofInt(1))
+        "riscv,isa"            -> ofStr(isa))
         ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb)
+    }
+  }
+  val intcDevice = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      Description(s"cpus/cpu@${hartid}/interrupt-controller", Map(
+        "compatible"           -> ofStr("riscv,cpu-intc"),
+        "interrupt-controller" -> Nil,
+        "#interrupt-cells"     -> ofInt(1)))
     }
   }
 
   ResourceBinding {
-    Resource(device, "reg").bind(ResourceInt(BigInt(hartid)))
-
-    // debug, msip, mtip, meip, seip offsets in CSRs
-    val intMap = Seq(65535, 3, 7, 11, 9)
+    Resource(cpuDevice, "reg").bind(ResourceInt(BigInt(hartid)))
+    Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartid)))
 
     intNode.edgesIn.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
-       intMap.lift(i).foreach { j =>
+       csrIntMap.lift(i).foreach { j =>
           s.resources.foreach { r =>
-            r.bind(device, ResourceInt(j))
+            r.bind(intcDevice, ResourceInt(j))
           }
         }
       }
@@ -122,7 +127,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   require(outer.p(PAddrBits) >= outer.masterNode.edgesIn(0).bundle.addressBits)
 
   val core = Module(p(BuildCore)(outer.p))
-  core.io.hartid := io.hartid
+  decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
+  core.io.hartid := io.hartid // Pass through the hartid
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.resetVector := io.resetVector
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
@@ -136,12 +142,6 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     core.io.rocc.interrupt := lr.module.io.core.interrupt
   }
 
-  // Decode the interrupt vector
-  core.io.interrupts.debug := io.interrupts(0)(0)
-  core.io.interrupts.msip  := io.interrupts(0)(1)
-  core.io.interrupts.mtip  := io.interrupts(0)(2)
-  core.io.interrupts.meip  := io.interrupts(0)(3)
-  core.io.interrupts.seip.foreach { _ := io.interrupts(0)(4) }
 
   // TODO eliminate this redundancy
   val h = dcachePorts.size

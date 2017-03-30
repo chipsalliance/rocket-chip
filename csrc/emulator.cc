@@ -155,7 +155,7 @@ done_processing:
   srand48(random_seed);
 
   Verilated::randReset(2);
-  VTestHarness *tile = new VTestHarness;
+  TEST_HARNESS *tile = new TEST_HARNESS;
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
