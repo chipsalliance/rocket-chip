@@ -215,7 +215,7 @@ class DebugInternalBundle ()(implicit val p: Parameters) extends ParameterizedBu
 class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val debugUnavail    = Vec(nComponents, Bool()).asInput
   val ndreset         = Bool(OUTPUT)
-  val debugActive     = Bool(OUTPUT)
+  val dmactive        = Bool(OUTPUT)
 }
 
 //*****************************************
@@ -404,7 +404,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     io.innerCtrl.bits.resumereq := DMCONTROLWrData.resumereq
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
-    io.ctrl.debugActive := DMCONTROLReg.dmactive
+    io.ctrl.dmactive := DMCONTROLReg.dmactive
 
   }
 }
@@ -1109,7 +1109,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
     dmOuter.module.clock := io.dmi.dmiClock
 
     dmInner.module.io.innerCtrl    := dmOuter.module.io.innerCtrl
-    dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.debugActive
+    dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
     dmInner.module.io.debugUnavail := io.ctrl.debugUnavail
 
     io.ctrl <> dmOuter.module.io.ctrl

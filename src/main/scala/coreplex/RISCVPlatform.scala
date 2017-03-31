@@ -37,6 +37,8 @@ trait CoreplexRISCVPlatformBundle extends CoreplexNetworkBundle {
   val debug = new ClockedDMIIO().flip
   val rtcToggle = Bool(INPUT)
   val resetVector = UInt(INPUT, p(XLen))
+  val ndreset = Bool(OUTPUT)
+  val dmactive = Bool(OUTPUT)
 }
 
 trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
@@ -47,10 +49,8 @@ trait CoreplexRISCVPlatformModule extends CoreplexNetworkModule {
   // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
   val nDebugComponents = outer.debug.intnode.bundleOut.size
   outer.debug.module.io.ctrl.debugUnavail := Vec.fill(nDebugComponents){Bool(false)}
-  // TODO in inheriting traits: Use these values in your power and reset controls.
-  // TODO Or move these signals to Coreplex Top Level
-  // ... := outer.debug.module.io.ctrl.dmactive
-  // ... := outer.debug.module.io.ctrl.ndreset
+  io.dmactive := outer.debug.module.io.ctrl.dmactive
+  io.ndreset := outer.debug.module.io.ctrl.ndreset
 
   // Synchronize the rtc into the coreplex
   val rtcSync = ShiftRegister(io.rtcToggle, 3)
