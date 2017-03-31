@@ -8,55 +8,64 @@ import diplomacy._
 import uncore.tilelink2._
 import uncore.devices._
 import util._
-import junctions.JTAGIO
+import jtag.JTAGIO
 import coreplex._
 
-/// Core with JTAG for debug only
+// System with JTAG DTM Instantiated inside. JTAG interface is
+// exported outside.
 
-trait PeripheryJTAG extends HasTopLevelNetworks {
-  val module: PeripheryJTAGModule
+trait PeripheryJTAGDTM extends HasTopLevelNetworks {
+  val module: PeripheryJTAGDTMModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait PeripheryJTAGBundle extends HasTopLevelNetworksBundle {
-  val outer: PeripheryJTAG
+trait PeripheryJTAGDTMBundle extends HasTopLevelNetworksBundle {
+  val outer: PeripheryJTAGDTM
 
-  val jtag = new JTAGIO(true).flip
+  val jtag = new JTAGIO(hasTRSTn = false).flip
+  val jtag_reset = Bool(INPUT)
+
 }
 
-trait PeripheryJTAGModule extends HasTopLevelNetworksModule {
-  val outer: PeripheryJTAG
-  val io: PeripheryJTAGBundle
+trait PeripheryJTAGDTMModule extends HasTopLevelNetworksModule {
+  val outer: PeripheryJTAGDTM
+  val io: PeripheryJTAGDTMBundle
 
-  val dtm = Module (new JtagDTMWithSync)
+  val dtm = Module (new DebugTransportModuleJTAG(p(DMKey).nDMIAddrSize, p(JtagDTMKey)))
   dtm.io.jtag <> io.jtag
-  outer.coreplex.module.io.debug <> dtm.io.debug
+  
+  dtm.clock             := io.jtag.TCK
+  dtm.io.jtag_reset     := io.jtag_reset
+  dtm.reset             := dtm.io.fsmReset
 
-  dtm.clock := io.jtag.TCK
-  dtm.reset := io.jtag.TRST
+  outer.coreplex.module.io.debug.dmi <> dtm.io.dmi
+  outer.coreplex.module.io.debug.dmiClock := io.jtag.TCK
+  outer.coreplex.module.io.debug.dmiReset := ResetCatchAndSync(io.jtag.TCK, io.jtag_reset, "dmiResetCatch")
+
 }
 
-/// Core with DTM for debug only
+// System with Debug Module Interface Only. Any sort of DTM
+// can be connected outside. DMI Clock and Reset must be provided.
 
-trait PeripheryDTM extends HasTopLevelNetworks {
-  val module: PeripheryDTMModule
+trait PeripheryDMI extends HasTopLevelNetworks {
+  val module: PeripheryDMIModule
   val coreplex: CoreplexRISCVPlatform
 }
 
-trait PeripheryDTMBundle extends HasTopLevelNetworksBundle {
-  val outer: PeripheryDTM
+trait PeripheryDMIBundle extends HasTopLevelNetworksBundle {
+  val outer: PeripheryDMI
 
-  val debug = new DebugBusIO().flip
+  val debug = new ClockedDMIIO().flip
 }
 
-trait PeripheryDTMModule extends HasTopLevelNetworksModule {
-  val outer: PeripheryDTM
-  val io: PeripheryDTMBundle
+trait PeripheryDMIModule extends HasTopLevelNetworksModule {
+  val outer: PeripheryDMI
+  val io: PeripheryDMIBundle
 
-  outer.coreplex.module.io.debug <> ToAsyncDebugBus(io.debug)
+  outer.coreplex.module.io.debug <> io.debug
 }
 
-/// Core with DTM or JTAG based on a parameter
+// System with DMI or JTAG interface based on a parameter
 
 trait PeripheryDebug extends HasTopLevelNetworks {
   val module: PeripheryDebugModule
@@ -66,21 +75,30 @@ trait PeripheryDebug extends HasTopLevelNetworks {
 trait PeripheryDebugBundle extends HasTopLevelNetworksBundle {
   val outer: PeripheryDebug
 
-  val debug = (!p(IncludeJtagDTM)).option(new DebugBusIO().flip)
-  val jtag = (p(IncludeJtagDTM)).option(new JTAGIO(true).flip)
+  val debug = (!p(IncludeJtagDTM)).option(new ClockedDMIIO().flip)
+
+  val jtag        = (p(IncludeJtagDTM)).option(new JTAGIO(hasTRSTn = false).flip)
+  val jtag_reset  = (p(IncludeJtagDTM)).option(Bool(INPUT))
+
 }
 
 trait PeripheryDebugModule extends HasTopLevelNetworksModule {
   val outer: PeripheryDebug
   val io: PeripheryDebugBundle
 
-  io.debug.foreach { dbg => outer.coreplex.module.io.debug <> ToAsyncDebugBus(dbg) }
-  io.jtag.foreach { jtag =>
-    val dtm = Module (new JtagDTMWithSync)
-    dtm.clock := jtag.TCK
-    dtm.reset := jtag.TRST
-    dtm.io.jtag <> jtag
-    outer.coreplex.module.io.debug <> dtm.io.debug
+  io.debug.foreach { dbg => outer.coreplex.module.io.debug <> dbg }
+
+  val dtm = if (io.jtag.isDefined) Some[DebugTransportModuleJTAG](Module (new DebugTransportModuleJTAG(p(DMKey).nDMIAddrSize, p(JtagDTMKey)))) else None
+  dtm.foreach { dtm =>
+    dtm.io.jtag <> io.jtag.get
+
+    dtm.clock          := io.jtag.get.TCK
+    dtm.io.jtag_reset  := io.jtag_reset.get
+    dtm.reset          := dtm.io.fsmReset
+
+    outer.coreplex.module.io.debug.dmi <> dtm.io.dmi
+    outer.coreplex.module.io.debug.dmiClock := io.jtag.get.TCK
+    outer.coreplex.module.io.debug.dmiReset := ResetCatchAndSync(io.jtag.get.TCK, io.jtag_reset.get, "dmiResetCatch")
   }
 }
 

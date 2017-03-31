@@ -4,7 +4,7 @@
 
 # Verilog sources
 
-bb_vsrcs = $(base_dir)/vsrc/DebugTransportModuleJtag.v \
+bb_vsrcs = \
 	$(base_dir)/vsrc/jtag_vpi.v \
 	$(base_dir)/vsrc/ClockDivider2.v \
 	$(base_dir)/vsrc/AsyncResetReg.v \
