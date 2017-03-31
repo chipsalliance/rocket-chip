@@ -20,7 +20,6 @@ case class DCacheParams(
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
-    splitMetadata: Boolean = false,
     ecc: Option[Code] = None,
     nMSHRs: Int = 1,
     nSDQ: Int = 17,
@@ -246,23 +245,11 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
-
-  if (hasSplitMetadata) {
-    val tag_arrs = List.fill(nWays){ SeqMem(nSets, UInt(width = metabits)) }
-    val tag_readout = Wire(Vec(nWays,rstVal.cloneType))
-    (0 until nWays).foreach { (i) =>
-      when (rst || (io.write.valid && wmask(i))) {
-        tag_arrs(i).write(waddr, wdata)
-      }
-      io.resp(i) := rstVal.fromBits(tag_arrs(i).read(io.read.bits.idx, io.read.valid && rmask(i)))
-    }
-  } else {
-    val tag_arr = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
-    when (rst || io.write.valid) {
-      tag_arr.write(waddr, Vec.fill(nWays)(wdata), wmask)
-    }
-    io.resp := tag_arr.read(io.read.bits.idx, io.read.valid).map(rstVal.fromBits(_))
+  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
+  when (rst || io.write.valid) {
+    tag_array.write(waddr, Vec.fill(nWays)(wdata), wmask)
   }
+  io.resp := tag_array.read(io.read.bits.idx, io.read.valid).map(rstVal.fromBits(_))
 
   io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
   io.write.ready := !rst

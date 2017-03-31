@@ -15,7 +15,6 @@ trait L1CacheParams {
   def nWays:         Int
   def rowBits:       Int
   def nTLBEntries:   Int
-  def splitMetadata: Boolean
   def ecc:           Option[Code]
   def blockBytes:    Int
 }
@@ -39,7 +38,6 @@ trait HasL1CacheParameters {
   def rowOffBits = log2Up(rowBytes)
   def code = cacheParams.ecc.getOrElse(new IdentityCode)
   def nTLBEntries = cacheParams.nTLBEntries
-  def hasSplitMetadata = cacheParams.splitMetadata
 
   def cacheDataBits = p(SharedMemoryTLEdge).bundle.dataBits
   def cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
