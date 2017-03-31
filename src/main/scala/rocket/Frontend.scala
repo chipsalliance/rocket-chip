@@ -148,11 +148,12 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
-  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss
-  icache.io.s2_kill := s2_speculative && !s2_cacheable || s2_xcpt
+  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || s1_speculative && !tlb.io.resp.cacheable || tlb.io.resp.pf.inst || tlb.io.resp.ae.inst
+  icache.io.s2_kill := false
   icache.io.resp.ready := !stall && !s1_same_block
 
-  io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill || s2_xcpt)
+  val s2_kill = s2_speculative && !s2_cacheable || s2_xcpt
+  io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || s2_kill)
   io.cpu.resp.bits.pc := s2_pc
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
@@ -161,7 +162,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
   io.cpu.resp.bits.pf := s2_pf
   io.cpu.resp.bits.ae := s2_ae
-  io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
+  io.cpu.resp.bits.replay := s2_kill && !icache.io.resp.valid && !s2_xcpt
   io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
   io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
 
