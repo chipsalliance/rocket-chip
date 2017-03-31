@@ -22,7 +22,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case BuildCore => (p: Parameters) => new Rocket()(p)
   case RocketCrossing => Synchronous
   case RocketTilesKey =>  Nil
-  case DMKey => new DefaultDebugModuleConfig(site(NTiles), site(XLen))
+  case DMKey => new DefaultDebugModuleConfig(site(XLen))
   case NTiles => site(RocketTilesKey).size
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
   case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth

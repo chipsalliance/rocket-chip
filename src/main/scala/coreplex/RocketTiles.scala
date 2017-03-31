@@ -39,11 +39,8 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
     }
 
-    // Hack debug interrupt into a node (future debug module should use diplomacy)
-    val debugNode = IntInternalInputNode(IntSourcePortSimple())
-
     val intBar = LazyModule(new IntXbar)
-    intBar.intnode := debugNode                      // debug
+    intBar.intnode := debug.intnode                  // debug
     intBar.intnode := clint.intnode                  // msip+mtip
     intBar.intnode := plic.intnode                   // meip
     if (c.core.useVM) intBar.intnode := plic.intnode // seip
@@ -63,7 +60,6 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
           // leave clock as default (simpler for hierarchical PnR)
           wrapper.module.io.hartid := UInt(i)
           wrapper.module.io.resetVector := io.resetVector
-          debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
       case Asynchronous(depth, sync) => {
@@ -82,7 +78,6 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
           wrapper.module.reset := io.tcrs(i).reset
           wrapper.module.io.hartid := UInt(i)
           wrapper.module.io.resetVector := io.resetVector
-          debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
       case Rational => {
@@ -101,7 +96,6 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
           wrapper.module.reset := io.tcrs(i).reset
           wrapper.module.io.hartid := UInt(i)
           wrapper.module.io.resetVector := io.resetVector
-          debugNode.bundleOut(0)(0) := debug.module.io.debugInterrupts(i)
         }
       }
     }

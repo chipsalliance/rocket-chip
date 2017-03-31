@@ -56,7 +56,7 @@ case class TLManagerParameters(
 
   // The device had better not support a transfer larger than it's alignment
   val minAlignment = address.map(_.alignment).min
-  require (minAlignment >= maxTransfer)
+  require (minAlignment >= maxTransfer, "minAlignment (" + minAlignment + ") must be >= maxTransfer (" + maxTransfer + ")")
 
   def toResource: ResourceAddress = {
     ResourceAddress(address,
