@@ -648,6 +648,25 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.events(43) := inGC && wb_valid // insts in GC
   csr.io.events(44) := inJIT && wb_valid // insts in JIT
 
+  // time series
+  val event = wb_reg_inst === UInt(0x01b28013, 32) // addi zero, t0, 27
+  val cycle = RegInit(UInt(0, 64))
+  val lastCycle = RegInit(UInt(0, 64))
+  val overflow = RegInit(Bool(false))
+  val head = RegInit(UInt(0, 17))
+  val deltaTable = SeqMem(128 * 1024, UInt(width=32))
+  val valueTable = SeqMem(128 * 1024, UInt(width=32))
+  cycle := cycle + UInt(1)
+  when(event) {
+    deltaTable.write(head, cycle - lastCycle)
+    valueTable.write(head, wb_reg_wdata - UInt(27)) // t0
+    lastCycle := cycle
+    head := head + UInt(1)
+    overflow := head.orR
+  }
+  deltaTable.read(head, Bool(true)) // dummy read
+  valueTable.read(head, Bool(true)) // dummy read
+
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
