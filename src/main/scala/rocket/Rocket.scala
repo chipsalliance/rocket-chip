@@ -648,6 +648,23 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.events(43) := inGC && wb_valid // insts in GC
   csr.io.events(44) := inJIT && wb_valid // insts in JIT
 
+  val GC_cycles = RegInit(UInt(0, 64))
+  val GC_insts = RegInit(UInt(0, 64))
+  val JIT_cycles = RegInit(UInt(0, 64))
+  val JIT_insts = RegInit(UInt(0, 64))
+  when(inGC) {
+    GC_cycles := GC_cycles + UInt(1)
+    when (wb_valid) {
+      GC_insts := GC_insts + UInt(1)
+    }
+  }
+  when(inJIT) {
+    JIT_cycles := JIT_cycles + UInt(1)
+    when (wb_valid) {
+      JIT_insts := JIT_insts + UInt(1)
+    }
+  }
+
   // time series
   val event = wb_reg_inst === UInt(0x01b28013, 32) // addi zero, t0, 27
   val cycle = RegInit(UInt(0, 64))
