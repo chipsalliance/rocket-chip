@@ -16,7 +16,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
   resources: Seq[Resource] = new SimpleDevice("rom", Nil).reg)(implicit p: Parameters) extends LazyModule
 {
 
-  val node = TLManagerNode(beatBytes, TLManagerParameters(
+  val node = TLManagerNode(beatBytes, TLManagerParameters (
     address     = List(AddressSet(base, size-1)),
     resources   = resources,
     regionType  = RegionType.UNCACHED,
