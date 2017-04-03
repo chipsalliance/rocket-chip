@@ -14,7 +14,10 @@ class TestHarness()(implicit p: Parameters) extends Module {
   val io = new Bundle {
     val success = Bool(OUTPUT)
   }
+
   val dut = Module(LazyModule(new ExampleRocketTop).module)
+  dut.reset := reset | dut.io.ndreset
+
 
   dut.io.interrupts := UInt(0)
 
