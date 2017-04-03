@@ -218,20 +218,6 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
   val dmactive        = Bool(OUTPUT)
 }
 
-//*****************************************
-// Debug ROM
-//
-// *****************************************
-
-class TLDebugModuleROM()(implicit p: Parameters) extends TLROM(
-  base = DsbRegAddrs.ROMBASE, // This is required for correct functionality. It's not a parameter.
-  size = 0x800,
-  contentsDelayed = DebugRomContents(),
-  executable = true,
-  beatBytes = p(XLen)/8,
-  resources = new SimpleDevice("debug_rom", Seq("sifive,debug-013")).reg
-)
-
 // *****************************************
 // Debug Module 
 // 
@@ -458,7 +444,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
   )
 
   val tlNode = TLRegisterNode(
-    address=Seq(AddressSet(0, 0x7FF)), // This is required for correct functionality, it's not configurable.
+    address=Seq(AddressSet(0, 0xFFF)), // This is required for correct functionality, it's not configurable.
     device=device,
     deviceKey="reg",
     beatBytes=p(XLen)/8,
@@ -890,7 +876,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       PROGBUF     -> programBufferMem.map(x => RegField(8, x)),
 
       // These sections are read-only.
-      //    ROMBASE     -> romRegFields,
+      ROMBASE     -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W))),
       GO          -> goBytes.map(x => RegField.r(8, x)),
       WHERETO     -> Seq(RegField.r(32, whereToReg)),
       ABSTRACT    -> abstractGeneratedMem.map(x => RegField.r(32, x))
@@ -1080,7 +1066,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
 
 class TLDebugModule(implicit p: Parameters) extends LazyModule {
 
-  val device = new SimpleDevice("debug-controller", Seq("riscv,debug-013")){
+  val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
   }
 
