@@ -4,6 +4,7 @@
 package rocket
 
 import Chisel._
+import chisel3.core.withReset
 import config._
 import tile._
 import uncore.constants._
@@ -172,7 +173,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ibuf = Module(new IBuf)
   val id_expanded_inst = ibuf.io.inst.map(_.bits.inst)
   val id_inst = id_expanded_inst.map(_.bits)
-  ibuf.io.imem <> io.imem.resp
+  ibuf.io.imem <> (if (usingCompressed) withReset(reset || take_pc) { Queue(io.imem.resp, 1, flow = true) } else io.imem.resp)
   ibuf.io.kill := take_pc
 
   require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
