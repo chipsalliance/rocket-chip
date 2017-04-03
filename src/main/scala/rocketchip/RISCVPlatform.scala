@@ -80,6 +80,8 @@ trait PeripheryDebugBundle extends HasTopLevelNetworksBundle {
   val jtag        = (p(IncludeJtagDTM)).option(new JTAGIO(hasTRSTn = false).flip)
   val jtag_reset  = (p(IncludeJtagDTM)).option(Bool(INPUT))
 
+  val ndreset = Bool(OUTPUT)
+  val dmactive = Bool(OUTPUT)
 }
 
 trait PeripheryDebugModule extends HasTopLevelNetworksModule {
@@ -100,6 +102,10 @@ trait PeripheryDebugModule extends HasTopLevelNetworksModule {
     outer.coreplex.module.io.debug.dmiClock := io.jtag.get.TCK
     outer.coreplex.module.io.debug.dmiReset := ResetCatchAndSync(io.jtag.get.TCK, io.jtag_reset.get, "dmiResetCatch")
   }
+
+  io.ndreset  := outer.coreplex.module.io.ndreset
+  io.dmactive := outer.coreplex.module.io.dmactive
+
 }
 
 /// Real-time clock is based on RTCPeriod relative to Top clock
