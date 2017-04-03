@@ -68,7 +68,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val stall = !io.resp.ready
 
   val refill_addr = Reg(UInt(width = paddrBits))
-  val s1_any_tag_hit = Wire(Bool())
+  val s1_tag_hit = Wire(Vec(nWays, Bool()))
+  val s1_any_tag_hit = s1_tag_hit.reduce(_||_)
 
   val s1_valid = Reg(init=Bool(false))
   val out_valid = s1_valid && state === s_ready && !io.s1_kill
@@ -102,28 +103,21 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   when (refill_done && !invalidated) {
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), Bool(true))
   }
-  when (io.invalidate) {
+  val invalidate = Wire(init = io.invalidate)
+  when (invalidate) {
     vb_array := Bits(0)
     invalidated := Bool(true)
   }
-  val s1_disparity = Wire(Vec(nWays, Bool()))
-  for (i <- 0 until nWays)
-    when (s1_valid && s1_disparity(i)) { vb_array := vb_array.bitSet(Cat(UInt(i), s1_idx), Bool(false)) }
 
-  val s1_tag_match = Wire(Vec(nWays, Bool()))
-  val s1_tag_hit = Wire(Vec(nWays, Bool()))
-  val s1_dout = Wire(Vec(nWays, Bits(width = rowBits)))
+  val s1_tag_disparity = Wire(Vec(nWays, Bool()))
+  val s1_dout = Wire(Vec(nWays, UInt(width = code.width(rowBits))))
   val s1_dout_valid = RegNext(s0_valid)
 
   for (i <- 0 until nWays) {
     val s1_vb = vb_array(Cat(UInt(i), io.s1_paddr(untagBits-1,blockOffBits))).toBool
-    val tag_out = tag_rdata(i)
-    val s1_tag_disparity = code.decode(tag_out).error holdUnless s1_dout_valid
-    s1_tag_match(i) := (tag_out(tagBits-1,0) === s1_tag) holdUnless s1_dout_valid
-    s1_tag_hit(i) := s1_vb && s1_tag_match(i)
-    s1_disparity(i) := s1_vb && (s1_tag_disparity || code.decode(s1_dout(i)).error)
+    s1_tag_disparity(i) := (code.decode(tag_rdata(i)).error holdUnless s1_dout_valid)
+    s1_tag_hit(i) := s1_vb && ((code.decode(tag_rdata(i)).uncorrected === s1_tag) holdUnless s1_dout_valid)
   }
-  s1_any_tag_hit := s1_tag_hit.reduceLeft(_||_) && !s1_disparity.reduceLeft(_||_)
 
   val data_arrays = Seq.fill(nWays) { SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits))) }
   for ((data_array, i) <- data_arrays zipWithIndex) {
@@ -139,14 +133,23 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   // output signals
   outer.latency match {
     case 1 =>
+      require(code.width(rowBits) == rowBits) // no ECC
       io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_hit
     case 2 =>
+      val s2_valid = RegEnable(out_valid, Bool(false), !stall)
       val s2_hit = RegEnable(s1_hit, Bool(false), !stall)
       val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
       val s2_dout = RegEnable(s1_dout, !stall)
-      io.resp.bits.datablock := Mux1H(s2_tag_hit, s2_dout)
-      io.resp.valid := s2_hit
+      val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
+
+      val s2_tag_disparity = RegEnable(s1_tag_disparity, !stall).asUInt.orR
+      val s2_data_disparity = code.decode(s2_way_mux).error
+      val s2_disparity = s2_tag_disparity || s2_data_disparity
+      when (s2_valid && s2_disparity) { invalidate := true }
+
+      io.resp.bits.datablock := code.decode(s2_way_mux).uncorrected
+      io.resp.valid := s2_hit && !s2_disparity
   }
   tl_out.a.valid := state === s_request && !io.s2_kill
   tl_out.a.bits := edge.Get(
