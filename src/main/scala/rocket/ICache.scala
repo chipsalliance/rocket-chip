@@ -62,7 +62,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   require(isPow2(coreInstBytes))
   require(!usingVM || pgIdxBits >= untagBits)
 
-  val s_ready :: s_request :: s_refill_wait :: s_refill :: Nil = Enum(UInt(), 4)
+  val s_ready :: s_request :: s_refill :: Nil = Enum(UInt(), 3)
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val stall = !io.resp.ready
@@ -71,20 +71,18 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s1_any_tag_hit = Wire(Bool())
 
   val s1_valid = Reg(init=Bool(false))
-  val out_valid = s1_valid && !io.s1_kill && state === s_ready
+  val out_valid = s1_valid && state === s_ready && !io.s1_kill
   val s1_idx = io.s1_paddr(untagBits-1,blockOffBits)
   val s1_tag = io.s1_paddr(tagBits+untagBits-1,untagBits)
   val s1_hit = out_valid && s1_any_tag_hit
-  val s1_miss = out_valid && !s1_any_tag_hit
+  val s1_miss = s1_valid && state === s_ready && !s1_any_tag_hit
 
-  val s0_valid = io.req.valid && state === s_ready && !(out_valid && stall)
+  val s0_valid = io.req.valid && state === s_ready && !(s1_valid && stall)
   val s0_vaddr = io.req.bits.addr
 
   s1_valid := s0_valid || out_valid && stall
 
-  when (s1_miss && state === s_ready) {
-    refill_addr := io.s1_paddr
-  }
+  when (s1_miss) { refill_addr := io.s1_paddr }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
   val refill_idx = refill_addr(untagBits-1,blockOffBits)
   val (_, _, refill_done, refill_cnt) = edge.count(tl_out.d)
@@ -118,7 +116,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s1_dout_valid = RegNext(s0_valid)
 
   for (i <- 0 until nWays) {
-    val s1_vb = !io.invalidate && vb_array(Cat(UInt(i), io.s1_paddr(untagBits-1,blockOffBits))).toBool
+    val s1_vb = vb_array(Cat(UInt(i), io.s1_paddr(untagBits-1,blockOffBits))).toBool
     val tag_out = tag_rdata(i)
     val s1_tag_disparity = code.decode(tag_out).error holdUnless s1_dout_valid
     s1_tag_match(i) := (tag_out(tagBits-1,0) === s1_tag) holdUnless s1_dout_valid
@@ -162,18 +160,16 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   // control state machine
   switch (state) {
     is (s_ready) {
-      when (s1_miss) { state := s_request }
+      when (s1_miss && !io.s1_kill) { state := s_request }
       invalidated := Bool(false)
     }
     is (s_request) {
-      when (tl_out.a.ready) { state := s_refill_wait }
+      when (tl_out.a.ready) { state := s_refill }
       when (io.s2_kill) { state := s_ready }
     }
-    is (s_refill_wait) {
-      when (tl_out.d.valid) { state := s_refill }
-    }
-    is (s_refill) {
-      when (refill_done) { state := s_ready }
-    }
+  }
+  when (refill_done) {
+    assert(state === s_refill)
+    state := s_ready
   }
 }
