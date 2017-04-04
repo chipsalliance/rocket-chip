@@ -122,7 +122,9 @@ case class DebugModuleConfig (
   hasAccess8   : Boolean,
   nSerialPorts : Int,
   supportQuickAccess : Boolean,
-  supportHartArray   : Boolean
+  supportHartArray   : Boolean,
+  hartidToHartSel : (UInt) => UInt,
+  hartSelToHartId : (UInt) => UInt
 ) {
 
   if (hasBusMaster == false){
@@ -149,10 +151,9 @@ case class DebugModuleConfig (
 class DefaultDebugModuleConfig (val xlen:Int /*TODO , val configStringAddr: Int*/)
     extends DebugModuleConfig(
       nDMIAddrSize = 7,
-      //TODO use more words to support arbitrary sequences.
-      nProgramBufferWords =  15,
+      nProgramBufferWords =  16,
       // TODO use less for small XLEN?
-      nAbstractDataWords  =  4,
+      nAbstractDataWords  = (if (xlen == 32) 1 else if (xlen == 64) 2 else 4),
       nScratch = 1,
       hasBusMaster = false,
       hasAccess128 = false, 
@@ -162,10 +163,11 @@ class DefaultDebugModuleConfig (val xlen:Int /*TODO , val configStringAddr: Int*
       hasAccess8 = false, 
       nSerialPorts = 0,
       supportQuickAccess = false,
-      supportHartArray = false
-        // TODO configStringAddr = configStringAddr
-        // TODO: accept a mapping function from HARTID -> HARTSEL
-    )
+      supportHartArray = false,
+      // TODO configStringAddr = configStringAddr
+      hartIdToHartSel = (x: UInt) => x,
+      hartSelToHartId = (x: UInt) => x
+)
 
 case object DMKey extends Field[DebugModuleConfig]
 
@@ -696,11 +698,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
         haltedBitRegs(component) := false.B
       }.otherwise {
         when (hartHaltedWrEn) {
-          when (hartHaltedId === component.U) {
+          when (hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
           }
         }.elsewhen (hartResumingWrEn) {
-          when (hartResumingId === component.U) {
+          when (hartIdToHartSel(hartResumingId) === component.U) {
             haltedBitRegs(component) := false.B
           }
         }
@@ -774,8 +776,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       }
     }
 
-    val goBytes = Wire(init = Vec.fill(nComponents){0.U(8.W)})
-    goBytes(selectedHartReg) := Cat(0.U(7.W), goReg)
+    val goBytes = Wire(init = Vec.fill(1024){0.U(8.W)})
+    goBytes(hartSelToHartId(selectedHartReg)) := Cat(0.U(7.W), goReg)
+    assert ((hartSelToHartId(selectedHartReg) < 1024),
+      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work");
 
     //----------------------------
     // Abstract Command Decoding & Generation
@@ -976,7 +980,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (hartHaltedId === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         ctrlStateNxt := CtrlState(Abstract)
         goAbstract := true.B
       }
@@ -990,7 +994,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (hartHaltedId === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         when (accessRegisterCommandReg.postexec) {
           ctrlStateNxt := CtrlState(PostExec)
           goProgramBuffer := true.B
@@ -1008,7 +1012,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (hartHaltedId === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         ctrlStateNxt := CtrlState(Waiting)
       }
       when(hartExceptionWrEn) {
