@@ -218,7 +218,7 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 #OPENOCD_HEAD ?= riscv
 OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
 #OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
-OPENOCD_VERSION = c7a204b93abbbc286486967588449e7773fe09ac
+OPENOCD_VERSION = 02c83d1ef348ce237b72e157fa6df6c4e791feb3
 
 OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
 
@@ -236,7 +236,7 @@ install_openocd: $(OPENOCD_DIR)/bin/openocd
 
 # If this is defined empty, then all tests would run.
 # Running a list of tests is not supported.
-JTAG_DTM_TEST ?= SimpleS0Test
+JTAG_DTM_TEST ?= MemTest64
 
 ifdef DEBUG
 JTAG_STAMP_SUFFIX=-debug
