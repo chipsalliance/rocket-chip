@@ -184,7 +184,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           state := s_req
           count := count + 1
         }.otherwise {
-          resp_ae := invalid_paddr
+          resp_ae := pte.v && invalid_paddr
           state := s_ready
           resp_valid(r_req_dest) := true
         }
