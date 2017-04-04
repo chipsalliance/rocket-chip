@@ -123,7 +123,7 @@ case class DebugModuleConfig (
   nSerialPorts : Int,
   supportQuickAccess : Boolean,
   supportHartArray   : Boolean,
-  hartidToHartSel : (UInt) => UInt,
+  hartIdToHartSel : (UInt) => UInt,
   hartSelToHartId : (UInt) => UInt
 ) {
 
@@ -698,11 +698,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
         haltedBitRegs(component) := false.B
       }.otherwise {
         when (hartHaltedWrEn) {
-          when (hartIdToHartSel(hartHaltedId) === component.U) {
+          when (cfg.hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
           }
         }.elsewhen (hartResumingWrEn) {
-          when (hartIdToHartSel(hartResumingId) === component.U) {
+          when (cfg.hartIdToHartSel(hartResumingId) === component.U) {
             haltedBitRegs(component) := false.B
           }
         }
@@ -777,9 +777,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     }
 
     val goBytes = Wire(init = Vec.fill(1024){0.U(8.W)})
-    goBytes(hartSelToHartId(selectedHartReg)) := Cat(0.U(7.W), goReg)
-    assert ((hartSelToHartId(selectedHartReg) < 1024),
-      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work");
+    assert ((cfg.hartSelToHartId(selectedHartReg) < 1024.U),
+      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
+    goBytes(cfg.hartSelToHartId(selectedHartReg)) := Cat(0.U(7.W), goReg)
 
     //----------------------------
     // Abstract Command Decoding & Generation
@@ -980,7 +980,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (hartIdToHartSel(hartHaltedId) === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (cfg.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         ctrlStateNxt := CtrlState(Abstract)
         goAbstract := true.B
       }
@@ -994,7 +994,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (hartIdToHartSel(hartHaltedId) === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (cfg.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         when (accessRegisterCommandReg.postexec) {
           ctrlStateNxt := CtrlState(PostExec)
           goProgramBuffer := true.B
@@ -1012,7 +1012,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (hartIdToHartSel(hartHaltedId) === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (cfg.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         ctrlStateNxt := CtrlState(Waiting)
       }
       when(hartExceptionWrEn) {
