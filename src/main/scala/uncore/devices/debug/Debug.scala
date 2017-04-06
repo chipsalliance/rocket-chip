@@ -840,7 +840,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     abstractGeneratedI.rs1    := 0.U
     abstractGeneratedI.imm    := DATA.U
 
-    abstractGeneratedS.opcode := ((new GeneratedI()).fromBits(rocket.Instructions.SW.value.U)).opcode
+    abstractGeneratedS.opcode := ((new GeneratedS()).fromBits(rocket.Instructions.SW.value.U)).opcode
     abstractGeneratedS.immlo  := (DATA & 0x1F).U
     abstractGeneratedS.funct3 := accessRegisterCommandReg.size
     abstractGeneratedS.rs1    := 0.U
