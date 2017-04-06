@@ -109,22 +109,22 @@ import DebugAbstractCommandType._
   **/
 
 case class DebugModuleConfig (
-  nDMIAddrSize  : Int,
-  nProgramBufferWords: Int,
-  nAbstractDataWords : Int,
-  nScratch : Int,
+  nDMIAddrSize  : Int = 7,
+  nProgramBufferWords: Int = 16,
+  nAbstractDataWords : Int = 4,
+  nScratch : Int = 1,
   //TODO: Use diplomacy to decide if you want this.
-  hasBusMaster : Boolean,
-  hasAccess128 : Boolean,
-  hasAccess64  : Boolean,
-  hasAccess32  : Boolean,
-  hasAccess16  : Boolean,
-  hasAccess8   : Boolean,
-  nSerialPorts : Int,
-  supportQuickAccess : Boolean,
-  supportHartArray   : Boolean,
-  hartIdToHartSel : (UInt) => UInt,
-  hartSelToHartId : (UInt) => UInt
+  hasBusMaster : Boolean = false,
+  hasAccess128 : Boolean = false,
+  hasAccess64  : Boolean = false,
+  hasAccess32  : Boolean = false,
+  hasAccess16  : Boolean = false,
+  hasAccess8   : Boolean = false,
+  nSerialPorts : Int = 0,
+  supportQuickAccess : Boolean = false,
+  supportHartArray   : Boolean = false,
+  hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
+  hartSelToHartId : (UInt) => UInt = (x:UInt) => x
 ) {
 
   if (hasBusMaster == false){
@@ -148,26 +148,15 @@ case class DebugModuleConfig (
 
 }
 
-class DefaultDebugModuleConfig (val xlen:Int /*TODO , val configStringAddr: Int*/)
-    extends DebugModuleConfig(
-      nDMIAddrSize = 7,
-      nProgramBufferWords =  16,
-      // TODO use less for small XLEN?
-      nAbstractDataWords  = (if (xlen == 32) 1 else if (xlen == 64) 2 else 4),
-      nScratch = 1,
-      hasBusMaster = false,
-      hasAccess128 = false, 
-      hasAccess64 = false, 
-      hasAccess32 = false, 
-      hasAccess16 = false, 
-      hasAccess8 = false, 
-      nSerialPorts = 0,
-      supportQuickAccess = false,
-      supportHartArray = false,
-      // TODO configStringAddr = configStringAddr
-      hartIdToHartSel = (x: UInt) => x,
-      hartSelToHartId = (x: UInt) => x
-)
+object DefaultDebugModuleConfig {
+
+  def apply(xlen:Int /*TODO , val configStringAddr: Int*/): DebugModuleConfig = {
+    new DebugModuleConfig().copy(
+      nAbstractDataWords  = (if (xlen == 32) 1 else if (xlen == 64) 2 else 4)
+    )
+  }
+}
+
 
 case object DMKey extends Field[DebugModuleConfig]
 
