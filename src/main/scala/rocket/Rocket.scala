@@ -310,7 +310,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
         ex_reg_rvc := true
       }
     }
-    ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush || csr.io.singleStep
+    ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush
     ex_reg_load_use := id_load_use
     when (id_sfence) {
       ex_ctrl.mem_type := Cat(id_raddr2 =/= UInt(0), id_raddr1 =/= UInt(0))
@@ -559,6 +559,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
+    csr.io.singleStep && (ex_reg_valid || mem_reg_valid || wb_reg_valid) ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
