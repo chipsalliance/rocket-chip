@@ -117,60 +117,12 @@ object DMI_RegAddrs {
   */
   def DMI_DATA0 =  0x04
 
-  def DMI_DATA1 =  0x05
-
-  def DMI_DATA2 =  0x06
-
-  def DMI_DATA3 =  0x07
-
-  def DMI_DATA4 =  0x08
-
-  def DMI_DATA5 =  0x09
-
-  def DMI_DATA6 =  0x0a
-
-  def DMI_DATA7 =  0x0b
-
-  def DMI_DATA8 =  0x0c
-
-  def DMI_DATA9 =  0x0d
-
-  def DMI_DATA10 =  0x0e
-
   def DMI_DATA11 =  0x0f
 
   /* The {\tt progbuf} registers provide read/write access to the optional
         program buffer.
   */
   def DMI_PROGBUF0 =  0x20
-
-  def DMI_PROGBUF1 =  0x21
-
-  def DMI_PROGBUF2 =  0x22
-
-  def DMI_PROGBUF3 =  0x23
-
-  def DMI_PROGBUF4 =  0x24
-
-  def DMI_PROGBUF5 =  0x25
-
-  def DMI_PROGBUF6 =  0x26
-
-  def DMI_PROGBUF7 =  0x27
-
-  def DMI_PROGBUF8 =  0x28
-
-  def DMI_PROGBUF9 =  0x29
-
-  def DMI_PROGBUF10 =  0x2a
-
-  def DMI_PROGBUF11 =  0x2b
-
-  def DMI_PROGBUF12 =  0x2c
-
-  def DMI_PROGBUF13 =  0x2d
-
-  def DMI_PROGBUF14 =  0x2e
 
   def DMI_PROGBUF15 =  0x2f
 
@@ -282,7 +234,15 @@ object DMI_RegAddrs {
 
 class DMSTATUSFields extends Bundle {
 
-  val reserved0 = UInt(16.W)
+  val reserved0 = UInt(14.W)
+
+  /* This field is 1 when all currently selected harts have acknowledged the previous \Fresumereq.
+  */
+  val allresumeack = Bool()
+
+  /* This field is 1 when any currently selected hart has acknowledged the previous \Fresumereq.
+  */
+  val anyresumeack = Bool()
 
   /* This field is 1 when all currently selected harts do not exist in this system.
   */
@@ -357,7 +317,7 @@ class DMSTATUSFields extends Bundle {
 
 class DMCONTROLFields extends Bundle {
 
-  /* Halt request signal for all currently selected harts. When 1, the
+  /* Halt request signal for all currently selected harts. When set to 1, the
             hart will halt if it is not currently halted.
             Setting both \Fhaltreq and \Fresumereq leads to undefined behavior.
 
@@ -365,7 +325,7 @@ class DMCONTROLFields extends Bundle {
   */
   val haltreq = Bool()
 
-  /* Resume request signal for all currently selected harts. When 1,
+  /* Resume request signal for all currently selected harts. When set to 1,
             the hart will resume if it is currently halted.
             Setting both \Fhaltreq and \Fresumereq leads to undefined behavior.
 
