@@ -524,7 +524,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val unavailVec = Wire(init = Vec.fill(nComponents){false.B})
     unavailVec := io.debugUnavail
 
-    when (selectedHartReg > nComponents.U) {
+    when (selectedHartReg >= nComponents.U) {
       DMSTATUSRdData.allnonexistent := true.B
       DMSTATUSRdData.anynonexistent := true.B
     }.elsewhen (unavailVec(selectedHartReg)) {
