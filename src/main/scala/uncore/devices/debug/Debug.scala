@@ -52,7 +52,7 @@ object DsbRegAddrs{
   def RESUMING     = 0x108
   def EXCEPTION    = 0x10C
 
-  def GO           = 0x400
+  def FLAGS        = 0x400
 
   def ROMBASE      = 0x800
   def RESUME       = 0x804
@@ -479,6 +479,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //--------------------------------------------------------------
 
     val haltedBitRegs  = RegInit(Vec.fill(nComponents){false.B})
+    val resumeReqRegs  = RegInit(Vec.fill(nComponents){false.B})
 
     // --- regmapper outputs
 
@@ -536,6 +537,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       DMSTATUSRdData.allrunning := true.B
       DMSTATUSRdData.anyrunning := true.B
     }
+
+    DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg)
+    DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg)
 
     //TODO
     DMSTATUSRdData.cfgstrvalid := false.B
@@ -685,7 +689,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     for (component <- 0 until nComponents) {
       when (~io.dmactive) {
         haltedBitRegs(component) := false.B
+        resumeReqRegs(component) := false.B
       }.otherwise {
+        // Hart Halt Notification Logic
         when (hartHaltedWrEn) {
           when (cfg.hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
@@ -694,6 +700,19 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
           when (cfg.hartIdToHartSel(hartResumingId) === component.U) {
             haltedBitRegs(component) := false.B
           }
+        }
+
+        // Hart Resume Req Logic
+        // If you request a hart to resume at the same moment
+        // it actually does resume, then the request wins.
+        // So don't try to write resumereq more than once
+        when (hartResumingWrEn) {
+          when (cfg.hartIdToHartSel(hartResumingId) === component.U) {
+            resumeReqRegs(component) := false.B
+          }
+        }
+        when(io.innerCtrl.fire() && io.innerCtrl.bits.resumereq) {
+          resumeReqRegs(io.innerCtrl.bits.hartsel) := true.B
         }
       }
     }
@@ -723,7 +742,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //--------------------------------------------------------------
 
     val goProgramBuffer = Wire(init = false.B)
-    val goResume        = Wire(init = false.B)
     val goAbstract      = Wire(init = false.B)
 
     val whereToReg = Reg(UInt(32.W))
@@ -736,17 +754,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     jalAbstract.setImm(ABSTRACT - WHERETO)
     jalProgBuf.rd := 0.U
 
-    val jalResume  = Wire(init = (new GeneratedUJ()).fromBits(rocket.Instructions.JAL.value.U))
-    jalResume.setImm(RESUME - WHERETO)
-    jalResume.rd := 0.U
-
     when (~io.dmactive) {
       whereToReg := 0.U
     }.otherwise{
       when (goProgramBuffer) {
         whereToReg := jalProgBuf.asUInt()
-      }.elsewhen (goResume) {
-        whereToReg := jalResume.asUInt()
       }.elsewhen (goAbstract) {
         whereToReg := jalAbstract.asUInt()
       }
@@ -757,7 +769,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     when (~io.dmactive){
       goReg := false.B
     }.otherwise {
-      when (goProgramBuffer | goResume | goAbstract) {
+      when (goProgramBuffer | goAbstract) {
         goReg := true.B
       }.elsewhen (hartGoingWrEn){
         assert(hartGoingId === 0.U, "Unexpected 'GOING' hart.")//Chisel3 #540 %x, expected %x", hartGoingId, 0.U)
@@ -765,10 +777,20 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       }
     }
 
-    val goBytes = Wire(init = Vec.fill(1024){0.U(8.W)})
+    class flagBundle extends Bundle {
+      val reserved = UInt(6.W)
+      val resume = Bool()
+      val go = Bool()
+    }
+
+    val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
     assert ((cfg.hartSelToHartId(selectedHartReg) < 1024.U),
       "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
-    goBytes(cfg.hartSelToHartId(selectedHartReg)) := Cat(0.U(7.W), goReg)
+    flags(cfg.hartSelToHartId(selectedHartReg)).go := goReg
+    for (component <- 0 until nComponents) {
+      val componentSel = Wire(component.U)
+      flags(cfg.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
+    }
 
     //----------------------------
     // Abstract Command Decoding & Generation
@@ -870,10 +892,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
       // These sections are read-only.
       ROMBASE     -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W))),
-      GO          -> goBytes.map(x => RegField.r(8, x)),
+      FLAGS       -> flags.map{x => RegField.r(8, x.asUInt())},
       WHERETO     -> Seq(RegField.r(32, whereToReg)),
       ABSTRACT    -> abstractGeneratedMem.map(x => RegField.r(32, x))
-     )
+      )
 
     // Override System Bus accesses with dmactive reset.
     when (~io.dmactive){
@@ -940,9 +962,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
       when (wrAccessRegisterCommand || regAccessRegisterCommand) {
         ctrlStateNxt := CtrlState(CheckGenerate)
-      }.elsewhen(io.innerCtrl.fire() && io.innerCtrl.bits.resumereq) {
-        goResume := true.B
       }
+
     }.elsewhen (ctrlStateReg === CtrlState(CheckGenerate)){
 
       // We use this state to ensure that the COMMAND has been
