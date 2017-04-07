@@ -788,7 +788,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
     flags(cfg.hartSelToHartId(selectedHartReg)).go := goReg
     for (component <- 0 until nComponents) {
-      val componentSel = Wire(component.U)
+      val componentSel = Wire(init = component.U)
       flags(cfg.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
     }
 
