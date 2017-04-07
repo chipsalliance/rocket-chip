@@ -48,14 +48,14 @@ class ClockedCounter(modClock: Clock, counts: BigInt, init: Option[BigInt])
     extends Module(override_clock=Some(modClock)) {
   require(counts > 0, "really?")
 
-  val width = log2Up(counts)
+  val width = log2Ceil(counts)
   class CountIO extends Bundle {
     val count = Output(UInt(width.W))
   }
   val io = IO(new CountIO)
 
   val count = init match {
-    case Some(init) => Reg(UInt(width.W), init=init.U)
+    case Some(init) => RegInit(init.U(width.W))
     case None => Reg(UInt(width.W))
   }
 
