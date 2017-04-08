@@ -475,7 +475,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
   val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
-  val tvec = Mux(trapToDebug, debugTVec, Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec))
+  val notDebugTVec = {
+    val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
+    val baseAlign = 2
+    val interruptAlign = log2Ceil(new MIP().getWidth)
+    val interruptOffset = cause(log2Ceil(new MIP().getWidth)-1, 0) << baseAlign
+    val interruptVec = Cat(base >> (interruptAlign + baseAlign), interruptOffset)
+    Mux(base(0) && cause(cause.getWidth-1), interruptVec, base)
+  }
+  val tvec = Mux(trapToDebug, debugTVec, notDebugTVec)
   io.evec := tvec
   io.ptbr := reg_sptbr
   io.eret := insn_call || insn_break || insn_ret
@@ -610,7 +618,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (decoded_addr(CSRs.mepc))     { reg_mepc := formEPC(wdata) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     if (mtvecWritable)
-      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata >> 2 << 2 }
+      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata & ~UInt(2, mtvecWidth) }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
 
