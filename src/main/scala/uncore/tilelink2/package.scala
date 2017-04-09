@@ -37,6 +37,7 @@ package object tilelink2
   // eg: (0x3, 0, 4) => 0001, (0x3, 1, 4) => 0011, (0x3, 2, 4) => 1111
   // groupBy applies an interleaved OR reduction; groupBy=2 take 0010 => 01
   def maskGen(addr_lo: UInt, lgSize: UInt, beatBytes: Int, groupBy: Int = 1): UInt = {
+    require (groupBy >= 1 && beatBytes >= groupBy)
     require (isPow2(beatBytes) && isPow2(groupBy))
     val lgBytes = log2Ceil(beatBytes)
     val sizeOH = UIntToOH(lgSize, log2Up(beatBytes)) | UInt(groupBy*2 - 1)
