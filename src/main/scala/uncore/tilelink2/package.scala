@@ -33,9 +33,14 @@ package object tilelink2
     helper(1, x)
   }
   // This gets used everywhere, so make the smallest circuit possible ...
-  def maskGen(addr_lo: UInt, lgSize: UInt, beatBytes: Int): UInt = {
+  // Given an address and size, create a mask of beatBytes size
+  // eg: (0x3, 0, 4) => 0001, (0x3, 1, 4) => 0011, (0x3, 2, 4) => 1111
+  // groupBy applies an interleaved OR reduction; groupBy=2 take 0010 => 01
+  def maskGen(addr_lo: UInt, lgSize: UInt, beatBytes: Int, groupBy: Int = 1): UInt = {
+    require (groupBy >= 1 && beatBytes >= groupBy)
+    require (isPow2(beatBytes) && isPow2(groupBy))
     val lgBytes = log2Ceil(beatBytes)
-    val sizeOH = UIntToOH(lgSize, log2Up(beatBytes))
+    val sizeOH = UIntToOH(lgSize, log2Up(beatBytes)) | UInt(groupBy*2 - 1)
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {
         Seq((lgSize >= UInt(lgBytes), Bool(true)))
@@ -52,6 +57,7 @@ package object tilelink2
         }
       }
     }
-    Cat(helper(lgBytes).map(_._1).reverse)
+    if (groupBy == beatBytes) UInt(1) else
+    Cat(helper(lgBytes-log2Ceil(groupBy)).map(_._1).reverse)
   }
 }
