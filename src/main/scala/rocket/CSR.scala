@@ -479,7 +479,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
     val baseAlign = 2
     val interruptAlign = log2Ceil(new MIP().getWidth)
-    val interruptOffset = cause(log2Ceil(new MIP().getWidth)-1, 0) << baseAlign
+    val interruptOffset = cause(interruptAlign-1, 0) << baseAlign
     val interruptVec = Cat(base >> (interruptAlign + baseAlign), interruptOffset)
     Mux(base(0) && cause(cause.getWidth-1), interruptVec, base)
   }
