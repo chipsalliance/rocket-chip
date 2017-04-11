@@ -834,7 +834,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     nop.imm  := 0.U
 
     when (goAbstract) {
-      abstractGeneratedMem(0) := Mux(/*TODO: accessRegisterCommandReg.transfer*/true.B,
+      abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer,
         Mux(accessRegisterCommandReg.write,
           // To write a register, we need to do LW.
           abstractGeneratedI.asUInt(),
@@ -915,7 +915,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
-    when (commandRegIsAccessRegister) {
+    when (commandRegIsAccessRegister && accessRegisterCommandReg.transfer) {
       when ((accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
         commandRegIsUnsupported := false.B
         commandRegBadHaltResume := ~hartHalted
