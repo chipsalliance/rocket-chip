@@ -14,6 +14,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
   val node = TLAdapterNode(
     clientFn  = { case cp =>
       cp.copy(clients = cp.clients.map { c => c.copy(
+        supportsProbe = TransferSizes.none,
         sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
     managerFn = { case mp =>
       mp.copy(
