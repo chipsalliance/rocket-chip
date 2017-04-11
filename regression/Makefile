@@ -216,19 +216,19 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 # Targets for JTAG DTM full-chain simulation
 
 #OPENOCD_HEAD ?= riscv
-OPENOCD_INSTALL ?= $(abspath $(TOP))/openocd-install
-#OPENOCD_VERSION = $(shell git ls-remote http://github.com/sifive/openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
-OPENOCD_VERSION = 02c83d1ef348ce237b72e157fa6df6c4e791feb3
+OPENOCD_INSTALL ?= $(abspath $(TOP))/riscv-openocd-install
+#OPENOCD_VERSION = $(shell git ls-remote git@github.com/riscv/riscv-openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
+OPENOCD_VERSION = 0e54044ac7d5f884e2be9f678e505613a4b3ce78
 
 OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
 
 $(OPENOCD_DIR)/bin/openocd:
-	rm -rf openocd
-	git clone http://github.com/sifive/openocd.git
-	cd openocd ; \
+	rm -rf riscv-openocd
+	git clone git@github.com:riscv/riscv-openocd.git
+	cd riscv-openocd ; \
 	git checkout $(OPENOCD_VERSION) ; \
 	./bootstrap ; \
-	./configure --enable-jtag-vpi --prefix=$(OPENOCD_INSTALL)_$(OPENOCD_VERSION) ; \
+	./configure --enable-jtag-vpi --prefix=$(OPENOCD_INSTALL)_$(OPENOCD_VERSION) --disable-werror; \
 	make ; \
 	make install
 
