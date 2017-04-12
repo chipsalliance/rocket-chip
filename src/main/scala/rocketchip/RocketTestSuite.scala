@@ -145,7 +145,7 @@ object DefaultTestSuites {
   val rv64ucNames = rv32ucNames
   val rv64uc = new AssemblyTestSuite("rv64uc", rv64ucNames)(_)
 
-  val rv64ufNames = LinkedHashSet("ldst", "move", "fsgnj", "fcmp", "fcvt", "fcvt_w", "fclass", "fadd", "fdiv", "fmin", "fmadd")
+  val rv64ufNames = LinkedHashSet("ldst", "move", "fcmp", "fcvt", "fcvt_w", "fclass", "fadd", "fdiv", "fmin", "fmadd")
   val rv64uf = new AssemblyTestSuite("rv64uf", rv64ufNames)(_)
   val rv64ufNoDiv = new AssemblyTestSuite("rv64uf", rv64ufNames - "fdiv")(_)
 
