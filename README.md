@@ -44,6 +44,13 @@ of riscv-tools:
 For more information (or if you run into any issues), please consult the
 [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
 
+### Install Necessary Dependencies
+
+You may need to install some additional packages to use this repository.
+Rather than list all dependencies here, please see the appropriate section of the READMEs for each of the subprojects:
+
+* [riscv-tools "Ubuntu Packages Needed"](https://github.com/riscv/riscv-tools/blob/master/README.md#quickstart)
+* [chisel3 "Installation"](https://github.com/ucb-bar/chisel3#installation)
 
 ### Building The Project
 
