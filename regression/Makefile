@@ -220,8 +220,7 @@ OPENOCD_DEBUG= -d
 else
 JTAG_STAMP_SUFFIX=-ndebug
 endif
-
-stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
+stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
 	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
 	--sim_cmd "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_32)" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
@@ -230,7 +229,7 @@ stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).s
 	$(JTAG_DTM_TEST)
 	date > $@
 
-stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
+stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
 	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
 	--sim_cmd "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_64)" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
@@ -239,11 +238,36 @@ stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).s
 	$(JTAG_DTM_TEST)
 	date > $@
 
-JTAG_DTM_32_TEST_STAMPS=$(foreach config,$(CONFIGS_32),stamps/$(config)/jtag-dtm-32-$(JTAG_DTM_TEST).stamp)
-JTAG_DTM_64_TEST_STAMPS=$(foreach config,$(CONFIGS_64),stamps/$(config)/jtag-dtm-64-$(JTAG_DTM_TEST).stamp)
+stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_STAMP_SUFFIX).stamp
+	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run "$(abspath $(TOP))/emulator/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_32)" \
+	--cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
+	--s $(RISCV)/share/openocd/scripts" \
+	--freedom-e300-sim \
+	$(JTAG_DTM_TEST)
+	date > $@
 
-jtag-dtm-tests-32 : $(JTAG_DTM_32_TEST_STAMPS)
-jtag-dtm-tests-64 : $(JTAG_DTM_64_TEST_STAMPS)
+stamps/%/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_STAMP_SUFFIX).stamp
+	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	--run "$(abspath $(TOP))/emulator/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_64)" \
+	--cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
+	--s $(RISCV)/share/openocd/scripts" \
+	--freedom-u500-sim \
+	$(JTAG_DTM_TEST)
+	date > $@
+
+VSIM_JTAG_DTM_32_TEST_STAMPS=$(foreach config,$(CONFIGS_32),stamps/$(config)/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp)
+VSIM_JTAG_DTM_64_TEST_STAMPS=$(foreach config,$(CONFIGS_64),stamps/$(config)/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp)
+
+EMULATOR_JTAG_DTM_32_TEST_STAMPS=$(foreach config,$(CONFIGS_32),stamps/$(config)/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp)
+EMULATOR_JTAG_DTM_64_TEST_STAMPS=$(foreach config,$(CONFIGS_64),stamps/$(config)/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp)
+
+vsim-jtag-dtm-tests-32 : $(VSIM_JTAG_DTM_32_TEST_STAMPS)
+vsim-jtag-dtm-tests-64 : $(VSIM_JTAG_DTM_64_TEST_STAMPS)
+
+emulator-jtag-dtm-tests-32 : $(EMULATOR_JTAG_DTM_32_TEST_STAMPS)
+emulator-jtag-dtm-tests-64 : $(EMULATOR_JTAG_DTM_64_TEST_STAMPS)
 
 # Targets for JTAG DTM full-chain simulation
-jtag-dtm-regression: jtag-dtm-tests-32 jtag-dtm-tests-64
+vsim-jtag-dtm-regression: vsim-jtag-dtm-tests-32 vsim-jtag-dtm-tests-64
+emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests-64

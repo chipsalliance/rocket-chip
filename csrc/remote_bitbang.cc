@@ -156,7 +156,7 @@ void remote_bitbang_t::execute_command()
   switch (command) {
   case 'B': /* fprintf(stderr, "*BLINK*\n"); */ break;
   case 'b': /* fprintf(stderr, "_______\n"); */ break;
-  case 'r': reset(); break; // This is wrong. 'r' has other bits.
+  case 'r': reset(); break; // This is wrong. 'r' has other bits that indicated TRST and SRST.
   case '0': set_pins(0, 0, 0); break;
   case '1': set_pins(0, 0, 1); break;
   case '2': set_pins(0, 1, 0); break;
