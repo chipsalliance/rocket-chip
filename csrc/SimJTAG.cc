@@ -5,28 +5,28 @@
 #include <cstdlib>
 #include "remote_bitbang.h"
 
-remote_bitbang_t* remote_bitbang;
+remote_bitbang_t* jtag;
 
 extern "C" int jtag_tick
 (
- bool * jtag_TCK,
- bool * jtag_TMS,
- bool * jtag_TDI,
- bool * jtag_TRSTn,
- bool jtag_TDO
+ unsigned char * jtag_TCK,
+ unsigned char * jtag_TMS,
+ unsigned char * jtag_TDI,
+ unsigned char * jtag_TRSTn,
+ unsigned char jtag_TDO
 )
 {
-  if (!remote_bitbang) {
+  if (!jtag) {
     s_vpi_vlog_info info;
     if (!vpi_get_vlog_info(&info)) {
       abort();
     }
     // TODO: Pass in real port number
-    remote_bitbang = new remote_bitbang_t(0);
+    jtag = new remote_bitbang_t(0);
   }
   
-  remote_bitbang->tick(jtag_TCK, jtag_TMS, jtag_TDI, jtag_TRSTn, jtag_TDO);
+  jtag->tick(jtag_TCK, jtag_TMS, jtag_TDI, jtag_TRSTn, jtag_TDO);
   
-  return remote_bitbang->done() ? (remote_bitbang->exit_code() << 1 | 1) : 0;
+  return jtag->done() ? (jtag->exit_code() << 1 | 1) : 0;
 
 }

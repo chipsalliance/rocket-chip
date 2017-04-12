@@ -12,13 +12,13 @@ public:
   remote_bitbang_t(uint16_t port);
 
   // Do a bit of work.
-  void tick(bool * jtag_tck,
-            bool * jtag_tms,
-            bool * jtag_tdi,
-            bool * jtag_trstn,
-            bool jtag_tdo);
+  void tick(unsigned char * jtag_tck,
+            unsigned char * jtag_tms,
+            unsigned char * jtag_tdi,
+            unsigned char * jtag_trstn,
+            unsigned char jtag_tdo);
 
-  bool done() {return quit;}
+  unsigned char done() {return quit;}
   
   int exit_code() {return err;}
   
@@ -26,12 +26,12 @@ public:
 
   int err;
   
-  bool tck;
-  bool tms;
-  bool tdi;
-  bool trstn;
-  bool tdo;
-  bool quit;
+  unsigned char tck;
+  unsigned char tms;
+  unsigned char tdi;
+  unsigned char trstn;
+  unsigned char tdo;
+  unsigned char quit;
     
   int socket_fd;
   int client_fd;

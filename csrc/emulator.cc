@@ -6,6 +6,7 @@
 #include "verilated_vcd_c.h"
 #endif
 #include <fesvr/dtm.h>
+#include "remote_bitbang.h"
 #include <iostream>
 #include <fcntl.h>
 #include <signal.h>

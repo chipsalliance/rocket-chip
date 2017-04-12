@@ -94,12 +94,12 @@ void remote_bitbang_t::accept()
 }
 
 void remote_bitbang_t::tick(
-                            bool * jtag_tck,
-                            bool * jtag_tms,
-                            bool * jtag_tdi,
-                            bool * jtag_trstn,
-                            bool jtag_tdo
-)
+                            unsigned char * jtag_tck,
+                            unsigned char * jtag_tms,
+                            unsigned char * jtag_tdi,
+                            unsigned char * jtag_trstn,
+                            unsigned char jtag_tdo
+                            )
 {
   if (client_fd > 0) {
     tdo = jtag_tdo;
