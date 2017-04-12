@@ -15,6 +15,8 @@
 #include <getopt.h>
 
 extern dtm_t* dtm;
+extern remote_bitbang_t * jtag;
+
 static uint64_t trace_count = 0;
 bool verbose;
 bool done_reset;
@@ -169,6 +171,8 @@ done_processing:
 #endif
 
   dtm = new dtm_t(to_dtm);
+  //TODO: Specify port.
+  jtag = new remote_bitbang_t(0);
 
   signal(SIGTERM, handle_sigterm);
 
@@ -183,7 +187,8 @@ done_processing:
   }
   done_reset = true;
 
-  while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
+  while (!dtm->done() && !jtag->done() &&
+         !tile->io_success && trace_count < max_cycles) {
     tile->clock = 0;
     tile->eval();
 #if VM_TRACE
@@ -213,6 +218,11 @@ done_processing:
     fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
     ret = dtm->exit_code();
   }
+  else if (jtag->exit_code())
+  {
+    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", jtag->exit_code(), random_seed, trace_count);
+    ret = jtag->exit_code();
+  }
   else if (trace_count == max_cycles)
   {
     fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
@@ -224,6 +234,7 @@ done_processing:
   }
 
   if (dtm) delete dtm;
+  if (jtag) delete jtag;
   if (tile) delete tile;
   return ret;
 }

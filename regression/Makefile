@@ -208,8 +208,6 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 
 # Targets for JTAG DTM full-chain simulation
 
-OPENOCD_DIR ?= $(RISCV)
-
 # If this is defined empty, then all tests would run.
 JTAG_DTM_TEST ?= MemTest64
 
@@ -226,8 +224,8 @@ endif
 stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
 	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
 	--sim_cmd "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_32)" \
-	--server_cmd="$(OPENOCD_DIR)/bin/openocd $(OPENOCD_DEBUG) \
-	--s $(OPENOCD_DIR)/share/openocd/scripts" \
+	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
+	--s $(RISCV)/share/openocd/scripts" \
 	--freedom-e300-sim \
 	$(JTAG_DTM_TEST)
 	date > $@
@@ -235,8 +233,8 @@ stamps/%/jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).s
 stamps/%/jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp
 	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
 	--sim_cmd "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(JTAG_VCDPLUS_64)" \
-	--server_cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
-	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
+	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
+	--s $(RISCV)/share/openocd/scripts" \
 	--freedom-u500-sim \
 	$(JTAG_DTM_TEST)
 	date > $@
