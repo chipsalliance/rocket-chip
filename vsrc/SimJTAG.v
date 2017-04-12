@@ -13,6 +13,9 @@ import "DPI-C" function int jtag_tick
 module SimJTAG #(
                  parameter TICK_DELAY = 50
                  )(
+
+                   input         clock,
+                   input         reset,
                    
                    input         enable,
                    input         init_done,
@@ -26,8 +29,13 @@ module SimJTAG #(
                    input         jtag_TDO_driven,
                           
                    output [31:0] exit
-);
+                   );
 
+   reg [31:0]                    tickCounterReg;
+   wire [31:0]                   tickCounterNxt;
+   
+   assign tickCounterNxt = (tickCounterReg == 0) ? TICK_DELAY :  (tickCounterReg - 1);
+   
    bit          r_reset;
 
    wire [31:0]  random_bits = $random;
@@ -48,19 +56,24 @@ module SimJTAG #(
    
    assign #0.1 exit = __exit;
 
-   initial begin
-      __exit = 0;
-
-      forever begin
-         #TICK_DELAY  
+   always @(posedge clock) begin
+      r_reset <= reset;
+      if (reset || r_reset) begin
+         __exit = 0;
+         tickCounterReg <= TICK_DELAY;
+      end else begin
          if (enable && init_done) begin
-            __exit = jtag_tick(
-                               __jtag_TCK,
-                               __jtag_TMS,
-                               __jtag_TDI,
-                               __jtag_TRSTn,
-                               __jtag_TDO);
-         end
-      end // always @ (posedge clk)
-   end
+            tickCounterReg <= tickCounterNxt;
+            if (tickCounterReg == 0) begin
+               __exit = jtag_tick(
+                                  __jtag_TCK,
+                                  __jtag_TMS,
+                                  __jtag_TDI,
+                                  __jtag_TRSTn,
+                                  __jtag_TDO);
+            end
+         end // if (enable && init_done)
+      end // else: !if(reset || r_reset)
+   end // always @ (posedge clock)
+
 endmodule
