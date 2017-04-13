@@ -28,6 +28,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
     val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug.get, io.success)
   } else {
     val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, dut.io.jtag_reset.get, reset, io.success)
+    dut.io.jtag_mfr_id.get := p(JtagDTMKey).idcodeManufId.U(11.W)
   }
 
   val mmio_sim = Module(LazyModule(new SimAXIMem(1, 4096)).module)

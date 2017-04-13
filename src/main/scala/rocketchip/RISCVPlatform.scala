@@ -24,6 +24,7 @@ trait PeripheryJTAGDTMBundle extends HasTopLevelNetworksBundle {
 
   val jtag = new JTAGIO(hasTRSTn = false).flip
   val jtag_reset = Bool(INPUT)
+  val jtag_mfr_id = UInt(INPUT, 11)
 
 }
 
@@ -36,6 +37,7 @@ trait PeripheryJTAGDTMModule extends HasTopLevelNetworksModule {
   
   dtm.clock             := io.jtag.TCK
   dtm.io.jtag_reset     := io.jtag_reset
+  dtm.io.jtag_mfr_id    := io.jtag_mfr_id
   dtm.reset             := dtm.io.fsmReset
 
   outer.coreplex.module.io.debug.dmi <> dtm.io.dmi
@@ -79,6 +81,7 @@ trait PeripheryDebugBundle extends HasTopLevelNetworksBundle {
 
   val jtag        = (p(IncludeJtagDTM)).option(new JTAGIO(hasTRSTn = false).flip)
   val jtag_reset  = (p(IncludeJtagDTM)).option(Bool(INPUT))
+  val jtag_mfr_id = (p(IncludeJtagDTM)).option(UInt(INPUT, 11))
 
   val ndreset = Bool(OUTPUT)
   val dmactive = Bool(OUTPUT)
@@ -96,6 +99,7 @@ trait PeripheryDebugModule extends HasTopLevelNetworksModule {
 
     dtm.clock          := io.jtag.get.TCK
     dtm.io.jtag_reset  := io.jtag_reset.get
+    dtm.io.jtag_mfr_id := io.jtag_mfr_id.get
     dtm.reset          := dtm.io.fsmReset
 
     outer.coreplex.module.io.debug.dmi <> dtm.io.dmi
