@@ -53,10 +53,20 @@ object DsbRegAddrs{
   def EXCEPTION    = 0x10C
 
   def WHERETO      = 0x300
-  def ABSTRACT     = 0x304
-  def PROGBUF      = 0x304 + 8
-  // This shows up in HartInfo
-  def DATA(cfg: DebugModuleConfig) = {PROGBUF + (cfg.nProgramBufferWords * 4)}
+  // This needs to be aligned for up to lq/sq
+
+  
+  // This shows up in HartInfo, and needs to be aligned
+  // to enable up to LQ/SQ instructions.
+  def DATA         = 0x380
+
+  // We want DATA to immediately follow PROGBUF so that we can
+  // use them interchangeably.
+  def PROGBUF(cfg:DebugModuleConfig) = {DATA - (cfg.nProgramBufferWords * 4)}
+
+  // We want abstract to be immediately before PROGBUF
+  // because we auto-generate 2 instructions.
+  def ABSTRACT(cfg:DebugModuleConfig) = PROGBUF(cfg) - 8
 
   def FLAGS        = 0x400
   def ROMBASE      = 0x800
@@ -540,7 +550,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val HARTINFORdData = Wire (init = (new HARTINFOFields()).fromBits(0.U))
     HARTINFORdData.dataaccess  := true.B
     HARTINFORdData.datasize    := cfg.nAbstractDataWords.U
-    HARTINFORdData.dataaddr    := DsbRegAddrs.DATA(cfg).U
+    HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
     HARTINFORdData.nscratch    := cfg.nScratch.U
 
     //----HALTSUM (and halted registers)
@@ -734,7 +744,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val goReg        = Reg(Bool())
     val goAbstract   = Wire(init = false.B)
     val jalAbstract  = Wire(init = (new GeneratedUJ()).fromBits(rocket.Instructions.JAL.value.U))
-    jalAbstract.setImm(ABSTRACT - WHERETO)
+    jalAbstract.setImm(ABSTRACT(cfg) - WHERETO)
 
     when (~io.dmactive){
       goReg := false.B
@@ -819,14 +829,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     abstractGeneratedI.rd     := (accessRegisterCommandReg.regno & 0x1F.U)
     abstractGeneratedI.funct3 := accessRegisterCommandReg.size
     abstractGeneratedI.rs1    := 0.U
-    abstractGeneratedI.imm    := DATA(cfg).U
+    abstractGeneratedI.imm    := DATA.U
 
     abstractGeneratedS.opcode := ((new GeneratedS()).fromBits(rocket.Instructions.SW.value.U)).opcode
-    abstractGeneratedS.immlo  := (DATA(cfg) & 0x1F).U
+    abstractGeneratedS.immlo  := (DATA & 0x1F).U
     abstractGeneratedS.funct3 := accessRegisterCommandReg.size
     abstractGeneratedS.rs1    := 0.U
     abstractGeneratedS.rs2    := (accessRegisterCommandReg.regno & 0x1F.U)
-    abstractGeneratedS.immhi  := (DATA(cfg) >> 5).U
+    abstractGeneratedS.immhi  := (DATA >> 5).U
 
     nop := ((new GeneratedI()).fromBits(rocket.Instructions.ADDI.value.U))
     nop.rd   := 0.U
@@ -857,14 +867,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       GOING       -> Seq(WNotify(sbIdWidth, hartGoingId,  hartGoingWrEn)),
       RESUMING    -> Seq(WNotify(sbIdWidth, hartResumingId,  hartResumingWrEn)),
       EXCEPTION   -> Seq(WNotify(sbIdWidth, hartExceptionId,  hartExceptionWrEn)),
-      DATA(cfg)   -> abstractDataMem.map(x => RegField(8, x)),
-      PROGBUF     -> programBufferMem.map(x => RegField(8, x)),
+      DATA        -> abstractDataMem.map(x => RegField(8, x)),
+      PROGBUF(cfg)-> programBufferMem.map(x => RegField(8, x)),
 
       // These sections are read-only.
-      WHERETO     -> Seq(RegField.r(32, jalAbstract.asUInt)),
-      ABSTRACT    -> abstractGeneratedMem.map{x => RegField.r(32, x)},
-      FLAGS       -> flags.map{x => RegField.r(8, x.asUInt())},
-      ROMBASE     -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
+      WHERETO      -> Seq(RegField.r(32, jalAbstract.asUInt)),
+      ABSTRACT(cfg)-> abstractGeneratedMem.map{x => RegField.r(32, x)},
+      FLAGS        -> flags.map{x => RegField.r(8, x.asUInt())},
+      ROMBASE      -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
 
     )
 
