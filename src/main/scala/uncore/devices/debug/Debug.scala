@@ -915,8 +915,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
-    when (commandRegIsAccessRegister && accessRegisterCommandReg.transfer) {
-      when ((accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
+    when (commandRegIsAccessRegister) {
+      when (!accessRegisterCommandReg.transfer || (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
         commandRegIsUnsupported := false.B
         commandRegBadHaltResume := ~hartHalted
       }
