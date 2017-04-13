@@ -11,12 +11,15 @@ package object util {
 
   implicit class SeqToAugmentedSeq[T <: Data](val x: Seq[T]) extends AnyVal {
     def apply(idx: UInt): T = {
-      if (x.size == 1) {
-        x.head
+      if (!isPow2(x.size)) {
+        // For non-power-of-2 seqs, reflect elements to simplify decoder
+        (x ++ x.takeRight(x.size & -x.size)).toSeq(idx)
       } else {
-        val half = 1 << (log2Ceil(x.size) - 1)
-        val newIdx = idx & UInt(half - 1)
-        Mux(idx >= UInt(half), x.drop(half)(newIdx), x.take(half)(newIdx))
+        // Ignore MSBs of idx
+        val truncIdx =
+          if (idx.isWidthKnown && idx.getWidth <= log2Ceil(x.size)) idx
+          else (idx | UInt(0, log2Ceil(x.size)))(log2Ceil(x.size)-1, 0)
+        (x.head /: x.zipWithIndex.tail) { case (prev, (cur, i)) => Mux(truncIdx === i.U, cur, prev) }
       }
     }
 

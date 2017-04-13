@@ -254,7 +254,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val id_bypass_src = id_raddr.map(raddr => bypass_sources.map(s => s._1 && s._2 === raddr))
 
   // execute stage
-  val bypass_mux = Vec(bypass_sources.map(_._3))
+  val bypass_mux = bypass_sources.map(_._3)
   val ex_reg_rs_bypass = Reg(Vec(id_raddr.size, Bool()))
   val ex_reg_rs_lsb = Reg(Vec(id_raddr.size, UInt(width = log2Ceil(bypass_sources.size))))
   val ex_reg_rs_msb = Reg(Vec(id_raddr.size, UInt()))
