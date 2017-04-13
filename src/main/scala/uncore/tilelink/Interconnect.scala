@@ -111,11 +111,11 @@ class PortedTileLinkCrossbar(
   val phyHdrWidth = log2Up(n)
   val count = tlDataBeats
   // Actually instantiate the particular networks required for TileLink
-  val acqNet = Module(new BasicBus(CrossbarConfig(n, new Acquire, count, Some((a: PhysicalNetworkIO[Acquire]) => a.payload.hasMultibeatData()))))
-  val relNet = Module(new BasicBus(CrossbarConfig(n, new Release, count, Some((r: PhysicalNetworkIO[Release]) => r.payload.hasMultibeatData()))))
-  val prbNet = Module(new BasicBus(CrossbarConfig(n, new Probe)))
-  val gntNet = Module(new BasicBus(CrossbarConfig(n, new Grant, count, Some((g: PhysicalNetworkIO[Grant]) => g.payload.hasMultibeatData()))))
-  val ackNet = Module(new BasicBus(CrossbarConfig(n, new Finish)))
+  val acqNet = Module(new BasicCrossbar(CrossbarConfig(n, new Acquire, count, Some((a: PhysicalNetworkIO[Acquire]) => a.payload.hasMultibeatData()))))
+  val relNet = Module(new BasicCrossbar(CrossbarConfig(n, new Release, count, Some((r: PhysicalNetworkIO[Release]) => r.payload.hasMultibeatData()))))
+  val prbNet = Module(new BasicCrossbar(CrossbarConfig(n, new Probe)))
+  val gntNet = Module(new BasicCrossbar(CrossbarConfig(n, new Grant, count, Some((g: PhysicalNetworkIO[Grant]) => g.payload.hasMultibeatData()))))
+  val ackNet = Module(new BasicCrossbar(CrossbarConfig(n, new Finish)))
 
   // Aliases for the various network IO bundle types
   type PNIO[T <: Data] = DecoupledIO[PhysicalNetworkIO[T]]
