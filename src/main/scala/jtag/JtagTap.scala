@@ -32,17 +32,19 @@ class JtagControl extends Bundle {
 
 /** Aggregate JTAG block IO.
   */
-class JtagBlockIO(irLength: Int) extends Bundle {
+class JtagBlockIO(irLength: Int, hasIdcode:Boolean = true) extends Bundle {
+
   val jtag = Flipped(new JTAGIO())
   val control = new JtagControl
   val output = new JtagOutput(irLength)
+  val idcode = if (hasIdcode) Some(Input(new JTAGIdcodeBundle())) else None
 
-  override def cloneType = new JtagBlockIO(irLength).asInstanceOf[this.type]
+  override def cloneType = new JtagBlockIO(irLength, hasIdcode).asInstanceOf[this.type]
 }
 
 /** Internal controller block IO with data shift outputs.
   */
-class JtagControllerIO(irLength: Int) extends JtagBlockIO(irLength) {
+class JtagControllerIO(irLength: Int) extends JtagBlockIO(irLength, false) {
   val dataChainOut = Output(new ShifterIO)
   val dataChainIn = Input(new ShifterIO)
 
@@ -140,7 +142,7 @@ object JtagTapGenerator {
     * @param irLength length, in bits, of instruction register, must be at least 2
     * @param instructions map of instruction codes to data register chains that select that data
     * register; multiple instructions may map to the same data chain
-    * @param idcode optional idcode, tuple of (instruction code, idcode)
+    * @param idcode optional idcode instruction. idcode UInt will come from outside this core.
     *
     * @note all other instruction codes (not part of instructions or idcode) map to BYPASS
     * @note initial instruction is idcode (if supported), otherwise all ones BYPASS
@@ -158,25 +160,30 @@ object JtagTapGenerator {
     * TODO:
     * - support concatenated scan chains
     */
-  def apply(irLength: Int, instructions: Map[BigInt, Chain], idcode:Option[(BigInt, BigInt)]=None): JtagBlockIO = {
+  def apply(irLength: Int, instructions: Map[BigInt, Chain], icode: Option[BigInt] = None): JtagBlockIO = {
+
+    val internalIo = Wire(new JtagBlockIO(irLength, icode.isDefined))
+
+
     // Create IDCODE chain if needed
-    val allInstructions = idcode match {
-      case Some((icode, idcode)) => {
-        val idcodeChain = Module(CaptureChain(UInt(32.W)))
-        idcodeChain.suggestName("idcodeChain")
-        require(idcode % 2 == 1, "LSB must be set in IDCODE, see 12.1.1d")
-        require(((idcode >> 1) & ((1 << 11) - 1)) != JtagIdcode.dummyMfrId, "IDCODE must not have 0b00001111111 as manufacturer identity, see 12.2.1b")
+    val allInstructions = icode match {
+      case (Some(icode)) => {
         require(!(instructions contains icode), "instructions may not contain IDCODE")
-        idcodeChain.io.capture.bits := idcode.U(32.W)
+        val idcodeChain = Module(CaptureChain(new JTAGIdcodeBundle()))
+        idcodeChain.suggestName("idcodeChain")
+        val i = internalIo.idcode.get.asUInt()
+        assert(i % 2.U === 1.U, "LSB must be set in IDCODE, see 12.1.1d")
+        assert(((i >> 1) & ((1.U << 11) - 1.U)) =/= JtagIdcode.dummyMfrId.U,
+          "IDCODE must not have 0b00001111111 as manufacturer identity, see 12.2.1b")
+        idcodeChain.io.capture.bits := internalIo.idcode.get
         instructions + (icode -> idcodeChain)
-      }      case None => instructions
+
+      }
+      case None => instructions
     }
 
     val bypassIcode = (BigInt(1) << irLength) - 1  // required BYPASS instruction
-    val initialInstruction = idcode match {  // 7.2.1e load IDCODE or BYPASS instruction after entry into TestLogicReset
-      case Some((icode, _)) => icode
-      case None => bypassIcode
-    }
+    val initialInstruction = icode.getOrElse(bypassIcode) // 7.2.1e load IDCODE or BYPASS instruction after entry into TestLogicReset
 
     require(!(allInstructions contains bypassIcode), "instructions may not contain BYPASS code")
 
@@ -230,12 +237,11 @@ object JtagTapGenerator {
 
     chainToSelect.map(mapInSelect)
 
-    val internalIo = Wire(new JtagBlockIO(irLength))
-
     controllerInternal.io.jtag <> internalIo.jtag
     controllerInternal.io.control <> internalIo.control
     controllerInternal.io.output <> internalIo.output
 
     internalIo
   }
+
 }

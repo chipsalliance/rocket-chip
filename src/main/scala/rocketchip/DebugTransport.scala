@@ -64,6 +64,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false))
     val jtag_reset = Bool(INPUT)
+    val jtag_mfr_id = UInt(INPUT, 11)
     val fsmReset = Bool(OUTPUT)
   }
 
@@ -210,12 +211,19 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
   //--------------------------------------------------------
   // Actual JTAG TAP
+  val idcode = Wire(init = new JTAGIdcodeBundle().fromBits(0.U))
+  idcode.always1    := 1.U
+  idcode.version    := c.idcodeVersion.U
+  idcode.partNumber := c.idcodePartNum.U
+  idcode.mfrId      := io.jtag_mfr_id
 
   val tapIO = JtagTapGenerator(irLength = 5,
     instructions = Map(dtmJTAGAddrs.DMI_ACCESS -> dmiAccessChain,
       dtmJTAGAddrs.DTM_INFO   -> dtmInfoChain),
-    idcode = Some((dtmJTAGAddrs.IDCODE, JtagIdcode(c.idcodeVersion, c.idcodePartNum, c.idcodeManufId))))
+    icode = Some(dtmJTAGAddrs.IDCODE)
+  )
 
+  tapIO.idcode.get := idcode
   tapIO.jtag <> io.jtag
 
   tapIO.control.jtag_reset := io.jtag_reset
