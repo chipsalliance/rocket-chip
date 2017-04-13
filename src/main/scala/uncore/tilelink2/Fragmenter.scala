@@ -264,7 +264,7 @@ import unittest._
 
 class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("Fragmenter"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
   model.node := fuzz.node

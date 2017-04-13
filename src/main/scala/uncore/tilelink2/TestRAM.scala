@@ -67,7 +67,7 @@ import unittest._
 
 class TLRAMZeroDelay(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("ZeroDelay"))
   val ram  = LazyModule(new TLTestRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
   model.node := fuzz.node
