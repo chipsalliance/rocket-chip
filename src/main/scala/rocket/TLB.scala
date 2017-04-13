@@ -10,6 +10,7 @@ import diplomacy._
 import coreplex.CacheBlockBytes
 import tile.{XLen, CoreModule, CoreBundle}
 import uncore.tilelink2._
+import uncore.constants._
 import util._
 
 case object PAddrBits extends Field[Int]
@@ -29,6 +30,7 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val store = Bool()
   val sfence = Valid(new SFenceReq)
   val size = UInt(width = log2Ceil(lgMaxSize + 1))
+  val cmd  = Bits(width = M_SZ)
 
   override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
@@ -45,6 +47,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val paddr = UInt(width = paddrBits)
   val pf = new TLBExceptions
   val ae = new TLBExceptions
+  val ma = new TLBExceptions
   val cacheable = Bool()
 }
 
@@ -68,6 +71,8 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     val pw = Bool()
     val px = Bool()
     val pr = Bool()
+    val pal = Bool() // AMO logical
+    val paa = Bool() // AMO arithmetic
     val c = Bool()
   }
 
@@ -105,10 +110,12 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
+  val cacheable = fastCheck(_.supportsAcquireB)
   val prot_r = fastCheck(_.supportsGet) && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
+  val prot_al = fastCheck(_.supportsLogical) || cacheable
+  val prot_aa = fastCheck(_.supportsArithmetic) || cacheable
   val prot_x = fastCheck(_.executable) && pmp.io.x
-  val cacheable = fastCheck(_.supportsAcquireB)
   val isSpecial = !(io.ptw.resp.bits.homogeneous || io.ptw.resp.bits.ae)
 
   val lookup_tag = Cat(io.ptw.ptbr.asid, vpn(vpnBits-1,0))
@@ -151,6 +158,8 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     newEntry.pr := prot_r && !io.ptw.resp.bits.ae
     newEntry.pw := prot_w && !io.ptw.resp.bits.ae
     newEntry.px := prot_x && !io.ptw.resp.bits.ae
+    newEntry.pal := prot_al
+    newEntry.paa := prot_aa
 
     valid := valid | UIntToOH(waddr)
     reg_entries(waddr) := newEntry.asUInt
@@ -166,8 +175,12 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val pr_array = Cat(Fill(2, prot_r), entries.init.map(_.pr).asUInt)
   val pw_array = Cat(Fill(2, prot_w), entries.init.map(_.pw).asUInt)
   val px_array = Cat(Fill(2, prot_x), entries.init.map(_.px).asUInt)
+  val paa_array = Cat(Fill(2, prot_aa), entries.init.map(_.paa).asUInt)
+  val pal_array = Cat(Fill(2, prot_al), entries.init.map(_.pal).asUInt)
   val c_array = Cat(Fill(2, cacheable), entries.init.map(_.c).asUInt)
+  val ae_st_array = ~pw_array | Mux(isAMOLogical(io.req.bits.cmd), ~pal_array, 0.U) | Mux(isAMOArithmetic(io.req.bits.cmd), ~paa_array, 0.U)
 
+  val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
   val bad_va =
     if (vpnBits == vpnBitsExtended) Bool(false)
     else vpn(vpnBits) =/= vpn(vpnBits-1)
@@ -186,12 +199,15 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val multipleHits = PopCountAtLeast(hits(totalEntries-1, 0), 2)
 
   io.req.ready := state === s_ready
-  io.resp.pf.ld := bad_va || (~r_array & hits).orR
-  io.resp.pf.st := bad_va || (~w_array & hits).orR
+  io.resp.pf.ld := (bad_va || (~r_array & hits).orR) && isRead(io.req.bits.cmd)
+  io.resp.pf.st := (bad_va || (~w_array & hits).orR) && isWrite(io.req.bits.cmd)
   io.resp.pf.inst := bad_va || (~x_array & hits).orR
-  io.resp.ae.ld := (~pr_array & hits).orR
-  io.resp.ae.st := (~pw_array & hits).orR
+  io.resp.ae.ld := (~pr_array & hits).orR && isRead(io.req.bits.cmd)
+  io.resp.ae.st := (ae_st_array & hits).orR && isWrite(io.req.bits.cmd)
   io.resp.ae.inst := (~px_array & hits).orR
+  io.resp.ma.ld := misaligned && isRead(io.req.bits.cmd)
+  io.resp.ma.st := misaligned && isWrite(io.req.bits.cmd)
+  io.resp.ma.inst := false // this is up to the pipeline to figure out
   io.resp.cacheable := (c_array & hits).orR
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, pgOffset)
