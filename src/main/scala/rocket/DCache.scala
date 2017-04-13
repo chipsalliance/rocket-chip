@@ -115,6 +115,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.instruction := false
   tlb.io.req.bits.store := s1_write
   tlb.io.req.bits.size := s1_req.typ
+  tlb.io.req.bits.cmd := s1_req.cmd
   when (!tlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
 
@@ -187,14 +188,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // exceptions
-  val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
-  val no_xcpt = Bool(usingDataScratchpad) && s1_req.phys /* slave port */ && s1_hit_state.isValid()
-  io.cpu.xcpt.ma.ld := !no_xcpt && s1_read && s1_storegen.misaligned
-  io.cpu.xcpt.ma.st := !no_xcpt && s1_write && s1_storegen.misaligned
-  io.cpu.xcpt.pf.ld := !no_xcpt && s1_read && tlb.io.resp.pf.ld
-  io.cpu.xcpt.pf.st := !no_xcpt && s1_write && tlb.io.resp.pf.st
-  io.cpu.xcpt.ae.ld := !no_xcpt && s1_read && tlb.io.resp.ae.ld
-  io.cpu.xcpt.ae.st := !no_xcpt && s1_write && tlb.io.resp.ae.st
+  io.cpu.xcpt := tlb.io.resp
+  if (usingDataScratchpad) {
+    val no_xcpt = s1_req.phys /* slave port */ && s1_hit_state.isValid()
+    when (no_xcpt) { io.cpu.xcpt := 0.U.asTypeOf(io.cpu.xcpt) }
+  }
 
   // load reservations
   val s2_lr = Bool(usingAtomics) && s2_req.cmd === M_XLR
@@ -247,6 +245,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(0).bits.wmask := Mux(pstore2_valid, pstore2_storegen_mask, pstore1_storegen.mask) << pstore_mask_shift
 
   // store->load RAW hazard detection
+  val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
   val s1_idx = s1_req.addr(idxMSB, wordOffBits)
   val s1_raw_hazard = s1_read &&
     ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx && (pstore1_storegen.mask & s1_storegen.mask).orR) ||

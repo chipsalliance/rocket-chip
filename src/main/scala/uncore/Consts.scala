@@ -4,6 +4,7 @@ package uncore
 package constants
 
 import Chisel._
+import _root_.util._
 
 object MemoryOpConstants extends MemoryOpConstants
 trait MemoryOpConstants {
@@ -31,7 +32,9 @@ trait MemoryOpConstants {
   def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
   def M_SFENCE  = UInt("b10100") // flush TLB
 
-  def isAMO(cmd: UInt) = cmd(3) || cmd === M_XA_SWAP
+  def isAMOLogical(cmd: UInt) = cmd.isOneOf(M_XA_SWAP, M_XA_XOR, M_XA_OR, M_XA_AND)
+  def isAMOArithmetic(cmd: UInt) = cmd.isOneOf(M_XA_ADD, M_XA_MIN, M_XA_MAX, M_XA_MINU, M_XA_MAXU)
+  def isAMO(cmd: UInt) = isAMOLogical(cmd) || isAMOArithmetic(cmd)
   def isPrefetch(cmd: UInt) = cmd === M_PFR || cmd === M_PFW
   def isRead(cmd: UInt) = cmd === M_XRD || cmd === M_XLR || cmd === M_XSC || isAMO(cmd)
   def isWrite(cmd: UInt) = cmd === M_XWR || cmd === M_XSC || isAMO(cmd)

@@ -699,6 +699,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
+  io.cpu.xcpt := dtlb.io.resp
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -709,6 +710,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.req.bits.instruction := Bool(false)
   dtlb.io.req.bits.store := s1_write
   dtlb.io.req.bits.size := s1_req.typ
+  dtlb.io.req.bits.cmd := s1_req.cmd
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
   
   when (io.cpu.req.valid) {
@@ -741,14 +743,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     s2_req.tag := s1_req.tag
     s2_req.cmd := s1_req.cmd
   }
-
-  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
-  io.cpu.xcpt.ma.ld := s1_read && misaligned
-  io.cpu.xcpt.ma.st := s1_write && misaligned
-  io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.pf.ld
-  io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.pf.st
-  io.cpu.xcpt.ae.ld := s1_read && dtlb.io.resp.ae.ld
-  io.cpu.xcpt.ae.st := s1_write && dtlb.io.resp.ae.st
 
   // tags
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
