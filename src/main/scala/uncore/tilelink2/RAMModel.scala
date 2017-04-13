@@ -156,13 +156,20 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       }
 
       val a_waddr = Mux(wipe, wipeIndex, a_addr_hi)
+      val a_shadow = shadow.map(_.read(a_waddr))
+      val alu = Module(new Atomics(a.params))
+      alu.io.write := Bool(false)
+      alu.io.a := a
+      alu.io.data_in := Cat(a_shadow.map(_.value).reverse)
+
       for (i <- 0 until beatBytes) {
         val data = Wire(new TLRAMModel.ByteMonitor(params))
         val busy = a_inc(i) =/= a_dec(i) + (!a_first).asUInt
         val amo = a.opcode === TLMessages.ArithmeticData || a.opcode === TLMessages.LogicalData
-        data.valid := Mux(wipe, Bool(false), (!busy || a_fifo) && !amo)
-        // !!! calculate the AMO?
-        data.value := a.data(8*(i+1)-1, 8*i)
+        val known_old = !(Cat(a_shadow.map(!_.valid).reverse) & a_mask).orR
+        val beat_amo = a.size <= UInt(log2Ceil(beatBytes))
+        data.valid := Mux(wipe, Bool(false), (!busy || a_fifo) && (!amo || (known_old && beat_amo)))
+        data.value := alu.io.data_out(8*(i+1)-1, 8*i)
         when (shadow_wen(i)) {
           shadow(i).write(a_waddr, data)
         }
@@ -255,6 +262,9 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
               printf(" 0x%x := 0x%x", d_addr, got)
               when (!shadow.valid) {
                 printf(", undefined (uninitialized or prior overlapping puts)\n")
+              } .elsewhen ((d_flight.opcode === TLMessages.ArithmeticData || d_flight.opcode === TLMessages.LogicalData) &&
+                           (d_inc(i) - d_dec(i) === UInt(1))) {
+                printf(", unsupported AMO output check\n") // !!! improve this?
               } .elsewhen (d_inc(i) =/= d_dec(i)) {
                 printf(", undefined (concurrent incomplete puts #%d)\n", d_inc(i) - d_dec(i))
               } .elsewhen (!d_fifo && !d_valid) {
