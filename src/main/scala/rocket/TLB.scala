@@ -100,7 +100,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
   val mpu_ppn = Mux(do_refill, refill_ppn,
-                Mux(vm_enabled, entries.last.ppn, vpn(ppnBits-1, 0)))
+                Mux(vm_enabled, entries.last.ppn, vpn))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
