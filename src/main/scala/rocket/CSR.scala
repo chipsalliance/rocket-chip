@@ -503,7 +503,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   when (pending_interrupts.orR || exception) { reg_wfi := false }
   assert(!reg_wfi || io.retire === UInt(0))
 
-  when (io.retire(0)) { reg_singleStepped := true }
+  when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }
   assert(!io.singleStep || io.retire <= UInt(1))
   assert(!reg_singleStepped || io.retire === UInt(0))
