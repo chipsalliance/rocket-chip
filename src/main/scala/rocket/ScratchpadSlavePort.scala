@@ -24,7 +24,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,
       supportsLogical    = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,
-      supportsPutPartial = TransferSizes(1, coreDataBytes),
+      supportsPutPartial = TransferSizes.none, // Can't support PutPartial
       supportsPutFull    = TransferSizes(1, coreDataBytes),
       supportsGet        = TransferSizes(1, coreDataBytes),
       fifoId             = Some(0))), // requests handled in FIFO order
@@ -76,6 +76,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
       req.typ := Mux(isRead, log2Ceil(coreDataBytes), acq.size)
       req.addr := Mux(isRead, ~(~acq.address | (coreDataBytes-1)), acq.address)
       req.tag := UInt(0)
+      req.phys := true
       req
     }
 
