@@ -160,7 +160,7 @@ class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters)
   val masterNode = TLOutputNode()
   masterNode :=* rocket.masterNode
 
-  val slaveNode = TLInputNode()
+  val slaveNode = new TLInputNode() { override def reverse = true }
   rocket.slaveNode :*= slaveNode
 
   val intNode = IntInputNode()
@@ -194,7 +194,7 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
   source.node :=* rocket.masterNode
   masterNode :=* source.node
 
-  val slaveNode = TLAsyncInputNode()
+  val slaveNode = new TLAsyncInputNode() { override def reverse = true }
   val sink = LazyModule(new TLAsyncCrossingSink)
   rocket.slaveNode :*= sink.node
   sink.node :*= slaveNode
@@ -226,7 +226,7 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   source.node :=* rocket.masterNode
   masterNode :=* source.node
 
-  val slaveNode = TLRationalInputNode()
+  val slaveNode = new TLRationalInputNode() { override def reverse = true }
   val sink = LazyModule(new TLRationalCrossingSink(util.SlowToFast))
   rocket.slaveNode :*= sink.node
   sink.node :*= slaveNode
