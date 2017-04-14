@@ -211,7 +211,7 @@ case class FType(exp: Int, sig: Int) {
   def isSNaN(x: UInt) = isNaN(x) && !x(sig - 2)
 
   // convert between formats, ignoring rounding, range, NaN
-	def unsafeConvert(x: UInt, to: FType) = if (this == to) x else {
+  def unsafeConvert(x: UInt, to: FType) = if (this == to) x else {
     val sign = x(sig + exp)
     val fractIn = x(sig - 2, 0)
     val expIn = x(sig + exp - 1, sig - 1)
