@@ -62,7 +62,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     bindings.reverse.foreach { f => f () }
   }
 
-  def omitGraphML = nodes.isEmpty && children.isEmpty
+  def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
     val buf = new StringBuilder
     buf ++= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
