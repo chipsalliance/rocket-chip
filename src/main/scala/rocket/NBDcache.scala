@@ -794,18 +794,18 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // load-reserved/store-conditional
   val lrsc_count = Reg(init=UInt(0))
-  val lrsc_valid = lrsc_count.orR
+  val lrsc_valid = lrsc_count > lrscBackoff
   val lrsc_addr = Reg(UInt())
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
   val s2_lrsc_addr_match = lrsc_valid && lrsc_addr === (s2_req.addr >> blockOffBits)
   val s2_sc_fail = s2_sc && !s2_lrsc_addr_match
-  when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
+  when (lrsc_count > 0) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
       lrsc_count := lrscCycles - 1
       lrsc_addr := s2_req.addr >> blockOffBits
     }
-    when (lrsc_valid) {
+    when (lrsc_count > 0) {
       lrsc_count := 0
     }
   }

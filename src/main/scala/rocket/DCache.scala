@@ -198,15 +198,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_lr = Bool(usingAtomics) && s2_req.cmd === M_XLR
   val s2_sc = Bool(usingAtomics) && s2_req.cmd === M_XSC
   val lrscCount = Reg(init=UInt(0))
-  val lrscValid = lrscCount > 0
+  val lrscValid = lrscCount > lrscBackoff
   val lrscAddr = Reg(UInt())
   val s2_sc_fail = s2_sc && !(lrscValid && lrscAddr === (s2_req.addr >> blockOffBits))
   when (s2_valid_hit && s2_lr) {
     lrscCount := lrscCycles - 1
     lrscAddr := s2_req.addr >> blockOffBits
   }
-  when (lrscValid) { lrscCount := lrscCount - 1 }
-  when ((s2_valid_masked && lrscValid) || io.cpu.invalidate_lr) { lrscCount := 0 }
+  when (lrscCount > 0) { lrscCount := lrscCount - 1 }
+  when ((s2_valid_masked && lrscCount > 0) || io.cpu.invalidate_lr) { lrscCount := 0 }
 
   // pending store buffer
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
