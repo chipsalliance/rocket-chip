@@ -52,7 +52,6 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     when (tl_in.a.fire()) { acq := tl_in.a.bits }
 
     val isWrite = acq.opcode === TLMessages.PutFullData || acq.opcode === TLMessages.PutPartialData
-    val isAMO = acq.opcode === TLMessages.LogicalData || acq.opcode === TLMessages.ArithmeticData
     val isRead = !edge.hasData(acq)
 
     def formCacheReq(acq: TLBundleA) = {
@@ -94,7 +93,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     val minAMOBytes = 4
     val grantData = Mux(io.dmem.resp.valid, io.dmem.resp.bits.data, acq.data)
     val alignedGrantData =
-      Mux(isAMO && (acq.size <= log2Ceil(minAMOBytes)), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
+      Mux(!isRead && (acq.size <= log2Ceil(minAMOBytes)), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(isWrite,
