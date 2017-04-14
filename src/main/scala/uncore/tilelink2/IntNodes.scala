@@ -70,6 +70,7 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
   def bundleI(ei: IntEdge): Vec[Bool] = Vec(ei.source.num, Bool())
 
   def colour = "#0000ff" // blue
+  override def reverse = true
   override def labelI(ei: IntEdge) = ei.source.sources.map(_.range.size).sum.toString
   override def labelO(eo: IntEdge) = eo.source.sources.map(_.range.size).sum.toString
 

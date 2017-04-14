@@ -97,9 +97,19 @@ abstract class LazyModule()(implicit val p: Parameters)
     nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_._1.omitGraphML).foreach { case (o, l) =>
       buf ++= pad
       buf ++= "<edge"
-      buf ++= s""" source=\"${index}::${n.index}\""""
-      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge>"""
-      buf ++= s"""<y:Arrows source=\"none\" target=\"standard\"/>"""
+      if (o.reverse) {
+        buf ++= s""" target=\"${index}::${n.index}\""""
+        buf ++= s""" source=\"${o.lazyModule.index}::${o.index}\">"""
+      } else {
+        buf ++= s""" source=\"${index}::${n.index}\""""
+        buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\">"""
+      }
+      buf ++= s"""<data key=\"e\"><y:PolyLineEdge>"""
+      if (o.reverse) {
+        buf ++= s"""<y:Arrows source=\"standard\" target=\"none\"/>"""
+      } else {
+        buf ++= s"""<y:Arrows source=\"none\" target=\"standard\"/>"""
+      }
       buf ++= s"""<y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/>"""
       buf ++= s"""<y:EdgeLabel modelName=\"centered\" rotationAngle=\"270.0\">${l}</y:EdgeLabel>"""
       buf ++= s"""</y:PolyLineEdge></data></edge>\n"""

@@ -17,6 +17,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def edgeI(pd: DI, pu: UI): EI
   def bundleI(ei: EI): BI
   def colour: String
+  def reverse: Boolean = false
   def connect(bindings: () => Seq[(EI, BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
     (None, () => bindings().foreach { case (_, i, o) => i <> o })
   }
@@ -67,6 +68,7 @@ abstract class BaseNode
   protected[diplomacy] def outputs: Seq[(BaseNode, String)]
   protected[diplomacy] def inputs:  Seq[(BaseNode, String)]
   protected[diplomacy] def colour:  String
+  protected[diplomacy] def reverse: Boolean
 }
 
 case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
@@ -261,6 +263,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   // meta-data for printing the node graph
   protected[diplomacy] def colour  = inner.colour
+  protected[diplomacy] def reverse = inner.reverse
   protected[diplomacy] def outputs = oPorts.map(_._2) zip edgesOut.map(e => outer.labelO(e))
   protected[diplomacy] def inputs  = iPorts.map(_._2) zip edgesIn .map(e => inner.labelI(e))
 }
