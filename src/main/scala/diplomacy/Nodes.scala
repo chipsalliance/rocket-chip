@@ -60,6 +60,7 @@ abstract class BaseNode
   def nodename = getClass.getName.split('.').last
   def name = lazyModule.name + "." + nodename
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
+  lazy val nodedebugstring: String = ""
 
   protected[diplomacy] def gci: Option[BaseNode] // greatest common inner
   protected[diplomacy] def gco: Option[BaseNode] // greatest common outer
