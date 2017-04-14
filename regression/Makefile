@@ -218,7 +218,7 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 #OPENOCD_HEAD ?= riscv
 OPENOCD_INSTALL ?= $(abspath $(TOP))/riscv-openocd-install
 #OPENOCD_VERSION = $(shell git ls-remote git@github.com/riscv/riscv-openocd.git $(OPENOCD_HEAD) | awk '{print $$1}')
-OPENOCD_VERSION = 0e54044ac7d5f884e2be9f678e505613a4b3ce78
+OPENOCD_VERSION = 0e66b07550de9076620e45d1f90e38ac6ef8f9d1
 
 OPENOCD_DIR = $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/
 
