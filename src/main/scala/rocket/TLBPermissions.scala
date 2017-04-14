@@ -18,6 +18,7 @@ case class TLBPermissions(
 object TLBPageLookup
 {
   private case class TLBFixedPermissions(
+    t: RegionType.T,
     r: Boolean, // readable
     w: Boolean, // writeable
     x: Boolean, // executable
@@ -47,6 +48,7 @@ object TLBPageLookup
       require (m.supportsAcquireT || !m.supportsAcquireB, s"MemoryMap region ${m.name} supports AcquireB (cached read) but not AcquireT (cached write)... and rocket assumes this")
 
       (m.address, TLBFixedPermissions(
+        t = m.regionType,
         r = m.supportsGet     || m.supportsAcquireB, // if cached, never uses Get
         w = m.supportsPutFull || m.supportsAcquireT, // if cached, never uses Put
         x = m.executable,
