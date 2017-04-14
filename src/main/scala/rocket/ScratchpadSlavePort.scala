@@ -51,29 +51,25 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data }
     when (tl_in.a.fire()) { acq := tl_in.a.bits }
 
-    val isWrite = acq.opcode === TLMessages.PutFullData || acq.opcode === TLMessages.PutPartialData
-    val isRead = !edge.hasData(acq)
-
-    def formCacheReq(acq: TLBundleA) = {
+    def formCacheReq(a: TLBundleA) = {
       val req = Wire(new HellaCacheReq)
-      req.cmd := MuxLookup(acq.opcode, Wire(M_XRD), Array(
+      req.cmd := MuxLookup(a.opcode, Wire(M_XRD), Array(
         TLMessages.PutFullData    -> M_XWR,
-        TLMessages.PutPartialData -> M_XWR,
-        TLMessages.ArithmeticData -> MuxLookup(acq.param, Wire(M_XRD), Array(
+        TLMessages.ArithmeticData -> MuxLookup(a.param, Wire(M_XRD), Array(
           TLAtomics.MIN           -> M_XA_MIN,
           TLAtomics.MAX           -> M_XA_MAX,
           TLAtomics.MINU          -> M_XA_MINU,
           TLAtomics.MAXU          -> M_XA_MAXU,
           TLAtomics.ADD           -> M_XA_ADD)),
-        TLMessages.LogicalData    -> MuxLookup(acq.param, Wire(M_XRD), Array(
+        TLMessages.LogicalData    -> MuxLookup(a.param, Wire(M_XRD), Array(
           TLAtomics.XOR           -> M_XA_XOR,
           TLAtomics.OR            -> M_XA_OR,
           TLAtomics.AND           -> M_XA_AND,
           TLAtomics.SWAP          -> M_XA_SWAP)),
         TLMessages.Get            -> M_XRD))
       // treat all loads as full words, so bytes appear in correct lane
-      req.typ := Mux(isRead, log2Ceil(coreDataBytes), acq.size)
-      req.addr := Mux(isRead, ~(~acq.address | (coreDataBytes-1)), acq.address)
+      req.typ := Mux(edge.hasData(a), a.size, log2Ceil(coreDataBytes))
+      req.addr := Mux(edge.hasData(a), a.address, ~(~a.address | (coreDataBytes-1)))
       req.tag := UInt(0)
       req.phys := true
       req
@@ -93,10 +89,10 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     val minAMOBytes = 4
     val grantData = Mux(io.dmem.resp.valid, io.dmem.resp.bits.data, acq.data)
     val alignedGrantData =
-      Mux(!isRead && (acq.size <= log2Ceil(minAMOBytes)), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
+      Mux(edge.hasData(acq) && (acq.size <= log2Ceil(minAMOBytes)), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
-    tl_in.d.bits := Mux(isWrite,
+    tl_in.d.bits := Mux(acq.opcode === TLMessages.PutFullData,
       edge.AccessAck(acq, UInt(0)),
       edge.AccessAck(acq, UInt(0), UInt(0)))
     tl_in.d.bits.data := alignedGrantData
