@@ -73,6 +73,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     val pr = Bool()
     val pal = Bool() // AMO logical
     val paa = Bool() // AMO arithmetic
+    val eff = Bool() // get/put effects
     val c = Bool()
   }
 
@@ -116,6 +117,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val prot_al = fastCheck(_.supportsLogical) || cacheable
   val prot_aa = fastCheck(_.supportsArithmetic) || cacheable
   val prot_x = fastCheck(_.executable) && pmp.io.x
+  val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
   val isSpecial = !(io.ptw.resp.bits.homogeneous || io.ptw.resp.bits.ae)
 
   val lookup_tag = Cat(io.ptw.ptbr.asid, vpn(vpnBits-1,0))
@@ -160,6 +162,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     newEntry.px := prot_x && !io.ptw.resp.bits.ae
     newEntry.pal := prot_al
     newEntry.paa := prot_aa
+    newEntry.eff := prot_eff
 
     valid := valid | UIntToOH(waddr)
     reg_entries(waddr) := newEntry.asUInt
@@ -177,13 +180,15 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val px_array = Cat(Fill(2, prot_x), entries.init.map(_.px).asUInt)
   val paa_array = Cat(Fill(2, prot_aa), entries.init.map(_.paa).asUInt)
   val pal_array = Cat(Fill(2, prot_al), entries.init.map(_.pal).asUInt)
+  val eff_array = Cat(Fill(2, prot_eff), entries.init.map(_.eff).asUInt)
   val c_array = Cat(Fill(2, cacheable), entries.init.map(_.c).asUInt)
   val ae_st_array = ~pw_array | Mux(isAMOLogical(io.req.bits.cmd), ~pal_array, 0.U) | Mux(isAMOArithmetic(io.req.bits.cmd), ~paa_array, 0.U)
 
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
-  val bad_va =
-    if (vpnBits == vpnBitsExtended) Bool(false)
-    else vpn(vpnBits) =/= vpn(vpnBits-1)
+  val ae = misaligned || Bool(usingAtomics) && !io.resp.cacheable && io.req.bits.cmd.isOneOf(M_XLR, M_XSC)
+  val bad_va = vm_enabled &&
+    (if (vpnBits == vpnBitsExtended) Bool(false)
+     else vpn(vpnBits) =/= vpn(vpnBits-1))
   val tlb_hit = hits(totalEntries-1, 0).orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit && !io.req.bits.sfence.valid
 
@@ -202,11 +207,11 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   io.resp.pf.ld := (bad_va || (~r_array & hits).orR) && isRead(io.req.bits.cmd)
   io.resp.pf.st := (bad_va || (~w_array & hits).orR) && isWrite(io.req.bits.cmd)
   io.resp.pf.inst := bad_va || (~x_array & hits).orR
-  io.resp.ae.ld := (~pr_array & hits).orR && isRead(io.req.bits.cmd)
-  io.resp.ae.st := (ae_st_array & hits).orR && isWrite(io.req.bits.cmd)
+  io.resp.ae.ld := ((~pr_array & hits).orR || ae) && isRead(io.req.bits.cmd)
+  io.resp.ae.st := ((ae_st_array & hits).orR || ae) && isWrite(io.req.bits.cmd)
   io.resp.ae.inst := (~px_array & hits).orR
-  io.resp.ma.ld := misaligned && isRead(io.req.bits.cmd)
-  io.resp.ma.st := misaligned && isWrite(io.req.bits.cmd)
+  io.resp.ma.ld := (~eff_array & hits).orR && misaligned && isRead(io.req.bits.cmd)
+  io.resp.ma.st := (~eff_array & hits).orR && misaligned && isWrite(io.req.bits.cmd)
   io.resp.ma.inst := false // this is up to the pipeline to figure out
   io.resp.cacheable := (c_array & hits).orR
   io.resp.miss := do_refill || tlb_miss || multipleHits

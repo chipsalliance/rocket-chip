@@ -105,6 +105,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val tlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
+  io.cpu.xcpt := tlb.io.resp
   tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -187,16 +188,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     assert( !(s3_valid && s3_uncached) )
   }
 
-  // exceptions
-  io.cpu.xcpt := tlb.io.resp
-  if (usingDataScratchpad) {
-    val no_xcpt = s1_req.phys /* slave port */ && s1_hit_state.isValid()
-    when (no_xcpt) { io.cpu.xcpt := 0.U.asTypeOf(io.cpu.xcpt) }
-  }
-
   // load reservations
-  val s2_lr = Bool(usingAtomics) && s2_req.cmd === M_XLR
-  val s2_sc = Bool(usingAtomics) && s2_req.cmd === M_XSC
+  val s2_lr = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XLR
+  val s2_sc = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XSC
   val lrscCount = Reg(init=UInt(0))
   val lrscValid = lrscCount > lrscBackoff
   val lrscAddr = Reg(UInt())
@@ -207,6 +201,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
   when ((s2_valid_masked && lrscCount > 0) || io.cpu.invalidate_lr) { lrscCount := 0 }
+
+  if (usingDataScratchpad) {
+    require(!usingVM) // therefore, req.phys means this is a slave-port access
+    val s1_isSlavePortAccess = s1_req.phys
+    when (s1_isSlavePortAccess) {
+      assert(!s1_valid || s1_hit_state.isValid())
+      io.cpu.xcpt := 0.U.asTypeOf(io.cpu.xcpt)
+    }
+    assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
+  }
 
   // pending store buffer
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
