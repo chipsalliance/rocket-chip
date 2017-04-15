@@ -120,8 +120,11 @@ object DefaultTestSuites {
   val rv32umNames = LinkedHashSet("mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu")
   val rv32um = new AssemblyTestSuite("rv32um", rv32umNames)(_)
 
-  val rv32uaNames = LinkedHashSet("lrsc", "amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
+  val rv32uaNames = LinkedHashSet("amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
   val rv32ua = new AssemblyTestSuite("rv32ua", rv32uaNames)(_)
+
+  val rv32lrscNames = LinkedHashSet("lrsc")
+  val rv32lrsc = new AssemblyTestSuite("rv32ua", rv32lrscNames)(_)
 
   val rv32siNames = LinkedHashSet("csr", "ma_fetch", "scall", "sbreak", "wfi", "dirty")
   val rv32si = new AssemblyTestSuite("rv32si", rv32siNames)(_)
@@ -141,6 +144,8 @@ object DefaultTestSuites {
 
   val rv64uaNames = rv32uaNames.map(_.replaceAll("_w","_d"))
   val rv64ua = new AssemblyTestSuite("rv64ua", rv32uaNames ++ rv64uaNames)(_)
+
+  val rv64lrsc = new AssemblyTestSuite("rv64ua", rv32lrscNames)(_)
 
   val rv64ucNames = rv32ucNames
   val rv64uc = new AssemblyTestSuite("rv64uc", rv64ucNames)(_)
