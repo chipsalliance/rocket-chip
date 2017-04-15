@@ -50,7 +50,8 @@ object Generator extends util.GeneratorApp {
     import DefaultTestSuites._
     val xlen = params(XLen)
     // TODO: for now only generate tests for the first core in the first coreplex
-    val coreParams = params(RocketTilesKey).head.core
+    val tileParams = params(RocketTilesKey).head
+    val coreParams = tileParams.core
     val vm = coreParams.useVM
     val env = if (vm) List("p","v") else List("p")
     coreParams.fpu foreach { case cfg =>
@@ -68,6 +69,7 @@ object Generator extends util.GeneratorApp {
     }
     if (coreParams.useAtomics)    TestGeneration.addSuites(env.map(if (xlen == 64) rv64ua else rv32ua))
     if (coreParams.useCompressed) TestGeneration.addSuites(env.map(if (xlen == 64) rv64uc else rv32uc))
+    if (coreParams.useAtomics && tileParams.dcache.flatMap(_.scratch).isEmpty) TestGeneration.addSuites(env.map(if (xlen == 64) rv64lrsc else rv32lrsc))
     val (rvi, rvu) =
       if (xlen == 64) ((if (vm) rv64i else rv64pi), rv64u)
       else            ((if (vm) rv32i else rv32pi), rv32u)
