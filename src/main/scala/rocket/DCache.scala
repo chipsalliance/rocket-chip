@@ -61,7 +61,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_probe = Reg(next=tl_out.b.fire(), init=Bool(false))
   val probe_bits = RegEnable(tl_out.b.bits, tl_out.b.fire()) // TODO has data now :(
   val s1_nack = Wire(init=Bool(false))
-  val s1_valid_masked = s1_valid && !io.cpu.s1_kill && !io.cpu.xcpt.asUInt.orR
+  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_valid_not_nacked = s1_valid && !s1_nack
   val s1_req = Reg(io.cpu.req.bits)
   when (metaReadArb.io.out.valid) {
@@ -103,7 +103,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val tlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
-  io.cpu.xcpt := tlb.io.resp
+  io.cpu.s2_xcpt := RegEnable(Mux(tlb.io.req.valid && !tlb.io.resp.miss, tlb.io.resp, 0.U.asTypeOf(tlb.io.resp)), s1_valid_not_nacked)
   tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -142,7 +142,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
 
-  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
   val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
@@ -202,10 +202,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   if (usingDataScratchpad) {
     require(!usingVM) // therefore, req.phys means this is a slave-port access
-    val s1_isSlavePortAccess = s1_req.phys
-    when (s1_isSlavePortAccess) {
-      assert(!s1_valid || s1_hit_state.isValid())
-      io.cpu.xcpt := 0.U.asTypeOf(io.cpu.xcpt)
+    val s2_isSlavePortAccess = s2_req.phys
+    when (s2_isSlavePortAccess) {
+      assert(!s2_valid || s2_hit_valid)
+      io.cpu.s2_xcpt := 0.U.asTypeOf(io.cpu.s2_xcpt)
     }
     assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
   }

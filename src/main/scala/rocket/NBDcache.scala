@@ -677,12 +677,12 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_req = Reg(io.cpu.req.bits)
-  val s1_valid_masked = s1_valid && !io.cpu.s1_kill && !io.cpu.xcpt.asUInt.orR
+  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
   val s1_sfence = s1_req.cmd === M_SFENCE
 
-  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
   val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_FLUSH_ALL
   val s2_recycle = Wire(Bool())
@@ -699,7 +699,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
-  io.cpu.xcpt := dtlb.io.resp
+  io.cpu.s2_xcpt := RegEnable(Mux(dtlb.io.req.valid && !dtlb.io.resp.miss, dtlb.io.resp, 0.U.asTypeOf(dtlb.io.resp)), s1_clk_en)
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)

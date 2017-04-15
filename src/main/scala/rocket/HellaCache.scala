@@ -130,7 +130,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
-  val xcpt = (new HellaCacheExceptions).asInput
+  val s2_xcpt = (new HellaCacheExceptions).asInput
   val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
 }
