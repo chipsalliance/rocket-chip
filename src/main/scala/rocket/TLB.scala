@@ -182,16 +182,27 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val pal_array = Cat(Fill(2, prot_al), entries.init.map(_.pal).asUInt)
   val eff_array = Cat(Fill(2, prot_eff), entries.init.map(_.eff).asUInt)
   val c_array = Cat(Fill(2, cacheable), entries.init.map(_.c).asUInt)
-  val ae_st_array = ~pw_array | Mux(isAMOLogical(io.req.bits.cmd), ~pal_array, 0.U) | Mux(isAMOArithmetic(io.req.bits.cmd), ~paa_array, 0.U)
 
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
-  val ae = misaligned || Bool(usingAtomics) && !io.resp.cacheable && io.req.bits.cmd.isOneOf(M_XLR, M_XSC)
   val bad_va = vm_enabled &&
     (if (vpnBits == vpnBitsExtended) Bool(false)
      else vpn(vpnBits) =/= vpn(vpnBits-1))
+
+  val ae_array =
+    Mux(misaligned, eff_array, 0.U) |
+    Mux(Bool(usingAtomics) && io.req.bits.cmd.isOneOf(M_XLR, M_XSC), ~c_array, 0.U)
+  val ae_ld_array = Mux(isRead(io.req.bits.cmd), ae_array | ~pr_array, 0.U)
+  val ae_st_array =
+    Mux(isWrite(io.req.bits.cmd), ae_array | ~pw_array, 0.U) |
+    Mux(Bool(usingAtomics) && isAMOLogical(io.req.bits.cmd), ~pal_array, 0.U) |
+    Mux(Bool(usingAtomics) && isAMOArithmetic(io.req.bits.cmd), ~paa_array, 0.U)
+  val ma_ld_array = Mux(misaligned && isRead(io.req.bits.cmd), ~eff_array, 0.U)
+  val ma_st_array = Mux(misaligned && isWrite(io.req.bits.cmd), ~eff_array, 0.U)
+  val pf_ld_array = Mux(isRead(io.req.bits.cmd), ~r_array, 0.U)
+  val pf_st_array = Mux(isWrite(io.req.bits.cmd), ~w_array, 0.U)
+
   val tlb_hit = hits(totalEntries-1, 0).orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit && !io.req.bits.sfence.valid
-
   when (io.req.valid && !tlb_miss && !hits(specialEntry)) {
     plru.access(OHToUInt(hits(normalEntries-1, 0)))
   }
@@ -204,14 +215,14 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val multipleHits = PopCountAtLeast(hits(totalEntries-1, 0), 2)
 
   io.req.ready := state === s_ready
-  io.resp.pf.ld := (bad_va || (~r_array & hits).orR) && isRead(io.req.bits.cmd)
-  io.resp.pf.st := (bad_va || (~w_array & hits).orR) && isWrite(io.req.bits.cmd)
+  io.resp.pf.ld := (bad_va && isRead(io.req.bits.cmd)) || (pf_ld_array & hits).orR
+  io.resp.pf.st := (bad_va && isWrite(io.req.bits.cmd)) || (pf_st_array & hits).orR
   io.resp.pf.inst := bad_va || (~x_array & hits).orR
-  io.resp.ae.ld := ((~pr_array & hits).orR || ae) && isRead(io.req.bits.cmd)
-  io.resp.ae.st := ((ae_st_array & hits).orR || ae) && isWrite(io.req.bits.cmd)
+  io.resp.ae.ld := (ae_ld_array & hits).orR
+  io.resp.ae.st := (ae_st_array & hits).orR
   io.resp.ae.inst := (~px_array & hits).orR
-  io.resp.ma.ld := (~eff_array & hits).orR && misaligned && isRead(io.req.bits.cmd)
-  io.resp.ma.st := (~eff_array & hits).orR && misaligned && isWrite(io.req.bits.cmd)
+  io.resp.ma.ld := (ma_ld_array & hits).orR
+  io.resp.ma.st := (ma_st_array & hits).orR
   io.resp.ma.inst := false // this is up to the pipeline to figure out
   io.resp.cacheable := (c_array & hits).orR
   io.resp.miss := do_refill || tlb_miss || multipleHits
