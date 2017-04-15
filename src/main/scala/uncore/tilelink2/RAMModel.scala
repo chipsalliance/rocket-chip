@@ -5,7 +5,7 @@ package uncore.tilelink2
 import Chisel._
 import config._
 import diplomacy._
-import util.GenericParameterizedBundle
+import util.{GenericParameterizedBundle, CRC}
 
 // We detect concurrent puts that put memory into an undefined state.
 // put0, put0Ack, put1, put1Ack => ok: defined
@@ -45,6 +45,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val addressBits  = log2Up(endAddress)
       val countBits    = log2Up(endSourceId)
       val sizeBits     = edge.bundle.sizeBits
+      val divisor      = CRC.CRC_16F_4_2
 
       // Reset control logic
       val wipeIndex = RegInit(UInt(0, width = log2Ceil(endAddressHi) + 1))
@@ -156,13 +157,31 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       }
 
       val a_waddr = Mux(wipe, wipeIndex, a_addr_hi)
+      val a_shadow = shadow.map(_.read(a_waddr))
+      val a_known_old = !(Cat(a_shadow.map(!_.valid).reverse) & a_mask).orR
+      val alu = Module(new Atomics(a.params))
+      alu.io.write := Bool(false)
+      alu.io.a := a
+      alu.io.data_in := Cat(a_shadow.map(_.value).reverse)
+
+      val crc = Mem(endSourceId, UInt(width = 16))
+      val crc_valid = Mem(endSourceId, Bool())
+      val a_crc_acc = Mux(a_first, UInt(0), crc(a.source))
+      val a_crc_new = Cat(a_shadow.zipWithIndex.map { case (z, i) => Mux(a_mask(i), z.value, UInt(0)) }.reverse)
+      val a_crc = CRC(divisor, Cat(a_crc_acc, a_crc_new), 16 + beatBytes*8)
+      val a_crc_valid = a_known_old && Mux(a_first, Bool(true), crc_valid(a.source))
+      when (a_fire) {
+        crc.write(a.source, a_crc)
+        crc_valid.write(a.source, a_crc_valid)
+      }
+
       for (i <- 0 until beatBytes) {
         val data = Wire(new TLRAMModel.ByteMonitor(params))
         val busy = a_inc(i) =/= a_dec(i) + (!a_first).asUInt
         val amo = a.opcode === TLMessages.ArithmeticData || a.opcode === TLMessages.LogicalData
-        data.valid := Mux(wipe, Bool(false), (!busy || a_fifo) && !amo)
-        // !!! calculate the AMO?
-        data.value := a.data(8*(i+1)-1, 8*i)
+        val beat_amo = a.size <= UInt(log2Ceil(beatBytes))
+        data.valid := Mux(wipe, Bool(false), (!busy || a_fifo) && (!amo || (a_known_old && beat_amo)))
+        data.value := alu.io.data_out(8*(i+1)-1, 8*i)
         when (shadow_wen(i)) {
           shadow(i).write(a_waddr, data)
         }
@@ -206,7 +225,22 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val d_shadow = shadow.map(_.read(d_addr_hi))
       val d_valid = valid(d.source)
 
+      // CRC check
+      val d_crc_reg = Reg(UInt(width = 16))
+      val d_crc_acc = Mux(d_first, UInt(0), d_crc_reg)
+      val d_crc_new = FillInterleaved(8, d_mask) & d.data
+      val d_crc = CRC(divisor, Cat(d_crc_acc, d_crc_new), 16 + beatBytes*8)
+      val crc_bypass = if (edge.manager.minLatency > 0) Bool(false) else a_fire && a.source === d.source
+      val d_crc_valid = Mux(crc_bypass, a_crc_valid, crc_valid.read(d.source))
+      val d_crc_check = Mux(crc_bypass, a_crc, crc.read(d.source))
+
+      val d_no_race_reg = Reg(Bool())
+      val d_no_race = Wire(init = d_no_race_reg)
+
       when (d_fire) {
+        d_crc_reg := d_crc
+        d_no_race_reg := d_no_race
+
         // Check the response is correct
         assert (d_size === d_flight.size)
         // addr_lo is allowed to differ
@@ -261,9 +295,22 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
                 printf(", undefined (concurrent completed put)\n")
               } .otherwise {
                 printf("\n")
+                when (shadow.value =/= got) { printf("EXPECTED: 0x%x\n", shadow.value) }
                 assert (shadow.value === got)
               }
             }
+          }
+        }
+
+        when (d_flight.opcode === TLMessages.ArithmeticData || d_flight.opcode === TLMessages.LogicalData) {
+          val race = (d_inc zip d_dec) map { case (i, d) => i - d =/= UInt(1) }
+          when (d_first) { d_no_race := Bool(true) }
+          when ((Cat(race.reverse) & d_mask).orR) { d_no_race := Bool(false) }
+          when (d_last) {
+            val must_match = d_crc_valid && (d_fifo || (d_valid && d_no_race))
+            printf(log + " crc = 0x%x %d\n", d_crc, must_match.asUInt)
+            when (must_match && d_crc =/= d_crc_check) { printf("EXPECTED: 0x%x\n", d_crc_check) }
+            assert (!must_match || d_crc === d_crc_check)
           }
         }
       }

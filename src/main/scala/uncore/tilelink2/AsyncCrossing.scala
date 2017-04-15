@@ -138,7 +138,7 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) ext
 import unittest._
 
 class TLRAMAsyncCrossing(implicit p: Parameters) extends LazyModule {
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("AsyncCrossing"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
   val fuzz = LazyModule(new TLFuzzer(5000))
   val cross = LazyModule(new TLAsyncCrossing)
