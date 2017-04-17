@@ -52,19 +52,24 @@ object DsbRegAddrs{
   def RESUMING     = 0x108
   def EXCEPTION    = 0x10C
 
-  def FLAGS        = 0x400
-
-  def ROMBASE      = 0x800
-  def RESUME       = 0x804
-
   def WHERETO      = 0x300
-  def ABSTRACT     = 0x340 - 8
-  def PROGBUF      = 0x340
+  // This needs to be aligned for up to lq/sq
 
-  // This shows up in HartInfo
+  
+  // This shows up in HartInfo, and needs to be aligned
+  // to enable up to LQ/SQ instructions.
   def DATA         = 0x380
 
-  //Not implemented: Serial.
+  // We want DATA to immediately follow PROGBUF so that we can
+  // use them interchangeably.
+  def PROGBUF(cfg:DebugModuleConfig) = {DATA - (cfg.nProgramBufferWords * 4)}
+
+  // We want abstract to be immediately before PROGBUF
+  // because we auto-generate 2 instructions.
+  def ABSTRACT(cfg:DebugModuleConfig) = PROGBUF(cfg) - 8
+
+  def FLAGS        = 0x400
+  def ROMBASE      = 0x800
  
 }
 
@@ -226,8 +231,8 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
   *                      provide the default MTVEC since it is mapped
   *                      to address 0x0.
   *  
-  *  DebugModule is responsible for control registers and RAM. The Debug ROM is in a 
-  *  seperate module. It runs partially off of the dmiClk (e.g. TCK) and
+  *  DebugModule is responsible for control registers and RAM, and
+  *  Debug ROM. It runs partially off of the dmiClk (e.g. TCK) and
   *  the TL clock. Therefore, it is divided into "Outer" portion (running
   *  of off dmiClock and dmiReset) and "Inner" (running off tlClock and tlReset).
   *  This allows DMCONTROL.haltreq, hartsel, dmactive, and ndreset to be
@@ -354,8 +359,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       io.debugInterrupts(component)(0) := debugIntRegs(component)
     }
 
-    // Halt request registers are written by write to DMCONTROL.haltreq
-    // and cleared by writes to DMCONTROL.resumereq.
+    // Halt request registers are set & cleared by writes to DMCONTROL.haltreq
     // resumereq also causes the core to execute a 'dret',
     // so resumereq is passed through to Inner.
     // hartsel must also be used by the DebugModule state machine,
@@ -367,11 +371,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       when (~dmactive) {
         debugIntNxt(component) := false.B
       }. otherwise {
-        when (DMCONTROLWrEn) {
-          when (DMCONTROLWrData.hartsel === component.U) {
-            debugIntNxt(component) := (debugIntRegs(component) | DMCONTROLWrData.haltreq) &
-            ~(DMCONTROLWrData.resumereq)
-          }
+        when (DMCONTROLWrEn && DMCONTROLWrData.hartsel === component.U) {
+          debugIntNxt(component) := DMCONTROLWrData.haltreq
         }
       }
     }
@@ -597,8 +598,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       }.elsewhen (errorHaltResume) {
         ABSTRACTCSReg.cmderr := DebugAbstractCommandError.ErrHaltResume.id.U
       }.otherwise {
-        //TODO: Should be write-1-to-clear & ~ABSTRACTCSWrData.cmderr
-        when (ABSTRACTCSWrEn /* && ABSTRACTCSWrData.cmderr === 0.U*/){
+        when (ABSTRACTCSWrEn){
           ABSTRACTCSReg.cmderr := ABSTRACTCSReg.cmderr & ~(ABSTRACTCSWrData.cmderr);
         }
       }
@@ -741,35 +741,15 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // "Variable" ROM Generation
     //--------------------------------------------------------------
 
-    val goProgramBuffer = Wire(init = false.B)
-    val goAbstract      = Wire(init = false.B)
-
-    val whereToReg = Reg(UInt(32.W))
-
-    val jalProgBuf  = Wire(init = (new GeneratedUJ()).fromBits(rocket.Instructions.JAL.value.U))
-    jalProgBuf.setImm(PROGBUF - WHERETO)
-    jalProgBuf.rd := 0.U
-
+    val goReg        = Reg(Bool())
+    val goAbstract   = Wire(init = false.B)
     val jalAbstract  = Wire(init = (new GeneratedUJ()).fromBits(rocket.Instructions.JAL.value.U))
-    jalAbstract.setImm(ABSTRACT - WHERETO)
-    jalProgBuf.rd := 0.U
-
-    when (~io.dmactive) {
-      whereToReg := 0.U
-    }.otherwise{
-      when (goProgramBuffer) {
-        whereToReg := jalProgBuf.asUInt()
-      }.elsewhen (goAbstract) {
-        whereToReg := jalAbstract.asUInt()
-      }
-    }
-
-    val goReg            = Reg(Bool())
+    jalAbstract.setImm(ABSTRACT(cfg) - WHERETO)
 
     when (~io.dmactive){
       goReg := false.B
     }.otherwise {
-      when (goProgramBuffer | goAbstract) {
+      when (goAbstract) {
         goReg := true.B
       }.elsewhen (hartGoingWrEn){
         assert(hartGoingId === 0.U, "Unexpected 'GOING' hart.")//Chisel3 #540 %x, expected %x", hartGoingId, 0.U)
@@ -864,7 +844,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     nop.imm  := 0.U
 
     when (goAbstract) {
-      abstractGeneratedMem(0) := Mux(/*TODO: accessRegisterCommandReg.transfer*/true.B,
+      abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer,
         Mux(accessRegisterCommandReg.write,
           // To write a register, we need to do LW.
           abstractGeneratedI.asUInt(),
@@ -872,7 +852,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
           abstractGeneratedS.asUInt()),
         nop.asUInt()
       )
-      abstractGeneratedMem(1) := Mux(/*TODO accessRegisterCommandReg.postexec*/ false.B,
+      abstractGeneratedMem(1) := Mux(accessRegisterCommandReg.postexec,
         nop.asUInt(),
         rocket.Instructions.EBREAK.value.U)
     }
@@ -888,14 +868,15 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       RESUMING    -> Seq(WNotify(sbIdWidth, hartResumingId,  hartResumingWrEn)),
       EXCEPTION   -> Seq(WNotify(sbIdWidth, hartExceptionId,  hartExceptionWrEn)),
       DATA        -> abstractDataMem.map(x => RegField(8, x)),
-      PROGBUF     -> programBufferMem.map(x => RegField(8, x)),
+      PROGBUF(cfg)-> programBufferMem.map(x => RegField(8, x)),
 
       // These sections are read-only.
-      ROMBASE     -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W))),
-      FLAGS       -> flags.map{x => RegField.r(8, x.asUInt())},
-      WHERETO     -> Seq(RegField.r(32, whereToReg)),
-      ABSTRACT    -> abstractGeneratedMem.map(x => RegField.r(32, x))
-      )
+      WHERETO      -> Seq(RegField.r(32, jalAbstract.asUInt)),
+      ABSTRACT(cfg)-> abstractGeneratedMem.map{x => RegField.r(32, x)},
+      FLAGS        -> flags.map{x => RegField.r(8, x.asUInt())},
+      ROMBASE      -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
+
+    )
 
     // Override System Bus accesses with dmactive reset.
     when (~io.dmactive){
@@ -909,7 +890,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     object CtrlState extends scala.Enumeration {
       type CtrlState = Value
-      val Waiting, CheckGenerate, PreExec, Abstract, PostExec = Value
+      val Waiting, CheckGenerate, Exec = Value
 
       def apply( t : Value) : UInt = {
         t.id.U(log2Up(values.size).W)
@@ -945,7 +926,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
     when (commandRegIsAccessRegister) {
-      when ((accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
+      when (!accessRegisterCommandReg.transfer || (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
         commandRegIsUnsupported := false.B
         commandRegBadHaltResume := ~hartHalted
       }
@@ -957,13 +938,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //------------------------
     // Variable ROM STATE MACHINE
     // -----------------------
-    
+
     when (ctrlStateReg === CtrlState(Waiting)){
 
       when (wrAccessRegisterCommand || regAccessRegisterCommand) {
         ctrlStateNxt := CtrlState(CheckGenerate)
       }
-
     }.elsewhen (ctrlStateReg === CtrlState(CheckGenerate)){
 
       // We use this state to ensure that the COMMAND has been
@@ -977,47 +957,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
         errorHaltResume := true.B
         ctrlStateNxt := CtrlState(Waiting)
       }.otherwise {
-        when (accessRegisterCommandReg.preexec) {
-          ctrlStateNxt    := CtrlState(PreExec)
-          goProgramBuffer := true.B
-        }.otherwise {
-          ctrlStateNxt := CtrlState(Abstract)
-          goAbstract := true.B
-        }
-      }
-    }.elsewhen (ctrlStateReg === CtrlState(PreExec)) {
-
-      // We can't just look at 'hartHalted' here, because
-      // hartHaltedWrEn is overloaded to mean 'got an ebreak'
-      // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (cfg.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
-        ctrlStateNxt := CtrlState(Abstract)
+        ctrlStateNxt := CtrlState(Exec)
         goAbstract := true.B
       }
-      when(hartExceptionWrEn) {
-        assert(hartExceptionId === 0.U,  "Unexpected 'EXCEPTION' hart")// Chisel3 #540, %x, expected %x", hartExceptionId, 0.U)
-        ctrlStateNxt := CtrlState(Waiting)
-        errorException := true.B
-      }
-    }.elsewhen (ctrlStateReg === CtrlState(Abstract)) {
-
-      // We can't just look at 'hartHalted' here, because
-      // hartHaltedWrEn is overloaded to mean 'got an ebreak'
-      // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (cfg.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
-        when (accessRegisterCommandReg.postexec) {
-          ctrlStateNxt := CtrlState(PostExec)
-          goProgramBuffer := true.B
-        }.otherwise {
-          ctrlStateNxt := CtrlState(Waiting)
-        }
-      }
-      when(hartExceptionWrEn) {
-        assert(hartExceptionId === 0.U, "Unexpected 'EXCEPTION' hart")//Chisel3 #540 %x, expected %x", hartExceptionId, selectedHartReg)
-        ctrlStateNxt := CtrlState(Waiting)
-        errorUnsupported := true.B
-      }
-    }.elsewhen (ctrlStateReg === CtrlState(PostExec)) {
+    
+    }.elsewhen (ctrlStateReg === CtrlState(Exec)) {
 
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
@@ -1027,7 +971,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       }
       when(hartExceptionWrEn) {
         assert(hartExceptionId === 0.U, "Unexpected 'EXCEPTION' hart")//Chisel3 #540, %x, expected %x", hartExceptionId, 0.U)
-        ctrlStateNxt := CtrlState(Waiting)
+          ctrlStateNxt := CtrlState(Waiting)
         errorException := true.B
       }
     }
@@ -1039,6 +983,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     }
   }
 }
+
 
 // Wrapper around TL Debug Module Inner and an Async DMI Sink interface.
 // Handles the synchronization of dmactive, which is used as a synchronous reset
