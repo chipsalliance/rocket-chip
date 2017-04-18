@@ -699,7 +699,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
-  io.cpu.s2_xcpt := RegEnable(Mux(dtlb.io.req.valid && !dtlb.io.resp.miss, dtlb.io.resp, 0.U.asTypeOf(dtlb.io.resp)), s1_clk_en)
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -975,6 +974,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+
+  val s1_xcpt = Mux(s1_nack || !dtlb.io.req.valid, 0.U.asTypeOf(dtlb.io.resp), dtlb.io.resp)
+  io.cpu.s2_xcpt := RegEnable(s1_xcpt, s1_clk_en)
 
   // performance events
   io.cpu.acquire := edge.done(tl_out.a)

@@ -103,7 +103,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val tlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
-  io.cpu.s2_xcpt := RegEnable(Mux(tlb.io.req.valid && !tlb.io.resp.miss, tlb.io.resp, 0.U.asTypeOf(tlb.io.resp)), s1_valid_not_nacked)
   tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -480,6 +479,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false
   io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
+
+  val s1_xcpt = Mux(s1_nack || !tlb.io.req.valid, 0.U.asTypeOf(tlb.io.resp), tlb.io.resp)
+  io.cpu.s2_xcpt := RegEnable(s1_xcpt, s1_valid)
 
   // uncached response
   io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
