@@ -59,6 +59,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def encRowBits = encDataBits*rowWords
   def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
   def lrscBackoff = 3 // disallow LRSC reacquisition briefly
+  def blockProbeAfterGrantCycles = 8 // give the processor some time to issue a request after a grant
   def nIOMSHRs = cacheParams.nMMIOs
   def maxUncachedInFlight = cacheParams.nMMIOs
   def dataScratchpadSize = cacheParams.dataScratchpadBytes
