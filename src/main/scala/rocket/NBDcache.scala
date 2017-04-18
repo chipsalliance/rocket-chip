@@ -975,8 +975,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 
-  val s1_xcpt = Mux(s1_nack || !dtlb.io.req.valid, 0.U.asTypeOf(dtlb.io.resp), dtlb.io.resp)
-  io.cpu.s2_xcpt := RegEnable(s1_xcpt, s1_clk_en)
+  val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack
+  val s1_xcpt = dtlb.io.resp
+  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
 
   // performance events
   io.cpu.acquire := edge.done(tl_out.a)
