@@ -480,8 +480,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.resp.bits.replay := false
   io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
-  val s1_xcpt = Mux(s1_nack || !tlb.io.req.valid, 0.U.asTypeOf(tlb.io.resp), tlb.io.resp)
-  io.cpu.s2_xcpt := RegEnable(s1_xcpt, s1_valid)
+  val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
+  val s1_xcpt = tlb.io.resp
+  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
 
   // uncached response
   io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
