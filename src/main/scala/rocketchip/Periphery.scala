@@ -285,9 +285,28 @@ trait PeripheryBootROM {
   this: TopNetwork =>
   val coreplex: CoreplexRISCVPlatform
 
-  private val bootrom_address = 0x1000
+ private val bootrom_address = 0x1000
   private val bootrom_size = 0x1000
-  private lazy val bootrom_contents = GenerateBootROM(p, bootrom_address, coreplex.configString)
+
+  // Currently RC emits a config string that uses a name for offchip memory
+  // that does not comform to PK's expectation. So we prepend what we want.
+  private lazy val configString = {
+    val sb = new StringBuilder
+    sb append "ram {\n"
+    sb append "  0 {\n"
+    sb append "  addr 0x%x;\n".format(p(ExtMem).base)
+    sb append "  size 0x%x;\n".format(p(ExtMem).size)
+    sb append "  };\n"
+    sb append "};\n"
+    sb append coreplex.configString
+    val configString = sb.toString
+
+    println(s"\nBIANCOLIN'S HACK: Generated Configuration String\n${configString}")
+    _root_.util.ElaborationArtefacts.add("cfg", configString)
+    configString
+  }
+
+  private lazy val bootrom_contents = GenerateBootROM(p, bootrom_address, configString)
   val bootrom = LazyModule(new TLROM(bootrom_address, bootrom_size, bootrom_contents, true, peripheryBusConfig.beatBytes))
   bootrom.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
 }
