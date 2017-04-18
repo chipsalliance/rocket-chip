@@ -45,8 +45,6 @@ class DCache(val scratch: () => Option[AddressSet] = () => None)(implicit p: Par
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   require(rowBits == encRowBits) // no ECC
 
-  val grantackq = Module(new Queue(tl_out.e.bits,1)) // TODO don't need this in scratchpad mode
-
   // tags
   val replacer = cacheParams.replacement
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
@@ -292,8 +290,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Wire(new TLBundleA(edge.bundle))
   }
 
-  tl_out.a.valid := grantackq.io.enq.ready && ((s2_valid_cached_miss && !s2_victim_dirty) ||
-                                        (s2_valid_uncached && !uncachedInFlight.asUInt.andR))
+  tl_out.a.valid := (s2_valid_cached_miss && !s2_victim_dirty) ||
+                    (s2_valid_uncached && !uncachedInFlight.asUInt.andR)
   tl_out.a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!pstore1_amo, put, atomics)))
 
   // Set pending bits for outstanding TileLink transaction
@@ -318,11 +316,20 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantIsUncachedData = tl_out.d.bits.opcode === AccessAckData
   val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
   val grantIsRefill = tl_out.d.bits.opcode === GrantData     // Writes the data array
-  tl_out.d.ready := true
+  val grantInProgress = Reg(init=Bool(false))
+  val blockProbeAfterGrantCount = Reg(init=UInt(0))
+  when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
+  tl_out.d.ready := tl_out.e.ready
   when (tl_out.d.fire()) {
     when (grantIsCached) {
+      grantInProgress := true
       assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
-      when(d_last) { cached_grant_wait := false }
+      when(d_last) {
+        cached_grant_wait := false
+        grantInProgress := false
+        blockProbeAfterGrantCount := blockProbeAfterGrantCycles - 1
+        replacer.miss
+      }
     } .elsewhen (grantIsUncached) {
       val d_sel = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
       val req = Mux1H(d_sel, uncachedReqs)
@@ -346,7 +353,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // data refill
-  val doRefillBeat = grantIsRefill && tl_out.d.valid
+  val doRefillBeat = grantIsRefill && tl_out.d.valid // OK to ignore d.ready
   dataArb.io.in(1).valid := doRefillBeat
   assert(dataArb.io.in(1).ready || !doRefillBeat)
   dataArb.io.in(1).bits.write := true
@@ -364,10 +371,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // don't accept uncached grants if there's a structural hazard on s2_data...
   val blockUncachedGrant = Reg(Bool())
   blockUncachedGrant := dataArb.io.out.valid
-  when (grantIsUncachedData) {
-    tl_out.d.ready := !(blockUncachedGrant || s1_valid)
+  when (grantIsUncachedData && (blockUncachedGrant || s1_valid)) {
+    tl_out.d.ready := false
     // ...but insert bubble to guarantee grant's eventual forward progress
-    when (tl_out.d.valid && !tl_out.d.ready) {
+    when (tl_out.d.valid) {
       io.cpu.req.ready := false
       dataArb.io.in(1).valid := true
       dataArb.io.in(1).bits.write := false
@@ -376,21 +383,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // Finish TileLink transaction by issuing a GrantAck
-  grantackq.io.enq.valid := d_done && edge.isRequest(tl_out.d.bits)
-  grantackq.io.enq.bits := edge.GrantAck(tl_out.d.bits)
-  tl_out.e <> grantackq.io.deq
-  assert(!grantackq.io.enq.valid || grantackq.io.enq.ready, "Too many Grants received by dcache.")
-  when (d_done) { replacer.miss }
+  tl_out.e.valid := tl_out.d.valid && d_first && grantIsCached
+  tl_out.e.bits := edge.GrantAck(tl_out.d.bits)
+  when (tl_out.e.fire()) { assert(tl_out.d.fire()) }
 
   // Handle an incoming TileLink Probe message
-  val block_probe = releaseInFlight || lrscValid || (s2_valid_hit && s2_lr)
+  val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid || (s2_valid_hit && s2_lr)
   metaReadArb.io.in(1).valid := tl_out.b.valid && !block_probe
   tl_out.b.ready := metaReadArb.io.in(1).ready && !block_probe && !s1_valid && (!s2_valid || s2_valid_hit)
   metaReadArb.io.in(1).bits.idx := tl_out.b.bits.address(idxMSB, idxLSB)
   metaReadArb.io.in(1).bits.way_en := ~UInt(0, nWays)
 
   // release
-  val (_, c_last, releaseDone, c_count) = edge.count(tl_out.c)
+  val (c_first, c_last, releaseDone, c_count) = edge.count(tl_out.c)
   val releaseRejected = tl_out.c.valid && !tl_out.c.ready
   val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
   val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
@@ -450,10 +455,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     tl_out.c.bits := voluntaryReleaseMessage
     newCoh := voluntaryNewCoh
     releaseWay := s2_victim_way
-    when (releaseDone) {
-      release_state := s_voluntary_write_meta
-      release_ack_wait := true
-    }
+    when (releaseDone) { release_state := s_voluntary_write_meta }
+    when (tl_out.c.fire() && c_first) { release_ack_wait := true }
   }
   when (s2_probe && !tl_out.c.fire()) { s1_nack := true }
   tl_out.c.bits.address := probe_bits.address
