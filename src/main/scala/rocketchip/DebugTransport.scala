@@ -196,25 +196,30 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   //--------------------------------------------------------
   // Drive Ready Valid Interface
 
-  assert(!(dmiAccessChain.io.update.valid && io.dmi.req.ready), "Conflicting updates for dmiReqValid, should not happen.");
+  val dmiReqValidCheck = Wire(init = Bool(false))
+  assert(!(dmiReqValidCheck && io.dmi.req.fire()), "Conflicting updates for dmiReqValidReg, should not happen.");
 
   when (dmiAccessChain.io.update.valid) {
     when (skipOpReg) {
       // Do Nothing
-    }.elsewhen(downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
-      // Do Nothing
+    } .elsewhen (downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
+      //Do Nothing
       dmiReqReg.addr := UInt(0)
       dmiReqReg.data := UInt(0)
       dmiReqReg.op   := UInt(0)
+
     }.otherwise {
       dmiReqReg := dmiAccessChain.io.update.bits
       dmiReqValidReg := Bool(true)
-    }
-  }.otherwise {
-    when (io.dmi.req.ready) {
-      dmiReqValidReg := Bool(false)
+      dmiReqValidCheck := Bool(true)
     }
   }
+
+  when (io.dmi.req.fire()) {
+    dmiReqValidReg := Bool(false)
+  }
+
+  
 
   io.dmi.resp.ready := dmiAccessChain.io.capture.capture
   io.dmi.req.valid := dmiReqValidReg
