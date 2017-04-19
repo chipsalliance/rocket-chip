@@ -20,7 +20,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case ASIdBits => 0
   case XLen => 64 // Applies to all cores
   case BuildCore => (p: Parameters) => new Rocket()(p)
-  case RocketCrossing => Synchronous
+  case RocketCrossing => SynchronousCrossing()
   case RocketTilesKey =>  Nil
   case DMKey => DefaultDebugModuleConfig(site(XLen))
   case NTiles => site(RocketTilesKey).size
@@ -211,13 +211,13 @@ class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
-  case RocketCrossing => Synchronous
+  case RocketCrossing => SynchronousCrossing()
 })
 
 class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
-  case RocketCrossing => Asynchronous(depth, sync)
+  case RocketCrossing => AsynchronousCrossing(depth, sync)
 })
 
 class WithRationalRocketTiles extends Config((site, here, up) => {
-  case RocketCrossing => Rational
+  case RocketCrossing => RationalCrossing()
 })

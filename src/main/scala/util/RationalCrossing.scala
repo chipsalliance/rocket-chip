@@ -114,7 +114,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   }
 }
 
-class RationalCrossing[T <: Data](gen: T, direction: RationalDirection = Symmetric) extends Module
+class RationalCrossingFull[T <: Data](gen: T, direction: RationalDirection = Symmetric) extends Module
 {
   val io = new CrossingIO(gen)
 
