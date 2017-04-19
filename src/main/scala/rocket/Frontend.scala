@@ -68,7 +68,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
   val s1_speculative = Reg(Bool())
-  val s1_same_block = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
@@ -83,16 +82,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_cacheable = Reg(init=Bool(false))
 
   val ntpc = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
-  val ntpc_same_block = (ntpc & rowBytes) === (s1_pc & rowBytes)
   val predicted_npc = Wire(init = ntpc)
   val predicted_taken = Wire(init = Bool(false))
   val icmiss = s2_valid && !icache.io.resp.valid
   val npc = Mux(icmiss, s2_pc, predicted_npc)
-  val s0_same_block = !predicted_taken && !icmiss && !io.cpu.req.valid && ntpc_same_block
 
   val stall = io.cpu.resp.valid && !io.cpu.resp.ready
   when (!stall) {
-    s1_same_block := s0_same_block && !tlb.io.resp.miss
     s1_pc_ := io.cpu.npc
     // consider RVC fetches across blocks to be non-speculative if the first
     // part was non-speculative
@@ -111,7 +107,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     }
   }
   when (io.cpu.req.valid) {
-    s1_same_block := Bool(false)
     s1_pc_ := io.cpu.npc
     s1_speculative := io.cpu.req.bits.speculative
     s2_valid := Bool(false)
@@ -144,21 +139,20 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.sfence := io.cpu.sfence
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
 
-  icache.io.req.valid := !stall && !s0_same_block
+  icache.io.req.valid := !stall
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || icmiss || s1_speculative && !tlb.io.resp.cacheable || tlb.io.resp.pf.inst || tlb.io.resp.ae.inst
   icache.io.s2_kill := false
-  icache.io.resp.ready := !stall && !s1_same_block
+  icache.io.resp.ready := !stall
 
   val s2_kill = s2_speculative && !s2_cacheable || s2_xcpt
   io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || s2_kill)
   io.cpu.resp.bits.pc := s2_pc
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
-  require(fetchWidth * coreInstBytes <= rowBytes && isPow2(fetchWidth))
-  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc.extract(log2Ceil(rowBytes)-1,log2Ceil(fetchWidth*coreInstBytes)) << log2Ceil(fetchWidth*coreInstBits))
+  io.cpu.resp.bits.data := icache.io.resp.bits
   io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
   io.cpu.resp.bits.pf := s2_pf
   io.cpu.resp.bits.ae := s2_ae
