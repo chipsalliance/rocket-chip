@@ -677,12 +677,12 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_req = Reg(io.cpu.req.bits)
-  val s1_valid_masked = s1_valid && !io.cpu.s1_kill && !io.cpu.xcpt.asUInt.orR
+  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
   val s1_sfence = s1_req.cmd === M_SFENCE
 
-  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
   val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_FLUSH_ALL
   val s2_recycle = Wire(Bool())
@@ -699,7 +699,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
-  io.cpu.xcpt := dtlb.io.resp
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -794,18 +793,18 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // load-reserved/store-conditional
   val lrsc_count = Reg(init=UInt(0))
-  val lrsc_valid = lrsc_count.orR
+  val lrsc_valid = lrsc_count > lrscBackoff
   val lrsc_addr = Reg(UInt())
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
   val s2_lrsc_addr_match = lrsc_valid && lrsc_addr === (s2_req.addr >> blockOffBits)
   val s2_sc_fail = s2_sc && !s2_lrsc_addr_match
-  when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
+  when (lrsc_count > 0) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
       lrsc_count := lrscCycles - 1
       lrsc_addr := s2_req.addr >> blockOffBits
     }
-    when (lrsc_valid) {
+    when (lrsc_count > 0) {
       lrsc_count := 0
     }
   }
@@ -975,6 +974,10 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+
+  val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack
+  val s1_xcpt = dtlb.io.resp
+  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
 
   // performance events
   io.cpu.acquire := edge.done(tl_out.a)

@@ -401,9 +401,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
     (mem_debug_breakpoint,               UInt(CSR.debugTriggerCause)),
     (mem_breakpoint,                     UInt(Causes.breakpoint)),
-    (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch)),
-    (mem_ctrl.mem && io.dmem.xcpt.ma.st, UInt(Causes.misaligned_store)),
-    (mem_ctrl.mem && io.dmem.xcpt.ma.ld, UInt(Causes.misaligned_load))))
+    (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch))))
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
@@ -439,10 +437,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val (wb_xcpt, wb_cause) = checkExceptions(List(
     (wb_reg_xcpt,  wb_reg_cause),
-    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.st, mem_pc_valid), UInt(Causes.store_page_fault)),
-    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.pf.ld, mem_pc_valid), UInt(Causes.load_page_fault)),
-    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.ae.st, mem_pc_valid), UInt(Causes.store_access)),
-    (wb_reg_valid && wb_ctrl.mem && RegEnable(io.dmem.xcpt.ae.ld, mem_pc_valid), UInt(Causes.load_access))
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.st, UInt(Causes.misaligned_store)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.ld, UInt(Causes.misaligned_load)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.pf.st, UInt(Causes.store_page_fault)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.pf.ld, UInt(Causes.load_page_fault)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.st, UInt(Causes.store_access)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.ld, UInt(Causes.load_access))
   ))
 
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
@@ -628,9 +628,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.invalidate_lr := wb_xcpt
   io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.s1_kill := killm_common || mem_breakpoint
-  when (mem_ctrl.mem && mem_xcpt && !io.dmem.s1_kill) {
-    assert(io.dmem.xcpt.asUInt.orR) // make sure s1_kill is exhaustive
-  }
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
