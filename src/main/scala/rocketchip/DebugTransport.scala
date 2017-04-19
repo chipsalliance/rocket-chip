@@ -202,12 +202,11 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   when (dmiAccessChain.io.update.valid) {
     when (skipOpReg) {
       // Do Nothing
-    } .elsewhen (downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
+    }.elsewhen (downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
       //Do Nothing
       dmiReqReg.addr := UInt(0)
       dmiReqReg.data := UInt(0)
       dmiReqReg.op   := UInt(0)
-
     }.otherwise {
       dmiReqReg := dmiAccessChain.io.update.bits
       dmiReqValidReg := Bool(true)
@@ -218,8 +217,6 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   when (io.dmi.req.fire()) {
     dmiReqValidReg := Bool(false)
   }
-
-  
 
   io.dmi.resp.ready := dmiAccessChain.io.capture.capture
   io.dmi.req.valid := dmiReqValidReg
