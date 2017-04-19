@@ -1097,18 +1097,12 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
     val (_,  gbits) = edge.Get(src, addr, size)
     val (_, pfbits) = edge.Put(src, addr, size, io.dmi.req.bits.data)
 
-    // Note we force DMI NOPs to go to CONTROL register because
-    // Inner  may be in reset / not have a clock,
-    // so we force address to be the one that goes to Outer.
-    // Besides, for a NOP we don't really need to pay the penalty to go
-    // across the CDC.
-
-    val (_, nbits)  = edge.Put(src, toAddress = (DMI_RegAddrs.DMI_DMCONTROL << 2).U, size, data=0.U, mask = 0.U)
-
-    when (io.dmi.req.bits.op === DMIConsts.dmi_OP_WRITE)       { tl.a.bits := pfbits
-    }.elsewhen  (io.dmi.req.bits.op === DMIConsts.dmi_OP_READ) { tl.a.bits := gbits
-    }.otherwise {                                                tl.a.bits := nbits
+    when (io.dmi.req.fire()) {
+      assert (io.dmi.req.bits.op === DMIConsts.dmi_OP_WRITE || io.dmi.req.bits.op === DMIConsts.dmi_OP_READ,
+        "Invalid DMI Request Type.");
     }
+
+    tl.a.bits := Mux(io.dmi.req.bits.op === DMIConsts.dmi_OP_WRITE, pfbits, gbits);
 
     tl.a.valid       := io.dmi.req.valid
     io.dmi.req.ready := tl.a.ready
