@@ -159,7 +159,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   nonzeroResp := stickyNonzeroRespReg | (io.dmi.resp.valid & (io.dmi.resp.bits.resp != UInt(0)))
 
   busyResp.addr  := UInt(0)
-  busyResp.resp  := UInt(0)
+  busyResp.resp  := -1.S(DMIConsts.dmiRespSize.W).asUInt // Generalizing busy to 'all-F'
   busyResp.data  := UInt(0)
 
   nonbusyResp.addr := dmiReqReg.addr
