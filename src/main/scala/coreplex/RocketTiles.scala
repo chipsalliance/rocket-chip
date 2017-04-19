@@ -11,9 +11,9 @@ import uncore.tilelink2._
 import util._
 
 sealed trait ClockCrossing
-case object Synchronous extends ClockCrossing
-case object Rational extends ClockCrossing
-case class Asynchronous(depth: Int, sync: Int = 2) extends ClockCrossing
+case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends ClockCrossing
+case class RationalCrossing(direction: RationalDirection = FastToSlow) extends ClockCrossing
+case class AsynchronousCrossing(depth: Int, sync: Int = 2) extends ClockCrossing
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]]
 case object RocketCrossing extends Field[ClockCrossing]
@@ -47,9 +47,9 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
     lip.foreach { intBar.intnode := _ }              // lip
 
     crossing match {
-      case Synchronous => {
+      case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(c, i)(pWithExtra))
-        val buffer = LazyModule(new TLBuffer)
+        val buffer = LazyModule(new TLBuffer(params))
         val fixer = LazyModule(new TLFIFOFixer)
         buffer.node :=* wrapper.masterNode
         fixer.node :=* buffer.node
@@ -62,7 +62,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
           wrapper.module.io.resetVector := io.resetVector
         }
       }
-      case Asynchronous(depth, sync) => {
+      case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(c, i)(pWithExtra))
         val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
         val source = LazyModule(new TLAsyncCrossingSource(sync))
@@ -80,9 +80,9 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
           wrapper.module.io.resetVector := io.resetVector
         }
       }
-      case Rational => {
+      case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(c, i)(pWithExtra))
-        val sink = LazyModule(new TLRationalCrossingSink(util.FastToSlow))
+        val sink = LazyModule(new TLRationalCrossingSink(direction))
         val source = LazyModule(new TLRationalCrossingSource)
         val fixer = LazyModule(new TLFIFOFixer)
         sink.node :=* wrapper.masterNode
