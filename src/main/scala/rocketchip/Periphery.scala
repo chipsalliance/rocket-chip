@@ -13,7 +13,7 @@ import uncore.converters._
 import uncore.devices._
 import uncore.util._
 import util._
-import scala.math.max
+import scala.math.{min,max}
 
 /** Specifies the size of external memory */
 case class MasterConfig(base: Long, size: Long, beatBytes: Int, idBits: Int)
@@ -33,6 +33,9 @@ case object SOCBusConfig extends Field[TLBusConfig]
 /* Specifies the location of the Zero device */
 case class ZeroConfig(base: Long, size: Long, beatBytes: Int)
 case object ZeroConfig extends Field[ZeroConfig]
+/* Specifies the location of the Error device */
+case class ErrorConfig(address: Seq[AddressSet])
+case object ErrorConfig extends Field[ErrorConfig]
 
 /** Utility trait for quick access to some relevant parameters */
 trait HasPeripheryParameters {
@@ -386,5 +389,28 @@ trait PeripheryTestBusMasterModule {
   this: HasTopLevelNetworksModule {
     val outer: PeripheryTestBusMaster
     val io: PeripheryTestBusMasterBundle
+  } =>
+}
+
+/////
+
+trait PeripheryErrorSlave {
+  this: HasTopLevelNetworks =>
+  private val config = p(ErrorConfig)
+  private val maxXfer = min(config.address.map(_.alignment).max.toInt, 4096)
+  val error = LazyModule(new TLError(config.address, peripheryBusConfig.beatBytes))
+  error.node := TLFragmenter(peripheryBusConfig.beatBytes, maxXfer)(peripheryBus.node)
+}
+
+trait PeripheryErrorSlaveBundle {
+  this: HasTopLevelNetworksBundle {
+    val outer: PeripheryErrorSlave
+  } =>
+}
+
+trait PeripheryErrorSlaveModule {
+  this: HasTopLevelNetworksModule {
+    val outer: PeripheryErrorSlave
+    val io: PeripheryErrorSlaveBundle
   } =>
 }
