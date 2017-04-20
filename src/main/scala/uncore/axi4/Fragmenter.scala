@@ -10,8 +10,7 @@ import diplomacy._
 import scala.math.{min,max}
 import uncore.tilelink2.{leftOR, rightOR, UIntToOH1, OH1ToOH}
 
-// lite: masters all use only one ID => reads will not be interleaved
-class AXI4Fragmenter(lite: Boolean = false, maxInFlight: => Int = 32, combinational: Boolean = true)(implicit p: Parameters) extends LazyModule
+class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 {
   val maxBeats = 1 << AXI4Parameters.lenBits
   def expandTransfer(x: TransferSizes, beatBytes: Int, alignment: BigInt) =
@@ -19,11 +18,11 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: => Int = 32, combinatio
   def mapSlave(s: AXI4SlaveParameters, beatBytes: Int) = s.copy(
     supportsWrite = expandTransfer(s.supportsWrite, beatBytes, s.minAlignment),
     supportsRead  = expandTransfer(s.supportsRead,  beatBytes, s.minAlignment),
-    interleavedId = if (lite) Some(0) else s.interleavedId) // see AXI4FragmenterSideband for !lite case
+    interleavedId = None) // this breaks interleaving guarantees
   def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true)
 
   val node = AXI4AdapterNode(
-    masterFn = { mp => mp.copy(masters = mp.masters.map(m => mapMaster(m))) },
+    masterFn = { mp => mp.copy(masters = mp.masters.map(m => mapMaster(m)), userBits = mp.userBits + 1) },
     slaveFn  = { sp => sp.copy(slaves  = sp.slaves .map(s => mapSlave(s, sp.beatBytes))) })
 
   lazy val module = new LazyModuleImp(this) {
@@ -39,9 +38,6 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: => Int = 32, combinatio
       val lgBytes   = log2Ceil(beatBytes)
       val master    = edgeIn.master
       val masters   = master.masters
-
-      // If the user claimed this was a lite interface, then there must be only one Id
-      require (!lite || master.endId == 1)
 
       // We don't support fragmenting to sub-beat accesses
       slaves.foreach { s =>
@@ -139,145 +135,64 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: => Int = 32, combinatio
       val readSizes1  = slaves.map(s => s.supportsRead .max/beatBytes-1)
       val writeSizes1 = slaves.map(s => s.supportsWrite.max/beatBytes-1)
 
-      // Indirection variables for inputs and outputs; makes transformation application easier
+      // Irrevocable queues in front because we want to accept the request before responses come back
       val (in_ar, ar_last, _)       = fragment(Queue.irrevocable(in.ar, 1, flow=true), readSizes1)
       val (in_aw, aw_last, w_beats) = fragment(Queue.irrevocable(in.aw, 1, flow=true), writeSizes1)
-      val in_w = in.w
-      val in_r = in.r
-      val in_b = in.b
-      val out_ar = Wire(out.ar)
-      val out_aw = out.aw
-      val out_w = out.w
-      val out_r = Wire(out.r)
-      val out_b = Wire(out.b)
 
-      val depth = if (combinational) 1 else 2
-      // In case a slave ties arready := rready, we need a queue to break the combinational loop
-      // between the two branches (in_ar => {out_ar => out_r, sideband} => in_r).
-      if (in.ar.bits.getWidth < in.r.bits.getWidth) {
-        out.ar <> Queue(out_ar, depth, flow=combinational)
-        out_r <> out.r
-      } else {
-        out.ar <> out_ar
-        out_r <> Queue(out.r, depth, flow=combinational)
-      }
-      // In case a slave ties awready := bready or wready := bready, we need this queue
-      out_b <> Queue(out.b, depth, flow=combinational)
-
-      // Sideband to track which transfers were the last fragment
-      def sideband() = if (lite) {
-        Module(new Queue(Bool(), maxInFlight, flow=combinational)).io
-      } else {
-        Module(new AXI4FragmenterSideband(maxInFlight, flow=combinational)).io
-      }
-      val sideband_ar_r = sideband()
-      val sideband_aw_b = sideband()
-
-      // AR flow control
-      out_ar.valid := in_ar.valid && sideband_ar_r.enq.ready
-      in_ar.ready := sideband_ar_r.enq.ready && out_ar.ready
-      sideband_ar_r.enq.valid := in_ar.valid && out_ar.ready
-      out_ar.bits := in_ar.bits
-      sideband_ar_r.enq.bits := ar_last
+      // AR flow control; super easy
+      out.ar <> in_ar
+      out.ar.bits.user.get := Cat(in_ar.bits.user.toList ++ Seq(ar_last))
 
       // When does W channel start counting a new transfer
       val wbeats_latched = RegInit(Bool(false))
       val wbeats_ready = Wire(Bool())
       val wbeats_valid = Wire(Bool())
       when (wbeats_valid && wbeats_ready) { wbeats_latched := Bool(true) }
-      when (out_aw.fire()) { wbeats_latched := Bool(false) }
+      when (out.aw.fire()) { wbeats_latched := Bool(false) }
 
       // AW flow control
-      out_aw.valid := in_aw.valid && sideband_aw_b.enq.ready && (wbeats_ready || wbeats_latched)
-      in_aw.ready := sideband_aw_b.enq.ready && out_aw.ready && (wbeats_ready || wbeats_latched)
-      sideband_aw_b.enq.valid := in_aw.valid && out_aw.ready && (wbeats_ready || wbeats_latched)
+      out.aw.valid := in_aw.valid && (wbeats_ready || wbeats_latched)
+      in_aw.ready := out.aw.ready && (wbeats_ready || wbeats_latched)
       wbeats_valid := in_aw.valid && !wbeats_latched
-      out_aw.bits := in_aw.bits
-      sideband_aw_b.enq.bits := aw_last
+      out.aw.bits := in_aw.bits
+      out.aw.bits.user.get := Cat(in_aw.bits.user.toList ++ Seq(aw_last))
 
       // We need to inject 'last' into the W channel fragments, count!
       val w_counter = RegInit(UInt(0, width = AXI4Parameters.lenBits+1))
       val w_idle = w_counter === UInt(0)
       val w_todo = Mux(w_idle, Mux(wbeats_valid, w_beats, UInt(0)), w_counter)
       val w_last = w_todo === UInt(1)
-      w_counter := w_todo - out_w.fire()
-      assert (!out_w.fire() || w_todo =/= UInt(0)) // underflow impossible
+      w_counter := w_todo - out.w.fire()
+      assert (!out.w.fire() || w_todo =/= UInt(0)) // underflow impossible
 
       // W flow control
       wbeats_ready := w_idle
-      out_w.valid := in_w.valid && (!wbeats_ready || wbeats_valid)
-      in_w.ready := out_w.ready && (!wbeats_ready || wbeats_valid)
-      out_w.bits := in_w.bits
-      out_w.bits.last := w_last
+      out.w.valid := in.w.valid && (!wbeats_ready || wbeats_valid)
+      in.w.ready := out.w.ready && (!wbeats_ready || wbeats_valid)
+      out.w.bits := in.w.bits
+      out.w.bits.last := w_last
       // We should also recreate the last last
-      assert (!out_w.valid || !in_w.bits.last || w_last)
+      assert (!out.w.valid || !in.w.bits.last || w_last)
 
       // R flow control
-      val r_last = out_r.bits.last
-      in_r.valid := out_r.valid && (!r_last || sideband_ar_r.deq.valid)
-      out_r.ready := in_r.ready && (!r_last || sideband_ar_r.deq.valid)
-      sideband_ar_r.deq.ready := r_last && out_r.valid && in_r.ready
-      in_r.bits := out_r.bits
-      in_r.bits.last := r_last && sideband_ar_r.deq.bits
+      val r_last = out.r.bits.user.get(0)
+      in.r <> out.r
+      in.r.bits.last := out.r.bits.last && r_last
+      in.r.bits.user.foreach { _ := out.r.bits.user.get >> 1 }
 
       // B flow control
-      val b_last = sideband_aw_b.deq.bits
-      in_b.valid := out_b.valid && sideband_aw_b.deq.valid && b_last
-      out_b.ready := sideband_aw_b.deq.valid && (!b_last || in_b.ready)
-      sideband_aw_b.deq.ready := out_b.valid && (!b_last || in_b.ready)
-      in_b.bits := out_b.bits
+      val b_last = out.b.bits.user.get(0)
+      in.b <> out.b
+      in.b.valid := out.b.valid && b_last
+      out.b.ready := in.b.ready || !b_last
+      in.b.bits.user.foreach { _ := out.b.bits.user.get >> 1 }
 
       // Merge errors from dropped B responses
-      val r_resp = RegInit(UInt(0, width = AXI4Parameters.respBits))
-      val resp = out_b.bits.resp | r_resp
-      when (out_b.fire()) { r_resp := Mux(b_last, UInt(0), resp) }
-      in_b.bits.resp := resp
-    }
-  }
-
-  /* We want to put barriers between the fragments of a fragmented transfer and all other transfers.
-   * This lets us use very little state to reassemble the fragments (else we need one FIFO per ID).
-   * Furthermore, because all the fragments share the same AXI ID, they come back contiguously.
-   * This guarantees that no other R responses might get mixed between fragments, ensuring that the
-   * interleavedId for the slaves remains unaffected by the fragmentation transformation.
-   * Of course, if you need to fragment, this means there is a potentially hefty serialization cost.
-   * However, this design allows full concurrency in the common no-fragmentation-needed scenario.
-   */
-  class AXI4FragmenterSideband(maxInFlight: Int, flow: Boolean = false) extends Module
-  {
-    val io = new QueueIO(Bool(), maxInFlight)
-    io.count := UInt(0)
-
-    val PASS = UInt(2, width = 2) // allow 'last=1' bits to enque, on 'last=0' if count>0 block else accept+FIND
-    val FIND = UInt(0, width = 2) // allow 'last=0' bits to enque, accept 'last=1' and switch to WAIT
-    val WAIT = UInt(1, width = 2) // block all access till count=0
-
-    val state = RegInit(PASS)
-    val count = RegInit(UInt(0, width = log2Up(maxInFlight)))
-    val full  = count === UInt(maxInFlight-1)
-    val empty = count === UInt(0)
-    val last  = count === UInt(1)
-
-    io.deq.bits := state(1) || (last && state(0)) // PASS || (last && WAIT)
-    io.deq.valid := !empty
-
-    io.enq.ready := !full && (empty || (state === FIND) || (state === PASS && io.enq.bits))
-
-    // WAIT => count > 0
-    assert (state =/= WAIT || count =/= UInt(0))
-
-    if (flow) {
-      when (io.enq.valid) {
-        io.deq.valid := Bool(true)
-        when (empty) { io.deq.bits := io.enq.bits }
+      val error = RegInit(Vec.fill(edgeIn.master.endId) { UInt(0, width = AXI4Parameters.respBits)})
+      in.b.bits.resp := out.b.bits.resp | error(out.b.bits.id)
+      (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).toBools) foreach { case (reg, sel) =>
+        when (sel && out.b.fire()) { reg := Mux(b_last, UInt(0), reg | out.b.bits.resp) }
       }
-    }
-
-    count := count + io.enq.fire() - io.deq.fire()
-    switch (state) {
-      is(PASS) { when (io.enq.valid && !io.enq.bits && empty) { state := FIND } }
-      is(FIND) { when (io.enq.valid &&  io.enq.bits && !full) { state := Mux(empty, PASS, WAIT) } }
-      is(WAIT) { when (last && io.deq.ready)                  { state := PASS } }
     }
   }
 }
@@ -285,8 +200,8 @@ class AXI4Fragmenter(lite: Boolean = false, maxInFlight: => Int = 32, combinatio
 object AXI4Fragmenter
 {
   // applied to the AXI4 source node; y.node := AXI4Fragmenter()(x.node)
-  def apply(lite: Boolean = false, maxInFlight: => Int = 32, combinational: Boolean = true)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val fragmenter = LazyModule(new AXI4Fragmenter(lite, maxInFlight, combinational))
+  def apply()(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
+    val fragmenter = LazyModule(new AXI4Fragmenter)
     fragmenter.node := x
     fragmenter.node
   }
