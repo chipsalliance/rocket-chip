@@ -32,8 +32,8 @@ class TLFIFOFixer(implicit p: Parameters) extends LazyModule
       val stalls = edgeIn.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
         val a_sel = c.sourceId.contains(in.a.bits.source)
         val d_sel = c.sourceId.contains(in.d.bits.source)
-        val id    = RegInit(UInt(0, width = log2Ceil(maxId+1)))
-        val count = RegInit(UInt(0, width = log2Ceil(c.sourceId.size+1)))
+        val id    = RegInit(UInt(0, width = log2Up(maxId+1))) // TODO zero-width
+        val count = RegInit(UInt(0, width = log2Up(c.sourceId.size+1))) // TODO zero-width
 
         val a_inc = in.a.fire() && a_first && a_sel
         val d_dec = in.d.fire() && d_first && d_sel
