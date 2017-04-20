@@ -253,7 +253,7 @@ trait PeripheryMasterTLMMIO {
 
   mmio_tl :=
     TLBuffer()(
-    TLSourceShrinker(config.idBits)(
+    TLSourceShrinker(1 << config.idBits)(
     TLWidthWidget(socBusConfig.beatBytes)(
     socBus.node)))
 }
