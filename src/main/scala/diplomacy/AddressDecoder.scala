@@ -27,7 +27,7 @@ object AddressDecoder
       // Verify the user did not give us an impossible problem
       nonEmptyPorts.combinations(2).foreach { case Seq(x, y) =>
         x.foreach { a => y.foreach { b =>
-          require (!a.overlaps(b)) // it must be possible to disambiguate ports!
+          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
         } }
       }
 
@@ -43,7 +43,7 @@ object AddressDecoder
       // Verify that it remains possible to disambiguate all ports
       widePorts.combinations(2).foreach { case Seq(x, y) =>
         x.foreach { a => y.foreach { b =>
-          require (!a.overlaps(b))
+          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
         } }
       }
 

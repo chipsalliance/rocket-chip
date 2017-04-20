@@ -127,7 +127,7 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   def contiguous = alignment == mask+1
 
   def finite = mask >= 0
-  def max = { require (finite); base | mask }
+  def max = { require (finite, "Max cannot be calculated on infinite mask"); base | mask }
 
   // Widen the match function to ignore all bits in imask
   def widen(imask: BigInt) = AddressSet(base & ~imask, mask | imask)
@@ -160,7 +160,7 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   }
 
   def toRanges = {
-    require (finite)
+    require (finite, "Ranges cannot be calculated on infinite mask")
     val size = alignment
     val fragments = mask & ~(size-1)
     val bits = bitIndexes(fragments)
@@ -222,7 +222,7 @@ object AddressSet
 
 case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
 {
-  require (depth >= 0)
+  require (depth >= 0, "Buffer depth must be >= 0")
   def isDefined = depth > 0
   def latency = if (isDefined && !flow) 1 else 0
 }
