@@ -188,9 +188,10 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     (if (vpnBits == vpnBitsExtended) Bool(false)
      else vpn(vpnBits) =/= vpn(vpnBits-1))
 
+  val lrscAllowed = Mux(Bool(usingDataScratchpad), 0.U, c_array)
   val ae_array =
     Mux(misaligned, eff_array, 0.U) |
-    Mux(Bool(usingAtomics) && io.req.bits.cmd.isOneOf(M_XLR, M_XSC), ~c_array, 0.U)
+    Mux(Bool(usingAtomics) && io.req.bits.cmd.isOneOf(M_XLR, M_XSC), ~lrscAllowed, 0.U)
   val ae_ld_array = Mux(isRead(io.req.bits.cmd), ae_array | ~pr_array, 0.U)
   val ae_st_array =
     Mux(isWrite(io.req.bits.cmd), ae_array | ~pw_array, 0.U) |
