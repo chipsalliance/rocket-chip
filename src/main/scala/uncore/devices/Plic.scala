@@ -75,7 +75,8 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
     address   = Seq(AddressSet(address, PLICConsts.size-1)),
     device    = device,
     beatBytes = p(XLen)/8,
-    undefZero = false)
+    undefZero = false,
+    concurrency = 1) // Work around the enable -> claim hazard
 
   val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
