@@ -215,7 +215,7 @@ import unittest._
 
 class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("Xbar"))
   val xbar = LazyModule(new TLXbar)
 
   model.node := fuzz.node

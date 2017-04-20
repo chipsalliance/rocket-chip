@@ -36,7 +36,7 @@ object JtagState {
       Exit2IR,
       UpdateIR
     )
-    val width = log2Up(all.size)
+    val width = log2Ceil(all.size)
     def chiselType() = UInt(width.W)
   }
 

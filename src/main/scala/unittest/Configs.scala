@@ -35,7 +35,8 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new uncore.tilelink2.TLRR0Test),
       Module(new uncore.tilelink2.TLRR1Test),
       Module(new uncore.tilelink2.TLRAMRationalCrossingTest),
-      Module(new uncore.tilelink2.TLRAMAsyncCrossingTest) ) }
+      Module(new uncore.tilelink2.TLRAMAsyncCrossingTest),
+      Module(new uncore.tilelink2.TLRAMAtomicAutomataTest) ) }
 })
 
 class WithTLWidthUnitTests extends Config((site, here, up) => {

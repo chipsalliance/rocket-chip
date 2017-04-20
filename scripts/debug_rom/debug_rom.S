@@ -10,7 +10,9 @@
 
 // Region of memory where each hart has 1
 // byte to read.
-#define OK_GO 0x400
+#define FLAGS 0x400
+#define FLAG_GO     0
+#define FLAG_RESUME 1
 
         .option norvc
         .global entry
@@ -18,7 +20,7 @@
 
         // Entry location on ebreak, Halt, or Breakpoint
         // It is the same for all harts. They branch when 
-        // their specific OK_GO bit is set.
+        // their GO or RESUME bit is set.
 
 entry:
        jal zero, _entry
@@ -36,12 +38,17 @@ _entry:
         // We continue to let the hart know that we are halted in order that
         // a DM which was reset is still made aware that a hart is halted.
         // We keep checking both whether there is something the debugger wants
-        // us to do, or whether we should not be halted anymore.
+        // us to do, or whether we should resume.
 entry_loop:
         csrr s0, CSR_MHARTID
         sw   s0, HALTED(zero)
-        lb   s0, OK_GO(s0) // 1 byte flag per hart. Only one hart advances here.
-        bne  zero, s0, going
+        lbu  s0, FLAGS(s0) // 1 byte flag per hart. Only one hart advances here.
+        andi s0, s0, (1 << FLAG_GO)
+        bnez s0, going
+        csrr s0, CSR_MHARTID
+        lbu  s0, FLAGS(s0) // multiple harts can resume  here
+        andi s0, s0, (1 << FLAG_RESUME)
+        bnez s0, resume
         jal  zero, entry_loop
 
 _exception:
@@ -50,16 +57,14 @@ _exception:
 
 going:
         csrr s0, CSR_DSCRATCH          // Restore s0 here
-        sw zero, GOING(zero)           // When debug module sees this write, the OK_GO flag is reset.
+        sw zero, GOING(zero)           // When debug module sees this write, the GO flag is reset.
         jalr zero, zero, %lo(whereto)          // Rocket-Chip has a specific hack which is that jalr in
                                        // Debug Mode will flush the I-Cache. We need that so that the
                                        // remainder of the variable instructions will be what Debug Module
                                        // intends.
-
 _resume:
-        csrw CSR_DSCRATCH, s0   // Save s0 to allow signaling MHARTID
         csrr s0, CSR_MHARTID
-        sw   s0, RESUMING(zero) // Let the Debug Module know you're not halted anymore.
+        sw   s0, RESUMING(zero) // When Debug Module sees this write, the RESUME flag is reset.
         csrr s0, CSR_DSCRATCH   // Restore s0
         dret
 

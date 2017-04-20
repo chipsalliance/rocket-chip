@@ -64,6 +64,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false))
     val jtag_reset = Bool(INPUT)
+    val jtag_mfr_id = UInt(INPUT, 11)
     val fsmReset = Bool(OUTPUT)
   }
 
@@ -82,8 +83,11 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   val busy = Wire(Bool())
   val nonzeroResp = Wire(Bool())
 
-  val busyResp = Wire(new DMIAccessCapture(debugAddrBits))
+  val busyResp    = Wire(new DMIAccessCapture(debugAddrBits))
   val nonbusyResp = Wire(new DMIAccessCapture(debugAddrBits))
+  val dmiResp     = Wire(new DMIAccessCapture(debugAddrBits))
+  val nopResp     = Wire(new DMIAccessCapture(debugAddrBits))
+
 
   val dmiReqReg  = Reg(new DMIReq(debugAddrBits))
   val dmiReqValidReg = Reg(init = Bool(false));
@@ -155,20 +159,29 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // Especially for the first request, we must consider dtmResp.valid,
   // so that we don't consider junk in the FIFO to be an error response.
   // The current specification says that any non-zero response is an error.
+  // But there is actually no case in the current design where you SHOULD get an error,
+  // as we haven't implemented Bus Masters or Serial Ports, which are the only cases errors
+  // can occur.
   nonzeroResp := stickyNonzeroRespReg | (io.dmi.resp.valid & (io.dmi.resp.bits.resp != UInt(0)))
+  assert(!nonzeroResp, "There is no reason to get a non zero response in the current system.");
+  assert(!stickyNonzeroRespReg, "There is no reason to have a sticky non zero response in the current system.");
 
   busyResp.addr  := UInt(0)
-  busyResp.resp  := UInt(0)
+  busyResp.resp  := Fill(DMIConsts.dmiRespSize, 1.U) // Generalizing busy to 'all-F'
   busyResp.data  := UInt(0)
 
-  nonbusyResp.addr := dmiReqReg.addr
-  nonbusyResp.resp := io.dmi.resp.bits.resp
-  nonbusyResp.data := io.dmi.resp.bits.data
+  dmiResp.addr := dmiReqReg.addr
+  dmiResp.resp := io.dmi.resp.bits.resp
+  dmiResp.data := io.dmi.resp.bits.data
+
+  nopResp.addr := UInt(0)
+  nopResp.resp := UInt(0)
+  nopResp.data := UInt(0)
 
   //--------------------------------------------------------
   // Debug Access Chain Implementation
 
-  dmiAccessChain.io.capture.bits := Mux(busy, busyResp, nonbusyResp)
+  dmiAccessChain.io.capture.bits := Mux(busy, busyResp, Mux(io.dmi.resp.valid, dmiResp, nopResp))
   when (dmiAccessChain.io.update.valid) {
     skipOpReg := Bool(false)
     downgradeOpReg := Bool(false)
@@ -176,30 +189,33 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   when (dmiAccessChain.io.capture.capture) {
     skipOpReg := busy
     downgradeOpReg := (!busy & nonzeroResp)
-      stickyBusyReg := busy
+    stickyBusyReg := busy
     stickyNonzeroRespReg := nonzeroResp
   }
 
   //--------------------------------------------------------
   // Drive Ready Valid Interface
 
+  val dmiReqValidCheck = Wire(init = Bool(false))
+  assert(!(dmiReqValidCheck && io.dmi.req.fire()), "Conflicting updates for dmiReqValidReg, should not happen.");
+
   when (dmiAccessChain.io.update.valid) {
     when (skipOpReg) {
       // Do Nothing
+    }.elsewhen (downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
+      //Do Nothing
+      dmiReqReg.addr := UInt(0)
+      dmiReqReg.data := UInt(0)
+      dmiReqReg.op   := UInt(0)
     }.otherwise {
-      when (downgradeOpReg) {
-        dmiReqReg.addr := UInt(0)
-        dmiReqReg.data := UInt(0)
-        dmiReqReg.op   := UInt(0)
-      }.otherwise {
-        dmiReqReg := dmiAccessChain.io.update.bits
-      }
+      dmiReqReg := dmiAccessChain.io.update.bits
       dmiReqValidReg := Bool(true)
+      dmiReqValidCheck := Bool(true)
     }
-  }.otherwise {
-    when (io.dmi.req.ready) {
-      dmiReqValidReg := Bool(false)
-    }
+  }
+
+  when (io.dmi.req.fire()) {
+    dmiReqValidReg := Bool(false)
   }
 
   io.dmi.resp.ready := dmiAccessChain.io.capture.capture
@@ -210,12 +226,19 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
   //--------------------------------------------------------
   // Actual JTAG TAP
+  val idcode = Wire(init = new JTAGIdcodeBundle().fromBits(0.U))
+  idcode.always1    := 1.U
+  idcode.version    := c.idcodeVersion.U
+  idcode.partNumber := c.idcodePartNum.U
+  idcode.mfrId      := io.jtag_mfr_id
 
   val tapIO = JtagTapGenerator(irLength = 5,
     instructions = Map(dtmJTAGAddrs.DMI_ACCESS -> dmiAccessChain,
       dtmJTAGAddrs.DTM_INFO   -> dtmInfoChain),
-    idcode = Some((dtmJTAGAddrs.IDCODE, JtagIdcode(c.idcodeVersion, c.idcodePartNum, c.idcodeManufId))))
+    icode = Some(dtmJTAGAddrs.IDCODE)
+  )
 
+  tapIO.idcode.get := idcode
   tapIO.jtag <> io.jtag
 
   tapIO.control.jtag_reset := io.jtag_reset

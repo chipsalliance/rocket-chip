@@ -475,7 +475,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
   val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
-  val tvec = Mux(trapToDebug, debugTVec, Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec))
+  val notDebugTVec = {
+    val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
+    val baseAlign = 2
+    val interruptAlign = log2Ceil(new MIP().getWidth)
+    val interruptOffset = cause(interruptAlign-1, 0) << baseAlign
+    val interruptVec = Cat(base >> (interruptAlign + baseAlign), interruptOffset)
+    Mux(base(0) && cause(cause.getWidth-1), interruptVec, base)
+  }
+  val tvec = Mux(trapToDebug, debugTVec, notDebugTVec)
   io.evec := tvec
   io.ptbr := reg_sptbr
   io.eret := insn_call || insn_break || insn_ret
@@ -495,7 +503,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   when (pending_interrupts.orR || exception) { reg_wfi := false }
   assert(!reg_wfi || io.retire === UInt(0))
 
-  when (io.retire(0)) { reg_singleStepped := true }
+  when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }
   assert(!io.singleStep || io.retire <= UInt(1))
   assert(!reg_singleStepped || io.retire === UInt(0))
@@ -507,6 +515,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       Causes.misaligned_load, Causes.misaligned_store, Causes.misaligned_fetch,
       Causes.load_access, Causes.store_access, Causes.fetch_access,
       Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
+    val badaddr_value = Mux(write_badaddr, io.badaddr, 0.U)
 
     when (trapToDebug) {
       when (!reg_debug) {
@@ -519,7 +528,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }.elsewhen (delegate) {
       reg_sepc := formEPC(epc)
       reg_scause := cause
-      when (write_badaddr) { reg_sbadaddr := io.badaddr }
+      reg_sbadaddr := badaddr_value
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -527,7 +536,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }.otherwise {
       reg_mepc := formEPC(epc)
       reg_mcause := cause
-      when (write_badaddr) { reg_mbadaddr := io.badaddr }
+      reg_mbadaddr := badaddr_value
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
@@ -610,7 +619,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (decoded_addr(CSRs.mepc))     { reg_mepc := formEPC(wdata) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     if (mtvecWritable)
-      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata >> 2 << 2 }
+      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata & ~UInt(2, mtvecWidth) }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
 

@@ -10,6 +10,7 @@ import diplomacy._
 import coreplex.CacheBlockBytes
 import tile.{XLen, CoreModule, CoreBundle}
 import uncore.tilelink2._
+import uncore.constants._
 import util._
 
 case object PAddrBits extends Field[Int]
@@ -29,6 +30,7 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val store = Bool()
   val sfence = Valid(new SFenceReq)
   val size = UInt(width = log2Ceil(lgMaxSize + 1))
+  val cmd  = Bits(width = M_SZ)
 
   override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
@@ -45,6 +47,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val paddr = UInt(width = paddrBits)
   val pf = new TLBExceptions
   val ae = new TLBExceptions
+  val ma = new TLBExceptions
   val cacheable = Bool()
 }
 
@@ -68,6 +71,9 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     val pw = Bool()
     val px = Bool()
     val pr = Bool()
+    val pal = Bool() // AMO logical
+    val paa = Bool() // AMO arithmetic
+    val eff = Bool() // get/put effects
     val c = Bool()
   }
 
@@ -95,7 +101,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
   val mpu_ppn = Mux(do_refill, refill_ppn,
-                Mux(vm_enabled, entries.last.ppn, vpn(ppnBits-1, 0)))
+                Mux(vm_enabled, entries.last.ppn, vpn))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
@@ -105,10 +111,13 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && Mux1H(edge.manager.findFast(mpu_physaddr), edge.manager.managers.map(m => Bool(member(m))))
+  val cacheable = fastCheck(_.supportsAcquireB)
   val prot_r = fastCheck(_.supportsGet) && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
+  val prot_al = fastCheck(_.supportsLogical) || cacheable
+  val prot_aa = fastCheck(_.supportsArithmetic) || cacheable
   val prot_x = fastCheck(_.executable) && pmp.io.x
-  val cacheable = fastCheck(_.supportsAcquireB)
+  val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
   val isSpecial = !(io.ptw.resp.bits.homogeneous || io.ptw.resp.bits.ae)
 
   val lookup_tag = Cat(io.ptw.ptbr.asid, vpn(vpnBits-1,0))
@@ -151,6 +160,9 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     newEntry.pr := prot_r && !io.ptw.resp.bits.ae
     newEntry.pw := prot_w && !io.ptw.resp.bits.ae
     newEntry.px := prot_x && !io.ptw.resp.bits.ae
+    newEntry.pal := prot_al
+    newEntry.paa := prot_aa
+    newEntry.eff := prot_eff
 
     valid := valid | UIntToOH(waddr)
     reg_entries(waddr) := newEntry.asUInt
@@ -166,14 +178,32 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val pr_array = Cat(Fill(2, prot_r), entries.init.map(_.pr).asUInt)
   val pw_array = Cat(Fill(2, prot_w), entries.init.map(_.pw).asUInt)
   val px_array = Cat(Fill(2, prot_x), entries.init.map(_.px).asUInt)
+  val paa_array = Cat(Fill(2, prot_aa), entries.init.map(_.paa).asUInt)
+  val pal_array = Cat(Fill(2, prot_al), entries.init.map(_.pal).asUInt)
+  val eff_array = Cat(Fill(2, prot_eff), entries.init.map(_.eff).asUInt)
   val c_array = Cat(Fill(2, cacheable), entries.init.map(_.c).asUInt)
 
-  val bad_va =
-    if (vpnBits == vpnBitsExtended) Bool(false)
-    else vpn(vpnBits) =/= vpn(vpnBits-1)
+  val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
+  val bad_va = vm_enabled &&
+    (if (vpnBits == vpnBitsExtended) Bool(false)
+     else vpn(vpnBits) =/= vpn(vpnBits-1))
+
+  val lrscAllowed = Mux(Bool(usingDataScratchpad), 0.U, c_array)
+  val ae_array =
+    Mux(misaligned, eff_array, 0.U) |
+    Mux(Bool(usingAtomics) && io.req.bits.cmd.isOneOf(M_XLR, M_XSC), ~lrscAllowed, 0.U)
+  val ae_ld_array = Mux(isRead(io.req.bits.cmd), ae_array | ~pr_array, 0.U)
+  val ae_st_array =
+    Mux(isWrite(io.req.bits.cmd), ae_array | ~pw_array, 0.U) |
+    Mux(Bool(usingAtomics) && isAMOLogical(io.req.bits.cmd), ~pal_array, 0.U) |
+    Mux(Bool(usingAtomics) && isAMOArithmetic(io.req.bits.cmd), ~paa_array, 0.U)
+  val ma_ld_array = Mux(misaligned && isRead(io.req.bits.cmd), ~eff_array, 0.U)
+  val ma_st_array = Mux(misaligned && isWrite(io.req.bits.cmd), ~eff_array, 0.U)
+  val pf_ld_array = Mux(isRead(io.req.bits.cmd), ~r_array, 0.U)
+  val pf_st_array = Mux(isWrite(io.req.bits.cmd), ~w_array, 0.U)
+
   val tlb_hit = hits(totalEntries-1, 0).orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit && !io.req.bits.sfence.valid
-
   when (io.req.valid && !tlb_miss && !hits(specialEntry)) {
     plru.access(OHToUInt(hits(normalEntries-1, 0)))
   }
@@ -186,12 +216,15 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val multipleHits = PopCountAtLeast(hits(totalEntries-1, 0), 2)
 
   io.req.ready := state === s_ready
-  io.resp.pf.ld := bad_va || (~r_array & hits).orR
-  io.resp.pf.st := bad_va || (~w_array & hits).orR
+  io.resp.pf.ld := (bad_va && isRead(io.req.bits.cmd)) || (pf_ld_array & hits).orR
+  io.resp.pf.st := (bad_va && isWrite(io.req.bits.cmd)) || (pf_st_array & hits).orR
   io.resp.pf.inst := bad_va || (~x_array & hits).orR
-  io.resp.ae.ld := (~pr_array & hits).orR
-  io.resp.ae.st := (~pw_array & hits).orR
+  io.resp.ae.ld := (ae_ld_array & hits).orR
+  io.resp.ae.st := (ae_st_array & hits).orR
   io.resp.ae.inst := (~px_array & hits).orR
+  io.resp.ma.ld := (ma_ld_array & hits).orR
+  io.resp.ma.st := (ma_st_array & hits).orR
+  io.resp.ma.inst := false // this is up to the pipeline to figure out
   io.resp.cacheable := (c_array & hits).orR
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, pgOffset)

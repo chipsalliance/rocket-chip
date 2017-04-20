@@ -54,7 +54,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   def module: LazyModuleImp
 
   protected[diplomacy] def instantiate() = {
-    children.reverse.foreach { c => 
+    children.reverse.foreach { c =>
       // !!! fix chisel3 so we can pass the desired sourceInfo
       // implicit val sourceInfo = c.module.outer.info
       Module(c.module)
@@ -62,13 +62,14 @@ abstract class LazyModule()(implicit val p: Parameters)
     bindings.reverse.foreach { f => f () }
   }
 
-  def omitGraphML = nodes.isEmpty && children.isEmpty
+  def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
     val buf = new StringBuilder
     buf ++= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
     buf ++= "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:y=\"http://www.yworks.com/xml/graphml\">\n"
     buf ++= "  <key for=\"node\" id=\"n\" yfiles.type=\"nodegraphics\"/>\n"
     buf ++= "  <key for=\"edge\" id=\"e\" yfiles.type=\"edgegraphics\"/>\n"
+    buf ++= "  <key for=\"node\" id=\"d\" attr.name=\"NodeDebugString\" attr.type=\"string\"/>\n"
     buf ++= "  <graph id=\"G\" edgedefault=\"directed\">\n"
     nodesGraphML(buf, "    ")
     edgesGraphML(buf, "    ")
@@ -84,7 +85,9 @@ abstract class LazyModule()(implicit val p: Parameters)
     buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${module.instanceName}</y:NodeLabel></y:ShapeNode></data>\n"""
     buf ++= s"""${pad}  <graph id=\"${index}::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
-      buf ++= s"""${pad}    <node id=\"${index}::${n.index}\"/>\n"""
+      buf ++= s"""${pad}    <node id=\"${index}::${n.index}\">\n"""
+      buf ++= s"""${pad}      <data key=\"d\"><y:ShapeNode><y:Shape type="ellipse"/></y:ShapeNode>${n.nodedebugstring}</data>\n"""
+      buf ++= s"""${pad}    </node>\n"""
     }
     children.filter(!_.omitGraphML).foreach { _.nodesGraphML(buf, pad + "    ") }
     buf ++= s"""${pad}  </graph>\n"""
@@ -94,16 +97,26 @@ abstract class LazyModule()(implicit val p: Parameters)
     nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_._1.omitGraphML).foreach { case (o, l) =>
       buf ++= pad
       buf ++= "<edge"
-      buf ++= s""" source=\"${index}::${n.index}\""""
-      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge>"""
-      buf ++= s"""<y:Arrows source=\"none\" target=\"standard\"/>"""
+      if (o.reverse) {
+        buf ++= s""" target=\"${index}::${n.index}\""""
+        buf ++= s""" source=\"${o.lazyModule.index}::${o.index}\">"""
+      } else {
+        buf ++= s""" source=\"${index}::${n.index}\""""
+        buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\">"""
+      }
+      buf ++= s"""<data key=\"e\"><y:PolyLineEdge>"""
+      if (o.reverse) {
+        buf ++= s"""<y:Arrows source=\"standard\" target=\"none\"/>"""
+      } else {
+        buf ++= s"""<y:Arrows source=\"none\" target=\"standard\"/>"""
+      }
       buf ++= s"""<y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/>"""
       buf ++= s"""<y:EdgeLabel modelName=\"centered\" rotationAngle=\"270.0\">${l}</y:EdgeLabel>"""
       buf ++= s"""</y:PolyLineEdge></data></edge>\n"""
     } }
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
-  
+
   def nodeIterator(iterfunc: (LazyModule) => Unit): Unit = {
     iterfunc(this)
     children.foreach( _.nodeIterator(iterfunc) )

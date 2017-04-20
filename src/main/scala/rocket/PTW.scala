@@ -78,7 +78,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
-  val ae = Reg(next = io.mem.xcpt.ae.ld)
   val resp_ae = Reg(Bool())
 
   val r_req = Reg(new PTWReq)
@@ -184,12 +183,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           state := s_req
           count := count + 1
         }.otherwise {
-          resp_ae := invalid_paddr
+          resp_ae := pte.v && invalid_paddr
           state := s_ready
           resp_valid(r_req_dest) := true
         }
       }
-      when (ae) {
+      when (io.mem.s2_xcpt.ae.ld) {
         resp_ae := true
         state := s_ready
         resp_valid(r_req_dest) := true

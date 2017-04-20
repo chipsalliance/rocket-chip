@@ -57,6 +57,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val beatBytes = manager.beatBytes
       val fifoId = managers(0).fifoId
       require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
+      require (manager.endSinkId <= 1)
 
       // We don't support fragmenting to sub-beat accesses
       require (minSize >= beatBytes)
@@ -263,7 +264,7 @@ import unittest._
 
 class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("Fragmenter"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
   model.node := fuzz.node
