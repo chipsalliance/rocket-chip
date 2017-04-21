@@ -52,12 +52,12 @@ Mandatory arguments to long options are mandatory for short options too.\n\
 #if VM_TRACE
   fputs("\
   -v, --vcd=FILE,            write vcd trace to FILE (or '-' for stdout)\n\
-  -x, --start=CYCLE          start VCD tracing at CYCLE\n\
-      +start\n\
+  -x, --dump-start=CYCLE     start VCD tracing at CYCLE\n\
+      +dump-start\n\
 ", stdout);
 #else
   fputs("\
-VCD options (e.g., -v, +start) require a debug-enabled emulator.\n\
+VCD options (e.g., -v, +dump-start) require a debug-enabled emulator.\n\
 Try `make debug`.\n\
 ", stdout);
 #endif
@@ -84,7 +84,7 @@ int main(int argc, char** argv)
       {"verbose",     no_argument,       0, 'V' },
 #if VM_TRACE
       {"vcd",         required_argument, 0, 'v' },
-      {"start",       required_argument, 0, 'x' },
+      {"dump-start",  required_argument, 0, 'x' },
 #endif
       {0, 0, 0, 0}
     };
@@ -124,8 +124,8 @@ int main(int argc, char** argv)
         else if (arg.substr(0, 12) == "+max-cycles=")
           max_cycles = atoll(optarg+12);
 #if VM_TRACE
-        else if (arg.substr(0, 7) == "+start=")
-          start = atoll(optarg+7);
+        else if (arg.substr(0, 12) == "+dump-start=")
+          start = atoll(optarg+12);
 #endif
         else if (arg.substr(0, 12) == "+cycle-count")
           print_cycles = true;

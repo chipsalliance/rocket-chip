@@ -16,6 +16,7 @@ module TestDriver;
   reg verbose = 1'b0;
   wire printf_cond = verbose && !reset;
   reg [63:0] max_cycles = 0;
+  reg [63:0] dump_start = 0;
   reg [63:0] trace_count = 0;
   reg [1023:0] vcdplusfile = 0;
   reg [1023:0] vcdfile = 0;
@@ -23,6 +24,7 @@ module TestDriver;
   initial
   begin
     void'($value$plusargs("max-cycles=%d", max_cycles));
+    void'($value$plusargs("dump-start=%d", dump_start));
     verbose = $test$plusargs("verbose");
 
     // do not delete the lines below.
@@ -47,8 +49,6 @@ module TestDriver;
     begin
 `ifdef VCS
       $vcdplusfile(vcdplusfile);
-      $vcdpluson(0);
-      $vcdplusmemon(0);
 `else
       $fdisplay(stderr, "Error: +vcdplusfile is VCS-only; use +vcdfile instead");
       $fatal;
@@ -59,15 +59,17 @@ module TestDriver;
     begin
       $dumpfile(vcdfile);
       $dumpvars(0, testHarness);
-      $dumpon;
     end
 `ifdef VCS
+`define VCDPLUSON $vcdpluson(0); $vcdplusmemon(0);
 `define VCDPLUSCLOSE $vcdplusclose; $dumpoff;
 `else
+`define VCDPLUSON $dumpon;
 `define VCDPLUSCLOSE $dumpoff;
 `endif
 `else
   // No +define+DEBUG
+`define VCDPLUSON
 `define VCDPLUSCLOSE
 
     if ($test$plusargs("vcdplusfile=") || $test$plusargs("vcdfile="))
@@ -96,6 +98,10 @@ module TestDriver;
       $fdisplay(stderr, "C: %10d", trace_count);
     end
 `endif
+    if (trace_count == dump_start)
+    begin
+      `VCDPLUSON
+    end
 
     trace_count = trace_count + 1;
     if (!reset)
