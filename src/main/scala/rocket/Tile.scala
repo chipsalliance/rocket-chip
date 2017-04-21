@@ -124,7 +124,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveLegacyRoccsModule
     with CanHaveScratchpadModule {
 
-  require(outer.p(PAddrBits) >= outer.masterNode.edgesIn(0).bundle.addressBits)
+  require(outer.p(PAddrBits) >= outer.masterNode.edgesIn(0).bundle.addressBits,
+    s"outer.p(PAddrBits) (${outer.p(PAddrBits)}) must be >= outer.masterNode.addressBits (${outer.masterNode.edgesIn(0).bundle.addressBits})")
 
   val core = Module(p(BuildCore)(outer.p))
   decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
