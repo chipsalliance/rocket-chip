@@ -17,7 +17,7 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
       supportsRead  = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
+    minLatency = 1)))
 {
   require (address.contiguous)
 
@@ -54,7 +54,7 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
     // Invoke the register map builder and make it Irrevocable
     val out = Queue.irrevocable(
       RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*),
-      entries = 1, flow = true)
+      entries = 2)
 
     // No flow control needed
     out.ready := Mux(out.bits.read, r.ready, b.ready)
