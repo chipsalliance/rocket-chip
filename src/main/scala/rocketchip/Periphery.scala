@@ -238,12 +238,14 @@ trait PeripherySlaveAXI4 extends HasTopLevelNetworks {
     masters = Seq(AXI4MasterParameters(
       id = IdRange(0, 1 << config.idBits))))))
 
+  private val fifoBits = 1
   fsb.node :=
-    TLSourceShrinker(1 << config.sourceBits)(
     TLWidthWidget(config.beatBytes)(
     AXI4ToTL()(
+    AXI4UserYanker(1 << (config.sourceBits - fifoBits - 1))(
     AXI4Fragmenter()(
-    l2FrontendAXI4Node))))
+    AXI4IdIndexer(fifoBits)(
+    l2FrontendAXI4Node)))))
 }
 
 trait PeripherySlaveAXI4Bundle extends HasTopLevelNetworksBundle {

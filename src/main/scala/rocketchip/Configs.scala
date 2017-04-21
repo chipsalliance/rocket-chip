@@ -42,7 +42,7 @@ class BasePlatformConfig extends Config((site, here, up) => {
   case ErrorConfig => ErrorConfig(Seq(AddressSet(0x1000, 0xfff)))
   case ExtMem => MasterConfig(base=0x80000000L, size=0x10000000L, beatBytes=8, idBits=4)
   case ExtBus => MasterConfig(base=0x60000000L, size=0x20000000L, beatBytes=8, idBits=4)
-  case ExtIn  => SlaveConfig(beatBytes=8, idBits=8, sourceBits=2)
+  case ExtIn  => SlaveConfig(beatBytes=8, idBits=8, sourceBits=4)
 })
 
 /** Actual elaboratable target Configs */
