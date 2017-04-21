@@ -32,7 +32,9 @@ trait CoreplexNetwork extends HasCoreplexParameters {
 
   // Allows a variable number of inputs from outside to the Xbar
   private val l2in_buffer = LazyModule(new TLBuffer)
-  l1tol2.node :=* l2in_buffer.node
+  private val l2in_fifo = LazyModule(new TLFIFOFixer)
+  l1tol2.node :=* l2in_fifo.node
+  l2in_fifo.node :=* l2in_buffer.node
   l2in_buffer.node :=* l2in
 
   private val l2out_buffer = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none))
