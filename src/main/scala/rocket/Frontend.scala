@@ -65,7 +65,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val icache = outer.icache.module
 
   val tlb = Module(new TLB(log2Ceil(coreInstBytes*fetchWidth), nTLBEntries))
-  val fq = withReset(reset || io.cpu.req.valid) { Module(new Queue(new FrontendResp, 3, flow = true)) }
+  val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 3, flow = true)) }
 
   val s0_valid = io.cpu.req.valid || fq.io.enq.ready
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
