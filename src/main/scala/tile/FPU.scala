@@ -450,6 +450,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
     l2s.io.signedIn := ~in.bits.typ(0)
     l2s.io.in := intValue
     l2s.io.roundingMode := in.bits.rm
+    l2s.io.detectTininess := hardfloat.consts.tininess_afterRounding
     mux.data := sanitizeNaN(l2s.io.out, FType.S)
     mux.exc := l2s.io.exceptionFlags
 
@@ -460,6 +461,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
         l2d.io.signedIn := ~in.bits.typ(0)
         l2d.io.in := intValue
         l2d.io.roundingMode := in.bits.rm
+        l2d.io.detectTininess := hardfloat.consts.tininess_afterRounding
         mux.data := Cat(l2d.io.out >> l2s.io.out.getWidth, l2s.io.out)
         when (!in.bits.singleIn) {
           mux.data := sanitizeNaN(l2d.io.out, FType.D)
@@ -511,11 +513,13 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
         val d2s = Module(new hardfloat.RecFNToRecFN(dExpWidth, dSigWidth, sExpWidth, sSigWidth))
         d2s.io.in := in.bits.in1
         d2s.io.roundingMode := in.bits.rm
+        d2s.io.detectTininess := hardfloat.consts.tininess_afterRounding
         val d2sOut = sanitizeNaN(d2s.io.out, FType.S)
 
         val s2d = Module(new hardfloat.RecFNToRecFN(sExpWidth, sSigWidth, dExpWidth, dSigWidth))
         s2d.io.in := maxType.unsafeConvert(in.bits.in1, FType.S)
         s2d.io.roundingMode := in.bits.rm
+        s2d.io.detectTininess := hardfloat.consts.tininess_afterRounding
         val s2dOut = sanitizeNaN(s2d.io.out, FType.D)
 
         when (in.bits.singleOut) {
@@ -554,6 +558,7 @@ class FPUFMAPipe(val latency: Int, t: FType)(implicit p: Parameters) extends FPU
   val fma = Module(new hardfloat.MulAddRecFN(t.exp, t.sig))
   fma.io.op := in.fmaCmd
   fma.io.roundingMode := in.rm
+  fma.io.detectTininess := hardfloat.consts.tininess_afterRounding
   fma.io.a := in.in1
   fma.io.b := in.in2
   fma.io.c := in.in3
@@ -775,6 +780,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     divSqrt.io.a := fpiu.io.out.bits.in.in1
     divSqrt.io.b := fpiu.io.out.bits.in.in2
     divSqrt.io.roundingMode := fpiu.io.out.bits.in.rm
+    divSqrt.io.detectTininess := hardfloat.consts.tininess_afterRounding
 
     when (divSqrt.io.inValid && divSqrt_inReady) {
       divSqrt_in_flight := true
@@ -794,6 +800,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     val divSqrt_toSingle = Module(new hardfloat.RecFNToRecFN(11, 53, 8, 24))
     divSqrt_toSingle.io.in := divSqrt_wdata_double
     divSqrt_toSingle.io.roundingMode := divSqrt_rm
+    divSqrt_toSingle.io.detectTininess := hardfloat.consts.tininess_afterRounding
     divSqrt_wdata := Mux(divSqrt_single, Cat(divSqrt_wdata_double >> divSqrt_toSingle.io.out.getWidth, sanitizeNaN(divSqrt_toSingle.io.out, FType.S)), divSqrt_wdata_double)
     divSqrt_flags := divSqrt_flags_double | Mux(divSqrt_single, divSqrt_toSingle.io.exceptionFlags, Bits(0))
   } else {
