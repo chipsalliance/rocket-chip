@@ -202,16 +202,15 @@ trait PeripheryMasterAXI4MMIO {
       resources     = device.reg,
       executable    = true,                  // Can we run programs on this memory?
       supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
-      supportsRead  = TransferSizes(1, 256),
-      interleavedId = Some(0))),             // slave does not interleave read responses
+      supportsRead  = TransferSizes(1, 256))),
     beatBytes = config.beatBytes)))
 
   mmio_axi4 :=
     AXI4Buffer()(
-    // AXI4Fragmenter(lite=false, maxInFlight = 20)( // beef device up to support awlen = 0xff
+    AXI4Deinterleaver(cacheBlockBytes)(
     TLToAXI4(idBits = config.idBits)(      // use idBits = 0 for AXI4-Lite
     TLWidthWidget(socBusConfig.beatBytes)( // convert width before attaching to socBus
-    socBus.node)))
+    socBus.node))))
 }
 
 trait PeripheryMasterAXI4MMIOBundle {
