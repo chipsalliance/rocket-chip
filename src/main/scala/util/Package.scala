@@ -38,9 +38,17 @@ package object util {
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 
   implicit class UIntToAugmentedUInt(val x: UInt) extends AnyVal {
-    def sextTo(n: Int): UInt =
+    def sextTo(n: Int): UInt = {
+      require(x.getWidth <= n)
       if (x.getWidth == n) x
       else Cat(Fill(n - x.getWidth, x(x.getWidth-1)), x)
+    }
+
+    def padTo(n: Int): UInt = {
+      require(x.getWidth <= n)
+      if (x.getWidth == n) x
+      else Cat(UInt(0, n - x.getWidth), x)
+    }
 
     def extract(hi: Int, lo: Int): UInt = {
       if (hi == lo-1) UInt(0)

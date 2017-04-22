@@ -300,10 +300,10 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val pending_interrupts = read_mip & reg_mie
   val m_interrupts = Mux(reg_mstatus.prv <= PRV.S || (reg_mstatus.prv === PRV.M && reg_mstatus.mie), pending_interrupts & ~reg_mideleg, UInt(0))
   val s_interrupts = Mux(m_interrupts === 0 && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & reg_mideleg, UInt(0))
-  val all_interrupts = m_interrupts | s_interrupts
+  val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts))
   val interruptMSB = BigInt(1) << (xLen-1)
-  val interruptCause = UInt(interruptMSB) + PriorityEncoder(all_interrupts)
-  io.interrupt := all_interrupts.orR && !reg_debug && !io.singleStep || reg_singleStepped
+  val interruptCause = UInt(interruptMSB) + whichInterrupt
+  io.interrupt := anyInterrupt && !reg_debug && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
   io.pmp := reg_pmp.map(PMP(_))
@@ -756,6 +756,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       pmp.cfg.a := 0
       pmp.cfg.l := 0
     }
+  }
+
+  def chooseInterrupt(masks: Seq[UInt]) = {
+    // we can't simply choose the highest-numbered interrupt, because timer
+    // interrupts are in the wrong place in mip.
+    val timerMask = UInt(0xF0, xLen)
+    val masked = masks.map(m => Cat(m.padTo(xLen) & ~timerMask, m.padTo(xLen) & timerMask))
+    (masks.map(_.orR).reduce(_||_), Log2(masked.asUInt)(log2Ceil(xLen)-1, 0))
   }
 
   def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) =
