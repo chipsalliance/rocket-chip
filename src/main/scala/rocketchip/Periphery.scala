@@ -367,3 +367,14 @@ trait PeripheryTestBusMasterModule {
     val io: PeripheryTestBusMasterBundle
   } =>
 }
+
+////////
+
+trait CouldHavePeripheryTLBlackBoxRegisterRouter {
+  this: TopNetwork =>
+
+  p(BlackBoxedRegMapKey) foreach { params => 
+    val tlbbrm = LazyModule(new TLBlackBoxRegisterRouter(params))
+    tlbbrm.node := TLFragmenter(peripheryBusConfig.beatBytes, cacheBlockBytes)(peripheryBus.node)
+  }
+}
