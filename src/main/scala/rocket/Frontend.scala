@@ -84,7 +84,9 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_speculative = Reg(init=Bool(false))
   val s2_cacheable = Reg(init=Bool(false))
 
-  val ntpc = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
+  val fetchBytes = coreInstBytes * fetchWidth
+  val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
+  val ntpc = s1_base_pc + fetchBytes.U
   val predicted_npc = Wire(init = ntpc)
   val predicted_taken = Wire(init = Bool(false))
 
@@ -129,6 +131,14 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       predicted_npc := btb.io.resp.bits.target.sextTo(vaddrBitsExtended)
       predicted_taken := Bool(true)
     }
+
+    // push RAS speculatively
+    btb.io.ras_update.valid := btb.io.req.valid && btb.io.resp.valid && btb.io.resp.bits.cfiType.isOneOf(CFIType.call, CFIType.ret)
+    val returnAddrLSBs = btb.io.resp.bits.bridx +& 1
+    btb.io.ras_update.bits.returnAddr :=
+      Mux(returnAddrLSBs(log2Ceil(fetchWidth)), ntpc, s1_base_pc | ((returnAddrLSBs << log2Ceil(coreInstBytes)) & (fetchBytes - 1)))
+    btb.io.ras_update.bits.cfiType := btb.io.resp.bits.cfiType
+    btb.io.ras_update.bits.prediction.valid := true
   }
 
   io.ptw <> tlb.io.ptw

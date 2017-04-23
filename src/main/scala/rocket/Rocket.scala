@@ -587,8 +587,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && (((mem_cfi_taken || !mem_cfi) && mem_wrong_npc) || (Bool(fastJAL) && mem_ctrl.jal && !mem_reg_btb_hit)))
   io.imem.btb_update.bits.isValid := !mem_reg_replay && mem_cfi
-  io.imem.btb_update.bits.isJump := mem_ctrl.jal || mem_ctrl.jalr
-  io.imem.btb_update.bits.isReturn := mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00?01")
+  io.imem.btb_update.bits.cfiType :=
+    Mux(mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00?01"), CFIType.ret,
+    Mux(mem_ctrl.jal || mem_ctrl.jalr, Mux(mem_waddr(0), CFIType.call, CFIType.jump),
+    CFIType.branch))
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
   io.imem.btb_update.bits.br_pc := (if (usingCompressed) mem_reg_pc + Mux(mem_reg_rvc, UInt(0), UInt(2)) else mem_reg_pc)
   io.imem.btb_update.bits.pc := ~(~io.imem.btb_update.bits.br_pc | (coreInstBytes*fetchWidth-1))
@@ -600,12 +602,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.imem.bht_update.bits.taken := mem_br_taken
   io.imem.bht_update.bits.mispredict := mem_wrong_npc
   io.imem.bht_update.bits.prediction := io.imem.btb_update.bits.prediction
-
-  io.imem.ras_update.valid := mem_reg_valid && !take_pc_wb
-  io.imem.ras_update.bits.returnAddr := mem_int_wdata
-  io.imem.ras_update.bits.isCall := io.imem.btb_update.bits.isJump && mem_waddr(0)
-  io.imem.ras_update.bits.isReturn := io.imem.btb_update.bits.isReturn
-  io.imem.ras_update.bits.prediction := io.imem.btb_update.bits.prediction
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
