@@ -520,7 +520,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val sboard = new Scoreboard(32, true)
   sboard.clear(ll_wen, ll_waddr)
-  val id_sboard_hazard = checkHazards(hazard_targets, sboard.read _)
+  val id_sboard_hazard = checkHazards(hazard_targets, rd => sboard.read(rd) && !(ll_wen && ll_waddr === rd))
   sboard.set(wb_set_sboard && wb_wen, wb_waddr)
 
   // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
