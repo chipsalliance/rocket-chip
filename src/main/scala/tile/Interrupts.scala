@@ -30,7 +30,8 @@ trait HasExternalInterrupts extends HasTileParameters {
   // debug, msip, mtip, meip, seip, lip offsets in CSRs
   def csrIntMap: List[Int] = {
     val nlips = tileParams.core.nLocalInterrupts
-    List(65535, 3, 7, 11, 9) ++ List.tabulate(nlips)(_ + 16)
+    val seip = if (usingVM) Seq(9) else Nil
+    List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
   }
 }
 
