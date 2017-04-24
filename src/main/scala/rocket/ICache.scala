@@ -47,7 +47,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
   val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
 
-  val resp = Decoupled(new ICacheResp)
+  val resp = Valid(UInt(width = coreInstBits * fetchWidth))
   val invalidate = Bool(INPUT)
   val mem = outer.node.bundleOut
 }
@@ -65,7 +65,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s_ready :: s_request :: s_refill :: Nil = Enum(UInt(), 3)
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
-  val stall = !io.resp.ready
 
   val refill_addr = Reg(UInt(width = paddrBits))
   val s1_tag_hit = Wire(Vec(nWays, Bool()))
@@ -78,10 +77,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s1_hit = out_valid && s1_any_tag_hit
   val s1_miss = s1_valid && state === s_ready && !s1_any_tag_hit
 
-  val s0_valid = io.req.valid && state === s_ready && !(s1_valid && stall)
+  val s0_valid = io.req.valid && state === s_ready
   val s0_vaddr = io.req.bits.addr
 
-  s1_valid := s0_valid || out_valid && stall
+  s1_valid := s0_valid
 
   when (s1_miss) { refill_addr := io.s1_paddr }
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
@@ -110,16 +109,34 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
 
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
-  val s1_dout = Wire(Vec(nWays, UInt(width = code.width(rowBits))))
+  val wordBits = coreInstBits * fetchWidth
+  val s1_dout = Wire(Vec(nWays, UInt(width = code.width(wordBits))))
   val s1_dout_valid = RegNext(s0_valid)
 
   for (i <- 0 until nWays) {
     val s1_vb = vb_array(Cat(UInt(i), io.s1_paddr(untagBits-1,blockOffBits))).toBool
-    s1_tag_disparity(i) := (code.decode(tag_rdata(i)).error holdUnless s1_dout_valid)
-    s1_tag_hit(i) := s1_vb && ((code.decode(tag_rdata(i)).uncorrected === s1_tag) holdUnless s1_dout_valid)
+    s1_tag_disparity(i) := code.decode(tag_rdata(i)).error
+    s1_tag_hit(i) := s1_vb && code.decode(tag_rdata(i)).uncorrected === s1_tag
   }
 
-  val data_arrays = Seq.fill(nWays) { SeqMem(nSets * refillCycles, Bits(width = code.width(rowBits))) }
+  require(rowBits % wordBits == 0)
+  val data_arrays = Seq.fill(rowBits / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = code.width(wordBits)))) }
+  for ((data_array, i) <- data_arrays zipWithIndex) {
+    val wen = tl_out.d.valid
+    when (wen) {
+      val idx = (refill_idx << log2Ceil(refillCycles)) | refill_cnt
+      val data = tl_out.d.bits.data(wordBits*(i+1)-1, wordBits*i)
+      data_array.write(idx, Vec.fill(nWays)(code.encode(data)), (0 until nWays).map(repl_way === _))
+    }
+    def wordMatch(addr: UInt) = addr.extract(log2Ceil(rowBytes)-1, log2Ceil(wordBits/8)) === i
+    val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-log2Ceil(refillCycles))
+    val dout = data_array.read(s0_raddr, !wen && (s0_valid && wordMatch(s0_vaddr)))
+    when (wordMatch(io.s1_paddr)) {
+      s1_dout := dout
+    }
+  }
+
+/*
   for ((data_array, i) <- data_arrays zipWithIndex) {
     val wen = tl_out.d.valid && repl_way === UInt(i)
     when (wen) {
@@ -127,28 +144,29 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       data_array.write((refill_idx << log2Ceil(refillCycles)) | refill_cnt, e_d)
     }
     val s0_raddr = s0_vaddr(untagBits-1,blockOffBits-log2Ceil(refillCycles))
-    s1_dout(i) := data_array.read(s0_raddr, !wen && s0_valid) holdUnless s1_dout_valid
+    s1_dout(i) := data_array.read(s0_raddr, !wen && s0_valid)
   }
+*/
 
   // output signals
   outer.latency match {
     case 1 =>
       require(code.width(rowBits) == rowBits) // no ECC
-      io.resp.bits.datablock := Mux1H(s1_tag_hit, s1_dout)
+      io.resp.bits := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_hit
     case 2 =>
-      val s2_valid = RegEnable(out_valid, Bool(false), !stall)
-      val s2_hit = RegEnable(s1_hit, Bool(false), !stall)
-      val s2_tag_hit = RegEnable(s1_tag_hit, !stall)
-      val s2_dout = RegEnable(s1_dout, !stall)
+      val s2_valid = RegNext(out_valid, Bool(false))
+      val s2_hit = RegNext(s1_hit, Bool(false))
+      val s2_tag_hit = RegEnable(s1_tag_hit, s1_valid)
+      val s2_dout = RegEnable(s1_dout, s1_valid)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
 
-      val s2_tag_disparity = RegEnable(s1_tag_disparity, !stall).asUInt.orR
+      val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_valid).asUInt.orR
       val s2_data_disparity = code.decode(s2_way_mux).error
       val s2_disparity = s2_tag_disparity || s2_data_disparity
       when (s2_valid && s2_disparity) { invalidate := true }
 
-      io.resp.bits.datablock := code.decode(s2_way_mux).uncorrected
+      io.resp.bits := code.decode(s2_way_mux).uncorrected
       io.resp.valid := s2_hit && !s2_disparity
   }
   tl_out.a.valid := state === s_request && !io.s2_kill

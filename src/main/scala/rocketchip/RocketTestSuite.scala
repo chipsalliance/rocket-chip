@@ -4,7 +4,7 @@
 package rocketchip
 
 import Chisel._
-import scala.collection.mutable.{LinkedHashSet, ArrayBuffer}
+import scala.collection.mutable.LinkedHashSet
 
 abstract class RocketTestSuite {
   val dir: String
@@ -56,9 +56,9 @@ class RegressionTestSuite(val names: LinkedHashSet[String]) extends RocketTestSu
 }
 
 object TestGeneration {
-  private val suites = ArrayBuffer[RocketTestSuite]()
+  private val suites = collection.mutable.ListMap[String, RocketTestSuite]()
 
-  def addSuite(s: RocketTestSuite) { suites += s }
+  def addSuite(s: RocketTestSuite) { suites += (s.makeTargetName -> s) }
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
 
@@ -93,7 +93,7 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
       } else { "\n" }
     }
 
-    suites.groupBy(_.kind).map { case (kind, s) => gen(kind, s) }.mkString("\n")
+    suites.values.toSeq.groupBy(_.kind).map { case (kind, s) => gen(kind, s) }.mkString("\n")
   }
 
 }
