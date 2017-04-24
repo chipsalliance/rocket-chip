@@ -132,7 +132,13 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       } else if (edgeIn.manager.beatBytes > edgeOut.manager.beatBytes) {
         // split input to output
         val repeat = Wire(Bool())
-        repeat := split(edgeIn, Repeater(in, repeat), edgeOut, out)
+        val repeated = Repeater(in, repeat)
+        val cated = Wire(repeated)
+        cated <> repeated
+        edgeIn.data(cated.bits) := Cat(
+          edgeIn.data(repeated.bits)(edgeIn.manager.beatBytes*8-1, edgeOut.manager.beatBytes*8),
+          edgeIn.data(in.bits)(edgeOut.manager.beatBytes*8-1, 0))
+        repeat := split(edgeIn, cated, edgeOut, out)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)
