@@ -8,8 +8,10 @@ import chisel3.core.withReset
 import config._
 import tile._
 import uncore.constants._
+import diplomacy._
 import util._
 import Chisel.ImplicitConversions._
+import collection.immutable.ListMap
 
 case class RocketCoreParams(
   bootFreqHz: BigInt = 0,

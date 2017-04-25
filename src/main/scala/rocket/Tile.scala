@@ -132,6 +132,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   core.io.hartid := io.hartid // Pass through the hartid
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.resetVector := io.resetVector
+  outer.frontend.module.io.hartid := io.hartid
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
   core.io.ptw <> ptw.io.dpath

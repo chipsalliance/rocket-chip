@@ -105,7 +105,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
 }
 
 /** Mix-ins for constructing tiles that have optional scratchpads */
-trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
+trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCoreParameters {
   val module: CanHaveScratchpadModule
 
   val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
@@ -113,6 +113,10 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val slaveNode = TLInputNode()
 
   scratch foreach { lm => lm.node := TLFragmenter(p(XLen)/8, p(CacheBlockBytes))(slaveNode) }
+  frontend.slaveNode foreach { _ :=
+    TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), true)(
+      TLWidthWidget(p(XLen)/8)(slaveNode))
+  }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
     val finalNode = frontend.node.edgesOut(0).manager.managers.find(_.nodePath.last == s.node)
