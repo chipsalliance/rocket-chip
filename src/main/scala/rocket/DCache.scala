@@ -11,6 +11,7 @@ import uncore.tilelink2._
 import uncore.util._
 import util._
 import TLMessages._
+import scala.math.min
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)
@@ -56,6 +57,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val dataArb = Module(new Arbiter(new DCacheDataReq, 4))
   data.io.req <> dataArb.io.out
   dataArb.io.out.ready := true
+
+  val rational = p(coreplex.RocketCrossing) match {
+    case coreplex.SynchronousCrossing(_) => true
+    case _ => false
+  }
+
+  val tl_out_a = Wire(tl_out.a)
+  val q_depth = if (rational) min(2, maxUncachedInFlight-1) else 0
+  if (q_depth <= 0) {
+    tl_out.a <> tl_out_a
+  } else {
+    tl_out.a <> Queue(tl_out_a, q_depth, flow = true, pipe = true)
+  }
 
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_probe = Reg(next=tl_out.b.fire(), init=Bool(false))
@@ -176,7 +190,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
-  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && tl_out.a.ready && !uncachedInFlight.asUInt.andR)
+  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && tl_out_a.ready && !uncachedInFlight.asUInt.andR)
   when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
 
   val s3_valid = Reg(next = s2_valid, init=Bool(false))
@@ -285,17 +299,17 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       M_XA_MAXU -> edge.Arithmetic(a_source, access_address, a_size, a_data, TLAtomics.MAXU)._2))
   } else {
     // If no managers support atomics, assert fail if processor asks for them
-    assert (!(tl_out.a.valid && pstore1_amo && s2_write && s2_uncached))
+    assert (!(tl_out_a.valid && pstore1_amo && s2_write && s2_uncached))
     Wire(new TLBundleA(edge.bundle))
   }
 
-  tl_out.a.valid := (s2_valid_cached_miss && !s2_victim_dirty) ||
+  tl_out_a.valid := (s2_valid_cached_miss && !s2_victim_dirty) ||
                     (s2_valid_uncached && !uncachedInFlight.asUInt.andR)
-  tl_out.a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!pstore1_amo, put, atomics)))
+  tl_out_a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!pstore1_amo, put, atomics)))
 
   // Set pending bits for outstanding TileLink transaction
   val a_sel = UIntToOH(a_source, maxUncachedInFlight+mmioOffset) >> mmioOffset
-  when (tl_out.a.fire()) {
+  when (tl_out_a.fire()) {
     when (s2_uncached) {
       (a_sel.toBools zip (uncachedInFlight zip uncachedReqs)) foreach { case (s, (f, r)) =>
         when (s) {
@@ -518,7 +532,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
   val flushCounter = Counter(nSets * nWays)
-  when (tl_out.a.fire() && !s2_uncached) { flushed := false }
+  when (tl_out_a.fire() && !s2_uncached) { flushed := false }
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
@@ -542,6 +556,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // performance events
-  io.cpu.acquire := edge.done(tl_out.a)
+  io.cpu.acquire := edge.done(tl_out_a)
   io.cpu.release := edge.done(tl_out.c)
 }
