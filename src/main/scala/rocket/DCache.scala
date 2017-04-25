@@ -11,6 +11,7 @@ import uncore.tilelink2._
 import uncore.util._
 import util._
 import TLMessages._
+import scala.math.min
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)
@@ -57,8 +58,18 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   data.io.req <> dataArb.io.out
   dataArb.io.out.ready := true
 
+  val rational = p(coreplex.RocketCrossing) match {
+    case coreplex.SynchronousCrossing(_) => true
+    case _ => false
+  }
+
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> Queue(tl_out_a, 3, flow = true)
+  val q_depth = if (rational) min(2, maxUncachedInFlight-1) else 0
+  if (q_depth <= 0) {
+    tl_out.a <> tl_out_a
+  } else {
+    tl_out.a <> Queue(tl_out_a, q_depth, flow = true, pipe = true)
+  }
 
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_probe = Reg(next=tl_out.b.fire(), init=Bool(false))
