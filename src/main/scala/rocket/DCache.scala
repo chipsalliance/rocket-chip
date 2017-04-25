@@ -59,7 +59,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.out.ready := true
 
   val rational = p(coreplex.RocketCrossing) match {
-    case coreplex.SynchronousCrossing(_) => true
+    case coreplex.RationalCrossing(_) => true
     case _ => false
   }
 
