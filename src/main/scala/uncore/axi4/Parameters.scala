@@ -18,15 +18,16 @@ case class AXI4SlaveParameters(
   interleavedId: Option[Int]   = None) // The device will not interleave read responses
 {
   address.foreach { a => require (a.finite) }
-  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
+  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap") }
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = max(supportsWrite.max, supportsRead.max)
   val maxAddress = address.map(_.max).max
   val minAlignment = address.map(_.alignment).min
 
-  // The device had better not support a transfer larger than it's alignment
-  require (minAlignment >= maxTransfer)
+  // The device had better not support a transfer larger than its alignment
+  require (minAlignment >= maxTransfer,
+    s"minAlignment ($minAlignment) must be >= maxTransfer ($maxTransfer)")
 }
 
 case class AXI4SlavePortParameters(
@@ -41,9 +42,12 @@ case class AXI4SlavePortParameters(
   val maxAddress = slaves.map(_.maxAddress).max
 
   // Check the link is not pointlessly wide
-  require (maxTransfer >= beatBytes)
+  require (maxTransfer >= beatBytes,
+    s"maxTransfer ($maxTransfer) should not be smaller than bus width ($beatBytes)")
   // Check that the link can be implemented in AXI4
-  require (maxTransfer <= beatBytes * (1 << AXI4Parameters.lenBits))
+  val limit = beatBytes * (1 << AXI4Parameters.lenBits)
+  require (maxTransfer <= limit,
+    s"maxTransfer ($maxTransfer) cannot be larger than $limit on a $beatBytes*8 width bus")
 
   lazy val routingMask = AddressDecoder(slaves.map(_.address))
   def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
@@ -52,7 +56,7 @@ case class AXI4SlavePortParameters(
   // Require disjoint ranges for addresses
   slaves.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
-      require (!a.overlaps(b))
+      require (!a.overlaps(b), s"$a and $b overlap")
     } }
   }
 }
@@ -71,7 +75,7 @@ case class AXI4MasterPortParameters(
   val endId = masters.map(_.id.end).max
 
   // Require disjoint ranges for ids
-  masters.combinations(2).foreach { case Seq(x,y) => require (!x.id.overlaps(y.id)) }
+  masters.combinations(2).foreach { case Seq(x,y) => require (!x.id.overlaps(y.id), s"$x and $y overlap") }
 }
 
 case class AXI4BundleParameters(
@@ -79,10 +83,10 @@ case class AXI4BundleParameters(
   dataBits: Int,
   idBits:   Int)
 {
-  require (dataBits >= 8)
-  require (addrBits >= 1)
-  require (idBits >= 1)
-  require (isPow2(dataBits))
+  require (dataBits >= 8, s"AXI4 data bits must be >= 8 (got $dataBits)")
+  require (addrBits >= 1, s"AXI4 addr bits must be >= 1 (got $addrBits)")
+  require (idBits >= 1, s"AXI4 id bits must be >= 1 (got $idBits)")
+  require (isPow2(dataBits), s"AXI4 data bits must be pow2 (got $dataBits)")
 
   // Bring the globals into scope
   val lenBits   = AXI4Parameters.lenBits
