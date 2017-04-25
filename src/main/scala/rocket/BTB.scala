@@ -86,6 +86,15 @@ class BHT(nbht: Int)(implicit val p: Parameters) extends HasCoreParameters {
   val history = Reg(UInt(width = nbhtbits))
 }
 
+object CFIType {
+  def SZ = 2
+  def apply() = UInt(width = SZ)
+  def branch = 0.U
+  def jump = 1.U
+  def call = 2.U
+  def ret = 3.U
+}
+
 // BTB update occurs during branch resolution (and only on a mispredict).
 //  - "pc" is what future fetch PCs will tag match against.
 //  - "br_pc" is the PC of the branch instruction.
@@ -95,9 +104,8 @@ class BTBUpdate(implicit p: Parameters) extends BtbBundle()(p) {
   val target = UInt(width = vaddrBits)
   val taken = Bool()
   val isValid = Bool()
-  val isJump = Bool()
-  val isReturn = Bool()
   val br_pc = UInt(width = vaddrBits)
+  val cfiType = CFIType()
 }
 
 // BHT update occurs during branch resolution on all conditional branches.
@@ -110,8 +118,7 @@ class BHTUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 }
 
 class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
-  val isCall = Bool()
-  val isReturn = Bool()
+  val cfiType = CFIType()
   val returnAddr = UInt(width = vaddrBits)
   val prediction = Valid(new BTBResp)
 }
@@ -121,6 +128,7 @@ class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 //  - "mask" provides a mask of valid instructions (instructions are
 //     masked off by the predicted taken branch from the BTB).
 class BTBResp(implicit p: Parameters) extends BtbBundle()(p) {
+  val cfiType = CFIType()
   val taken = Bool()
   val mask = Bits(width = fetchWidth)
   val bridx = Bits(width = log2Up(fetchWidth))
@@ -154,8 +162,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val pageValid = Reg(init = UInt(0, nPages))
 
   val isValid = Reg(init = UInt(0, entries))
-  val isReturn = Reg(UInt(width = entries))
-  val isJump = Reg(UInt(width = entries))
+  val cfiType = Reg(Vec(entries, CFIType()))
   val brIdx = Reg(Vec(entries, UInt(width=log2Up(fetchWidth))))
 
   private def page(addr: UInt) = addr >> matchBits
@@ -210,9 +217,8 @@ class BTB(implicit p: Parameters) extends BtbModule {
     tgts(waddr) := update_target(matchBits-1, log2Up(coreInstBytes))
     idxPages(waddr) := idxPageUpdate +& 1 // the +1 corresponds to the <<1 on io.resp.valid
     tgtPages(waddr) := tgtPageUpdate
+    cfiType(waddr) := r_btb_update.bits.cfiType
     isValid := Mux(r_btb_update.bits.isValid, isValid | mask, isValid & ~mask)
-    isReturn := Mux(r_btb_update.bits.isReturn, isReturn | mask, isReturn & ~mask)
-    isJump := Mux(r_btb_update.bits.isJump, isJump | mask, isJump & ~mask)
     if (fetchWidth > 1)
       brIdx(waddr) := r_btb_update.bits.br_pc >> log2Up(coreInstBytes)
 
@@ -236,6 +242,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   io.resp.bits.entry := OHToUInt(idxHit)
   io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(idxHit, brIdx) else UInt(0))
   io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
+  io.resp.bits.cfiType := Mux1H(idxHit, cfiType)
 
   // if multiple entries for same PC land in BTB, zap them
   when (PopCountAtLeast(idxHit, 2)) {
@@ -244,7 +251,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
   if (nBHT > 0) {
     val bht = new BHT(nBHT)
-    val isBranch = !(idxHit & isJump).orR
+    val isBranch = (idxHit & cfiType.map(_ === CFIType.branch).asUInt).orR
     val res = bht.get(io.req.bits.addr, io.req.valid && io.resp.valid && isBranch)
     val update_btb_hit = io.bht_update.bits.prediction.valid
     when (io.bht_update.valid && update_btb_hit) {
@@ -256,17 +263,14 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
   if (nRAS > 0) {
     val ras = new RAS(nRAS)
-    val doPeek = (idxHit & isReturn).orR
+    val doPeek = (idxHit & cfiType.map(_ === CFIType.ret).asUInt).orR
     when (!ras.isEmpty && doPeek) {
       io.resp.bits.target := ras.peek
     }
     when (io.ras_update.valid) {
-      when (io.ras_update.bits.isCall) {
+      when (io.ras_update.bits.cfiType === CFIType.call) {
         ras.push(io.ras_update.bits.returnAddr)
-        when (doPeek) {
-          io.resp.bits.target := io.ras_update.bits.returnAddr
-        }
-      }.elsewhen (io.ras_update.bits.isReturn && io.ras_update.bits.prediction.valid) {
+      }.elsewhen (io.ras_update.bits.cfiType === CFIType.ret && io.ras_update.bits.prediction.valid) {
         ras.pop()
       }
     }
