@@ -41,8 +41,8 @@ case class TLManagerParameters(
   require ((regionType == RegionType.CACHED || regionType == RegionType.TRACKED) != supportsAcquireB.none)
   require (regionType != RegionType.UNCACHED || supportsGet)
 
-  // Largest support transfer of all types
-  val maxTransfer = List(
+  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val maxTransfer = List( // Largest supported transfer of all types
     supportsAcquireT.max,
     supportsAcquireB.max,
     supportsArithmetic.max,
@@ -51,12 +51,10 @@ case class TLManagerParameters(
     supportsPutFull.max,
     supportsPutPartial.max).max
   val maxAddress = address.map(_.max).max
-
-  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
-
-  // The device had better not support a transfer larger than it's alignment
   val minAlignment = address.map(_.alignment).min
-  require (minAlignment >= maxTransfer, "minAlignment (" + minAlignment + ") must be >= maxTransfer (" + maxTransfer + ")")
+
+  // The device had better not support a transfer larger than its alignment
+  require (minAlignment >= maxTransfer, s"minAlignment ($minAlignment) must be >= maxTransfer ($maxTransfer)")
 
   def toResource: ResourceAddress = {
     ResourceAddress(address,
