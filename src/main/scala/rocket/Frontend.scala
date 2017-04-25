@@ -91,9 +91,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val predicted_taken = Wire(init = Bool(false))
 
   val s2_replay = Wire(Bool())
-  s2_replay :=
-    (s2_valid && (!icache.io.resp.valid || (fq.io.enq.valid && !fq.io.enq.ready))) ||
-    RegNext(s2_replay && !s0_valid)
+  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid)
   val npc = Mux(s2_replay, s2_pc, predicted_npc)
 
   s1_pc_ := io.cpu.npc
@@ -154,11 +152,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
-  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || s2_replay || s1_speculative && !tlb.io.resp.cacheable || tlb.io.resp.pf.inst || tlb.io.resp.ae.inst
-  icache.io.s2_kill := false
+  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || s2_replay
+  icache.io.s2_kill := s2_speculative && !s2_cacheable || s2_xcpt
 
-  val s2_kill = s2_speculative && !s2_cacheable || s2_xcpt
-  fq.io.enq.valid := s2_valid && (icache.io.resp.valid || s2_kill)
+  fq.io.enq.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
 
@@ -166,7 +163,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
   fq.io.enq.bits.pf := s2_pf
   fq.io.enq.bits.ae := s2_ae
-  fq.io.enq.bits.replay := s2_kill && !icache.io.resp.valid && !s2_xcpt
+  fq.io.enq.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
   fq.io.enq.bits.btb.valid := s2_btb_resp_valid
   fq.io.enq.bits.btb.bits := s2_btb_resp_bits
 
