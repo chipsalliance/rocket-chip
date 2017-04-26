@@ -134,12 +134,16 @@ trait PeripheryMasterAXI4Mem {
       beatBytes = config.beatBytes)
   })
 
-  private val converter = LazyModule(new TLToAXI4(config.idBits))
+  private val converter = LazyModule(new TLToAXI4(config.beatBytes))
+  private val trim = LazyModule(new AXI4IdIndexer(config.idBits))
+  private val yank = LazyModule(new AXI4UserYanker)
   private val buffer = LazyModule(new AXI4Buffer)
 
   mem foreach { case xbar =>
     converter.node := xbar.node
-    buffer.node := converter.node
+    trim.node := converter.node
+    yank.node := trim.node
+    buffer.node := yank.node
     mem_axi4 := buffer.node
   }
 }
@@ -207,10 +211,12 @@ trait PeripheryMasterAXI4MMIO {
 
   mmio_axi4 :=
     AXI4Buffer()(
+    AXI4UserYanker()(
     AXI4Deinterleaver(cacheBlockBytes)(
-    TLToAXI4(idBits = config.idBits)(      // use idBits = 0 for AXI4-Lite
+    AXI4IdIndexer(config.idBits)(
+    TLToAXI4(config.beatBytes)(
     TLWidthWidget(socBusConfig.beatBytes)( // convert width before attaching to socBus
-    socBus.node))))
+    socBus.node))))))
 }
 
 trait PeripheryMasterAXI4MMIOBundle {
@@ -241,7 +247,7 @@ trait PeripherySlaveAXI4 extends HasTopLevelNetworks {
   fsb.node :=
     TLWidthWidget(config.beatBytes)(
     AXI4ToTL()(
-    AXI4UserYanker(1 << (config.sourceBits - fifoBits - 1))(
+    AXI4UserYanker(Some(1 << (config.sourceBits - fifoBits - 1)))(
     AXI4Fragmenter()(
     AXI4IdIndexer(fifoBits)(
     l2FrontendAXI4Node)))))

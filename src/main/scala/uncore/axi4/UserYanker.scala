@@ -8,8 +8,10 @@ import config._
 import diplomacy._
 import uncore.tilelink2.UIntToOH1
 
-class AXI4UserYanker(maxFlightPerId: Int)(implicit p: Parameters) extends LazyModule
+class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {
+  // !!! make maxFlightPerId a cap and maxFlight a per AXI4 Master parameter
+  val maxFlightPerId = capMaxFlight.getOrElse(8)
   require (maxFlightPerId >= 1)
 
   val node = AXI4AdapterNode(
@@ -80,8 +82,8 @@ class AXI4UserYanker(maxFlightPerId: Int)(implicit p: Parameters) extends LazyMo
 object AXI4UserYanker
 {
   // applied to the AXI4 source node; y.node := AXI4UserYanker(idBits, maxFlight)(x.node)
-  def apply(maxFlight: Int)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val yanker = LazyModule(new AXI4UserYanker(maxFlight))
+  def apply(capMaxFlight: Option[Int] = None)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
+    val yanker = LazyModule(new AXI4UserYanker(capMaxFlight))
     yanker.node := x
     yanker.node
   }

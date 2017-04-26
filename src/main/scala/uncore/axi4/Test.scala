@@ -26,8 +26,8 @@ class AXI4LiteFuzzRAM()(implicit p: Parameters) extends LazyModule
 
   model.node := fuzz.node
   xbar.node  := TLDelayer(0.1)(TLBuffer(BufferParams.flow)(TLDelayer(0.2)(model.node)))
-  ram.node   := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(0, true )(xbar.node)))
-  gpio.node  := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(0, false)(xbar.node)))
+  ram.node   := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(4, true )(xbar.node)))
+  gpio.node  := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(4, false)(xbar.node)))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
@@ -104,7 +104,7 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule
     TLBuffer(BufferParams.flow)(
     TLDelayer(0.1)(
     AXI4ToTL()(
-    AXI4UserYanker(4)(
+    AXI4UserYanker(Some(4))(
     AXI4Fragmenter()(
     AXI4IdIndexer(2)(
     node))))))))
