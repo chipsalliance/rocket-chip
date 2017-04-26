@@ -11,7 +11,9 @@ package object util {
 
   implicit class SeqToAugmentedSeq[T <: Data](val x: Seq[T]) extends AnyVal {
     def apply(idx: UInt): T = {
-      if (!isPow2(x.size)) {
+      if (x.size == 1) {
+        x.head
+      } else if (!isPow2(x.size)) {
         // For non-power-of-2 seqs, reflect elements to simplify decoder
         (x ++ x.takeRight(x.size & -x.size)).toSeq(idx)
       } else {
