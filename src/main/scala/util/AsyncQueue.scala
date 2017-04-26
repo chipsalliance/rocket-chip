@@ -35,7 +35,7 @@ class AsyncValidSync(sync: Int, desc: String) extends Module {
   io.out := UIntSyncChain(io.in.asUInt, sync, desc)(0)
 }
 
-class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true) extends Module {
+class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true, narrowData: Boolean = false) extends Module {
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the source domain
@@ -43,7 +43,8 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
     // These cross to the sink clock domain
     val ridx = UInt(INPUT,  width = bits+1)
     val widx = UInt(OUTPUT, width = bits+1)
-    val mem  = Vec(depth, gen).asOutput
+    val mem  = Vec(if(narrowData) 1 else depth, gen).asOutput
+    val index = narrowData.option(UInt(INPUT, width = bits))
     // Signals used to self-stabilize a safe AsyncQueue
     val sink_reset_n = Bool(INPUT)
     val ridx_valid = Bool(INPUT)
@@ -65,7 +66,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
   val widx_reg = AsyncResetReg(widx, "widx_gray")
   io.widx := widx_reg
 
-  io.mem := mem
+  if(narrowData) io.mem(0) := mem(io.index.get) else io.mem := mem
 
   io.widx_valid := Bool(true)
   if (safe) {
@@ -92,7 +93,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
   }
 }
 
-class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true) extends Module {
+class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true, narrowData: Boolean = false) extends Module {
   val bits = log2Ceil(depth)
   val io = new Bundle {
     // These come from the sink domain
@@ -100,7 +101,8 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
     // These cross to the source clock domain
     val ridx = UInt(OUTPUT, width = bits+1)
     val widx = UInt(INPUT,  width = bits+1)
-    val mem  = Vec(depth, gen).asInput
+    val mem  = Vec(if(narrowData) 1 else depth, gen).asInput
+    val index = narrowData.option(UInt(OUTPUT, width = bits))
     // Signals used to self-stabilize a safe AsyncQueue
     val source_reset_n = Bool(INPUT)
     val ridx_valid = Bool(OUTPUT)
@@ -117,11 +119,12 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
   // On an FPGA, only one input changes at a time => mem updates don't cause glitches
   // The register only latches when the selected valued is not being written
   val index = if (depth == 1) UInt(0) else ridx(bits-1, 0) ^ (ridx(bits, bits) << (bits-1))
+  if(narrowData) io.index.get := index
   // This register does not NEED to be reset, as its contents will not
   // be considered unless the asynchronously reset deq valid register is set.
   // It is possible that bits latches when the source domain is reset / has power cut
   // This is safe, because isolation gates brought mem low before the zeroed widx reached us
-  io.deq.bits  := RegEnable(io.mem(index), valid)
+  io.deq.bits  := RegEnable(io.mem(if(narrowData) UInt(0) else index), valid)
 
   val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
   io.deq.valid := valid_reg && source_ready
@@ -154,13 +157,16 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
   }
 }
 
-class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3, safe: Boolean = true) extends Crossing[T] {
+// If narrowData is true then the read mux is moved to the source side of the crossing.
+// This reduces the number of level shifters in the case where the clock crossing is also a voltage crossing,
+// at the expense of a combinational path from the sink to the source and back to the sink.
+class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3, safe: Boolean = true, narrowData: Boolean = false) extends Crossing[T] {
   require (sync >= 2)
   require (depth > 0 && isPow2(depth))
 
   val io = new CrossingIO(gen)
-  val source = Module(new AsyncQueueSource(gen, depth, sync, safe))
-  val sink   = Module(new AsyncQueueSink  (gen, depth, sync, safe))
+  val source = Module(new AsyncQueueSource(gen, depth, sync, safe, narrowData))
+  val sink   = Module(new AsyncQueueSink  (gen, depth, sync, safe, narrowData))
 
   source.clock := io.enq_clock
   source.reset := io.enq_reset
@@ -174,6 +180,7 @@ class AsyncQueue[T <: Data](gen: T, depth: Int = 8, sync: Int = 3, safe: Boolean
   io.deq <> sink.io.deq
 
   sink.io.mem := source.io.mem
+  if(narrowData) source.io.index.get <> sink.io.index.get
   sink.io.widx := source.io.widx
   source.io.ridx := sink.io.ridx
   sink.io.widx_valid := source.io.widx_valid
