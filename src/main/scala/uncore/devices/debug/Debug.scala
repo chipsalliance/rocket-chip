@@ -494,10 +494,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val hartExceptionId      = Wire(UInt(sbIdWidth.W))
 
     val dmiProgramBufferRdEn = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
-    val dmiProgramBufferWrEn = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
+    val dmiProgramBufferAccessLegal = Wire(init = false.B)
+    val dmiProgramBufferWrEnMaybe = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
 
     val dmiAbstractDataRdEn = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
-    val dmiAbstractDataWrEn = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
+    val dmiAbstractDataAccessLegal = Wire (init = false.B)
+    val dmiAbstractDataWrEnMaybe = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
 
     //--------------------------------------------------------------
     // Registers coming from 'CONTROL' in Outer
@@ -628,11 +630,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       ABSTRACTAUTOReg.autoexecprogbuf := ABSTRACTAUTOWrData.autoexecprogbuf & ( (1 << cfg.nProgramBufferWords) - 1).U
       ABSTRACTAUTOReg.autoexecdata := ABSTRACTAUTOWrData.autoexecdata & ( (1 << cfg.nAbstractDataWords) - 1).U
     }
+
     val dmiAbstractDataAccessVec  = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
-    dmiAbstractDataAccessVec := (dmiAbstractDataWrEn zip dmiAbstractDataRdEn).map{ case (r,w) => r | w}
+    dmiAbstractDataAccessVec := (dmiAbstractDataWrEnMaybe zip dmiAbstractDataRdEn).map{ case (r,w) => r | w}
 
     val dmiProgramBufferAccessVec  = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
-    dmiProgramBufferAccessVec := (dmiProgramBufferWrEn zip dmiProgramBufferRdEn).map{ case (r,w) => r | w}
+    dmiProgramBufferAccessVec := (dmiProgramBufferWrEnMaybe zip dmiProgramBufferRdEn).map{ case (r,w) => r | w}
 
     val dmiAbstractDataAccess  = dmiAbstractDataAccessVec.reduce(_ || _ )
     val dmiProgramBufferAccess = dmiProgramBufferAccessVec.reduce(_ || _)
@@ -672,14 +675,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // These are byte addressible, s.t. the Processor can use
     // byte-addressible instructions to store to them.
     val abstractDataMem       = Reg(Vec(cfg.nAbstractDataWords*4, UInt(8.W)))
-    val abstractDataWords     = List.tabulate(cfg.nAbstractDataWords) { ii =>
-      val slice = abstractDataMem.slice(ii * 4, (ii+1)*4)
-      slice.reduce[UInt]{ case (x: UInt, y: UInt) => Cat(y, x)
-      }
-    }
+    val abstractDataNxt       = Wire(init = abstractDataMem)
 
     // --- Program Buffer
     val programBufferMem    = Reg(Vec(cfg.nProgramBufferWords*4, UInt(8.W)))
+    val programBufferNxt    = Wire(init = programBufferMem)
 
     //--------------------------------------------------------------
     // These bits are implementation-specific bits set
@@ -728,14 +728,26 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       (DMI_ABSTRACTCS  << 2) -> Seq(RWNotify(32, ABSTRACTCSRdData.asUInt(), ABSTRACTCSWrDataVal, ABSTRACTCSRdEn, ABSTRACTCSWrEnMaybe)),
       (DMI_ABSTRACTAUTO<< 2) -> Seq(RWNotify(32, ABSTRACTAUTORdData.asUInt(), ABSTRACTAUTOWrDataVal, ABSTRACTAUTORdEn, ABSTRACTAUTOWrEnMaybe)),
       (DMI_COMMAND     << 2) -> Seq(RWNotify(32, COMMANDRdData.asUInt(), COMMANDWrDataVal, COMMANDRdEn, COMMANDWrEnMaybe)),
-      (DMI_DATA0       << 2) -> abstractDataMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, x,
+      (DMI_DATA0       << 2) -> abstractDataMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, abstractDataNxt(i),
         dmiAbstractDataRdEn(i),
-        dmiAbstractDataWrEn(i))},
-      (DMI_PROGBUF0    << 2) -> programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, x,
+        dmiAbstractDataWrEnMaybe(i))},
+      (DMI_PROGBUF0    << 2) -> programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, programBufferNxt(i),
         dmiProgramBufferRdEn(i),
-        dmiProgramBufferWrEn(i))},
+        dmiProgramBufferWrEnMaybe(i))},
       (DMIConsts.dmi_haltStatusAddr << 2) -> haltedStatus.map(x => RegField.r(32, x))
     )
+
+    abstractDataMem.zipWithIndex.foreach { case (x, i) =>
+      when (dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
+        x := abstractDataNxt(i)
+      }
+    }
+
+    programBufferMem.zipWithIndex.foreach { case (x, i) =>
+      when (dmiProgramBufferWrEnMaybe(i) && dmiProgramBufferAccessLegal) {
+        x := programBufferNxt(i)
+      }
+    }
 
     //--------------------------------------------------------------
     // "Variable" ROM Generation
@@ -912,12 +924,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     ABSTRACTCSWrEnLegal   := (ctrlStateReg === CtrlState(Waiting))
     COMMANDWrEnLegal      := (ctrlStateReg === CtrlState(Waiting))
     ABSTRACTAUTOWrEnLegal := (ctrlStateReg === CtrlState(Waiting))
+    dmiAbstractDataAccessLegal  := (ctrlStateReg === CtrlState(Waiting))
+    dmiProgramBufferAccessLegal := (ctrlStateReg === CtrlState(Waiting))
 
-    errorBusy := (ABSTRACTCSWrEnMaybe    && ~ABSTRACTCSWrEnLegal)   ||
-                 (ABSTRACTAUTOWrEnMaybe  && ~ABSTRACTAUTOWrEnLegal) ||
-                 (COMMANDWrEnMaybe       && ~COMMANDWrEnLegal)      ||
-                 (dmiAbstractDataAccess  && abstractCommandBusy)    ||
-                 (dmiProgramBufferAccess && abstractCommandBusy)
+    errorBusy := (ABSTRACTCSWrEnMaybe    && ~ABSTRACTCSWrEnLegal)        ||
+                 (ABSTRACTAUTOWrEnMaybe  && ~ABSTRACTAUTOWrEnLegal)      ||
+                 (COMMANDWrEnMaybe       && ~COMMANDWrEnLegal)           ||
+                 (dmiAbstractDataAccess  && ~dmiAbstractDataAccessLegal) ||
+                 (dmiProgramBufferAccess && ~dmiProgramBufferAccessLegal)
 
     // TODO: Maybe Quick Access
     val commandWrIsAccessRegister = (COMMANDWrData.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
