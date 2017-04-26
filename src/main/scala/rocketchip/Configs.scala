@@ -39,7 +39,7 @@ class BasePlatformConfig extends Config((site, here, up) => {
   case IncludeJtagDTM => false
   case JtagDTMKey => new JtagDTMKeyDefault()
   case ZeroConfig => ZeroConfig(base=0xa000000L, size=0x2000000L, beatBytes=8)
-  case ErrorConfig => ErrorConfig(Seq(AddressSet(0x1000, 0xfff)))
+  case ErrorConfig => ErrorConfig(Seq(AddressSet(0x3000, 0xfff)))
   case ExtMem => MasterConfig(base=0x80000000L, size=0x10000000L, beatBytes=8, idBits=4)
   case ExtBus => MasterConfig(base=0x60000000L, size=0x20000000L, beatBytes=8, idBits=4)
   case ExtIn  => SlaveConfig(beatBytes=8, idBits=8, sourceBits=4)
