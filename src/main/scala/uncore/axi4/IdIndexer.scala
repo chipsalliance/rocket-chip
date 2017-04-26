@@ -13,11 +13,26 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
   require (idBits >= 0)
 
   val node = AXI4AdapterNode(
-    masterFn = { mp => mp.copy(
-      userBits = mp.userBits + max(0, log2Ceil(mp.endId) - idBits),
-      masters  = Seq(AXI4MasterParameters(
-        id      = IdRange(0, min(mp.endId, 1 << idBits)),
-        aligned = mp.masters.map(_.aligned).reduce(_ && _))))
+    masterFn = { mp =>
+      // Create one new "master" per ID
+      val masters = Array.tabulate(1 << idBits) { i => AXI4MasterParameters(
+         id        = IdRange(i, i+1),
+         aligned   = true,
+         maxFlight = Some(0))
+      }
+      // Squash the information from original masters into new ID masters
+      mp.masters.foreach { m =>
+        for (i <- m.id.start until m.id.end) {
+          val j = i % (1 << idBits)
+          val old = masters(j)
+          masters(j) = old.copy(
+            aligned   = old.aligned && m.aligned,
+            maxFlight = old.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
+        }
+      }
+      mp.copy(
+        userBits = mp.userBits + max(0, log2Ceil(mp.endId) - idBits),
+        masters  = masters)
     },
     slaveFn = { sp => sp.copy(
       slaves = sp.slaves.map(s => s.copy(

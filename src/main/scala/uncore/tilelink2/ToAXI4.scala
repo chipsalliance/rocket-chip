@@ -16,9 +16,10 @@ case class TLToAXI4Node(beatBytes: Int) extends MixedAdapterNode(TLImp, AXI4Imp)
     val idStart = idSize.scanLeft(0)(_+_).init
     val masters = ((idStart zip idSize) zip p.clients) map { case ((start, size), c) =>
       AXI4MasterParameters(
-        id       = IdRange(start, start+size),
-        aligned  = true,
-        nodePath = c.nodePath)
+        id        = IdRange(start, start+size),
+        aligned   = true,
+        maxFlight = Some(if (c.requestFifo) c.sourceId.size else 1),
+        nodePath  = c.nodePath)
     }
     AXI4MasterPortParameters(
       masters  = masters,

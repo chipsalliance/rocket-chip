@@ -10,12 +10,15 @@ import uncore.tilelink2.UIntToOH1
 
 class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {
-  // !!! make maxFlightPerId a cap and maxFlight a per AXI4 Master parameter
-  val maxFlightPerId = capMaxFlight.getOrElse(8)
-  require (maxFlightPerId >= 1)
-
   val node = AXI4AdapterNode(
-    masterFn = { mp => mp.copy(maxFlight = maxFlightPerId, userBits = 0) },
+    masterFn = { mp => mp.copy(
+      userBits = 0,
+      masters = mp.masters.map { m => m.copy(
+        maxFlight = (m.maxFlight, capMaxFlight) match {
+          case (Some(x), Some(y)) => Some(x min y)
+          case (Some(x), None)    => Some(x)
+          case (None,    Some(y)) => Some(y)
+          case (None,    None)    => None })})},
     slaveFn = { sp => sp })
 
   lazy val module = new LazyModuleImp(this) {
@@ -29,18 +32,31 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val need_bypass = edgeOut.slave.minLatency < 1
       require (bits > 0) // useless UserYanker!
 
-      val rqueues = Seq.fill(edgeIn.master.endId) { Module(new Queue(UInt(width = bits), maxFlightPerId, flow=need_bypass)) }
-      val wqueues = Seq.fill(edgeIn.master.endId) { Module(new Queue(UInt(width = bits), maxFlightPerId, flow=need_bypass)) }
+      edgeOut.master.masters.foreach { m =>
+        require (m.maxFlight.isDefined, "UserYanker needs a flight cap on each ID")
+      }
+
+      def queue(id: Int) = {
+        val depth = edgeOut.master.masters.find(_.id.contains(id)).flatMap(_.maxFlight).getOrElse(0)
+        if (depth == 0) {
+          Wire(new QueueIO(UInt(width = bits), 1)) // unused ID => undefined value
+        } else {
+          Module(new Queue(UInt(width = bits), depth, flow=need_bypass)).io
+        }
+      }
+
+      val rqueues = Seq.tabulate(edgeIn.master.endId) { i => queue(i) }
+      val wqueues = Seq.tabulate(edgeIn.master.endId) { i => queue(i) }
 
       val arid = in.ar.bits.id
-      val ar_ready = Vec(rqueues.map(_.io.enq.ready))(arid)
+      val ar_ready = Vec(rqueues.map(_.enq.ready))(arid)
       in .ar.ready := out.ar.ready && ar_ready
       out.ar.valid := in .ar.valid && ar_ready
       out.ar.bits  := in .ar.bits
 
       val rid = out.r.bits.id
-      val r_valid = Vec(rqueues.map(_.io.deq.valid))(rid)
-      val r_bits = Vec(rqueues.map(_.io.deq.bits))(rid)
+      val r_valid = Vec(rqueues.map(_.deq.valid))(rid)
+      val r_bits = Vec(rqueues.map(_.deq.bits))(rid)
       assert (!out.r.valid || r_valid) // Q must be ready faster than the response
       in.r <> out.r
       in.r.bits.user.get := r_bits
@@ -48,20 +64,20 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val arsel = UIntToOH(arid, edgeIn.master.endId).toBools
       val rsel  = UIntToOH(rid,  edgeIn.master.endId).toBools
       (rqueues zip (arsel zip rsel)) foreach { case (q, (ar, r)) =>
-        q.io.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
-        q.io.enq.valid := in .ar.valid && out.ar.ready && ar
-        q.io.enq.bits  := in.ar.bits.user.get
+        q.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
+        q.enq.valid := in .ar.valid && out.ar.ready && ar
+        q.enq.bits  := in.ar.bits.user.get
       }
 
       val awid = in.aw.bits.id
-      val aw_ready = Vec(wqueues.map(_.io.enq.ready))(awid)
+      val aw_ready = Vec(wqueues.map(_.enq.ready))(awid)
       in .aw.ready := out.aw.ready && aw_ready
       out.aw.valid := in .aw.valid && aw_ready
       out.aw.bits  := in .aw.bits
 
       val bid = out.b.bits.id
-      val b_valid = Vec(wqueues.map(_.io.deq.valid))(bid)
-      val b_bits = Vec(wqueues.map(_.io.deq.bits))(bid)
+      val b_valid = Vec(wqueues.map(_.deq.valid))(bid)
+      val b_bits = Vec(wqueues.map(_.deq.bits))(bid)
       assert (!out.b.valid || b_valid) // Q must be ready faster than the response
       in.b <> out.b
       in.b.bits.user.get := b_bits
@@ -69,9 +85,9 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val awsel = UIntToOH(awid, edgeIn.master.endId).toBools
       val bsel  = UIntToOH(bid,  edgeIn.master.endId).toBools
       (wqueues zip (awsel zip bsel)) foreach { case (q, (aw, b)) =>
-        q.io.deq.ready := out.b .valid && in .b .ready && b
-        q.io.enq.valid := in .aw.valid && out.aw.ready && aw
-        q.io.enq.bits  := in.aw.bits.user.get
+        q.deq.ready := out.b .valid && in .b .ready && b
+        q.enq.valid := in .aw.valid && out.aw.ready && aw
+        q.enq.bits  := in.aw.bits.user.get
       }
 
       out.w <> in.w

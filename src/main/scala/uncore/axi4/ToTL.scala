@@ -9,8 +9,9 @@ import diplomacy._
 import uncore.tilelink2._
 
 case class AXI4ToTLNode() extends MixedAdapterNode(AXI4Imp, TLImp)(
-  dFn = { case AXI4MasterPortParameters(masters, userBits, maxFlight) =>
-    require (maxFlight > 0, "AXI4 must include a maximum transactions per ID to convert to TL")
+  dFn = { case AXI4MasterPortParameters(masters, userBits) =>
+    masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
+    val maxFlight = masters.map(_.maxFlight.get).max
     TLClientPortParameters(
       clients = masters.flatMap { m =>
         for (id <- m.id.start until m.id.end)
@@ -50,7 +51,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       val numIds = edgeIn.master.endId
       val beatBytes = edgeOut.manager.beatBytes
       val countBits = AXI4Parameters.lenBits + (1 << AXI4Parameters.sizeBits) - 1
-      val maxFlight = edgeIn.master.maxFlight
+      val maxFlight = edgeIn.master.masters.map(_.maxFlight.get).max
       val addedBits = log2Ceil(maxFlight) + 1
 
       require (edgeIn.master.userBits == 0, "AXI4 user bits cannot be transported by TL")

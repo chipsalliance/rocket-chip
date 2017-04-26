@@ -62,21 +62,21 @@ case class AXI4SlavePortParameters(
 }
 
 case class AXI4MasterParameters(
-  id:       IdRange       = IdRange(0, 1),
-  aligned:  Boolean       = false,
-  nodePath: Seq[BaseNode] = Seq())
+  id:        IdRange       = IdRange(0, 1),
+  aligned:   Boolean       = false,
+  maxFlight: Option[Int]   = None, // None = infinite, else is a per-ID cap
+  nodePath:  Seq[BaseNode] = Seq())
 {
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  maxFlight.foreach { m => require (m >= 0) }
 }
 
 case class AXI4MasterPortParameters(
   masters:   Seq[AXI4MasterParameters],
-  userBits:  Int = 0,
-  maxFlight: Int = 0) // at most X transactions per ID (0 = unlimited)
+  userBits:  Int = 0)
 {
   val endId = masters.map(_.id.end).max
   require (userBits >= 0)
-  require (maxFlight >= 0)
 
   // Require disjoint ranges for ids
   masters.combinations(2).foreach { case Seq(x,y) => require (!x.id.overlaps(y.id), s"$x and $y overlap") }
