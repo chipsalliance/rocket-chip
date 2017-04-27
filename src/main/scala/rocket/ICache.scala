@@ -88,14 +88,14 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   require(!usingVM || pgIdxBits >= untagBits)
 
   val scratchpadOn = RegInit(false.B)
-  val scratchpadMax = Reg(UInt(width = log2Ceil(nSets * (nWays - 1))))
-  def lineInScratchpad(line: UInt) = scratchpadOn && line <= scratchpadMax
+  val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
+  def lineInScratchpad(line: UInt) = scratchpadMax.map(scratchpadOn && line <= _).getOrElse(false.B)
   def addrMaybeInScratchpad(addr: UInt) = if (outer.icacheParams.itimAddr.isEmpty) false.B else {
     val base = GetPropertyByHartId(p(coreplex.RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
     addr >= base && addr < base + outer.size
   }
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))
-  def scratchpadWay(addr: UInt) = addr(untagBits+log2Ceil(nWays)-1, untagBits)
+  def scratchpadWay(addr: UInt) = addr.extract(untagBits+log2Ceil(nWays)-1, untagBits)
   def scratchpadWayValid(way: UInt) = way < nWays - 1
   def scratchpadLine(addr: UInt) = addr(untagBits+log2Ceil(nWays)-1, blockOffBits)
   val s0_slaveValid = tl_in.map(_.a.fire()).getOrElse(false.B)
@@ -170,7 +170,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   for (i <- 0 until nWays) {
     val s1_idx = io.s1_paddr(untagBits-1,blockOffBits)
     val s1_tag = io.s1_paddr(tagBits+untagBits-1,untagBits)
-    val scratchpadHit = Bool(i < nWays-1) &&
+    val scratchpadHit = scratchpadWayValid(i) &&
       Mux(s1_slaveValid,
         lineInScratchpad(scratchpadLine(s1s3_slaveAddr)) && scratchpadWay(s1s3_slaveAddr) === i,
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i)
@@ -235,7 +235,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           when (edge_in.get.hasData(a)) {
             val enable = scratchpadWayValid(scratchpadWay(a.address))
             when (!lineInScratchpad(scratchpadLine(a.address))) {
-              scratchpadMax := scratchpadLine(a.address)
+              scratchpadMax.get := scratchpadLine(a.address)
               when (enable) { invalidate := true }
             }
             scratchpadOn := enable
