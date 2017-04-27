@@ -3,17 +3,13 @@
 package rocketchip
 
 import Chisel._
-import config._
-import diplomacy._
-import uncore.tilelink2._
-import uncore.devices._
-import util._
-import coreplex._
+import coreplex.RocketPlex
+import diplomacy.LazyModule
 
 trait RocketPlexMaster extends HasTopLevelNetworks {
   val module: RocketPlexMasterModule
 
-  val coreplex = LazyModule(new DefaultCoreplex)
+  val coreplex = LazyModule(new RocketPlex)
 
   coreplex.l2in :=* fsb.node
   bsb.node :*= coreplex.l2out
