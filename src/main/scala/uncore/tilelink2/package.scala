@@ -19,18 +19,18 @@ package object tilelink2
   def UIntToOH1(x: UInt, width: Int) = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
   def trailingZeros(x: Int) = if (x > 0) Some(log2Ceil(x & -x)) else None
   // Fill 1s from low bits to high bits
-  def leftOR(x: UInt) = {
-    val w = x.getWidth
+  def leftOR(x: UInt): UInt = leftOR(x, x.getWidth)
+  def leftOR(x: UInt, w: Integer): UInt = {
     def helper(s: Int, x: UInt): UInt =
       if (s >= w) x else helper(s+s, x | (x << s)(w-1,0))
-    helper(1, x)
+    helper(1, x)(w-1, 0)
   }
   // Fill 1s form high bits to low bits
-  def rightOR(x: UInt) = {
-    val w = x.getWidth
+  def rightOR(x: UInt): UInt = rightOR(x, x.getWidth)
+  def rightOR(x: UInt, w: Integer): UInt = {
     def helper(s: Int, x: UInt): UInt =
       if (s >= w) x else helper(s+s, x | (x >> s))
-    helper(1, x)
+    helper(1, x)(w-1, 0)
   }
   // This gets used everywhere, so make the smallest circuit possible ...
   // Given an address and size, create a mask of beatBytes size
