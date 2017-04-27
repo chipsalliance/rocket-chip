@@ -158,9 +158,8 @@ abstract class HellaCache(implicit p: Parameters) extends LazyModule {
   val module: HellaCacheModule
 }
 
-class HellaCacheBundle(outer: HellaCache) extends Bundle {
-  implicit val p = outer.p
-  val hartid = UInt(INPUT, p(XLen))
+class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
+  val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val mem = outer.node.bundleOut

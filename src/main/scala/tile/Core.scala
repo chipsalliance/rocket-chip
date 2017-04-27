@@ -75,11 +75,11 @@ abstract class CoreModule(implicit val p: Parameters) extends Module
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
-trait HasCoreIO {
+trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
   val io = new Bundle {
     val interrupts = new TileInterrupts().asInput
-    val hartid = UInt(INPUT, p(XLen))
+    val hartid = UInt(INPUT, hartIdLen)
     val imem  = new FrontendIO()(p)
     val dmem = new HellaCacheIO()(p)
     val ptw = new DatapathPTWIO().flip

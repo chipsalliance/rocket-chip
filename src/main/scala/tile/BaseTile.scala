@@ -31,6 +31,7 @@ trait HasTileParameters {
   val usingBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
   val usingPTW = usingVM
   val usingDataScratchpad = tileParams.dcache.flatMap(_.scratch).isDefined
+  val hartIdLen = log2Up(p(uncore.devices.NTiles))
 
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
 }
@@ -71,9 +72,10 @@ abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends 
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
+    with HasTileParameters
     with HasTileLinkMasterPortBundle
     with HasExternalInterruptsBundle {
-  val hartid = UInt(INPUT, p(XLen))
+  val hartid = UInt(INPUT, hartIdLen)
   val resetVector = UInt(INPUT, p(XLen))
 }
 

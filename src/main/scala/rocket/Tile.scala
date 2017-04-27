@@ -176,11 +176,11 @@ class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters)
   xing.intnode := intNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = new CoreBundle {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val interrupts = intNode.bundleIn
-      val hartid = UInt(INPUT, p(XLen))
+      val hartid = UInt(INPUT, hartIdLen)
       val resetVector = UInt(INPUT, p(XLen))
     }
     // signals that do not change:
@@ -208,11 +208,11 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
   xing.intnode := intNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = new CoreBundle {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val interrupts = intNode.bundleIn
-      val hartid = UInt(INPUT, p(XLen))
+      val hartid = UInt(INPUT, hartIdLen)
       val resetVector = UInt(INPUT, p(XLen))
     }
     // signals that do not change:
@@ -244,11 +244,11 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   xing.intnode := intNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = new CoreBundle {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val interrupts = intNode.bundleIn
-      val hartid = UInt(INPUT, p(XLen))
+      val hartid = UInt(INPUT, hartIdLen)
       val resetVector = UInt(INPUT, p(XLen))
     }
     // signals that do not change:

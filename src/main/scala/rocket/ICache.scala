@@ -55,7 +55,7 @@ class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends 
 }
 
 class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
-  val hartid = UInt(INPUT, p(XLen))
+  val hartid = UInt(INPUT, hartIdLen)
   val req = Decoupled(new ICacheReq).flip
   val s1_paddr = UInt(INPUT, paddrBits) // delayed one cycle w.r.t. req
   val s2_vaddr = UInt(INPUT, vaddrBits) // delayed two cycles w.r.t. req

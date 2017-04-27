@@ -61,7 +61,7 @@ class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
   val tl_out = outer.node.bundleOut
   val tl_in = outer.slaveNode.map(_.bundleIn)
   val resetVector = UInt(INPUT, vaddrBitsExtended)
-  val hartid = UInt(INPUT, p(XLen))
+  val hartid = UInt(INPUT, hartIdLen)
 }
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
