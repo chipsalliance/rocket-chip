@@ -38,9 +38,9 @@ class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends 
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
 
   val icacheParams = tileParams.icache.get
+  val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val slaveNode = icacheParams.itimAddr.map { itimAddr =>
     val wordBytes = coreInstBytes * fetchWidth
-    val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
     TLManagerNode(Seq(TLManagerPortParameters(
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
@@ -92,8 +92,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   def lineInScratchpad(line: UInt) = scratchpadOn && line <= scratchpadMax
   def addrMaybeInScratchpad(addr: UInt) = if (outer.icacheParams.itimAddr.isEmpty) false.B else {
     val base = GetPropertyByHartId(p(coreplex.RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
-    val size = nSets * nWays * cacheBlockBytes
-    addr >= base && addr < base + size
+    addr >= base && addr < base + outer.size
   }
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))
   def scratchpadWay(addr: UInt) = addr(untagBits+log2Ceil(nWays)-1, untagBits)
@@ -160,13 +159,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     invalidated := Bool(true)
   }
 
-  val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
-  val s1s3_slaveAddr = Reg(UInt())
-  val s1s3_slaveData = Reg(UInt())
-
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
   val wordBits = coreInstBits * fetchWidth
   val s1_dout = Wire(Vec(nWays, UInt(width = code.width(wordBits))))
+
+  val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
+  val s1s3_slaveAddr = Reg(UInt(width = log2Ceil(outer.size)))
+  val s1s3_slaveData = Reg(UInt(width = wordBits))
 
   for (i <- 0 until nWays) {
     val s1_idx = io.s1_paddr(untagBits-1,blockOffBits)
