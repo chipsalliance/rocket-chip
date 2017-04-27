@@ -71,7 +71,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       val r_size1 = in.ar.bits.bytes1()
       val r_size = OH1ToUInt(r_size1)
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)
-      val r_addr = Mux(r_ok, in.ar.bits.addr, UInt(error))
+      val r_addr = Mux(r_ok, in.ar.bits.addr, UInt(error) | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
       val r_count = RegInit(Vec.fill(numIds) { UInt(0, width = log2Ceil(maxFlight)) })
       val r_id = Cat(in.ar.bits.id, r_count(in.ar.bits.id), UInt(0, width=1))
 
@@ -89,7 +89,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       val w_size1 = in.aw.bits.bytes1()
       val w_size = OH1ToUInt(w_size1)
       val w_ok = edgeOut.manager.supportsPutPartialSafe(in.aw.bits.addr, w_size)
-      val w_addr = Mux(w_ok, in.aw.bits.addr, UInt(error))
+      val w_addr = Mux(w_ok, in.aw.bits.addr, UInt(error) | in.aw.bits.addr(log2Up(beatBytes)-1, 0))
       val w_count = RegInit(Vec.fill(numIds) { UInt(0, width = log2Ceil(maxFlight)) })
       val w_id = Cat(in.aw.bits.id, w_count(in.aw.bits.id), UInt(1, width=1))
 
