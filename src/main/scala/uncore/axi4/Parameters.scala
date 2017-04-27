@@ -79,7 +79,9 @@ case class AXI4MasterPortParameters(
   require (userBits >= 0)
 
   // Require disjoint ranges for ids
-  masters.combinations(2).foreach { case Seq(x,y) => require (!x.id.overlaps(y.id), s"$x and $y overlap") }
+  IdRange.overlaps(masters.map(_.id)).foreach { case (x, y) =>
+    require (!x.overlaps(y), s"AXI4MasterParameters.id $x and $y overlap")
+  }
 }
 
 case class AXI4BundleParameters(

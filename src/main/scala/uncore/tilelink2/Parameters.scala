@@ -199,9 +199,9 @@ case class TLClientPortParameters(
   require (minLatency >= 0)
 
   // Require disjoint ranges for Ids
-  clients.combinations(2).foreach({ case Seq(x,y) =>
-    require (!x.sourceId.overlaps(y.sourceId))
-  })
+  IdRange.overlaps(clients.map(_.sourceId)).foreach { case (x, y) =>
+    require (!x.overlaps(y), s"TLClientParameters.sourceId ${x} overlaps ${y}")
+  }
 
   // Bounds on required sizes
   def endSourceId = clients.map(_.sourceId.end).max
