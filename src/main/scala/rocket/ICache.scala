@@ -35,7 +35,7 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
 class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends LazyModule
     with HasRocketCoreParameters {
   lazy val module = new ICacheModule(this)
-  val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
+  val masterNode = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
 
   val icacheParams = tileParams.icache.get
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
@@ -64,7 +64,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
 
   val resp = Valid(UInt(width = coreInstBits * fetchWidth))
   val invalidate = Bool(INPUT)
-  val tl_out = outer.node.bundleOut
+  val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.map(_.bundleIn)
 }
 
@@ -78,7 +78,7 @@ object GetPropertyByHartId {
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   val io = new ICacheBundle(outer)
-  val edge_out = outer.node.edgesOut.head
+  val edge_out = outer.masterNode.edgesOut.head
   val tl_out = io.tl_out.head
   val edge_in = outer.slaveNode.map(_.edgesIn.head)
   val tl_in = io.tl_in.map(_.head)

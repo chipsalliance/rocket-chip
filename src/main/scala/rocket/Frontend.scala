@@ -45,21 +45,18 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
 class Frontend(hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
   val icache = LazyModule(new ICache(latency = 2, hartid))
-  val node = TLOutputNode()
-  val slaveNode = icache.slaveNode.map { n =>
-    val res = TLInputNode()
-    n := res
-    res
-  }
+  val masterNode = TLOutputNode()
+  val slaveNode = TLInputNode()
 
-  node := icache.node
+  icache.slaveNode.map { _ := slaveNode }
+  masterNode := icache.masterNode
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
-  val tl_out = outer.node.bundleOut
-  val tl_in = outer.slaveNode.map(_.bundleIn)
+  val tl_out = outer.masterNode.bundleOut
+  val tl_in = outer.slaveNode.bundleIn
   val resetVector = UInt(INPUT, vaddrBitsExtended)
   val hartid = UInt(INPUT, hartIdLen)
 }
@@ -68,7 +65,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasCoreParameters
     with HasL1ICacheParameters {
   val io = new FrontendBundle(outer)
-  implicit val edge = outer.node.edgesOut(0)
+  implicit val edge = outer.masterNode.edgesOut.head
   val icache = outer.icache.module
 
   val tlb = Module(new TLB(log2Ceil(coreInstBytes*fetchWidth), nTLBEntries))
@@ -186,7 +183,7 @@ trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
   val module: HasICacheFrontendModule
   val frontend = LazyModule(new Frontend(hartid: Int))
   val hartid: Int
-  masterNode := frontend.node
+  masterNode := frontend.masterNode
   nPTWPorts += 1
 }
 
