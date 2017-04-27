@@ -105,7 +105,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
         when (in.aw.fire() && s) { r := r + UInt(1) }
       }
 
-      TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(0), r_out), (in.aw.bits.len, w_out))
+      TLArbiter(TLArbiter.roundRobin)(out.a, (UInt(0), r_out), (in.aw.bits.len, w_out))
 
       val ok_b  = Wire(in.b)
       val ok_r  = Wire(in.r)
