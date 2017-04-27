@@ -19,6 +19,9 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case ASIdBits => 0
   case XLen => 64 // Applies to all cores
+  case ResetVectorBits => site(PAddrBits)
+  case MaxHartIdBits => log2Up(site(NTiles))
+  case MaxPriorityLevels => 7
   case BuildCore => (p: Parameters) => new Rocket()(p)
   case RocketCrossing => SynchronousCrossing()
   case RocketTilesKey =>  Nil

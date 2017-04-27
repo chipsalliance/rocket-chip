@@ -184,12 +184,12 @@ object HellaCache {
 
 /** Mix-ins for constructing tiles that have a HellaCache */
 
-trait HasHellaCache extends HasTileLinkMasterPort {
+trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcache = HellaCache(tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
+  val dcache = HellaCache(usingBlockingDCache, findScratchpadFromICache _)
   masterNode := dcache.node
 }
 
