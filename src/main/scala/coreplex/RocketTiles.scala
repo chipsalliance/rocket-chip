@@ -43,16 +43,16 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
     val periphIntXbar = LazyModule(new IntXbar)
     val coreIntXbar   = LazyModule(new IntXbar)
 
-    // CLINT and Local Interrupts must be synchronized to the core clock
+    // Local Interrupts must be synchronized to the core clock
     // before being passed into this module.
     // This allows faster latency for interrupts which are already synchronized.
-    // The PLIC outputs interrupts that are synchronous to the periphery clock,
+    // The CLINT and PLIC outputs interrupts that are synchronous to the periphery clock,
     // so may or may not need to be synchronized depending on the Tile's
     // synchronization type.
     // Debug interrupt is definitely asynchronous in all cases.
 
     asyncIntXbar.intnode  := debug.intnode                  // debug
-    coreIntXbar.intnode   := clint.intnode                  // msip+mtip
+    periphIntXbar.intnode := clint.intnode                  // msip+mtip
     periphIntXbar.intnode := plic.intnode                   // meip
     if (c.core.useVM) periphIntXbar.intnode := plic.intnode // seip
     lip.foreach { coreIntXbar.intnode := _ }                // lip

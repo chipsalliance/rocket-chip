@@ -31,7 +31,7 @@ trait HasExternalInterrupts extends HasTileParameters {
   def csrIntMap: List[Int] = {
     val nlips = tileParams.core.nLocalInterrupts
     val seip = if (usingVM) Seq(9) else Nil
-    List(65535, 11) ++ seip ++ List(3, 7) ++ List.tabulate(nlips)(_ + 16)
+    List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
   }
 }
 
@@ -47,12 +47,13 @@ trait HasExternalInterruptsModule {
   // go from flat diplomatic Interrupts to bundled TileInterrupts
   def decodeCoreInterrupts(core: TileInterrupts) {
     val async_ips = Seq(core.debug)
-    val periph_ips = Seq(core.meip,
+    val periph_ips = Seq(
+      core.msip,
+      core.mtip,
+      core.meip,
       core.seip.getOrElse(Wire(Bool())))
 
-    val core_ips = Seq(
-      core.msip,
-      core.mtip) ++ core.lip
+    val core_ips = core.lip
 
     (async_ips ++ periph_ips ++ core_ips).zip(io.interrupts(0)).foreach { case(c, i) => c := i }
   }
