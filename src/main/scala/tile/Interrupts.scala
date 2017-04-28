@@ -46,12 +46,15 @@ trait HasExternalInterruptsModule {
 
   // go from flat diplomatic Interrupts to bundled TileInterrupts
   def decodeCoreInterrupts(core: TileInterrupts) {
-    val core_ips = Seq(
-      core.debug,
+    val async_ips = Seq(core.debug)
+    val periph_ips = Seq(
       core.msip,
       core.mtip,
       core.meip,
-      core.seip.getOrElse(Wire(Bool()))) ++ core.lip
-    core_ips.zip(io.interrupts(0)).foreach { case(c, i) => c := i }
+      core.seip.getOrElse(Wire(Bool())))
+
+    val core_ips = core.lip
+
+    (async_ips ++ periph_ips ++ core_ips).zip(io.interrupts(0)).foreach { case(c, i) => c := i }
   }
 }

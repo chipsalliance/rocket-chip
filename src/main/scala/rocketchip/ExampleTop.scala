@@ -9,7 +9,7 @@ import rocketchip._
 
 /** Example Top with Periphery (w/o coreplex) */
 abstract class ExampleTop(implicit p: Parameters) extends BaseTop
-    with PeripheryExtInterrupts
+    with PeripheryAsyncExtInterrupts
     with PeripheryMasterAXI4Mem
     with PeripheryMasterAXI4MMIO
     with PeripherySlaveAXI4 {

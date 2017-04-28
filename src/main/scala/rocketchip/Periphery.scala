@@ -47,8 +47,7 @@ trait HasPeripheryParameters {
 }
 
 /////
-
-trait PeripheryExtInterrupts {
+abstract trait PeripheryExtInterrupts {
   this: HasTopLevelNetworks =>
 
   private val device = new Device with DeviceInterrupts {
@@ -60,11 +59,6 @@ trait PeripheryExtInterrupts {
   val nExtInterrupts = p(NExtTopInterrupts)
   val extInterrupts = IntInternalInputNode(IntSourcePortSimple(num = nExtInterrupts, resources = device.int))
 
-  if (nExtInterrupts > 0) {
-    val extInterruptXing = LazyModule(new IntXing)
-    intBus.intnode := extInterruptXing.intnode
-    extInterruptXing.intnode := extInterrupts
-  }
 }
 
 trait PeripheryExtInterruptsBundle {
@@ -82,7 +76,34 @@ trait PeripheryExtInterruptsModule {
   outer.extInterrupts.bundleIn.flatten.zipWithIndex.foreach { case(o, i) => o := io.interrupts(i) }
 }
 
+// This trait should be used if the External Interrupts have NOT
+// already been synchronized
+// to the Periphery (PLIC) Clock.
+
+trait PeripheryAsyncExtInterrupts extends PeripheryExtInterrupts {
+  this: HasTopLevelNetworks =>
+
+  if (nExtInterrupts > 0) {
+    val extInterruptXing = LazyModule(new IntXing)
+    intBus.intnode := extInterruptXing.intnode
+    extInterruptXing.intnode := extInterrupts
+  }
+
+}
+
+// This trait can be used if the External Interrupts have already been synchronized
+// to the Periphery (PLIC) Clock.
+
+trait PeripherySyncExtInterrupts extends PeripheryExtInterrupts {
+  this: HasTopLevelNetworks =>
+
+  if (nExtInterrupts > 0) {
+    intBus.intnode := extInterrupts
+  }
+}
+
 /////
+
 
 trait PeripheryMasterAXI4Mem {
   this: HasTopLevelNetworks =>

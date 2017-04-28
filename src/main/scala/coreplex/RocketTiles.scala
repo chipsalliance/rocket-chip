@@ -39,12 +39,23 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
     }
 
-    val intBar = LazyModule(new IntXbar)
-    intBar.intnode := debug.intnode                  // debug
-    intBar.intnode := clint.intnode                  // msip+mtip
-    intBar.intnode := plic.intnode                   // meip
-    if (c.core.useVM) intBar.intnode := plic.intnode // seip
-    lip.foreach { intBar.intnode := _ }              // lip
+    val asyncIntXbar  = LazyModule(new IntXbar)
+    val periphIntXbar = LazyModule(new IntXbar)
+    val coreIntXbar   = LazyModule(new IntXbar)
+
+    // Local Interrupts must be synchronized to the core clock
+    // before being passed into this module.
+    // This allows faster latency for interrupts which are already synchronized.
+    // The CLINT and PLIC outputs interrupts that are synchronous to the periphery clock,
+    // so may or may not need to be synchronized depending on the Tile's
+    // synchronization type.
+    // Debug interrupt is definitely asynchronous in all cases.
+
+    asyncIntXbar.intnode  := debug.intnode                  // debug
+    periphIntXbar.intnode := clint.intnode                  // msip+mtip
+    periphIntXbar.intnode := plic.intnode                   // meip
+    if (c.core.useVM) periphIntXbar.intnode := plic.intnode // seip
+    lip.foreach { coreIntXbar.intnode := _ }                // lip
 
     crossing match {
       case SynchronousCrossing(params) => {
@@ -55,7 +66,9 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         fixer.node :=* buffer.node
         l1tol2.node :=* fixer.node
         wrapper.slaveNode :*= cbus.node
-        wrapper.intNode := intBar.intnode
+        wrapper.asyncIntNode  := asyncIntXbar.intnode
+        wrapper.periphIntNode := periphIntXbar.intnode
+        wrapper.coreIntNode   := coreIntXbar.intnode
         (io: HasRocketTilesBundle) => {
           // leave clock as default (simpler for hierarchical PnR)
           wrapper.module.io.hartid := UInt(i)
@@ -71,7 +84,9 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         fixer.node :=* sink.node
         l1tol2.node :=* fixer.node
         wrapper.slaveNode :*= source.node
-        wrapper.intNode := intBar.intnode
+        wrapper.asyncIntNode  := asyncIntXbar.intnode
+        wrapper.periphIntNode := periphIntXbar.intnode
+        wrapper.coreIntNode   := coreIntXbar.intnode
         source.node :*= cbus.node
         (io: HasRocketTilesBundle) => {
           wrapper.module.clock := io.tcrs(i).clock
@@ -89,7 +104,9 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         fixer.node :=* sink.node
         l1tol2.node :=* fixer.node
         wrapper.slaveNode :*= source.node
-        wrapper.intNode := intBar.intnode
+        wrapper.asyncIntNode := asyncIntXbar.intnode
+        wrapper.periphIntNode := periphIntXbar.intnode
+        wrapper.coreIntNode   := coreIntXbar.intnode
         source.node :*= cbus.node
         (io: HasRocketTilesBundle) => {
           wrapper.module.clock := io.tcrs(i).clock
