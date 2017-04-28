@@ -153,7 +153,7 @@ class PerfCounterIO(implicit p: Parameters) extends CoreBundle
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasRocketCoreParameters {
   val interrupts = new TileInterrupts().asInput
-  val hartid = UInt(INPUT, xLen)
+  val hartid = UInt(INPUT, hartIdLen)
   val rw = new Bundle {
     val addr = UInt(INPUT, CSR.ADDRSZ)
     val cmd = Bits(INPUT, CSR.SZ)

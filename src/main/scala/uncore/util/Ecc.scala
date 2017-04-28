@@ -38,10 +38,10 @@ class ParityCode extends Code
   def width(w0: Int) = w0+1
   def encode(x: UInt) = Cat(x.xorR, x)
   def decode(y: UInt) = new Decoding {
-    def uncorrected = y(y.getWidth-2,0)
-    def corrected = uncorrected
-    def correctable = Bool(false)
-    def uncorrectable = y.xorR
+    val uncorrected = y(y.getWidth-2,0)
+    val corrected = uncorrected
+    val correctable = Bool(false)
+    val uncorrectable = y.xorR
   }
 }
 
@@ -78,10 +78,10 @@ class SECCode extends Code
     }).asUInt
 
     private def swizzle(z: UInt) = (1 to n).filter(i => !isPow2(i)).map(i => z(i-1)).asUInt
-    def uncorrected = swizzle(y)
-    def corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
-    def correctable = syndrome.orR
-    def uncorrectable = syndrome > UInt(n)
+    val uncorrected = swizzle(y)
+    val corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
+    val correctable = syndrome.orR
+    val uncorrectable = syndrome > UInt(n)
   }
   private def mapping(i: Int) = i-1-log2Up(i)
 }
@@ -97,10 +97,10 @@ class SECDEDCode extends Code
     val secdec = sec.decode(x(x.getWidth-2,0))
     val pardec = par.decode(x)
 
-    def uncorrected = secdec.uncorrected
-    def corrected = secdec.corrected
-    def correctable = pardec.uncorrectable
-    def uncorrectable = !pardec.uncorrectable && secdec.correctable
+    val uncorrected = secdec.uncorrected
+    val corrected = secdec.corrected
+    val correctable = pardec.uncorrectable
+    val uncorrectable = !pardec.uncorrectable && secdec.correctable
   }
 }
 

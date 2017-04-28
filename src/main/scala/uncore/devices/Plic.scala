@@ -12,6 +12,7 @@ import uncore.tilelink2._
 import config._
 import scala.math.min
 import tile.XLen
+import util._
 
 class GatewayPLICIO extends Bundle {
   val valid = Bool(OUTPUT)
@@ -76,7 +77,7 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
     device    = device,
     beatBytes = p(XLen)/8,
     undefZero = false,
-    concurrency = 1) // Work around the enable -> claim hazard
+    concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
   val intnode = IntNexusNode(
     numSourcePorts = 0 to 1024,
@@ -128,11 +129,11 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
     require(nHarts > 0 && nHarts <= PLICConsts.maxHarts)
 
     // For now, use LevelGateways for all TL2 interrupts
-    val gateways = Vec(interrupts.map { case i =>
+    val gateways = Vec((false.B +: interrupts).map { case i =>
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
       gateway.io.plic
-    } ++ (if (interrupts.isEmpty) Some(Wire(new GatewayPLICIO)) else None))
+    })
 
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))
@@ -143,7 +144,7 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
     val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
     val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
 
-    for ((p, g) <- pending.tail zip gateways) {
+    for ((p, g) <- pending zip gateways) {
       g.ready := !p
       g.complete := false
       when (g.valid) { p := true }
@@ -152,19 +153,18 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
     def findMax(x: Seq[UInt]): (UInt, UInt) = {
       if (x.length > 1) {
         val half = 1 << (log2Ceil(x.length) - 1)
-        val lMax = findMax(x take half)
-        val rMax = findMax(x drop half)
-        val useLeft = lMax._1 >= rMax._1
-        (Mux(useLeft, lMax._1, rMax._1), Mux(useLeft, lMax._2, UInt(half) | rMax._2))
+        val left = findMax(x take half)
+        val right = findMax(x drop half)
+        MuxT(left._1 >= right._1, left, (right._1, UInt(half) | right._2))
       } else (x.head, UInt(0))
     }
 
     val maxDevs = Reg(Vec(nHarts, UInt(width = log2Up(pending.size))))
     for (hart <- 0 until nHarts) {
-      val effectivePriority =
-        for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
-          yield Cat(p && en, pri)
-      val (maxPri, maxDev) = findMax((UInt(1) << priority(0).getWidth) +: effectivePriority)
+      val effectivePriority = (UInt(1) << priority(0).getWidth) +:
+        (for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
+          yield Cat(p && en, pri))
+      val (maxPri, maxDev) = findMax(effectivePriority)
 
       maxDevs(hart) := maxDev
       harts(hart) := Reg(next = maxPri) > Cat(UInt(1), threshold(hart))
@@ -185,13 +185,13 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
           RegReadFn { valid =>
             when (valid) {
               pending(maxDevs(i)) := Bool(false)
-              maxDevs(i) := UInt(0) // flush pipeline
             }
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
-            when (valid && enables(i)(data)) {
-              gateways(data - UInt(1)).complete := Bool(true)
+            val irq = data.extract(log2Ceil(nDevices+1)-1, 0)
+            when (valid && enables(i)(irq)) {
+              gateways(irq).complete := Bool(true)
             }
             Bool(true)
           }

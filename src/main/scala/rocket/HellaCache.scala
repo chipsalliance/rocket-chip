@@ -158,8 +158,8 @@ abstract class HellaCache(implicit p: Parameters) extends LazyModule {
   val module: HellaCacheModule
 }
 
-class HellaCacheBundle(outer: HellaCache) extends Bundle {
-  implicit val p = outer.p
+class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
+  val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val mem = outer.node.bundleOut
@@ -184,7 +184,7 @@ object HellaCache {
 
 /** Mix-ins for constructing tiles that have a HellaCache */
 
-trait HasHellaCache extends HasTileLinkMasterPort {
+trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
