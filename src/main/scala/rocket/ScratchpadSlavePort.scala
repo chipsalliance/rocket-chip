@@ -111,7 +111,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCor
   val slaveNode = TLInputNode() // Up to two uses for this input node:
 
   // 1) Frontend always exists, but may or may not have a scratchpad node
-  val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), true))
+  val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), earlyAck=true))
   val ww = LazyModule(new TLWidthWidget(xLen/8))
   frontend.slaveNode :*= fg.node
   fg.node :*= ww.node
