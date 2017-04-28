@@ -212,7 +212,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
     case 2 =>
       val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
-      val s2_hit = RegNext(s1_hit, Bool(false))
+      val s2_hit = RegNext(s1_hit)
       val s2_tag_hit = RegEnable(s1_tag_hit, s1_valid || s1_slaveValid)
       val s2_dout = RegEnable(s1_dout, s1_valid || s1_slaveValid)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
@@ -223,7 +223,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       when (s2_valid && s2_disparity) { invalidate := true }
 
       io.resp.bits := s2_data_decoded.uncorrected
-      io.resp.valid := s2_hit && !s2_disparity
+      io.resp.valid := s2_valid && s2_hit && !s2_disparity
 
       tl_in.map { tl =>
         tl.a.ready := !tl_out.d.fire() && !s1_slaveValid && !s2_slaveValid && !(tl.d.valid && !tl.d.ready)
