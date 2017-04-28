@@ -96,9 +96,10 @@ trait PeripheryAsyncExtInterrupts extends PeripheryExtInterrupts {
 
 trait PeripherySyncExtInterrupts extends PeripheryExtInterrupts {
   this: HasTopLevelNetworks =>
-  
-  intBus.intnode := extInterrupts
 
+  if (nExtInterrupts > 0) {
+    intBus.intnode := extInterrupts
+  }
 }
 
 /////
