@@ -189,7 +189,7 @@ trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcache = HellaCache(usingBlockingDCache, findScratchpadFromICache _)
+  val dcache = HellaCache(tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
   masterNode := dcache.node
 }
 
