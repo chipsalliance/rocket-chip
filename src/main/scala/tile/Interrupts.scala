@@ -31,7 +31,7 @@ trait HasExternalInterrupts extends HasTileParameters {
   def csrIntMap: List[Int] = {
     val nlips = tileParams.core.nLocalInterrupts
     val seip = if (usingVM) Seq(9) else Nil
-    List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
+    List(65535, 11) ++ seip ++ List(3, 7) ++ List.tabulate(nlips)(_ + 16)
   }
 }
 
