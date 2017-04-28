@@ -59,11 +59,6 @@ abstract trait PeripheryExtInterrupts {
   val nExtInterrupts = p(NExtTopInterrupts)
   val extInterrupts = IntInternalInputNode(IntSourcePortSimple(num = nExtInterrupts, resources = device.int))
 
-  if (nExtInterrupts > 0) {
-    val extInterruptXing = LazyModule(new IntXing)
-    intBus.intnode := extInterruptXing.intnode
-    extInterruptXing.intnode := extInterrupts
-  }
 }
 
 trait PeripheryExtInterruptsBundle {
