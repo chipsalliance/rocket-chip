@@ -132,6 +132,8 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   core.io.hartid := io.hartid // Pass through the hartid
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.resetVector := io.resetVector
+  outer.frontend.module.io.hartid := io.hartid
+  outer.dcache.module.io.hartid := io.hartid
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
   core.io.ptw <> ptw.io.dpath
@@ -174,12 +176,10 @@ class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters)
   xing.intnode := intNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = new CoreBundle with HasExternallyDrivenTileConstants {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val interrupts = intNode.bundleIn
-      val hartid = UInt(INPUT, p(XLen))
-      val resetVector = UInt(INPUT, p(XLen))
     }
     // signals that do not change:
     rocket.module.io.hartid := io.hartid
@@ -206,12 +206,10 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
   xing.intnode := intNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = new CoreBundle with HasExternallyDrivenTileConstants {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val interrupts = intNode.bundleIn
-      val hartid = UInt(INPUT, p(XLen))
-      val resetVector = UInt(INPUT, p(XLen))
     }
     // signals that do not change:
     rocket.module.io.hartid := io.hartid
@@ -242,12 +240,10 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   xing.intnode := intNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = new CoreBundle with HasExternallyDrivenTileConstants {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val interrupts = intNode.bundleIn
-      val hartid = UInt(INPUT, p(XLen))
-      val resetVector = UInt(INPUT, p(XLen))
     }
     // signals that do not change:
     rocket.module.io.hartid := io.hartid

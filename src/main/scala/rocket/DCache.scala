@@ -138,7 +138,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     if (usingDataScratchpad) {
       metaWriteArb.io.out.ready := true
       metaReadArb.io.out.ready := !metaWriteArb.io.out.valid
-      val inScratchpad = outer.scratch().map(_.contains(s1_paddr)).getOrElse(Bool(false))
+      val baseAddr = GetPropertyByHartId(p(coreplex.RocketTilesKey), _.dcache.flatMap(_.scratch.map(_.U)), io.hartid)
+      val inScratchpad = s1_paddr >= baseAddr && s1_paddr < baseAddr + nSets * cacheBlockBytes
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       (inScratchpad, hitState, L1Metadata(UInt(0), ClientMetadata.onReset))
     } else {

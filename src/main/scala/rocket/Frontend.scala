@@ -42,34 +42,37 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val acquire = Bool(INPUT)
 }
 
-class Frontend(implicit p: Parameters) extends LazyModule {
+class Frontend(hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
-  val icache = LazyModule(new ICache(latency = 2))
-  val node = TLOutputNode()
+  val icache = LazyModule(new ICache(latency = 2, hartid))
+  val masterNode = TLOutputNode()
+  val slaveNode = TLInputNode()
 
-  node := icache.node
+  icache.slaveNode.map { _ := slaveNode }
+  masterNode := icache.masterNode
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
-  val mem = outer.node.bundleOut
+  val tl_out = outer.masterNode.bundleOut
+  val tl_in = outer.slaveNode.bundleIn
   val resetVector = UInt(INPUT, vaddrBitsExtended)
+  val hartid = UInt(INPUT, hartIdLen)
 }
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasCoreParameters
     with HasL1ICacheParameters {
   val io = new FrontendBundle(outer)
-  implicit val edge = outer.node.edgesOut(0)
+  implicit val edge = outer.masterNode.edgesOut.head
   val icache = outer.icache.module
 
   val tlb = Module(new TLB(log2Ceil(coreInstBytes*fetchWidth), nTLBEntries))
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 3, flow = true)) }
 
   val s0_valid = io.cpu.req.valid || fq.io.enq.ready
-  val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
-  val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
+  val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
   val s2_valid = Reg(init=Bool(true))
   val s2_pc = Reg(init=io.resetVector)
@@ -94,7 +97,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid)
   val npc = Mux(s2_replay, s2_pc, predicted_npc)
 
-  s1_pc_ := io.cpu.npc
+  s1_pc := io.cpu.npc
   // consider RVC fetches across blocks to be non-speculative if the first
   // part was non-speculative
   val s0_speculative =
@@ -116,7 +119,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   if (usingBTB) {
     val btb = Module(new BTB)
     btb.io.req.valid := false
-    btb.io.req.bits.addr := s1_pc_
+    btb.io.req.bits.addr := s1_pc
     btb.io.btb_update := io.cpu.btb_update
     btb.io.bht_update := io.cpu.bht_update
     btb.io.ras_update := io.cpu.ras_update
@@ -148,16 +151,18 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.sfence := io.cpu.sfence
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
 
+  icache.io.hartid := io.hartid
   icache.io.req.valid := s0_valid
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
+  icache.io.s2_vaddr := s2_pc
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || s2_replay
   icache.io.s2_kill := s2_speculative && !s2_cacheable || s2_xcpt
 
   fq.io.enq.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
-  io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
+  io.cpu.npc := ~(~Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc) | (coreInstBytes-1)) // discard LSB(s)
 
   fq.io.enq.bits.data := icache.io.resp.bits
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
@@ -170,14 +175,15 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp <> fq.io.deq
 
   // performance events
-  io.cpu.acquire := edge.done(icache.io.mem(0).a)
+  io.cpu.acquire := edge.done(icache.io.tl_out(0).a)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend)
-  masterNode := frontend.node
+  val frontend = LazyModule(new Frontend(hartid: Int))
+  val hartid: Int
+  masterNode := frontend.masterNode
   nPTWPorts += 1
 }
 
