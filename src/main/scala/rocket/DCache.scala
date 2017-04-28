@@ -163,6 +163,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_req = Reg(io.cpu.req.bits)
   val s2_req_block_addr = (s2_req.addr >> idxLSB) << idxLSB
   val s2_uncached = Reg(Bool())
+  val s2_uncached_resp_addr = Reg(UInt()) // should be DCE'd in synthesis
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
@@ -359,6 +360,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         s2_req.typ := req.typ
         s2_req.tag := req.tag
         s2_req.addr := Cat(s1_paddr >> beatOffBits /* don't-care */, req.addr(beatOffBits-1, 0))
+        s2_uncached_resp_addr := req.addr
       }
     } .elsewhen (grantIsVoluntary) {
       assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.") // TODO should handle Ack coming back on same cycle!
@@ -506,6 +508,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     assert(!s2_valid_hit)
     io.cpu.resp.valid := true
     io.cpu.resp.bits.replay := true
+    io.cpu.resp.bits.addr := s2_uncached_resp_addr
   }
 
   // load data subword mux/sign extension
