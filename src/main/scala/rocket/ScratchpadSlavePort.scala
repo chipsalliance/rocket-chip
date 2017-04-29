@@ -22,8 +22,8 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
       resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = true,
-      supportsArithmetic = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,
-      supportsLogical    = if (usingAtomics) TransferSizes(1, coreDataBytes) else TransferSizes.none,
+      supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
+      supportsLogical    = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
       supportsPutPartial = TransferSizes.none, // Can't support PutPartial
       supportsPutFull    = TransferSizes(1, coreDataBytes),
       supportsGet        = TransferSizes(1, coreDataBytes),
