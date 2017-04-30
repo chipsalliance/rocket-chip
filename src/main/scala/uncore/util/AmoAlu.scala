@@ -70,9 +70,11 @@ class AMOALU(operandBits: Int, rhsIsAligned: Boolean = false)(implicit p: Parame
     else new StoreGen(io.typ, io.addr, io.rhs, operandBits/8)
   val rhs = storegen.wordData
   
-  val sgned = io.cmd === M_XA_MIN || io.cmd === M_XA_MAX
   val max = io.cmd === M_XA_MAX || io.cmd === M_XA_MAXU
   val min = io.cmd === M_XA_MIN || io.cmd === M_XA_MINU
+  val add = io.cmd === M_XA_ADD
+  val logic_and = io.cmd === M_XA_OR || io.cmd === M_XA_AND
+  val logic_xor = io.cmd === M_XA_XOR || io.cmd === M_XA_OR
 
   val adder_out =
     if (operandBits == 32) io.lhs + rhs
@@ -81,9 +83,15 @@ class AMOALU(operandBits: Int, rhsIsAligned: Boolean = false)(implicit p: Parame
       (io.lhs & mask) + (rhs & mask)
     }
 
-  val less =
-    if (operandBits == 32) Mux(io.lhs(31) === rhs(31), io.lhs < rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
-    else {
+  val less = {
+    val sgned = {
+      val mask = M_XA_MIN ^ M_XA_MINU
+      (io.cmd & mask) === (M_XA_MIN & mask)
+    }
+
+    if (operandBits == 32) {
+      Mux(io.lhs(31) === rhs(31), io.lhs < rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
+    } else {
       val word = !io.typ(0)
       val cmp_lhs = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
       val cmp_rhs = Mux(word && !io.addr(2), rhs(31), rhs(63))
@@ -93,13 +101,16 @@ class AMOALU(operandBits: Int, rhsIsAligned: Boolean = false)(implicit p: Parame
       val lt = Mux(word, Mux(io.addr(2), lt_hi, lt_lo), lt_hi || eq_hi && lt_lo)
       Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
     }
+  }
 
-  val out = Mux(io.cmd === M_XA_ADD, adder_out,
-            Mux(io.cmd === M_XA_AND, io.lhs & rhs,
-            Mux(io.cmd === M_XA_OR,  io.lhs | rhs,
-            Mux(io.cmd === M_XA_XOR, io.lhs ^ rhs,
-            Mux(Mux(less, min, max), io.lhs,
-            storegen.data)))))
+  val minmax = Mux(Mux(less, min, max), io.lhs, storegen.data)
+  val logic =
+    Mux(logic_and, io.lhs & rhs, 0.U) |
+    Mux(logic_xor, io.lhs ^ rhs, 0.U)
+  val out =
+    Mux(add,                    adder_out,
+    Mux(logic_and || logic_xor, logic,
+                                minmax))
 
   val wmask = FillInterleaved(8, storegen.mask)
   io.out := wmask & out | ~wmask & io.lhs
