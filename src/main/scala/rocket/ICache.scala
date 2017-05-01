@@ -101,7 +101,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s0_slaveValid = tl_in.map(_.a.fire()).getOrElse(false.B)
   val s1_slaveValid = RegNext(s0_slaveValid, false.B)
   val s2_slaveValid = RegNext(s1_slaveValid, false.B)
-  val s3_slaveValid = RegNext(s2_slaveValid, false.B)
+  val s3_slaveValid = RegNext(false.B)
 
   val s_ready :: s_request :: s_refill :: Nil = Enum(UInt(), 3)
   val state = Reg(init=s_ready)
@@ -226,7 +226,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       io.resp.valid := s2_valid && s2_hit && !s2_disparity
 
       tl_in.map { tl =>
-        tl.a.ready := !tl_out.d.fire() && !s1_slaveValid && !s2_slaveValid && !(tl.d.valid && !tl.d.ready)
+        tl.a.ready := !(tl_out.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid)
         val s1_a = RegEnable(tl.a.bits, s0_slaveValid)
         when (s0_slaveValid) {
           val a = tl.a.bits
@@ -257,7 +257,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         val respValid = RegInit(false.B)
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
         when (s2_slaveValid) {
-          when (edge_in.get.hasData(s1_a)) { s3_slaveValid := true }
+          when (edge_in.get.hasData(s1_a) || s2_data_decoded.correctable) { s3_slaveValid := true }
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
           s1s3_slaveData := (0 until wordBits/8).map(i => Mux(byteEn(i), s2_data_decoded.corrected, s1s3_slaveData)(8*(i+1)-1, 8*i)).asUInt
         }
