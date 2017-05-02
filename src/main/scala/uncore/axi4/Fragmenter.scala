@@ -139,6 +139,10 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       val (in_ar, ar_last, _)       = fragment(Queue.irrevocable(in.ar, 1, flow=true), readSizes1)
       val (in_aw, aw_last, w_beats) = fragment(Queue.irrevocable(in.aw, 1, flow=true), writeSizes1)
 
+      // AXI ready may not depend on valid of other channels
+      // We cut wready here along with awready and arready before AXI4ToTL
+      val in_w = Queue.irrevocable(in.w, 1, flow=true)
+
       // AR flow control; super easy
       out.ar <> in_ar
       out.ar.bits.user.get := Cat(in_ar.bits.user.toList ++ Seq(ar_last))
@@ -167,12 +171,12 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
       // W flow control
       wbeats_ready := w_idle
-      out.w.valid := in.w.valid && (!wbeats_ready || wbeats_valid)
-      in.w.ready := out.w.ready && (!wbeats_ready || wbeats_valid)
-      out.w.bits := in.w.bits
+      out.w.valid := in_w.valid && (!wbeats_ready || wbeats_valid)
+      in_w.ready := out.w.ready && (!wbeats_ready || wbeats_valid)
+      out.w.bits := in_w.bits
       out.w.bits.last := w_last
       // We should also recreate the last last
-      assert (!out.w.valid || !in.w.bits.last || w_last)
+      assert (!out.w.valid || !in_w.bits.last || w_last)
 
       // R flow control
       val r_last = out.r.bits.user.get(0)
