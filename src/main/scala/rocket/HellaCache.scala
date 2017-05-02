@@ -103,6 +103,7 @@ class HellaCacheResp(implicit p: Parameters) extends CoreBundle()(p)
   val replay = Bool()
   val has_data = Bool()
   val data_word_bypass = Bits(width = coreDataBits)
+  val data_raw = Bits(width = coreDataBits)
   val store_data = Bits(width = coreDataBits)
 }
 

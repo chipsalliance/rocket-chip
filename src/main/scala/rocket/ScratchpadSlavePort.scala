@@ -48,7 +48,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     when (io.dmem.req.fire()) { state := s_wait }
 
     val acq = Reg(tl_in.a.bits)
-    when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data }
+    when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data_raw }
     when (tl_in.a.fire()) { acq := tl_in.a.bits }
 
     def formCacheReq(a: TLBundleA) = {
@@ -85,17 +85,11 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     io.dmem.s1_kill := false
     io.dmem.invalidate_lr := false
 
-    // place AMO data in correct word lane
-    val minAMOBytes = 4
-    val grantData = Mux(io.dmem.resp.valid, io.dmem.resp.bits.data, acq.data)
-    val alignedGrantData =
-      Mux(edge.hasData(acq) && (acq.size <= log2Ceil(minAMOBytes)), Fill(coreDataBytes/minAMOBytes, grantData(8*minAMOBytes-1, 0)), grantData)
-
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode === TLMessages.PutFullData,
       edge.AccessAck(acq, UInt(0)),
       edge.AccessAck(acq, UInt(0), UInt(0)))
-    tl_in.d.bits.data := alignedGrantData
+    tl_in.d.bits.data := Mux(io.dmem.resp.valid, io.dmem.resp.bits.data_raw, acq.data)
 
     // Tie off unused channels
     tl_in.b.valid := Bool(false)

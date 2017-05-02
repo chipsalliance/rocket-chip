@@ -517,6 +517,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
+  io.cpu.resp.bits.data_raw := s2_data_word
   io.cpu.resp.bits.store_data := pstore1_data
 
   // AMOs
