@@ -22,9 +22,9 @@ abstract class BareTopBundle[+L <: BareTop](_outer: L) extends GenericParameteri
   implicit val p = outer.p
 }
 
-abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
+abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyMultiIOModuleImp(_outer) {
   val outer = _outer
-  val io = _io ()
+  val io = IO(_io())
 }
 
 /** HasTopLevelNetworks provides buses that will serve as attachment points,
@@ -59,13 +59,13 @@ trait HasTopLevelNetworksModule extends HasPeripheryParameters {
 }
 
 /** Base Top class with no peripheral devices or ports added */
-class BaseTop(implicit p: Parameters) extends BareTop
+abstract class BaseTop(implicit p: Parameters) extends BareTop
     with HasTopLevelNetworks {
-  override lazy val module = new BaseTopModule(this, () => new BaseTopBundle(this))
+  override val module: BaseTopModule[BaseTop, BaseTopBundle[BaseTop]]
 }
 
-class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
+abstract class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
     with HasTopLevelNetworksBundle
 
-class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
+abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
     with HasTopLevelNetworksModule

@@ -4,6 +4,7 @@ package diplomacy
 
 import Chisel._
 import config._
+import chisel3.experimental.{BaseModule, RawModule, MultiIOModule}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
 abstract class LazyModule()(implicit val p: Parameters)
@@ -51,7 +52,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   def name = valName.getOrElse(className)
   def line = sourceLine(info)
 
-  def module: LazyModuleImp
+  def module: LazyModuleImpLike
 
   protected[diplomacy] def instantiate() = {
     children.reverse.foreach { c =>
@@ -140,14 +141,23 @@ object LazyModule
   }
 }
 
-abstract class LazyModuleImp(outer: LazyModule) extends Module
+trait LazyModuleImpLike extends BaseModule
 {
+  val wrapper: LazyModule
+
   // .module had better not be accessed while LazyModules are still being built!
-  require (LazyModule.stack.isEmpty, s"${outer.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
+  require (LazyModule.stack.isEmpty, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
 
-  override def desiredName = outer.moduleName
-  suggestName(outer.instanceName)
+  override def desiredName = wrapper.moduleName
+  suggestName(wrapper.instanceName)
 
-  outer.instantiate()
-  implicit val p = outer.p
+  wrapper.instantiate()
+
+  implicit val p = wrapper.p
 }
+
+abstract class LazyModuleImp(val wrapper: LazyModule) extends Module with LazyModuleImpLike
+
+abstract class LazyMultiIOModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike
+
+abstract class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike

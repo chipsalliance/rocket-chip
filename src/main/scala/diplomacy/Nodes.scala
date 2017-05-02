@@ -18,7 +18,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
   def colour: String
   def reverse: Boolean = false
-  def connect(edges: () => Seq[EI], bundles: () => Seq[(BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  def connect(edges: () => Seq[EI], bundles: () => Seq[(BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[MonitorBase], () => Unit) = {
     (None, () => bundles().foreach { case (i, o) => i <> o })
   }
 
@@ -78,11 +78,11 @@ case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
   val inward: InwardNode[DI, UI, BI]
-  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:=(h)(p, sourceInfo)
-  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:*=(h)(p, sourceInfo)
-  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:=*(h)(p, sourceInfo)
 }
 
@@ -232,7 +232,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val bundleIn  = wireI(flipI(HeterogeneousBag(edgesIn .map(inner.bundleI(_)))))
 
   // connects the outward part of a node with the inward part of this node
-  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = {
+  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = {
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
@@ -263,9 +263,9 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     out
   }
 
-  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_ONCE)
-  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_STAR)
-  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_QUERY)
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE)
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_STAR)
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY)
 
   // meta-data for printing the node graph
   protected[diplomacy] def colour  = inner.colour

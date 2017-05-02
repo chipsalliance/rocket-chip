@@ -9,10 +9,8 @@ import diplomacy._
 
 case class TLMonitorArgs(edge: () => Seq[TLEdge], sourceInfo: SourceInfo, p: Parameters)
 
-abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
+abstract class TLMonitorBase(args: TLMonitorArgs) extends MonitorBase()(args.sourceInfo, args.p)
 {
-  implicit val sourceInfo = args.sourceInfo
-
   def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
 
   lazy val module = new LazyModuleImp(this) {
