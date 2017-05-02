@@ -28,7 +28,8 @@ trait MemoryOpConstants {
   def M_XA_MINU = UInt("b01110");
   def M_XA_MAXU = UInt("b01111");
   def M_FLUSH   = UInt("b10000") // write back dirty data and cede R/W permissions
-  def M_PRODUCE = UInt("b10001") // write back dirty data and cede W permissions
+  def M_PWR     = UInt("b10001") // partial (masked) store
+  def M_PRODUCE = UInt("b10010") // write back dirty data and cede W permissions
   def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
   def M_SFENCE  = UInt("b10100") // flush TLB
 
@@ -37,7 +38,7 @@ trait MemoryOpConstants {
   def isAMO(cmd: UInt) = isAMOLogical(cmd) || isAMOArithmetic(cmd)
   def isPrefetch(cmd: UInt) = cmd === M_PFR || cmd === M_PFW
   def isRead(cmd: UInt) = cmd === M_XRD || cmd === M_XLR || cmd === M_XSC || isAMO(cmd)
-  def isWrite(cmd: UInt) = cmd === M_XWR || cmd === M_XSC || isAMO(cmd)
+  def isWrite(cmd: UInt) = cmd === M_XWR || cmd === M_PWR || cmd === M_XSC || isAMO(cmd)
   def isWriteIntent(cmd: UInt) = isWrite(cmd) || cmd === M_PFW || cmd === M_XLR
 }
 

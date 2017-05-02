@@ -31,10 +31,6 @@ class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
   def wordData = genData(2)
 }
 
-class StoreGenAligned(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) extends StoreGen(typ, addr, dat, maxSize) {
-  override def genData(i: Int) = dat
-}
-
 class LoadGen(typ: UInt, signed: Bool, addr: UInt, dat: UInt, zero: Bool, maxSize: Int) {
   private val size = new StoreGen(typ, addr, dat, maxSize).size
 
@@ -54,53 +50,59 @@ class LoadGen(typ: UInt, signed: Bool, addr: UInt, dat: UInt, zero: Bool, maxSiz
   def data = genData(0)
 }
 
-class AMOALU(operandBits: Int, rhsIsAligned: Boolean = false)(implicit p: Parameters) extends Module {
+class AMOALU(operandBits: Int)(implicit p: Parameters) extends Module {
   require(operandBits == 32 || operandBits == 64)
   val io = new Bundle {
-    val addr = Bits(INPUT, log2Ceil(operandBits/8))
+    val mask = UInt(INPUT, operandBits/8)
     val cmd = Bits(INPUT, M_SZ)
-    val typ = Bits(INPUT, log2Ceil(log2Ceil(operandBits/8) + 1))
     val lhs = Bits(INPUT, operandBits)
     val rhs = Bits(INPUT, operandBits)
     val out = Bits(OUTPUT, operandBits)
   }
 
-  val storegen =
-    if(rhsIsAligned) new StoreGenAligned(io.typ, io.addr, io.rhs, operandBits/8)
-    else new StoreGen(io.typ, io.addr, io.rhs, operandBits/8)
-  val rhs = storegen.wordData
-  
-  val sgned = io.cmd === M_XA_MIN || io.cmd === M_XA_MAX
   val max = io.cmd === M_XA_MAX || io.cmd === M_XA_MAXU
   val min = io.cmd === M_XA_MIN || io.cmd === M_XA_MINU
+  val add = io.cmd === M_XA_ADD
+  val logic_and = io.cmd === M_XA_OR || io.cmd === M_XA_AND
+  val logic_xor = io.cmd === M_XA_XOR || io.cmd === M_XA_OR
 
   val adder_out =
-    if (operandBits == 32) io.lhs + rhs
+    if (operandBits == 32) io.lhs + io.rhs
     else {
-      val mask = ~UInt(0,64) ^ (io.addr(2) << 31)
-      (io.lhs & mask) + (rhs & mask)
+      val mask = ~UInt(0,64) ^ (!io.mask(3) << 31)
+      (io.lhs & mask) + (io.rhs & mask)
     }
 
-  val less =
-    if (operandBits == 32) Mux(io.lhs(31) === rhs(31), io.lhs < rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
-    else {
-      val word = !io.typ(0)
-      val cmp_lhs = Mux(word && !io.addr(2), io.lhs(31), io.lhs(63))
-      val cmp_rhs = Mux(word && !io.addr(2), rhs(31), rhs(63))
-      val lt_lo = io.lhs(31,0) < rhs(31,0)
-      val lt_hi = io.lhs(63,32) < rhs(63,32)
-      val eq_hi = io.lhs(63,32) === rhs(63,32)
-      val lt = Mux(word, Mux(io.addr(2), lt_hi, lt_lo), lt_hi || eq_hi && lt_lo)
+  val less = {
+    val sgned = {
+      val mask = M_XA_MIN ^ M_XA_MINU
+      (io.cmd & mask) === (M_XA_MIN & mask)
+    }
+
+    if (operandBits == 32) {
+      Mux(io.lhs(31) === io.rhs(31), io.lhs < io.rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
+    } else {
+      val cmp_lhs = Mux(!io.mask(4), io.lhs(31), io.lhs(63))
+      val cmp_rhs = Mux(!io.mask(4), io.rhs(31), io.rhs(63))
+      val lt_lo = io.lhs(31,0) < io.rhs(31,0)
+      val lt_hi = io.lhs(63,32) < io.rhs(63,32)
+      val eq_hi = io.lhs(63,32) === io.rhs(63,32)
+      val lt =
+        Mux(io.mask(4) && io.mask(3), lt_hi || eq_hi && lt_lo,
+        Mux(io.mask(4), lt_hi, lt_lo))
       Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
     }
+  }
 
-  val out = Mux(io.cmd === M_XA_ADD, adder_out,
-            Mux(io.cmd === M_XA_AND, io.lhs & rhs,
-            Mux(io.cmd === M_XA_OR,  io.lhs | rhs,
-            Mux(io.cmd === M_XA_XOR, io.lhs ^ rhs,
-            Mux(Mux(less, min, max), io.lhs,
-            storegen.data)))))
+  val minmax = Mux(Mux(less, min, max), io.lhs, io.rhs)
+  val logic =
+    Mux(logic_and, io.lhs & io.rhs, 0.U) |
+    Mux(logic_xor, io.lhs ^ io.rhs, 0.U)
+  val out =
+    Mux(add,                    adder_out,
+    Mux(logic_and || logic_xor, logic,
+                                minmax))
 
-  val wmask = FillInterleaved(8, storegen.mask)
+  val wmask = FillInterleaved(8, io.mask)
   io.out := wmask & out | ~wmask & io.lhs
 }

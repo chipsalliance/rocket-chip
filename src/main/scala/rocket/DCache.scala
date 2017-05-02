@@ -121,7 +121,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.sfence.valid := s1_sfence
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
   tlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
-  tlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data
+  tlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.instruction := false
@@ -155,6 +155,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
   val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
+  val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask)
 
   val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
@@ -229,10 +230,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
   val pstore1_typ = RegEnable(s1_req.typ, s1_valid_not_nacked && s1_write)
   val pstore1_addr = RegEnable(s1_paddr, s1_valid_not_nacked && s1_write)
-  val pstore1_data = RegEnable(io.cpu.s1_data, s1_valid_not_nacked && s1_write)
+  val pstore1_data = RegEnable(io.cpu.s1_data.data, s1_valid_not_nacked && s1_write)
   val pstore1_way = RegEnable(s1_hit_way, s1_valid_not_nacked && s1_write)
-  val pstore1_storegen = new StoreGen(pstore1_typ, pstore1_addr, pstore1_data, wordBytes)
-  val pstore1_storegen_data = Wire(init = pstore1_storegen.data)
+  val pstore1_mask = RegEnable(s1_mask, s1_valid_not_nacked && s1_write)
+  val pstore1_storegen_data = Wire(init = pstore1_data)
   val pstore1_amo = Bool(usingAtomics) && isRead(pstore1_cmd)
   val pstore_drain_structural = pstore1_valid && pstore2_valid && ((s1_valid && s1_write) || pstore1_amo)
   val pstore_drain_opportunistic = !(io.cpu.req.valid && isRead(io.cpu.req.bits.cmd))
@@ -252,21 +253,20 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore2_addr = RegEnable(pstore1_addr, advance_pstore1)
   val pstore2_way = RegEnable(pstore1_way, advance_pstore1)
   val pstore2_storegen_data = RegEnable(pstore1_storegen_data, advance_pstore1)
-  val pstore2_storegen_mask = RegEnable(pstore1_storegen.mask, advance_pstore1)
+  val pstore2_storegen_mask = RegEnable(pstore1_mask, advance_pstore1)
   dataArb.io.in(0).valid := pstore_drain
   dataArb.io.in(0).bits.write := true
   dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
   dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
   dataArb.io.in(0).bits.wdata := Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_storegen_data))
   val pstore_mask_shift = Mux(pstore2_valid, pstore2_addr, pstore1_addr).extract(rowOffBits-1,offsetlsb) << wordOffBits
-  dataArb.io.in(0).bits.wmask := Mux(pstore2_valid, pstore2_storegen_mask, pstore1_storegen.mask) << pstore_mask_shift
+  dataArb.io.in(0).bits.wmask := Mux(pstore2_valid, pstore2_storegen_mask, pstore1_mask) << pstore_mask_shift
 
   // store->load RAW hazard detection
-  val s1_storegen = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes)
   val s1_idx = s1_req.addr(idxMSB, wordOffBits)
   val s1_raw_hazard = s1_read &&
-    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx && (pstore1_storegen.mask & s1_storegen.mask).orR) ||
-     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx && (pstore2_storegen_mask & s1_storegen.mask).orR))
+    ((pstore1_valid && pstore1_addr(idxMSB, wordOffBits) === s1_idx && (pstore1_mask & s1_mask).orR) ||
+     (pstore2_valid && pstore2_addr(idxMSB, wordOffBits) === s1_idx && (pstore2_storegen_mask & s1_mask).orR))
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   metaWriteArb.io.in(0).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)
@@ -279,8 +279,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
   val acquire_address = s2_req_block_addr
   val access_address = s2_req.addr
-  val a_size = s2_req.typ(MT_SZ-2, 0)
-  val a_data = Fill(beatWords, pstore1_storegen.data)
+  val a_size = mtSize(s2_req.typ)
+  val a_data = Fill(beatWords, pstore1_data)
   val acquire = if (edge.manager.anySupportAcquireB) {
     edge.Acquire(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
@@ -517,14 +517,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
+  io.cpu.resp.bits.data_raw := s2_data_word
   io.cpu.resp.bits.store_data := pstore1_data
 
   // AMOs
   if (usingAtomics) {
     val amoalu = Module(new AMOALU(xLen))
-    amoalu.io.addr := pstore1_addr
+    amoalu.io.mask := pstore1_mask
     amoalu.io.cmd := pstore1_cmd
-    amoalu.io.typ := pstore1_typ
     amoalu.io.lhs := s2_data_word
     amoalu.io.rhs := pstore1_data
     pstore1_storegen_data := amoalu.io.out

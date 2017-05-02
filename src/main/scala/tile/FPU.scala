@@ -392,7 +392,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
 
   val store = ieee(in.in1)
   val toint = Mux(in.rm(0), classify_out, store)
-  io.out.bits.store := store
+  io.out.bits.store := Mux(in.singleOut, Fill(xLen/32, store(31, 0)), store)
   io.out.bits.toint := Mux(in.singleOut, toint(31, 0).sextTo(xLen), toint)
   io.out.bits.exc := Bits(0)
 
