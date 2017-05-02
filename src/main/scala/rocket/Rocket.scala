@@ -394,7 +394,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_pc := ex_reg_pc
     mem_reg_wdata := alu.io.out
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc)) {
-      mem_reg_rs2 := ex_rs(1)
+      val typ = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_ctrl.mem_type)
+      mem_reg_rs2 := new uncore.util.StoreGen(typ, 0.U, ex_rs(1), coreDataBytes).data
     }
   }
 
@@ -625,7 +626,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
   io.dmem.invalidate_lr := wb_xcpt
-  io.dmem.s1_data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
+  io.dmem.s1_data.data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
   io.dmem.s1_kill := killm_common || mem_breakpoint
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
