@@ -24,7 +24,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
       supportsLogical    = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
-      supportsPutPartial = TransferSizes.none, // Can't support PutPartial
+      supportsPutPartial = TransferSizes(1, coreDataBytes),
       supportsPutFull    = TransferSizes(1, coreDataBytes),
       supportsGet        = TransferSizes(1, coreDataBytes),
       fifoId             = Some(0))), // requests handled in FIFO order
@@ -55,6 +55,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
       val req = Wire(new HellaCacheReq)
       req.cmd := MuxLookup(a.opcode, Wire(M_XRD), Array(
         TLMessages.PutFullData    -> M_XWR,
+        TLMessages.PutPartialData -> M_PWR,
         TLMessages.ArithmeticData -> MuxLookup(a.param, Wire(M_XRD), Array(
           TLAtomics.MIN           -> M_XA_MIN,
           TLAtomics.MAX           -> M_XA_MAX,
@@ -67,9 +68,8 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
           TLAtomics.AND           -> M_XA_AND,
           TLAtomics.SWAP          -> M_XA_SWAP)),
         TLMessages.Get            -> M_XRD))
-      // treat all loads as full words, so bytes appear in correct lane
-      req.typ := Mux(edge.hasData(a), a.size, log2Ceil(coreDataBytes))
-      req.addr := Mux(edge.hasData(a), a.address, ~(~a.address | (coreDataBytes-1)))
+      req.typ := a.size
+      req.addr := a.address
       req.tag := UInt(0)
       req.phys := true
       req
@@ -79,14 +79,13 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
     io.dmem.req.valid := (tl_in.a.valid && ready) || state === s_replay
     tl_in.a.ready := io.dmem.req.ready && ready
     io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
-    // the TL data is already in the correct byte lane, but the D$
-    // expects right-justified store data, so that it can steer the bytes.
-    io.dmem.s1_data := new LoadGen(acq.size, Bool(false), acq.address(log2Ceil(coreDataBytes)-1,0), acq.data, Bool(false), coreDataBytes).data
+    io.dmem.s1_data.data := acq.data
+    io.dmem.s1_data.mask := acq.mask
     io.dmem.s1_kill := false
     io.dmem.invalidate_lr := false
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
-    tl_in.d.bits := Mux(acq.opcode === TLMessages.PutFullData,
+    tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
       edge.AccessAck(acq, UInt(0)),
       edge.AccessAck(acq, UInt(0), UInt(0)))
     tl_in.d.bits.data := Mux(io.dmem.resp.valid, io.dmem.resp.bits.data_raw, acq.data)

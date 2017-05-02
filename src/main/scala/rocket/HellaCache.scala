@@ -118,11 +118,16 @@ class HellaCacheExceptions extends Bundle {
   val ae = new AlignmentExceptions
 }
 
+class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) {
+  val data = UInt(width = coreDataBits)
+  val mask = UInt(width = coreDataBytes)
+}
+
 // interface between D$ and processor/DTLB
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
   val s1_kill = Bool(OUTPUT) // kill previous cycle's req
-  val s1_data = Bits(OUTPUT, coreDataBits) // data for previous cycle's req
+  val s1_data = new HellaCacheWriteData().asOutput // data for previous cycle's req
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
 
   // performance events

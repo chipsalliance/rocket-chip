@@ -69,20 +69,18 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   }
 
   val req = Reg(new HellaCacheReq)
-  val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
   val s_idle :: s_mem_access :: s_mem_ack :: s_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
   io.req.ready := (state === s_idle)
 
-  val storegen = new StoreGen(req.typ, req.addr, req.data, wordBytes)
-  val loadgen = new LoadGen(req.typ, mtSigned(req.typ), req.addr, grant_word, req_cmd_sc, wordBytes)
+  val loadgen = new LoadGen(req.typ, mtSigned(req.typ), req.addr, grant_word, false.B, wordBytes)
  
   val a_source = UInt(id)
   val a_address = req.addr
-  val a_size = storegen.size
-  val a_data = Fill(beatWords, storegen.data)
+  val a_size = mtSize(req.typ)
+  val a_data = Fill(beatWords, req.data)
 
   val get     = edge.Get(a_source, a_address, a_size)._2
   val put     = edge.Put(a_source, a_address, a_size, a_data)._2
@@ -99,9 +97,10 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
       M_XA_MAXU -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.MAXU)._2))
   } else {
     // If no managers support atomics, assert fail if processor asks for them
-    assert (!isAMO(req.cmd))
+    assert(state === s_idle || !isAMO(req.cmd))
     Wire(new TLBundleA(edge.bundle))
   }
+  assert(state === s_idle || req.cmd =/= M_XSC)
 
   io.mem_access.valid := (state === s_mem_access)
   io.mem_access.bits := Mux(isAMO(req.cmd), atomics, Mux(isRead(req.cmd), get, put))
@@ -110,7 +109,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
-  io.resp.bits.data := loadgen.data | req_cmd_sc
+  io.resp.bits.data := loadgen.data
   io.resp.bits.store_data := req.data
   io.resp.bits.replay := Bool(true)
 
@@ -696,6 +695,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
+  // check for unsupported operations
+  assert(!s1_valid || !s1_req.cmd.isOneOf(M_PWR))
 
   val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
@@ -703,7 +704,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
   dtlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
-  dtlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data
+  dtlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.vaddr := s1_req.addr
   dtlb.io.req.bits.instruction := Bool(false)
@@ -736,7 +737,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     s2_req.phys := s1_req.phys
     s2_req.addr := s1_addr
     when (s1_write) {
-      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.s1_data)
+      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.s1_data.data)
     }
     when (s1_recycled) { s2_req.data := s1_req.data }
     s2_req.tag := s1_req.tag
@@ -927,10 +928,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(coreDataBits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
   val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word, s2_sc, wordBytes)
-  
-  amoalu.io.addr := s2_req.addr
+
+  amoalu.io.mask := new StoreGen(s2_req.typ, s2_req.addr, 0.U, xLen/8).mask
   amoalu.io.cmd := s2_req.cmd
-  amoalu.io.typ := s2_req.typ
   amoalu.io.lhs := s2_data_word
   amoalu.io.rhs := s2_req.data
 
