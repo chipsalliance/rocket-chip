@@ -10,6 +10,7 @@ import rocketchip._
 /** Example Top with Periphery (w/o coreplex) */
 abstract class ExampleTop(implicit p: Parameters) extends BaseTop
     with PeripheryAsyncExtInterrupts
+    with PeripheryErrorSlave
     with PeripheryMasterAXI4Mem
     with PeripheryMasterAXI4MMIO
     with PeripherySlaveAXI4 {
@@ -18,12 +19,14 @@ abstract class ExampleTop(implicit p: Parameters) extends BaseTop
 
 class ExampleTopBundle[+L <: ExampleTop](_outer: L) extends BaseTopBundle(_outer)
     with PeripheryExtInterruptsBundle
+    with PeripheryErrorSlaveBundle
     with PeripheryMasterAXI4MemBundle
     with PeripheryMasterAXI4MMIOBundle
     with PeripherySlaveAXI4Bundle
 
 class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](_outer: L, _io: () => B) extends BaseTopModule(_outer, _io)
     with PeripheryExtInterruptsModule
+    with PeripheryErrorSlaveModule
     with PeripheryMasterAXI4MemModule
     with PeripheryMasterAXI4MMIOModule
     with PeripherySlaveAXI4Module

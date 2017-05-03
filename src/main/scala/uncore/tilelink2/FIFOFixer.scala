@@ -10,9 +10,8 @@ import scala.math.max
 
 class TLFIFOFixer(implicit p: Parameters) extends LazyModule
 {
-  // We request downstream FIFO so we can use the existing fifoId
   val node = TLAdapterNode(
-    clientFn  = { cp => cp.copy(clients  = cp.clients .map(c => c.copy(requestFifo = !c.supportsProbe))) },
+    clientFn  = { cp => cp },
     managerFn = { mp => mp.copy(managers = mp.managers.map(m => m.copy(fifoId = Some(0)))) })
 
   lazy val module = new LazyModuleImp(this) {

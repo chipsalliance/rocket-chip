@@ -53,7 +53,7 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
 
   for (i <- 0 until channels) {
     val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))
-    sram.node := AXI4Buffer()(AXI4Fragmenter(maxInFlight = 4)(node))
+    sram.node := AXI4Buffer()(AXI4Fragmenter()(node))
   }
 
   lazy val module = new LazyModuleImp(this) {

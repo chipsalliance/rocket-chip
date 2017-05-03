@@ -17,14 +17,16 @@ object RegionType {
 }
 
 // A non-empty half-open range; [start, end)
-case class IdRange(start: Int, end: Int)
+case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 {
   require (start >= 0, s"Ids cannot be negative, but got: $start.")
   require (start < end, "Id ranges cannot be empty.")
 
-  // This is a strict partial ordering
-  def <(x: IdRange) = end <= x.start
-  def >(x: IdRange) = x < this
+  def compare(x: IdRange) = {
+    val primary   = (this.start - x.start).signum
+    val secondary = (x.end - this.end).signum
+    if (primary != 0) primary else secondary
+  }
 
   def overlaps(x: IdRange) = start < x.end && x.start < end
   def contains(x: IdRange) = start <= x.start && x.end <= end
@@ -41,6 +43,14 @@ case class IdRange(start: Int, end: Int)
   def size = end - start
   
   def range = start until end
+}
+
+object IdRange
+{
+  def overlaps(s: Seq[IdRange]) = if (s.isEmpty) None else {
+    val ranges = s.sorted
+    (ranges.tail zip ranges.init) find { case (a, b) => a overlaps b }
+  }
 }
 
 // An potentially empty inclusive range of 2-powers [min, max] (in bytes)
