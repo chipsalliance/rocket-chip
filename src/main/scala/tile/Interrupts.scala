@@ -50,11 +50,12 @@ trait HasExternalInterruptsModule {
     val periph_ips = Seq(
       core.msip,
       core.mtip,
-      core.meip,
-      core.seip.getOrElse(Wire(Bool())))
+      core.meip)
+
+    val seip = if (core.seip.isDefined) Seq(core.seip.get) else Nil
 
     val core_ips = core.lip
 
-    (async_ips ++ periph_ips ++ core_ips).zip(io.interrupts(0)).foreach { case(c, i) => c := i }
+    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(io.interrupts(0)).foreach { case(c, i) => c := i }
   }
 }
