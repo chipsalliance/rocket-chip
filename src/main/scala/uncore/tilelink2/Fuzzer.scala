@@ -82,7 +82,8 @@ class TLFuzzer(
                   (wide: Int, increment: Bool, abs_values: Int) =>
                    LFSRNoiseMaker(wide=wide, increment=increment)
                   },
-    noModify: Boolean = false)(implicit p: Parameters) extends LazyModule
+    noModify: Boolean = false,
+    overrideAddress: Option[AddressSet] = None)(implicit p: Parameters) extends LazyModule
 {
   val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
 
@@ -96,7 +97,7 @@ class TLFuzzer(
     val edge = node.edgesOut(0)
 
     // Extract useful parameters from the TL edge
-    val endAddress   = edge.manager.maxAddress + 1
+    val endAddress   = overrideAddress.map(_.max).getOrElse(edge.manager.maxAddress)
     val maxTransfer  = edge.manager.maxTransfer
     val beatBytes    = edge.manager.beatBytes
     val maxLgBeats   = log2Up(maxTransfer/beatBytes)
