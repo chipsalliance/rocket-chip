@@ -62,10 +62,14 @@ class AXI4FullFuzzRAMTest(implicit p: Parameters) extends UnitTest(500000) {
   io.finished := dut.io.finished
 }
 
-class AXI4FuzzMaster()(implicit p: Parameters) extends LazyModule
+trait HasFuzzTarget {
+  val fuzzAddr = AddressSet(0x0, 0xfff)
+}
+
+class AXI4FuzzMaster()(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node  = AXI4OutputNode()
-  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val fuzz  = LazyModule(new TLFuzzer(5000, overrideAddress = Some(fuzzAddr)))
   val model = LazyModule(new TLRAMModel("AXI4FuzzMaster"))
 
   model.node := fuzz.node
@@ -88,11 +92,11 @@ class AXI4FuzzMaster()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule
+class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node = AXI4InputNode()
   val xbar = LazyModule(new TLXbar)
-  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0xfff)))
+  val ram  = LazyModule(new TLRAM(fuzzAddr))
   val error= LazyModule(new TLError(Seq(AddressSet(0x1800, 0xff))))
 
   ram.node   := TLFragmenter(4, 16)(xbar.node)
