@@ -47,6 +47,7 @@ class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends 
         regionType      = RegionType.UNCACHED,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
+        supportsPutPartial = TransferSizes(1, wordBytes),
         supportsGet     = TransferSizes(1, wordBytes),
         fifoId          = Some(0))), // requests handled in FIFO order
       beatBytes = wordBytes,
@@ -226,7 +227,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       io.resp.valid := s2_valid && s2_hit && !s2_disparity
 
       tl_in.map { tl =>
-        tl.a.ready := !(tl_out.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid)
+        val respValid = RegInit(false.B)
+        tl.a.ready := !(tl_out.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid || respValid)
         val s1_a = RegEnable(tl.a.bits, s0_slaveValid)
         when (s0_slaveValid) {
           val a = tl.a.bits
@@ -243,7 +245,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         }
 
         assert(!s2_valid || RegNext(RegNext(s0_vaddr)) === io.s2_vaddr)
-        when (!(tl.a.valid || s1_slaveValid || s2_slaveValid)
+        when (!(tl.a.valid || s1_slaveValid || s2_slaveValid || respValid)
               && s2_valid && s2_data_decoded.correctable && !s2_tag_disparity) {
           // handle correctable errors on CPU accesses to the scratchpad.
           // if there is an in-flight slave-port access to the scratchpad,
@@ -254,7 +256,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           s1s3_slaveAddr := Cat(OHToUInt(s2_tag_hit), io.s2_vaddr(untagBits-1, log2Ceil(wordBits/8)), s1s3_slaveAddr(log2Ceil(wordBits/8)-1, 0))
         }
 
-        val respValid = RegInit(false.B)
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
         when (s2_slaveValid) {
           when (edge_in.get.hasData(s1_a) || s2_data_decoded.correctable) { s3_slaveValid := true }
