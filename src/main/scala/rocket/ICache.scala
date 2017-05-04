@@ -47,6 +47,7 @@ class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends 
         regionType      = RegionType.UNCACHED,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
+        supportsPutPartial = TransferSizes(1, wordBytes),
         supportsGet     = TransferSizes(1, wordBytes),
         fifoId          = Some(0))), // requests handled in FIFO order
       beatBytes = wordBytes,
