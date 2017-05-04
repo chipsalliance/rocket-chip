@@ -18,7 +18,7 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
       supportsWrite = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
     beatBytes  = beatBytes,
-    minLatency = 0))) // B responds on same cycle
+    minLatency = 1)))
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
@@ -38,36 +38,53 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
     val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
 
-    in.aw.ready := in. w.valid && in.b.ready
-    in. w.ready := in.aw.valid && in.b.ready
-    in. b.valid := in.w.valid && in.aw.valid
+    val w_full = RegInit(Bool(false))
+    val w_id   = Reg(UInt())
+    val w_user = Reg(UInt())
 
-    in.b.bits.id   := in.aw.bits.id
-    in.b.bits.resp := AXI4Parameters.RESP_OKAY
+    when (in. b.fire()) { w_full := Bool(false) }
+    when (in.aw.fire()) { w_full := Bool(true) }
+
+    when (in.aw.fire()) {
+      w_id := in.aw.bits.id
+      in.aw.bits.user.foreach { w_user := _ }
+    }
+
     val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
-    when (in.b.fire()) {
+    when (in.aw.fire()) {
       mem.write(w_addr, wdata, in.w.bits.strb.toBools)
     }
 
+    in. b.valid := w_full
+    in.aw.ready := in. w.valid && (in.b.ready || !w_full)
+    in. w.ready := in.aw.valid && (in.b.ready || !w_full)
+
+    in.b.bits.id   := w_id
+    in.b.bits.resp := AXI4Parameters.RESP_OKAY
+    in.b.bits.user.foreach { _ := w_user }
+
     val r_full = RegInit(Bool(false))
     val r_id   = Reg(UInt())
+    val r_user = Reg(UInt())
 
     when (in. r.fire()) { r_full := Bool(false) }
     when (in.ar.fire()) { r_full := Bool(true) }
 
-    in. r.valid := r_full
-    in.ar.ready := in.r.ready || !r_full
-
     when (in.ar.fire()) {
       r_id := in.ar.bits.id
+      in.ar.bits.user.foreach { r_user := _ }
     }
 
     val ren = in.ar.fire()
     val rdata = mem.readAndHold(r_addr, ren)
 
+    in. r.valid := r_full
+    in.ar.ready := in.r.ready || !r_full
+
     in.r.bits.id   := r_id
     in.r.bits.resp := AXI4Parameters.RESP_OKAY
     in.r.bits.data := Cat(rdata.reverse)
+    in.r.bits.user.foreach { _ := r_user }
     in.r.bits.last := Bool(true)
   }
 }

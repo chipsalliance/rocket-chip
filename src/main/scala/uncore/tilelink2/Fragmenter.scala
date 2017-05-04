@@ -14,7 +14,7 @@ import scala.math.{min,max}
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
-class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false)(implicit p: Parameters) extends LazyModule
+class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   require (isPow2 (maxSize))
   require (isPow2 (minSize))
@@ -137,6 +137,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val dOrig = Reg(UInt())
       val dFragnum = out.d.bits.source(fragmentBits-1, 0)
       val dFirst = acknum === UInt(0)
+      val dLast = dFragnum === UInt(0)
       val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
       val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Up(maxDownSize))
       val dHasData = edgeOut.hasData(out.d.bits)
@@ -156,7 +157,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       }
 
       // Swallow up non-data ack fragments
-      val drop = !dHasData && (dFragnum =/= UInt(0))
+      val drop = !dHasData && !(if (earlyAck) dFirst else dLast)
       out.d.ready := in.d.ready || drop
       in.d.valid  := out.d.valid && !drop
       in.d.bits   := out.d.bits // pass most stuff unchanged
@@ -164,11 +165,18 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       in.d.bits.source := out.d.bits.source >> fragmentBits
       in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
-      // Combine the error flag
-      val r_error = RegInit(Bool(false))
-      val d_error = r_error | out.d.bits.error
-      when (out.d.fire()) { r_error := Mux(drop, d_error, UInt(0)) }
-      in.d.bits.error := d_error
+      if (earlyAck) {
+        // If you do early Ack, errors may not be dropped
+        // ... which roughly means: Puts may not fail
+        assert (!out.d.bits.error || !drop)
+        in.d.bits.error := out.d.bits.error
+      } else {
+        // Combine the error flag
+        val r_error = RegInit(Bool(false))
+        val d_error = r_error | out.d.bits.error
+        when (out.d.fire()) { r_error := Mux(drop, d_error, UInt(0)) }
+        in.d.bits.error := d_error
+      }
 
       // What maximum transfer sizes do downstream devices support?
       val maxArithmetics = managers.map(_.supportsArithmetic.max)
@@ -252,8 +260,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 object TLFragmenter
 {
   // applied to the TL source node; y.node := TLFragmenter(x.node, 256, 4)
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin))
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: Boolean = false)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
+    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck))
     fragmenter.node := x
     fragmenter.node
   }

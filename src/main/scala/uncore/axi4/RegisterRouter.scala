@@ -17,7 +17,7 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
       supportsRead  = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
+    minLatency = 1)))
 {
   require (address.contiguous)
 
@@ -30,7 +30,7 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
     val r  = bundleIn(0).r
     val b  = bundleIn(0).b
 
-    val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, ar.bits.params.idBits)
+    val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, ar.bits.params.idBits + ar.bits.params.userBits)
     val in = Wire(Decoupled(new RegMapperInput(params)))
 
     // Prefer to execute reads first
@@ -39,34 +39,39 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
     aw.ready := in.ready && !ar.valid && w .valid
     w .ready := in.ready && !ar.valid && aw.valid
 
-    val addr  = Mux(ar.valid, ar.bits.addr, aw.bits.addr)
-    val in_id = Mux(ar.valid, ar.bits.id,   aw.bits.id)
+    val ar_extra = Cat(Seq(ar.bits.id) ++ ar.bits.user.toList)
+    val aw_extra = Cat(Seq(aw.bits.id) ++ aw.bits.user.toList)
+    val in_extra = Mux(ar.valid, ar_extra, aw_extra)
+    val addr = Mux(ar.valid, ar.bits.addr, aw.bits.addr)
     val mask = uncore.tilelink2.maskGen(ar.bits.addr, ar.bits.size, beatBytes)
 
     in.bits.read  := ar.valid
     in.bits.index := addr >> log2Ceil(beatBytes)
     in.bits.data  := w.bits.data
     in.bits.mask  := Mux(ar.valid, mask, w.bits.strb)
-    in.bits.extra := in_id
+    in.bits.extra := in_extra
 
     // Invoke the register map builder and make it Irrevocable
     val out = Queue.irrevocable(
       RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*),
-      entries = 1, flow = true)
+      entries = 2)
 
     // No flow control needed
     out.ready := Mux(out.bits.read, r.ready, b.ready)
     r.valid := out.valid &&  out.bits.read
     b.valid := out.valid && !out.bits.read
 
-    val out_id = if (r.bits.params.idBits == 0) UInt(0) else out.bits.extra
+    val out_id = if (r.bits.params.idBits == 0) UInt(0) else (out.bits.extra >> ar.bits.params.userBits)
 
     r.bits.id   := out_id
     r.bits.data := out.bits.data
     r.bits.last := Bool(true)
     r.bits.resp := AXI4Parameters.RESP_OKAY
+    r.bits.user.foreach { _ := out.bits.extra }
+
     b.bits.id   := out_id
     b.bits.resp := AXI4Parameters.RESP_OKAY
+    b.bits.user.foreach { _ := out.bits.extra }
   }
 }
 
