@@ -95,6 +95,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val tmp = new PTE().fromBits(io.mem.resp.bits.data)
     val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data))
     res.ppn := tmp.ppn(ppnBits-1, 0)
+    when (tmp.r || tmp.w || tmp.x) {
+      // for superpage mappings, make sure PPN LSBs are zero
+      for (i <- 0 until pgLevels-1)
+        when (count <= i && tmp.ppn((pgLevels-1-i)*pgLevelBits-1, (pgLevels-2-i)*pgLevelBits) =/= 0) { res.v := false }
+    }
     (res, (tmp.ppn >> ppnBits) =/= 0)
   }
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
