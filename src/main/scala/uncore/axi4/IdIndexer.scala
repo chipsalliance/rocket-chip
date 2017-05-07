@@ -56,12 +56,22 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 
       val bits = log2Ceil(edgeIn.master.endId) - idBits
       if (bits > 0) {
-       out.ar.bits.user.get := Cat(in.ar.bits.user.toList ++ Seq(in.ar.bits.id >> idBits))
-       out.aw.bits.user.get := Cat(in.aw.bits.user.toList ++ Seq(in.aw.bits.id >> idBits))
-       in.r.bits.user.foreach { _ := out.r.bits.user.get >> bits }
-       in.b.bits.user.foreach { _ := out.b.bits.user.get >> bits }
-       in.r.bits.id := Cat(out.r.bits.user.get, out.r.bits.id)
-       in.b.bits.id := Cat(out.b.bits.user.get, out.b.bits.id)
+        // (in.aX.bits.id >> idBits).width = bits > 0
+        out.ar.bits.user.get := Cat(in.ar.bits.user.toList ++ Seq(in.ar.bits.id >> idBits))
+        out.aw.bits.user.get := Cat(in.aw.bits.user.toList ++ Seq(in.aw.bits.id >> idBits))
+        // user.isDefined => width > 0
+        in.r.bits.user.foreach { _ := out.r.bits.user.get >> bits }
+        in.b.bits.user.foreach { _ := out.b.bits.user.get >> bits }
+        // Special care is needed in case of 0 idBits, b/c .id has width 1 still
+        if (idBits == 0) {
+          out.ar.bits.id := UInt(0)
+          out.aw.bits.id := UInt(0)
+          in.r.bits.id := out.r.bits.user.get
+          in.b.bits.id := out.b.bits.user.get
+        } else {
+          in.r.bits.id := Cat(out.r.bits.user.get, out.r.bits.id)
+          in.b.bits.id := Cat(out.b.bits.user.get, out.b.bits.id)
+        }
       }
     }
   }
