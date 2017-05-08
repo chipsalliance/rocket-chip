@@ -40,7 +40,7 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
 
     val w_full = RegInit(Bool(false))
     val w_id   = Reg(UInt())
-    val w_user = Reg(UInt())
+    val w_user = Reg(UInt(width = 1 max in.params.userBits))
 
     when (in. b.fire()) { w_full := Bool(false) }
     when (in.aw.fire()) { w_full := Bool(true) }
@@ -65,7 +65,7 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
 
     val r_full = RegInit(Bool(false))
     val r_id   = Reg(UInt())
-    val r_user = Reg(UInt())
+    val r_user = Reg(UInt(width = 1 max in.params.userBits))
 
     when (in. r.fire()) { r_full := Bool(false) }
     when (in.ar.fire()) { r_full := Bool(true) }

@@ -38,8 +38,8 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
       out.w <> in.w
       in.b <> out.b
 
-      if (queues == 1) {
-        // Gracefully do nothing
+      if (beats <= 1) {
+        // Nothing to do if only single-beat R
         in.r <> out.r
       } else {
         // Buffer R response
@@ -48,7 +48,7 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
         // Which ID is being enqueued and dequeued?
         val locked = RegInit(Bool(false))
-        val deq_id = Reg(UInt(width=log2Ceil(queues)))
+        val deq_id = Reg(UInt(width=log2Up(queues)))
         val enq_id = out.r.bits.id
         val deq_OH = UIntToOH(deq_id, queues)
         val enq_OH = UIntToOH(enq_id, queues)
