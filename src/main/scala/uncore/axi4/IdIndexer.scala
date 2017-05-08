@@ -34,9 +34,7 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
         userBits = mp.userBits + max(0, log2Ceil(mp.endId) - idBits),
         masters  = masters)
     },
-    slaveFn = { sp => sp.copy(
-      slaves = sp.slaves.map(s => s.copy(
-        interleavedId = if (idBits == 0) Some(0) else s.interleavedId)))
+    slaveFn = { sp => sp
     })
 
   lazy val module = new LazyModuleImp(this) {
