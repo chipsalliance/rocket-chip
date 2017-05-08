@@ -175,16 +175,13 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true)(implicit p: Parame
       val a_sel = UIntToOH(arw.id, edgeOut.master.endId).toBools
       val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
-      val d_first = RegInit(Bool(true))
-      when (in.d.fire()) { d_first := d_last }
       val stalls = ((a_sel zip d_sel) zip idCount) filter { case (_, n) => n > 1 } map { case ((as, ds), n) =>
         val count = RegInit(UInt(0, width = log2Ceil(n + 1)))
         val write = Reg(Bool())
         val idle = count === UInt(0)
 
-        // Once we start getting the response, it's safe to already switch R/W
         val inc = as && out_arw.fire()
-        val dec = ds && d_first && in.d.fire()
+        val dec = ds && d_last && in.d.fire()
         count := count + inc.asUInt - dec.asUInt
 
         assert (!dec || count =/= UInt(0)) // underflow
