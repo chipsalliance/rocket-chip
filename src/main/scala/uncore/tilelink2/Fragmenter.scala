@@ -296,7 +296,7 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) e
     TLDelayer(0.1)(
     TLBuffer(BufferParams.flow)(
     TLDelayer(0.1)(
-    TLFragmenter(ramBeatBytes, maxSize)(
+    TLFragmenter(ramBeatBytes, maxSize, earlyAck = true)(
     TLDelayer(0.1)(
     TLBuffer(BufferParams.flow)(
     TLFragmenter(ramBeatBytes, maxSize/2)(
