@@ -174,7 +174,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       if (earlyAck) {
         // If you do early Ack, errors may not be dropped
         // ... which roughly means: Puts may not fail
-        assert (!out.d.bits.error || !drop)
+        assert (!out.d.valid || !out.d.bits.error || !drop)
         in.d.bits.error := out.d.bits.error
       } else {
         // Combine the error flag
