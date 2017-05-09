@@ -97,11 +97,10 @@ class TLFuzzer(
     val edge = node.edgesOut(0)
 
     // Extract useful parameters from the TL edge
-    val endAddress   = overrideAddress.map(_.max).getOrElse(edge.manager.maxAddress)
     val maxTransfer  = edge.manager.maxTransfer
     val beatBytes    = edge.manager.beatBytes
     val maxLgBeats   = log2Up(maxTransfer/beatBytes)
-    val addressBits  = log2Up(endAddress)
+    val addressBits  = log2Up(overrideAddress.map(_.max).getOrElse(edge.manager.maxAddress))
     val sizeBits     = edge.bundle.sizeBits
     val dataBits     = edge.bundle.dataBits
 
@@ -137,7 +136,8 @@ class TLFuzzer(
     val log_op    = noiseMaker(2, inc, 0)
     val amo_size  = UInt(2) + noiseMaker(1, inc, 0) // word or dword
     val size      = noiseMaker(sizeBits, inc, 0)
-    val addr      = noiseMaker(addressBits, inc, 2) & ~UIntToOH1(size, addressBits)
+    val addrMask  = overrideAddress.map(_.max.U).getOrElse(~UInt(0, addressBits))
+    val addr      = noiseMaker(addressBits, inc, 2) & ~UIntToOH1(size, addressBits) & addrMask
     val mask      = noiseMaker(beatBytes, inc_beat, 2) & edge.mask(addr, size)
     val data      = noiseMaker(dataBits, inc_beat, 2)
 
