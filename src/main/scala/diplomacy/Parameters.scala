@@ -126,6 +126,9 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
   def contains(x: UInt) = ((x ^ UInt(base)).zext() & SInt(~mask)) === SInt(0)
 
+  // turn x into an address contained in this set
+  def legalize(x: UInt): UInt = base.U | (mask.U & x)
+
   // overlap iff bitwise: both care (~mask0 & ~mask1) => both equal (base0=base1)
   def overlaps(x: AddressSet) = (~(mask | x.mask) & (base ^ x.base)) == 0
   // contains iff bitwise: x.mask => mask && contains(x.base)
