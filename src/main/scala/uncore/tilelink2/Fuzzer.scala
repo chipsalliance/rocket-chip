@@ -136,8 +136,8 @@ class TLFuzzer(
     val log_op    = noiseMaker(2, inc, 0)
     val amo_size  = UInt(2) + noiseMaker(1, inc, 0) // word or dword
     val size      = noiseMaker(sizeBits, inc, 0)
-    val addrMask  = overrideAddress.map(_.max.U).getOrElse(~UInt(0, addressBits))
-    val addr      = noiseMaker(addressBits, inc, 2) & ~UIntToOH1(size, addressBits) & addrMask
+    val rawAddr   = noiseMaker(addressBits, inc, 2)
+    val addr      = overrideAddress.map(_.legalize(rawAddr)).getOrElse(rawAddr) & ~UIntToOH1(size, addressBits)
     val mask      = noiseMaker(beatBytes, inc_beat, 2) & edge.mask(addr, size)
     val data      = noiseMaker(dataBits, inc_beat, 2)
 
