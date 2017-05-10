@@ -20,7 +20,11 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   require (isPow2 (minSize))
   require (minSize < maxSize)
 
+  // EarlyAck means that 1.999 transactions can be inflight at a time
+  // Thus, we need an extra toggle bit to prevent source collisions
   val fragmentBits = log2Ceil(maxSize / minSize)
+  val toggleBits = if (earlyAck) 1 else 0
+  val addedBits = fragmentBits + toggleBits
 
   def expandTransfer(x: TransferSizes) = if (!x) x else {
     require (x.max >= minSize) // validate that we can apply the fragmenter correctly
@@ -42,7 +46,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
     clientFn  = { c => c.copy(clients = Seq(TLClientParameters(
-      sourceId = IdRange(0, c.endSourceId << fragmentBits),
+      sourceId = IdRange(0, c.endSourceId << addedBits),
       requestFifo = true))) },
     managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
 
@@ -164,13 +168,13 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       in.d.valid  := out.d.valid && !drop
       in.d.bits   := out.d.bits // pass most stuff unchanged
       in.d.bits.addr_lo := out.d.bits.addr_lo & ~dsizeOH1
-      in.d.bits.source := out.d.bits.source >> fragmentBits
+      in.d.bits.source := out.d.bits.source >> addedBits
       in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
       if (earlyAck) {
         // If you do early Ack, errors may not be dropped
         // ... which roughly means: Puts may not fail
-        assert (!out.d.bits.error || !drop)
+        assert (!out.d.valid || !out.d.bits.error || !drop)
         in.d.bits.error := out.d.bits.error
       } else {
         // Combine the error flag
@@ -232,13 +236,23 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val old_gennum1 = Mux(aFirst, aOrigOH1 >> log2Ceil(beatBytes), gennum - UInt(1))
       val new_gennum = ~(~old_gennum1 | (aMask >> log2Ceil(beatBytes))) // ~(~x|y) is width safe
       val aFragnum = ~(~(old_gennum1 >> log2Ceil(minSize/beatBytes)) | (aFragOH1 >> log2Ceil(minSize)))
+      val aLast = aFragnum === UInt(0)
 
       when (out.a.fire()) { gennum := new_gennum }
+
+      // We need to alternate bits by source to handle the 1.999 txns inflight per Id
+      val toggleBitOpt = if (!earlyAck) None else {
+        val state = Reg(UInt(width = edgeIn.client.endSourceId))
+        val toggle = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
+        when (in_a.fire() && aLast) { toggle := UIntToOH(in_a.bits.source) }
+        state := state ^ toggle
+        Some(state(in_a.bits.source))
+      }
 
       repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
       out.a <> in_a
       out.a.bits.address := in_a.bits.address | ~(old_gennum1 << log2Ceil(beatBytes) | ~aOrigOH1 | aFragOH1 | UInt(minSize-1))
-      out.a.bits.source := Cat(in_a.bits.source, aFragnum)
+      out.a.bits.source := Cat(Seq(in_a.bits.source) ++ toggleBitOpt.toList ++ Seq(aFragnum))
       out.a.bits.size := aFrag
 
       // Optimize away some of the Repeater's registers
@@ -282,7 +296,7 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) e
     TLDelayer(0.1)(
     TLBuffer(BufferParams.flow)(
     TLDelayer(0.1)(
-    TLFragmenter(ramBeatBytes, maxSize)(
+    TLFragmenter(ramBeatBytes, maxSize, earlyAck = true)(
     TLDelayer(0.1)(
     TLBuffer(BufferParams.flow)(
     TLFragmenter(ramBeatBytes, maxSize/2)(
