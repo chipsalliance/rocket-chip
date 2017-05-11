@@ -20,6 +20,7 @@ case class RocketCoreParams(
   nBreakpoints: Int = 1,
   nPerfCounters: Int = 0,
   nPerfEvents: Int = 0,
+  perfIncWidth: Int = 1,
   nCustomMRWCSRs: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
   mtvecWritable: Boolean = true,
@@ -45,6 +46,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val nBreakpoints = rocketParams.nBreakpoints
   val nPerfCounters = rocketParams.nPerfCounters
   val nPerfEvents = rocketParams.nPerfEvents
+  val perfIncWidth = rocketParams.perfIncWidth
   val nCustomMrwCsrs = rocketParams.nCustomMRWCSRs
   val mtvecInit = rocketParams.mtvecInit
   val mtvecWritable = rocketParams.mtvecWritable
