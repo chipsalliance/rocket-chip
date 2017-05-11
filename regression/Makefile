@@ -133,6 +133,7 @@ $(RISCV)/install.stamp:
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-opcodes
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-pk
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-tests
+	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-openocd
 	+cd $(abspath $(TOP))/riscv-tools; RISCV=$(abspath $(RISCV)) ./build.sh
 	date > $@
 
