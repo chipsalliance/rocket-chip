@@ -40,8 +40,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       val f = if (rocketParams.core.fpu.nonEmpty) "f" else ""
       val d = if (rocketParams.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
       val c = if (rocketParams.core.useCompressed) "c" else ""
-      val s = if (rocketParams.core.useVM) "s" else ""
-      val isa = s"rv${p(XLen)}i$m$a$f$d$c$s"
+      val isa = s"rv${p(XLen)}i$m$a$f$d$c"
 
       val dcache = rocketParams.dcache.map(d => Map(
         "d-cache-block-size"   -> ofInt(block),
@@ -83,7 +82,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       Description(s"cpus/cpu@${hartid}", Map(
         "reg"                  -> resources("reg").map(_.value),
         "device_type"          -> ofStr("cpu"),
-        "compatible"           -> ofStr("riscv"),
+        "compatible"           -> Seq(ResourceString("sifive,rocket0"), ResourceString("riscv")),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
         "riscv,isa"            -> ofStr(isa))
