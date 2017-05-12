@@ -3,6 +3,7 @@
 package uncore.tilelink2
 
 import Chisel._
+import chisel3.experimental.chiselName
 import config._
 import diplomacy._
 import util._
@@ -27,7 +28,8 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Implementation
+  @chiselName class Implementation extends LazyModuleImp(this) {
     val io = new Bundle {
       val in = node.bundleIn
     }
