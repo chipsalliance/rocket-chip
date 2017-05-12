@@ -40,8 +40,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       val f = if (rocketParams.core.fpu.nonEmpty) "f" else ""
       val d = if (rocketParams.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
       val c = if (rocketParams.core.useCompressed) "c" else ""
-      val s = if (rocketParams.core.useVM) "s" else ""
-      val isa = s"rv${p(XLen)}i$m$a$f$d$c$s"
+      val isa = s"rv${p(XLen)}i$m$a$f$d$c"
 
       val dcache = rocketParams.dcache.map(d => Map(
         "d-cache-block-size"   -> ofInt(block),
