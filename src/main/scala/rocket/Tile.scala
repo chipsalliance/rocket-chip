@@ -82,7 +82,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       Description(s"cpus/cpu@${hartid}", Map(
         "reg"                  -> resources("reg").map(_.value),
         "device_type"          -> ofStr("cpu"),
-        "compatible"           -> ofStr("riscv"),
+        "compatible"           -> Seq(ResourceString("sifive,rocket0"), ResourceString("riscv")),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
         "riscv,isa"            -> ofStr(isa))
