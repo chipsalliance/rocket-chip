@@ -19,6 +19,12 @@ class ClockDivider2 extends BlackBox {
     val clk_in  = Clock(INPUT)
   }
 }
+class ClockDivider3 extends BlackBox {
+  val io = new Bundle {
+    val clk_out = Clock(OUTPUT)
+    val clk_in  = Clock(INPUT)
+  }
+}
 
 /** Divide the clock by power of 2 times.
  *  @param pow2 divides the clock 2 ^ pow2 times

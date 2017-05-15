@@ -1,8 +1,8 @@
 // See LICENSE.SiFive for license details.
 
-// If you know two clocks are related with a N:1 or 1:N relationship, you
-// can cross the clock domains with lower latency than an AsyncQueue. This
-// crossing adds 1 cycle in the target clock domain.
+// If you know two clocks are related with an N:M relationship, you
+// can cross the clock domains with lower latency than an AsyncQueue.
+// This crossing adds 1 cycle in the target clock domain.
 
 package util
 import Chisel._
@@ -18,17 +18,30 @@ sealed trait RationalDirection {
 // place registers on both sides of the crossing, by splitting
 // a Queue into flow and pipe parts on either side. This is safe
 // for all possible clock ratios, but has the downside that the
-// path from the slow domain must close timing in the fast domain.
+// timing must be met for the least-common-multiple of the clocks.
 case object Symmetric extends RationalDirection {
   def flip = Symmetric
 }
 
-// If the source is fast, place the registers at the sink.
+// Like Symmetric, this crossing works for all ratios N:M.
+// However, unlike the other crossing options, this varient adds
+// a full flow+pipe buffer on both sides of the crossing. This
+// ends up costing potentially two cycles of delay, but gives
+// both clock domains a full clock period to close timing.
+case object Flexible extends RationalDirection {
+  def flip = Flexible
+}
+
+// If the source is N:1 of the sink, place the registers at the sink.
+// This imposes only a single clock cycle of delay and both side of
+// the crossing have a full clock period to close timing.
 case object FastToSlow extends RationalDirection {
   def flip = SlowToFast
 }
 
-// If the source is slow, place the registers at the source.
+// If the source is 1:N of the sink, place the registers at the source.
+// This imposes only a single clock cycle of delay and both side of
+// the crossing have a full clock period to close timing.
 case object SlowToFast extends RationalDirection {
   def flip = FastToSlow
 }
@@ -59,6 +72,7 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
   val deq = io.deq
   val enq = direction match {
     case Symmetric  => Queue(io.enq, 1, flow=true)
+    case Flexible => Queue(io.enq, 2)
     case FastToSlow => io.enq
     case SlowToFast => Queue(io.enq, 2)
   }
@@ -76,6 +90,7 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
   // Ensure the clocking is setup correctly
   direction match {
     case Symmetric  => () // always safe
+    case Flexible   => ()
     case FastToSlow => assert (equal || count(1) === deq.sink(0))
     case SlowToFast => assert (equal || count(1) =/= deq.sink(0))
   }
@@ -92,6 +107,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   val deq = Wire(io.deq)
   direction match {
     case Symmetric  => io.deq <> Queue(deq, 1, pipe=true)
+    case Flexible   => io.deq <> Queue(deq, 2)
     case FastToSlow => io.deq <> Queue(deq, 2)
     case SlowToFast => io.deq <> deq
   }
@@ -109,6 +125,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   // Ensure the clocking is setup correctly
   direction match {
     case Symmetric  => () // always safe
+    case Flexible   => ()
     case FastToSlow => assert (equal || count(1) =/= enq.source(0))
     case SlowToFast => assert (equal || count(1) === enq.source(0))
   }
