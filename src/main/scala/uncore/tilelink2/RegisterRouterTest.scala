@@ -255,8 +255,8 @@ class RRTest1(address: BigInt)(implicit p: Parameters) extends TLRegisterRouter(
   new TLRegBundle((), _)    with RRTest1Bundle)(
   new TLRegModule((), _, _) with RRTest1Module)
 
-class FuzzRRTest0()(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class FuzzRRTest0(txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val rrtr = LazyModule(new RRTest0(0x400))
 
   rrtr.node := TLFragmenter(4, 32)(TLDelayer(0.1)(fuzz.node))
@@ -266,12 +266,12 @@ class FuzzRRTest0()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRR0Test(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new FuzzRRTest0).module).io.finished
+class TLRR0Test(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new FuzzRRTest0(txns)).module).io.finished
 }
 
-class FuzzRRTest1()(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class FuzzRRTest1(txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val rrtr = LazyModule(new RRTest1(0x400))
 
   rrtr.node := TLFragmenter(4, 32)(TLDelayer(0.1)(fuzz.node))
@@ -281,7 +281,7 @@ class FuzzRRTest1()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRR1Test(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new FuzzRRTest1).module).io.finished
+class TLRR1Test(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new FuzzRRTest1(txns)).module).io.finished
 }
 

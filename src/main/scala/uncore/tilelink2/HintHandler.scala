@@ -110,8 +110,8 @@ import unittest._
 
 //TODO ensure handler will pass through hints to clients that can handle them themselves
 
-class TLRAMHintHandler()(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("HintHandler"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
@@ -123,6 +123,6 @@ class TLRAMHintHandler()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMHintHandlerTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMHintHandler).module).io.finished
+class TLRAMHintHandlerTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMHintHandler(txns)).module).io.finished
 }

@@ -213,8 +213,8 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class TLRAMXbar(nManagers: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("Xbar"))
   val xbar = LazyModule(new TLXbar)
 
@@ -230,15 +230,15 @@ class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMXbarTest(nManagers: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMXbar(nManagers)).module).io.finished
+class TLRAMXbarTest(nManagers: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMXbar(nManagers,txns)).module).io.finished
 }
 
-class TLMulticlientXbar(nManagers: Int, nClients: Int)(implicit p: Parameters) extends LazyModule {
+class TLMulticlientXbar(nManagers: Int, nClients: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
   val xbar = LazyModule(new TLXbar)
 
   val fuzzers = (0 until nClients) map { n =>
-    val fuzz = LazyModule(new TLFuzzer(5000))
+    val fuzz = LazyModule(new TLFuzzer(txns))
     xbar.node := TLDelayer(0.1)(fuzz.node)
     fuzz
   }
@@ -253,6 +253,6 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int)(implicit p: Parameters) e
   }
 }
 
-class TLMulticlientXbarTest(nManagers: Int, nClients: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients)).module).io.finished
+class TLMulticlientXbarTest(nManagers: Int, nClients: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients, txns)).module).io.finished
 }

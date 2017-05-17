@@ -180,8 +180,8 @@ object TLWidthWidget
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMWidthWidget(first: Int, second: Int)(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class TLRAMWidthWidget(first: Int, second: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("WidthWidget"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
@@ -197,6 +197,6 @@ class TLRAMWidthWidget(first: Int, second: Int)(implicit p: Parameters) extends 
   }
 }
 
-class TLRAMWidthWidgetTest(little: Int, big: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big)).module).io.finished
+class TLRAMWidthWidgetTest(little: Int, big: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big,txns)).module).io.finished
 }

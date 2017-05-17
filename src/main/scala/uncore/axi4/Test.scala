@@ -16,9 +16,9 @@ class RRTest1(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRoute
   new AXI4RegBundle((), _)    with RRTest1Bundle)(
   new AXI4RegModule((), _, _) with RRTest1Module)
 
-class AXI4LiteFuzzRAM()(implicit p: Parameters) extends LazyModule
+class AXI4LiteFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
-  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AXI4LiteFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
   val gpio  = LazyModule(new RRTest1(0x400))
@@ -34,14 +34,14 @@ class AXI4LiteFuzzRAM()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4LiteFuzzRAMTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val dut = Module(LazyModule(new AXI4LiteFuzzRAM).module)
+class AXI4LiteFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new AXI4LiteFuzzRAM(txns)).module)
   io.finished := dut.io.finished
 }
 
-class AXI4FullFuzzRAM()(implicit p: Parameters) extends LazyModule
+class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
-  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AXI4FullFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
   val gpio  = LazyModule(new RRTest0(0x400))
@@ -57,8 +57,8 @@ class AXI4FullFuzzRAM()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4FullFuzzRAMTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val dut = Module(LazyModule(new AXI4FullFuzzRAM).module)
+class AXI4FullFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new AXI4FullFuzzRAM(txns)).module)
   io.finished := dut.io.finished
 }
 
@@ -66,10 +66,10 @@ trait HasFuzzTarget {
   val fuzzAddr = AddressSet(0x0, 0xfff)
 }
 
-class AXI4FuzzMaster()(implicit p: Parameters) extends LazyModule with HasFuzzTarget
+class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node  = AXI4OutputNode()
-  val fuzz  = LazyModule(new TLFuzzer(5000, overrideAddress = Some(fuzzAddr)))
+  val fuzz  = LazyModule(new TLFuzzer(txns, overrideAddress = Some(fuzzAddr)))
   val model = LazyModule(new TLRAMModel("AXI4FuzzMaster"))
 
   model.node := fuzz.node
@@ -120,9 +120,9 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTar
   }
 }
 
-class AXI4FuzzBridge()(implicit p: Parameters) extends LazyModule
+class AXI4FuzzBridge(txns: Int)(implicit p: Parameters) extends LazyModule
 {
-  val master = LazyModule(new AXI4FuzzMaster)
+  val master = LazyModule(new AXI4FuzzMaster(txns))
   val slave  = LazyModule(new AXI4FuzzSlave)
 
   slave.node := master.node
@@ -132,7 +132,7 @@ class AXI4FuzzBridge()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4BridgeTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val dut = Module(LazyModule(new AXI4FuzzBridge).module)
+class AXI4BridgeTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new AXI4FuzzBridge(txns)).module)
   io.finished := dut.io.finished
 }

@@ -293,8 +293,8 @@ import unittest._
 
 //TODO ensure handler will pass through operations to clients that can handle them themselves
 
-class TLRAMAtomicAutomata()(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AtomicAutomata"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
@@ -306,6 +306,6 @@ class TLRAMAtomicAutomata()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMAtomicAutomataTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMAtomicAutomata).module).io.finished
+class TLRAMAtomicAutomataTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMAtomicAutomata(txns)).module).io.finished
 }
