@@ -51,13 +51,17 @@ jobs:
       before_cache:
         - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
       env: SUITE=none
-    - stage: deploy
+    - stage: Test
       script:
         - make emulator-ndebug -C regression SUITE=$SUITE
         - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
       env: SUITE=RocketSuiteA
+    - stage: Test
       env: SUITE=RocketSuiteB
+    - stage: Test
       env: SUITE=RocketSuiteC
+    - stage: Test
       env: SUITE=GroundtestSuite
+    - stage: Test
       env: SUITE=UnittestSuite
 
