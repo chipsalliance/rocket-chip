@@ -211,7 +211,7 @@ class TLFuzzer(
 /** Synthesizeable integration test */
 import unittest._
 
-class TLFuzzRAM()(implicit p: Parameters) extends LazyModule
+class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
   val model = LazyModule(new TLRAMModel("TLFuzzRAM"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
@@ -219,7 +219,7 @@ class TLFuzzRAM()(implicit p: Parameters) extends LazyModule
   val gpio = LazyModule(new RRTest1(0x400))
   val xbar = LazyModule(new TLXbar)
   val xbar2= LazyModule(new TLXbar)
-  val fuzz = LazyModule(new TLFuzzer(5000))
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
@@ -251,7 +251,7 @@ class TLFuzzRAM()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class TLFuzzRAMTest()(implicit p: Parameters) extends UnitTest(500000) {
-  val dut = Module(LazyModule(new TLFuzzRAM).module)
+class TLFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new TLFuzzRAM(txns)).module)
   io.finished := dut.io.finished
 }

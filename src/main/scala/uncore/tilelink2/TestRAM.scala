@@ -65,8 +65,8 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
 /** Synthesizeable unit testing */
 import unittest._
 
-class TLRAMZeroDelay(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class TLRAMZeroDelay(ramBeatBytes: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("ZeroDelay"))
   val ram  = LazyModule(new TLTestRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
@@ -78,6 +78,6 @@ class TLRAMZeroDelay(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModu
   }
 }
 
-class TLRAMZeroDelayTest(ramBeatBytes: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
-  io.finished := Module(LazyModule(new TLRAMZeroDelay(ramBeatBytes)).module).io.finished
+class TLRAMZeroDelayTest(ramBeatBytes: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMZeroDelay(ramBeatBytes, txns)).module).io.finished
 }

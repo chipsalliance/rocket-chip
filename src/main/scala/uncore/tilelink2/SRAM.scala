@@ -91,8 +91,8 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
 /** Synthesizeable unit testing */
 import unittest._
 
-class TLRAMSimple(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule {
-  val fuzz = LazyModule(new TLFuzzer(5000))
+class TLRAMSimple(ramBeatBytes: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
+  val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("SRAMSimple"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
@@ -104,6 +104,6 @@ class TLRAMSimple(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule 
   }
 }
 
-class TLRAMSimpleTest(ramBeatBytes: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
-  io.finished := Module(LazyModule(new TLRAMSimple(ramBeatBytes)).module).io.finished
+class TLRAMSimpleTest(ramBeatBytes: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMSimple(ramBeatBytes, txns)).module).io.finished
 }

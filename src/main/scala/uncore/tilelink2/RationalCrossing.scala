@@ -149,9 +149,9 @@ class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: P
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMRationalCrossingSource(name: String)(implicit p: Parameters) extends LazyModule {
+class TLRAMRationalCrossingSource(name: String, txns: Int)(implicit p: Parameters) extends LazyModule {
   val node = TLRationalOutputNode()
-  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel(name))
 
   model.node := fuzz.node
@@ -179,20 +179,20 @@ class TLRAMRationalCrossingSink(direction: RationalDirection)(implicit p: Parame
   }
 }
 
-class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
-  val sym_fast_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing sym_fast"))
+class TLRAMRationalCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
+  val sym_fast_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing sym_fast", txns))
   val sym_slow_sink   = LazyModule(new TLRAMRationalCrossingSink(Symmetric))
   sym_slow_sink.node := sym_fast_source.node
 
-  val sym_slow_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing sym_slow"))
+  val sym_slow_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing sym_slow", txns))
   val sym_fast_sink   = LazyModule(new TLRAMRationalCrossingSink(Symmetric))
   sym_fast_sink.node := sym_slow_source.node
 
-  val fix_fast_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing fast"))
+  val fix_fast_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing fast", txns))
   val fix_slow_sink   = LazyModule(new TLRAMRationalCrossingSink(FastToSlow))
   fix_slow_sink.node := fix_fast_source.node
 
-  val fix_slow_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing slow"))
+  val fix_slow_source = LazyModule(new TLRAMRationalCrossingSource("RationalCrossing slow", txns))
   val fix_fast_sink   = LazyModule(new TLRAMRationalCrossingSink(SlowToFast))
   fix_fast_sink.node := fix_slow_source.node
 
@@ -222,6 +222,6 @@ class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMRationalCrossingTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
-  io.finished := Module(LazyModule(new TLRAMRationalCrossing).module).io.finished
+class TLRAMRationalCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  io.finished := Module(LazyModule(new TLRAMRationalCrossing(txns)).module).io.finished
 }

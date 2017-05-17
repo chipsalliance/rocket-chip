@@ -16,9 +16,9 @@ class RRTest1(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter
   new APBRegBundle((), _)    with RRTest1Bundle)(
   new APBRegModule((), _, _) with RRTest1Module)
 
-class APBFuzzBridge(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
+class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule
 {
-  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("APBFuzzMaster"))
   var xbar  = LazyModule(new APBFanout)
   val ram   = LazyModule(new APBRAM(AddressSet(0x0, 0xff)))
@@ -39,7 +39,7 @@ class APBFuzzBridge(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
   }
 }
 
-class APBBridgeTest(aFlow: Boolean)(implicit p: Parameters) extends UnitTest(500000) {
-  val dut = Module(LazyModule(new APBFuzzBridge(aFlow)).module)
+class APBBridgeTest(aFlow: Boolean, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new APBFuzzBridge(aFlow, txns)).module)
   io.finished := dut.io.finished
 }
