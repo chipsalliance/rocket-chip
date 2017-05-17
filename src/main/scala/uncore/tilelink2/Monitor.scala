@@ -18,7 +18,7 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
   lazy val module = new LazyModuleImp(this) {
     val edges = args.edge()
     val io = new Bundle {
-      val in = Vec(edges.size, new TLBundleSnoop(TLBundleParameters.union(edges.map(_.bundle)))).flip
+      val in = util.HeterogeneousBag(edges.map(p => new TLBundleSnoop(p.bundle))).flip
     }
 
     (edges zip io.in).foreach { case (e, in) => legalize(in, e, reset) }
