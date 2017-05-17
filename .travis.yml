@@ -55,11 +55,11 @@ jobs:
       script:
         - make emulator-ndebug -C regression SUITE=$SUITE
         - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
-      env:
-        matrix:
-          - SUITE=RocketSuiteA
-          - SUITE=RocketSuiteB
-          - SUITE=RocketSuiteC
-          - SUITE=GroundtestSuite
-          - SUITE=UnittestSuite
 
+env:
+  matrix:
+    - SUITE=RocketSuiteA
+    - SUITE=RocketSuiteB
+    - SUITE=RocketSuiteC
+    - SUITE=GroundtestSuite
+    - SUITE=UnittestSuite
