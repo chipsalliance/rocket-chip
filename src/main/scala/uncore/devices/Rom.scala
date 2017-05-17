@@ -88,7 +88,7 @@ class ROMSlave(contents: Seq[Byte])(implicit val p: Parameters) extends Module
     data = rdata)
 }
 
-class ROMSlaveTest(implicit p: Parameters) extends UnitTest {
+class ROMSlaveTest(timeout: Int = 4096)(implicit p: Parameters) extends UnitTest(timeout) {
   val romdata = Seq(
     BigInt("01234567deadbeef", 16),
     BigInt("ab32fee8d00dfeed", 16))

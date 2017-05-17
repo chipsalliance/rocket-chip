@@ -168,6 +168,6 @@ class TLRAMAsyncCrossing(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMAsyncCrossingTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMAsyncCrossingTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMAsyncCrossing).module).io.finished
 }

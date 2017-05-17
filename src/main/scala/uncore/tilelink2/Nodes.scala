@@ -106,7 +106,7 @@ case class TLInternalInputNode(portParams: Seq[TLClientPortParameters]) extends 
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLInputNodeTest()(implicit p: Parameters) extends UnitTest(500000) {
+class TLInputNodeTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   class Acceptor extends LazyModule {
     val node = TLInputNode()
     val tlram = LazyModule(new TLRAM(AddressSet(0x54321000, 0xfff)))

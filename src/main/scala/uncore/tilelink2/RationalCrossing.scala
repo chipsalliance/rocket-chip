@@ -222,6 +222,6 @@ class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMRationalCrossingTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMRationalCrossingTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMRationalCrossing).module).io.finished
 }

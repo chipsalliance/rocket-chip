@@ -197,6 +197,6 @@ class TLRAMWidthWidget(first: Int, second: Int)(implicit p: Parameters) extends 
   }
 }
 
-class TLRAMWidthWidgetTest(little: Int, big: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMWidthWidgetTest(little: Int, big: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big)).module).io.finished
 }

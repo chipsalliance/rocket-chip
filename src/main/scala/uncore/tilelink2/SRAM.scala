@@ -104,6 +104,6 @@ class TLRAMSimple(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule 
   }
 }
 
-class TLRAMSimpleTest(ramBeatBytes: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMSimpleTest(ramBeatBytes: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMSimple(ramBeatBytes)).module).io.finished
 }

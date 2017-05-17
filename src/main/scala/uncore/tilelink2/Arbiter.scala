@@ -94,7 +94,7 @@ object TLArbiter
 /** Synthesizeable unit tests */
 import unittest._
 
-class TestRobin()(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TestRobin(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val sources = Wire(Vec(6, DecoupledIO(UInt(width=3))))
   val sink = Wire(DecoupledIO(UInt(width=3)))
   val count = RegInit(UInt(0, width=8))

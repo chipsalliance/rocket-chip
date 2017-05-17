@@ -309,6 +309,6 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) e
   }
 }
 
-class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize)).module).io.finished
 }

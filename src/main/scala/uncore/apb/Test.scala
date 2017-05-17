@@ -39,7 +39,7 @@ class APBFuzzBridge(aFlow: Boolean)(implicit p: Parameters) extends LazyModule
   }
 }
 
-class APBBridgeTest(aFlow: Boolean)(implicit p: Parameters) extends UnitTest(500000) {
+class APBBridgeTest(aFlow: Boolean, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new APBFuzzBridge(aFlow)).module)
   io.finished := dut.io.finished
 }

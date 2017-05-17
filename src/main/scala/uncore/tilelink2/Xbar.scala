@@ -230,7 +230,7 @@ class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMXbarTest(nManagers: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMXbarTest(nManagers: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMXbar(nManagers)).module).io.finished
 }
 
@@ -253,6 +253,6 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int)(implicit p: Parameters) e
   }
 }
 
-class TLMulticlientXbarTest(nManagers: Int, nClients: Int)(implicit p: Parameters) extends UnitTest(timeout = 5000000) {
+class TLMulticlientXbarTest(nManagers: Int, nClients: Int, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients)).module).io.finished
 }

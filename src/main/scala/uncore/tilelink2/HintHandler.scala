@@ -123,6 +123,6 @@ class TLRAMHintHandler()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMHintHandlerTest()(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMHintHandlerTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMHintHandler).module).io.finished
 }

@@ -306,6 +306,6 @@ class TLRAMAtomicAutomata()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRAMAtomicAutomataTest(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRAMAtomicAutomataTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new TLRAMAtomicAutomata).module).io.finished
 }

@@ -266,7 +266,7 @@ class FuzzRRTest0()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRR0Test()(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRR0Test(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new FuzzRRTest0).module).io.finished
 }
 
@@ -281,7 +281,7 @@ class FuzzRRTest1()(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLRR1Test()(implicit p: Parameters) extends UnitTest(timeout = 500000) {
+class TLRR1Test(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   io.finished := Module(LazyModule(new FuzzRRTest1).module).io.finished
 }
 

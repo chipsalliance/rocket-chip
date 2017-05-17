@@ -34,7 +34,7 @@ class AXI4LiteFuzzRAM()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4LiteFuzzRAMTest()(implicit p: Parameters) extends UnitTest(500000) {
+class AXI4LiteFuzzRAMTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4LiteFuzzRAM).module)
   io.finished := dut.io.finished
 }
@@ -57,7 +57,7 @@ class AXI4FullFuzzRAM()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4FullFuzzRAMTest(implicit p: Parameters) extends UnitTest(500000) {
+class AXI4FullFuzzRAMTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4FullFuzzRAM).module)
   io.finished := dut.io.finished
 }
@@ -132,7 +132,7 @@ class AXI4FuzzBridge()(implicit p: Parameters) extends LazyModule
   }
 }
 
-class AXI4BridgeTest()(implicit p: Parameters) extends UnitTest(500000) {
+class AXI4BridgeTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4FuzzBridge).module)
   io.finished := dut.io.finished
 }
