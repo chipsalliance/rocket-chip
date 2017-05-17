@@ -10,7 +10,6 @@ import scala.collection.mutable.ListBuffer
 import util.RationalDirection
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => Option[TLMonitorBase]]
-case object TLFuzzReadyValid extends Field[Boolean]
 case object TLCombinationalCheck extends Field[Boolean]
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
@@ -40,31 +39,6 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
           bo.c.ready := bi.c.ready && bo.c.valid
           bi.d.ready := bo.d.ready && bi.d.valid
           bo.e.ready := bi.e.ready && bo.e.valid
-        }
-        if (p(TLCombinationalCheck)) {
-          // Randomly stall the transfers
-          val allow = LFSRNoiseMaker(5)
-          bi.a.valid := bo.a.valid && allow(0)
-          bo.a.ready := bi.a.ready && allow(0)
-          bo.b.valid := bi.b.valid && allow(1)
-          bi.b.ready := bo.b.ready && allow(1)
-          bi.c.valid := bo.c.valid && allow(2)
-          bo.c.ready := bi.c.ready && allow(2)
-          bo.d.valid := bi.d.valid && allow(3)
-          bi.d.ready := bo.d.ready && allow(3)
-          bi.e.valid := bo.e.valid && allow(4)
-          bo.e.ready := bi.e.ready && allow(4)
-          // Inject garbage whenever not valid
-          val bits_a = bo.a.bits.fromBits(LFSRNoiseMaker(bo.a.bits.asUInt.getWidth))
-          val bits_b = bi.b.bits.fromBits(LFSRNoiseMaker(bi.b.bits.asUInt.getWidth))
-          val bits_c = bo.c.bits.fromBits(LFSRNoiseMaker(bo.c.bits.asUInt.getWidth))
-          val bits_d = bi.d.bits.fromBits(LFSRNoiseMaker(bi.d.bits.asUInt.getWidth))
-          val bits_e = bo.e.bits.fromBits(LFSRNoiseMaker(bo.e.bits.asUInt.getWidth))
-          when (!bi.a.valid) { bi.a.bits := bits_a }
-          when (!bo.b.valid) { bo.b.bits := bits_b }
-          when (!bi.c.valid) { bi.c.bits := bits_c }
-          when (!bo.d.valid) { bo.d.bits := bits_d }
-          when (!bi.e.valid) { bi.e.bits := bits_e }
         }
       }
     })
