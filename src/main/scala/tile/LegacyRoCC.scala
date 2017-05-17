@@ -48,7 +48,7 @@ trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with HasTileLi
     }})))
 
   legacyRocc foreach { lr =>
-    masterNode := lr.masterNode
+    tileBus.node :=* lr.masterNode
     nPTWPorts += lr.nPTWPorts
     nDCachePorts += lr.nRocc
   }
@@ -66,7 +66,7 @@ trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule
       None
     } foreach { lr =>
       fpu.io.cp_req <> lr.module.io.fpu.cp_req
-      fpu.io.cp_resp <> lr.module.io.fpu.cp_resp
+      lr.module.io.fpu.cp_resp <> fpu.io.cp_resp
     }
   }
 
