@@ -51,7 +51,7 @@ branches:
 jobs:
   include:
     - stage: Install Tools
-      install:
+      script:
         - make tools verilator -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8
@@ -61,6 +61,4 @@ jobs:
       script:
         - make emulator-ndebug -C regression SUITE=$SUITE
         - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
-
-
 
