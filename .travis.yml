@@ -48,17 +48,17 @@ branches:
     - boom
     - /^hurricane.*$/
 
+script:
+  - make emulator-ndebug -C regression SUITE=$SUITE
+  - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
 jobs:
   include:
-    - stage: Install Tools
+    - stage: prepare cache
       script:
         - make tools verilator -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8
       before_cache:
         - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
-    - stage: Test
-      script:
-        - make emulator-ndebug -C regression SUITE=$SUITE
-        - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
+      env: SUITE=none
 
