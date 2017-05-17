@@ -25,10 +25,10 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
   override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
 
-  override def connect(bindings: () => Seq[(TLEdgeIn, TLBundle, TLBundle)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    val monitor = p(TLMonitorBuilder)(TLMonitorArgs(() => bindings().map(_._1), sourceInfo, p))
+  override def connect(edges: () => Seq[TLEdgeIn], bundles: () => Seq[(TLEdgeIn, TLBundle, TLBundle)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    val monitor = p(TLMonitorBuilder)(TLMonitorArgs(edges, sourceInfo, p))
     (monitor, () => {
-      val eval = bindings ()
+      val eval = bundles ()
       monitor.foreach { m => (eval zip m.module.io.in) foreach { case ((_,i,o), m) => m := TLBundleSnoop(o,i) } }
       eval.foreach { case (_, bi, bo) =>
         bi <> bo

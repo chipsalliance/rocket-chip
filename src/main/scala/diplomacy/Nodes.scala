@@ -18,8 +18,8 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
   def colour: String
   def reverse: Boolean = false
-  def connect(bindings: () => Seq[(EI, BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => bindings().foreach { case (_, i, o) => i <> o })
+  def connect(edges: () => Seq[EI], bundles: () => Seq[(EI, BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+    (None, () => bundles().foreach { case (_, i, o) => i <> o })
   }
 
   // optional methods to track node graph
@@ -244,7 +244,13 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_STAR  => BIND_QUERY
       case BIND_QUERY => BIND_STAR })
     x.iPush(o, y, binding)
-    def bindings() = {
+    def edges() = {
+      val (iStart, iEnd) = x.iPortMapping(i)
+      val (oStart, oEnd) = y.oPortMapping(o)
+      require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
+      Seq.tabulate(iEnd - iStart) { j => x.edgesIn(iStart+j) }
+    }
+    def bundles() = {
       val (iStart, iEnd) = x.iPortMapping(i)
       val (oStart, oEnd) = y.oPortMapping(o)
       require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
@@ -252,7 +258,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         (x.edgesIn(iStart+j), x.bundleIn(iStart+j), y.bundleOut(oStart+j))
       }
     }
-    val (out, newbinding) = inner.connect(bindings _)
+    val (out, newbinding) = inner.connect(edges _, bundles _)
     LazyModule.stack.head.bindings = newbinding :: LazyModule.stack.head.bindings
     out
   }
