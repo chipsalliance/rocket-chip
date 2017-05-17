@@ -48,9 +48,11 @@ branches:
     - boom
     - /^hurricane.*$/
 
+stage: deploy
 script:
   - make emulator-ndebug -C regression SUITE=$SUITE
   - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
+
 jobs:
   include:
     - stage: prepare cache
