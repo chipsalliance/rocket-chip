@@ -33,13 +33,6 @@ addons:
       - device-tree-compiler
       - libusb-1.0-0-dev
 
-env:
-  matrix:
-    - SUITE=RocketSuiteA
-    - SUITE=RocketSuiteB
-    - SUITE=RocketSuiteC
-    - SUITE=GroundtestSuite
-    - SUITE=UnittestSuite
 
 # blacklist private branches
 branches:
@@ -48,15 +41,28 @@ branches:
     - boom
     - /^hurricane.*$/
 
-install:
-  - make tools verilator -C regression SUITE=none
+jobs:
+  include:
+    - stage: prepare cache
+      script:
+        - make tools verilator -C regression SUITE=none
+      before_install:
+        - export CXX=g++-4.8 CC=gcc-4.8
+      before_cache:
+        - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
+      env: SUITE=none
+    - &test
+      stage: Test
+      script:
+        - make emulator-ndebug -C regression SUITE=$SUITE JVM_MEMORY=3G
+        - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE JVM_MEMORY=3G
+      env: SUITE=RocketSuiteA
+    - <<: *test
+      env: SUITE=RocketSuiteB
+    - <<: *test
+      env: SUITE=RocketSuiteC
+    - <<: *test
+      env: SUITE=GroundtestSuite
+    - <<: *test
+      env: SUITE=UnittestSuite
 
-before_install:
-  - export CXX=g++-4.8 CC=gcc-4.8
-
-script:
-  - make emulator-ndebug -C regression SUITE=$SUITE
-  - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE
-
-before_cache:
-  - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
