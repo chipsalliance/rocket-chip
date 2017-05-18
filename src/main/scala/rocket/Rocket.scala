@@ -610,6 +610,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.events(28) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && csr.io.status.prv === PRV.U
   csr.io.events(29) := mem_reg_valid && !take_pc_wb && mem_ctrl.branch && mem_wrong_npc && csr.io.status.prv === PRV.U
   csr.io.events(17) := take_pc_wb
+  csr.io.events(48) := io.l2Stat.miss
+  csr.io.events(49) := io.l2Stat.hit
 
   // hook up counter events
   csr.io.events(3) := io.dmem.dc_miss // d$ miss

@@ -69,6 +69,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   // Conenct counter events
   core.io.dmem.dc_miss := outer.dcache.module.io.cpu.dc_miss
   core.io.dmem.tlb_miss := outer.dcache.module.io.cpu.tlb_miss
+  core.io.l2Stat := io.l2Stat
 }
 
 class AsyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {

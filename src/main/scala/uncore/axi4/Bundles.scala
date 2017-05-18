@@ -67,6 +67,7 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val b  = Irrevocable(new AXI4BundleB (params)).flip
   val ar = Irrevocable(new AXI4BundleAR(params))
   val r  = Irrevocable(new AXI4BundleR (params)).flip
+  val l2Stat = (new tile.L2StatBundle).asInput
 }
 
 object AXI4Bundle
