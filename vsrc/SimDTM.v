@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 import "DPI-C" function int debug_tick
 (
@@ -6,12 +6,12 @@ import "DPI-C" function int debug_tick
   input  bit     debug_req_ready,
   output int     debug_req_bits_addr,
   output int     debug_req_bits_op,
-  output longint debug_req_bits_data,
+  output int     debug_req_bits_data,
 
   input  bit        debug_resp_valid,
   output bit        debug_resp_ready,
   input  int        debug_resp_bits_resp,
-  input  longint    debug_resp_bits_data
+  input  int        debug_resp_bits_data
 );
 
 module SimDTM(
@@ -20,14 +20,14 @@ module SimDTM(
 
   output        debug_req_valid,
   input         debug_req_ready,
-  output [ 4:0] debug_req_bits_addr,
+  output [ 6:0] debug_req_bits_addr,
   output [ 1:0] debug_req_bits_op,
-  output [33:0] debug_req_bits_data,
+  output [31:0] debug_req_bits_data,
 
   input         debug_resp_valid,
   output        debug_resp_ready,
   input  [ 1:0] debug_resp_bits_resp,
-  input  [33:0] debug_resp_bits_data,
+  input  [31:0] debug_resp_bits_data,
 
   output [31:0] exit
 );
@@ -37,19 +37,19 @@ module SimDTM(
   wire #0.1 __debug_req_ready = debug_req_ready;
   wire #0.1 __debug_resp_valid = debug_resp_valid;
   wire [31:0] #0.1 __debug_resp_bits_resp = {30'b0, debug_resp_bits_resp};
-  wire [63:0] #0.1 __debug_resp_bits_data = {30'b0, debug_resp_bits_data};
+  wire [31:0] #0.1 __debug_resp_bits_data = debug_resp_bits_data;
 
   bit __debug_req_valid;
   int __debug_req_bits_addr;
   int __debug_req_bits_op;
-  longint __debug_req_bits_data;
+  int __debug_req_bits_data;
   bit __debug_resp_ready;
   int __exit;
 
   assign #0.1 debug_req_valid = __debug_req_valid;
-  assign #0.1 debug_req_bits_addr = __debug_req_bits_addr[4:0];
+  assign #0.1 debug_req_bits_addr = __debug_req_bits_addr[6:0];
   assign #0.1 debug_req_bits_op = __debug_req_bits_op[1:0];
-  assign #0.1 debug_req_bits_data = __debug_req_bits_data[33:0];
+  assign #0.1 debug_req_bits_data = __debug_req_bits_data[31:0];
   assign #0.1 debug_resp_ready = __debug_resp_ready;
   assign #0.1 exit = __exit;
 

@@ -8,13 +8,13 @@ verilog = $(generated_dir)/$(long_name).v
 # files.
 .SECONDARY: $(firrtl) $(verilog)
 
-$(generated_dir)/%.fir $(generated_dir)/%.prm $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
-$(generated_dir)/$(long_name).v $(generated_dir)/$(long_name).conf : $(firrtl) $(FIRRTL_JAR)
+$(generated_dir)/%.v $(generated_dir)/%.conf: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $(generated_dir)/$(long_name).v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$(long_name).conf
+	$(FIRRTL) -i $< -o $(generated_dir)/$*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$*.conf
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
 	cd $(generated_dir) && \
@@ -22,15 +22,10 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 	$(mem_gen) $(generated_dir)/$(long_name).conf >> $@.tmp && \
 	mv $@.tmp $@
 
-$(generated_dir)/consts.$(CONFIG).vh: $(generated_dir)/$(long_name).prm
-	echo "\`ifndef CONST_VH" > $@
-	echo "\`define CONST_VH" >> $@
-	sed -r 's/\(([A-Za-z0-9_]+),([A-Za-z0-9_]+)\)/`define \1 \2/' $(patsubst %.v,%.prm,$<) >> $@
-	echo "\`endif // CONST_VH" >> $@
-
 #--------------------------------------------------------------------
 # Run
 #--------------------------------------------------------------------
+.PRECIOUS: $(output_dir)/%.vpd
 
 $(output_dir)/%.run: $(output_dir)/% $(simv)
 	cd $(sim_dir) && $(exec_simv) +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]

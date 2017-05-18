@@ -1,9 +1,9 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package rocketchip
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import junctions._
 import diplomacy._
 import uncore.tilelink._
@@ -11,107 +11,61 @@ import uncore.tilelink2._
 import uncore.devices._
 import util._
 import rocket._
-import coreplex._
 
-// the following parameters will be refactored properly with TL2
-case object GlobalAddrMap extends Field[AddrMap]
-case object ConfigString extends Field[String]
-case object NCoreplexExtClients extends Field[Int]
-/** Enable or disable monitoring of Diplomatic buses */
-case object TLEmitMonitors extends Field[Bool]
-/** Function for building Coreplex */
-case object BuildCoreplex extends Field[(CoreplexConfig, Parameters) => BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]]
+/** BareTop is the root class for creating a top-level RTL module */
+abstract class BareTop(implicit p: Parameters) extends LazyModule {
+  ElaborationArtefacts.add("graphml", graphML)
+}
 
-/** Base Top with no Periphery */
-abstract class BaseTop(q: Parameters) extends LazyModule {
-  // the following variables will be refactored properly with TL2
-  val pInterrupts = new RangeManager
-  val pBusMasters = new RangeManager
-  val pDevices = new ResourceManager[AddrMapEntry]
+abstract class BareTopBundle[+L <: BareTop](_outer: L) extends GenericParameterizedBundle(_outer) {
+  val outer = _outer
+  implicit val p = outer.p
+}
 
-  TLImp.emitMonitors = q(TLEmitMonitors)
+abstract class BareTopModule[+L <: BareTop, +B <: BareTopBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
+  val outer = _outer
+  val io = _io ()
+}
 
-  // Add a SoC and peripheral bus
-  val socBus = LazyModule(new TLXbar)
-  val peripheryBus = LazyModule(new TLXbar)
-  lazy val peripheryManagers = socBus.node.edgesIn(0).manager.managers
+/** HasTopLevelNetworks provides buses that will serve as attachment points,
+  * for use in sub-traits that connect individual agents or external ports.
+  */
+trait HasTopLevelNetworks extends HasPeripheryParameters {
+  val module: HasTopLevelNetworksModule
 
-  lazy val c = CoreplexConfig(
-    nTiles = q(NTiles),
-    nExtInterrupts = pInterrupts.sum,
-    nSlaves = pBusMasters.sum,
-    nMemChannels = q(NMemoryChannels),
-    hasSupervisor = q(UseVM)
-  )
+  val socBus = LazyModule(new TLXbar)          // Wide or unordered-access slave devices (TL-UH)
+  val peripheryBus = LazyModule(new TLXbar)    // Narrow and ordered-access slave devices (TL-UL)
+  val intBus = LazyModule(new IntXbar)         // Device and global external interrupts
+  val fsb = LazyModule(new TLBuffer(BufferParams.none))          // Master devices talking to the frontside of the L2
+  val bsb = LazyModule(new TLBuffer(BufferParams.none))          // Slave devices talking to the backside of the L2
+  val mem = Seq.fill(nMemoryChannels) { LazyModule(new TLXbar) } // Ports out to DRAM
 
-  lazy val genGlobalAddrMap = GenerateGlobalAddrMap(q, pDevices.get, peripheryManagers)
-  private val qWithMap = q.alterPartial({case GlobalAddrMap => genGlobalAddrMap})
-
-  lazy val genConfigString = GenerateConfigString(qWithMap, c, pDevices.get, peripheryManagers)
-  implicit val p = qWithMap.alterPartial({
-    case ConfigString => genConfigString
-    case NCoreplexExtClients => pBusMasters.sum})
-
-  val legacy = LazyModule(new TLLegacy()(p.alterPartial({ case TLId => "L2toMMIO" })))
-
+  // The peripheryBus hangs off of socBus;
+  // here we convert TL-UH -> TL-UL
   peripheryBus.node :=
-    TLWidthWidget(p(SOCBusKey).beatBytes)(
     TLBuffer()(
-    TLAtomicAutomata(arithmetic = p(PeripheryBusKey).arithAMO)(
+    TLWidthWidget(socBusConfig.beatBytes)(
+    TLAtomicAutomata(arithmetic = peripheryBusArithmetic)(
     socBus.node)))
-
-  socBus.node :=
-    TLWidthWidget(legacy.tlDataBytes)(
-    TLHintHandler()(
-    legacy.node))
-
-  TopModule.contents = Some(this)
 }
 
-abstract class BaseTopBundle(val p: Parameters) extends Bundle {
-  val success = Bool(OUTPUT)
+trait HasTopLevelNetworksBundle extends HasPeripheryParameters {
+  val outer: HasTopLevelNetworks
 }
 
-abstract class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle](
-    val p: Parameters, l: L, b: => B) extends LazyModuleImp(l) {
-  val outer: L = l
-  val io: B = b
-
-  val coreplex = p(BuildCoreplex)(outer.c, p)
-  val coreplexIO = Wire(coreplex.io)
-
-  val pBus =
-    Module(new TileLinkRecursiveInterconnect(1, p(GlobalAddrMap).subMap("io:pbus"))(
-      p.alterPartial({ case TLId => "L2toMMIO" })))
-  pBus.io.in.head <> coreplexIO.master.mmio
-  outer.legacy.module.io.legacy <> pBus.port("TL2")
-
-  println("Generated Address Map")
-  for (entry <- p(GlobalAddrMap).flatten) {
-    val name = entry.name
-    val start = entry.region.start
-    val end = entry.region.start + entry.region.size - 1
-    val prot = entry.region.attr.prot
-    val protStr = (if ((prot & AddrMapProt.R) > 0) "R" else "") +
-                  (if ((prot & AddrMapProt.W) > 0) "W" else "") +
-                  (if ((prot & AddrMapProt.X) > 0) "X" else "")
-    val cacheable = if (entry.region.attr.cacheable) " [C]" else ""
-    println(f"\t$name%s $start%x - $end%x, $protStr$cacheable")
-  }
-
-  println("\nGenerated Interrupt Vector")
-  outer.pInterrupts.print
-
-  println("\nGenerated Configuration String")
-  println(p(ConfigString))
-  ConfigStringOutput.contents = Some(p(ConfigString))
-
-  io.success := coreplexIO.success
+trait HasTopLevelNetworksModule extends HasPeripheryParameters {
+  val outer: HasTopLevelNetworks
+  val io: HasTopLevelNetworksBundle
 }
 
-trait DirectConnection {
-  val coreplexIO: BaseCoreplexBundle
-  val coreplex: BaseCoreplexModule[BaseCoreplex, BaseCoreplexBundle]
-
-  coreplexIO <> coreplex.io
+/** Base Top class with no peripheral devices or ports added */
+class BaseTop(implicit p: Parameters) extends BareTop
+    with HasTopLevelNetworks {
+  override lazy val module = new BaseTopModule(this, () => new BaseTopBundle(this))
 }
+
+class BaseTopBundle[+L <: BaseTop](_outer: L) extends BareTopBundle(_outer)
+    with HasTopLevelNetworksBundle
+
+class BaseTopModule[+L <: BaseTop, +B <: BaseTopBundle[L]](_outer: L, _io: () => B) extends BareTopModule(_outer, _io)
+    with HasTopLevelNetworksModule

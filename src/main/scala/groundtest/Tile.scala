@@ -1,80 +1,50 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package groundtest
 
 import Chisel._
+import config._
+import coreplex._
 import rocket._
+import tile._
 import uncore.tilelink._
-import scala.util.Random
-import scala.collection.mutable.ListBuffer
-import junctions.HasAddrMapParameters
+import uncore.tilelink2._
+import rocketchip.ExtMem
+import diplomacy._
 import util.ParameterizedBundle
-import cde.{Parameters, Field}
+
+import scala.collection.mutable.ListBuffer
 
 case object BuildGroundTest extends Field[Parameters => GroundTest]
 
-case class GroundTestTileSettings(
-  uncached: Int = 0, cached: Int = 0, ptw: Int = 0, maxXacts: Int = 1)
-case object GroundTestKey extends Field[Seq[GroundTestTileSettings]]
+case class GroundTestTileParams(
+    uncached: Int = 0,
+    ptw: Int = 0,
+    maxXacts: Int = 1,
+    dcache: Option[DCacheParams] = Some(DCacheParams())) extends TileParams {
+  val icache = None
+  val btb = None
+  val rocc = Nil
+  val core = rocket.RocketCoreParams(nPMPs = 0) //TODO remove this
+  val cached = if(dcache.isDefined) 1 else 0
+  val dataScratchpadBytes = 0
+}
+case object GroundTestKey extends Field[Seq[GroundTestTileParams]]
 
 trait HasGroundTestConstants {
   val timeoutCodeBits = 4
   val errorCodeBits = 4
 }
 
-trait HasGroundTestParameters extends HasAddrMapParameters {
+trait HasGroundTestParameters {
   implicit val p: Parameters
-  val tileSettings = p(GroundTestKey)(p(TileId))
-  val nUncached = tileSettings.uncached
-  val nCached = tileSettings.cached
-  val nPTW = tileSettings.ptw
-  val memStart = addrMap("mem").start
+  val tileParams = p(GroundTestKey)(p(TileId))
+  val nUncached = tileParams.uncached
+  val nCached = tileParams.cached
+  val nPTW = tileParams.ptw
+  val memStart = p(ExtMem).base
   val memStartBlock = memStart >> p(CacheBlockOffsetBits)
-}
-
-class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val requestors = Vec(n, new TLBPTWIO).flip
-  }
-
-  val req_arb = Module(new RRArbiter(new PTWReq, n))
-  req_arb.io.in <> io.requestors.map(_.req)
-  req_arb.io.out.ready := Bool(true)
-
-  def vpn_to_ppn(vpn: UInt): UInt = vpn(ppnBits - 1, 0)
-
-  class QueueChannel extends ParameterizedBundle()(p) {
-    val ppn = UInt(width = ppnBits)
-    val chosen = UInt(width = log2Up(n))
-  }
-
-  val s1_ppn = vpn_to_ppn(req_arb.io.out.bits.addr)
-  val s2_ppn = RegEnable(s1_ppn, req_arb.io.out.valid)
-  val s2_chosen = RegEnable(req_arb.io.chosen, req_arb.io.out.valid)
-  val s2_valid = Reg(next = req_arb.io.out.valid)
-
-  val s2_resp = Wire(new PTWResp)
-  s2_resp.pte.ppn := s2_ppn
-  s2_resp.pte.reserved_for_software := UInt(0)
-  s2_resp.pte.d := Bool(true)
-  s2_resp.pte.a := Bool(false)
-  s2_resp.pte.g := Bool(false)
-  s2_resp.pte.u := Bool(true)
-  s2_resp.pte.r := Bool(true)
-  s2_resp.pte.w := Bool(true)
-  s2_resp.pte.x := Bool(false)
-  s2_resp.pte.v := Bool(true)
-
-  io.requestors.zipWithIndex.foreach { case (requestor, i) =>
-    requestor.resp.valid := s2_valid && s2_chosen === UInt(i)
-    requestor.resp.bits := s2_resp
-    requestor.status.vm := UInt("b01000")
-    requestor.status.prv := UInt(PRV.S)
-    requestor.status.debug := Bool(false)
-    requestor.status.mprv  := Bool(true)
-    requestor.status.mpp := UInt(0)
-    requestor.ptbr.asid := UInt(0)
-    requestor.ptbr.ppn := UInt(0)
-    requestor.invalidate := Bool(false)
-  }
 }
 
 class GroundTestStatus extends Bundle with HasGroundTestConstants {
@@ -96,48 +66,58 @@ abstract class GroundTest(implicit val p: Parameters) extends Module
   val io = new GroundTestIO
 }
 
-class GroundTestTile(resetSignal: Bool)
-                    (implicit val p: Parameters)
-                    extends Tile(resetSignal = resetSignal)(p)
-                    with HasGroundTestParameters {
+class GroundTestTile(implicit p: Parameters) extends LazyModule
+    with HasGroundTestParameters {
+  val slave = None
+  val dcacheOpt = tileParams.dcache.map { dc => HellaCache(dc.nMSHRs == 0) }
+  val ucLegacy = LazyModule(new TLLegacy)
 
-  override val io = new TileIO(bc) {
-    val success = Bool(OUTPUT)
-  }
+   val masterNode = TLOutputNode()
+   dcacheOpt.foreach { masterNode := _.node }
+   masterNode := TLHintHandler()(ucLegacy.node)
 
-  val test = p(BuildGroundTest)(dcacheParams)
-
-  val ptwPorts = ListBuffer.empty ++= test.io.ptw
-  val memPorts = ListBuffer.empty ++= test.io.mem
-
-  if (nCached > 0) {
-    val dcache_io = HellaCache(p(DCacheKey))(dcacheParams)
-    val dcacheArb = Module(new HellaCacheArbiter(nCached)(dcacheParams))
-
-    dcacheArb.io.requestor.zip(test.io.cache).foreach {
-      case (requestor, cache) =>
-        val dcacheIF = Module(new SimpleHellaCacheIF()(dcacheParams))
-        dcacheIF.io.requestor <> cache
-        requestor <> dcacheIF.io.cache
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val out = masterNode.bundleOut
+      val success = Bool(OUTPUT)
     }
-    dcache_io.cpu <> dcacheArb.io.mem
-    io.cached.head <> dcache_io.mem
 
-    // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
-    dcache_io.cpu.invalidate_lr := Bool(false)
+    val test = p(BuildGroundTest)(p)
 
-    ptwPorts += dcache_io.ptw
+    val ptwPorts = ListBuffer.empty ++= test.io.ptw
+    val uncachedArbPorts = ListBuffer.empty ++= test.io.mem
+
+    dcacheOpt foreach { dcache =>
+      val dcacheArb = Module(new HellaCacheArbiter(nCached))
+
+      dcacheArb.io.requestor.zip(test.io.cache).foreach {
+        case (requestor, cache) =>
+          val dcacheIF = Module(new SimpleHellaCacheIF())
+          dcacheIF.io.requestor <> cache
+          requestor <> dcacheIF.io.cache
+      }
+      dcache.module.io.cpu <> dcacheArb.io.mem
+
+      // SimpleHellaCacheIF leaves invalidate_lr dangling, so we wire it to false
+      dcache.module.io.cpu.invalidate_lr := Bool(false)
+
+      ptwPorts += dcache.module.io.ptw
+    }
+
+    if (ptwPorts.size > 0) {
+      val ptw = Module(new DummyPTW(ptwPorts.size))
+      ptw.io.requestors <> ptwPorts
+    }
+
+    if (uncachedArbPorts.isEmpty) {
+      ucLegacy.module.io.legacy.acquire.valid := Bool(false)
+      ucLegacy.module.io.legacy.grant.ready := Bool(true)
+    } else {
+      val uncachedArb = Module(new ClientUncachedTileLinkIOArbiter(uncachedArbPorts.size))
+      uncachedArb.io.in <> uncachedArbPorts
+      ucLegacy.module.io.legacy <> uncachedArb.io.out
+    }
+
+    io.success := test.io.status.finished
   }
-
-  if (ptwPorts.size > 0) {
-    val ptw = Module(new DummyPTW(ptwPorts.size))
-    ptw.io.requestors <> ptwPorts
-  }
-
-  require(memPorts.size == io.uncached.size)
-  if (memPorts.size > 0) {
-    io.uncached <> memPorts
-  }
-
-  io.success := test.io.status.finished
 }

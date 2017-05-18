@@ -1,7 +1,9 @@
+// See LICENSE.Berkeley for license details.
+
 package uncore.tilelink
 import Chisel._
 import junctions._
-import cde.{Parameters, Field}
+import config._
 
 /** Utility functions for constructing TileLinkIO arbiters */
 trait TileLinkArbiterLike extends HasTileLinkParameters {

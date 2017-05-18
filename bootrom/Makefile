@@ -5,8 +5,11 @@ OBJCOPY=riscv64-unknown-elf-objcopy
 
 all: $(bootrom_img)
 
-%.img: %.elf
-	$(OBJCOPY) -O binary --change-addresses=-0x1000 --only-section .text $< $@
+%.img: %.bin
+	dd if=$< of=$@ bs=128 count=1
+
+%.bin: %.elf
+	$(OBJCOPY) -O binary $< $@
 
 %.elf: %.S linker.ld
-	$(GCC) -Tlinker.ld $< -nostdlib -static -o $@
+	$(GCC) -Tlinker.ld $< -nostdlib -static -Wl,--no-gc-sections -o $@

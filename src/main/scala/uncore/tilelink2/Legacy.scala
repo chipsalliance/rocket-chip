@@ -1,26 +1,22 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import diplomacy._
-import cde.Parameters
+import config._
 import uncore.tilelink._
 import uncore.constants._
 
-// Instantiate 'val p' before HasTileLinkParameters tries to use it
-abstract class LegacyLazyModuleImp(module: LazyModule)(implicit val p: Parameters)
-  extends LazyModuleImp(module) with HasTileLinkParameters
-
-class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkParameters
+class TLLegacy(implicit p: Parameters) extends LazyModule with HasTileLinkParameters
 {
   // TL legacy clients don't support anything fancy
   val node = TLClientNode(TLClientParameters(
     sourceId = IdRange(0, 1 << tlClientXactIdBits)))
 
-  lazy val module = new LegacyLazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) with HasTileLinkParameters {
     val io = new Bundle {
-      val legacy = new ClientUncachedTileLinkIO()(p).flip
+      val legacy = new ClientUncachedTileLinkIO().flip
       val out = node.bundleOut
     }
 
@@ -38,19 +34,14 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
         require (m.supportsPutPartial.contains(TransferSizes(1, tlDataBytes)))
         require (m.supportsPutPartial.contains(TransferSizes(tlDataBeats * tlDataBytes)))
       }
-      // Any atomic support => must support 32-bit up to beat size of all types
-      if (m.supportsArithmetic || m.supportsLogical) {
-        require (m.supportsArithmetic.contains(TransferSizes(4, tlDataBytes)))
-        require (m.supportsLogical   .contains(TransferSizes(4, tlDataBytes)))
-      }
+      // Any atomic support => must support 32-bit size
+      if (m.supportsArithmetic) { require (m.supportsArithmetic.contains(TransferSizes(4))) }
+      if (m.supportsLogical)    { require (m.supportsLogical   .contains(TransferSizes(4))) }
       // We straight-up require hints
       require (edge.manager.allSupportHint)
     }
     // TL legacy will not generate PutFull
     // During conversion from TL Legacy, we won't support Acquire
-
-    // Must be able to fit TL2 sink_id into TL legacy
-    require ((1 << tlManagerXactIdBits) >= edge.manager.endSinkId || !edge.manager.anySupportAcquire)
 
     val out = io.out(0)
     out.a.valid := io.legacy.acquire.valid
@@ -136,7 +127,7 @@ class TLLegacy(implicit val p: Parameters) extends LazyModule with HasTileLinkPa
       TLMessages.HintAck       -> Grant.prefetchAckType))
     grant.is_builtin_type := Bool(true)
     grant.client_xact_id  := out.d.bits.source
-    grant.manager_xact_id := out.d.bits.sink
+    grant.manager_xact_id := UInt(0)
     grant.data            := out.d.bits.data
     grant.addr_beat       := beatCounter
 

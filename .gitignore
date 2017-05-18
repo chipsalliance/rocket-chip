@@ -4,3 +4,4 @@ project/target
 *~
 .addons-dont-touch
 src/main/scala/config/*
+/lib/

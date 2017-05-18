@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.agents
 
@@ -8,7 +9,7 @@ import uncore.tilelink._
 import uncore.constants._
 import uncore.util._
 import util._
-import cde.Parameters
+import config._
 
 class L2BroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {
 

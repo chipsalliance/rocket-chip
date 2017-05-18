@@ -1,6 +1,8 @@
+// See LICENSE.Berkeley for license details.
+
 package util
 import Chisel._
-import cde.Parameters
+import config._
 
 /** A generalized locking RR arbiter that addresses the limitations of the
  *  version in the Chisel standard library */

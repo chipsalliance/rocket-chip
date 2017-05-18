@@ -1,12 +1,31 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import config._
 import diplomacy._
 
-class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: SourceInfo) extends LazyModule
+case class TLMonitorArgs(edge: () => Seq[TLEdge], sourceInfo: SourceInfo, p: Parameters)
+
+abstract class TLMonitorBase(args: TLMonitorArgs) extends LazyModule()(args.p)
+{
+  implicit val sourceInfo = args.sourceInfo
+
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
+
+  lazy val module = new LazyModuleImp(this) {
+    val edges = args.edge()
+    val io = new Bundle {
+      val in = Vec(edges.size, new TLBundleSnoop(TLBundleParameters.union(edges.map(_.bundle)))).flip
+    }
+
+    (edges zip io.in).foreach { case (e, in) => legalize(in, e, reset) }
+  }
+}
+
+class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 {
   def extra(implicit sourceInfo: SourceInfo) = {
     sourceInfo match {
@@ -24,7 +43,8 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     val mask = edge.full_mask(bundle)
 
     when (bundle.opcode === TLMessages.Acquire) {
-      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries Acquire from a client which does not support Probe" + extra)
       assert (source_ok, "'A' channel Acquire carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat" + extra)
       assert (is_aligned, "'A' channel Acquire address not aligned to size" + extra)
@@ -91,10 +111,9 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     when (bundle.opcode === TLMessages.Probe) {
       assert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
       assert (address_ok, "'B' channel Probe carries unmanaged address" + extra)
-      assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'B' channel Probe smaller than a beat" + extra)
       assert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
       assert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      assert (~bundle.mask === UInt(0).asUInt, "'B' channel Probe contains invalid mask" + extra)
+      assert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
@@ -102,7 +121,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (address_ok, "'B' channel Get carries unmanaged address" + extra)
       assert (is_aligned, "'B' channel Get address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'B' channel Get carries invalid param" + extra)
-      assert (bundle.mask === mask, "'A' channel Get contains invalid mask" + extra)
+      assert (bundle.mask === mask, "'B' channel Get contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
@@ -167,11 +186,11 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ProbeAckData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ProbeAckData address not aligned to size" + extra)
       assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAckData carries invalid report param" + extra)
-      assert (!bundle.error, "'C' channel ProbeData carries an error" + extra)
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       assert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel Release smaller than a beat" + extra)
       assert (is_aligned, "'C' channel Release address not aligned to size" + extra)
@@ -180,12 +199,12 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      assert (edge.manager.supportsAcquireSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       assert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ReleaseData smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
       assert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param" + extra)
-      assert (!bundle.error, "'C' channel ReleaseData carries an error" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
@@ -216,7 +235,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
 
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.addr_lo, bundle.size)
-    val sink_ok = edge.manager.containsById(bundle.sink)
+    val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assert (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
@@ -270,19 +289,26 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeFormatE(bundle: TLBundleE, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    assert (edge.manager.containsById(bundle.sink), "'E' channels carries invalid sink ID" + extra)
+    val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
+    assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
   def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
     when (bundle.a.valid) { legalizeFormatA(bundle.a.bits, edge) }
-    when (bundle.b.valid) { legalizeFormatB(bundle.b.bits, edge) }
-    when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
     when (bundle.d.valid) { legalizeFormatD(bundle.d.bits, edge) }
-    when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      when (bundle.b.valid) { legalizeFormatB(bundle.b.bits, edge) }
+      when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
+      when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
+    } else {
+      assert (!bundle.b.valid, "'B' channel valid and not TL-C" + extra)
+      assert (!bundle.c.valid, "'C' channel valid and not TL-C" + extra)
+      assert (!bundle.e.valid, "'E' channel valid and not TL-C" + extra)
+    }
   }
 
   def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (a_first, _, _) = edge.firstlast(a.bits, a.fire())
+    val a_first = edge.first(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -305,7 +331,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatB(b: DecoupledSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (b_first, _, _) = edge.firstlast(b.bits, b.fire())
+    val b_first = edge.first(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -328,7 +354,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatC(c: DecoupledSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (c_first, _, _) = edge.firstlast(c.bits, c.fire())
+    val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -351,7 +377,7 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
   }
 
   def legalizeMultibeatD(d: DecoupledSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    val (d_first, _, _) = edge.firstlast(d.bits, d.fire())
+    val d_first = edge.first(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
     val size    = Reg(UInt())
@@ -378,47 +404,73 @@ class TLMonitor(gen: () => TLBundleSnoop, edge: () => TLEdge, sourceInfo: Source
 
   def legalizeMultibeat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     legalizeMultibeatA(bundle.a, edge)
-    legalizeMultibeatB(bundle.b, edge)
-    legalizeMultibeatC(bundle.c, edge)
     legalizeMultibeatD(bundle.d, edge)
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      legalizeMultibeatB(bundle.b, edge)
+      legalizeMultibeatC(bundle.c, edge)
+    }
   }
 
-  def legalizeSourceUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeADSource(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
-    val (_, a_last, _) = edge.firstlast(bundle.a.bits, bundle.a.fire())
-    val (_, d_last, _) = edge.firstlast(bundle.d.bits, bundle.d.fire())
-
-    if (edge.manager.minLatency > 0) {
-      assert(bundle.a.bits.source =/= bundle.d.bits.source || !bundle.a.valid || !bundle.d.valid, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
-    }
+    val a_first = edge.first(bundle.a.bits, bundle.a.fire())
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
 
     val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
-    when (bundle.a.fire()) {
-      when (a_last) { a_set := UIntToOH(bundle.a.bits.source) }
+    when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
+      a_set := UIntToOH(bundle.a.bits.source)
       assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
-    when (bundle.d.fire() && bundle.d.bits.opcode =/= TLMessages.ReleaseAck) {
-      when (d_last) { d_clr := UIntToOH(bundle.d.bits.source) }
+    val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
+    when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      d_clr := UIntToOH(bundle.d.bits.source)
       assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+    }
+
+    if (edge.manager.minLatency > 0) {
+      assert(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
   }
 
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    legalizeFormat     (bundle, edge)
-    legalizeMultibeat  (bundle, edge)
-    legalizeSourceUnique(bundle, edge)
-  }
+  def legalizeDESink(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+    val inflight = RegInit(UInt(0, width = edge.manager.endSinkId))
 
-  lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = gen().asInput
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+    val e_first = Bool(true)
+
+    val d_set = Wire(init = UInt(0, width = edge.manager.endSinkId))
+    when (bundle.d.fire() && d_first && edge.isRequest(bundle.d.bits)) {
+      d_set := UIntToOH(bundle.d.bits.sink)
+      assert(!inflight(bundle.d.bits.sink), "'D' channel re-used a sink ID" + extra)
     }
 
-    legalize(io.in, edge())(sourceInfo)
+    val e_clr = Wire(init = UInt(0, width = edge.manager.endSinkId))
+    when (bundle.e.fire() && e_first && edge.isResponse(bundle.e.bits)) {
+      e_clr := UIntToOH(bundle.e.bits.sink)
+      assert((d_set | inflight)(bundle.e.bits.sink), "'E' channel acknowledged for nothing inflight" + extra)
+    }
+
+    // edge.client.minLatency applies to BC, not DE
+
+    inflight := (inflight | d_set) & ~e_clr
+  }
+
+  def legalizeUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+    legalizeADSource(bundle, edge)
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
+      if (edge.manager.endSinkId > 1) legalizeDESink(bundle, edge)
+    }
+  }
+
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool) {
+    legalizeFormat   (bundle, edge)
+    legalizeMultibeat(bundle, edge)
+    legalizeUnique   (bundle, edge)
   }
 }

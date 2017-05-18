@@ -1,7 +1,10 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package util
 
 import Chisel._
-import cde.Parameters
+import config._
 
 class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val data = dType.cloneType

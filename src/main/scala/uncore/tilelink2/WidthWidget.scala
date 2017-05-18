@@ -1,18 +1,19 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import config._
 import diplomacy._
 import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
-class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
+class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { case Seq(c) => c },
-    managerFn = { case Seq(m) => m.copy(beatBytes = innerBeatBytes) })
+    clientFn  = { case c => c },
+    managerFn = { case m => m.copy(beatBytes = innerBeatBytes) })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -131,34 +132,37 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
       } else if (edgeIn.manager.beatBytes > edgeOut.manager.beatBytes) {
         // split input to output
         val repeat = Wire(Bool())
-        repeat := split(edgeIn, Repeater(in, repeat), edgeOut, out)
+        val repeated = Repeater(in, repeat)
+        val cated = Wire(repeated)
+        cated <> repeated
+        edgeIn.data(cated.bits) := Cat(
+          edgeIn.data(repeated.bits)(edgeIn.manager.beatBytes*8-1, edgeOut.manager.beatBytes*8),
+          edgeIn.data(in.bits)(edgeOut.manager.beatBytes*8-1, 0))
+        repeat := split(edgeIn, cated, edgeOut, out)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)
       }
     }
 
-    val edgeOut = node.edgesOut(0)
-    val edgeIn = node.edgesIn(0)
-    val in = io.in(0)
-    val out = io.out(0)
+    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+      splice(edgeIn,  in.a,  edgeOut, out.a)
+      splice(edgeOut, out.d, edgeIn,  in.d)
 
-    splice(edgeIn,  in.a,  edgeOut, out.a)
-    splice(edgeOut, out.d, edgeIn,  in.d)
-
-    if (edgeOut.manager.anySupportAcquire && edgeIn.client.anySupportProbe) {
-      splice(edgeOut, out.b, edgeIn,  in.b)
-      splice(edgeIn,  in.c,  edgeOut, out.c)
-      in.e.ready := out.e.ready
-      out.e.valid := in.e.valid
-      out.e.bits := in.e.bits
-    } else {
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
+      if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
+        splice(edgeOut, out.b, edgeIn,  in.b)
+        splice(edgeIn,  in.c,  edgeOut, out.c)
+        in.e.ready := out.e.ready
+        out.e.valid := in.e.valid
+        out.e.bits := in.e.bits
+      } else {
+        in.b.valid := Bool(false)
+        in.c.ready := Bool(true)
+        in.e.ready := Bool(true)
+        out.b.ready := Bool(true)
+        out.c.valid := Bool(false)
+        out.e.valid := Bool(false)
+      }
     }
   }
 }
@@ -166,7 +170,7 @@ class TLWidthWidget(innerBeatBytes: Int) extends LazyModule
 object TLWidthWidget
 {
   // applied to the TL source node; y.node := WidthWidget(x.node, 16)
-  def apply(innerBeatBytes: Int)(x: TLOutwardNode)(implicit sourceInfo: SourceInfo): TLOutwardNode = {
+  def apply(innerBeatBytes: Int)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
     widget.node := x
     widget.node
@@ -176,23 +180,23 @@ object TLWidthWidget
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMWidthWidget(first: Int, second: Int) extends LazyModule {
+class TLRAMWidthWidget(first: Int, second: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("WidthWidget"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
   model.node := fuzz.node
-  ram.node := TLFragmenter(4, 256)(
-                if (first == second ) { TLWidthWidget(first)(model.node) }
+  ram.node := TLDelayer(0.1)(TLFragmenter(4, 256)(
+                if (first == second ) { TLWidthWidget(first)(TLDelayer(0.1)(model.node)) }
                 else {
                   TLWidthWidget(second)(
-                    TLWidthWidget(first)(model.node))})
+                    TLWidthWidget(first)(TLDelayer(0.1)(model.node)))}))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
   }
 }
 
-class TLRAMWidthWidgetTest(little: Int, big: Int) extends UnitTest(timeout = 500000) {
+class TLRAMWidthWidgetTest(little: Int, big: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big)).module).io.finished
 }

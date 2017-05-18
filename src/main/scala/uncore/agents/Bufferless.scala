@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.agents
 
@@ -6,7 +7,7 @@ import Chisel._
 import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._
-import cde.Parameters
+import config._
 
 
 class BufferlessBroadcastHub(implicit p: Parameters) extends HierarchicalCoherenceAgent()(p) {

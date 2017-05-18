@@ -1,15 +1,17 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package rocketchip
 
 import Chisel._
-import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
+import scala.collection.mutable.LinkedHashSet
 
 abstract class RocketTestSuite {
   val dir: String
   val makeTargetName: String
   val names: LinkedHashSet[String]
   val envName: String
+  def kind: String
   def postScript = s"""
 
 $$(addprefix $$(output_dir)/, $$(addsuffix .hex, $$($makeTargetName))): $$(output_dir)/%.hex: $dir/%.hex
@@ -25,18 +27,23 @@ run-$makeTargetName: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $$($makeTa
 
 run-$makeTargetName-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $$($makeTargetName)))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.vpd,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
+
+run-$makeTargetName-fst: $$(addprefix $$(output_dir)/, $$(addsuffix .fst, $$($makeTargetName)))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.fst,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 """
 }
 
 class AssemblyTestSuite(prefix: String, val names: LinkedHashSet[String])(val envName: String) extends RocketTestSuite {
   val dir = "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/isa"
   val makeTargetName = prefix + "-" + envName + "-asm-tests"
+  def kind = "asm"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$prefix-$envName-$n").mkString(" \\\n") + postScript
 }
 
 class BenchmarkTestSuite(makePrefix: String, val dir: String, val names: LinkedHashSet[String]) extends RocketTestSuite {
   val envName = ""
   val makeTargetName = makePrefix + "-bmark-tests"
+  def kind = "bmark"
   override def toString = s"$makeTargetName = \\\n" + names.map(n => s"\t$n.riscv").mkString(" \\\n") + postScript
 }
 
@@ -44,23 +51,15 @@ class RegressionTestSuite(val names: LinkedHashSet[String]) extends RocketTestSu
   val envName = ""
   val dir = "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/isa"
   val makeTargetName = "regression-tests"
+  def kind = "regression"
   override def toString = s"$makeTargetName = \\\n" + names.mkString(" \\\n")
 }
 
 object TestGeneration {
-  import scala.collection.mutable.HashMap
-  val asmSuites = new LinkedHashMap[String,AssemblyTestSuite]()
-  val postscript = new HashMap[String,String]()
-  val bmarkSuites = new LinkedHashMap[String,BenchmarkTestSuite]()
-  val regressionSuites = new LinkedHashMap[String,RegressionTestSuite]()
+  val postscript = new collection.mutable.HashMap[String,String]()
+  private val suites = collection.mutable.ListMap[String, RocketTestSuite]()
 
-  def addSuite(s: RocketTestSuite) {
-    s match {
-      case a: AssemblyTestSuite => asmSuites += (a.makeTargetName -> a)
-      case b: BenchmarkTestSuite => bmarkSuites += (b.makeTargetName -> b)
-      case r: RegressionTestSuite => regressionSuites += (r.makeTargetName -> r)
-    }
-  }
+  def addSuite(s: RocketTestSuite) { suites += (s.makeTargetName -> s) }
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
 
@@ -80,6 +79,8 @@ run-$kind-$env-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $suites))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-$env-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $suites))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.vpd,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
+run-$kind-$env-tests-fst: $$(addprefix $$(output_dir)/, $$(addsuffix .fst, $suites))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.fst,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-$env-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $suites))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 """} } ).mkString("\n") + s"""
@@ -87,17 +88,15 @@ run-$kind-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.vpd,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
+run-$kind-tests-fst: $$(addprefix $$(output_dir)/, $$(addsuffix .fst, $targets))
+\t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$(patsubst %.fst,%.out,$$^) /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED)/i )' $$^ /dev/null | perl -ne 'if(/(.*)/){print "$$$$1\\n\\n"; exit(1) if eof()}'
 """
       } else { "\n" }
     }
 
-    List(
-      gen("asm", asmSuites.values.toSeq),
-      gen("bmark", bmarkSuites.values.toSeq),
-      gen("regression", regressionSuites.values.toSeq)
-    ).mkString("\n") +
+    suites.values.toSeq.groupBy(_.kind).map { case (kind, s) => gen(kind, s) }.mkString("\n") +
     postscript.map(p => p._1 + " = " + p._2).mkString("\n")
   }
 
@@ -116,7 +115,10 @@ object DefaultTestSuites {
   val rv32umNames = LinkedHashSet("mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu")
   val rv32um = new AssemblyTestSuite("rv32um", rv32umNames)(_)
 
-  val rv32uaNames = LinkedHashSet("lrsc", "amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
+  val rv32uaSansLRSCNames = LinkedHashSet("amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
+  val rv32uaSansLRSC = new AssemblyTestSuite("rv32ua", rv32uaSansLRSCNames)(_)
+
+  val rv32uaNames = rv32uaSansLRSCNames + "lrsc"
   val rv32ua = new AssemblyTestSuite("rv32ua", rv32uaNames)(_)
 
   val rv32siNames = LinkedHashSet("csr", "ma_fetch", "scall", "sbreak", "wfi", "dirty")
@@ -135,13 +137,16 @@ object DefaultTestSuites {
   val rv64umNames = LinkedHashSet("divuw", "divw", "mulw", "remuw", "remw")
   val rv64um = new AssemblyTestSuite("rv64um", rv32umNames ++ rv64umNames)(_)
 
-  val rv64uaNames = rv32uaNames.map(_.replaceAll("_w","_d"))
+  val rv64uaSansLRSCNames = rv32uaSansLRSCNames.map(_.replaceAll("_w","_d"))
+  val rv64uaSansLRSC = new AssemblyTestSuite("rv64ua", rv32uaSansLRSCNames ++ rv64uaSansLRSCNames)(_)
+
+  val rv64uaNames = rv64uaSansLRSCNames + "lrsc"
   val rv64ua = new AssemblyTestSuite("rv64ua", rv32uaNames ++ rv64uaNames)(_)
 
   val rv64ucNames = rv32ucNames
   val rv64uc = new AssemblyTestSuite("rv64uc", rv64ucNames)(_)
 
-  val rv64ufNames = LinkedHashSet("ldst", "move", "fsgnj", "fcmp", "fcvt", "fcvt_w", "fclass", "fadd", "fdiv", "fmin", "fmadd")
+  val rv64ufNames = LinkedHashSet("ldst", "move", "fcmp", "fcvt", "fcvt_w", "fclass", "fadd", "fdiv", "fmin", "fmadd")
   val rv64uf = new AssemblyTestSuite("rv64uf", rv64ufNames)(_)
   val rv64ufNoDiv = new AssemblyTestSuite("rv64uf", rv64ufNames - "fdiv")(_)
 
@@ -160,8 +165,6 @@ object DefaultTestSuites {
   val groundtestNames = LinkedHashSet("simple")
   val groundtest64 = new AssemblyTestSuite("rv64ui", groundtestNames)(_)
   val groundtest32 = new AssemblyTestSuite("rv32ui", groundtestNames)(_)
-
-  // TODO: "rv64ui-pm-lrsc", "rv64mi-pm-ipi",
 
   val rv64u = List(rv64ui, rv64um)
   val rv64i = List(rv64ui, rv64si, rv64mi)

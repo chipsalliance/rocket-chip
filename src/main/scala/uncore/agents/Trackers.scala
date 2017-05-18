@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.agents
 
@@ -7,7 +8,7 @@ import uncore.coherence._
 import uncore.tilelink._
 import uncore.util._
 import util._
-import cde.{Field, Parameters}
+import config._
 import scala.math.max
 
 case object EnableL2Logging extends Field[Boolean]

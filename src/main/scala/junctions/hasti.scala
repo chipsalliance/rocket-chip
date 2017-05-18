@@ -1,34 +1,37 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package junctions
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import unittest.UnitTest
-import util.ParameterizedBundle
+import util._
 
 object HastiConstants
 {
   // Values for htrans
   val SZ_HTRANS     = 2
-  val HTRANS_IDLE   = UInt(0, SZ_HTRANS) // No transfer requested, not in a burst
-  val HTRANS_BUSY   = UInt(1, SZ_HTRANS) // No transfer requested, in a burst
-  val HTRANS_NONSEQ = UInt(2, SZ_HTRANS) // First (potentially only) request in a burst
-  val HTRANS_SEQ    = UInt(3, SZ_HTRANS) // Following requests in a burst
+  def HTRANS_IDLE   = UInt(0, SZ_HTRANS) // No transfer requested, not in a burst
+  def HTRANS_BUSY   = UInt(1, SZ_HTRANS) // No transfer requested, in a burst
+  def HTRANS_NONSEQ = UInt(2, SZ_HTRANS) // First (potentially only) request in a burst
+  def HTRANS_SEQ    = UInt(3, SZ_HTRANS) // Following requests in a burst
 
   // Values for hburst
   val SZ_HBURST     = 3
-  val HBURST_SINGLE = UInt(0, SZ_HBURST) // Single access (no burst)
-  val HBURST_INCR   = UInt(1, SZ_HBURST) // Incrementing burst of arbitrary length, not crossing 1KB
-  val HBURST_WRAP4  = UInt(2, SZ_HBURST) // 4-beat wrapping burst
-  val HBURST_INCR4  = UInt(3, SZ_HBURST) // 4-beat incrementing burst
-  val HBURST_WRAP8  = UInt(4, SZ_HBURST) // 8-beat wrapping burst
-  val HBURST_INCR8  = UInt(5, SZ_HBURST) // 8-beat incrementing burst
-  val HBURST_WRAP16 = UInt(6, SZ_HBURST) // 16-beat wrapping burst
-  val HBURST_INCR16 = UInt(7, SZ_HBURST) // 16-beat incrementing burst
+  def HBURST_SINGLE = UInt(0, SZ_HBURST) // Single access (no burst)
+  def HBURST_INCR   = UInt(1, SZ_HBURST) // Incrementing burst of arbitrary length, not crossing 1KB
+  def HBURST_WRAP4  = UInt(2, SZ_HBURST) // 4-beat wrapping burst
+  def HBURST_INCR4  = UInt(3, SZ_HBURST) // 4-beat incrementing burst
+  def HBURST_WRAP8  = UInt(4, SZ_HBURST) // 8-beat wrapping burst
+  def HBURST_INCR8  = UInt(5, SZ_HBURST) // 8-beat incrementing burst
+  def HBURST_WRAP16 = UInt(6, SZ_HBURST) // 16-beat wrapping burst
+  def HBURST_INCR16 = UInt(7, SZ_HBURST) // 16-beat incrementing burst
 
   // Values for hresp
   val SZ_HRESP      = 1
-  val HRESP_OKAY    = UInt(0, SZ_HRESP)
-  val HRESP_ERROR   = UInt(1, SZ_HRESP)
+  def HRESP_OKAY    = UInt(0, SZ_HRESP)
+  def HRESP_ERROR   = UInt(1, SZ_HRESP)
 
   // Values for hsize are identical to TileLink MT_SZ
   // ie: 8*2^SZ_HSIZE bit transfers
@@ -279,7 +282,10 @@ class HastiXbar(nMasters: Int, addressMap: Seq[UInt=>Bool])(implicit p: Paramete
     // However, if no slave is connected, for progress report ready anyway, if:
     //   bad address (swallow request) OR idle (permit stupid masters to move FSM)
     val autoready = nowhereM(m) || masters(m).isIdle()
-    val hready = Mux1H(unionGrantMS(m), slaves.map(_.hready ^ autoready)) ^ autoready
+    val hready    = if (nSlaves == 1)
+                      Mux(unionGrantMS(m)(0), slaves(0).hready ^ autoready, Bool(false)) ^ autoready
+                    else
+                      Mux1H(unionGrantMS(m), slaves.map(_.hready ^ autoready)) ^ autoready
     masters(m).hready := hready
     // If we diverted a master, we need to absorb his address phase to replay later
     diversions(m).io.divert := (bubbleM(m) || blockedM(m)) && NSeq(m) && hready
@@ -467,7 +473,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   
   // Calculate the bitmask of which bytes are being accessed
   val mask_decode = Vec.tabulate(hastiAlignment+1) (UInt(_) <= io.hsize)
-  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Up(i+1)) }
+  val mask_wide   = Vec.tabulate(hastiDataBytes) { i => mask_decode(log2Ceil(i+1)) }
   val mask_shift  = if (hastiAlignment == 0) UInt(1) else
                     mask_wide.asUInt() << io.haddr(hastiAlignment-1,0)
   
@@ -503,15 +509,12 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // result must bypass data from the pending write into the read if they
   // happen to have matching address.
   
-  // Remove this once HoldUnless is in chisel3
-  def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
-  
   // Pending write?
   val p_valid     = RegInit(Bool(false))
   val p_address   = Reg(a_address)
   val p_mask      = Reg(a_mask)
   val p_latch_d   = RegNext(ready && a_request && a_write, Bool(false))
-  val p_wdata     = holdUnless(d_wdata, p_latch_d)
+  val p_wdata     = d_wdata holdUnless p_latch_d
   
   // Use single-ported memory with byte-write enable
   val mem = SeqMem(1 << (depth-hastiAlignment), Vec(hastiDataBytes, Bits(width = 8)))
@@ -519,7 +522,7 @@ class HastiTestSRAM(depth: Int)(implicit p: Parameters) extends HastiModule()(p)
   // Decide is the SRAM port is used for reading or (potentially) writing
   val read = ready && a_request && !a_write
   // In case we are stalled, we need to hold the read data
-  val d_rdata = holdUnless(mem.read(a_address, read), RegNext(read))
+  val d_rdata = mem.readAndHold(a_address, read)
   // Whenever the port is not needed for reading, execute pending writes
   when (!read && p_valid) { mem.write(p_address, p_wdata, p_mask.toBools) }
   when (!read) { p_valid := Bool(false) }

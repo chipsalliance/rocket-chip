@@ -1,8 +1,10 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package rocketchip
 
-import rocket.{XLen, UseVM, UseAtomics, UseCompressed, FPUKey}
+import tile.XLen
+import coreplex.RocketTilesKey
+
 import scala.collection.mutable.LinkedHashSet
 
 /** A Generator for platforms containing Rocket Coreplexes */
@@ -47,9 +49,12 @@ object Generator extends util.GeneratorApp {
   override def addTestSuites {
     import DefaultTestSuites._
     val xlen = params(XLen)
-    val vm = params(UseVM)
+    // TODO: for now only generate tests for the first core in the first coreplex
+    val tileParams = params(RocketTilesKey).head
+    val coreParams = tileParams.core
+    val vm = coreParams.useVM
     val env = if (vm) List("p","v") else List("p")
-    params(FPUKey) foreach { case cfg =>
+    coreParams.fpu foreach { case cfg =>
       if (xlen == 32) {
         TestGeneration.addSuites(env.map(rv32ufNoDiv))
       } else {
@@ -62,8 +67,13 @@ object Generator extends util.GeneratorApp {
         }
       }
     }
-    if (params(UseAtomics))    TestGeneration.addSuites(env.map(if (xlen == 64) rv64ua else rv32ua))
-    if (params(UseCompressed)) TestGeneration.addSuites(env.map(if (xlen == 64) rv64uc else rv32uc))
+    if (coreParams.useAtomics) {
+      if (tileParams.dcache.flatMap(_.scratch).isEmpty)
+        TestGeneration.addSuites(env.map(if (xlen == 64) rv64ua else rv32ua))
+      else
+        TestGeneration.addSuites(env.map(if (xlen == 64) rv64uaSansLRSC else rv32uaSansLRSC))
+    }
+    if (coreParams.useCompressed) TestGeneration.addSuites(env.map(if (xlen == 64) rv64uc else rv32uc))
     val (rvi, rvu) =
       if (xlen == 64) ((if (vm) rv64i else rv64pi), rv64u)
       else            ((if (vm) rv32i else rv32pi), rv32u)
@@ -77,8 +87,5 @@ object Generator extends util.GeneratorApp {
   val longName = names.topModuleProject + "." + names.configs
   generateFirrtl
   generateTestSuiteMakefrags
-  generateDSEConstraints
-  generateConfigString
-  generateGraphML
-  generateParameterDump
+  generateArtefacts
 }

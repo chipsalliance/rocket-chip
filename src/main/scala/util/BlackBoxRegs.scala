@@ -1,8 +1,10 @@
+// See LICENSE.SiFive for license details.
+
 package util
 
 import Chisel._
 
-import cde.{Parameters}
+import config._
 
 /** This black-boxes an Async Reset
   *  (or Set)

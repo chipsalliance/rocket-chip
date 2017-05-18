@@ -1,19 +1,11 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
 
 package junctions
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import scala.collection.mutable.HashMap
-
-case object PAddrBits extends Field[Int]
-
-trait HasAddrMapParameters {
-  implicit val p: Parameters
-
-  val paddrBits = p(PAddrBits)
-  def addrMap = p(rocketchip.GlobalAddrMap)
-}
 
 case class MemAttr(prot: Int, cacheable: Boolean = false)
 
@@ -76,12 +68,7 @@ class AddrMap(
     var cacheable = true
     for (AddrMapEntry(name, r) <- entriesIn) {
       require (!mapping.contains(name))
-
-      if (r.start != 0) {
-        base = r.start
-      } else {
-        base = (base + r.size - 1) / r.size * r.size
-      }
+      base = r.start
 
       r match {
         case r: AddrMap =>

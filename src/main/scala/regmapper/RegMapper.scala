@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package regmapper
 
@@ -62,7 +62,7 @@ object RegMapper
     val depth = concurrency
     require (depth >= 0)
     require (!pipelined || depth > 0, "Register-based device with request/response handshaking needs concurrency > 0")
-    val back = if (depth > 0) Queue(front, depth, pipe = depth == 1) else front
+    val back = if (depth > 0) Queue(front, depth) else front
 
     // Convert to and from Bits
     def toBits(x: Int, tail: List[Boolean] = List.empty): List[Boolean] =

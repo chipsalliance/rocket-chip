@@ -1,7 +1,10 @@
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
+
 package junctions
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 
 class PociIO(implicit p: Parameters) extends HastiBundle()(p)
 {

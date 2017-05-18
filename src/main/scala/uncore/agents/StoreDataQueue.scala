@@ -1,9 +1,9 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
 
 package uncore.agents
 import Chisel._
 import uncore.tilelink._
-import cde.{Parameters, Field}
+import config._
 
 case object L2StoreDataQueueDepth extends Field[Int]
 

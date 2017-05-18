@@ -1,15 +1,20 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
+import util._
 
-class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4) extends LazyModule
+class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLManagerNode(TLManagerPortParameters(
+  val device = new MemoryDevice
+
+  val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
+      resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),
@@ -17,7 +22,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = 1)) // no bypass needed for this device
+    minLatency = 1))) // no bypass needed for this device
 
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
@@ -72,8 +77,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
       mem.write(memAddress, wdata, in.a.bits.mask.toBools)
     }
     val ren = in.a.fire() && read
-    def holdUnless[T <: Data](in : T, enable: Bool): T = Mux(!enable, RegEnable(in, enable), in)
-    rdata := holdUnless(mem.read(memAddress, ren), RegNext(ren))
+    rdata := mem.readAndHold(memAddress, ren)
 
     // Tie off unused channels
     in.b.valid := Bool(false)
@@ -85,19 +89,19 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)
 /** Synthesizeable unit testing */
 import unittest._
 
-class TLRAMSimple(ramBeatBytes: Int) extends LazyModule {
+class TLRAMSimple(ramBeatBytes: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("SRAMSimple"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
   model.node := fuzz.node
-  ram.node := model.node
+  ram.node := TLDelayer(0.25)(model.node)
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
   }
 }
 
-class TLRAMSimpleTest(ramBeatBytes: Int) extends UnitTest(timeout = 500000) {
+class TLRAMSimpleTest(ramBeatBytes: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMSimple(ramBeatBytes)).module).io.finished
 }

@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
@@ -27,7 +27,7 @@ class TLEdge(
         // Do there exist A messages with Data?
         val aDataYes = manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportPutFull || manager.anySupportPutPartial
         // Do there exist A messages without Data?
-        val aDataNo  = manager.anySupportAcquire || manager.anySupportGet || manager.anySupportHint
+        val aDataNo  = manager.anySupportAcquireB || manager.anySupportGet || manager.anySupportHint
         // Statically optimize the case where hasData is a constant
         if (!aDataYes) Some(false) else if (!aDataNo) Some(true) else None
       }
@@ -48,16 +48,16 @@ class TLEdge(
       }
       case _:TLBundleD => {
         // Do there eixst D messages with Data?
-        val dDataYes = manager.anySupportGet || manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportAcquire
+        val dDataYes = manager.anySupportGet || manager.anySupportArithmetic || manager.anySupportLogical || manager.anySupportAcquireB
         // Do there exist D messages without Data?
-        val dDataNo  = manager.anySupportPutFull || manager.anySupportPutPartial || manager.anySupportHint || manager.anySupportAcquire
+        val dDataNo  = manager.anySupportPutFull || manager.anySupportPutPartial || manager.anySupportHint || manager.anySupportAcquireT
         if (!dDataYes) Some(false) else if (!dDataNo) Some(true) else None
       }
       case _:TLBundleE => Some(false)
     }
   }
 
-  def hasFollowUp(x: TLChannel): Bool = {
+  def isRequest(x: TLChannel): Bool = {
     x match {
       case a: TLBundleA => Bool(true)
       case b: TLBundleB => Bool(true)
@@ -68,6 +68,18 @@ class TLEdge(
         //    opcode === TLMessages.Grant     ||
         //    opcode === TLMessages.GrantData
       case e: TLBundleE => Bool(false)
+    }
+  }
+
+  def isResponse(x: TLChannel): Bool = {
+    x match {
+      case a: TLBundleA => Bool(false)
+      case b: TLBundleB => Bool(false)
+      case c: TLBundleC => !c.opcode(2) || !c.opcode(1)
+        //    opcode =/= TLMessages.Release &&
+        //    opcode =/= TLMessages.ReleaseData
+      case d: TLBundleD => Bool(true) // Grant isResponse + isRequest
+      case e: TLBundleE => Bool(true)
     }
   }
 
@@ -93,6 +105,24 @@ class TLEdge(
       case e: TLBundleE => Bool(false)
     }
     staticHasData(x).map(Bool(_)).getOrElse(opdata)
+  }
+
+  def opcode(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => a.opcode
+      case b: TLBundleB => b.opcode
+      case c: TLBundleC => c.opcode
+      case d: TLBundleD => d.opcode
+    }
+  }
+
+  def param(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => a.param
+      case b: TLBundleB => b.param
+      case c: TLBundleC => c.param
+      case d: TLBundleD => d.param
+    }
   }
 
   def size(x: TLDataChannel): UInt = {
@@ -140,6 +170,15 @@ class TLEdge(
     }
   }
 
+  def source(x: TLDataChannel): UInt = {
+    x match {
+      case a: TLBundleA => a.source
+      case b: TLBundleB => b.source
+      case c: TLBundleC => c.source
+      case d: TLBundleD => d.source
+    }
+  }
+
   def addr_hi(x: UInt): UInt = x >> log2Ceil(manager.beatBytes)
   def addr_lo(x: UInt): UInt =
     if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
@@ -175,19 +214,52 @@ class TLEdge(
     }
   }
 
-  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, UInt) = {
+  def firstlastHelper(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val beats1   = numBeats1(bits)
     val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes)))
     val counter1 = counter - UInt(1)
     val first = counter === UInt(0)
     val last  = counter === UInt(1) || beats1 === UInt(0)
+    val done  = last && fire
+    val count = (beats1 & ~counter1)
     when (fire) {
       counter := Mux(first, beats1, counter1)
     }
-    (first, last, (beats1 & ~counter1) << log2Ceil(manager.beatBytes))
+    (first, last, done, count)
   }
 
-  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, UInt) = firstlast(x.bits, x.fire())
+  def first(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._1
+  def first(x: DecoupledIO[TLChannel]): Bool = first(x.bits, x.fire())
+  def first(x: ValidIO[TLChannel]): Bool = first(x.bits, x.valid)
+
+  def last(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._2
+  def last(x: DecoupledIO[TLChannel]): Bool = last(x.bits, x.fire())
+  def last(x: ValidIO[TLChannel]): Bool = last(x.bits, x.valid)
+
+  def done(bits: TLChannel, fire: Bool): Bool = firstlastHelper(bits, fire)._3
+  def done(x: DecoupledIO[TLChannel]): Bool = done(x.bits, x.fire())
+  def done(x: ValidIO[TLChannel]): Bool = done(x.bits, x.valid)
+
+  def firstlast(bits: TLChannel, fire: Bool): (Bool, Bool, Bool) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3)
+  }
+  def firstlast(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.fire())
+  def firstlast(x: ValidIO[TLChannel]): (Bool, Bool, Bool) = firstlast(x.bits, x.valid)
+
+  def count(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3, r._4)
+  }
+  def count(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.fire())
+  def count(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = count(x.bits, x.valid)
+
+  def addr_inc(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
+    val r = firstlastHelper(bits, fire)
+    (r._1, r._2, r._3, r._4 << log2Ceil(manager.beatBytes))
+  }
+  def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
+  def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
 }
 
 class TLEdgeOut(
@@ -197,22 +269,22 @@ class TLEdgeOut(
 {
   // Transfers
   def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
-    require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquireFast(toAddress, lgSize)
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Acquire
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
     a.address := toAddress
-    a.mask    := SInt(-1).asUInt
+    a.mask    := mask(toAddress, lgSize)
     a.data    := UInt(0)
     (legal, a)
   }
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt) = {
-    require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquireFast(toAddress, lgSize)
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.Release
     c.param   := shrinkPermissions
@@ -225,8 +297,8 @@ class TLEdgeOut(
   }
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt, data: UInt) = {
-    require (manager.anySupportAcquire)
-    val legal = manager.supportsAcquireFast(toAddress, lgSize)
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ReleaseData
     c.param   := shrinkPermissions
@@ -238,7 +310,10 @@ class TLEdgeOut(
     (legal, c)
   }
 
-  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt) = {
+  def ProbeAck(b: TLBundleB, reportPermissions: UInt): TLBundleC =
+    ProbeAck(b.source, b.address, b.size, reportPermissions)
+
+  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt): TLBundleC = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ProbeAck
     c.param   := reportPermissions
@@ -250,7 +325,10 @@ class TLEdgeOut(
     c
   }
 
-  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt, data: UInt) = {
+  def ProbeAck(b: TLBundleB, reportPermissions: UInt, data: UInt): TLBundleC =
+    ProbeAck(b.source, b.address, b.size, reportPermissions, data)
+
+  def ProbeAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, reportPermissions: UInt, data: UInt): TLBundleC = {
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ProbeAckData
     c.param   := reportPermissions
@@ -262,7 +340,8 @@ class TLEdgeOut(
     c
   }
 
-  def GrantAck(toSink: UInt) = {
+  def GrantAck(d: TLBundleD): TLBundleE = GrantAck(d.sink)
+  def GrantAck(toSink: UInt): TLBundleE = {
     val e = Wire(new TLBundleE(bundle))
     e.sink := toSink
     e
@@ -412,7 +491,7 @@ class TLEdgeIn(
     b.size    := lgSize
     b.source  := toSource
     b.address := fromAddress
-    b.mask    := SInt(-1).asUInt
+    b.mask    := mask(fromAddress, lgSize)
     b.data    := UInt(0)
     (legal, b)
   }

@@ -1,19 +1,21 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
 import diplomacy._
 import scala.math.max
+import util.RationalDirection
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
-  sinkId:             IdRange       = IdRange(0, 1),
+  resources:          Seq[Resource] = Seq(),
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
-  supportsAcquire:    TransferSizes = TransferSizes.none,
+  supportsAcquireT:   TransferSizes = TransferSizes.none,
+  supportsAcquireB:   TransferSizes = TransferSizes.none,
   supportsArithmetic: TransferSizes = TransferSizes.none,
   supportsLogical:    TransferSizes = TransferSizes.none,
   supportsGet:        TransferSizes = TransferSizes.none,
@@ -21,65 +23,67 @@ case class TLManagerParameters(
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       TransferSizes = TransferSizes.none,
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  fifoId:             Option[Int]   = None,
-  customDTS:          Option[String]= None)
+  // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+  fifoId:             Option[Int] = None)
 {
+  require (!address.isEmpty)
   address.foreach { a => require (a.finite) }
-  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
-  require (supportsPutFull.contains(supportsPutPartial))
 
-  // Largest support transfer of all types
-  val maxTransfer = List(
-    supportsAcquire.max,
+  address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
+  require (supportsPutFull.contains(supportsPutPartial))
+  require (supportsPutFull.contains(supportsArithmetic))
+  require (supportsPutFull.contains(supportsLogical))
+  require (supportsGet.contains(supportsArithmetic))
+  require (supportsGet.contains(supportsLogical))
+  require (supportsAcquireB.contains(supportsAcquireT))
+
+  // Make sure that the regionType agrees with the capabilities
+  require ((regionType == RegionType.CACHED || regionType == RegionType.TRACKED) != supportsAcquireB.none)
+  require (regionType != RegionType.UNCACHED || supportsGet)
+
+  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val maxTransfer = List( // Largest supported transfer of all types
+    supportsAcquireT.max,
+    supportsAcquireB.max,
     supportsArithmetic.max,
     supportsLogical.max,
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
   val maxAddress = address.map(_.max).max
-
-  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
-
-  // Generate the config string (in future device tree)
-  lazy val dts = customDTS.getOrElse {
-    val header = s"${name} {\n"
-    val middle = address.map { a =>
-      require (a.contiguous) // Config String is not so flexible
-      "  addr 0x%x;\n  size 0x%x;\n".format(a.base, a.mask+1)
-    }
-    val footer = "}\n"
-    header + middle.reduce(_ + _) + footer
-  }
-
-  // The device had better not support a transfer larger than it's alignment
   val minAlignment = address.map(_.alignment).min
-  require (minAlignment >= maxTransfer)
+
+  // The device had better not support a transfer larger than its alignment
+  require (minAlignment >= maxTransfer, s"minAlignment ($minAlignment) must be >= maxTransfer ($maxTransfer)")
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address,
+      r = supportsAcquireB || supportsGet,
+      w = supportsAcquireT || supportsPutFull,
+      x = executable)
+  }
 }
 
 case class TLManagerPortParameters(
   managers:   Seq[TLManagerParameters],
   beatBytes:  Int,
+  endSinkId:  Int = 0, // 0 = no sink ids, 1 = a reusable sink id, >1 = unique sink ids
   minLatency: Int = 0)
 {
   require (!managers.isEmpty)
   require (isPow2(beatBytes))
+  require (endSinkId >= 0)
   require (minLatency >= 0)
 
-  // Require disjoint ranges for Ids and addresses
-  managers.combinations(2).foreach({ case Seq(x,y) =>
-    require (!x.sinkId.overlaps(y.sinkId))
-    x.address.foreach({ a => y.address.foreach({ b =>
-      require (!a.overlaps(b))
-    })})
-  })
+  def requireFifo() = managers.foreach { m =>require (m.fifoId == Some(0))  }
 
   // Bounds on required sizes
-  def endSinkId   = managers.map(_.sinkId.end).max
   def maxAddress  = managers.map(_.maxAddress).max
   def maxTransfer = managers.map(_.maxTransfer).max
   
   // Operation sizes supported by all outward Managers
-  val allSupportAcquire    = managers.map(_.supportsAcquire)   .reduce(_ intersect _)
+  val allSupportAcquireT   = managers.map(_.supportsAcquireT)  .reduce(_ intersect _)
+  val allSupportAcquireB   = managers.map(_.supportsAcquireB)  .reduce(_ intersect _)
   val allSupportArithmetic = managers.map(_.supportsArithmetic).reduce(_ intersect _)
   val allSupportLogical    = managers.map(_.supportsLogical)   .reduce(_ intersect _)
   val allSupportGet        = managers.map(_.supportsGet)       .reduce(_ intersect _)
@@ -88,7 +92,8 @@ case class TLManagerPortParameters(
   val allSupportHint       = managers.map(_.supportsHint)      .reduce(_ intersect _)
 
   // Operation supported by at least one outward Managers
-  val anySupportAcquire    = managers.map(!_.supportsAcquire.none)   .reduce(_ || _)
+  val anySupportAcquireT   = managers.map(!_.supportsAcquireT.none)  .reduce(_ || _)
+  val anySupportAcquireB   = managers.map(!_.supportsAcquireB.none)  .reduce(_ || _)
   val anySupportArithmetic = managers.map(!_.supportsArithmetic.none).reduce(_ || _)
   val anySupportLogical    = managers.map(!_.supportsLogical.none)   .reduce(_ || _)
   val anySupportGet        = managers.map(!_.supportsGet.none)       .reduce(_ || _)
@@ -101,12 +106,6 @@ case class TLManagerPortParameters(
 
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
-  def findById(id: Int) = managers.find(_.sinkId.contains(id))
-
-  // Synthesizable lookup methods
-  def findById(id: UInt) = Vec(managers.map(_.sinkId.contains(id)))
-  def findIdStartFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.start)))
-  def findIdEndFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.sinkId.end)))
 
   // The safe version will check the entire address
   def findSafe(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
@@ -119,43 +118,47 @@ case class TLManagerPortParameters(
 
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
-  // containsFast would be useless; it could always be true
-  def containsById(id: UInt) = findById(id).reduce(_ || _)
 
-  private def safe_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
-    val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
-    if (allSame) containsSafe(address) && member(managers(0)).containsLg(lgSize) else {
-      Mux1H(findSafe(address), managers.map(member(_).containsLg(lgSize)))
-    }
-  }
-  private def fast_helper(member: TLManagerParameters => TransferSizes)(address: UInt, lgSize: UInt) = {
-    val allSame = managers.map(member(_) == member(managers(0))).reduce(_ && _)
-    if (allSame) member(managers(0)).containsLg(lgSize) else {
-      Mux1H(findFast(address), managers.map(member(_).containsLg(lgSize)))
-    }
+  private def supportHelper(
+      safe:    Boolean,
+      member:  TLManagerParameters => TransferSizes,
+      address: UInt,
+      lgSize:  UInt,
+      range:   Option[TransferSizes]): Bool = {
+    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    val supportCases = managers.groupBy(m => trim(member(m))).mapValues(_.flatMap(_.address))
+    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.values.toList)
+    val simplified = supportCases.mapValues(seq => AddressSet.unify(seq.map(_.widen(~mask)).distinct))
+    simplified.map { case (s, a) =>
+      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      a.map(_.contains(address)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
   }
 
   // Check for support of a given operation at a specific address
-  val supportsAcquireSafe    = safe_helper(_.supportsAcquire) _
-  val supportsArithmeticSafe = safe_helper(_.supportsArithmetic) _
-  val supportsLogicalSafe    = safe_helper(_.supportsLogical) _
-  val supportsGetSafe        = safe_helper(_.supportsGet) _
-  val supportsPutFullSafe    = safe_helper(_.supportsPutFull) _
-  val supportsPutPartialSafe = safe_helper(_.supportsPutPartial) _
-  val supportsHintSafe       = safe_helper(_.supportsHint) _
+  def supportsAcquireTSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsAcquireT,   address, lgSize, range)
+  def supportsAcquireBSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsAcquireB,   address, lgSize, range)
+  def supportsArithmeticSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsArithmetic, address, lgSize, range)
+  def supportsLogicalSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsLogical,    address, lgSize, range)
+  def supportsGetSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsGet,        address, lgSize, range)
+  def supportsPutFullSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsPutFull,    address, lgSize, range)
+  def supportsPutPartialSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsPutPartial, address, lgSize, range)
+  def supportsHintSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsHint,       address, lgSize, range)
 
-  val supportsAcquireFast    = fast_helper(_.supportsAcquire) _
-  val supportsArithmeticFast = fast_helper(_.supportsArithmetic) _
-  val supportsLogicalFast    = fast_helper(_.supportsLogical) _
-  val supportsGetFast        = fast_helper(_.supportsGet) _
-  val supportsPutFullFast    = fast_helper(_.supportsPutFull) _
-  val supportsPutPartialFast = fast_helper(_.supportsPutPartial) _
-  val supportsHintFast       = fast_helper(_.supportsHint) _
+  def supportsAcquireTFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsAcquireT,   address, lgSize, range)
+  def supportsAcquireBFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsAcquireB,   address, lgSize, range)
+  def supportsArithmeticFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsArithmetic, address, lgSize, range)
+  def supportsLogicalFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsLogical,    address, lgSize, range)
+  def supportsGetFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsGet,        address, lgSize, range)
+  def supportsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutFull,    address, lgSize, range)
+  def supportsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutPartial, address, lgSize, range)
+  def supportsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsHint,       address, lgSize, range)
 }
 
 case class TLClientParameters(
   sourceId:            IdRange       = IdRange(0,1),
   nodePath:            Seq[BaseNode] = Seq(),
+  requestFifo:         Boolean       = false, // only a request, not a requirement
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,
@@ -173,6 +176,8 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutFull))
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
+  // If you need FIFO, you better not be TL-C (due to independent A vs. C order)
+  require (!requestFifo || !supportsProbe)
 
   val maxTransfer = List(
     supportsProbe.max,
@@ -188,15 +193,15 @@ case class TLClientParameters(
 case class TLClientPortParameters(
   clients:       Seq[TLClientParameters],
   unsafeAtomics: Boolean = false,
-  minLatency:    Int = 0) // Atomics are executed as get+put
+  minLatency:    Int = 0) // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)
 
   // Require disjoint ranges for Ids
-  clients.combinations(2).foreach({ case Seq(x,y) =>
-    require (!x.sourceId.overlaps(y.sourceId))
-  })
+  IdRange.overlaps(clients.map(_.sourceId)).foreach { case (x, y) =>
+    require (!x.overlaps(y), s"TLClientParameters.sourceId ${x} overlaps ${y}")
+  }
 
   // Bounds on required sizes
   def endSourceId = clients.map(_.sourceId.end).max
@@ -226,6 +231,8 @@ case class TLClientPortParameters(
   // Synthesizable lookup methods
   def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
+
+  def requestFifo(id: UInt) = Mux1H(find(id), clients.map(c => Bool(c.requestFifo)))
 
   private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
     val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
@@ -272,6 +279,15 @@ case class TLBundleParameters(
 
 object TLBundleParameters
 {
+  val emptyBundleParams = TLBundleParameters(
+    addressBits = 1,
+    dataBits    = 8,
+    sourceBits  = 1,
+    sinkBits    = 1,
+    sizeBits    = 1)
+
+  def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+
   def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
     new TLBundleParameters(
       addressBits = log2Up(manager.maxAddress + 1),
@@ -296,8 +312,74 @@ case class TLEdgeParameters(
 
 case class TLAsyncManagerPortParameters(depth: Int, base: TLManagerPortParameters) { require (isPow2(depth)) }
 case class TLAsyncClientPortParameters(base: TLClientPortParameters)
-case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters) { require (isPow2(depth)) }
+
+case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters)
+{
+  require (isPow2(depth))
+  def union(x: TLAsyncBundleParameters) = TLAsyncBundleParameters(
+    depth = max(depth, x.depth),
+    base  = base.union(x.base))
+}
+
+object TLAsyncBundleParameters
+{
+  val emptyBundleParams = TLAsyncBundleParameters(depth = 1, base = TLBundleParameters.emptyBundleParams)
+  def union(x: Seq[TLAsyncBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+}
+
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters)
 {
   val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
+}
+
+case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters)
+case class TLRationalClientPortParameters(base: TLClientPortParameters)
+
+case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters)
+{
+  val bundle = TLBundleParameters(client.base, manager.base)
+}
+
+object ManagerUnification
+{
+  def apply(managers: Seq[TLManagerParameters]) = {
+    // To be unified, devices must agree on all of these terms
+    case class TLManagerKey(
+      regionType:         RegionType.T,
+      executable:         Boolean,
+      lastNode:           BaseNode,
+      supportsAcquireT:   TransferSizes,
+      supportsAcquireB:   TransferSizes,
+      supportsArithmetic: TransferSizes,
+      supportsLogical:    TransferSizes,
+      supportsGet:        TransferSizes,
+      supportsPutFull:    TransferSizes,
+      supportsPutPartial: TransferSizes,
+      supportsHint:       TransferSizes)
+    def key(x: TLManagerParameters) = TLManagerKey(
+      regionType         = x.regionType,
+      executable         = x.executable,
+      lastNode           = x.nodePath.last,
+      supportsAcquireT   = x.supportsAcquireT,
+      supportsAcquireB   = x.supportsAcquireB,
+      supportsArithmetic = x.supportsArithmetic,
+      supportsLogical    = x.supportsLogical,
+      supportsGet        = x.supportsGet,
+      supportsPutFull    = x.supportsPutFull,
+      supportsPutPartial = x.supportsPutPartial,
+      supportsHint       = x.supportsHint)
+    val map = scala.collection.mutable.HashMap[TLManagerKey, TLManagerParameters]()
+    managers.foreach { m =>
+      val k = key(m)
+      map.get(k) match {
+        case None => map.update(k, m)
+        case Some(n) => {
+          map.update(k, m.copy(
+            address = m.address ++ n.address,
+            fifoId  = None)) // Merging means it's not FIFO anymore!
+        }
+      }
+    }
+    map.values.map(m => m.copy(address = AddressSet.unify(m.address))).toList
+  }
 }

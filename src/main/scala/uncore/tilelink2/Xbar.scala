@@ -1,20 +1,23 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink2
 
 import Chisel._
+import config._
 import diplomacy._
 
-class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends LazyModule
+class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: Parameters) extends LazyModule
 {
-  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
+  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId)).map(_.get)
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
 
   def assignRanges(sizes: Seq[Int]) = {
-    val pow2Sizes = sizes.map(1 << log2Ceil(_))
+    val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
     val tuples = pow2Sizes.zipWithIndex.sortBy(_._1) // record old index, then sort by increasing size
     val starts = tuples.scanRight(0)(_._1 + _).tail // suffix-sum of the sizes = the start positions
-    val ranges = (tuples zip starts) map { case ((sz, i), st) => (IdRange(st, st+sz), i) }
+    val ranges = (tuples zip starts) map { case ((sz, i), st) =>
+      (if (sz == 0) None else Some(IdRange(st, st+sz)), i)
+    }
     ranges.sortBy(_._2).map(_._1) // Restore orignal order
   }
 
@@ -33,12 +36,12 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     }
   }
 
-  val node = TLAdapterNode(
+  val node = TLNexusNode(
     numClientPorts  = 1 to 32,
     numManagerPorts = 1 to 32,
     clientFn  = { seq =>
-      // An unsafe atomic port can not be combined with any other!
-      require (!seq.exists(_.unsafeAtomics) || seq.size == 1)
+      require (!seq.exists(_.unsafeAtomics) || seq.size == 1,
+        "An unsafe atomic port can not be combined with any other!")
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
         clients = (mapInputIds(seq) zip seq) flatMap { case (range, port) =>
@@ -50,16 +53,18 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     },
     managerFn = { seq =>
       val fifoIdFactory = relabeler()
+      val outputIdRanges = mapOutputIds(seq)
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
-        managers = (mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
-          require (port.beatBytes == seq(0).beatBytes)
+        endSinkId = outputIdRanges.map(_.map(_.end).getOrElse(0)).max,
+        managers = ManagerUnification(seq.flatMap { port =>
+          require (port.beatBytes == seq(0).beatBytes,
+            s"Xbar data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
           val fifoIdMapper = fifoIdFactory()
           port.managers map { manager => manager.copy(
-            sinkId = manager.sinkId.shift(range.start),
             fifoId = manager.fifoId.map(fifoIdMapper(_))
           )}
-        }
+        })
       )
     })
 
@@ -100,24 +105,50 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     val in = Wire(Vec(io.in.size, TLBundle(wide_bundle)))
     for (i <- 0 until in.size) {
       val r = inputIdRanges(i)
-      in(i) <> io.in(i)
-      // prefix sources
+
+      in(i).a <> io.in(i).a
+      io.in(i).d <> in(i).d
       in(i).a.bits.source := io.in(i).a.bits.source | UInt(r.start)
-      in(i).c.bits.source := io.in(i).c.bits.source | UInt(r.start)
-      // defix sources
-      io.in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
       io.in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
+
+      if (node.edgesIn(i).client.anySupportProbe && node.edgesOut.exists(_.manager.anySupportAcquireB)) {
+        in(i).c <> io.in(i).c
+        in(i).e <> io.in(i).e
+        io.in(i).b <> in(i).b
+        in(i).c.bits.source := io.in(i).c.bits.source | UInt(r.start)
+        io.in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
+      } else {
+        in(i).c.valid := Bool(false)
+        in(i).e.valid := Bool(false)
+        in(i).b.ready := Bool(false)
+        io.in(i).c.ready := Bool(true)
+        io.in(i).e.ready := Bool(true)
+        io.in(i).b.valid := Bool(false)
+      }
     }
 
     // Transform output bundle sinks (sources use global namespace on both sides)
     val out = Wire(Vec(io.out.size, TLBundle(wide_bundle)))
     for (i <- 0 until out.size) {
       val r = outputIdRanges(i)
-      io.out(i) <> out(i)
-      // prefix sinks
-      out(i).d.bits.sink := io.out(i).d.bits.sink | UInt(r.start)
-      // defix sinks
-      io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
+
+      io.out(i).a <> out(i).a
+      out(i).d <> io.out(i).d
+      out(i).d.bits.sink := io.out(i).d.bits.sink | UInt(r.map(_.start).getOrElse(0))
+
+      if (node.edgesOut(i).manager.anySupportAcquireB && node.edgesIn.exists(_.client.anySupportProbe)) {
+        io.out(i).c <> out(i).c
+        io.out(i).e <> out(i).e
+        out(i).b <> io.out(i).b
+        io.out(i).e.bits.sink := trim(out(i).e.bits.sink, r.map(_.size).getOrElse(0))
+      } else {
+        out(i).c.ready := Bool(false)
+        out(i).e.ready := Bool(false)
+        out(i).b.valid := Bool(false)
+        io.out(i).c.valid := Bool(false)
+        io.out(i).e.valid := Bool(false)
+        io.out(i).b.ready := Bool(true)
+      }
     }
 
     val addressA = (in zip node.edgesIn) map { case (i, e) => e.address(i.a.bits) }
@@ -127,7 +158,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     val requestCIO = Vec(addressC.map { i => Vec(outputPorts.map { o => o(i) }) })
     val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.b.bits.source) }) })
     val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.d.bits.source) }) })
-    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.contains(i.e.bits.sink)   }) })
+    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.map(_.contains(i.e.bits.sink)).getOrElse(Bool(false)) }) })
 
     val beatsAI = Vec((in  zip node.edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) })
     val beatsBO = Vec((out zip node.edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) })
@@ -161,7 +192,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     for (o <- 0 until out.size) {
       val allowI = Seq.tabulate(in.size) { i =>
         node.edgesIn(i).client.anySupportProbe &&
-        node.edgesOut(o).manager.anySupportAcquire
+        node.edgesOut(o).manager.anySupportAcquireB
       }
       TLArbiter(policy)(out(o).a,       (beatsAI zip portsAOI(o)        ):_*)
       TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), allowI):_*)
@@ -171,7 +202,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
     for (i <- 0 until in.size) {
       val allowO = Seq.tabulate(out.size) { o =>
         node.edgesIn(i).client.anySupportProbe &&
-        node.edgesOut(o).manager.anySupportAcquire
+        node.edgesOut(o).manager.anySupportAcquireB
       }
       TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), allowO):_*)
       TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)
@@ -182,16 +213,16 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst) extends Lazy
 /** Synthesizeable unit tests */
 import unittest._
 
-class TLRAMXbar(nManagers: Int) extends LazyModule {
+class TLRAMXbar(nManagers: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(5000))
-  val model = LazyModule(new TLRAMModel)
+  val model = LazyModule(new TLRAMModel("Xbar"))
   val xbar = LazyModule(new TLXbar)
 
   model.node := fuzz.node
-  xbar.node := model.node
+  xbar.node := TLDelayer(0.1)(model.node)
   (0 until nManagers) foreach { n =>
     val ram  = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
-    ram.node := TLFragmenter(4, 256)(xbar.node)
+    ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(xbar.node))
   }
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
@@ -199,22 +230,22 @@ class TLRAMXbar(nManagers: Int) extends LazyModule {
   }
 }
 
-class TLRAMXbarTest(nManagers: Int) extends UnitTest(timeout = 500000) {
+class TLRAMXbarTest(nManagers: Int)(implicit p: Parameters) extends UnitTest(timeout = 500000) {
   io.finished := Module(LazyModule(new TLRAMXbar(nManagers)).module).io.finished
 }
 
-class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
+class TLMulticlientXbar(nManagers: Int, nClients: Int)(implicit p: Parameters) extends LazyModule {
   val xbar = LazyModule(new TLXbar)
 
   val fuzzers = (0 until nClients) map { n =>
     val fuzz = LazyModule(new TLFuzzer(5000))
-    xbar.node := fuzz.node
+    xbar.node := TLDelayer(0.1)(fuzz.node)
     fuzz
   }
 
   (0 until nManagers) foreach { n =>
     val ram  = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
-    ram.node := TLFragmenter(4, 256)(xbar.node)
+    ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(xbar.node))
   }
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
@@ -222,6 +253,6 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int) extends LazyModule {
   }
 }
 
-class TLMulticlientXbarTest(nManagers: Int, nClients: Int) extends UnitTest(timeout = 5000000) {
+class TLMulticlientXbarTest(nManagers: Int, nClients: Int)(implicit p: Parameters) extends UnitTest(timeout = 5000000) {
   io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients)).module).io.finished
 }

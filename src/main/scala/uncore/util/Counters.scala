@@ -1,9 +1,11 @@
+// See LICENSE.Berkeley for license details.
+
 package uncore.util
 
 import Chisel._
 import uncore.tilelink._
 import util.TwoWayCounter
-import cde.Parameters
+import config._
 
 class BeatCounterStatus extends Bundle {
   val idx = UInt()

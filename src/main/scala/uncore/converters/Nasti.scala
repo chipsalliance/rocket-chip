@@ -1,3 +1,6 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package uncore.converters
 
 import Chisel._
@@ -6,7 +9,7 @@ import util.{ReorderQueue, DecoupledHelper}
 import junctions.NastiConstants._
 import uncore.tilelink._
 import uncore.constants._
-import cde.Parameters
+import config._
 import scala.math.min
 
 class IdMapper(val inIdBits: Int, val outIdBits: Int,

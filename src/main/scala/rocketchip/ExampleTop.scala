@@ -1,53 +1,58 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package rocketchip
 
 import Chisel._
-import cde.{Parameters, Field}
+import config._
 import junctions._
-import coreplex._
 import rocketchip._
 
-/** Example Top with Periphery */
-class ExampleTop(q: Parameters) extends BaseTop(q)
-    with PeripheryBootROM
-    with PeripheryDebug
-    with PeripheryExtInterrupts
-    with PeripheryCoreplexLocalInterrupter
-    with PeripheryMasterMem
-    with PeripheryMasterMMIO
-    with PeripherySlave {
-  override lazy val module = Module(new ExampleTopModule(p, this, new ExampleTopBundle(p)))
+/** Example Top with Periphery (w/o coreplex) */
+abstract class ExampleTop(implicit p: Parameters) extends BaseTop
+    with PeripheryAsyncExtInterrupts
+    with PeripheryErrorSlave
+    with PeripheryMasterAXI4Mem
+    with PeripheryMasterAXI4MMIO
+    with PeripherySlaveAXI4 {
+  override lazy val module = new ExampleTopModule(this, () => new ExampleTopBundle(this))
 }
 
-class ExampleTopBundle(p: Parameters) extends BaseTopBundle(p)
-    with PeripheryBootROMBundle
-    with PeripheryDebugBundle
+class ExampleTopBundle[+L <: ExampleTop](_outer: L) extends BaseTopBundle(_outer)
     with PeripheryExtInterruptsBundle
-    with PeripheryCoreplexLocalInterrupterBundle
-    with PeripheryMasterMemBundle
-    with PeripheryMasterMMIOBundle
-    with PeripherySlaveBundle
+    with PeripheryErrorSlaveBundle
+    with PeripheryMasterAXI4MemBundle
+    with PeripheryMasterAXI4MMIOBundle
+    with PeripherySlaveAXI4Bundle
 
-class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle](p: Parameters, l: L, b: => B) extends BaseTopModule(p, l, b)
-    with PeripheryBootROMModule
-    with PeripheryDebugModule
+class ExampleTopModule[+L <: ExampleTop, +B <: ExampleTopBundle[L]](_outer: L, _io: () => B) extends BaseTopModule(_outer, _io)
     with PeripheryExtInterruptsModule
-    with PeripheryCoreplexLocalInterrupterModule
-    with PeripheryMasterMemModule
-    with PeripheryMasterMMIOModule
-    with PeripherySlaveModule
-    with HardwiredResetVector
-    with DirectConnection
+    with PeripheryErrorSlaveModule
+    with PeripheryMasterAXI4MemModule
+    with PeripheryMasterAXI4MMIOModule
+    with PeripherySlaveAXI4Module
 
-/** Example Top with TestRAM */
-class ExampleTopWithTestRAM(q: Parameters) extends ExampleTop(q)
-    with PeripheryTestRAM {
-  override lazy val module = Module(new ExampleTopWithTestRAMModule(p, this, new ExampleTopWithTestRAMBundle(p)))
+class ExampleRocketTop(implicit p: Parameters) extends ExampleTop
+    with PeripheryBootROM
+    with PeripheryZero
+    with PeripheryDebug
+    with PeripheryCounter
+    with HardwiredResetVector
+    with RocketPlexMaster {
+  override lazy val module = new ExampleRocketTopModule(this, () => new ExampleRocketTopBundle(this))
 }
 
-class ExampleTopWithTestRAMBundle(p: Parameters) extends ExampleTopBundle(p)
-    with PeripheryTestRAMBundle
+class ExampleRocketTopBundle[+L <: ExampleRocketTop](_outer: L) extends ExampleTopBundle(_outer)
+    with PeripheryBootROMBundle
+    with PeripheryZeroBundle
+    with PeripheryDebugBundle
+    with PeripheryCounterBundle
+    with HardwiredResetVectorBundle
+    with RocketPlexMasterBundle
 
-class ExampleTopWithTestRAMModule[+L <: ExampleTopWithTestRAM, +B <: ExampleTopWithTestRAMBundle](p: Parameters, l: L, b: => B) extends ExampleTopModule(p, l, b)
-    with PeripheryTestRAMModule
+class ExampleRocketTopModule[+L <: ExampleRocketTop, +B <: ExampleRocketTopBundle[L]](_outer: L, _io: () => B) extends ExampleTopModule(_outer, _io)
+    with PeripheryBootROMModule
+    with PeripheryZeroModule
+    with PeripheryDebugModule
+    with PeripheryCounterModule
+    with HardwiredResetVectorModule
+    with RocketPlexMasterModule

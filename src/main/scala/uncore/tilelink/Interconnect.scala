@@ -1,10 +1,13 @@
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
+
 package uncore.tilelink
 
 import Chisel._
 import junctions._
 import scala.collection.mutable.ArraySeq
 import uncore.util._
-import cde.{Parameters, Field}
+import config._
 
 
 /** PortedTileLinkNetworks combine a TileLink protocol with a particular physical

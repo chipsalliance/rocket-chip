@@ -1,3 +1,6 @@
+// See LICENSE.SiFive for license details.
+// See LICENSE.Berkeley for license details.
+
 package uncore.tilelink
 
 import Chisel._
@@ -5,7 +8,7 @@ import junctions._
 import uncore.constants._
 import uncore.util._
 import util._
-import cde.Parameters
+import config._
 
 abstract class Driver(implicit p: Parameters) extends TLModule()(p) {
   val io = new Bundle {

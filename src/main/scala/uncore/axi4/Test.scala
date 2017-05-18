@@ -1,20 +1,22 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+
 package uncore.axi4
 
 import Chisel._
+import config._
 import diplomacy._
 import uncore.tilelink2._
 import unittest._
 
-class RRTest0(address: BigInt) extends AXI4RegisterRouter(address, 0, 32, 0, 4)(
+class RRTest0(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, 0, 32, 0, 4)(
   new AXI4RegBundle((), _)    with RRTest0Bundle)(
   new AXI4RegModule((), _, _) with RRTest0Module)
 
-class RRTest1(address: BigInt) extends AXI4RegisterRouter(address, 0, 32, 6, 4, false)(
+class RRTest1(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, 0, 32, 6, 4, false)(
   new AXI4RegBundle((), _)    with RRTest1Bundle)(
   new AXI4RegModule((), _, _) with RRTest1Module)
 
-class AXI4LiteFuzzRAM extends LazyModule
+class AXI4LiteFuzzRAM()(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel("AXI4LiteFuzzRAM"))
@@ -23,21 +25,21 @@ class AXI4LiteFuzzRAM extends LazyModule
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
   model.node := fuzz.node
-  xbar.node  := model.node
-  ram.node   := AXI4Fragmenter(lite=true)(TLToAXI4(0, true )(xbar.node))
-  gpio.node  := AXI4Fragmenter(lite=true)(TLToAXI4(0, false)(xbar.node))
+  xbar.node  := TLDelayer(0.1)(TLBuffer(BufferParams.flow)(TLDelayer(0.2)(model.node)))
+  ram.node   := AXI4UserYanker()(AXI4IdIndexer(0)(TLToAXI4(4, true )(TLFragmenter(4, 16)(xbar.node))))
+  gpio.node  := AXI4UserYanker()(AXI4IdIndexer(0)(TLToAXI4(4, false)(TLFragmenter(4, 16)(xbar.node))))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
   }
 }
 
-class AXI4LiteFuzzRAMTest extends UnitTest(500000) {
+class AXI4LiteFuzzRAMTest()(implicit p: Parameters) extends UnitTest(500000) {
   val dut = Module(LazyModule(new AXI4LiteFuzzRAM).module)
   io.finished := dut.io.finished
 }
 
-class AXI4FullFuzzRAM extends LazyModule
+class AXI4FullFuzzRAM()(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(5000))
   val model = LazyModule(new TLRAMModel("AXI4FullFuzzRAM"))
@@ -46,28 +48,39 @@ class AXI4FullFuzzRAM extends LazyModule
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
   model.node := fuzz.node
-  xbar.node  := model.node
-  ram.node   := AXI4Fragmenter(lite=false, maxInFlight = 2)(TLToAXI4(4,false)(xbar.node))
-  gpio.node  := AXI4Fragmenter(lite=false, maxInFlight = 5)(TLToAXI4(4,true )(xbar.node))
+  xbar.node  := TLDelayer(0.1)(TLBuffer(BufferParams.flow)(TLDelayer(0.2)(model.node)))
+  ram.node   := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(4,false)(xbar.node)))
+  gpio.node  := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(4,true )(xbar.node)))
 
   lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
     io.finished := fuzz.module.io.finished
   }
 }
 
-class AXI4FullFuzzRAMTest extends UnitTest(500000) {
+class AXI4FullFuzzRAMTest(implicit p: Parameters) extends UnitTest(500000) {
   val dut = Module(LazyModule(new AXI4FullFuzzRAM).module)
   io.finished := dut.io.finished
 }
 
-class AXI4FuzzMaster extends LazyModule
+trait HasFuzzTarget {
+  val fuzzAddr = AddressSet(0x0, 0xfff)
+}
+
+class AXI4FuzzMaster()(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node  = AXI4OutputNode()
-  val fuzz  = LazyModule(new TLFuzzer(5000))
+  val fuzz  = LazyModule(new TLFuzzer(5000, overrideAddress = Some(fuzzAddr)))
   val model = LazyModule(new TLRAMModel("AXI4FuzzMaster"))
 
   model.node := fuzz.node
-  node := TLToAXI4(4)(model.node)
+  node :=
+    AXI4UserYanker()(
+    AXI4Deinterleaver(64)(
+    TLToAXI4(4)(
+    TLDelayer(0.1)(
+    TLBuffer(BufferParams.flow)(
+    TLDelayer(0.1)(
+    model.node))))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -79,12 +92,26 @@ class AXI4FuzzMaster extends LazyModule
   }
 }
 
-class AXI4FuzzSlave extends LazyModule
+class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node = AXI4InputNode()
-  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0xfff)))
+  val xbar = LazyModule(new TLXbar)
+  val ram  = LazyModule(new TLRAM(fuzzAddr))
+  val error= LazyModule(new TLError(Seq(AddressSet(0x1800, 0xff))))
 
-  ram.node := TLFragmenter(4, 16)(AXI4ToTL()(AXI4Fragmenter()(node)))
+  ram.node   := TLFragmenter(4, 16)(xbar.node)
+  error.node := TLFragmenter(4, 16)(xbar.node)
+
+  xbar.node :=
+    TLFIFOFixer()(
+    TLDelayer(0.1)(
+    TLBuffer(BufferParams.flow)(
+    TLDelayer(0.1)(
+    AXI4ToTL()(
+    AXI4UserYanker(Some(4))(
+    AXI4Fragmenter()(
+    AXI4IdIndexer(2)(
+    node))))))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -93,7 +120,7 @@ class AXI4FuzzSlave extends LazyModule
   }
 }
 
-class AXI4FuzzBridge extends LazyModule
+class AXI4FuzzBridge()(implicit p: Parameters) extends LazyModule
 {
   val master = LazyModule(new AXI4FuzzMaster)
   val slave  = LazyModule(new AXI4FuzzSlave)
@@ -105,7 +132,7 @@ class AXI4FuzzBridge extends LazyModule
   }
 }
 
-class AXI4BridgeTest extends UnitTest(500000) {
+class AXI4BridgeTest()(implicit p: Parameters) extends UnitTest(500000) {
   val dut = Module(LazyModule(new AXI4FuzzBridge).module)
   io.finished := dut.io.finished
 }

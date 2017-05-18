@@ -1,4 +1,5 @@
-// See LICENSE for license details.
+// See LICENSE.Berkeley for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.tilelink
 import Chisel._
@@ -7,7 +8,7 @@ import uncore.coherence.CoherencePolicy
 import uncore.constants._
 import util._
 import scala.math.max
-import cde.{Parameters, Field}
+import config._
 
 case object CacheBlockOffsetBits extends Field[Int]
 case object AmoAluOperandBits extends Field[Int]
@@ -64,7 +65,7 @@ trait HasTileLinkParameters {
   val tlMaxManagerXacts = tlExternal.maxManagerXacts
   val tlClientXactIdBits = log2Up(tlMaxClientXacts*tlMaxClientsPerPort)
   val tlManagerXactIdBits = log2Up(tlMaxManagerXacts)
-  val tlBlockAddrBits = p(PAddrBits) - p(CacheBlockOffsetBits)
+  val tlBlockAddrBits = p(rocket.PAddrBits) - p(CacheBlockOffsetBits)
   val tlDataBeats = tlExternal.dataBeats
   val tlDataBits = tlExternal.dataBitsPerBeat
   val tlDataBytes = tlDataBits/8

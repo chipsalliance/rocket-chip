@@ -1,7 +1,9 @@
+// See LICENSE.SiFive for license details.
+
 package unittest
 
 import Chisel._
-import cde.{Field, Parameters}
+import config._
 import util.SimpleTimer
 
 trait HasUnitTestIO {

@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
 package uncore.agents
 
@@ -7,7 +7,7 @@ import uncore.coherence._
 import uncore.tilelink._
 import uncore.constants._
 import uncore.devices._
-import cde.{Parameters, Field, Config}
+import config._
 
 /** The ManagerToClientStateless Bridge does not maintain any state for the messages
   *  which pass through it. It simply passes the messages back and forth without any
