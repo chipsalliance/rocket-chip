@@ -92,6 +92,13 @@ case class TLNexusNode(
   numManagerPorts: Range.Inclusive = 1 to 999)
   extends NexusNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
+case class TLSplitterNode(
+  clientFn:        SplitterArg[TLClientPortParameters]  => Seq[TLClientPortParameters],
+  managerFn:       SplitterArg[TLManagerPortParameters] => Seq[TLManagerPortParameters],
+  numClientPorts:  Range.Inclusive = 0 to 999,
+  numManagerPorts: Range.Inclusive = 0 to 999)
+  extends SplitterNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
+
 // Nodes passed from an inner module
 case class TLOutputNode() extends OutputNode(TLImp)
 case class TLInputNode() extends InputNode(TLImp)
