@@ -159,15 +159,13 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] val numPI: Range.Inclusive)
   extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
     val oStars = oBindings.filter { case (_,_,b) => b == BIND_STAR }.size
     val iStars = iBindings.filter { case (_,_,b) => b == BIND_STAR }.size
-    require (oStars + iStars <= 1, s"${name} appears beside a :*= ${iStars} times and a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     val oKnown = oBindings.map { case (_, n, b) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
@@ -176,8 +174,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
-    val oStar = if (oStars > 0) resolveStarO(iKnown, oKnown) else 0
-    val iStar = if (iStars > 0) resolveStarI(iKnown, oKnown) else 0
+    val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
     val oSum = oBindings.map { case (_, n, b) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
@@ -285,13 +282,15 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val externalIn: Boolean = true
   val externalOut: Boolean = true
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (i >= o, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${i-o} edges to resolve :=*${lazyModule.line}")
-    i - o
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (o >= i, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${o-i} edges to resolve :*=${lazyModule.line}")
-    o - i
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (oStars + iStars <= 1, s"${name} (an adapter) appears left of a :*= ${iStars} times and right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
+    if (oStars > 0) {
+      require (iKnown >= oKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${iKnown-oKnown} edges to resolve :=*${lazyModule.line}")
+      (0, iKnown - oKnown)
+    } else {
+      require (oKnown >= iKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${oKnown-iKnown} edges to resolve :*=${lazyModule.line}")
+      (oKnown - iKnown, 0)
+    }
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
     require(n == p.size, s"${name} has ${p.size} inputs and ${n} outputs; they must match${lazyModule.line}")
@@ -318,13 +317,10 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val externalIn: Boolean = true
   val externalOut: Boolean = true
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (false, "${name} cannot resolve :=*${lazyModule.line}")
-    0
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (false, s"${name} cannot resolve :*=${lazyModule.line}")
-    0
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iStars == 0, s"${name} (a nexus) appears left of :*= (perhaps you should flip the '*' to :=*?)${lazyModule.line}")
+    require (oStars == 0, s"${name} (a nexus) appears right of a :=* (perhaps you should flip the '*' to :*=?)${lazyModule.line}")
+    (0, 0)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = Seq.fill(n) { dFn(p) }
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = Seq.fill(n) { uFn(p) }
@@ -367,13 +363,12 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   override val externalIn: Boolean = false
   override val externalOut: Boolean = true
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (po.size >= o, s"${name} has ${o} outputs out of ${po.size}; cannot assign ${po.size - o} edges to resolve :=*${lazyModule.line}")
-    po.size - o
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (false, s"${name} cannot resolve :*=${lazyModule.line}")
-    0
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (oStars <= 1, s"${name} (a source) appears right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
+    require (iStars == 0, s"${name} (a source) cannot appear left of a :*=${lazyModule.line}")
+    require (iKnown == 0, s"${name} (a source) cannot appear left of a :=${lazyModule.line}")
+    require (po.size >= oKnown, s"${name} (a source) has ${oKnown} outputs out of ${po.size}; cannot assign ${po.size - oKnown} edges to resolve :=*${lazyModule.line}")
+    (0, po.size - oKnown)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
@@ -387,13 +382,12 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   override val externalIn: Boolean = true
   override val externalOut: Boolean = false
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (false, s"${name} cannot resolve :=*${lazyModule.line}")
-    0
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (pi.size >= i, s"${name} has ${i} inputs out of ${pi.size}; cannot assign ${pi.size - i} edges to resolve :*=${lazyModule.line}")
-    pi.size - i
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iStars <= 1, s"${name} (a sink) appears left of a :*= ${iStars} times; at most once is allowed${lazyModule.line}")
+    require (oStars == 0, s"${name} (a sink) cannot appear right of a :=*${lazyModule.line}")
+    require (oKnown == 0, s"${name} (a sink) cannot appear right of a :=${lazyModule.line}")
+    require (pi.size >= iKnown, s"${name} (a sink) has ${iKnown} inputs out of ${pi.size}; cannot assign ${pi.size - iKnown} edges to resolve :*=${lazyModule.line}")
+    (pi.size - iKnown, 0)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
