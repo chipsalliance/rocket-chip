@@ -50,19 +50,25 @@ jobs:
         - export CXX=g++-4.8 CC=gcc-4.8
       before_cache:
         - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
-      env: SUITE=none
     - &test
       stage: Test
       script:
-        - make emulator-ndebug -C regression SUITE=$SUITE JVM_MEMORY=3G
-        - travis_wait 30 make emulator-regression-tests -C regression SUITE=$SUITE JVM_MEMORY=3G
-      env: SUITE=RocketSuiteA
+        - make emulator-ndebug -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
+        - travis_wait 30 make emulator-regression-tests -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
     - <<: *test
-      env: SUITE=RocketSuiteB
+      script:
+        - make emulator-ndebug -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
+        - travis_wait 30 make emulator-regression-tests -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
     - <<: *test
-      env: SUITE=RocketSuiteC
+      script:
+        - make emulator-ndebug -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
+        - travis_wait 30 make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
     - <<: *test
-      env: SUITE=GroundtestSuite
+      script:
+        - make emulator-ndebug -C regression SUITE=GroundtestSuite JVM_MEMORY=3G
+        - travis_wait 30 make emulator-regression-tests -C regression SUITE=GroundtestSuite JVM_MEMORY=3G
     - <<: *test
-      env: SUITE=UnittestSuite
+      script:
+        - make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G
+        - travis_wait 30 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G
 
