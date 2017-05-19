@@ -435,6 +435,13 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
 
     inflight := (inflight | a_set) & ~d_clr
+
+    val watchdog = RegInit(UInt(0, width = 32))
+    val limit = util.PlusArg("tilelink_timeout")
+    assert (!inflight.orR || limit === UInt(0) || watchdog < limit, "TileLink timeout expired" + extra)
+
+    watchdog := watchdog + UInt(1)
+    when (bundle.a.fire() || bundle.d.fire()) { watchdog := UInt(0) }
   }
 
   def legalizeDESink(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
