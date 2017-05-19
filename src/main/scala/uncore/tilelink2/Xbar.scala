@@ -68,7 +68,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     }
 
     // We need an intermediate size of bundle with the widest possible identifiers
-    val wide_bundle = io.in(0).params.union(io.out(0).params)
+    val wide_bundle = TLBundleParameters.union(io.in.map(_.params) ++ io.out.map(_.params))
 
     // Handle size = 1 gracefully (Chisel3 empty range is broken)
     def trim(id: UInt, size: Int) = if (size <= 1) UInt(0) else id(log2Ceil(size)-1, 0)
