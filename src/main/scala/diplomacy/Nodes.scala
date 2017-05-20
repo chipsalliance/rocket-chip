@@ -271,6 +271,23 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def inputs  = iPorts.map(_._2) zip edgesIn .map(e => inner.labelI(e))
 }
 
+abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+  inner: InwardNodeImp [DI, UI, EI, BI],
+  outer: OutwardNodeImp[DO, UO, EO, BO])(
+  numPO: Range.Inclusive,
+  numPI: Range.Inclusive)
+  extends MixedNode(inner, outer)(numPO, numPI)
+{
+  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int)
+  def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
+  def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
+}
+
+abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  numPO: Range.Inclusive,
+  numPI: Range.Inclusive)
+  extends MixedCustomNode(imp, imp)(numPO, numPI)
+
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(

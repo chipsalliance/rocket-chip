@@ -99,6 +99,11 @@ case class TLSplitterNode(
   numManagerPorts: Range.Inclusive = 0 to 999)
   extends SplitterNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
+abstract class TLCustomNode(
+  numClientPorts:  Range.Inclusive,
+  numManagerPorts: Range.Inclusive)
+  extends CustomNode(TLImp)(numClientPorts, numManagerPorts)
+
 // Nodes passed from an inner module
 case class TLOutputNode() extends OutputNode(TLImp)
 case class TLInputNode() extends InputNode(TLImp)
