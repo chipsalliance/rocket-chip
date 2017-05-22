@@ -115,7 +115,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
     cmdRouter.io.in <> io.core.cmd
 
     val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
-      val rocc = accelParams.generator(p.alterPartial({
+      val rocc = accelParams.generator(masterNode, p.alterPartial({
         case RoccNMemChannels => accelParams.nMemChannels
         case RoccNPTWPorts => accelParams.nPTWPorts
       }))
@@ -155,7 +155,7 @@ class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
 
 case class RoCCParams(
   opcodes: OpcodeSet,
-  generator: Parameters => RoCC,
+  generator: (TLOutputNode, Parameters) => RoCC,
   nMemChannels: Int = 0,
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
