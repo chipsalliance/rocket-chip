@@ -8,7 +8,7 @@ import config._
 import diplomacy._
 import tile._
 import uncore.tilelink2._
-import uncore.util.Code
+import uncore.util._
 import util._
 import Chisel.ImplicitConversions._
 
@@ -18,7 +18,8 @@ case class ICacheParams(
     rowBits: Int = 128,
     nTLBEntries: Int = 32,
     cacheIdBits: Int = 0,
-    ecc: Option[Code] = None,
+    tagECC: Code = new IdentityCode,
+    dataECC: Code = new IdentityCode,
     itimAddr: Option[BigInt] = None,
     blockBytes: Int = 64) extends L1CacheParams {
   def replacement = new RandomReplacement(nWays)
@@ -84,6 +85,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val edge_in = outer.slaveNode.map(_.edgesIn.head)
   val tl_in = io.tl_in.map(_.head)
 
+  val tECC = cacheParams.tagECC
+  val dECC = cacheParams.dataECC
+
   require(isPow2(nSets) && isPow2(nWays))
   require(isPow2(coreInstBytes))
   require(!usingVM || pgIdxBits >= untagBits)
@@ -141,11 +145,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val entagbits = code.width(tagBits)
-  val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
+  val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = tECC.width(tagBits))))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
-    val tag = code.encode(refill_tag)
+    val tag = tECC.encode(refill_tag)
     tag_array.write(refill_idx, Vec.fill(nWays)(tag), Vec.tabulate(nWays)(repl_way === _))
   }
 
@@ -162,7 +165,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
   val wordBits = coreInstBits * fetchWidth
-  val s1_dout = Wire(Vec(nWays, UInt(width = code.width(wordBits))))
+  val s1_dout = Wire(Vec(nWays, UInt(width = dECC.width(wordBits))))
 
   val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
   val s1s3_slaveAddr = Reg(UInt(width = log2Ceil(outer.size)))
@@ -176,13 +179,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         lineInScratchpad(scratchpadLine(s1s3_slaveAddr)) && scratchpadWay(s1s3_slaveAddr) === i,
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i)
     val s1_vb = vb_array(Cat(UInt(i), s1_idx)) && !s1_slaveValid
-    s1_tag_disparity(i) := s1_vb && code.decode(tag_rdata(i)).error
-    s1_tag_hit(i) := scratchpadHit || (s1_vb && code.decode(tag_rdata(i)).uncorrected === s1_tag)
+    s1_tag_disparity(i) := s1_vb && tECC.decode(tag_rdata(i)).error
+    s1_tag_hit(i) := scratchpadHit || (s1_vb && tECC.decode(tag_rdata(i)).uncorrected === s1_tag)
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
-  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = code.width(wordBits)))) }
+  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
   for ((data_array, i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
@@ -195,7 +198,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     when (wen) {
       val data = Mux(s3_slaveValid, s1s3_slaveData, tl_out.d.bits.data(wordBits*(i+1)-1, wordBits*i))
       val way = Mux(s3_slaveValid, scratchpadWay(s1s3_slaveAddr), repl_way)
-      data_array.write(mem_idx, Vec.fill(nWays)(code.encode(data)), (0 until nWays).map(way === _))
+      data_array.write(mem_idx, Vec.fill(nWays)(dECC.encode(data)), (0 until nWays).map(way === _))
     }
     val dout = data_array.read(mem_idx, !wen && s0_ren)
     when (wordMatch(Mux(s1_slaveValid, s1s3_slaveAddr, io.s1_paddr))) {
@@ -206,7 +209,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   // output signals
   outer.latency match {
     case 1 =>
-      require(code.isInstanceOf[uncore.util.IdentityCode])
+      require(tECC.isInstanceOf[uncore.util.IdentityCode])
+      require(dECC.isInstanceOf[uncore.util.IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
       io.resp.bits := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_hit
@@ -219,7 +223,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
 
       val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_valid || s1_slaveValid).asUInt.orR
-      val s2_data_decoded = code.decode(s2_way_mux)
+      val s2_data_decoded = dECC.decode(s2_way_mux)
       val s2_disparity = s2_tag_disparity || s2_data_decoded.error
       when (s2_valid && s2_disparity) { invalidate := true }
 

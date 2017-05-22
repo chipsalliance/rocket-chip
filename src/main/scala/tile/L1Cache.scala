@@ -15,7 +15,6 @@ trait L1CacheParams {
   def nWays:         Int
   def rowBits:       Int
   def nTLBEntries:   Int
-  def ecc:           Option[Code]
   def blockBytes:    Int
 }
 
@@ -36,7 +35,6 @@ trait HasL1CacheParameters {
   def rowBits = cacheParams.rowBits
   def rowBytes = rowBits/8
   def rowOffBits = log2Up(rowBytes)
-  def code = cacheParams.ecc.getOrElse(new IdentityCode)
   def nTLBEntries = cacheParams.nTLBEntries
 
   def cacheDataBits = p(SharedMemoryTLEdge).bundle.dataBits

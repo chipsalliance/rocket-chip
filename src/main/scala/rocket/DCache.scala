@@ -44,7 +44,9 @@ class DCache(val scratch: () => Option[AddressSet] = () => None)(implicit p: Par
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  require(rowBits == encRowBits) // no ECC
+  // no ECC support
+  require(cacheParams.tagECC.isInstanceOf[IdentityCode])
+  require(cacheParams.dataECC.isInstanceOf[IdentityCode])
 
   // tags
   val replacer = cacheParams.replacement
