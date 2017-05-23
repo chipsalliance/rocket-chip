@@ -189,8 +189,11 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
           TLMessages.LogicalData    -> TLPermissions.toN,
           TLMessages.Get            -> TLPermissions.toB,
           TLMessages.Hint           -> MuxLookup(in.a.bits.param, Wire(UInt(width = 2)), Array(
-            TLHints.PREFETCH_READ   -> TLPermissions.toB,
-            TLHints.PREFETCH_WRITE  -> TLPermissions.toN)),
+            TLHints.GROW_toB        -> TLPermissions.toB,
+            TLHints.GROW_toT        -> TLPermissions.toN,
+            TLHints.SHRINK_toN      -> TLPermissions.toN,
+            TLHints.SHRINK_toB      -> TLPermissions.toB,
+            TLHints.SHRINK_toT      -> TLPermissions.toT)),
           TLMessages.Acquire        -> MuxLookup(in.a.bits.param, Wire(UInt(width = 2)), Array(
             TLPermissions.NtoB      -> TLPermissions.toB,
             TLPermissions.NtoT      -> TLPermissions.toN,
