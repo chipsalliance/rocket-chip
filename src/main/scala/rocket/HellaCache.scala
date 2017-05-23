@@ -123,6 +123,12 @@ class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) {
   val mask = UInt(width = coreDataBytes)
 }
 
+class HellaCachePerfEvents extends Bundle {
+  val acquire = Bool()
+  val release = Bool()
+  val tlbMiss = Bool()
+}
+
 // interface between D$ and processor/DTLB
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
@@ -130,15 +136,12 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s1_data = new HellaCacheWriteData().asOutput // data for previous cycle's req
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
 
-  // performance events
-  val acquire = Bool(INPUT)
-  val release = Bool(INPUT)
-
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val s2_xcpt = (new HellaCacheExceptions).asInput
   val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
+  val perf = new HellaCachePerfEvents().asInput
 }
 
 /** Base classes for Diplomatic TL2 HellaCaches */

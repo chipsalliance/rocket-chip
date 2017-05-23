@@ -28,6 +28,11 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val replay = Bool()
 }
 
+class FrontendPerfEvents extends Bundle {
+  val acquire = Bool()
+  val tlbMiss = Bool()
+}
+
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
@@ -37,9 +42,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val ras_update = Valid(new RASUpdate)
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
-
-  // performance events
-  val acquire = Bool(INPUT)
+  val perf = new FrontendPerfEvents().asInput
 }
 
 class Frontend(hartid: Int)(implicit p: Parameters) extends LazyModule {
@@ -175,7 +178,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp <> fq.io.deq
 
   // performance events
-  io.cpu.acquire := edge.done(icache.io.tl_out(0).a)
+  io.cpu.perf.acquire := edge.done(icache.io.tl_out(0).a)
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */

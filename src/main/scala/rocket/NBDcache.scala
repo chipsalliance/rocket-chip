@@ -981,6 +981,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
 
   // performance events
-  io.cpu.acquire := edge.done(tl_out.a)
-  io.cpu.release := edge.done(tl_out.c)
+  io.cpu.perf.acquire := edge.done(tl_out.a)
+  io.cpu.perf.release := edge.done(tl_out.c)
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 }
