@@ -78,14 +78,18 @@ int init_jtag_server(int port)
 	socklen_t socklen = sizeof(serv_addr);
 	if (getsockname(listenfd, (struct sockaddr *)&serv_addr, &socklen) == -1) {
 		perror("init_jtag_server");
+                fflush(stderr);
 		exit(1);
 	} else {
 		printf("Listening on port %d\n", ntohs(serv_addr.sin_port));
+                fflush(stdout);
 	}
 
 	printf("Waiting for client connection...");
+        fflush(stdout);
 	connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
 	printf("ok\n");
+        fflush(stdout);
 
 	flags = fcntl(listenfd, F_GETFL, 0);
 	fcntl(listenfd, F_SETFL, flags | O_NONBLOCK);
