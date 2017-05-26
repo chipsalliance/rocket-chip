@@ -794,5 +794,5 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
   def formEPC(x: UInt) = ~(~x | Cat(!reg_misa('c'-'a'), UInt(1)))
-  def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).reduce(_|_)
+  def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
 }
