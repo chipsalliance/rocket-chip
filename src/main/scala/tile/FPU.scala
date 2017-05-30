@@ -177,31 +177,6 @@ class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSig
   override def cloneType = new FPInput().asInstanceOf[this.type]
 }
 
-object ClassifyRecFN {
-  def apply(expWidth: Int, sigWidth: Int, in: UInt) = {
-    val sign = in(sigWidth + expWidth)
-    val exp = in(sigWidth + expWidth - 1, sigWidth - 1)
-    val sig = in(sigWidth - 2, 0)
-
-    val code        = exp(expWidth,expWidth-2)
-    val codeHi      = code(2, 1)
-    val isSpecial   = codeHi === UInt(3)
-
-    val isHighSubnormalIn = exp(expWidth-2, 0) < UInt(2)
-    val isSubnormal = code === UInt(1) || codeHi === UInt(1) && isHighSubnormalIn
-    val isNormal = codeHi === UInt(1) && !isHighSubnormalIn || codeHi === UInt(2)
-    val isZero = code === UInt(0)
-    val isInf = isSpecial && !exp(expWidth-2)
-    val isNaN = code.andR
-    val isSNaN = isNaN && !sig(sigWidth-2)
-    val isQNaN = isNaN && sig(sigWidth-2)
-
-    Cat(isQNaN, isSNaN, isInf && !sign, isNormal && !sign,
-        isSubnormal && !sign, isZero && !sign, isZero && sign,
-        isSubnormal && sign, isNormal && sign, isInf && sign)
-  }
-}
-
 case class FType(exp: Int, sig: Int) {
   def ieeeWidth = exp + sig
   def recodedWidth = ieeeWidth + 1
@@ -209,6 +184,26 @@ case class FType(exp: Int, sig: Int) {
   def qNaN = UInt((BigInt(7) << (exp + sig - 3)) + (BigInt(1) << (sig - 2)), exp + sig + 1)
   def isNaN(x: UInt) = x(sig + exp - 1, sig + exp - 3).andR
   def isSNaN(x: UInt) = isNaN(x) && !x(sig - 2)
+
+  def classify(x: UInt) = {
+    val sign = x(sig + exp)
+    val code = x(exp + sig - 1, exp + sig - 3)
+    val codeHi = code(2, 1)
+    val isSpecial = codeHi === UInt(3)
+
+    val isHighSubnormalIn = x(exp + sig - 3, sig - 1) < UInt(2)
+    val isSubnormal = code === UInt(1) || codeHi === UInt(1) && isHighSubnormalIn
+    val isNormal = codeHi === UInt(1) && !isHighSubnormalIn || codeHi === UInt(2)
+    val isZero = code === UInt(0)
+    val isInf = isSpecial && !code(0)
+    val isNaN = code.andR
+    val isSNaN = isNaN && !x(sig-2)
+    val isQNaN = isNaN && x(sig-2)
+
+    Cat(isQNaN, isSNaN, isInf && !sign, isNormal && !sign,
+        isSubnormal && !sign, isZero && !sign, isZero && sign,
+        isSubnormal && sign, isNormal && sign, isInf && sign)
+  }
 
   // convert between formats, ignoring rounding, range, NaN
   def unsafeConvert(x: UInt, to: FType) = if (this == to) x else {
@@ -378,13 +373,8 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   val in = RegEnable(io.in.bits, io.in.valid)
   val valid = Reg(next=io.in.valid)
 
-  val classify_s = ClassifyRecFN(sExpWidth, sSigWidth, maxType.unsafeConvert(in.in1, FType.S))
-  val classify_out = fLen match {
-    case 32 => classify_s
-    case 64 =>
-      val classify_d = ClassifyRecFN(dExpWidth, dSigWidth, in.in1)
-      Mux(in.singleIn, classify_s, classify_d)
-  }
+  val tag = !in.singleIn
+  val classify_out = (floatTypes.map(t => t.classify(maxType.unsafeConvert(in.in1, t))): Seq[UInt])(tag)
 
   val dcmp = Module(new hardfloat.CompareRecFN(maxExpWidth, maxSigWidth))
   dcmp.io.a := in.in1
