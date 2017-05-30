@@ -232,6 +232,7 @@ object FType {
 
 trait HasFPUParameters {
   val fLen: Int
+  val minXLen = 32
   val (sExpWidth, sSigWidth) = (FType.S.exp, FType.S.sig)
   val (dExpWidth, dSigWidth) = (FType.D.exp, FType.D.sig)
   val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
@@ -373,34 +374,55 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   val in = RegEnable(io.in.bits, io.in.valid)
   val valid = Reg(next=io.in.valid)
 
-  val tag = !in.singleIn
-  val classify_out = (floatTypes.map(t => t.classify(maxType.unsafeConvert(in.in1, t))): Seq[UInt])(tag)
-
   val dcmp = Module(new hardfloat.CompareRecFN(maxExpWidth, maxSigWidth))
   dcmp.io.a := in.in1
   dcmp.io.b := in.in2
   dcmp.io.signaling := !in.rm(1)
 
+  val tag = !in.singleOut
   val store = ieee(in.in1)
-  val toint = Mux(in.rm(0), classify_out, store)
-  io.out.bits.store := Mux(in.singleOut, Fill(xLen/32, store(31, 0)), store)
-  io.out.bits.toint := Mux(in.singleOut, toint(31, 0).sextTo(xLen), toint)
+  val toint = Wire(init = store)
+  val intType = Wire(init = tag)
+  val nIntTypes = log2Ceil(xLen/minXLen) + 1
+  io.out.bits.store := ((0 until nIntTypes).map(i => Fill(1 << (nIntTypes - i - 1), store((minXLen << i) - 1, 0))): Seq[UInt])(tag)
+  io.out.bits.toint := ((0 until nIntTypes).map(i => toint((minXLen << i) - 1, 0).sextTo(xLen)): Seq[UInt])(intType)
   io.out.bits.exc := Bits(0)
 
+  when (in.rm(0)) {
+    val classify_out = (floatTypes.map(t => t.classify(maxType.unsafeConvert(in.in1, t))): Seq[UInt])(tag)
+    toint := classify_out | (store >> minXLen << minXLen)
+    intType := 0
+  }
+
   when (in.wflags) { // feq/flt/fle, fcvt
-    io.out.bits.toint := (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR
+    toint := (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR | (store >> minXLen << minXLen)
     io.out.bits.exc := dcmp.io.exceptionFlags
+    intType := 0
+
     when (!in.ren2) { // fcvt
-      val minXLen = 32
-      val n = log2Ceil(xLen/minXLen) + 1
-      for (i <- 0 until n) {
-        val conv = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, minXLen << i))
-        conv.io.in := in.in1
-        conv.io.roundingMode := in.rm
-        conv.io.signedOut := ~in.typ(0)
-        when (in.typ.extract(log2Ceil(n), 1) === i) {
-          io.out.bits.toint := conv.io.out.sextTo(xLen)
-          io.out.bits.exc := Cat(conv.io.intExceptionFlags(2, 1).orR, UInt(0, 3), conv.io.intExceptionFlags(0))
+      val cvtType = in.typ.extract(log2Ceil(nIntTypes), 1)
+      intType := cvtType
+
+      val conv = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, xLen))
+      conv.io.in := in.in1
+      conv.io.roundingMode := in.rm
+      conv.io.signedOut := ~in.typ(0)
+      toint := conv.io.out
+      io.out.bits.exc := Cat(conv.io.intExceptionFlags(2, 1).orR, UInt(0, 3), conv.io.intExceptionFlags(0))
+
+      for (i <- 0 until nIntTypes-1) {
+        val w = minXLen << i
+        when (cvtType === i) {
+          val narrow = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, w))
+          narrow.io.in := in.in1
+          narrow.io.roundingMode := in.rm
+          narrow.io.signedOut := ~in.typ(0)
+
+          val excSign = in.in1(maxExpWidth + maxSigWidth) && !maxType.isNaN(in.in1)
+          val excOut = Cat(conv.io.signedOut === excSign, Fill(w-1, !excSign))
+          val invalid = conv.io.intExceptionFlags(2) || narrow.io.intExceptionFlags(1)
+          when (invalid) { toint := Cat(conv.io.out >> w, excOut) }
+          io.out.bits.exc := Cat(invalid, UInt(0, 3), !invalid && conv.io.intExceptionFlags(0))
         }
       }
     }
@@ -424,7 +446,6 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
   mux.data := recode(in.bits.in1, !in.bits.singleIn)
 
   val intValue = {
-    val minXLen = 32
     val n = log2Ceil(xLen/minXLen) + 1
     val res = Wire(init = in.bits.in1.asSInt)
     for (i <- 0 until n-1) {
@@ -490,15 +511,12 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
     fsgnjMux.data := Mux(isNaNOut, maxType.qNaN, Mux(isLHS, in.bits.in1, in.bits.in2))
   }
 
-  val mux = Wire(new FPResult)
-  mux.exc := fsgnjMux.exc
-
+  val mux = Wire(init = fsgnjMux)
   fLen match {
     case 32 =>
-      mux.data := fsgnjMux.data
     case 64 =>
       val fsgnjSingle = maxType.unsafeConvert(fsgnjMux.data, FType.S)
-      mux.data := Mux(in.bits.singleOut, Cat(fsgnjMux.data >> fsgnjSingle.getWidth, fsgnjSingle), fsgnjMux.data)
+      when (in.bits.singleOut) { mux.data := Cat(fsgnjMux.data >> fsgnjSingle.getWidth, fsgnjSingle) }
 
       when (in.bits.wflags && !in.bits.ren2) { // fcvt
         val d2s = Module(new hardfloat.RecFNToRecFN(dExpWidth, dSigWidth, sExpWidth, sSigWidth))
