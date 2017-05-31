@@ -259,10 +259,11 @@ trait HasFPUParameters {
   }
 
   // implement NaN unboxing for FU inputs
-  def unbox(x: UInt, tag: UInt): UInt = {
+  def unbox(x: UInt, tag: UInt, exactType: Option[FType]): UInt = {
+    val outType = exactType.getOrElse(maxType)
     def helper(x: UInt, t: FType): Seq[(Bool, UInt)] = {
       val prev =
-        if (typeTag(t) == 0) {
+        if (t == minType) {
           Seq()
         } else {
           val prevT = prevType(t)
@@ -274,13 +275,16 @@ trait HasFPUParameters {
           val isbox = isBox(x, t)
           prev.map(p => (isbox && p._1, p._2))
         }
-      prev :+ (true.B, t.unsafeConvert(x, maxType))
+      prev :+ (true.B, t.unsafeConvert(x, outType))
     }
 
-    val res = helper(x, maxType)
-    val oks = res.map(_._1)
-    val floats = res.map(_._2)
-    Mux(oks(tag), floats(tag), maxType.qNaN)
+    val (oks, floats) = helper(x, maxType).unzip
+    if (exactType.isEmpty || floatTypes.size == 1) {
+      Mux(oks(tag), floats(tag), maxType.qNaN)
+    } else {
+      val t = exactType.get
+      floats(typeTag(t)) | Mux(oks(typeTag(t)), 0.U, t.qNaN)
+    }
   }
 
   // make sure that the redundant bits in the NaN-boxed encoding are consistent
@@ -538,7 +542,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
   io.out <> Pipe(in.valid, mux, latency-1)
 }
 
-class FPUFMAPipe(val latency: Int, t: FType)(implicit p: Parameters) extends FPUModule()(p) {
+class FPUFMAPipe(val latency: Int, val t: FType)(implicit p: Parameters) extends FPUModule()(p) {
   val io = new Bundle {
     val in = Valid(new FPInput).flip
     val out = Valid(new FPResult)
@@ -553,9 +557,8 @@ class FPUFMAPipe(val latency: Int, t: FType)(implicit p: Parameters) extends FPU
     val cmd_fma = io.in.bits.ren3
     val cmd_addsub = io.in.bits.swap23
     in := io.in.bits
-    in.in1 := maxType.unsafeConvert(io.in.bits.in1, t)
-    in.in2 := Mux(cmd_addsub, one, maxType.unsafeConvert(io.in.bits.in2, t))
-    in.in3 := Mux(cmd_fma || cmd_addsub, maxType.unsafeConvert(io.in.bits.in3, t), zero)
+    when (cmd_addsub) { in.in2 := one }
+    when (!(cmd_fma || cmd_addsub)) { in.in3 := zero }
   }
 
   val fma = Module(new hardfloat.MulAddRecFN(t.exp, t.sig))
@@ -615,45 +618,29 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
       printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
   }
 
-  val ex_ra1::ex_ra2::ex_ra3::Nil = List.fill(3)(Reg(UInt()))
+  val ex_ra = List.fill(3)(Reg(UInt()))
+  val ex_rs = ex_ra.map(a => regfile(a))
   when (io.valid) {
     when (id_ctrl.ren1) {
-      when (!id_ctrl.swap12) { ex_ra1 := io.inst(19,15) }
-      when (id_ctrl.swap12) { ex_ra2 := io.inst(19,15) }
+      when (!id_ctrl.swap12) { ex_ra(0) := io.inst(19,15) }
+      when (id_ctrl.swap12) { ex_ra(1) := io.inst(19,15) }
     }
     when (id_ctrl.ren2) {
-      when (id_ctrl.swap12) { ex_ra1 := io.inst(24,20) }
-      when (id_ctrl.swap23) { ex_ra3 := io.inst(24,20) }
-      when (!id_ctrl.swap12 && !id_ctrl.swap23) { ex_ra2 := io.inst(24,20) }
+      when (id_ctrl.swap12) { ex_ra(0) := io.inst(24,20) }
+      when (id_ctrl.swap23) { ex_ra(2) := io.inst(24,20) }
+      when (!id_ctrl.swap12 && !id_ctrl.swap23) { ex_ra(1) := io.inst(24,20) }
     }
-    when (id_ctrl.ren3) { ex_ra3 := io.inst(31,27) }
+    when (id_ctrl.ren3) { ex_ra(2) := io.inst(31,27) }
   }
   val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.fcsr_rm, ex_reg_inst(14,12))
 
-  val req = Wire(new FPInput)
-  def readAndUnbox(addr: UInt) = unbox(regfile(addr), !ex_ctrl.singleIn)
-  req := ex_ctrl
-  req.rm := ex_rm
-  req.in1 := readAndUnbox(ex_ra1)
-  req.in2 := readAndUnbox(ex_ra2)
-  req.in3 := readAndUnbox(ex_ra3)
-  req.typ := ex_reg_inst(21,20)
-  req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
-  when (ex_cp_valid) {
-    req := io.cp_req.bits
-    when (io.cp_req.bits.swap23) {
-      req.in2 := io.cp_req.bits.in3
-      req.in3 := io.cp_req.bits.in2
-    }
-  }
-
   val sfma = Module(new FPUFMAPipe(cfg.sfmaLatency, FType.S))
   sfma.io.in.valid := req_valid && ex_ctrl.fma && ex_ctrl.singleOut
-  sfma.io.in.bits := req
+  sfma.io.in.bits := fuInput(Some(sfma.t))
 
   val fpiu = Module(new FPToInt)
   fpiu.io.in.valid := req_valid && (ex_ctrl.toint || ex_ctrl.div || ex_ctrl.sqrt || (ex_ctrl.fastpipe && ex_ctrl.wflags))
-  fpiu.io.in.bits := req
+  fpiu.io.in.bits := fuInput(None)
   io.store_data := fpiu.io.out.bits.store
   io.toint_data := fpiu.io.out.bits.toint
   when(fpiu.io.out.valid && mem_cp_valid && mem_ctrl.toint){
@@ -663,12 +650,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   val ifpu = Module(new IntToFP(2))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
-  ifpu.io.in.bits := req
+  ifpu.io.in.bits := fpiu.io.in.bits
   ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
 
   val fpmu = Module(new FPToFP(2))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
-  fpmu.io.in.bits := req
+  fpmu.io.in.bits := fpiu.io.in.bits
   fpmu.io.lt := fpiu.io.out.bits.lt
 
   val divSqrt_wen = Wire(init = false.B)
@@ -687,7 +674,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     (fLen > 32).option({
           val dfma = Module(new FPUFMAPipe(cfg.dfmaLatency, FType.D))
           dfma.io.in.valid := req_valid && ex_ctrl.fma && !ex_ctrl.singleOut
-          dfma.io.in.bits := req
+          dfma.io.in.bits := fuInput(Some(dfma.t))
           Pipe(dfma, dfma.latency, (c: FPUCtrlSigs) => c.fma && !c.singleOut, dfma.io.out.bits)
         })
   def latencyMask(c: FPUCtrlSigs, offset: Int) = {
@@ -799,6 +786,26 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     }
   } else {
     when (id_ctrl.div || id_ctrl.sqrt) { io.illegal_rm := true }
+  }
+
+  def fuInput(minT: Option[FType]): FPInput = {
+    val req = Wire(new FPInput)
+    val tag = !ex_ctrl.singleIn // TODO typeTag
+    req := ex_ctrl
+    req.rm := ex_rm
+    req.in1 := unbox(ex_rs(0), tag, minT)
+    req.in2 := unbox(ex_rs(1), tag, minT)
+    req.in3 := unbox(ex_rs(2), tag, minT)
+    req.typ := ex_reg_inst(21,20)
+    req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
+    when (ex_cp_valid) {
+      req := io.cp_req.bits
+      when (io.cp_req.bits.swap23) {
+        req.in2 := io.cp_req.bits.in3
+        req.in3 := io.cp_req.bits.in2
+      }
+    }
+    req
   }
 }
 
