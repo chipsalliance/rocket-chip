@@ -4,159 +4,18 @@
 package tile
 
 import Chisel._
-import Chisel.ImplicitConversions._
 import config._
 import coreplex._
 import diplomacy._
 import rocket._
-import uncore.constants._
-import uncore.agents._
-import uncore.coherence._
-import uncore.devices._
-import uncore.tilelink._
 import uncore.tilelink2._
-import uncore.util._
-import util._
 
-case object RoccMaxTaggedMemXacts extends Field[Int]
-case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Seq[RoCCParams]]
 
-trait CanHaveLegacyRoccs extends CanHaveSharedFPU with CanHavePTW with HasTileLinkMasterPort {
-  val module: CanHaveLegacyRoccsModule
-  val legacyRocc = if (p(BuildRoCC).isEmpty) None
-    else Some(LazyModule(new LegacyRoccComplex()(p.alter { (site, here, up) => {
-        case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
-        case AmoAluOperandBits => site(XLen)
-        case RoccNMemChannels => site(BuildRoCC).map(_.nMemChannels).foldLeft(0)(_ + _)
-        case RoccNPTWPorts => site(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
-        case TLId => "L1toL2"
-        case TLKey("L1toL2") =>
-          TileLinkParameters(
-            coherencePolicy = new MESICoherence(new NullRepresentation(site(NTiles))),
-            nManagers = site(BankedL2Config).nBanks + 1 /* MMIO */,
-            nCachingClients = 1,
-            nCachelessClients = 1,
-            maxClientXacts = List(
-                tileParams.dcache.get.nMSHRs + 1 /* IOMSHR */,
-                if (site(BuildRoCC).isEmpty) 1 else site(RoccMaxTaggedMemXacts)).max,
-            maxClientsPerPort = if (site(BuildRoCC).isEmpty) 1 else 2,
-            maxManagerXacts = 8,
-            dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
-            dataBits = site(CacheBlockBytes)*8)
-    }})))
-
-  legacyRocc foreach { lr =>
-    tileBus.node :=* lr.masterNode
-    nPTWPorts += lr.nPTWPorts
-    nDCachePorts += lr.nRocc
-  }
-}
-
-trait CanHaveLegacyRoccsModule extends CanHaveSharedFPUModule
-    with CanHavePTWModule
-    with HasTileLinkMasterPortModule {
-  val outer: CanHaveLegacyRoccs
-
-  fpuOpt foreach { fpu =>
-    outer.legacyRocc.orElse {
-      fpu.io.cp_req.valid := Bool(false)
-      fpu.io.cp_resp.ready := Bool(false)
-      None
-    } foreach { lr =>
-      fpu.io.cp_req <> lr.module.io.fpu.cp_req
-      lr.module.io.fpu.cp_resp <> fpu.io.cp_resp
-    }
-  }
-
-  outer.legacyRocc foreach { lr =>
-    ptwPorts ++= lr.module.io.ptw
-    dcachePorts ++= lr.module.io.dcache
-  }
-
-}
-
-class LegacyRoccComplex(implicit p: Parameters) extends LazyModule {
-  val buildRocc = p(BuildRoCC)
-  val usingRocc = !buildRocc.isEmpty
-  val nRocc = buildRocc.size
-  val nFPUPorts = buildRocc.filter(_.useFPU).size
-  val nMemChannels = buildRocc.map(_.nMemChannels).sum + nRocc
-  val nPTWPorts = buildRocc.map(_.nPTWPorts).sum
-  val roccOpcodes = buildRocc.map(_.opcodes)
-
-  val masterNode = TLOutputNode()
-  val legacies = List.fill(nMemChannels) { LazyModule(new TLLegacy()(p.alterPartial({ case PAddrBits => 32 }))) }
-  legacies.foreach { leg => masterNode := TLHintHandler()(leg.node) }
-
-  lazy val module = new LazyModuleImp(this) with HasCoreParameters {
-    val io = new Bundle {
-      val tl = masterNode.bundleOut
-      val dcache = Vec(nRocc, new HellaCacheIO)
-      val fpu = new Bundle {
-        val cp_req = Decoupled(new FPInput())
-        val cp_resp = Decoupled(new FPResult()).flip
-      }
-      val ptw = Vec(nPTWPorts, new TLBPTWIO)
-      val core = new Bundle {
-        val cmd = Decoupled(new RoCCCommand).flip
-        val resp = Decoupled(new RoCCResponse)
-        val busy = Bool(OUTPUT)
-        val interrupt = Bool(OUTPUT)
-        val exception = Bool(INPUT)
-      }
-    }
-
-    val respArb = Module(new RRArbiter(new RoCCResponse, nRocc))
-    io.core.resp <> respArb.io.out
-
-    val cmdRouter = Module(new RoccCommandRouter(roccOpcodes))
-    cmdRouter.io.in <> io.core.cmd
-
-    val roccs = buildRocc.zipWithIndex.map { case (accelParams, i) =>
-      val rocc = accelParams.generator(p.alterPartial({
-        case RoccNMemChannels => accelParams.nMemChannels
-        case RoccNPTWPorts => accelParams.nPTWPorts
-      }))
-      val dcIF = Module(new SimpleHellaCacheIF)
-      rocc.io.cmd <> cmdRouter.io.out(i)
-      rocc.io.exception := io.core.exception
-      dcIF.io.requestor <> rocc.io.mem
-      io.dcache(i) := dcIF.io.cache
-      legacies(i).module.io.legacy <> rocc.io.autl
-      respArb.io.in(i) <> Queue(rocc.io.resp)
-      rocc
-    }
-
-    (nRocc until legacies.size) zip roccs.map(_.io.utl) foreach { case(i, utl) =>
-      legacies(i).module.io.legacy <> utl
-    }
-    io.core.busy := cmdRouter.io.busy || roccs.map(_.io.busy).reduce(_ || _)
-    io.core.interrupt := roccs.map(_.io.interrupt).reduce(_ || _)
-
-    if (usingFPU && nFPUPorts > 0) {
-      val fpArb = Module(new InOrderArbiter(new FPInput, new FPResult, nFPUPorts))
-      val fp_rocc_ios = roccs.zip(buildRocc)
-        .filter { case (_, params) => params.useFPU }
-        .map { case (rocc, _) => rocc.io }
-      fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
-      fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
-        case (rocc, arb) => rocc.fpu_resp <> arb
-      }
-      io.fpu.cp_req <> fpArb.io.out_req
-      fpArb.io.out_resp <> io.fpu.cp_resp
-    } else {
-      io.fpu.cp_req.valid := Bool(false)
-      io.fpu.cp_resp.ready := Bool(false)
-    }
-  }
-}
-
 case class RoCCParams(
   opcodes: OpcodeSet,
-  generator: Parameters => RoCC,
-  nMemChannels: Int = 0,
+  generator: Parameters => LazyRoCC,
   nPTWPorts : Int = 0,
   useFPU: Boolean = false)
 
@@ -195,24 +54,100 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   override def cloneType = new RoCCCoreIO()(p).asInstanceOf[this.type]
 }
 
-class RoCCIO(implicit p: Parameters) extends RoCCCoreIO()(p) {
-  // These should be handled differently, eventually
-  val autl = new ClientUncachedTileLinkIO
-  val utl = Vec(p(RoccNMemChannels), new ClientUncachedTileLinkIO)
+/** Base classes for Diplomatic TL2 RoCC units **/
+abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
+  val module: LazyRoCCModule
+
+  val atlNode: TLMixedNode = TLOutputNode()
+  val tlNode: TLMixedNode = TLOutputNode()
+}
+
+class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
+  val atl = outer.atlNode.bundleOut
+  val tl = outer.tlNode.bundleOut
+  // Should be handled differently, eventually
   val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
-
-  override def cloneType = new RoCCIO()(p).asInstanceOf[this.type]
 }
 
-abstract class RoCC(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new RoCCIO
-  io.mem.req.bits.phys := Bool(true) // don't perform address translation
-  io.mem.invalidate_lr := Bool(false) // don't mess with LR/SC
+class LazyRoCCModule(outer: LazyRoCC) extends LazyModuleImp(outer) {
+  val io = new RoCCIO(outer)
 }
 
-class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
+/** Mixins for including RoCC **/
+
+trait HasLazyRoCC extends CanHaveSharedFPU with CanHavePTW with HasTileLinkMasterPort {
+  implicit val p: Parameters
+  val module: HasLazyRoCCModule
+
+  val roccs = p(BuildRoCC).zipWithIndex.map { case (accelParams, i) =>
+    accelParams.generator(p.alterPartial({
+      case RoccNPTWPorts => accelParams.nPTWPorts
+  }))}
+
+  roccs.map(_.atlNode).foreach { atl => tileBus.node :=* atl }
+  roccs.map(_.tlNode).foreach { tl => masterNode :=* tl }
+
+  nPTWPorts += p(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
+  nDCachePorts += roccs.size
+}
+
+trait HasLazyRoCCModule extends CanHaveSharedFPUModule
+  with CanHavePTWModule
+  with HasCoreParameters
+  with HasTileLinkMasterPortModule {
+  val outer: HasLazyRoCC
+  val roccCore = Wire(new RoCCCoreIO()(outer.p))
+
+  val buildRocc = outer.p(BuildRoCC)
+  val usingRocc = !buildRocc.isEmpty
+  val nRocc = buildRocc.size
+  val nFPUPorts = buildRocc.filter(_.useFPU).size
+  val roccOpcodes = buildRocc.map(_.opcodes)
+
+  val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), nRocc))
+  roccCore.resp <> respArb.io.out
+  val cmdRouter = Module(new RoccCommandRouter(roccOpcodes)(outer.p))
+  cmdRouter.io.in <> roccCore.cmd
+
+  outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
+    ptwPorts ++= rocc.module.io.ptw
+    rocc.module.io.cmd <> cmdRouter.io.out(i)
+    rocc.module.io.exception := roccCore.exception
+    val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
+    dcIF.io.requestor <> rocc.module.io.mem
+    dcachePorts += dcIF.io.cache
+    respArb.io.in(i) <> Queue(rocc.module.io.resp)
+  }
+  roccCore.busy := cmdRouter.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _)
+  roccCore.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+
+  fpuOpt foreach { fpu =>
+    if (usingFPU && nFPUPorts > 0) {
+      val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
+      val fp_rocc_ios = outer.roccs.zip(buildRocc)
+        .filter { case (_, params) => params.useFPU }
+        .map { case (rocc, _) => rocc.module.io }
+      fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
+      fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
+        case (rocc, arb) => rocc.fpu_resp <> arb
+      }
+      fpu.io.cp_req <> fpArb.io.out_req
+      fpArb.io.out_resp <> fpu.io.cp_resp
+    } else {
+      fpu.io.cp_req.valid := Bool(false)
+      fpu.io.cp_resp.ready := Bool(false)
+    }
+  }
+}
+
+class  AccumulatorExample(implicit p: Parameters) extends LazyRoCC {
+  override lazy val module = new AccumulatorExampleModule(this)
+}
+
+class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p: Parameters) extends LazyRoCCModule(outer)
+  with HasCoreParameters {
   val regfile = Mem(n, UInt(width = xLen))
   val busy = Reg(init = Vec.fill(n){Bool(false)})
 
@@ -269,15 +204,19 @@ class AccumulatorExample(n: Int = 4)(implicit p: Parameters) extends RoCC()(p) {
   io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
   io.mem.req.bits.addr := addend
   io.mem.req.bits.tag := addr
-  io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
+  io.mem.req.bits.cmd := uncore.constants.M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
-
-  io.autl.acquire.valid := false
-  io.autl.grant.ready := false
+  io.mem.req.bits.phys := Bool(false)
+  io.mem.invalidate_lr := Bool(false)
 }
 
-class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
+class  TranslatorExample(implicit p: Parameters) extends LazyRoCC {
+  override lazy val module = new TranslatorExampleModule(this)
+}
+
+class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
+  with HasCoreParameters {
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
   val req_rd = Reg(io.resp.bits.rd)
   val req_offset = req_addr(pgIdxBits - 1, 0)
@@ -316,14 +255,20 @@ class TranslatorExample(implicit p: Parameters) extends RoCC()(p) {
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  io.autl.acquire.valid := Bool(false)
-  io.autl.grant.ready := Bool(false)
 }
 
-class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
-    with HasTileLinkParameters {
+class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
+  override lazy val module = new CharacterCountExampleModule(this)
+  override val atlNode = TLClientNode(TLClientParameters("CharacterCountRoCC"))
+}
 
-  private val blockOffset = tlBeatAddrBits + tlByteAddrBits
+class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
+  with HasCoreParameters
+  with HasL1CacheParameters {
+  val cacheParams = tileParams.icache.get
+
+  private val blockOffset = blockOffBits 
+  private val beatOffset = log2Up(cacheDataBits/8)
 
   val needle = Reg(UInt(width = 8))
   val addr = Reg(UInt(width = coreMaxAddrBits))
@@ -337,18 +282,19 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   val s_idle :: s_acq :: s_gnt :: s_check :: s_resp :: Nil = Enum(Bits(), 5)
   val state = Reg(init = s_idle)
 
-  val gnt = io.autl.grant.bits
-  val recv_data = Reg(UInt(width = tlDataBits))
-  val recv_beat = Reg(UInt(width = tlBeatAddrBits))
+  val tl_out = io.atl.head
+  val gnt = tl_out.d.bits
+  val recv_data = Reg(UInt(width = cacheDataBits))
+  val recv_beat = Reg(UInt(width = log2Up(cacheDataBeats+1)), init = UInt(0))
 
-  val data_bytes = Vec.tabulate(tlDataBytes) { i => recv_data(8 * (i + 1) - 1, 8 * i) }
+  val data_bytes = Vec.tabulate(cacheDataBits/8) { i => recv_data(8 * (i + 1) - 1, 8 * i) }
   val zero_match = data_bytes.map(_ === UInt(0))
   val needle_match = data_bytes.map(_ === needle)
   val first_zero = PriorityEncoder(zero_match)
 
   val chars_found = PopCount(needle_match.zipWithIndex.map {
     case (matches, i) =>
-      val idx = Cat(recv_beat, UInt(i, tlByteAddrBits))
+      val idx = Cat(recv_beat - UInt(1), UInt(i, beatOffset))
       matches && idx >= offset && UInt(i) <= first_zero
   })
   val zero_found = zero_match.reduce(_ || _)
@@ -358,9 +304,12 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := resp_rd
   io.resp.bits.data := count
-  io.autl.acquire.valid := (state === s_acq)
-  io.autl.acquire.bits := GetBlock(addr_block = addr_block)
-  io.autl.grant.ready := (state === s_gnt)
+  tl_out.a.valid := (state === s_acq)
+  tl_out.a.bits := outer.atlNode.edgesOut(0).Get(
+                       fromSource = UInt(0),
+                       toAddress = addr_block << blockOffset,
+                       lgSize = UInt(lgCacheBlockBytes))._2
+  tl_out.d.ready := (state === s_gnt)
 
   when (io.cmd.fire()) {
     addr := io.cmd.bits.rs1
@@ -371,10 +320,10 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
     state := s_acq
   }
 
-  when (io.autl.acquire.fire()) { state := s_gnt }
+  when (tl_out.a.fire()) { state := s_gnt }
 
-  when (io.autl.grant.fire()) {
-    recv_beat := gnt.addr_beat
+  when (tl_out.d.fire()) {
+    recv_beat := recv_beat + UInt(1)
     recv_data := gnt.data
     state := s_check
   }
@@ -384,7 +333,7 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
       count := count + chars_found
     }
     when (zero_found) { finished := Bool(true) }
-    when (recv_beat === UInt(tlDataBeats - 1)) {
+    when (recv_beat === UInt(cacheDataBeats)) {
       addr := next_addr
       state := Mux(zero_found || finished, s_resp, s_acq)
     } .otherwise {
@@ -397,6 +346,10 @@ class CharacterCountExample(implicit p: Parameters) extends RoCC()(p)
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
+  // Tie off unused channels
+  tl_out.b.ready := Bool(true)
+  tl_out.c.valid := Bool(false)
+  tl_out.e.valid := Bool(false)
 }
 
 class OpcodeSet(val opcodes: Seq[UInt]) {
