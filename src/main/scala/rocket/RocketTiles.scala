@@ -136,7 +136,6 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
   core.io.ptw <> ptw.io.dpath
-
   roccCore.cmd <> core.io.rocc.cmd
   roccCore.exception := core.io.rocc.exception
   core.io.rocc.resp <> roccCore.resp
