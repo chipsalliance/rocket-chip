@@ -232,10 +232,11 @@ object FType {
 
 trait HasFPUParameters {
   val fLen: Int
+  val xLen: Int
   val minXLen = 32
-  val (sExpWidth, sSigWidth) = (FType.S.exp, FType.S.sig)
-  val (dExpWidth, dSigWidth) = (FType.D.exp, FType.D.sig)
+  val nIntTypes = log2Ceil(xLen/minXLen) + 1
   val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
+  val minType = floatTypes.head
   val maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
   val maxExpWidth = maxType.exp
@@ -379,11 +380,10 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   dcmp.io.b := in.in2
   dcmp.io.signaling := !in.rm(1)
 
-  val tag = !in.singleOut
+  val tag = !in.singleOut // TODO typeTag
   val store = ieee(in.in1)
   val toint = Wire(init = store)
   val intType = Wire(init = tag)
-  val nIntTypes = log2Ceil(xLen/minXLen) + 1
   io.out.bits.store := ((0 until nIntTypes).map(i => Fill(1 << (nIntTypes - i - 1), store((minXLen << i) - 1, 0))): Seq[UInt])(tag)
   io.out.bits.toint := ((0 until nIntTypes).map(i => toint((minXLen << i) - 1, 0).sextTo(xLen)): Seq[UInt])(intType)
   io.out.bits.exc := Bits(0)
@@ -440,17 +440,17 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   val in = Pipe(io.in)
+  val tag = !in.bits.singleIn // TODO typeTag
 
   val mux = Wire(new FPResult)
   mux.exc := Bits(0)
   mux.data := recode(in.bits.in1, !in.bits.singleIn)
 
   val intValue = {
-    val n = log2Ceil(xLen/minXLen) + 1
     val res = Wire(init = in.bits.in1.asSInt)
-    for (i <- 0 until n-1) {
+    for (i <- 0 until nIntTypes-1) {
       val smallInt = in.bits.in1((minXLen << i) - 1, 0)
-      when (in.bits.typ.extract(log2Ceil(n), 1) === i) {
+      when (in.bits.typ.extract(log2Ceil(nIntTypes), 1) === i) {
         res := Mux(in.bits.typ(0), smallInt.zext, smallInt.asSInt)
       }
     }
@@ -458,28 +458,21 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   when (in.bits.wflags) { // fcvt
-    val l2s = Module(new hardfloat.INToRecFN(xLen, sExpWidth, sSigWidth))
-    l2s.io.signedIn := ~in.bits.typ(0)
-    l2s.io.in := intValue
-    l2s.io.roundingMode := in.bits.rm
-    l2s.io.detectTininess := hardfloat.consts.tininess_afterRounding
-    mux.data := sanitizeNaN(l2s.io.out, FType.S)
-    mux.exc := l2s.io.exceptionFlags
-
-    fLen match {
-      case 32 =>
-      case 64 =>
-        val l2d = Module(new hardfloat.INToRecFN(xLen, dExpWidth, dSigWidth))
-        l2d.io.signedIn := ~in.bits.typ(0)
-        l2d.io.in := intValue
-        l2d.io.roundingMode := in.bits.rm
-        l2d.io.detectTininess := hardfloat.consts.tininess_afterRounding
-        mux.data := Cat(l2d.io.out >> l2s.io.out.getWidth, l2s.io.out)
-        when (!in.bits.singleIn) {
-          mux.data := sanitizeNaN(l2d.io.out, FType.D)
-          mux.exc := l2d.io.exceptionFlags
-        }
+    // could be improved for RVD/RVQ with a single variable-position rounding
+    // unit, rather than N fixed-position ones
+    val i2fResults = for (t <- floatTypes) yield {
+      val i2f = Module(new hardfloat.INToRecFN(xLen, t.exp, t.sig))
+      i2f.io.signedIn := ~in.bits.typ(0)
+      i2f.io.in := intValue
+      i2f.io.roundingMode := in.bits.rm
+      i2f.io.detectTininess := hardfloat.consts.tininess_afterRounding
+      (sanitizeNaN(i2f.io.out, t), i2f.io.exceptionFlags)
     }
+
+    val (data, exc) = i2fResults.unzip
+    val dataPadded = data.init.map(d => Cat(data.last >> d.getWidth, d)) :+ data.last
+    mux.data := dataPadded(tag)
+    mux.exc := exc(tag)
   }
 
   io.out <> Pipe(in.valid, mux, latency-1)
@@ -511,34 +504,35 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
     fsgnjMux.data := Mux(isNaNOut, maxType.qNaN, Mux(isLHS, in.bits.in1, in.bits.in2))
   }
 
+  val inTag = !in.bits.singleIn // TODO typeTag
+  val outTag = !in.bits.singleOut // TODO typeTag
   val mux = Wire(init = fsgnjMux)
-  fLen match {
-    case 32 =>
-    case 64 =>
-      val fsgnjSingle = maxType.unsafeConvert(fsgnjMux.data, FType.S)
-      when (in.bits.singleOut) { mux.data := Cat(fsgnjMux.data >> fsgnjSingle.getWidth, fsgnjSingle) }
+  for (t <- floatTypes.init) {
+    when (outTag === typeTag(t)) {
+      mux.data := Cat(fsgnjMux.data >> t.recodedWidth, maxType.unsafeConvert(fsgnjMux.data, t))
+    }
+  }
 
-      when (in.bits.wflags && !in.bits.ren2) { // fcvt
-        val d2s = Module(new hardfloat.RecFNToRecFN(dExpWidth, dSigWidth, sExpWidth, sSigWidth))
-        d2s.io.in := in.bits.in1
-        d2s.io.roundingMode := in.bits.rm
-        d2s.io.detectTininess := hardfloat.consts.tininess_afterRounding
-        val d2sOut = sanitizeNaN(d2s.io.out, FType.S)
+  when (in.bits.wflags && !in.bits.ren2) { // fcvt
+    if (floatTypes.size > 1) {
+      // widening conversions simply canonicalize NaN operands
+      val widened = Mux(maxType.isNaN(in.bits.in1), maxType.qNaN, in.bits.in1)
+      fsgnjMux.data := widened
+      fsgnjMux.exc := maxType.isSNaN(in.bits.in1) << 4
 
-        val s2d = Module(new hardfloat.RecFNToRecFN(sExpWidth, sSigWidth, dExpWidth, dSigWidth))
-        s2d.io.in := maxType.unsafeConvert(in.bits.in1, FType.S)
-        s2d.io.roundingMode := in.bits.rm
-        s2d.io.detectTininess := hardfloat.consts.tininess_afterRounding
-        val s2dOut = sanitizeNaN(s2d.io.out, FType.D)
-
-        when (in.bits.singleOut) {
-          mux.data := Cat(s2dOut >> d2sOut.getWidth, d2sOut)
-          mux.exc := d2s.io.exceptionFlags
-        }.otherwise {
-          mux.data := s2dOut
-          mux.exc := s2d.io.exceptionFlags
-        }
+      // narrowing conversions require rounding (for RVQ, this could be
+      // optimized to use a single variable-position rounding unit, rather
+      // than two fixed-position ones)
+      for (outType <- floatTypes.init) when (outTag === typeTag(outType) && (typeTag(outType) == 0 || outTag < inTag)) {
+        val narrower = Module(new hardfloat.RecFNToRecFN(maxType.exp, maxType.sig, outType.exp, outType.sig))
+        narrower.io.in := in.bits.in1
+        narrower.io.roundingMode := in.bits.rm
+        narrower.io.detectTininess := hardfloat.consts.tininess_afterRounding
+        val narrowed = sanitizeNaN(narrower.io.out, outType)
+        mux.data := Cat(fsgnjMux.data >> narrowed.getWidth, narrowed)
+        mux.exc := narrower.io.exceptionFlags
       }
+    }
   }
 
   io.out <> Pipe(in.valid, mux, latency-1)
