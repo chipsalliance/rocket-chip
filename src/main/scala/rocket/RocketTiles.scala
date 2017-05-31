@@ -24,7 +24,7 @@ case class RocketTileParams(
 }
   
 class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
-    with CanHaveLegacyRoccs  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
+    with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 
   nDCachePorts += 1 // core TODO dcachePorts += () => module.core.io.dmem ??
@@ -40,8 +40,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       val f = if (rocketParams.core.fpu.nonEmpty) "f" else ""
       val d = if (rocketParams.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
       val c = if (rocketParams.core.useCompressed) "c" else ""
-      val s = if (rocketParams.core.useVM) "s" else ""
-      val isa = s"rv${p(XLen)}i$m$a$f$d$c$s"
+      val isa = s"rv${p(XLen)}i$m$a$f$d$c"
 
       val dcache = rocketParams.dcache.map(d => Map(
         "d-cache-block-size"   -> ofInt(block),
@@ -83,7 +82,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       Description(s"cpus/cpu@${hartid}", Map(
         "reg"                  -> resources("reg").map(_.value),
         "device_type"          -> ofStr("cpu"),
-        "compatible"           -> ofStr("riscv"),
+        "compatible"           -> Seq(ResourceString("sifive,rocket0"), ResourceString("riscv")),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
         "riscv,isa"            -> ofStr(isa))
@@ -121,7 +120,7 @@ class RocketTileBundle(outer: RocketTile) extends BaseTileBundle(outer)
     with CanHaveScratchpadBundle
 
 class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => new RocketTileBundle(outer))
-    with CanHaveLegacyRoccsModule
+    with HasLazyRoCCModule
     with CanHaveScratchpadModule {
 
   require(outer.p(PAddrBits) >= outer.masterNode.edgesIn(0).bundle.addressBits,
@@ -137,14 +136,12 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
   core.io.ptw <> ptw.io.dpath
-  outer.legacyRocc foreach { lr =>
-    lr.module.io.core.cmd <> core.io.rocc.cmd
-    lr.module.io.core.exception := core.io.rocc.exception
-    core.io.rocc.resp <> lr.module.io.core.resp
-    core.io.rocc.busy := lr.module.io.core.busy
-    core.io.rocc.interrupt := lr.module.io.core.interrupt
-  }
 
+  roccCore.cmd <> core.io.rocc.cmd
+  roccCore.exception := core.io.rocc.exception
+  core.io.rocc.resp <> roccCore.resp
+  core.io.rocc.busy := roccCore.busy
+  core.io.rocc.interrupt := roccCore.interrupt
 
   // TODO eliminate this redundancy
   val h = dcachePorts.size

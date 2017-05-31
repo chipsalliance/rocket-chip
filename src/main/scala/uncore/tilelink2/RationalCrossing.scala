@@ -212,10 +212,13 @@ class TLRAMRationalCrossing(implicit p: Parameters) extends LazyModule {
 
     // Generate slower clock
     val slow = Module(new util.Pow2ClockDivider(2))
-    sym_slow_source.module.clock := slow.io.clock_out
-    sym_slow_sink  .module.clock := slow.io.clock_out
     fix_slow_source.module.clock := slow.io.clock_out
     fix_slow_sink  .module.clock := slow.io.clock_out
+
+    val odd = Module(new util.ClockDivider3)
+    odd.io.clk_in := clock
+    sym_slow_source.module.clock := odd.io.clk_out
+    sym_slow_sink  .module.clock := odd.io.clk_out
   }
 }
 
