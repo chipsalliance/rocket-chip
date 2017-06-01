@@ -10,12 +10,10 @@ reg [31:0] myplus;
 assign out = myplus;
 
 initial begin
+`ifdef SYNTHESIS
    myplus = DEFAULT;
-`ifndef SYNTHESIS
-`ifndef verilator
-   // Work-around for https://www.veripool.org/issues/1165
+`else
    if (!$value$plusargs(FORMAT, myplus)) myplus = DEFAULT;
-`endif
 `endif
 end
 
