@@ -355,9 +355,9 @@ object ManagerUnification
   def apply(managers: Seq[TLManagerParameters]) = {
     // To be unified, devices must agree on all of these terms
     case class TLManagerKey(
+      resources:          Seq[Resource],
       regionType:         RegionType.T,
       executable:         Boolean,
-      lastNode:           BaseNode,
       supportsAcquireT:   TransferSizes,
       supportsAcquireB:   TransferSizes,
       supportsArithmetic: TransferSizes,
@@ -367,9 +367,9 @@ object ManagerUnification
       supportsPutPartial: TransferSizes,
       supportsHint:       TransferSizes)
     def key(x: TLManagerParameters) = TLManagerKey(
+      resources          = x.resources,
       regionType         = x.regionType,
       executable         = x.executable,
-      lastNode           = x.nodePath.last,
       supportsAcquireT   = x.supportsAcquireT,
       supportsAcquireB   = x.supportsAcquireB,
       supportsArithmetic = x.supportsArithmetic,
