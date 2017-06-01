@@ -82,8 +82,10 @@ trait CoreplexNetwork extends HasCoreplexParameters {
     }
   }
 
+  // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
+  lazy val topManagers = Some(ManagerUnification(l1tol2.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)))
   ResourceBinding {
-    val managers = l1tol2.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)
+    val managers = topManagers.get
     val max = managers.flatMap(_.address).map(_.max).max
     val width = ResourceInt((log2Ceil(max)+31) / 32)
     Resource(root, "width").bind(width)
@@ -113,7 +115,7 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val io: CoreplexNetworkBundle
 
   println("Generated Address Map")
-  val ranges = outer.l1tol2.node.edgesIn(0).manager.managers.flatMap { manager =>
+  val ranges = outer.topManagers.get.flatMap { manager =>
     val prot = (if (manager.supportsGet)     "R" else "") +
                (if (manager.supportsPutFull) "W" else "") +
                (if (manager.executable)      "X" else "") +

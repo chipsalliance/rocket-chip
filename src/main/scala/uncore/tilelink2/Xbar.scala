@@ -57,14 +57,14 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
         endSinkId = outputIdRanges.map(_.map(_.end).getOrElse(0)).max,
-        managers = ManagerUnification(seq.flatMap { port =>
+        managers = seq.flatMap { port =>
           require (port.beatBytes == seq(0).beatBytes,
             s"Xbar data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
           val fifoIdMapper = fifoIdFactory()
           port.managers map { manager => manager.copy(
             fifoId = manager.fifoId.map(fifoIdMapper(_))
           )}
-        })
+        }
       )
     })
 
