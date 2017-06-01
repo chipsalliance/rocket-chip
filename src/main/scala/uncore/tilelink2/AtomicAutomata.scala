@@ -57,18 +57,13 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       // Don't overprovision the CAM
       val camSize = min(domainsNeedingHelp.size, concurrency)
       // Compact the fifoIds to only those we care about
-      val camFifoIds = managers.map(m => UInt(m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)))
+      def camFifoId(m: TLManagerParameters) = m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)
 
       // CAM entry state machine
       val FREE = UInt(0) // unused                   waiting on Atomic from A
       val GET  = UInt(3) // Get sent down A          waiting on AccessDataAck from D
       val AMO  = UInt(2) // AccessDataAck sent up D  waiting for A availability
       val ACK  = UInt(1) // Put sent down A          waiting for PutAck from D
-
-      def helper(select: Seq[Bool], x: Seq[TransferSizes], lgSize: UInt) =
-        if (!passthrough) Bool(false) else
-        if (x.map(_ == x(0)).reduce(_ && _)) x(0).containsLg(lgSize) else
-        Mux1H(select, x.map(_.containsLg(lgSize))) 
 
       val params = TLAtomicAutomata.CAMParams(out.a.bits.params, domainsNeedingHelp.size)
       // Do we need to do anything at all?
@@ -85,10 +80,10 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val cam_dmatch = cam_s.map(e => e.state =/= FREE) // D should inspect these entries
 
         // Can the manager already handle this message?
+        val a_address = edgeIn.address(in.a.bits)
         val a_size = edgeIn.size(in.a.bits)
-        val a_select = edgeOut.manager.findFast(edgeIn.address(in.a.bits))
-        val a_canLogical    = helper(a_select, managers.map(_.supportsLogical),    a_size)
-        val a_canArithmetic = helper(a_select, managers.map(_.supportsArithmetic), a_size)
+        val a_canLogical    = Bool(passthrough) && edgeOut.manager.supportsLogicalFast   (a_address, a_size)
+        val a_canArithmetic = Bool(passthrough) && edgeOut.manager.supportsArithmeticFast(a_address, a_size)
         val a_isLogical    = in.a.bits.opcode === TLMessages.LogicalData
         val a_isArithmetic = in.a.bits.opcode === TLMessages.ArithmeticData
         val a_isSupported = Mux(a_isLogical, a_canLogical, Mux(a_isArithmetic, a_canArithmetic, Bool(true)))
@@ -103,7 +98,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val a_d = a_cam_d.data
 
         // Does the A request conflict with an inflight AMO?
-        val a_fifoId  = Mux1H(a_select, camFifoIds)
+        val a_fifoId  = edgeOut.manager.fastProperty(a_address, camFifoId _, (i:Int) => UInt(i))
         val a_cam_busy = (cam_abusy zip cam_a.map(_.fifoId === a_fifoId)) map { case (a,b) => a&&b } reduce (_||_)
 
         // (Where) are we are allocating in the CAM?

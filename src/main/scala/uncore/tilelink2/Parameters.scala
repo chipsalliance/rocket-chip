@@ -101,20 +101,30 @@ case class TLManagerPortParameters(
   val anySupportPutPartial = managers.map(!_.supportsPutPartial.none).reduce(_ || _)
   val anySupportHint       = managers.map(!_.supportsHint.none)      .reduce(_ || _)
 
-  // Which bits suffice to distinguish between all managers
-  lazy val routingMask = AddressDecoder(managers.map(_.address))
-
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
 
   // The safe version will check the entire address
   def findSafe(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
-  // The fast version assumes the address is valid
-  def findFast(address: UInt) = Vec(managers.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+  // The fast version assumes the address is valid (you probably want fastProperty instead of this function)
+  def findFast(address: UInt) = {
+    val routingMask = AddressDecoder(managers.map(_.address))
+    Vec(managers.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+  }
+
+  // Compute the simplest AddressSets that decide a key
+  def fastPropertyGroup[K](p: TLManagerParameters => K): Map[K, Seq[AddressSet]] = {
+    val groups = managers.map(m => (p(m), m.address)).groupBy(_._1).mapValues(_.flatMap(_._2))
+    val reductionMask = AddressDecoder(groups.values.toList)
+    groups.mapValues(seq => AddressSet.unify(seq.map(_.widen(~reductionMask)).distinct))
+  }
+  // Select a property
+  def fastProperty[K, D <: Data](address: UInt, p: TLManagerParameters => K, d: K => D): D =
+    Mux1H(fastPropertyGroup(p).map { case (v, a) => (a.map(_.contains(address)).reduce(_||_), d(v)) })
 
   // Note: returns the actual fifoId + 1 or 0 if None
-  def findFifoIdFast(address: UInt) = Mux1H(findFast(address), managers.map(m => UInt(m.fifoId.map(_+1).getOrElse(0))))
-  def hasFifoIdFast(address: UInt) = Mux1H(findFast(address), managers.map(m => Bool(m.fifoId.isDefined)))
+  def findFifoIdFast(address: UInt) = fastProperty(address, _.fifoId.map(_+1).getOrElse(0), (i:Int) => UInt(i))
+  def hasFifoIdFast(address: UInt) = fastProperty(address, _.fifoId.isDefined, (b:Boolean) => Bool(b))
 
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
