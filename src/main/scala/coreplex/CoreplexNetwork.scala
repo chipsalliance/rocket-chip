@@ -115,22 +115,47 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val io: CoreplexNetworkBundle
 
   println("Generated Address Map")
-  val ranges = outer.topManagers.get.flatMap { manager =>
-    val prot = (if (manager.supportsGet)     "R" else "") +
-               (if (manager.supportsPutFull) "W" else "") +
-               (if (manager.executable)      "X" else "") +
-               (if (manager.supportsAcquireB) " [C]" else "")
-    AddressRange.fromSets(manager.address).map { r =>
-      (manager.name, r.base, r.base+r.size, prot)
+  private val aw = (outer.p(rocket.PAddrBits)-1)/4 + 1
+  private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c %s"
+
+  private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
+    value match {
+      case r: ResourceAddress => List((path(1), r))
+      case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
+      case _ => Nil
     }
   }
-  val aw = (outer.p(rocket.PAddrBits)-1)/4 + 1
-  val nw = ranges.map(_._1.length).max
-  val fmt = s"\t%${nw}s %${aw}x - %${aw}x, %s"
-  ranges.sortWith(_._2 < _._2).foreach { case (name, start, end, prot) =>
-    println(fmt.format(name, start, end, prot))
+  private val ranges = collect(Nil, outer.bindingTree).groupBy(_._2).toList.flatMap { case (key, seq) =>
+    AddressRange.fromSets(key.address).map { r => (r, key.r, key.w, key.x, key.c, seq.map(_._1)) }
+  }.sortBy(_._1)
+  private val json = ranges.map { case (range, r, w, x, c, names) =>
+    println(fmt.format(
+      range.base,
+      range.base+range.size,
+      if (r) 'R' else ' ',
+      if (w) 'W' else ' ',
+      if (x) 'X' else ' ',
+      if (c) 'C' else ' ',
+      names.mkString(", ")))
+    s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
   }
   println("")
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${json.mkString(",")}]}""")
+
+  // Confirm that all of memory was described by DTS
+  private val dtsRanges = AddressRange.unify(ranges.map(_._1))
+  private val allRanges = AddressRange.unify(outer.topManagers.get.flatMap { m => AddressRange.fromSets(m.address) })
+
+  if (dtsRanges != allRanges) {
+    println("Address map described by DTS differs from physical implementation:")
+    AddressRange.subtract(allRanges, dtsRanges).foreach { case r =>
+      println(s"\texists, but undescribed by DTS: ${r}")
+    }
+    AddressRange.subtract(dtsRanges, allRanges).foreach { case r =>
+      println(s"\tdoes not exist, but described by DTS: ${r}")
+    }
+    println("")
+  }
 }
 
 /////

@@ -3,7 +3,6 @@
 package diplomacy
 
 import Chisel._
-import scala.math.max
 
 /** Options for memory regions */
 object RegionType {
@@ -110,6 +109,14 @@ case class AddressRange(base: BigInt, size: BigInt) extends Ordered[AddressRange
       Some(AddressRange(obase, oend-obase))
     }
   }
+
+  private def helper(base: BigInt, end: BigInt) =
+    if (base < end) Seq(AddressRange(base, end-base)) else Nil
+  def subtract(x: AddressRange) =
+    helper(base, end min x.base) ++ helper(base max x.end, end)
+
+  // We always want to see things in hex
+  override def toString() = "AddressRange(0x%x, 0x%x)".format(base, size)
 }
 
 // AddressSets specify the address space managed by the manager
@@ -197,6 +204,9 @@ object AddressRange
       }
     }.reverse
   }
+  // Set subtraction... O(n*n) b/c I am lazy
+  def subtract(from: Seq[AddressRange], take: Seq[AddressRange]): Seq[AddressRange] =
+    take.foldLeft(from) { case (left, r) => left.flatMap { _.subtract(r) } }
 }
 
 object AddressSet
