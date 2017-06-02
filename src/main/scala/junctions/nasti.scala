@@ -90,7 +90,6 @@ class NastiIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val b  = Decoupled(new NastiWriteResponseChannel).flip
   val ar = Decoupled(new NastiReadAddressChannel)
   val r  = Decoupled(new NastiReadDataChannel).flip
-  val l2Stat = (new tile.L2StatBundle).asInput
 }
 
 class NastiAddressChannel(implicit p: Parameters) extends NastiMasterToSlaveChannel()(p)

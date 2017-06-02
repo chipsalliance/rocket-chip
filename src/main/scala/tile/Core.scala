@@ -85,6 +85,5 @@ trait HasCoreIO {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val ptw_tlb = new TLBPTWIO()
-    val l2Stat = (new L2StatBundle).asInput
   }
 }

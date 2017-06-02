@@ -70,17 +70,11 @@ abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends 
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }
 
-class L2StatBundle extends Bundle {
-  val hit = Bool()
-  val miss = Bool()
-}
-
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
     with HasTileLinkMasterPortBundle {
   val hartid = UInt(INPUT, p(XLen))
   val interrupts = new TileInterrupts()(p).asInput
   val resetVector = UInt(INPUT, p(XLen))
-  val l2Stat = (new L2StatBundle).asInput
 }
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
