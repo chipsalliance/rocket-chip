@@ -85,7 +85,9 @@ class TLFuzzer(
     noModify: Boolean = false,
     overrideAddress: Option[AddressSet] = None)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLClientNode(TLClientParameters(sourceId = IdRange(0,inFlight)))
+  val node = TLClientNode(TLClientParameters(
+    name = "Fuzzer",
+    sourceId = IdRange(0,inFlight)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

@@ -167,6 +167,7 @@ case class TLManagerPortParameters(
 }
 
 case class TLClientParameters(
+  name:                String,
   sourceId:            IdRange       = IdRange(0,1),
   nodePath:            Seq[BaseNode] = Seq(),
   requestFifo:         Boolean       = false, // only a request, not a requirement
@@ -197,8 +198,6 @@ case class TLClientParameters(
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
-
-  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
 }
 
 case class TLClientPortParameters(

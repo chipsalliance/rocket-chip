@@ -12,6 +12,7 @@ class TLLegacy(implicit p: Parameters) extends LazyModule with HasTileLinkParame
 {
   // TL legacy clients don't support anything fancy
   val node = TLClientNode(TLClientParameters(
+    name     = "TLLegacy",
     sourceId = IdRange(0, 1 << tlClientXactIdBits)))
 
   lazy val module = new LazyModuleImp(this) with HasTileLinkParameters {

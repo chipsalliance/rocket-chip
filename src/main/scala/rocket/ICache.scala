@@ -36,7 +36,7 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
 class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends LazyModule
     with HasRocketCoreParameters {
   lazy val module = new ICacheModule(this)
-  val masterNode = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
+  val masterNode = TLClientNode(TLClientParameters(name = s"Core ${hartid} ICache"))
 
   val icacheParams = tileParams.icache.get
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes

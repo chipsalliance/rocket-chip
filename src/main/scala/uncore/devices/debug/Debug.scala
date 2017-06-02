@@ -1093,7 +1093,7 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
 
-  val node = TLClientNode(TLClientParameters())
+  val node = TLClientNode(TLClientParameters("debug"))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {

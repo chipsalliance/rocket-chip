@@ -241,7 +241,8 @@ trait PeripherySlaveAXI4 extends HasTopLevelNetworks {
   private val config = p(ExtIn)
   val l2FrontendAXI4Node = AXI4BlindInputNode(Seq(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
-      id = IdRange(0, 1 << config.idBits))))))
+      name = "AXI4 periphery",
+      id   = IdRange(0, 1 << config.idBits))))))
 
   private val fifoBits = 1
   fsb.node :=
@@ -311,6 +312,7 @@ trait PeripherySlaveTL extends HasTopLevelNetworks {
   private val config = p(ExtIn)
   val l2FrontendTLNode = TLBlindInputNode(Seq(TLClientPortParameters(
     clients = Seq(TLClientParameters(
+      name     = "TL periph",
       sourceId = IdRange(0, 1 << config.idBits))))))
 
   fsb.node :=

@@ -14,7 +14,9 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
   require (maxInFlight > 0)
 
   // The SourceShrinker completely destroys all FIFO property guarantees
-  private val client = TLClientParameters(sourceId = IdRange(0, maxInFlight))
+  private val client = TLClientParameters(
+    name     = "TLSourceShrinker",
+    sourceId = IdRange(0, maxInFlight))
   val node = TLAdapterNode(
     // We erase all client information since we crush the source Ids
     clientFn  = { _ => TLClientPortParameters(clients = Seq(client)) },

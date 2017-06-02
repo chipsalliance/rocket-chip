@@ -154,13 +154,16 @@ abstract class HellaCache(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLClientPortParameters(
     clients = cfg.scratch.map { _ => Seq(
       TLClientParameters(
+        name          = s"Core xx DCache MMIO",
         sourceId      = IdRange(0, cfg.nMMIOs),
         requestFifo   = true))
     } getOrElse { Seq(
       TLClientParameters(
+        name          = s"Core xx DCache MMIO",
          sourceId      = IdRange(0, firstMMIO),
          supportsProbe = TransferSizes(1, cfg.blockBytes)),
       TLClientParameters(
+        name          = s"Core xx DCache",
         sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
         requestFifo   = true))
     },

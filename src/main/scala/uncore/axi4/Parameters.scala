@@ -58,12 +58,12 @@ case class AXI4SlavePortParameters(
 }
 
 case class AXI4MasterParameters(
+  name:      String,
   id:        IdRange       = IdRange(0, 1),
   aligned:   Boolean       = false,
   maxFlight: Option[Int]   = None, // None = infinite, else is a per-ID cap
   nodePath:  Seq[BaseNode] = Seq())
 {
-  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   maxFlight.foreach { m => require (m >= 0) }
 }
 
