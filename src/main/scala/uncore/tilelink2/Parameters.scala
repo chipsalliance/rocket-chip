@@ -60,7 +60,8 @@ case class TLManagerParameters(
     ResourceAddress(address,
       r = supportsAcquireB || supportsGet,
       w = supportsAcquireT || supportsPutFull,
-      x = executable)
+      x = executable,
+      c = supportsAcquireB)
   }
 }
 
