@@ -14,6 +14,11 @@ case class JtagDTMConfig (
   idcodeVersion    : Int,      // chosen by manuf.
   idcodePartNum    : Int,      // Chosen by manuf.
   idcodeManufId    : Int,      // Assigned by JEDEC
+  // Note: the actual manufId is passed in through a wire.
+  // Do not forget to wire up io.jtag_mfr_id through your top-level to set the
+  // mfr_id for this core.
+  // If you wish to use this field in the config, you can obtain it along
+  // the lines of p(JtagDTMKey).idcodeManufId.U(11.W).
   debugIdleCycles  : Int)
 
 case object JtagDTMKey extends Field[JtagDTMConfig]
