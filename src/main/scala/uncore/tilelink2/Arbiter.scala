@@ -13,12 +13,12 @@ object TLArbiter
 
   val lowestIndexFirst: Policy = (width, valids, select) => ~(leftOR(valids) << 1)(width-1, 0)
 
-  val roundRobin: Policy = (width, valids, select) => {
+  val roundRobin: Policy = (width, valids, select) => if (width == 1) UInt(1, width=1) else {
     val valid = valids(width-1, 0)
     assert (valid === valids)
     val mask = RegInit(~UInt(0, width=width))
     val filter = Cat(valid & ~mask, valid)
-    val unready = (rightOR(filter, width*2) >> 1) | (mask << width) // last right shift unneeded
+    val unready = (rightOR(filter, width*2, width) >> 1) | (mask << width)
     val readys = ~((unready >> width) & unready(width-1, 0))
     when (select && valid.orR) {
       mask := leftOR(readys & valid, width)

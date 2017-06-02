@@ -49,10 +49,6 @@ case class AXI4SlavePortParameters(
   require (maxTransfer <= limit,
     s"maxTransfer ($maxTransfer) cannot be larger than $limit on a $beatBytes*8 width bus")
 
-  lazy val routingMask = AddressDecoder(slaves.map(_.address))
-  def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
-  def findFast(address: UInt) = Vec(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
-
   // Require disjoint ranges for addresses
   slaves.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
