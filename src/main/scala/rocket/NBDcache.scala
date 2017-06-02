@@ -660,7 +660,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.write.ready := Bool(true)
 }
 
-class NonBlockingDCache(implicit p: Parameters) extends HellaCache()(p) {
+class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new NonBlockingDCacheModule(this) 
 }
 
