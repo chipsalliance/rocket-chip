@@ -7,7 +7,7 @@ import config._
 import scala.collection.immutable.{ListMap,SortedMap}
 
 sealed trait ResourceValue
-final case class ResourceAddress(address: Seq[AddressSet], r: Boolean, w: Boolean, x: Boolean) extends ResourceValue
+final case class ResourceAddress(address: Seq[AddressSet], r: Boolean, w: Boolean, x: Boolean, c: Boolean) extends ResourceValue
 final case class ResourceMapping(address: Seq[AddressSet], offset: BigInt) extends ResourceValue
 final case class ResourceInt(value: BigInt) extends ResourceValue
 final case class ResourceString(value: String) extends ResourceValue

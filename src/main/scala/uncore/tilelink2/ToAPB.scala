@@ -12,7 +12,7 @@ import APBParameters._
 
 case class TLToAPBNode() extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
-    val masters = clients.map { case c => APBMasterParameters(nodePath = c.nodePath) }
+    val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath) }
     APBMasterPortParameters(masters)
   },
   uFn = { case APBSlavePortParameters(slaves, beatBytes) =>

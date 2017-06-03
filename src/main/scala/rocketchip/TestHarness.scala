@@ -49,7 +49,9 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
   require(totalSize % channels == 0)
 
   val node = AXI4BlindInputNode(Seq.fill(channels) {
-    AXI4MasterPortParameters(Seq(AXI4MasterParameters(IdRange(0, 1 << config.idBits))))})
+    AXI4MasterPortParameters(Seq(AXI4MasterParameters(
+      name = "dut",
+      id   = IdRange(0, 1 << config.idBits))))})
 
   for (i <- 0 until channels) {
     val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))

@@ -6,16 +6,18 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import config._
 import diplomacy._
-import util.PositionalMultiQueue
+import util.ElaborationArtefacts
 import uncore.axi4._
 import scala.math.{min, max}
 
 case class TLToAXI4Node(beatBytes: Int) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
-    val idSize = p.clients.map { c => if (c.requestFifo) 1 else c.sourceId.size }
+    val clients = p.clients.sortWith(TLToAXI4.sortByType _)
+    val idSize = clients.map { c => if (c.requestFifo) 1 else c.sourceId.size }
     val idStart = idSize.scanLeft(0)(_+_).init
-    val masters = ((idStart zip idSize) zip p.clients) map { case ((start, size), c) =>
+    val masters = ((idStart zip idSize) zip clients) map { case ((start, size), c) =>
       AXI4MasterParameters(
+        name      = c.name,
         id        = IdRange(start, start+size),
         aligned   = true,
         maxFlight = Some(if (c.requestFifo) c.sourceId.size else 1),
@@ -41,7 +43,7 @@ case class TLToAXI4Node(beatBytes: Int) extends MixedAdapterNode(TLImp, AXI4Imp)
       minLatency = p.minLatency)
   })
 
-class TLToAXI4(beatBytes: Int, combinational: Boolean = true)(implicit p: Parameters) extends LazyModule
+class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAXI4Node(beatBytes)
 
@@ -58,15 +60,29 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true)(implicit p: Parame
       require (slaves(0).interleavedId.isDefined)
       slaves.foreach { s => require (s.interleavedId == slaves(0).interleavedId) }
 
+      val axiDigits = String.valueOf(edgeOut.master.endId-1).length()
+      val tlDigits = String.valueOf(edgeIn.client.endSourceId-1).length()
+
       // Construct the source=>ID mapping table
+      adapterName.foreach { n => println(s"$n AXI4-ID <= TL-Source mapping:") }
       val idTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
       var idCount = Array.fill(edgeOut.master.endId) { 0 }
-      (edgeIn.client.clients zip edgeOut.master.masters) foreach { case (c, m) =>
+      val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
         for (i <- 0 until c.sourceId.size) {
           val id = m.id.start + (if (c.requestFifo) 0 else i)
           idTable(c.sourceId.start + i) := UInt(id)
           idCount(id) = idCount(id) + 1
         }
+        adapterName.map { n =>
+          val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s"
+          println(fmt.format(m.id.start, m.id.end, c.sourceId.start, c.sourceId.end, c.name, if (c.supportsProbe) " CACHE" else ""))
+          s"""{"axi4-id":[${m.id.start},${m.id.end}],"tilelink-id":[${c.sourceId.start},${c.sourceId.end}],"master":["${c.name}"],"cache":[${!(!c.supportsProbe)}]}"""
+        }
+      }
+
+      adapterName.foreach { n =>
+        println("")
+        ElaborationArtefacts.add(s"${n}.axi4.json", s"""{"mapping":[${maps.mkString(",")}]}""")
       }
 
       // We need to keep the following state from A => D: (addr_lo, size, source)
@@ -203,9 +219,17 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true)(implicit p: Parame
 object TLToAXI4
 {
   // applied to the TL source node; y.node := TLToAXI4(beatBytes)(x.node)
-  def apply(beatBytes: Int, combinational: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val axi4 = LazyModule(new TLToAXI4(beatBytes, combinational))
+  def apply(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
+    val axi4 = LazyModule(new TLToAXI4(beatBytes, combinational, adapterName))
     axi4.node := x
     axi4.node
+  }
+
+  def sortByType(a: TLClientParameters, b: TLClientParameters): Boolean = {
+    if ( a.supportsProbe && !b.supportsProbe) return false
+    if (!a.supportsProbe &&  b.supportsProbe) return true
+    if ( a.requestFifo   && !b.requestFifo  ) return false
+    if (!a.requestFifo   &&  b.requestFifo  ) return true
+    return false
   }
 }

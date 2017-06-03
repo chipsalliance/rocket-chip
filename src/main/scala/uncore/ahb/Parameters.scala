@@ -52,10 +52,8 @@ case class AHBSlavePortParameters(
 }
 
 case class AHBMasterParameters(
+  name:     String,
   nodePath: Seq[BaseNode] = Seq())
-{
-  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
-}
 
 case class AHBMasterPortParameters(
   masters: Seq[AHBMasterParameters])

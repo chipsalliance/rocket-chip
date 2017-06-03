@@ -81,7 +81,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: 
     // Find a good mask for address decoding
     val port_addrs = node.edgesOut.map(_.manager.managers.map(_.address).flatten)
     val routingMask = AddressDecoder(port_addrs)
-    val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
+    val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
     val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
 
     // Print the mapping

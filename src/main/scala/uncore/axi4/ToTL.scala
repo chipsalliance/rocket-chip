@@ -13,9 +13,10 @@ case class AXI4ToTLNode() extends MixedAdapterNode(AXI4Imp, TLImp)(
     masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = masters.map(_.maxFlight.get).max
     TLClientPortParameters(
-      clients = masters.flatMap { m =>
+      clients = masters.filter(_.maxFlight != Some(0)).flatMap { m =>
         for (id <- m.id.start until m.id.end)
           yield TLClientParameters(
+            name        = s"${m.name} ID#${id}",
             sourceId    = IdRange(id * maxFlight*2, (id+1) * maxFlight*2), // R+W ids are distinct
             nodePath    = m.nodePath,
             requestFifo = true)

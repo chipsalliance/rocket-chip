@@ -12,7 +12,7 @@ import AHBParameters._
 
 case class TLToAHBNode() extends MixedAdapterNode(TLImp, AHBImp)(
   dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
-    val masters = clients.map { case c => AHBMasterParameters(nodePath = c.nodePath) }
+    val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
     AHBMasterPortParameters(masters)
   },
   uFn = { case AHBSlavePortParameters(slaves, beatBytes) =>

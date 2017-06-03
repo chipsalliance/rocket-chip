@@ -46,7 +46,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
     clientFn  = { c => c.copy(clients = Seq(TLClientParameters(
-      sourceId = IdRange(0, c.endSourceId << addedBits),
+      name        = "TLFragmenter",
+      sourceId    = IdRange(0, c.endSourceId << addedBits),
       requestFifo = true))) },
     managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
 
