@@ -108,27 +108,24 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s2_slaveValid = RegNext(s1_slaveValid, false.B)
   val s3_slaveValid = RegNext(false.B)
 
-  val s_ready :: s_request :: s_refill :: Nil = Enum(UInt(), 3)
-  val state = Reg(init=s_ready)
-  val invalidated = Reg(Bool())
+  val s1_valid = Reg(init=Bool(false))
+  val s1_tag_hit = Wire(Vec(nWays, Bool()))
+  val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
+  val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
+  val s2_hit = RegNext(s1_hit)
 
-  val refill_addr = Reg(UInt(width = paddrBits))
+  val invalidated = Reg(Bool())
+  val refill_valid = RegInit(false.B)
+  val s2_miss = s2_valid && !s2_hit && !io.s2_kill && !RegNext(refill_valid)
+  val refill_addr = RegEnable(io.s1_paddr, s1_valid && !(refill_valid || s2_miss))
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
   val refill_idx = refill_addr(untagBits-1,blockOffBits)
-  val s1_tag_hit = Wire(Vec(nWays, Bool()))
-  val s1_any_tag_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
-
-  val s1_valid = Reg(init=Bool(false))
-  val s1_hit = s1_valid && s1_any_tag_hit
-  val s1_miss = s1_valid && state === s_ready && !s1_any_tag_hit
 
   io.req.ready := !(tl_out.d.fire() || s0_slaveValid || s3_slaveValid)
   val s0_valid = io.req.fire()
   val s0_vaddr = io.req.bits.addr
-
   s1_valid := s0_valid
 
-  when (s1_miss) { refill_addr := io.s1_paddr }
   val (_, _, refill_done, refill_cnt) = edge_out.count(tl_out.d)
   tl_out.d.ready := !s3_slaveValid
   require (edge_out.manager.minLatency > 0)
@@ -213,11 +210,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       require(dECC.isInstanceOf[uncore.util.IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
       io.resp.bits := Mux1H(s1_tag_hit, s1_dout)
-      io.resp.valid := s1_hit
+      io.resp.valid := s1_valid && s1_hit
 
     case 2 =>
-      val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
-      val s2_hit = RegNext(s1_hit)
       val s2_tag_hit = RegEnable(s1_tag_hit, s1_valid || s1_slaveValid)
       val s2_dout = RegEnable(s1_dout, s1_valid || s1_slaveValid)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
@@ -279,7 +274,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         tl.e.ready := true
       }
   }
-  tl_out.a.valid := state === s_request && !io.s2_kill
+  tl_out.a.valid := s2_miss && !refill_valid
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
                     toAddress = (refill_addr >> blockOffBits) << blockOffBits,
@@ -289,19 +284,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   tl_out.e.valid := Bool(false)
   assert(!(tl_out.a.valid && addrMaybeInScratchpad(tl_out.a.bits.address)))
 
-  // control state machine
-  switch (state) {
-    is (s_ready) {
-      when (s1_miss && !io.s1_kill) { state := s_request }
-      invalidated := Bool(false)
-    }
-    is (s_request) {
-      when (tl_out.a.ready) { state := s_refill }
-      when (io.s2_kill) { state := s_ready }
-    }
-  }
-  when (refill_done) {
-    assert(state === s_refill)
-    state := s_ready
-  }
+  when (!refill_valid) { invalidated := false.B }
+  when (tl_out.a.fire()) { refill_valid := true.B }
+  when (refill_done) { refill_valid := false.B}
 }

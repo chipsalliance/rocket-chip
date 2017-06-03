@@ -21,23 +21,16 @@ class ShiftQueue[T <: Data](gen: T,
   private val valid = RegInit(UInt(0, entries))
   private val elts = Reg(Vec(entries, gen))
 
-  private val do_enq = Wire(init=io.enq.fire())
-  private val do_deq = Wire(init=io.deq.fire())
+  private val do_enq = io.enq.fire()
+  private val do_deq = io.deq.fire()
 
-  when (do_deq) {
-    when (!do_enq) { valid := (valid >> 1) }
-    for (i <- 1 until entries)
-      when (valid(i)) { elts(i-1) := elts(i) }
+  for (i <- 0 until entries) {
+    val wdata = if (i == entries-1) io.enq.bits else Mux(valid(i+1), elts(i+1), io.enq.bits)
+    val shiftDown = if (i == entries-1) false.B else io.deq.ready && valid(i+1)
+    val enqNew = io.enq.fire() && Mux(io.deq.ready, valid(i), !valid(i) && (if (i == 0) true.B else valid(i-1)))
+    when (shiftDown || enqNew) { elts(i) := wdata }
   }
-  when (do_enq && do_deq) {
-    for (i <- 0 until entries)
-      when (valid(i) && (if (i == entries-1) true.B else !valid(i+1))) { elts(i) := io.enq.bits }
-  }
-  when (do_enq && !do_deq) {
-    valid := (valid << 1) | UInt(1)
-    for (i <- 0 until entries)
-      when (!valid(i) && (if (i == 0) true.B else valid(i-1))) { elts(i) := io.enq.bits }
-  }
+  when (do_enq =/= do_deq) { valid := Mux(do_enq, (valid << 1) | UInt(1), valid >> 1) }
 
   io.enq.ready := !valid(entries-1)
   io.deq.valid := valid(0)
@@ -45,11 +38,7 @@ class ShiftQueue[T <: Data](gen: T,
 
   if (flow) {
     when (io.enq.valid) { io.deq.valid := true.B }
-    when (!valid(0)) {
-      io.deq.bits := io.enq.bits
-      do_deq := false.B
-      when (io.deq.ready) { do_enq := false.B }
-    }
+    when (!valid(0)) { io.deq.bits := io.enq.bits }
   }
 
   if (pipe) {

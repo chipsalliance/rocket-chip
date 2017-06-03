@@ -81,14 +81,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
-  val s2_maybe_pf = Reg(init=Bool(false))
-  val s2_maybe_ae = Reg(init=Bool(false))
+  val s2_maybe_pf = Reg(Bool())
+  val s2_maybe_ae = Reg(Bool())
   val s2_tlb_miss = Reg(Bool())
   val s2_pf = s2_maybe_pf && !s2_tlb_miss
   val s2_ae = s2_maybe_ae && !s2_tlb_miss
   val s2_xcpt = s2_pf || s2_ae
   val s2_speculative = Reg(init=Bool(false))
-  val s2_cacheable = Reg(init=Bool(false))
 
   val fetchBytes = coreInstBytes * fetchWidth
   val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
@@ -113,7 +112,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     s2_valid := true
     s2_pc := s1_pc
     s2_speculative := s1_speculative
-    s2_cacheable := tlb.io.resp.cacheable
     s2_maybe_pf := tlb.io.resp.pf.inst
     s2_maybe_ae := tlb.io.resp.ae.inst
     s2_tlb_miss := tlb.io.resp.miss
@@ -161,7 +159,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s2_vaddr := s2_pc
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || s2_replay
-  icache.io.s2_kill := RegNext(RegNext(s0_valid)) && s2_speculative && !s2_cacheable || s2_xcpt
+  icache.io.s2_kill := s2_valid && (s2_speculative || s2_xcpt)
 
   fq.io.enq.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
