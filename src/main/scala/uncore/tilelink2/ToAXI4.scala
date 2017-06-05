@@ -204,7 +204,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
         assert (!inc || count =/= UInt(n)) // overflow
 
         when (inc) { write := arw.wen }
-        !idle && write =/= arw.wen
+        as && !idle && write =/= arw.wen
       }
       stall := stalls.foldLeft(Bool(false))(_||_)
 
