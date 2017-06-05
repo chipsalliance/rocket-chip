@@ -65,12 +65,12 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
 
       // Construct the source=>ID mapping table
       adapterName.foreach { n => println(s"$n AXI4-ID <= TL-Source mapping:") }
-      val idTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
+      val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
       var idCount = Array.fill(edgeOut.master.endId) { 0 }
       val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
         for (i <- 0 until c.sourceId.size) {
           val id = m.id.start + (if (c.requestFifo) 0 else i)
-          idTable(c.sourceId.start + i) := UInt(id)
+          sourceTable(c.sourceId.start + i) := UInt(id)
           idCount(id) = idCount(id) + 1
         }
         adapterName.map { n =>
@@ -147,7 +147,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
 
       val arw = out_arw.bits
       arw.wen   := a_isPut
-      arw.id    := idTable(a_source)
+      arw.id    := sourceTable(a_source)
       arw.addr  := a_address
       arw.len   := UIntToOH1(a_size, AXI4Parameters.lenBits + log2Ceil(beatBytes)) >> log2Ceil(beatBytes)
       arw.size  := Mux(a_size >= maxSize, maxSize, a_size)
