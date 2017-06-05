@@ -67,7 +67,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       adapterName.foreach { n => println(s"$n AXI4-ID <= TL-Source mapping:") }
       val sourceStall = Wire(Vec(edgeIn.client.endSourceId, Bool()))
       val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
-      val idStall = Wire(Vec.fill(edgeOut.master.endId) { Bool(false) })
+      val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
       var idCount = Array.fill(edgeOut.master.endId) { 0 }
       val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
         for (i <- 0 until c.sourceId.size) {
