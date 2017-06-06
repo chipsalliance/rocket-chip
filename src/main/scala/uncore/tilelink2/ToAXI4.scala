@@ -65,12 +65,15 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
 
       // Construct the source=>ID mapping table
       adapterName.foreach { n => println(s"$n AXI4-ID <= TL-Source mapping:") }
-      val idTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
+      val sourceStall = Wire(Vec(edgeIn.client.endSourceId, Bool()))
+      val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
+      val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
       var idCount = Array.fill(edgeOut.master.endId) { 0 }
       val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
         for (i <- 0 until c.sourceId.size) {
           val id = m.id.start + (if (c.requestFifo) 0 else i)
-          idTable(c.sourceId.start + i) := UInt(id)
+          sourceStall(c.sourceId.start + i) := idStall(id)
+          sourceTable(c.sourceId.start + i) := UInt(id)
           idCount(id) = idCount(id) + 1
         }
         adapterName.map { n =>
@@ -147,7 +150,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
 
       val arw = out_arw.bits
       arw.wen   := a_isPut
-      arw.id    := idTable(a_source)
+      arw.id    := sourceTable(a_source)
       arw.addr  := a_address
       arw.len   := UIntToOH1(a_size, AXI4Parameters.lenBits + log2Ceil(beatBytes)) >> log2Ceil(beatBytes)
       arw.size  := Mux(a_size >= maxSize, maxSize, a_size)
@@ -158,7 +161,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       arw.qos   := UInt(0) // no QoS
       arw.user.foreach { _ := a_state }
 
-      val stall = Wire(Bool())
+      val stall = sourceStall(in.a.bits.source)
       in.a.ready := !stall && Mux(a_isPut, (doneAW || out_arw.ready) && out_w.ready, out_arw.ready)
       out_arw.valid := !stall && in.a.valid && Mux(a_isPut, !doneAW && out_w.ready, Bool(true))
 
@@ -191,7 +194,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       val a_sel = UIntToOH(arw.id, edgeOut.master.endId).toBools
       val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
-      val stalls = ((a_sel zip d_sel) zip idCount) filter { case (_, n) => n > 1 } map { case ((as, ds), n) =>
+      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n > 1 } foreach { case (((as, ds), s), n) =>
         val count = RegInit(UInt(0, width = log2Ceil(n + 1)))
         val write = Reg(Bool())
         val idle = count === UInt(0)
@@ -204,9 +207,8 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
         assert (!inc || count =/= UInt(n)) // overflow
 
         when (inc) { write := arw.wen }
-        !idle && write =/= arw.wen
+        s := !idle && write =/= arw.wen
       }
-      stall := stalls.foldLeft(Bool(false))(_||_)
 
       // Tie off unused channels
       in.b.valid := Bool(false)
