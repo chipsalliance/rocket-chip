@@ -3,7 +3,7 @@
 package util
 import Chisel._
 
-class plusarg_reader(format: String, default: Int) extends BlackBox(Map(
+class plusarg_reader(val format: String, val default: Int, val docstring: String) extends BlackBox(Map(
     "FORMAT"  -> chisel3.core.StringParam(format),
     "DEFAULT" -> chisel3.core.IntParam(default))) {
   val io = new Bundle {
@@ -13,9 +13,12 @@ class plusarg_reader(format: String, default: Int) extends BlackBox(Map(
 
 object PlusArg
 {
-  // PlusArg("foo") will return 42 if the simulation is run with +foo=42
+  // PlusArg("foo") will return 42.U if the simulation is run with +foo=42
   // Do not use this as an initial register value. The value is set in an
   // initial block and thus accessing it from another initial is racey.
-  def apply(name: String, default: Int = 0): UInt =
-    Module(new plusarg_reader(name + "=%d", default)).io.out
+  // Add a docstring to document the arg, which can be dumped in an elaboration
+  // pass.
+
+  def apply(name: String, default: Int = 0, docstring: String = ""): UInt =
+    Module(new plusarg_reader(name + "=%d", default, docstring)).io.out
 }
