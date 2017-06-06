@@ -450,7 +450,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.ld, UInt(Causes.load_access))
   ))
 
-  val wb_wxd = wb_reg_valid && wb_ctrl.wxd
+  val wb_wxd = wb_reg_valid && wb_ctrl.wxd && (wb_waddr =/= UInt(0)) //check that the waddr is not zero 
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
