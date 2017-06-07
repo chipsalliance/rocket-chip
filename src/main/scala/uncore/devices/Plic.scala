@@ -66,8 +66,7 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
       val extra = Map(
         "interrupt-controller" -> Nil,
         "riscv,ndev" -> Seq(ResourceInt(nDevices)),
-        "#interrupt-cells" -> Seq(ResourceInt(1)),
-        "#address-cells" -> Seq(ResourceInt(0)))
+        "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
     }
   }
