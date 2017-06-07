@@ -63,7 +63,7 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     // Use single-ported memory with byte-write enable
     val mem = SeqMem(1 << mask.filter(b=>b).size, Vec(beatBytes, Bits(width = 8)))
 
-    // Decide is the SRAM port is used for reading or (potentially) writing
+    // Decide if the SRAM port is used for reading or (potentially) writing
     val read = a_request && !a_write
     // In case we choose to stall, we need to hold the read data
     val d_rdata = mem.readAndHold(a_address, read)
