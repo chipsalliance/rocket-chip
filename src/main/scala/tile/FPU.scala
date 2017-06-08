@@ -433,7 +433,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   io.out.valid := valid
-  io.out.bits.lt := dcmp.io.lt
+  io.out.bits.lt := dcmp.io.lt || (dcmp.io.a.asSInt < 0.S && dcmp.io.b.asSInt >= 0.S)
   io.out.bits.in := in
 }
 
@@ -502,7 +502,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
     val isnan1 = maxType.isNaN(in.bits.in1)
     val isnan2 = maxType.isNaN(in.bits.in2)
     val isInvalid = maxType.isSNaN(in.bits.in1) || maxType.isSNaN(in.bits.in2)
-    val isNaNOut = isInvalid || (isnan1 && isnan2)
+    val isNaNOut = isnan1 && isnan2
     val isLHS = isnan2 || in.bits.rm(0) =/= io.lt && !isnan1
     fsgnjMux.exc := isInvalid << 4
     fsgnjMux.data := Mux(isNaNOut, maxType.qNaN, Mux(isLHS, in.bits.in1, in.bits.in2))
