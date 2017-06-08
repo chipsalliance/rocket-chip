@@ -552,7 +552,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)(implicit p: Parameters) extends
   val in = Reg(new FPInput)
   when (io.in.valid) {
     val one = UInt(1) << (t.sig + t.exp - 1)
-    val zero = UInt(1) << (t.sig + t.exp)
+    val zero = (io.in.bits.in1 ^ io.in.bits.in2) & (UInt(1) << (t.sig + t.exp))
     val cmd_fma = io.in.bits.ren3
     val cmd_addsub = io.in.bits.swap23
     in := io.in.bits
