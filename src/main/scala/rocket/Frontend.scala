@@ -77,7 +77,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-2)
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
-  val s2_valid = Reg(init=Bool(true))
+  val s2_valid = RegInit(false.B)
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
@@ -96,7 +96,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val predicted_taken = Wire(init = Bool(false))
 
   val s2_replay = Wire(Bool())
-  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid)
+  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid, true.B)
   val npc = Mux(s2_replay, s2_pc, predicted_npc)
 
   s1_pc := io.cpu.npc
