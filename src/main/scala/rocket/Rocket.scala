@@ -231,14 +231,16 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
 
-  val id_xcpt_pf = ibuf.io.inst(0).bits.pf0 || ibuf.io.inst(0).bits.pf1
-  val id_xcpt_ae = ibuf.io.inst(0).bits.ae0 || ibuf.io.inst(0).bits.ae1
+  val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
+  val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
     (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
-    (id_xcpt_pf,       UInt(Causes.fetch_page_fault)),
-    (id_xcpt_ae,       UInt(Causes.fetch_access)),
+    (id_xcpt0.pf.inst, UInt(Causes.fetch_page_fault)),
+    (id_xcpt0.ae.inst, UInt(Causes.fetch_access)),
+    (id_xcpt1.pf.inst, UInt(Causes.fetch_page_fault)),
+    (id_xcpt1.ae.inst, UInt(Causes.fetch_access)),
     (id_illegal_insn,  UInt(Causes.illegal_instruction))))
 
   val dcache_bypass_data =
@@ -305,14 +307,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ex_ctrl.alu_dw := DW_XPR
       ex_ctrl.sel_alu1 := A1_RS1 // badaddr := instruction
       ex_ctrl.sel_alu2 := A2_ZERO
-      when (bpu.io.xcpt_if || id_xcpt_pf || id_xcpt_ae) { // badaddr := PC
+      when (id_xcpt1.asUInt.orR) { // badaddr := PC+2
         ex_ctrl.sel_alu1 := A1_PC
-      }
-      val pf_second = !ibuf.io.inst(0).bits.pf0 && ibuf.io.inst(0).bits.pf1
-      val ae_second = !ibuf.io.inst(0).bits.ae0 && ibuf.io.inst(0).bits.ae1
-      when (!bpu.io.xcpt_if && (pf_second || (!id_xcpt_pf && ae_second))) { // badaddr := PC+2
         ex_ctrl.sel_alu2 := A2_SIZE
         ex_reg_rvc := true
+      }
+      when (bpu.io.xcpt_if || id_xcpt0.asUInt.orR) { // badaddr := PC
+        ex_ctrl.sel_alu1 := A1_PC
+        ex_ctrl.sel_alu2 := A2_ZERO
       }
     }
     ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush

@@ -18,13 +18,21 @@ class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val speculative = Bool()
 }
 
+class FrontendExceptions extends Bundle {
+  val pf = new Bundle {
+    val inst = Bool()
+  }
+  val ae = new Bundle {
+    val inst = Bool()
+  }
+}
+
 class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val btb = Valid(new BTBResp)
   val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
   val data = UInt(width = fetchWidth * coreInstBits)
   val mask = Bits(width = fetchWidth)
-  val pf = Bool()
-  val ae = Bool()
+  val xcpt = new FrontendExceptions
   val replay = Bool()
 }
 
@@ -83,9 +91,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_tlb_resp = Reg(tlb.io.resp)
-  val s2_pf = s2_tlb_resp.pf.inst && !s2_tlb_resp.miss
-  val s2_ae = s2_tlb_resp.ae.inst && !s2_tlb_resp.miss
-  val s2_xcpt = s2_pf || s2_ae
+  val s2_xcpt = !s2_tlb_resp.miss && fq.io.enq.bits.xcpt.asUInt.orR
   val s2_speculative = Reg(init=Bool(false))
 
   val fetchBytes = coreInstBytes * fetchWidth
@@ -163,8 +169,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   fq.io.enq.bits.data := icache.io.resp.bits
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  fq.io.enq.bits.pf := s2_pf
-  fq.io.enq.bits.ae := s2_ae
+  fq.io.enq.bits.xcpt := s2_tlb_resp
   fq.io.enq.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
   fq.io.enq.bits.btb.valid := s2_btb_resp_valid
   fq.io.enq.bits.btb.bits := s2_btb_resp_bits
