@@ -754,15 +754,10 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   if (cfg.divSqrt) {
     val divSqrt_killed = Reg(Bool())
 
-    makeDivSqrt(FType.S, wb_ctrl.singleOut)
-    fLen match {
-      case 32 =>
-      case 64 => makeDivSqrt(FType.D, !wb_ctrl.singleOut)
-    }
-
-    def makeDivSqrt(t: FType, en: Bool) = {
+    for (t <- floatTypes) {
+      val tag = !mem_ctrl.singleOut // TODO typeTag
       val divSqrt = Module(new hardfloat.DivSqrtRecFN_small(t.exp, t.sig, 0))
-      divSqrt.io.inValid := en && mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt) && !divSqrt_inFlight
+      divSqrt.io.inValid := mem_reg_valid && tag === typeTag(t) && (mem_ctrl.div || mem_ctrl.sqrt) && !divSqrt_inFlight
       divSqrt.io.sqrtOp := mem_ctrl.sqrt
       divSqrt.io.a := maxType.unsafeConvert(fpiu.io.out.bits.in.in1, t)
       divSqrt.io.b := maxType.unsafeConvert(fpiu.io.out.bits.in.in2, t)
