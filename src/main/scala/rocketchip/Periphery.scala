@@ -346,7 +346,11 @@ trait HasPeripheryErrorSlave extends HasSystemNetworks {
   private val config = p(ErrorConfig)
   private val maxXfer = min(config.address.map(_.alignment).max.toInt, 4096)
   val error = LazyModule(new TLError(config.address, peripheryBusConfig.beatBytes))
-  error.node := TLFragmenter(peripheryBusConfig.beatBytes, maxXfer)(peripheryBus.node)
+
+  // Override the default Parameters to exclude the TLMonitor between the Fragmenter and error slave.
+  // Most slaves do not support a 4kB burst so this slave ends up with many more source bits than others.
+  private def sourceInfo(implicit x: chisel3.internal.sourceinfo.SourceInfo) = x
+  error.node.:=(TLFragmenter(peripheryBusConfig.beatBytes, maxXfer)(peripheryBus.node))(new WithoutTLMonitors ++ p, sourceInfo)
 }
 
 
