@@ -24,7 +24,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
   override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
 
-  override def connect(edges: () => Seq[TLEdgeIn], bundles: () => Seq[(TLBundle, TLBundle)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
+  override def connect(edges: () => Seq[TLEdgeIn], bundles: () => Seq[(TLBundle, TLBundle)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[TLMonitorBase], () => Unit) = {
     val monitor = p(TLMonitorBuilder)(TLMonitorArgs(edges, sourceInfo, p))
     (monitor, () => {
       val eval = bundles ()
