@@ -248,6 +248,10 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
   require (depth >= 0, "Buffer depth must be >= 0")
   def isDefined = depth > 0
   def latency = if (isDefined && !flow) 1 else 0
+
+  def apply[T <: Data](x: DecoupledIO[T]) =
+    if (isDefined) Queue(x, depth, flow=flow, pipe=pipe)
+    else x
 }
 
 object BufferParams
