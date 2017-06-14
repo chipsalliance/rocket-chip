@@ -173,7 +173,7 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
     val node = TLOutputNode()
     for (bank <- 0 until l2Config.nBanksPerChannel) {
       val offset = (bank * l2Config.nMemoryChannels) + channel
-      in := TLBuffer(BufferParams.flow, BufferParams.none)(l1tol2.node)
+      in := l1tol2.node
       node := TLFilter(AddressSet(offset * l1tol2_lineBytes, mask))(out)
     }
     node
