@@ -33,10 +33,20 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 
   def contains(x: Int)  = start <= x && x < end
   def contains(x: UInt) =
-    if (start+1 == end) { UInt(start) === x }
-    else if (isPow2(end-start) && ((end | start) & (end-start-1)) == 0)
-    { ~(~(UInt(start) ^ x) | UInt(end-start-1)) === UInt(0) }
-    else { UInt(start) <= x && x < UInt(end) }
+    if (size == 1) { // simple comparison
+      x === UInt(start)
+    } else {
+      // find index of largest different bit
+      val largestDeltaBit = log2Floor(start ^ (end-1))
+      val smallestCommonBit = largestDeltaBit + 1 // may not exist in x
+      val uncommonMask = (1 << smallestCommonBit) - 1
+      val uncommonBits = (x | UInt(0, width=smallestCommonBit))(largestDeltaBit, 0)
+      // the prefix must match exactly (note: may shift ALL bits away)
+      (x >> smallestCommonBit) === UInt(start >> smallestCommonBit) &&
+      // firrtl constant prop range analysis can eliminate these two:
+      UInt(start & uncommonMask) <= uncommonBits &&
+      uncommonBits <= UInt((end-1) & uncommonMask)
+    }
 
   def shift(x: Int) = IdRange(start+x, end+x)
   def size = end - start
