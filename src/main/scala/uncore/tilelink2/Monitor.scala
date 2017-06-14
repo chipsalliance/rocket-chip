@@ -466,10 +466,21 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
   }
 
   def legalizeUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
-    legalizeADSource(bundle, edge)
-    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+    val sourceBits = log2Ceil(edge.client.endSourceId)
+    val tooBig = 14 // >16kB worth of flight information gets to be too much
+    if (sourceBits > tooBig) {
+      println(s"WARNING: TLMonitor instantiated on a bus with source bits (${sourceBits}) > ${tooBig}; A=>D transaction flight will not be checked")
+    } else {
+      legalizeADSource(bundle, edge)
+    }
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB && edge.manager.endSinkId > 1) {
       // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
-      if (edge.manager.endSinkId > 1) legalizeDESink(bundle, edge)
+      val sinkBits = log2Ceil(edge.manager.endSinkId)
+      if (sinkBits > tooBig) {
+        println(s"WARNING: TLMonitor instantiated on a bus with sink bits (${sinkBits}) > ${tooBig}; D=>E transaction flight will not be checked")
+      } else {
+        legalizeDESink(bundle, edge)
+      }
     }
   }
 

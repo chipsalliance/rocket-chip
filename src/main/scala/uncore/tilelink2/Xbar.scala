@@ -84,7 +84,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
     val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
 
-    // Print the mapping
+    // Print the address mapping
     if (false) {
       println("Xbar mapping:")
       route_addrs.foreach { p =>
@@ -93,6 +93,15 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
         println("")
       }
       println("--")
+    }
+
+    // Print the ID mapping
+    if (false) {
+      println(s"XBar ${name} mapping:")
+      (node.edgesIn zip inputIdRanges).zipWithIndex.foreach { case ((edge, id), i) =>
+        println(s"\t$i assigned ${id} for ${edge.client.clients.map(_.name).mkString(", ")}")
+      }
+      println("")
     }
 
     // We need an intermediate size of bundle with the widest possible identifiers
