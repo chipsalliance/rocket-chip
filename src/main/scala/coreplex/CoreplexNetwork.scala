@@ -13,6 +13,8 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
   def bindingTree: ResourceMap
 
+  val tile_splitter = LazyModule(new TLSplitter)
+
   val l1tol2 = LazyModule(new TLXbar)
   val l1tol2_beatBytes = l1tol2Config.beatBytes
   val l1tol2_lineBytes = p(CacheBlockBytes)
@@ -34,6 +36,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   private val l2in_buffer = LazyModule(new TLBuffer)
   private val l2in_fifo = LazyModule(new TLFIFOFixer)
   l1tol2.node :=* l2in_fifo.node
+  l1tol2.node :=* tile_splitter.node
   l2in_fifo.node :=* l2in_buffer.node
   l2in_buffer.node :=* l2in
 
@@ -83,7 +86,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   }
 
   // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
-  lazy val topManagers = Some(ManagerUnification(l1tol2.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)))
+  lazy val topManagers = Some(ManagerUnification(tile_splitter.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)))
   ResourceBinding {
     val managers = topManagers.get
     val max = managers.flatMap(_.address).map(_.max).max

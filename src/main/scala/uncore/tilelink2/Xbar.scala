@@ -8,34 +8,6 @@ import diplomacy._
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
-  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId)).map(_.get)
-  def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
-
-  def assignRanges(sizes: Seq[Int]) = {
-    val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
-    val tuples = pow2Sizes.zipWithIndex.sortBy(_._1) // record old index, then sort by increasing size
-    val starts = tuples.scanRight(0)(_._1 + _).tail // suffix-sum of the sizes = the start positions
-    val ranges = (tuples zip starts) map { case ((sz, i), st) =>
-      (if (sz == 0) None else Some(IdRange(st, st+sz)), i)
-    }
-    ranges.sortBy(_._2).map(_._1) // Restore orignal order
-  }
-
-  def relabeler() = {
-    var idFactory = 0
-    () => {
-      val fifoMap = scala.collection.mutable.HashMap.empty[Int, Int]
-      (x: Int) => {
-        if (fifoMap.contains(x)) fifoMap(x) else {
-          val out = idFactory
-          idFactory = idFactory + 1
-          fifoMap += (x -> out)
-          out
-        }
-      }
-    }
-  }
-
   val node = TLNexusNode(
     numClientPorts  = 1 to 32,
     numManagerPorts = 1 to 32,
@@ -44,7 +16,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
         "An unsafe atomic port can not be combined with any other!")
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
-        clients = (mapInputIds(seq) zip seq) flatMap { case (range, port) =>
+        clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
           port.clients map { client => client.copy(
             sourceId = client.sourceId.shift(range.start)
           )}
@@ -52,8 +24,8 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       )
     },
     managerFn = { seq =>
-      val fifoIdFactory = relabeler()
-      val outputIdRanges = mapOutputIds(seq)
+      val fifoIdFactory = TLXbar.relabeler()
+      val outputIdRanges = TLXbar.mapOutputIds(seq)
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
         endSinkId = outputIdRanges.map(_.map(_.end).getOrElse(0)).max,
@@ -75,8 +47,8 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     }
 
     // Grab the port ID mapping
-    val inputIdRanges = mapInputIds(node.edgesIn.map(_.client))
-    val outputIdRanges = mapOutputIds(node.edgesOut.map(_.manager))
+    val inputIdRanges = TLXbar.mapInputIds(node.edgesIn.map(_.client))
+    val outputIdRanges = TLXbar.mapOutputIds(node.edgesOut.map(_.manager))
 
     // Find a good mask for address decoding
     val port_addrs = node.edgesOut.map(_.manager.managers.map(_.address).flatten)
@@ -105,7 +77,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     }
 
     // We need an intermediate size of bundle with the widest possible identifiers
-    val wide_bundle = io.in(0).params.union(io.out(0).params)
+    val wide_bundle = TLBundleParameters.union(io.in.map(_.params) ++ io.out.map(_.params))
 
     // Handle size = 1 gracefully (Chisel3 empty range is broken)
     def trim(id: UInt, size: Int) = if (size <= 1) UInt(0) else id(log2Ceil(size)-1, 0)
@@ -179,23 +151,12 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     def transpose[T](x: Seq[Seq[T]]) = Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
     def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
 
-    // Replicate an input port to each output port
-    def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool]) = {
-      val filtered = Wire(Vec(select.size, input))
-      for (i <- 0 until select.size) {
-        filtered(i).bits := input.bits
-        filtered(i).valid := input.valid && select(i)
-      }
-      input.ready := Mux1H(select, filtered.map(_.ready))
-      filtered
-    }
-
     // Fanout the input sources to the output sinks
-    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => fanout(i.a, r) })
-    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => fanout(o.b, r) })
-    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => fanout(i.c, r) })
-    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => fanout(o.d, r) })
-    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => fanout(i.e, r) })
+    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar.fanout(i.a, r) })
+    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar.fanout(o.b, r) })
+    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => TLXbar.fanout(i.c, r) })
+    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => TLXbar.fanout(o.d, r) })
+    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => TLXbar.fanout(i.e, r) })
 
     // Arbitrate amongst the sources
     for (o <- 0 until out.size) {
@@ -216,6 +177,48 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), allowO):_*)
       TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)
     }
+  }
+}
+
+object TLXbar
+{
+  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId)).map(_.get)
+  def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
+
+  def assignRanges(sizes: Seq[Int]) = {
+    val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
+    val tuples = pow2Sizes.zipWithIndex.sortBy(_._1) // record old index, then sort by increasing size
+    val starts = tuples.scanRight(0)(_._1 + _).tail // suffix-sum of the sizes = the start positions
+    val ranges = (tuples zip starts) map { case ((sz, i), st) =>
+      (if (sz == 0) None else Some(IdRange(st, st+sz)), i)
+    }
+    ranges.sortBy(_._2).map(_._1) // Restore orignal order
+  }
+
+  def relabeler() = {
+    var idFactory = 0
+    () => {
+      val fifoMap = scala.collection.mutable.HashMap.empty[Int, Int]
+      (x: Int) => {
+        if (fifoMap.contains(x)) fifoMap(x) else {
+          val out = idFactory
+          idFactory = idFactory + 1
+          fifoMap += (x -> out)
+          out
+        }
+      }
+    }
+  }
+
+  // Replicate an input port to each output port
+  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool]) = {
+    val filtered = Wire(Vec(select.size, input))
+    for (i <- 0 until select.size) {
+      filtered(i).bits := input.bits
+      filtered(i).valid := input.valid && select(i)
+    }
+    input.ready := Mux1H(select, filtered.map(_.ready))
+    filtered
   }
 }
 
