@@ -3,6 +3,7 @@
 package util
 
 import Chisel._
+import chisel3.experimental.{RawModule}
 import config._
 import diplomacy.LazyModule
 import java.io.{File, FileWriter}
@@ -45,7 +46,7 @@ trait HasGeneratorUtilities {
       Class.forName(names.fullTopModuleClass)
         .getConstructor(classOf[Parameters])
         .newInstance(params)
-        .asInstanceOf[Module]
+        .asInstanceOf[RawModule]
 
     Driver.elaborate(gen)
   }
