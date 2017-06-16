@@ -212,7 +212,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
     id_ctrl.rocc && csr.io.decode.rocc_illegal ||
     id_csr_en && (csr.io.decode.read_illegal || !id_csr_ren && csr.io.decode.write_illegal) ||
-    (id_sfence || id_system_insn) && csr.io.decode.system_illegal
+    !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode.system_illegal)
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
