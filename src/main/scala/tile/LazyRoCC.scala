@@ -8,7 +8,6 @@ import coreplex._
 import diplomacy._
 import rocket._
 import uncore.tilelink2._
-import chisel3.experimental.chiselName
 
 case object RoccNPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Seq[RoCCParams]]
@@ -146,7 +145,6 @@ class  AccumulatorExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new AccumulatorExampleModule(this)
 }
 
-@chiselName
 class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p: Parameters) extends LazyRoCCModule(outer)
   with HasCoreParameters {
   val regfile = Mem(n, UInt(width = xLen))
@@ -216,7 +214,6 @@ class  TranslatorExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new TranslatorExampleModule(this)
 }
 
-@chiselName
 class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
   with HasCoreParameters {
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
@@ -264,10 +261,8 @@ class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
   override val atlNode = TLClientNode(TLClientParameters())
 }
 
-@chiselName
 class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
   with HasCoreParameters
-  with HasTileParameters
   with HasL1CacheParameters {
   val cacheParams = tileParams.icache.get
 
