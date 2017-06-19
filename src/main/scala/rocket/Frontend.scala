@@ -42,9 +42,9 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val acquire = Bool(INPUT)
 }
 
-class Frontend(hartid: Int)(implicit p: Parameters) extends LazyModule {
+class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
-  val icache = LazyModule(new ICache(latency = 2, hartid))
+  val icache = LazyModule(new ICache(icacheParams, hartid))
   val masterNode = TLOutputNode()
   val slaveNode = TLInputNode()
 
@@ -67,6 +67,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val io = new FrontendBundle(outer)
   implicit val edge = outer.masterNode.edgesOut.head
   val icache = outer.icache.module
+  require(fetchWidth == outer.icacheParams.fetchWidth)
+  require(coreInstBytes == outer.icacheParams.coreInstBytes)
 
   val tlb = Module(new TLB(log2Ceil(coreInstBytes*fetchWidth), nTLBEntries))
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 4, flow = true)) }
@@ -181,7 +183,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend(hartid: Int))
+  val frontend = LazyModule(new Frontend(tileParams.icache.get, hartid: Int))
   val hartid: Int
   tileBus.node := frontend.masterNode
   nPTWPorts += 1

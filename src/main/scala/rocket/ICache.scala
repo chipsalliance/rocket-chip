@@ -20,7 +20,10 @@ case class ICacheParams(
     cacheIdBits: Int = 0,
     ecc: Option[Code] = None,
     itimAddr: Option[BigInt] = None,
-    blockBytes: Int = 64) extends L1CacheParams {
+    blockBytes: Int = 64,
+    latency: Int = 2,
+    coreInstBytes: Int = 2,
+    fetchWidth: Int = 2) extends L1CacheParams {
   def replacement = new RandomReplacement(nWays)
 }
 
@@ -32,15 +35,13 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
   val addr = UInt(width = vaddrBits)
 }
 
-class ICache(val latency: Int, val hartid: Int)(implicit p: Parameters) extends LazyModule
-    with HasRocketCoreParameters {
+class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
   val masterNode = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
 
-  val icacheParams = tileParams.icache.get
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val slaveNode = icacheParams.itimAddr.map { itimAddr =>
-    val wordBytes = coreInstBytes * fetchWidth
+    val wordBytes = icacheParams.coreInstBytes * icacheParams.fetchWidth
     TLManagerNode(Seq(TLManagerPortParameters(
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
@@ -63,7 +64,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
   val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
 
-  val resp = Valid(UInt(width = coreInstBits * fetchWidth))
+  val resp = Valid(UInt(width = outer.icacheParams.coreInstBytes*8 * outer.icacheParams.fetchWidth))
   val invalidate = Bool(INPUT)
   val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.map(_.bundleIn)
@@ -78,6 +79,8 @@ object GetPropertyByHartId {
 
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
+  override val cacheParams = outer.icacheParams // Use the local parameters
+
   val io = new ICacheBundle(outer)
   val edge_out = outer.masterNode.edgesOut.head
   val tl_out = io.tl_out.head
@@ -85,7 +88,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val tl_in = io.tl_in.map(_.head)
 
   require(isPow2(nSets) && isPow2(nWays))
-  require(isPow2(coreInstBytes))
+  require(isPow2(outer.icacheParams.coreInstBytes))
   require(!usingVM || pgIdxBits >= untagBits)
 
   val scratchpadOn = RegInit(false.B)
@@ -161,7 +164,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
 
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
-  val wordBits = coreInstBits * fetchWidth
+  val wordBits = outer.icacheParams.coreInstBytes*8 * outer.icacheParams.fetchWidth
   val s1_dout = Wire(Vec(nWays, UInt(width = code.width(wordBits))))
 
   val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
@@ -204,7 +207,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
 
   // output signals
-  outer.latency match {
+  outer.icacheParams.latency match {
     case 1 =>
       require(code.isInstanceOf[uncore.util.IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
