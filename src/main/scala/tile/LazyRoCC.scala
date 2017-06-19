@@ -10,8 +10,6 @@ import rocket._
 import uncore.tilelink2._
 import chisel3.experimental.chiselName
 
-case object RoccMaxTaggedMemXacts extends Field[Int]
-case object RoccNMemChannels extends Field[Int]
 case object RoccNPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Seq[RoCCParams]]
 
@@ -60,13 +58,13 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
   val module: LazyRoCCModule
 
-  val atlNode = TLClientNode(TLClientParameters(IdRange(0, 5)))//p(RoccMaxTaggedMemXacts))))
-  val tlNode = TLClientNode(TLClientParameters(IdRange(0, 5)))//p(RoccMaxTaggedMemXacts))))
+  val atlNode: TLMixedNode
+  val tlNode: TLMixedNode
 }
 
 class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
   val atl = outer.atlNode.bundleOut
-  val tl = outer.tlNode.bundleOut //FIXME: does this turn into multiple tl bundles as I want
+  val tl = outer.tlNode.bundleOut
   // Should be handled differently, eventually
   val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
@@ -146,6 +144,8 @@ trait HasLazyRoCCModule extends CanHaveSharedFPUModule
 
 class  AccumulatorExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new AccumulatorExampleModule(this)
+  val atlNode = TLClientNode(TLClientParameters())
+  val tlNode= TLClientNode(TLClientParameters())
 }
 
 @chiselName
@@ -210,11 +210,10 @@ class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p
   io.mem.req.bits.cmd := uncore.constants.M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
-  //FIXME: move this back out to the common rocc constructor
   io.mem.req.bits.phys := Bool(false)
   io.mem.invalidate_lr := Bool(false)
 
-  //FIXME: These shouldn't be necessary if we aren't going to use tl or atl
+  // TODO These could be eliminated with an optional tl/atl
   // Tie off unused channels
   io.tl(0).a.valid := Bool(false)
   io.tl(0).b.ready := Bool(true)
@@ -232,6 +231,8 @@ class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p
 
 class  TranslatorExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new TranslatorExampleModule(this)
+  val atlNode = TLClientNode(TLClientParameters())
+  val tlNode= TLClientNode(TLClientParameters())
 }
 
 @chiselName
@@ -276,7 +277,7 @@ class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) 
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
 
-  //FIXME: These shouldn't be necessary if we aren't going to use tl or atl
+  // TODO These could be eliminated with an optional tl/atl
   // Tie off unused channels
   io.tl(0).a.valid := Bool(false)
   io.tl(0).b.ready := Bool(true)
@@ -293,6 +294,8 @@ class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) 
 
 class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new CharacterCountExampleModule(this)
+  val atlNode = TLClientNode(TLClientParameters())
+  val tlNode= TLClientNode(TLClientParameters())
 }
 
 @chiselName
@@ -380,7 +383,7 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  //FIXME: These shouldn't be necessary if we aren't going to use tl or atl
+  // TODO These could be eliminated with an optional tl/atl
   // Tie off unused channels
   io.atl(0).b.ready := Bool(true)
   io.atl(0).c.valid := Bool(false)

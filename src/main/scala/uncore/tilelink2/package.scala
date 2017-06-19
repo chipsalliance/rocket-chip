@@ -13,6 +13,8 @@ package object tilelink2
   type TLAsyncOutwardNode = OutwardNodeHandle[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]
   type TLRationalOutwardNode = OutwardNodeHandle[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalBundle]
   type IntOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
+  type TLMixedNode = MixedNode[TLClientPortParameters, TLManagerPortParameters, TLEdgeIn, TLBundle,
+                               TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLBundle]
 
   def OH1ToOH(x: UInt) = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
   def OH1ToUInt(x: UInt) = OHToUInt(OH1ToOH(x))
