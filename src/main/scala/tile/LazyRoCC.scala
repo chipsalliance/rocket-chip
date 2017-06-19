@@ -58,8 +58,8 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
   val module: LazyRoCCModule
 
-  val atlNode: TLMixedNode
-  val tlNode: TLMixedNode
+  val atlNode:TLMixedNode = TLOutputNode()
+  val tlNode:TLMixedNode = TLOutputNode()
 }
 
 class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
@@ -86,7 +86,7 @@ trait HasLazyRoCC extends CanHaveSharedFPU with CanHavePTW with HasTileLinkMaste
       case RoccNPTWPorts => accelParams.nPTWPorts
   }))}
 
-  roccs.map(_.atlNode).foreach { atl => tileBus.node := atl }
+  roccs.map(_.atlNode).foreach { atl => tileBus.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => masterNode :=* tl }
 
   nPTWPorts += p(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
@@ -144,8 +144,6 @@ trait HasLazyRoCCModule extends CanHaveSharedFPUModule
 
 class  AccumulatorExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new AccumulatorExampleModule(this)
-  val atlNode = TLClientNode(TLClientParameters())
-  val tlNode= TLClientNode(TLClientParameters())
 }
 
 @chiselName
@@ -212,27 +210,10 @@ class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.req.bits.phys := Bool(false)
   io.mem.invalidate_lr := Bool(false)
-
-  // TODO These could be eliminated with an optional tl/atl
-  // Tie off unused channels
-  io.tl(0).a.valid := Bool(false)
-  io.tl(0).b.ready := Bool(true)
-  io.tl(0).c.valid := Bool(false)
-  io.tl(0).d.ready := Bool(true)
-  io.tl(0).e.valid := Bool(false)
-
-  io.atl(0).a.valid := Bool(false)
-  io.atl(0).b.ready := Bool(true)
-  io.atl(0).c.valid := Bool(false)
-  io.atl(0).d.ready := Bool(true)
-  io.atl(0).e.valid := Bool(false)
-
 }
 
 class  TranslatorExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new TranslatorExampleModule(this)
-  val atlNode = TLClientNode(TLClientParameters())
-  val tlNode= TLClientNode(TLClientParameters())
 }
 
 @chiselName
@@ -276,26 +257,11 @@ class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) 
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-
-  // TODO These could be eliminated with an optional tl/atl
-  // Tie off unused channels
-  io.tl(0).a.valid := Bool(false)
-  io.tl(0).b.ready := Bool(true)
-  io.tl(0).c.valid := Bool(false)
-  io.tl(0).d.ready := Bool(true)
-  io.tl(0).e.valid := Bool(false)
-
-  io.atl(0).a.valid := Bool(false)
-  io.atl(0).b.ready := Bool(true)
-  io.atl(0).c.valid := Bool(false)
-  io.atl(0).d.ready := Bool(true)
-  io.atl(0).e.valid := Bool(false)
 }
 
 class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new CharacterCountExampleModule(this)
-  val atlNode = TLClientNode(TLClientParameters())
-  val tlNode= TLClientNode(TLClientParameters())
+  override val atlNode = TLClientNode(TLClientParameters())
 }
 
 @chiselName
@@ -320,7 +286,8 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   val s_idle :: s_acq :: s_gnt :: s_check :: s_resp :: Nil = Enum(Bits(), 5)
   val state = Reg(init = s_idle)
 
-  val gnt = io.atl(0).d.bits
+  val tl_out = io.atl.head
+  val gnt = tl_out.d.bits
   val recv_data = Reg(UInt(width = cacheDataBits))
   val recv_beat = Reg(UInt(width = log2Up(cacheDataBeats+1)), init = UInt(0))
 
@@ -341,12 +308,12 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := resp_rd
   io.resp.bits.data := count
-  io.atl(0).a.valid := (state === s_acq)
-  io.atl(0).a.bits := outer.atlNode.edgesOut(0).Get(
+  tl_out.a.valid := (state === s_acq)
+  tl_out.a.bits := outer.atlNode.edgesOut(0).Get(
                        fromSource = UInt(0),
                        toAddress = addr_block << blockOffset,
                        lgSize = UInt(lgCacheBlockBytes))._2
-  io.atl(0).d.ready := (state === s_gnt)
+  tl_out.d.ready := (state === s_gnt)
 
   when (io.cmd.fire()) {
     addr := io.cmd.bits.rs1
@@ -357,9 +324,9 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
     state := s_acq
   }
 
-  when (io.atl(0).a.fire()) { state := s_gnt }
+  when (tl_out.a.fire()) { state := s_gnt }
 
-  when (io.atl(0).d.fire()) {
+  when (tl_out.d.fire()) {
     recv_beat := recv_beat + UInt(1)
     recv_data := gnt.data
     state := s_check
@@ -383,17 +350,10 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
   io.mem.req.valid := Bool(false)
-  // TODO These could be eliminated with an optional tl/atl
   // Tie off unused channels
-  io.atl(0).b.ready := Bool(true)
-  io.atl(0).c.valid := Bool(false)
-  io.atl(0).e.valid := Bool(false)
-
-  io.tl(0).a.valid := Bool(false)
-  io.tl(0).b.ready := Bool(true)
-  io.tl(0).c.valid := Bool(false)
-  io.tl(0).d.ready := Bool(true)
-  io.tl(0).e.valid := Bool(false)
+  tl_out.b.ready := Bool(true)
+  tl_out.c.valid := Bool(false)
+  tl_out.e.valid := Bool(false)
 }
 
 class OpcodeSet(val opcodes: Seq[UInt]) {
