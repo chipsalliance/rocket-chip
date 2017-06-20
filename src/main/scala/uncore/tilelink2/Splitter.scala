@@ -6,7 +6,7 @@ import Chisel._
 import config._
 import diplomacy._
 
-class TLSplitter(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: Parameters) extends LazyModule
+class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
   val node = TLSplitterNode(
     clientFn  = { case SplitterArg(newSize, ports) =>
