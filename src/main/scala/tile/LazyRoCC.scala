@@ -258,7 +258,7 @@ class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) 
 
 class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new CharacterCountExampleModule(this)
-  override val atlNode = TLClientNode(TLClientParameters())
+  override val atlNode = TLClientNode(TLClientParameters("CharacterCountRoCC"))
 }
 
 class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
