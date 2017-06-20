@@ -6,62 +6,74 @@ import Chisel._
 import config._
 import rocketchip.{BaseConfig, BasePlatformConfig}
 
+case object TestDurationMultiplier extends Field[Int]
+
+class WithTestDuration(x: Int) extends Config((site, here, up) => {
+  case TestDurationMultiplier => x
+})
+
 class WithUncoreUnitTests extends Config((site, here, up) => {
   case uncore.tilelink.TLId => "L1toL2"
   case UnitTests => (q: Parameters) => {
     implicit val p = q
+    val txns = 100 * site(TestDurationMultiplier)
+    val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new uncore.tilelink2.TLFuzzRAMTest),
-      Module(new uncore.ahb.AHBBridgeTest(true)),
-      Module(new uncore.ahb.AHBNativeTest(true)),
-      Module(new uncore.ahb.AHBNativeTest(false)),
-      Module(new uncore.apb.APBBridgeTest(true)),
-      Module(new uncore.apb.APBBridgeTest(false)),
-      Module(new uncore.axi4.AXI4LiteFuzzRAMTest),
-      Module(new uncore.axi4.AXI4FullFuzzRAMTest),
-      Module(new uncore.axi4.AXI4BridgeTest)) }
+      Module(new uncore.tilelink2.TLFuzzRAMTest(  txns=3*txns, timeout=timeout)),
+      Module(new uncore.ahb.AHBBridgeTest(true,   txns=8*txns, timeout=timeout)),
+      Module(new uncore.ahb.AHBNativeTest(true,   txns=6*txns, timeout=timeout)),
+      Module(new uncore.ahb.AHBNativeTest(false,  txns=6*txns, timeout=timeout)),
+      Module(new uncore.apb.APBBridgeTest(true,   txns=6*txns, timeout=timeout)),
+      Module(new uncore.apb.APBBridgeTest(false,  txns=6*txns, timeout=timeout)),
+      Module(new uncore.axi4.AXI4LiteFuzzRAMTest( txns=6*txns, timeout=timeout)),
+      Module(new uncore.axi4.AXI4FullFuzzRAMTest( txns=3*txns, timeout=timeout)),
+      Module(new uncore.axi4.AXI4BridgeTest(      txns=3*txns, timeout=timeout))) }
 })
-
-class UncoreUnitTestConfig extends Config(new WithUncoreUnitTests ++ new BasePlatformConfig)
 
 class WithTLSimpleUnitTests extends Config((site, here, up) => {
   case UnitTests => (q: Parameters) => {
     implicit val p = q
+    val txns = 100 * site(TestDurationMultiplier)
+    val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new uncore.tilelink2.TLRAMSimpleTest(1)),
-      Module(new uncore.tilelink2.TLRAMSimpleTest(4)),
-      Module(new uncore.tilelink2.TLRAMSimpleTest(16)),
-      Module(new uncore.tilelink2.TLRAMZeroDelayTest(4)),
-      Module(new uncore.tilelink2.TLRR0Test),
-      Module(new uncore.tilelink2.TLRR1Test),
-      Module(new uncore.tilelink2.TLRAMRationalCrossingTest),
-      Module(new uncore.tilelink2.TLRAMAsyncCrossingTest),
-      Module(new uncore.tilelink2.TLRAMAtomicAutomataTest) ) }
+      Module(new uncore.tilelink2.TLRAMSimpleTest(1,        txns=15*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMZeroDelayTest(4,     txns=15*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRR0Test(                txns= 3*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRR1Test(                txns= 3*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMRationalCrossingTest(txns= 3*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMAsyncCrossingTest(   txns= 5*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMAtomicAutomataTest(  txns=10*txns, timeout=timeout)) ) }
 })
 
 class WithTLWidthUnitTests extends Config((site, here, up) => {
   case UnitTests => (q: Parameters) => {
     implicit val p = q
+    val txns = 100 * site(TestDurationMultiplier)
+    val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new uncore.tilelink2.TLRAMFragmenterTest( 4, 256)),
-      Module(new uncore.tilelink2.TLRAMFragmenterTest(16,  64)),
-      Module(new uncore.tilelink2.TLRAMFragmenterTest( 4,  16)),
-      Module(new uncore.tilelink2.TLRAMWidthWidgetTest( 1,  1)),
-      Module(new uncore.tilelink2.TLRAMWidthWidgetTest( 4, 64)),
-      Module(new uncore.tilelink2.TLRAMWidthWidgetTest(64,  4)) ) }
+      Module(new uncore.tilelink2.TLRAMFragmenterTest( 4, 256, txns= 5*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMFragmenterTest(16,  64, txns=15*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMFragmenterTest( 4,  16, txns=15*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMWidthWidgetTest( 1,  1, txns= 1*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMWidthWidgetTest( 4, 64, txns= 4*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMWidthWidgetTest(64,  4, txns= 5*txns, timeout=timeout)) ) }
 })
 
 class WithTLXbarUnitTests extends Config((site, here, up) => {
   case UnitTests => (q: Parameters) => {
     implicit val p = q
+    val txns = 100 * site(TestDurationMultiplier)
+    val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new uncore.tilelink2.TLRAMXbarTest(1)),
-      Module(new uncore.tilelink2.TLRAMXbarTest(2)),
-      Module(new uncore.tilelink2.TLRAMXbarTest(8)),
-      //Module(new uncore.tilelink2.TLMulticlientXbarTest(4,4)),
-      Module(new uncore.tilelink2.TLMulticlientXbarTest(1,4)) ) }
+      Module(new uncore.tilelink2.TLRAMXbarTest(1,           txns=5*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMXbarTest(2,           txns=5*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLRAMXbarTest(8,           txns=5*txns, timeout=timeout)),
+      Module(new uncore.tilelink2.TLMulticlientXbarTest(4,4, txns=2*txns, timeout=timeout)) ) }
 })
 
-class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new BasePlatformConfig)
-class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new BasePlatformConfig)
-class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new BasePlatformConfig)
+class UncoreUnitTestConfig extends Config(new WithUncoreUnitTests ++ new WithTestDuration(10) ++ new BasePlatformConfig)
+class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new WithTestDuration(10) ++ new BasePlatformConfig)
+class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithTestDuration(10) ++ new BasePlatformConfig)
+class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new WithTestDuration(10) ++ new BasePlatformConfig)

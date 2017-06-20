@@ -15,6 +15,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
   val node = TLAdapterNode(
     clientFn  = { cp =>
       cp.copy(clients = Seq(TLClientParameters(
+        name     = "TLBroadcast",
         sourceId = IdRange(0, 1 << log2Ceil(cp.endSourceId*4)))))
     },
     managerFn = { mp =>

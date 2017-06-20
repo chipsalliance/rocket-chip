@@ -29,22 +29,14 @@ class TLBuffer(
       val out = node.bundleOut
     }
 
-    def buffer[T <: Data](config: BufferParams, data: DecoupledIO[T]): DecoupledIO[T] = {
-      if (config.isDefined) {
-        Queue(data, config.depth, pipe=config.pipe, flow=config.flow)
-      } else {
-        data
-      }
-    }
-
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      out.a <> buffer(a, in .a)
-      in .d <> buffer(d, out.d)
+      out.a <> a(in .a)
+      in .d <> d(out.d)
 
       if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {
-        in .b <> buffer(b, out.b)
-        out.c <> buffer(c, in .c)
-        out.e <> buffer(e, in .e)
+        in .b <> b(out.b)
+        out.c <> c(in .c)
+        out.e <> e(in .e)
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)

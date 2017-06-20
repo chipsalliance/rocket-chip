@@ -226,3 +226,4 @@ class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, he
 class WithRationalRocketTiles extends Config((site, here, up) => {
   case RocketCrossing => RationalCrossing()
 })
+

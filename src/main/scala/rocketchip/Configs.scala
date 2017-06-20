@@ -28,7 +28,6 @@ class BasePlatformConfig extends Config((site, here, up) => {
   case RTCPeriod => 1000 // Implies coreplex clock is DTSTimebase * RTCPeriod = 1 GHz
   // TileLink connection parameters
   case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
-  case TLFuzzReadyValid => false
   case TLCombinationalCheck => false
   //Memory Parameters
   case NExtTopInterrupts => 2

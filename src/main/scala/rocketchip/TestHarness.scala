@@ -16,30 +16,13 @@ class TestHarness()(implicit p: Parameters) extends Module {
   }
 
   val dut = Module(LazyModule(new ExampleRocketTop).module)
-  dut.reset := reset | dut.io.ndreset
+  dut.reset := reset | dut.debug.ndreset
 
-
-  dut.io.interrupts := UInt(0)
-
-  val channels = p(coreplex.BankedL2Config).nMemoryChannels
-  if (channels > 0) Module(LazyModule(new SimAXIMem(channels)).module).io.axi4 <> dut.io.mem_axi4
-
-  if (!p(IncludeJtagDTM)) {
-    val dtm = Module(new SimDTM).connect(clock, reset, dut.io.debug.get, io.success)
-  } else {
-    val jtag = Module(new JTAGVPI).connect(dut.io.jtag.get, dut.io.jtag_reset.get, reset, io.success)
-    dut.io.jtag_mfr_id.get := p(JtagDTMKey).idcodeManufId.U(11.W)
-  }
-
-  val mmio_sim = Module(LazyModule(new SimAXIMem(1, 4096)).module)
-  mmio_sim.io.axi4 <> dut.io.mmio_axi4
-
-  val l2_axi4 = dut.io.l2_frontend_bus_axi4(0)
-  l2_axi4.ar.valid := Bool(false)
-  l2_axi4.aw.valid := Bool(false)
-  l2_axi4.w .valid := Bool(false)
-  l2_axi4.r .ready := Bool(true)
-  l2_axi4.b .ready := Bool(true)
+  dut.tieOffInterrupts()
+  dut.connectSimAXIMem()
+  dut.connectSimAXIMMIO()
+  dut.tieOffAXI4SlavePort()
+  dut.connectDebug(clock, reset, io.success)
 }
 
 class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) extends LazyModule {
@@ -49,7 +32,9 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
   require(totalSize % channels == 0)
 
   val node = AXI4BlindInputNode(Seq.fill(channels) {
-    AXI4MasterPortParameters(Seq(AXI4MasterParameters(IdRange(0, 1 << config.idBits))))})
+    AXI4MasterPortParameters(Seq(AXI4MasterParameters(
+      name = "dut",
+      id   = IdRange(0, 1 << config.idBits))))})
 
   for (i <- 0 until channels) {
     val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))

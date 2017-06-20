@@ -660,7 +660,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.write.ready := Bool(true)
 }
 
-class NonBlockingDCache(implicit p: Parameters) extends HellaCache()(p) {
+class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new NonBlockingDCacheModule(this) 
 }
 
@@ -668,6 +668,10 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   require(isPow2(nWays)) // TODO: relax this
   require(dataScratchpadSize == 0)
+
+  // ECC is only supported on the data array
+  require(cacheParams.tagECC.isInstanceOf[IdentityCode])
+  val dECC = cacheParams.dataECC
 
   val wb = Module(new WritebackUnit)
   val prober = Module(new ProbeUnit)
@@ -759,7 +763,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   data.io.write.valid := writeArb.io.out.valid
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
-  val wdata_encoded = (0 until rowWords).map(i => code.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
+  val wdata_encoded = (0 until rowWords).map(i => dECC.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
   data.io.write.bits.data := wdata_encoded.asUInt
 
   // tag read for new requests
@@ -822,7 +826,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     s2_data(w) := regs.asUInt
   }
   val s2_data_muxed = Mux1H(s2_tag_match_way, s2_data)
-  val s2_data_decoded = (0 until rowWords).map(i => code.decode(s2_data_muxed(encDataBits*(i+1)-1,encDataBits*i)))
+  val s2_data_decoded = (0 until rowWords).map(i => dECC.decode(s2_data_muxed(encDataBits*(i+1)-1,encDataBits*i)))
   val s2_data_corrected = s2_data_decoded.map(_.corrected).asUInt
   val s2_data_uncorrected = s2_data_decoded.map(_.uncorrected).asUInt
   val s2_word_idx = if(doNarrowRead) UInt(0) else s2_req.addr(log2Up(rowWords*coreDataBytes)-1,log2Up(wordBytes))
@@ -981,6 +985,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
 
   // performance events
-  io.cpu.acquire := edge.done(tl_out.a)
-  io.cpu.release := edge.done(tl_out.c)
+  io.cpu.perf.acquire := edge.done(tl_out.a)
+  io.cpu.perf.release := edge.done(tl_out.c)
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 }

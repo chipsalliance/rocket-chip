@@ -13,6 +13,8 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
   def bindingTree: ResourceMap
 
+  val tile_splitter = LazyModule(new TLSplitter)
+
   val l1tol2 = LazyModule(new TLXbar)
   val l1tol2_beatBytes = l1tol2Config.beatBytes
   val l1tol2_lineBytes = p(CacheBlockBytes)
@@ -34,6 +36,7 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   private val l2in_buffer = LazyModule(new TLBuffer)
   private val l2in_fifo = LazyModule(new TLFIFOFixer)
   l1tol2.node :=* l2in_fifo.node
+  l1tol2.node :=* tile_splitter.node
   l2in_fifo.node :=* l2in_buffer.node
   l2in_buffer.node :=* l2in
 
@@ -82,8 +85,10 @@ trait CoreplexNetwork extends HasCoreplexParameters {
     }
   }
 
+  // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
+  lazy val topManagers = Some(ManagerUnification(tile_splitter.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)))
   ResourceBinding {
-    val managers = l1tol2.node.edgesIn.headOption.map(_.manager.managers).getOrElse(Nil)
+    val managers = topManagers.get
     val max = managers.flatMap(_.address).map(_.max).max
     val width = ResourceInt((log2Ceil(max)+31) / 32)
     Resource(root, "width").bind(width)
@@ -113,16 +118,47 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val io: CoreplexNetworkBundle
 
   println("Generated Address Map")
-  for (manager <- outer.l1tol2.node.edgesIn(0).manager.managers) {
-    val prot = (if (manager.supportsGet)     "R" else "") +
-               (if (manager.supportsPutFull) "W" else "") +
-               (if (manager.executable)      "X" else "") +
-               (if (manager.supportsAcquireB) " [C]" else "")
-    AddressRange.fromSets(manager.address).foreach { r =>
-      println(f"\t${manager.name}%s ${r.base}%x - ${r.base+r.size}%x, $prot")
+  private val aw = (outer.p(rocket.PAddrBits)-1)/4 + 1
+  private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c %s"
+
+  private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
+    value match {
+      case r: ResourceAddress => List((path(1), r))
+      case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
+      case _ => Nil
     }
   }
+  private val ranges = collect(Nil, outer.bindingTree).groupBy(_._2).toList.flatMap { case (key, seq) =>
+    AddressRange.fromSets(key.address).map { r => (r, key.r, key.w, key.x, key.c, seq.map(_._1)) }
+  }.sortBy(_._1)
+  private val json = ranges.map { case (range, r, w, x, c, names) =>
+    println(fmt.format(
+      range.base,
+      range.base+range.size,
+      if (r) 'R' else ' ',
+      if (w) 'W' else ' ',
+      if (x) 'X' else ' ',
+      if (c) 'C' else ' ',
+      names.mkString(", ")))
+    s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
+  }
   println("")
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${json.mkString(",")}]}""")
+
+  // Confirm that all of memory was described by DTS
+  private val dtsRanges = AddressRange.unify(ranges.map(_._1))
+  private val allRanges = AddressRange.unify(outer.topManagers.get.flatMap { m => AddressRange.fromSets(m.address) })
+
+  if (dtsRanges != allRanges) {
+    println("Address map described by DTS differs from physical implementation:")
+    AddressRange.subtract(allRanges, dtsRanges).foreach { case r =>
+      println(s"\texists, but undescribed by DTS: ${r}")
+    }
+    AddressRange.subtract(dtsRanges, allRanges).foreach { case r =>
+      println(s"\tdoes not exist, but described by DTS: ${r}")
+    }
+    println("")
+  }
 }
 
 /////
@@ -140,7 +176,7 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
     val node = TLOutputNode()
     for (bank <- 0 until l2Config.nBanksPerChannel) {
       val offset = (bank * l2Config.nMemoryChannels) + channel
-      in := TLBuffer(BufferParams.flow, BufferParams.none)(l1tol2.node)
+      in := l1tol2.node
       node := TLFilter(AddressSet(offset * l1tol2_lineBytes, mask))(out)
     }
     node

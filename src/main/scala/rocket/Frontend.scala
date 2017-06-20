@@ -28,6 +28,11 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val replay = Bool()
 }
 
+class FrontendPerfEvents extends Bundle {
+  val acquire = Bool()
+  val tlbMiss = Bool()
+}
+
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
@@ -37,9 +42,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val ras_update = Valid(new RASUpdate)
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
-
-  // performance events
-  val acquire = Bool(INPUT)
+  val perf = new FrontendPerfEvents().asInput
 }
 
 class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
@@ -75,18 +78,17 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-2)
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
-  val s2_valid = Reg(init=Bool(true))
+  val s2_valid = RegInit(false.B)
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
-  val s2_maybe_pf = Reg(init=Bool(false))
-  val s2_maybe_ae = Reg(init=Bool(false))
+  val s2_maybe_pf = Reg(Bool())
+  val s2_maybe_ae = Reg(Bool())
   val s2_tlb_miss = Reg(Bool())
   val s2_pf = s2_maybe_pf && !s2_tlb_miss
   val s2_ae = s2_maybe_ae && !s2_tlb_miss
   val s2_xcpt = s2_pf || s2_ae
   val s2_speculative = Reg(init=Bool(false))
-  val s2_cacheable = Reg(init=Bool(false))
 
   val fetchBytes = coreInstBytes * fetchWidth
   val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
@@ -95,7 +97,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val predicted_taken = Wire(init = Bool(false))
 
   val s2_replay = Wire(Bool())
-  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid)
+  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid, true.B)
   val npc = Mux(s2_replay, s2_pc, predicted_npc)
 
   s1_pc := io.cpu.npc
@@ -111,7 +113,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     s2_valid := true
     s2_pc := s1_pc
     s2_speculative := s1_speculative
-    s2_cacheable := tlb.io.resp.cacheable
     s2_maybe_pf := tlb.io.resp.pf.inst
     s2_maybe_ae := tlb.io.resp.ae.inst
     s2_tlb_miss := tlb.io.resp.miss
@@ -159,7 +160,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s2_vaddr := s2_pc
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || s2_replay
-  icache.io.s2_kill := RegNext(RegNext(s0_valid)) && s2_speculative && !s2_cacheable || s2_xcpt
+  icache.io.s2_kill := s2_valid && (s2_speculative || s2_xcpt)
 
   fq.io.enq.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
@@ -176,7 +177,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp <> fq.io.deq
 
   // performance events
-  io.cpu.acquire := edge.done(icache.io.tl_out(0).a)
+  io.cpu.perf.acquire := edge.done(icache.io.tl_out(0).a)
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */

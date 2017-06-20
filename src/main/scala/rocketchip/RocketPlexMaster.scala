@@ -4,10 +4,11 @@ package rocketchip
 
 import Chisel._
 import coreplex.RocketPlex
-import diplomacy.LazyModule
+import diplomacy.{LazyModule, LazyMultiIOModuleImp}
 
-trait RocketPlexMaster extends HasTopLevelNetworks {
-  val module: RocketPlexMasterModule
+/** Add a RocketPlex to the system */
+trait HasRocketPlexMaster extends HasSystemNetworks with HasCoreplexRISCVPlatform {
+  val module: HasRocketPlexMasterModuleImp
 
   val coreplex = LazyModule(new RocketPlex)
 
@@ -20,15 +21,9 @@ trait RocketPlexMaster extends HasTopLevelNetworks {
   (mem zip coreplex.mem) foreach { case (xbar, channel) => xbar.node :=* channel }
 }
 
-trait RocketPlexMasterBundle extends HasTopLevelNetworksBundle {
-  val outer: RocketPlexMaster
-}
 
-trait RocketPlexMasterModule extends HasTopLevelNetworksModule {
-  val outer: RocketPlexMaster
-  val io: RocketPlexMasterBundle
-  val clock: Clock
-  val reset: Bool
+trait HasRocketPlexMasterModuleImp extends LazyMultiIOModuleImp {
+  val outer: HasRocketPlexMaster
 
   outer.coreplex.module.io.tcrs.foreach { case tcr =>
     tcr.clock := clock

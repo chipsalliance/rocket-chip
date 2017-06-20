@@ -36,7 +36,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
     val pWithExtra = p.alterPartial {
       case TileKey => c
       case BuildRoCC => c.rocc
-      case SharedMemoryTLEdge => l1tol2.node.edgesIn(0)
+      case SharedMemoryTLEdge => tile_splitter.node.edgesIn(0)
     }
 
     val asyncIntXbar  = LazyModule(new IntXbar)
@@ -64,7 +64,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         val fixer = LazyModule(new TLFIFOFixer)
         buffer.node :=* wrapper.masterNode
         fixer.node :=* buffer.node
-        l1tol2.node :=* fixer.node
+        tile_splitter.node :=* fixer.node
         wrapper.slaveNode :*= cbus.node
         wrapper.asyncIntNode  := asyncIntXbar.intnode
         wrapper.periphIntNode := periphIntXbar.intnode
@@ -82,7 +82,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         val fixer = LazyModule(new TLFIFOFixer)
         sink.node :=* wrapper.masterNode
         fixer.node :=* sink.node
-        l1tol2.node :=* fixer.node
+        tile_splitter.node :=* fixer.node
         wrapper.slaveNode :*= source.node
         wrapper.asyncIntNode  := asyncIntXbar.intnode
         wrapper.periphIntNode := periphIntXbar.intnode
@@ -102,7 +102,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         val fixer = LazyModule(new TLFIFOFixer)
         sink.node :=* wrapper.masterNode
         fixer.node :=* sink.node
-        l1tol2.node :=* fixer.node
+        tile_splitter.node :=* fixer.node
         wrapper.slaveNode :*= source.node
         wrapper.asyncIntNode := asyncIntXbar.intnode
         wrapper.periphIntNode := periphIntXbar.intnode

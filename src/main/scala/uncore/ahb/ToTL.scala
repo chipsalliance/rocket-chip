@@ -11,7 +11,7 @@ import uncore.tilelink2._
 case class AHBToTLNode() extends MixedAdapterNode(AHBImp, TLImp)(
   dFn = { case AHBMasterPortParameters(masters) =>
     TLClientPortParameters(clients = masters.map { m =>
-      TLClientParameters(nodePath = m.nodePath)
+      TLClientParameters(name = m.name, nodePath = m.nodePath)
     })
   },
   uFn = { mp => AHBSlavePortParameters(

@@ -71,8 +71,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val dpath = new DatapathPTWIO
   }
 
-  require(usingAtomics, "PTW requires atomic memory operations")
-
   val s_ready :: s_req :: s_wait1 :: s_wait2 :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
   val count = Reg(UInt(width = log2Up(pgLevels)))

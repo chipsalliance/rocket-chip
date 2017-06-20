@@ -3,7 +3,6 @@
 package diplomacy
 
 import Chisel._
-import scala.math.max
 
 /** Options for memory regions */
 object RegionType {
@@ -34,10 +33,20 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 
   def contains(x: Int)  = start <= x && x < end
   def contains(x: UInt) =
-    if (start+1 == end) { UInt(start) === x }
-    else if (isPow2(end-start) && ((end | start) & (end-start-1)) == 0)
-    { ~(~(UInt(start) ^ x) | UInt(end-start-1)) === UInt(0) }
-    else { UInt(start) <= x && x < UInt(end) }
+    if (size == 1) { // simple comparison
+      x === UInt(start)
+    } else {
+      // find index of largest different bit
+      val largestDeltaBit = log2Floor(start ^ (end-1))
+      val smallestCommonBit = largestDeltaBit + 1 // may not exist in x
+      val uncommonMask = (1 << smallestCommonBit) - 1
+      val uncommonBits = (x | UInt(0, width=smallestCommonBit))(largestDeltaBit, 0)
+      // the prefix must match exactly (note: may shift ALL bits away)
+      (x >> smallestCommonBit) === UInt(start >> smallestCommonBit) &&
+      // firrtl constant prop range analysis can eliminate these two:
+      UInt(start & uncommonMask) <= uncommonBits &&
+      uncommonBits <= UInt((end-1) & uncommonMask)
+    }
 
   def shift(x: Int) = IdRange(start+x, end+x)
   def size = end - start
@@ -110,6 +119,14 @@ case class AddressRange(base: BigInt, size: BigInt) extends Ordered[AddressRange
       Some(AddressRange(obase, oend-obase))
     }
   }
+
+  private def helper(base: BigInt, end: BigInt) =
+    if (base < end) Seq(AddressRange(base, end-base)) else Nil
+  def subtract(x: AddressRange) =
+    helper(base, end min x.base) ++ helper(base max x.end, end)
+
+  // We always want to see things in hex
+  override def toString() = "AddressRange(0x%x, 0x%x)".format(base, size)
 }
 
 // AddressSets specify the address space managed by the manager
@@ -197,6 +214,9 @@ object AddressRange
       }
     }.reverse
   }
+  // Set subtraction... O(n*n) b/c I am lazy
+  def subtract(from: Seq[AddressRange], take: Seq[AddressRange]): Seq[AddressRange] =
+    take.foldLeft(from) { case (left, r) => left.flatMap { _.subtract(r) } }
 }
 
 object AddressSet
@@ -238,6 +258,10 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
   require (depth >= 0, "Buffer depth must be >= 0")
   def isDefined = depth > 0
   def latency = if (isDefined && !flow) 1 else 0
+
+  def apply[T <: Data](x: DecoupledIO[T]) =
+    if (isDefined) Queue(x, depth, flow=flow, pipe=pipe)
+    else x
 }
 
 object BufferParams

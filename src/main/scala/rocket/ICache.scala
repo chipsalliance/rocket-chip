@@ -8,7 +8,7 @@ import config._
 import diplomacy._
 import tile._
 import uncore.tilelink2._
-import uncore.util.Code
+import uncore.util._
 import util._
 import Chisel.ImplicitConversions._
 
@@ -18,7 +18,8 @@ case class ICacheParams(
     rowBits: Int = 128,
     nTLBEntries: Int = 32,
     cacheIdBits: Int = 0,
-    ecc: Option[Code] = None,
+    tagECC: Code = new IdentityCode,
+    dataECC: Code = new IdentityCode,
     itimAddr: Option[BigInt] = None,
     blockBytes: Int = 64,
     latency: Int = 2,
@@ -36,7 +37,7 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
 
 class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
-  val masterNode = TLClientNode(TLClientParameters(sourceId = IdRange(0,1)))
+  val masterNode = TLClientNode(TLClientParameters(name = s"Core ${hartid} ICache"))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val slaveNode = icacheParams.itimAddr.map { itimAddr =>
@@ -86,6 +87,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val edge_in = outer.slaveNode.map(_.edgesIn.head)
   val tl_in = io.tl_in.map(_.head)
 
+  val tECC = cacheParams.tagECC
+  val dECC = cacheParams.dataECC
+
   require(isPow2(nSets) && isPow2(nWays))
   require(!usingVM || pgIdxBits >= untagBits)
 
@@ -105,27 +109,24 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s2_slaveValid = RegNext(s1_slaveValid, false.B)
   val s3_slaveValid = RegNext(false.B)
 
-  val s_ready :: s_request :: s_refill :: Nil = Enum(UInt(), 3)
-  val state = Reg(init=s_ready)
-  val invalidated = Reg(Bool())
+  val s1_valid = Reg(init=Bool(false))
+  val s1_tag_hit = Wire(Vec(nWays, Bool()))
+  val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
+  val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
+  val s2_hit = RegNext(s1_hit)
 
-  val refill_addr = Reg(UInt(width = paddrBits))
+  val invalidated = Reg(Bool())
+  val refill_valid = RegInit(false.B)
+  val s2_miss = s2_valid && !s2_hit && !io.s2_kill && !RegNext(refill_valid)
+  val refill_addr = RegEnable(io.s1_paddr, s1_valid && !(refill_valid || s2_miss))
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
   val refill_idx = refill_addr(untagBits-1,blockOffBits)
-  val s1_tag_hit = Wire(Vec(nWays, Bool()))
-  val s1_any_tag_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
-
-  val s1_valid = Reg(init=Bool(false))
-  val s1_hit = s1_valid && s1_any_tag_hit
-  val s1_miss = s1_valid && state === s_ready && !s1_any_tag_hit
 
   io.req.ready := !(tl_out.d.fire() || s0_slaveValid || s3_slaveValid)
   val s0_valid = io.req.fire()
   val s0_vaddr = io.req.bits.addr
-
   s1_valid := s0_valid
 
-  when (s1_miss) { refill_addr := io.s1_paddr }
   val (_, _, refill_done, refill_cnt) = edge_out.count(tl_out.d)
   tl_out.d.ready := !s3_slaveValid
   require (edge_out.manager.minLatency > 0)
@@ -142,11 +143,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val entagbits = code.width(tagBits)
-  val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = entagbits)))
+  val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = tECC.width(tagBits))))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   when (refill_done) {
-    val tag = code.encode(refill_tag)
+    val tag = tECC.encode(refill_tag)
     tag_array.write(refill_idx, Vec.fill(nWays)(tag), Vec.tabulate(nWays)(repl_way === _))
   }
 
@@ -163,7 +163,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
   val wordBits = outer.icacheParams.fetchBytes*8
-  val s1_dout = Wire(Vec(nWays, UInt(width = code.width(wordBits))))
+  val s1_dout = Wire(Vec(nWays, UInt(width = dECC.width(wordBits))))
 
   val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
   val s1s3_slaveAddr = Reg(UInt(width = log2Ceil(outer.size)))
@@ -177,13 +177,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         lineInScratchpad(scratchpadLine(s1s3_slaveAddr)) && scratchpadWay(s1s3_slaveAddr) === i,
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i)
     val s1_vb = vb_array(Cat(UInt(i), s1_idx)) && !s1_slaveValid
-    s1_tag_disparity(i) := s1_vb && code.decode(tag_rdata(i)).error
-    s1_tag_hit(i) := scratchpadHit || (s1_vb && code.decode(tag_rdata(i)).uncorrected === s1_tag)
+    s1_tag_disparity(i) := s1_vb && tECC.decode(tag_rdata(i)).error
+    s1_tag_hit(i) := scratchpadHit || (s1_vb && tECC.decode(tag_rdata(i)).uncorrected === s1_tag)
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
-  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = code.width(wordBits)))) }
+  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
   for ((data_array, i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
@@ -196,7 +196,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     when (wen) {
       val data = Mux(s3_slaveValid, s1s3_slaveData, tl_out.d.bits.data(wordBits*(i+1)-1, wordBits*i))
       val way = Mux(s3_slaveValid, scratchpadWay(s1s3_slaveAddr), repl_way)
-      data_array.write(mem_idx, Vec.fill(nWays)(code.encode(data)), (0 until nWays).map(way === _))
+      data_array.write(mem_idx, Vec.fill(nWays)(dECC.encode(data)), (0 until nWays).map(way === _))
     }
     val dout = data_array.read(mem_idx, !wen && s0_ren)
     when (wordMatch(Mux(s1_slaveValid, s1s3_slaveAddr, io.s1_paddr))) {
@@ -207,20 +207,19 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   // output signals
   outer.icacheParams.latency match {
     case 1 =>
-      require(code.isInstanceOf[uncore.util.IdentityCode])
+      require(tECC.isInstanceOf[uncore.util.IdentityCode])
+      require(dECC.isInstanceOf[uncore.util.IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
       io.resp.bits := Mux1H(s1_tag_hit, s1_dout)
-      io.resp.valid := s1_hit
+      io.resp.valid := s1_valid && s1_hit
 
     case 2 =>
-      val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
-      val s2_hit = RegNext(s1_hit)
       val s2_tag_hit = RegEnable(s1_tag_hit, s1_valid || s1_slaveValid)
       val s2_dout = RegEnable(s1_dout, s1_valid || s1_slaveValid)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
 
       val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_valid || s1_slaveValid).asUInt.orR
-      val s2_data_decoded = code.decode(s2_way_mux)
+      val s2_data_decoded = dECC.decode(s2_way_mux)
       val s2_disparity = s2_tag_disparity || s2_data_decoded.error
       when (s2_valid && s2_disparity) { invalidate := true }
 
@@ -276,7 +275,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         tl.e.ready := true
       }
   }
-  tl_out.a.valid := state === s_request && !io.s2_kill
+  tl_out.a.valid := s2_miss && !refill_valid
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
                     toAddress = (refill_addr >> blockOffBits) << blockOffBits,
@@ -286,19 +285,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   tl_out.e.valid := Bool(false)
   assert(!(tl_out.a.valid && addrMaybeInScratchpad(tl_out.a.bits.address)))
 
-  // control state machine
-  switch (state) {
-    is (s_ready) {
-      when (s1_miss && !io.s1_kill) { state := s_request }
-      invalidated := Bool(false)
-    }
-    is (s_request) {
-      when (tl_out.a.ready) { state := s_refill }
-      when (io.s2_kill) { state := s_ready }
-    }
-  }
-  when (refill_done) {
-    assert(state === s_refill)
-    state := s_ready
-  }
+  when (!refill_valid) { invalidated := false.B }
+  when (tl_out.a.fire()) { refill_valid := true.B }
+  when (refill_done) { refill_valid := false.B}
 }

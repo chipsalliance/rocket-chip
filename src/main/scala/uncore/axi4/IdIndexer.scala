@@ -16,15 +16,19 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
     masterFn = { mp =>
       // Create one new "master" per ID
       val masters = Array.tabulate(1 << idBits) { i => AXI4MasterParameters(
+         name      = "",
          id        = IdRange(i, i+1),
          aligned   = true,
          maxFlight = Some(0))
       }
+      // Accumluate the names of masters we squish
+      val names = Array.fill(1 << idBits) { new scala.collection.mutable.HashSet[String]() }
       // Squash the information from original masters into new ID masters
       mp.masters.foreach { m =>
         for (i <- m.id.start until m.id.end) {
           val j = i % (1 << idBits)
           val old = masters(j)
+          names(j) += m.name
           masters(j) = old.copy(
             aligned   = old.aligned && m.aligned,
             maxFlight = old.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
@@ -32,7 +36,7 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
       }
       mp.copy(
         userBits = mp.userBits + max(0, log2Ceil(mp.endId) - idBits),
-        masters  = masters)
+        masters  = masters.zipWithIndex.map { case (m,i) => m.copy(name = names(i).toList.mkString(", "))})
     },
     slaveFn = { sp => sp
     })

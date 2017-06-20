@@ -72,9 +72,12 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
         val hi = addr >> lgBytes
         val alignment = hi(AXI4Parameters.lenBits-1,0)
 
-        val allSame = supportedSizes1.filter(_ >= 0).distinct.size <= 1
-        val dynamic1 = Mux1H(slave.findFast(addr), supportedSizes1.map(s => UInt(max(0, s))))
-        val fixed1 = UInt(supportedSizes1.filter(_ >= 0).headOption.getOrElse(0))
+        // We don't care about illegal addresses; bursts or no bursts... whatever circuit is simpler (AXI4ToTL will fix it)
+        val sizes1 = (supportedSizes1 zip slave.slaves.map(_.address)).filter(_._1 >= 0).groupBy(_._1).mapValues(_.flatMap(_._2))
+        val reductionMask = AddressDecoder(sizes1.values.toList)
+        val support1 = Mux1H(sizes1.toList.map { case (v, a) => // maximum supported size-1 based on target address
+          (AddressSet.unify(a.map(_.widen(~reductionMask)).distinct).map(_.contains(addr)).reduce(_||_), UInt(v))
+        })
 
         /* We need to compute the largest transfer allowed by the AXI len.
          * len+1 is the number of beats to execute.
@@ -86,7 +89,6 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
         val wipeHigh = ~leftOR(~len)       // clear all bits in position  >= a cleared bit
         val remain1  = fillLow | wipeHigh  // MSB(a.len+1)-1
         val align1   = ~leftOR(alignment)  // transfer size limited by address alignment
-        val support1 = if (allSame) fixed1 else dynamic1 // maximum supported size-1 based on target address
         val maxSupported1 = remain1 & align1 & support1 // Take the minimum of all the limits
 
         // Things that cause us to degenerate to a single beat

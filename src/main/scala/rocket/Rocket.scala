@@ -102,9 +102,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ++ (if (!usingFPU) Seq() else Seq(
         ("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu)))),
     new EventSet((mask, hits) => (mask & hits).orR, Seq(
-      ("I$ miss", () => io.imem.acquire),
-      ("D$ miss", () => io.dmem.acquire),
-      ("D$ release", () => io.dmem.release)))))
+      ("I$ miss", () => io.imem.perf.acquire),
+      ("D$ miss", () => io.dmem.perf.acquire),
+      ("D$ release", () => io.dmem.perf.release),
+      ("ITLB miss", () => io.imem.perf.tlbMiss),
+      ("DTLB miss", () => io.dmem.perf.tlbMiss)))))
 
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
@@ -210,7 +212,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
     id_ctrl.rocc && csr.io.decode.rocc_illegal ||
     id_csr_en && (csr.io.decode.read_illegal || !id_csr_ren && csr.io.decode.write_illegal) ||
-    (id_sfence || id_system_insn) && csr.io.decode.system_illegal
+    !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode.system_illegal)
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)

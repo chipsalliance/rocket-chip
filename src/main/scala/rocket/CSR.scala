@@ -142,6 +142,7 @@ object CSR
   val firstHPM = 3
   val nCtr = 32
   val nHPM = nCtr - firstHPM
+  val hpmWidth = 40
 
   val maxPMPs = 16
 }
@@ -290,7 +291,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
   (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
-  val reg_hpmcounter = io.counters.map(c => WideCounter(40, c.inc, reset = false))
+  val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
   val hpm_mask = reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren)
 
   val mip = Wire(init=reg_mip)
@@ -793,5 +794,5 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
   def formEPC(x: UInt) = ~(~x | Cat(!reg_misa('c'-'a'), UInt(1)))
-  def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).reduce(_|_)
+  def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
 }

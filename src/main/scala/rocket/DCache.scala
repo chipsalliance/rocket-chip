@@ -39,12 +39,14 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 }
 
-class DCache(val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache()(p) {
+class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  require(rowBits == encRowBits) // no ECC
+  // no ECC support
+  require(cacheParams.tagECC.isInstanceOf[IdentityCode])
+  require(cacheParams.dataECC.isInstanceOf[IdentityCode])
 
   // tags
   val replacer = cacheParams.replacement
@@ -560,6 +562,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // performance events
-  io.cpu.acquire := edge.done(tl_out_a)
-  io.cpu.release := edge.done(tl_out.c)
+  io.cpu.perf.acquire := edge.done(tl_out_a)
+  io.cpu.perf.release := edge.done(tl_out.c)
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 }

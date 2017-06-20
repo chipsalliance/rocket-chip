@@ -10,7 +10,7 @@ import diplomacy._
 import tile._
 import uncore.constants._
 import uncore.tilelink2._
-import uncore.util.Code
+import uncore.util.{Code, IdentityCode}
 import util.{ParameterizedBundle, RandomReplacement}
 import scala.collection.mutable.ListBuffer
 import scala.math.max
@@ -20,7 +20,8 @@ case class DCacheParams(
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
-    ecc: Option[Code] = None,
+    tagECC: Code = new IdentityCode,
+    dataECC: Code = new IdentityCode,
     nMSHRs: Int = 1,
     nSDQ: Int = 17,
     nRPQ: Int = 16,
@@ -55,7 +56,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def offsetlsb = wordOffBits
   def rowWords = rowBits/wordBits
   def doNarrowRead = coreDataBits * nWays % rowBits == 0
-  def encDataBits = code.width(coreDataBits)
+  def encDataBits = cacheParams.dataECC.width(coreDataBits)
   def encRowBits = encDataBits*rowWords
   def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
   def lrscBackoff = 3 // disallow LRSC reacquisition briefly
@@ -123,6 +124,12 @@ class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) {
   val mask = UInt(width = coreDataBytes)
 }
 
+class HellaCachePerfEvents extends Bundle {
+  val acquire = Bool()
+  val release = Bool()
+  val tlbMiss = Bool()
+}
+
 // interface between D$ and processor/DTLB
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
@@ -130,33 +137,33 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s1_data = new HellaCacheWriteData().asOutput // data for previous cycle's req
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
 
-  // performance events
-  val acquire = Bool(INPUT)
-  val release = Bool(INPUT)
-
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val s2_xcpt = (new HellaCacheExceptions).asInput
   val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
+  val perf = new HellaCachePerfEvents().asInput
 }
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
-abstract class HellaCache(implicit p: Parameters) extends LazyModule {
+abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule {
   private val cfg = p(TileKey).dcache.get
   val firstMMIO = max(1, cfg.nMSHRs)
 
   val node = TLClientNode(Seq(TLClientPortParameters(
     clients = cfg.scratch.map { _ => Seq(
       TLClientParameters(
+        name          = s"Core ${hartid} DCache MMIO",
         sourceId      = IdRange(0, cfg.nMMIOs),
         requestFifo   = true))
     } getOrElse { Seq(
       TLClientParameters(
+        name          = s"Core ${hartid} DCache",
          sourceId      = IdRange(0, firstMMIO),
          supportsProbe = TransferSizes(1, cfg.blockBytes)),
       TLClientParameters(
+        name          = s"Core ${hartid} DCache MMIO",
         sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
         requestFifo   = true))
     },
@@ -182,9 +189,9 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 }
 
 object HellaCache {
-  def apply(blocking: Boolean, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
-    if (blocking) LazyModule(new DCache(scratch))
-    else LazyModule(new NonBlockingDCache)
+  def apply(hartid: Int, blocking: Boolean, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
+    if (blocking) LazyModule(new DCache(hartid, scratch))
+    else LazyModule(new NonBlockingDCache(hartid))
   }
 }
 
@@ -194,8 +201,9 @@ trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
+  val hartid: Int
   var nDCachePorts = 0
-  val dcache = HellaCache(tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
+  val dcache = HellaCache(hartid, tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
   tileBus.node := dcache.node
 }
 

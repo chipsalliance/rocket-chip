@@ -18,8 +18,8 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
   def colour: String
   def reverse: Boolean = false
-  def connect(bindings: () => Seq[(EI, BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => bindings().foreach { case (_, i, o) => i <> o })
+  def connect(edges: () => Seq[EI], bundles: () => Seq[(BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[MonitorBase], () => Unit) = {
+    (None, () => bundles().foreach { case (i, o) => i <> o })
   }
 
   // optional methods to track node graph
@@ -78,11 +78,11 @@ case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
   val inward: InwardNode[DI, UI, BI]
-  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:=(h)(p, sourceInfo)
-  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:*=(h)(p, sourceInfo)
-  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] =
+  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:=*(h)(p, sourceInfo)
 }
 
@@ -159,15 +159,13 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] val numPI: Range.Inclusive)
   extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
     val oStars = oBindings.filter { case (_,_,b) => b == BIND_STAR }.size
     val iStars = iBindings.filter { case (_,_,b) => b == BIND_STAR }.size
-    require (oStars + iStars <= 1, s"${name} appears beside a :*= ${iStars} times and a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     val oKnown = oBindings.map { case (_, n, b) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
@@ -176,8 +174,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
-    val oStar = if (oStars > 0) resolveStarO(iKnown, oKnown) else 0
-    val iStar = if (iStars > 0) resolveStarI(iKnown, oKnown) else 0
+    val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
     val oSum = oBindings.map { case (_, n, b) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
@@ -232,7 +229,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val bundleIn  = wireI(flipI(HeterogeneousBag(edgesIn .map(inner.bundleI(_)))))
 
   // connects the outward part of a node with the inward part of this node
-  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = {
+  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = {
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
@@ -244,22 +241,28 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_STAR  => BIND_QUERY
       case BIND_QUERY => BIND_STAR })
     x.iPush(o, y, binding)
-    def bindings() = {
+    def edges() = {
+      val (iStart, iEnd) = x.iPortMapping(i)
+      val (oStart, oEnd) = y.oPortMapping(o)
+      require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
+      Seq.tabulate(iEnd - iStart) { j => x.edgesIn(iStart+j) }
+    }
+    def bundles() = {
       val (iStart, iEnd) = x.iPortMapping(i)
       val (oStart, oEnd) = y.oPortMapping(o)
       require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
       Seq.tabulate(iEnd - iStart) { j =>
-        (x.edgesIn(iStart+j), x.bundleIn(iStart+j), y.bundleOut(oStart+j))
+        (x.bundleIn(iStart+j), y.bundleOut(oStart+j))
       }
     }
-    val (out, newbinding) = inner.connect(bindings _)
+    val (out, newbinding) = inner.connect(edges _, bundles _)
     LazyModule.stack.head.bindings = newbinding :: LazyModule.stack.head.bindings
     out
   }
 
-  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_ONCE)
-  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_STAR)
-  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[LazyModule] = bind(h, BIND_QUERY)
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE)
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_STAR)
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY)
 
   // meta-data for printing the node graph
   protected[diplomacy] def colour  = inner.colour
@@ -267,6 +270,23 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def outputs = oPorts.map(_._2) zip edgesOut.map(e => outer.labelO(e))
   protected[diplomacy] def inputs  = iPorts.map(_._2) zip edgesIn .map(e => inner.labelI(e))
 }
+
+abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+  inner: InwardNodeImp [DI, UI, EI, BI],
+  outer: OutwardNodeImp[DO, UO, EO, BO])(
+  numPO: Range.Inclusive,
+  numPI: Range.Inclusive)
+  extends MixedNode(inner, outer)(numPO, numPI)
+{
+  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int)
+  def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
+  def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
+}
+
+abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  numPO: Range.Inclusive,
+  numPI: Range.Inclusive)
+  extends MixedCustomNode(imp, imp)(numPO, numPI)
 
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
@@ -279,13 +299,15 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val externalIn: Boolean = true
   val externalOut: Boolean = true
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (i >= o, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${i-o} edges to resolve :=*${lazyModule.line}")
-    i - o
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (o >= i, s"${name} has ${o} outputs and ${i} inputs; cannot assign ${o-i} edges to resolve :*=${lazyModule.line}")
-    o - i
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (oStars + iStars <= 1, s"${name} (an adapter) appears left of a :*= ${iStars} times and right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
+    if (oStars > 0) {
+      require (iKnown >= oKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${iKnown-oKnown} edges to resolve :=*${lazyModule.line}")
+      (0, iKnown - oKnown)
+    } else {
+      require (oKnown >= iKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${oKnown-iKnown} edges to resolve :*=${lazyModule.line}")
+      (oKnown - iKnown, 0)
+    }
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
     require(n == p.size, s"${name} has ${p.size} inputs and ${n} outputs; they must match${lazyModule.line}")
@@ -312,13 +334,10 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val externalIn: Boolean = true
   val externalOut: Boolean = true
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (false, "${name} cannot resolve :=*${lazyModule.line}")
-    0
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (false, s"${name} cannot resolve :*=${lazyModule.line}")
-    0
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iStars == 0, s"${name} (a nexus) appears left of :*= (perhaps you should flip the '*' to :=*?)${lazyModule.line}")
+    require (oStars == 0, s"${name} (a nexus) appears right of a :=* (perhaps you should flip the '*' to :*=?)${lazyModule.line}")
+    (0, 0)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = Seq.fill(n) { dFn(p) }
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = Seq.fill(n) { uFn(p) }
@@ -336,6 +355,45 @@ class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   numPO: Range.Inclusive = 1 to 999,
   numPI: Range.Inclusive = 1 to 999)
     extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
+
+case class SplitterArg[T](newSize: Int, ports: Seq[T])
+class MixedSplitterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+  inner: InwardNodeImp [DI, UI, EI, BI],
+  outer: OutwardNodeImp[DO, UO, EO, BO])(
+  dFn: SplitterArg[DI] => Seq[DO],
+  uFn: SplitterArg[UO] => Seq[UI],
+  numPO: Range.Inclusive = 1 to 999,
+  numPI: Range.Inclusive = 1 to 999)
+  extends MixedNode(inner, outer)(numPO, numPI)
+{
+  override val externalIn: Boolean = true
+  override val externalOut: Boolean = true
+
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (oKnown == 0, s"${name} (a splitter) appears right of a := or :*=; use a :=* instead${lazyModule.line}")
+    require (iStars == 0, s"${name} (a splitter) cannot appear left of a :*=; did you mean :=*?${lazyModule.line}")
+    (0, iKnown)
+  }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
+    require (p.size == 0 || n % p.size == 0, s"Diplomacy bug; splitter inputs do not divide outputs")
+    val out = dFn(SplitterArg(n, p))
+    require (out.size == n, s"${name} created the wrong number of outputs from inputs${lazyModule.line}")
+    out
+  }
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = {
+    require (n == 0 || p.size % n == 0, s"Diplomacy bug; splitter outputs indivisable by inputs")
+    val out = uFn(SplitterArg(n, p))
+    require (out.size == n, s"${name} created the wrong number of inputs from outputs${lazyModule.line}")
+    out
+  }
+}
+
+class SplitterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  dFn: SplitterArg[D] => Seq[D],
+  uFn: SplitterArg[U] => Seq[U],
+  numPO: Range.Inclusive = 1 to 999,
+  numPI: Range.Inclusive = 1 to 999)
+    extends MixedSplitterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
 
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])
   extends AdapterNode(imp)({s => s}, {s => s})
@@ -361,13 +419,12 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   override val externalIn: Boolean = false
   override val externalOut: Boolean = true
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (po.size >= o, s"${name} has ${o} outputs out of ${po.size}; cannot assign ${po.size - o} edges to resolve :=*${lazyModule.line}")
-    po.size - o
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (false, s"${name} cannot resolve :*=${lazyModule.line}")
-    0
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (oStars <= 1, s"${name} (a source) appears right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
+    require (iStars == 0, s"${name} (a source) cannot appear left of a :*=${lazyModule.line}")
+    require (iKnown == 0, s"${name} (a source) cannot appear left of a :=${lazyModule.line}")
+    require (po.size >= oKnown, s"${name} (a source) has ${oKnown} outputs out of ${po.size}; cannot assign ${po.size - oKnown} edges to resolve :=*${lazyModule.line}")
+    (0, po.size - oKnown)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
@@ -381,13 +438,12 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   override val externalIn: Boolean = true
   override val externalOut: Boolean = false
 
-  protected[diplomacy] def resolveStarO(i: Int, o: Int): Int = {
-    require (false, s"${name} cannot resolve :=*${lazyModule.line}")
-    0
-  }
-  protected[diplomacy] def resolveStarI(i: Int, o: Int): Int = {
-    require (pi.size >= i, s"${name} has ${i} inputs out of ${pi.size}; cannot assign ${pi.size - i} edges to resolve :*=${lazyModule.line}")
-    pi.size - i
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iStars <= 1, s"${name} (a sink) appears left of a :*= ${iStars} times; at most once is allowed${lazyModule.line}")
+    require (oStars == 0, s"${name} (a sink) cannot appear right of a :=*${lazyModule.line}")
+    require (oKnown == 0, s"${name} (a sink) cannot appear right of a :=${lazyModule.line}")
+    require (pi.size >= iKnown, s"${name} (a sink) has ${iKnown} inputs out of ${pi.size}; cannot assign ${pi.size - iKnown} edges to resolve :*=${lazyModule.line}")
+    (pi.size - iKnown, 0)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
