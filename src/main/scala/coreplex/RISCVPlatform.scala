@@ -10,20 +10,23 @@ import uncore.tilelink2._
 import uncore.devices._
 import util._
 
-case object MaxPriorityLevels extends Field[Int]
+/** Number of tiles */
+case object NTiles extends Field[Int]
+case object PLICKey extends Field[PLICParams]
+case object ClintKey extends Field[ClintParams]
 
 trait CoreplexRISCVPlatform extends CoreplexNetwork {
   val module: CoreplexRISCVPlatformModule
 
   val debug = LazyModule(new TLDebugModule())
-  val plic  = LazyModule(new TLPLIC(maxPriorities = p(MaxPriorityLevels)))
-  val clint = LazyModule(new CoreplexLocalInterrupter)
+  debug.node := TLFragmenter(pbusBeatBytes, pbusBlockBytes)(pbus.node)
 
-  debug.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
-  plic.node  := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
-  clint.node := TLFragmenter(cbus_beatBytes, cbus_lineBytes)(cbus.node)
+  val plic  = LazyModule(new TLPLIC(p(PLICKey)))
+  plic.node  := TLFragmenter(pbusBeatBytes, pbusBlockBytes)(pbus.node)
+  plic.intnode := int_xbar.intnode
 
-  plic.intnode := intBar.intnode
+  val clint = LazyModule(new CoreplexLocalInterrupter(nTiles, p(ClintKey)))
+  clint.node := TLFragmenter(pbusBeatBytes, pbusBlockBytes)(pbus.node)
 
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)

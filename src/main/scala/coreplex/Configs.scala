@@ -21,11 +21,12 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case XLen => 64 // Applies to all cores
   case ResetVectorBits => site(PAddrBits)
   case MaxHartIdBits => log2Up(site(NTiles))
-  case MaxPriorityLevels => 7
   case BuildCore => (p: Parameters) => new Rocket()(p)
   case RocketCrossing => SynchronousCrossing()
   case RocketTilesKey =>  Nil
   case DMKey => DefaultDebugModuleConfig(site(XLen))
+  case PLICKey => PLICParams()
+  case ClintKey => ClintParams()
   case NTiles => site(RocketTilesKey).size
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
   case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth

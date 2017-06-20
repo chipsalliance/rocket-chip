@@ -65,7 +65,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         buffer.node :=* wrapper.masterNode
         fixer.node :=* buffer.node
         tile_splitter.node :=* fixer.node
-        wrapper.slaveNode :*= cbus.node
+        wrapper.slaveNode :*= pbus.node
         wrapper.asyncIntNode  := asyncIntXbar.intnode
         wrapper.periphIntNode := periphIntXbar.intnode
         wrapper.coreIntNode   := coreIntXbar.intnode
@@ -87,7 +87,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         wrapper.asyncIntNode  := asyncIntXbar.intnode
         wrapper.periphIntNode := periphIntXbar.intnode
         wrapper.coreIntNode   := coreIntXbar.intnode
-        source.node :*= cbus.node
+        source.node :*= pbus.node
         (io: HasRocketTilesBundle) => {
           wrapper.module.clock := io.tcrs(i).clock
           wrapper.module.reset := io.tcrs(i).reset
@@ -107,7 +107,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         wrapper.asyncIntNode := asyncIntXbar.intnode
         wrapper.periphIntNode := periphIntXbar.intnode
         wrapper.coreIntNode   := coreIntXbar.intnode
-        source.node :*= cbus.node
+        source.node :*= pbus.node
         (io: HasRocketTilesBundle) => {
           wrapper.module.clock := io.tcrs(i).clock
           wrapper.module.reset := io.tcrs(i).reset

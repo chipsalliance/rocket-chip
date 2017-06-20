@@ -14,9 +14,6 @@ import scala.math.{min,max}
 import config._
 import tile.XLen
 
-/** Number of tiles */
-case object NTiles extends Field[Int]
-
 object ClintConsts
 {
   def msipOffset(hart: Int) = hart * msipBytes
@@ -30,7 +27,12 @@ object ClintConsts
   def ints = 2
 }
 
-class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Parameters) extends LazyModule
+case class ClintParams(baseAddress: BigInt = 0x02000000)
+{
+  def address = AddressSet(baseAddress, ClintConsts.size-1)
+}
+
+class CoreplexLocalInterrupter(nTiles: Int, params: ClintParams)(implicit p: Parameters) extends LazyModule
 {
   import ClintConsts._
 
@@ -40,7 +42,7 @@ class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Paramet
   }
 
   val node = TLRegisterNode(
-    address   = Seq(AddressSet(address, size-1)),
+    address   = Seq(params.address),
     device    = device,
     beatBytes = p(XLen)/8)
 
@@ -64,8 +66,8 @@ class CoreplexLocalInterrupter(address: BigInt = 0x02000000)(implicit p: Paramet
         reg := newTime >> i
     }
 
-    val timecmp = Seq.fill(p(NTiles)) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
-    val ipi = Seq.fill(p(NTiles)) { RegInit(UInt(0, width = 1)) }
+    val timecmp = Seq.fill(nTiles) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
+    val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 
     io.int.zipWithIndex.foreach { case (int, i) =>
       int(0) := ipi(i)(0) // msip

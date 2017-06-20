@@ -10,7 +10,6 @@ import uncore.tilelink._
 import uncore.coherence._
 import uncore.agents._
 import uncore.util._
-import uncore.devices.NTiles
 import tile.TileKey
 import junctions._
 import config._

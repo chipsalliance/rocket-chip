@@ -5,7 +5,7 @@ package groundtest
 
 import Chisel._
 import uncore.tilelink._
-import uncore.devices.NTiles
+import coreplex.NTiles
 import uncore.constants._
 import junctions._
 import rocket._
