@@ -6,7 +6,7 @@ import Chisel._
 import config._
 import diplomacy._
 
-class TLSplitter(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit p: Parameters) extends LazyModule
+class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
   val node = TLSplitterNode(
     clientFn  = { case SplitterArg(newSize, ports) =>
@@ -21,14 +21,14 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit
         seq(0).copy(
           minLatency = seq.map(_.minLatency).min,
           endSinkId = outputIdRanges.map(_.map(_.end).getOrElse(0)).max,
-          managers = ManagerUnification(seq.zipWithIndex.flatMap { case (port, i) =>
+          managers = seq.zipWithIndex.flatMap { case (port, i) =>
             require (port.beatBytes == seq(0).beatBytes,
               s"Splitter data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
             val fifoIdMapper = fifoIdFactory()
             port.managers map { manager => manager.copy(
               fifoId = manager.fifoId.map(fifoIdMapper(_))
             )}
-          })
+          }
         )
       }
     })
@@ -42,7 +42,9 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit
     def group[T](x: Seq[T]) =
       if (x.isEmpty) Nil else x.grouped(node.edgesIn.size).toList.transpose
 
-    ((node.edgesIn zip io.in) zip (group(node.edgesOut) zip group(io.out))) foreach {
+    if (node.edgesIn.size <= 1) {
+      io.out <> io.in
+    } else ((node.edgesIn zip io.in) zip (group(node.edgesOut) zip group(io.out))) foreach {
       case ((edgeIn, io_in), (edgesOut, io_out)) =>
 
       // Grab the port ID mapping
@@ -51,7 +53,7 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.lowestIndexFirst)(implicit
       // Find a good mask for address decoding
       val port_addrs = edgesOut.map(_.manager.managers.map(_.address).flatten)
       val routingMask = AddressDecoder(port_addrs)
-      val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
+      val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
       val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
 
       // We need an intermediate size of bundle with the widest possible identifiers
