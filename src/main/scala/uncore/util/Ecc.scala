@@ -19,12 +19,20 @@ abstract class Code
   def width(w0: Int): Int
   def encode(x: UInt): UInt
   def decode(x: UInt): Decoding
+
+  /** Copy the bits in x to the right bit positions in an encoded word,
+   *  so that x === decode(swizzle(x)).uncorrected; but don't generate
+   *  the other code bits, so decode(swizzle(x)).error might be true.
+   *  For codes for which this operation is not trivial, throw an
+   *  UnsupportedOperationException.  */
+  def swizzle(x: UInt): UInt
 }
 
 class IdentityCode extends Code
 {
   def width(w0: Int) = w0
   def encode(x: UInt) = x
+  def swizzle(x: UInt) = x
   def decode(y: UInt) = new Decoding {
     def uncorrected = y
     def corrected = y
@@ -37,6 +45,7 @@ class ParityCode extends Code
 {
   def width(w0: Int) = w0+1
   def encode(x: UInt) = Cat(x.xorR, x)
+  def swizzle(x: UInt) = Cat(false.B, x)
   def decode(y: UInt) = new Decoding {
     val uncorrected = y(y.getWidth-2,0)
     val corrected = uncorrected
@@ -66,6 +75,11 @@ class SECCode extends Code
     }
     y.asUInt
   }
+  def swizzle(x: UInt) = {
+    val y = for (i <- 1 to width(x.getWidth))
+      yield (if (isPow2(i)) false.B else x(mapping(i)))
+    y.asUInt
+  }
   def decode(y: UInt) = new Decoding {
     val n = y.getWidth
     require(n > 0 && !isPow2(n))
@@ -93,6 +107,7 @@ class SECDEDCode extends Code
 
   def width(k: Int) = sec.width(k)+1
   def encode(x: UInt) = par.encode(sec.encode(x))
+  def swizzle(x: UInt) = par.swizzle(sec.swizzle(x))
   def decode(x: UInt) = new Decoding {
     val secdec = sec.decode(x(x.getWidth-2,0))
     val pardec = par.decode(x)
