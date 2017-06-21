@@ -27,7 +27,7 @@ trait HasISPPort extends CoreplexNetwork {
 
   private val in_async = LazyModule(new TLAsyncCrossingSink)
   in_async.node :=* isp_in
-  l1tol2.node :=* in_async.node
+  sbus.node :=* in_async.node
 }
 
 trait HasISPPortBundle extends CoreplexNetworkBundle {

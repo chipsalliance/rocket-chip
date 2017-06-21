@@ -134,7 +134,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
 
   val s1_paddr = tlb.io.resp.paddr
-  val s1_tag = Mux(s1_probe, probe_bits.address, s1_paddr)(paddrBits-1, untagBits)
+  val s1_tag = Mux(s1_probe, probe_bits.address, s1_paddr) >> untagBits
   val s1_victim_way = Wire(init = replacer.way)
   val (s1_hit_way, s1_hit_state, s1_victim_meta) =
     if (usingDataScratchpad) {
@@ -275,7 +275,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaWriteArb.io.in(0).bits.way_en := s2_victim_way
   metaWriteArb.io.in(0).bits.idx := s2_req.addr(idxMSB, idxLSB)
   metaWriteArb.io.in(0).bits.data.coh := Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)
-  metaWriteArb.io.in(0).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
+  metaWriteArb.io.in(0).bits.data.tag := s2_req.addr >> untagBits
 
   // Prepare a TileLink request message that initiates a transaction
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
@@ -385,7 +385,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaWriteArb.io.in(1).bits.way_en := s2_victim_way
   metaWriteArb.io.in(1).bits.idx := s2_req.addr(idxMSB, idxLSB)
   metaWriteArb.io.in(1).bits.data.coh := s2_hit_state.onGrant(s2_req.cmd, tl_out.d.bits.param)
-  metaWriteArb.io.in(1).bits.data.tag := s2_req.addr(paddrBits-1, untagBits)
+  metaWriteArb.io.in(1).bits.data.tag := s2_req.addr >> untagBits
   // don't accept uncached grants if there's a structural hazard on s2_data...
   val blockUncachedGrant = Reg(Bool())
   blockUncachedGrant := dataArb.io.out.valid
@@ -489,7 +489,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaWriteArb.io.in(2).bits.way_en := releaseWay
   metaWriteArb.io.in(2).bits.idx := tl_out.c.bits.address(idxMSB, idxLSB)
   metaWriteArb.io.in(2).bits.data.coh := newCoh
-  metaWriteArb.io.in(2).bits.data.tag := tl_out.c.bits.address(paddrBits-1, untagBits)
+  metaWriteArb.io.in(2).bits.data.tag := tl_out.c.bits.address >> untagBits
   when (metaWriteArb.io.in(2).fire()) { release_state := s_ready }
 
   // cached response
