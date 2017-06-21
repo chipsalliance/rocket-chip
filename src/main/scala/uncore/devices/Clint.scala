@@ -32,7 +32,7 @@ case class ClintParams(baseAddress: BigInt = 0x02000000)
   def address = AddressSet(baseAddress, ClintConsts.size-1)
 }
 
-class CoreplexLocalInterrupter(nTiles: Int, params: ClintParams)(implicit p: Parameters) extends LazyModule
+class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) extends LazyModule
 {
   import ClintConsts._
 
@@ -66,6 +66,7 @@ class CoreplexLocalInterrupter(nTiles: Int, params: ClintParams)(implicit p: Par
         reg := newTime >> i
     }
 
+    val nTiles = intnode.edgesOut.size
     val timecmp = Seq.fill(nTiles) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
     val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 

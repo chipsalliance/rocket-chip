@@ -25,7 +25,7 @@ trait CoreplexRISCVPlatform extends CoreplexNetwork {
   plic.node  := TLFragmenter(pbusBeatBytes, pbusBlockBytes)(pbus.node)
   plic.intnode := int_xbar.intnode
 
-  val clint = LazyModule(new CoreplexLocalInterrupter(nTiles, p(ClintKey)))
+  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey)))
   clint.node := TLFragmenter(pbusBeatBytes, pbusBlockBytes)(pbus.node)
 
   lazy val dts = DTS(bindingTree)
