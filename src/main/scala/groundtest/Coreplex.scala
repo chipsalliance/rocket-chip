@@ -44,7 +44,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   tile_splitter.node :=* fixer.node
   tiles.foreach { fixer.node :=* _.masterNode }
 
-  val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, pbusBlockBytes))
+  val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, pbusBeatBytes))
   pbusRAM.node := TLFragmenter(pbusBeatBytes, pbusBlockBytes)(pbus.node)
 
   override lazy val module = new GroundTestCoreplexModule(this, () => new GroundTestCoreplexBundle(this))
