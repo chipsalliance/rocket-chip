@@ -22,7 +22,7 @@ package groundtest
 import Chisel._
 import uncore.tilelink._
 import uncore.constants._
-import uncore.devices.NTiles
+import coreplex.NTiles
 import rocket._
 import tile._
 import util.{Timer, DynamicTimer}

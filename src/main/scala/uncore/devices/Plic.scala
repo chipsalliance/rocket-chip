@@ -53,11 +53,15 @@ object PLICConsts
   require(hartBase >= enableBase(maxHarts))
 }
 
-/** Platform-Level Interrupt Controller */
-class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parameters) extends LazyModule
+case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7)
 {
   require (maxPriorities >= 0)
+  def address = AddressSet(baseAddress, PLICConsts.size-1)
+}
 
+/** Platform-Level Interrupt Controller */
+class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
+{
   // plic0 => max devices 1023
   val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
     override val alwaysExtended = true
@@ -73,7 +77,7 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
   }
 
   val node = TLRegisterNode(
-    address   = Seq(AddressSet(address, PLICConsts.size-1)),
+    address   = Seq(params.address),
     device    = device,
     beatBytes = p(XLen)/8,
     undefZero = false,
@@ -87,7 +91,7 @@ class TLPLIC(maxPriorities: Int, address: BigInt = 0xC000000)(implicit p: Parame
 
   /* Negotiated sizes */
   def nDevices: Int = intnode.edgesIn.map(_.source.num).sum
-  def nPriorities = min(maxPriorities, nDevices)
+  def nPriorities = min(params.maxPriorities, nDevices)
   def nHarts = intnode.edgesOut.map(_.source.num).sum
 
   // Assign all the devices unique ranges

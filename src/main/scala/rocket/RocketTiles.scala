@@ -142,6 +142,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   core.io.rocc.busy := roccCore.busy
   core.io.rocc.interrupt := roccCore.interrupt
 
+
   // TODO eliminate this redundancy
   val h = dcachePorts.size
   val c = core.dcacheArbPorts

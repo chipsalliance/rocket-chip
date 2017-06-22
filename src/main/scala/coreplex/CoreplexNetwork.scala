@@ -13,46 +13,40 @@ trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
   def bindingTree: ResourceMap
 
-  val tile_splitter = LazyModule(new TLSplitter)
+  // TODO: do we need one of these? val cbus = LazyModule(new TLXbar) // Locally-visible peripheral devices
+  val sbus = LazyModule(new TLXbar) // Globally-visible high-bandwidth devices
+  val pbus = LazyModule(new TLXbar) // Globally-visible low-bandwidth devices
+  val tile_splitter = LazyModule(new TLSplitter) // Allows cycle-free connection to external networks
+  val int_xbar = LazyModule(new IntXbar) // Interrupt crossbar
 
-  val l1tol2 = LazyModule(new TLXbar)
-  val l1tol2_beatBytes = l1tol2Config.beatBytes
-  val l1tol2_lineBytes = p(CacheBlockBytes)
+  val mmio = TLOutputNode() // Exernal memory-mapped IO slaves
+  val mmioInt = IntInputNode() // Exernal devices' interrupts
+  val l2in = TLInputNode() // External masters talking to the frontside of the shared cache
+  val l2out = TLOutputNode() // External slaves hanging off the backside of the shared cache
 
-  val cbus = LazyModule(new TLXbar)
-  val cbus_beatBytes = cbusConfig.beatBytes
-  val cbus_lineBytes = l1tol2_lineBytes
-
-  val intBar = LazyModule(new IntXbar)
-
-  val mmio = TLOutputNode()
-  val mmioInt = IntInputNode()
-  val l2in = TLInputNode()
-  val l2out = TLOutputNode()
-
-  intBar.intnode := mmioInt
+  int_xbar.intnode := mmioInt
 
   // Allows a variable number of inputs from outside to the Xbar
   private val l2in_buffer = LazyModule(new TLBuffer)
   private val l2in_fifo = LazyModule(new TLFIFOFixer)
-  l1tol2.node :=* l2in_fifo.node
-  l1tol2.node :=* tile_splitter.node
+  sbus.node :=* l2in_fifo.node
+  sbus.node :=* tile_splitter.node
   l2in_fifo.node :=* l2in_buffer.node
   l2in_buffer.node :=* l2in
 
   private val l2out_buffer = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none))
   l2out :*= l2out_buffer.node
-  l2out_buffer.node :*= l1tol2.node
+  l2out_buffer.node :*= sbus.node
 
-  cbus.node :=
+  pbus.node :=
     TLBuffer()(
     TLAtomicAutomata(arithmetic = true)( // disable once TLB uses TL2 metadata
-    TLWidthWidget(l1tol2_beatBytes)(
-    l1tol2.node)))
+    TLWidthWidget(sbusBeatBytes)(
+    sbus.node)))
 
   mmio :=
-    TLWidthWidget(l1tol2_beatBytes)(
-    l1tol2.node)
+    TLWidthWidget(sbusBeatBytes)(
+    sbus.node)
 
   val root = new Device {
     def describe(resources: ResourceBindings): Description = {
@@ -168,16 +162,16 @@ trait BankedL2CoherenceManagers extends CoreplexNetwork {
 
   require (isPow2(l2Config.nMemoryChannels) || l2Config.nMemoryChannels == 0)
   require (isPow2(l2Config.nBanksPerChannel))
-  require (isPow2(l1tol2_lineBytes))
+  require (isPow2(sbusBlockBytes))
 
   private val (in, out) = l2Config.coherenceManager(p, this)
-  private val mask = ~BigInt((l2Config.nBanks-1) * l1tol2_lineBytes)
+  private val mask = ~BigInt((l2Config.nBanks-1) * sbusBlockBytes)
   val mem = Seq.tabulate(l2Config.nMemoryChannels) { channel =>
     val node = TLOutputNode()
     for (bank <- 0 until l2Config.nBanksPerChannel) {
       val offset = (bank * l2Config.nMemoryChannels) + channel
-      in := l1tol2.node
-      node := TLFilter(AddressSet(offset * l1tol2_lineBytes, mask))(out)
+      in := sbus.node
+      node := TLFilter(AddressSet(offset * sbusBlockBytes, mask))(out)
     }
     node
   }

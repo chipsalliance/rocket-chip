@@ -57,8 +57,8 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
   val module: LazyRoCCModule
 
-  val atlNode:TLMixedNode = TLOutputNode()
-  val tlNode:TLMixedNode = TLOutputNode()
+  val atlNode: TLMixedNode = TLOutputNode()
+  val tlNode: TLMixedNode = TLOutputNode()
 }
 
 class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
@@ -105,38 +105,40 @@ trait HasLazyRoCCModule extends CanHaveSharedFPUModule
   val nFPUPorts = buildRocc.filter(_.useFPU).size
   val roccOpcodes = buildRocc.map(_.opcodes)
 
-  val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), nRocc))
-  roccCore.resp <> respArb.io.out
-  val cmdRouter = Module(new RoccCommandRouter(roccOpcodes)(outer.p))
-  cmdRouter.io.in <> roccCore.cmd
+  if(usingRocc) {
+    val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), nRocc))
+    roccCore.resp <> respArb.io.out
+    val cmdRouter = Module(new RoccCommandRouter(roccOpcodes)(outer.p))
+    cmdRouter.io.in <> roccCore.cmd
 
-  outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
-    ptwPorts ++= rocc.module.io.ptw
-    rocc.module.io.cmd <> cmdRouter.io.out(i)
-    rocc.module.io.exception := roccCore.exception
-    val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
-    dcIF.io.requestor <> rocc.module.io.mem
-    dcachePorts += dcIF.io.cache
-    respArb.io.in(i) <> Queue(rocc.module.io.resp)
-  }
-  roccCore.busy := cmdRouter.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _)
-  roccCore.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+    outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
+      ptwPorts ++= rocc.module.io.ptw
+      rocc.module.io.cmd <> cmdRouter.io.out(i)
+      rocc.module.io.exception := roccCore.exception
+      val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
+      dcIF.io.requestor <> rocc.module.io.mem
+      dcachePorts += dcIF.io.cache
+      respArb.io.in(i) <> Queue(rocc.module.io.resp)
+    }
+    roccCore.busy := cmdRouter.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _)
+    roccCore.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
 
-  fpuOpt foreach { fpu =>
-    if (usingFPU && nFPUPorts > 0) {
-      val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
-      val fp_rocc_ios = outer.roccs.zip(buildRocc)
-        .filter { case (_, params) => params.useFPU }
-        .map { case (rocc, _) => rocc.module.io }
-      fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
-      fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
-        case (rocc, arb) => rocc.fpu_resp <> arb
+    fpuOpt foreach { fpu =>
+      if (usingFPU && nFPUPorts > 0) {
+        val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
+        val fp_rocc_ios = outer.roccs.zip(buildRocc)
+          .filter { case (_, params) => params.useFPU }
+          .map { case (rocc, _) => rocc.module.io }
+        fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
+        fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
+          case (rocc, arb) => rocc.fpu_resp <> arb
+        }
+        fpu.io.cp_req <> fpArb.io.out_req
+        fpArb.io.out_resp <> fpu.io.cp_resp
+      } else {
+        fpu.io.cp_req.valid := Bool(false)
+        fpu.io.cp_resp.ready := Bool(false)
       }
-      fpu.io.cp_req <> fpArb.io.out_req
-      fpArb.io.out_resp <> fpu.io.cp_resp
-    } else {
-      fpu.io.cp_req.valid := Bool(false)
-      fpu.io.cp_resp.ready := Bool(false)
     }
   }
 }

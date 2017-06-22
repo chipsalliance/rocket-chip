@@ -15,7 +15,7 @@ import util._
 
 class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends LazyModule
     with HasCoreParameters {
-  val device = new MemoryDevice
+  val device = new SimpleDevice("dtim", Nil)
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),

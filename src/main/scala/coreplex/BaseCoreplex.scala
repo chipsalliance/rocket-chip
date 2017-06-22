@@ -46,10 +46,14 @@ case object BootROMFile extends Field[String]
 trait HasCoreplexParameters {
   implicit val p: Parameters
   lazy val tilesParams = p(RocketTilesKey)
-  lazy val cbusConfig = p(CBusConfig)
-  lazy val l1tol2Config = p(L1toL2Config)
+  lazy val sbusConfig = p(L1toL2Config)
+  lazy val pbusConfig = p(CBusConfig)
   lazy val nTiles = tilesParams.size
   lazy val l2Config = p(BankedL2Config)
+  def sbusBeatBytes = sbusConfig.beatBytes
+  def sbusBlockBytes = p(CacheBlockBytes)
+  def pbusBeatBytes = pbusConfig.beatBytes
+  def pbusBlockBytes = sbusBlockBytes
 }
 
 case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
