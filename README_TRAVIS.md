@@ -12,5 +12,5 @@ things fast again. We don't generally build on merges to master, just PRs.
 4. Click `More Options->Settings`
 5. On the `General Settings` section, switch the `Build Branch Updates` toggle to `ON`.
 6. perform your PR's merge to master. This will cause the master cache to build `riscv-tools`.
-7. Once the merge commit goes green on Jenkins, switch the `Build Branch Updates` toggle to `OFF`.
+7. Once the merge commit goes green on Travis, switch the `Build Branch Updates` toggle to `OFF`.
 
