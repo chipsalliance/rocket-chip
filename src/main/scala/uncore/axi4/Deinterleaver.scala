@@ -28,7 +28,7 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
     }
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      val queues = edgeOut.master.endId
+      val endId = edgeOut.master.endId
       val beatBytes = edgeOut.slave.beatBytes
       val beats = (maxReadBytes+beatBytes-1) / beatBytes
 
@@ -42,31 +42,43 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
         // Nothing to do if only single-beat R
         in.r <> out.r
       } else {
-        // Buffer R response
-        val count = RegInit(Vec.fill(queues) { UInt(0, width=log2Ceil(beats+1)) })
-        val qs = Seq.fill(queues) { Module(new Queue(out.r.bits, beats)) }
+        // Queues to buffer R responses
+        val qs = Seq.tabulate(endId) { i =>
+          val depth = edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
+          if (depth > 0) {
+            Module(new Queue(out.r.bits, beats)).io
+          } else {
+            Wire(new QueueIO(out.r.bits, beats))
+          }
+        }
 
         // Which ID is being enqueued and dequeued?
         val locked = RegInit(Bool(false))
-        val deq_id = Reg(UInt(width=log2Up(queues)))
+        val deq_id = Reg(UInt(width=log2Up(endId)))
         val enq_id = out.r.bits.id
-        val deq_OH = UIntToOH(deq_id, queues)
-        val enq_OH = UIntToOH(enq_id, queues)
+        val deq_OH = UIntToOH(deq_id, endId)
+        val enq_OH = UIntToOH(enq_id, endId)
 
         // Track the number of completely received bursts per FIFO id
-        val next_count = Wire(count)
-        ((count zip next_count) zip (enq_OH.toBools zip deq_OH.toBools)) foreach { case ((p, n), (i, d)) =>
-          val inc = i && out.r.fire() && out.r.bits.last
-          val dec = d && in.r.fire() && in.r.bits.last
-          n := p + inc.asUInt - dec.asUInt
-          // Bounds checking
-          assert (!dec || p =/= UInt(0))
-          assert (!inc || p =/= UInt(beats))
-        }
-        count := next_count
+        val pending = Cat(Seq.tabulate(endId) { i =>
+          val depth = edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
+          if (depth == 0) {
+            Bool(false)
+          } else {
+            val count = RegInit(UInt(0, width=log2Ceil(beats+1)))
+            val next = Wire(count)
+            val inc = enq_OH(i) && out.r.fire() && out.r.bits.last
+            val dec = deq_OH(i) && in.r.fire() && in.r.bits.last
+            next := count + inc.asUInt - dec.asUInt
+            count := next
+            // Bounds checking
+            assert (!dec || count =/= UInt(0))
+            assert (!inc || count =/= UInt(beats))
+            next =/= UInt(0)
+          }
+        }.reverse)
 
         // Select which Q will we start sending next cycle
-        val pending = Cat(next_count.map(_ =/= UInt(0)).reverse)
         val winner  = pending & ~(leftOR(pending) << 1)
         when (!locked || (in.r.fire() && in.r.bits.last)) {
           locked := pending.orR
@@ -75,16 +87,16 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
         // Transmit the selected burst to inner
         in.r.valid := locked
-        in.r.bits  := Vec(qs.map(_.io.deq.bits))(deq_id)
+        in.r.bits  := Vec(qs.map(_.deq.bits))(deq_id)
         (deq_OH.toBools zip qs) foreach { case (s, q) =>
-          q.io.deq.ready := s && in.r.fire()
+          q.deq.ready := s && in.r.fire()
         }
 
         // Feed response into matching Q
-        out.r.ready := Vec(qs.map(_.io.enq.ready))(enq_id)
+        out.r.ready := Vec(qs.map(_.enq.ready))(enq_id)
         (enq_OH.toBools zip qs) foreach { case (s, q) =>
-          q.io.enq.valid := s && out.r.valid
-          q.io.enq.bits := out.r.bits
+          q.enq.valid := s && out.r.valid
+          q.enq.bits := out.r.bits
         }
       }
     }
