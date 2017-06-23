@@ -135,11 +135,12 @@ object RegMapper
       val data = if (field.write.combinational) back.bits.data else front.bits.data
       val (f_riready, f_rovalid, f_data) = field.read.fn(rivalid(i) && rimask, roready(i) && romask)
       val (f_wiready, f_wovalid) = field.write.fn(wivalid(i) && wimask, woready(i) && womask, data(high, low))
+      def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) Bool(true) else x || y
       // Add this field to the ready-valid signals for the register
-      rifire(reg) = (rivalid(i), f_riready || !rimask) +: rifire(reg)
-      wifire(reg) = (wivalid(i), f_wiready || !wimask) +: wifire(reg)
-      rofire(reg) = (roready(i), f_rovalid || !romask) +: rofire(reg)
-      wofire(reg) = (woready(i), f_wovalid || !womask) +: wofire(reg)
+      rifire(reg) = (rivalid(i), litOR(f_riready, !rimask)) +: rifire(reg)
+      wifire(reg) = (wivalid(i), litOR(f_wiready, !wimask)) +: wifire(reg)
+      rofire(reg) = (roready(i), litOR(f_rovalid, !romask)) +: rofire(reg)
+      wofire(reg) = (woready(i), litOR(f_wovalid, !womask)) +: wofire(reg)
       dataOut(reg) = dataOut(reg) | ((f_data << low) & (~UInt(0, width = high+1)))
     }
 
