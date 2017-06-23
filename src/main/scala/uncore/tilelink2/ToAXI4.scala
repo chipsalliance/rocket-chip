@@ -10,17 +10,22 @@ import util.ElaborationArtefacts
 import uncore.axi4._
 import scala.math.{min, max}
 
-case class TLToAXI4Node(beatBytes: Int) extends MixedAdapterNode(TLImp, AXI4Imp)(
+case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
+    p.clients.foreach { c =>
+      require (c.sourceId.start % (1 << stripBits) == 0 &&
+               c.sourceId.end   % (1 << stripBits) == 0,
+               "Cannot strip bits of aligned client ${c.name}: ${c.sourceId}")
+    }
     val clients = p.clients.sortWith(TLToAXI4.sortByType _)
-    val idSize = clients.map { c => if (c.requestFifo) 1 else c.sourceId.size }
+    val idSize = clients.map { c => if (c.requestFifo) 1 else (c.sourceId.size >> stripBits) }
     val idStart = idSize.scanLeft(0)(_+_).init
     val masters = ((idStart zip idSize) zip clients) map { case ((start, size), c) =>
       AXI4MasterParameters(
         name      = c.name,
         id        = IdRange(start, start+size),
         aligned   = true,
-        maxFlight = Some(if (c.requestFifo) c.sourceId.size else 1),
+        maxFlight = Some(if (c.requestFifo) c.sourceId.size else (1 << stripBits)),
         nodePath  = c.nodePath)
     }
     AXI4MasterPortParameters(
@@ -43,9 +48,9 @@ case class TLToAXI4Node(beatBytes: Int) extends MixedAdapterNode(TLImp, AXI4Imp)
       minLatency = p.minLatency)
   })
 
-class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None)(implicit p: Parameters) extends LazyModule
+class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLToAXI4Node(beatBytes)
+  val node = TLToAXI4Node(beatBytes, stripBits)
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -71,7 +76,7 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       var idCount = Array.fill(edgeOut.master.endId) { 0 }
       val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
         for (i <- 0 until c.sourceId.size) {
-          val id = m.id.start + (if (c.requestFifo) 0 else i)
+          val id = m.id.start + (if (c.requestFifo) 0 else (i >> stripBits))
           sourceStall(c.sourceId.start + i) := idStall(id)
           sourceTable(c.sourceId.start + i) := UInt(id)
           idCount(id) = idCount(id) + 1
@@ -221,8 +226,8 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
 object TLToAXI4
 {
   // applied to the TL source node; y.node := TLToAXI4(beatBytes)(x.node)
-  def apply(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val axi4 = LazyModule(new TLToAXI4(beatBytes, combinational, adapterName))
+  def apply(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
+    val axi4 = LazyModule(new TLToAXI4(beatBytes, combinational, adapterName, stripBits))
     axi4.node := x
     axi4.node
   }
