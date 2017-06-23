@@ -42,7 +42,7 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Pa
     def group[T](x: Seq[T]) =
       if (x.isEmpty) Nil else x.grouped(node.edgesIn.size).toList.transpose
 
-    if (node.edgesIn.size <= 1) {
+    if (node.edgesOut.size <= 1) {
       io.out <> io.in
     } else ((node.edgesIn zip io.in) zip (group(node.edgesOut) zip group(io.out))) foreach {
       case ((edgeIn, io_in), (edgesOut, io_out)) =>
