@@ -73,14 +73,14 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       val sourceStall = Wire(Vec(edgeIn.client.endSourceId, Bool()))
       val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
       val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
-      var idCount = Array.fill(edgeOut.master.endId) { 0 }
+      var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
       val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
         for (i <- 0 until c.sourceId.size) {
           val id = m.id.start + (if (c.requestFifo) 0 else (i >> stripBits))
           sourceStall(c.sourceId.start + i) := idStall(id)
           sourceTable(c.sourceId.start + i) := UInt(id)
-          idCount(id) = idCount(id) + 1
         }
+        if (c.requestFifo) { idCount(m.id.start) = Some(c.sourceId.size) }
         adapterName.map { n =>
           val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s"
           println(fmt.format(m.id.start, m.id.end, c.sourceId.start, c.sourceId.end, c.name, if (c.supportsProbe) " CACHE" else ""))
@@ -199,8 +199,9 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       val a_sel = UIntToOH(arw.id, edgeOut.master.endId).toBools
       val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
-      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n > 1 } foreach { case (((as, ds), s), n) =>
-        val count = RegInit(UInt(0, width = log2Ceil(n + 1)))
+      // If FIFO was requested, ensure that R+W ordering is preserved
+      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n.map(_ > 1).getOrElse(false) } foreach { case (((as, ds), s), n) =>
+        val count = RegInit(UInt(0, width = log2Ceil(n.get + 1)))
         val write = Reg(Bool())
         val idle = count === UInt(0)
 
@@ -208,8 +209,8 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
         val dec = ds && d_last && in.d.fire()
         count := count + inc.asUInt - dec.asUInt
 
-        assert (!dec || count =/= UInt(0)) // underflow
-        assert (!inc || count =/= UInt(n)) // overflow
+        assert (!dec || count =/= UInt(0))     // underflow
+        assert (!inc || count =/= UInt(n.get)) // overflow
 
         when (inc) { write := arw.wen }
         s := !idle && write =/= arw.wen
