@@ -212,7 +212,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   reset_dcsr.xdebugver := 1
   reset_dcsr.prv := PRV.M
   val reg_dcsr = Reg(init=reset_dcsr)
-  val reg_debugint = Reg(init=Bool(false), next=io.interrupts.debug)
+  val reg_debugint = Reg(Bool())
 
   val (supported_interrupts, delegable_interrupts) = {
     val sup = Wire(new MIP)
@@ -720,6 +720,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   reg_mip.mtip := io.interrupts.mtip
   reg_mip.msip := io.interrupts.msip
   reg_mip.meip := io.interrupts.meip
+  reg_debugint := io.interrupts.debug
 
   if (!usingVM) {
     reg_mideleg := 0
