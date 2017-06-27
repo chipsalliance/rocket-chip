@@ -643,7 +643,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   if (enableCommitLog) {
     val pc = Wire(SInt(width=xLen))
-    pc := wb_reg_pc
+    pc := wb_reg_pc.asSInt
     val inst = wb_reg_inst
     val rd = RegNext(RegNext(RegNext(id_waddr)))
     val wfd = wb_ctrl.wfd
