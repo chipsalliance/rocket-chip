@@ -33,7 +33,8 @@ case class AXI4SlaveParameters(
 case class AXI4SlavePortParameters(
   slaves:     Seq[AXI4SlaveParameters],
   beatBytes:  Int,
-  minLatency: Int = 1)
+  minLatency: Int = 1,
+  writeCombining: Boolean = false)
 {
   require (!slaves.isEmpty)
   require (isPow2(beatBytes))
