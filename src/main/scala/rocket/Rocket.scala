@@ -642,8 +642,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   if (enableCommitLog) {
-    val pc = Wire(UInt(width=xLen))
-    pc := wb_reg_pc
+    val pc = Wire(SInt(width=xLen))
+    pc := wb_reg_pc.asSInt
     val inst = wb_reg_inst
     val rd = RegNext(RegNext(RegNext(id_waddr)))
     val wfd = wb_ctrl.wfd
