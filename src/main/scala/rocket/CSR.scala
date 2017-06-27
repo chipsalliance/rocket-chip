@@ -505,8 +505,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val exception = insn_call || insn_break || io.exception
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
-  when (insn_wfi) { reg_wfi := true }
-  when (pending_interrupts.orR || exception) { reg_wfi := false }
+  when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
+  when (pending_interrupts.orR || exception || reg_dcsr.debugint) { reg_wfi := false }
   assert(!reg_wfi || io.retire === UInt(0))
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
