@@ -7,8 +7,9 @@ import config._
 import scala.collection.immutable.{ListMap,SortedMap}
 
 sealed trait ResourceValue
-final case class ResourceAddress(address: Seq[AddressSet], r: Boolean, w: Boolean, x: Boolean, c: Boolean) extends ResourceValue
-final case class ResourceMapping(address: Seq[AddressSet], offset: BigInt) extends ResourceValue
+case class ResourcePermissions(r: Boolean, w: Boolean, x: Boolean, c: Boolean) // Not part of DTS
+final case class ResourceAddress(address: Seq[AddressSet], permissions: ResourcePermissions) extends ResourceValue
+final case class ResourceMapping(address: Seq[AddressSet], offset: BigInt, permissions: ResourcePermissions) extends ResourceValue
 final case class ResourceInt(value: BigInt) extends ResourceValue
 final case class ResourceString(value: String) extends ResourceValue
 final case class ResourceReference(value: String) extends ResourceValue
@@ -125,7 +126,7 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
 {
   override def describe(resources: ResourceBindings): Description = {
     val ranges = resources("ranges").map {
-      case Binding(_, a: ResourceAddress) => ResourceMapping(a.address, offset)
+      case Binding(_, a: ResourceAddress) => ResourceMapping(a.address, offset, a.permissions)
     }
     require (!ranges.isEmpty, s"SimpleBus $devname must set ranges")
 
