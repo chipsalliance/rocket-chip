@@ -69,15 +69,26 @@ trait DeviceRegName
   this: Device =>
   val prefix = "soc/" // nearly everything on-chip belongs here
   def describeName(devname: String, resources: ResourceBindings): String = {
-    val reg = resources("reg")
-    require (!reg.isEmpty, "Device is missing the 'reg' property")
-    reg.head.value match {
+    val reg = resources.map.filterKeys(regFilter)
+    require (!reg.isEmpty, "Device $devname is missing the 'reg' property")
+    val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
+    val mainreg = reg.find(x => regName(x._1) == "control").getOrElse(reg.head)._2
+    require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
+    mainreg.head.value match {
       case x: ResourceAddress => s"${prefix}${devname}@${x.address.head.base.toString(16)}"
       case _ => require(false, "Device has the wrong type of 'reg' property (${reg.head})"); ""
     }
   }
 
-  def reg = Seq(Resource(this, "reg"))
+  def reg(name: String): Seq[Resource] = Seq(Resource(this, "reg/" + name))
+  def reg: Seq[Resource] = Seq(Resource(this, "reg"))
+
+  def regFilter(name: String): Boolean = name == "reg" || name.take(4) == "reg/"
+  def regName(name: String): Option[String] = {
+    val keys = name.split("/")
+    require (keys.size >= 1 && keys.size <= 2 && keys(0) == "reg", s"Invalid reg name '${name}'")
+    if (keys.size == 1) None else Some(keys(1))
+  }
 }
 
 class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with DeviceInterrupts with DeviceRegName
@@ -89,9 +100,20 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with 
       if (devcompat.isEmpty) None else
       Some("compatible" -> devcompat.map(ResourceString(_)))
 
-    Description(name,
-      ListMap("reg" -> resources("reg").map(_.value))
-      ++ compat ++ int)
+    val reg = resources.map.filterKeys(regFilter)
+    val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
+    // We need to be sure that each named reg has exactly one AddressRange associated to it
+    named.foreach {
+      case (k, Seq(Binding(_, value: ResourceAddress))) =>
+        val ranges = AddressRange.fromSets(value.address)
+        require (ranges.size == 1, s"DTS device $name has $k = $ranges, must be a single range!")
+      case (k, seq) =>
+        require (false, s"DTS device $name has $k = $seq, must be a single ResourceAddress!")
+    }
+    val names = named.map(x => ResourceString(regName(x._1).get)).toList
+    val regs = (named ++ bulk).flatMap(_._2.map(_.value)).toList
+    Description(name, ListMap() ++ compat ++ int ++
+      Seq("reg" -> regs) ++ (if (names.isEmpty) Nil else Seq("reg-names" -> names)))
   }
 }
 
