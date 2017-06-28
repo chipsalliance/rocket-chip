@@ -430,29 +430,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
   val releaseDataBeat = Cat(UInt(0), c_count) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
 
-  val nackResponseMessage     = edge.ProbeAck(
-                                  b = probe_bits,
-                                  reportPermissions = TLPermissions.NtoN)
-
-  val voluntaryReleaseMessage = if (edge.manager.anySupportAcquireB) {
-                                edge.Release(
-                                  fromSource = UInt(0),
-                                  toAddress = probe_bits.address,
-                                  lgSize = lgCacheBlockBytes,
-                                  shrinkPermissions = s2_shrink_param,
-                                  data = 0.U)._2
-  } else {
-    Wire(new TLBundleC(edge.bundle))
-  }
-
-  val probeResponseMessage = Mux(!s2_prb_ack_data,
-                                edge.ProbeAck(
-                                  b = probe_bits,
-                                  reportPermissions = s2_report_param),
-                                edge.ProbeAck(
-                                  b = probe_bits,
-                                  reportPermissions = s2_report_param,
-                                  data = 0.U))
+  val nackResponseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = TLPermissions.NtoN)
+  val cleanReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param)
+  val dirtyReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param, data = 0.U)
 
   tl_out.c.valid := s2_release_data_valid
   tl_out.c.bits := nackResponseMessage
@@ -465,29 +445,43 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << idxLSB
   }
   when (s2_probe) {
-    when (s2_prb_ack_data) { release_state := s_probe_rep_dirty }
-    .elsewhen (s2_probe_state.isValid()) { release_state := s_probe_rep_clean }
-    .otherwise {
+    when (s2_prb_ack_data) {
+      release_state := s_probe_rep_dirty
+    }.elsewhen (s2_probe_state.isValid()) {
       tl_out.c.valid := true
-      release_state := s_probe_rep_miss
+      tl_out.c.bits := cleanReleaseMessage
+      release_state := Mux(releaseDone, s_probe_write_meta, s_probe_rep_clean)
+    }.otherwise {
+      tl_out.c.valid := true
+      release_state := Mux(releaseDone, s_ready, s_probe_rep_miss)
     }
   }
-  when (releaseDone) { release_state := s_ready }
-  when (release_state.isOneOf(s_probe_rep_miss, s_probe_rep_clean)) {
+  when (release_state === s_probe_rep_miss) {
     tl_out.c.valid := true
+    when (releaseDone) { release_state := s_ready }
   }
-  when (release_state.isOneOf(s_probe_rep_clean, s_probe_rep_dirty)) {
-    tl_out.c.bits := probeResponseMessage
+  when (release_state === s_probe_rep_clean) {
+    tl_out.c.valid := true
+    tl_out.c.bits := cleanReleaseMessage
+    when (releaseDone) { release_state := s_probe_write_meta }
+  }
+  when (release_state === s_probe_rep_dirty) {
+    tl_out.c.bits := dirtyReleaseMessage
     when (releaseDone) { release_state := s_probe_write_meta }
   }
   when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
-    tl_out.c.bits := voluntaryReleaseMessage
+    if (edge.manager.anySupportAcquireB)
+      tl_out.c.bits := edge.Release(fromSource = 0.U,
+                                    toAddress = 0.U,
+                                    lgSize = lgCacheBlockBytes,
+                                    shrinkPermissions = s2_shrink_param,
+                                    data = 0.U)._2
     newCoh := voluntaryNewCoh
     releaseWay := s2_victim_way
     when (releaseDone) { release_state := s_voluntary_write_meta }
     when (tl_out.c.fire() && c_first) { release_ack_wait := true }
   }
-  when (s2_probe && !tl_out.c.fire()) { s1_nack := true }
+  when (s2_probe && s2_probe_state.isValid()) { s1_nack := true }
   tl_out.c.bits.address := probe_bits.address
   tl_out.c.bits.data := s2_data_corrected
 
