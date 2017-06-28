@@ -329,6 +329,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       when (DMCONTROLWrEn) {
         DMCONTROLNxt.ndmreset  := DMCONTROLWrData.ndmreset
         DMCONTROLNxt.hartsel   := DMCONTROLWrData.hartsel
+        DMCONTROLNxt.haltreq   := DMCONTROLWrData.haltreq
+        DMCONTROLNxt.resumereq := DMCONTROLWrData.resumereq
       }
     }
 
@@ -937,6 +939,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val commandWrIsAccessRegister = (COMMANDWrData.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
     val commandRegIsAccessRegister = (COMMANDReg.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
 
+    val commandWrIsUnsupported = COMMANDWrEn && !commandWrIsAccessRegister;
+
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
     when (commandRegIsAccessRegister) {
@@ -954,16 +958,20 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // -----------------------
 
     when (ctrlStateReg === CtrlState(Waiting)){
-
       when (wrAccessRegisterCommand || regAccessRegisterCommand) {
         ctrlStateNxt := CtrlState(CheckGenerate)
+      }.elsewhen (commandWrIsUnsupported) { // These checks are really on the command type.
+        errorUnsupported := true.B
+      }.elsewhen (autoexec && commandRegIsUnsupported) {
+        errorUnsupported := true.B
       }
     }.elsewhen (ctrlStateReg === CtrlState(CheckGenerate)){
 
       // We use this state to ensure that the COMMAND has been
       // registered by the time that we need to use it, to avoid
       // generating it directly from the COMMANDWrData.
-
+      // This 'commandRegIsUnsupported' is really just checking the
+      // AccessRegisterCommand parameters (regno)
       when (commandRegIsUnsupported) {
         errorUnsupported := true.B
         ctrlStateNxt := CtrlState(Waiting)
