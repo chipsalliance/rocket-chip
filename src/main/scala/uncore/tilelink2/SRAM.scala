@@ -10,7 +10,7 @@ import util._
 
 class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, name: Option[String] = None)(implicit p: Parameters) extends LazyModule
 {
-  val device = name.map(new SimpleDevice(_, Nil)).getOrElse(new MemoryDevice)
+  val device = name.map(new SimpleDevice(_, Seq("sifive,sram0"))).getOrElse(new MemoryDevice)
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
