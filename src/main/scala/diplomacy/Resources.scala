@@ -70,13 +70,16 @@ trait DeviceRegName
   val prefix = "soc/" // nearly everything on-chip belongs here
   def describeName(devname: String, resources: ResourceBindings): String = {
     val reg = resources.map.filterKeys(regFilter)
-    require (!reg.isEmpty, "Device $devname is missing the 'reg' property")
-    val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
-    val mainreg = reg.find(x => regName(x._1) == "control").getOrElse(reg.head)._2
-    require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
-    mainreg.head.value match {
-      case x: ResourceAddress => s"${prefix}${devname}@${x.address.head.base.toString(16)}"
-      case _ => require(false, "Device has the wrong type of 'reg' property (${reg.head})"); ""
+    if (reg.isEmpty) {
+      devname
+    } else {
+      val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
+      val mainreg = reg.find(x => regName(x._1) == "control").getOrElse(reg.head)._2
+      require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
+      mainreg.head.value match {
+        case x: ResourceAddress => s"${prefix}${devname}@${x.address.head.base.toString(16)}"
+        case _ => require(false, "Device has the wrong type of 'reg' property (${reg.head})"); ""
+      }
     }
   }
 
@@ -96,9 +99,9 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with 
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)
     val int = describeInterrupts(resources)
-    val compat =
-      if (devcompat.isEmpty) None else
-      Some("compatible" -> devcompat.map(ResourceString(_)))
+
+    def optDef(x: String, seq: Seq[ResourceValue]) = if (seq.isEmpty) None else Some(x -> seq)
+    val compat = optDef("compatible", devcompat.map(ResourceString(_)))
 
     val reg = resources.map.filterKeys(regFilter)
     val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
@@ -110,11 +113,38 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with 
       case (k, seq) =>
         require (false, s"DTS device $name has $k = $seq, must be a single ResourceAddress!")
     }
-    val names = named.map(x => ResourceString(regName(x._1).get)).toList
-    val regs = (named ++ bulk).flatMap(_._2.map(_.value)).toList
-    Description(name, ListMap() ++ compat ++ int ++
-      Seq("reg" -> regs) ++ (if (names.isEmpty) Nil else Seq("reg-names" -> names)))
+
+    val names = optDef("reg-names", named.map(x => ResourceString(regName(x._1).get)).toList)
+    val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList)
+
+    Description(name, ListMap() ++ compat ++ int ++ names ++ regs)
   }
+}
+
+class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) extends SimpleDevice(devname, devcompat ++ Seq("simple-bus"))
+{
+  override def describe(resources: ResourceBindings): Description = {
+    val ranges = resources("ranges").map {
+      case Binding(_, a: ResourceAddress) => ResourceMapping(a.address, offset)
+    }
+    require (!ranges.isEmpty, s"SimpleBus $devname must set ranges")
+
+    val map = AddressRange.fromSets(ranges.flatMap(_.address))
+    val minBase = map.map(_.base).min
+    val maxBase = map.map(_.end).max
+    val maxSize = map.map(_.size).max
+
+    def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
+    val extra = Map(
+      "#address-cells"   -> ofInt((log2Ceil(maxBase) + 31) / 32),
+      "#size-cells"      -> ofInt((log2Ceil(maxSize) + 31) / 32),
+      "ranges"           -> ranges)
+
+    val Description(_, mapping) = super.describe(resources)
+    Description(s"${prefix}${devname}@${minBase.toString(16)}", mapping ++ extra)
+  }
+
+  def ranges = Seq(Resource(this, "ranges"))
 }
 
 class MemoryDevice extends Device with DeviceRegName
