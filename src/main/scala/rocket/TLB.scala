@@ -27,7 +27,6 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val vaddr = UInt(width = vaddrBitsExtended)
   val passthrough = Bool()
   val instruction = Bool()
-  val store = Bool()
   val sfence = Valid(new SFenceReq)
   val size = UInt(width = log2Ceil(lgMaxSize + 1))
   val cmd  = Bits(width = M_SZ)
@@ -80,6 +79,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val totalEntries = nEntries + 1
   val normalEntries = nEntries
   val specialEntry = nEntries
+  val aeEntry = specialEntry - (1 << log2Floor(nEntries))
   val valid = Reg(init = UInt(0, totalEntries))
   val reg_entries = Reg(Vec(totalEntries, UInt(width = new Entry().getWidth)))
   val entries = reg_entries.map(_.asTypeOf(new Entry))
@@ -118,7 +118,6 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val prot_aa = fastCheck(_.supportsArithmetic) || cacheable
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
-  val isSpecial = !(io.ptw.resp.bits.homogeneous || io.ptw.resp.bits.ae)
 
   val lookup_tag = Cat(io.ptw.ptbr.asid, vpn(vpnBits-1,0))
   val hitsVec = (0 until totalEntries).map { i => vm_enabled && {
@@ -141,7 +140,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
 
   // permission bit arrays
   when (do_refill && !invalidate_refill) {
-    val waddr = Mux(isSpecial, specialEntry.U, r_refill_waddr)
+    val waddr = Mux(io.ptw.resp.bits.ae, aeEntry.U, Mux(!io.ptw.resp.bits.homogeneous, specialEntry.U, r_refill_waddr))
     val pte = io.ptw.resp.bits.pte
     val newEntry = Wire(new Entry)
     newEntry.ppn := pte.ppn
@@ -150,13 +149,10 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     newEntry.c := cacheable
     newEntry.u := pte.u
     newEntry.g := pte.g
-    // if an access exception occurs during PTW, pretend the page has full
-    // permissions so that a page fault will not occur, but clear the
-    // phyiscal memory permissions, so that an access exception will occur.
     newEntry.ae := io.ptw.resp.bits.ae
-    newEntry.sr := pte.sr() || io.ptw.resp.bits.ae
-    newEntry.sw := pte.sw() || io.ptw.resp.bits.ae
-    newEntry.sx := pte.sx() || io.ptw.resp.bits.ae
+    newEntry.sr := pte.sr()
+    newEntry.sw := pte.sw()
+    newEntry.sx := pte.sx()
     newEntry.pr := prot_r && !io.ptw.resp.bits.ae
     newEntry.pw := prot_w && !io.ptw.resp.bits.ae
     newEntry.px := prot_x && !io.ptw.resp.bits.ae
@@ -171,10 +167,12 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val plru = new PseudoLRU(normalEntries)
   val repl_waddr = Mux(!valid(normalEntries-1, 0).andR, PriorityEncoder(~valid(normalEntries-1, 0)), plru.replace)
 
-  val priv_ok = entries.map(_.ae).asUInt | Mux(priv_s, ~Mux(io.ptw.status.sum, UInt(0), entries.map(_.u).asUInt), entries.map(_.u).asUInt)
-  val r_array = Cat(true.B, priv_ok & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.sx).asUInt, UInt(0))))
-  val w_array = Cat(true.B, priv_ok & entries.map(_.sw).asUInt)
-  val x_array = Cat(true.B, priv_ok & entries.map(_.sx).asUInt)
+  val ptw_ae_array = entries(aeEntry).ae << aeEntry
+  val priv_rw_ok = Mux(!priv_s || io.ptw.status.sum, entries.map(_.u).asUInt, 0.U) | Mux(priv_s, ~entries.map(_.u).asUInt, 0.U)
+  val priv_x_ok = Mux(priv_s, ~entries.map(_.u).asUInt, entries.map(_.u).asUInt)
+  val r_array = Cat(true.B, priv_rw_ok & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.sx).asUInt, UInt(0))))
+  val w_array = Cat(true.B, priv_rw_ok & entries.map(_.sw).asUInt)
+  val x_array = Cat(true.B, priv_x_ok & entries.map(_.sx).asUInt)
   val pr_array = Cat(Fill(2, prot_r), entries.init.map(_.pr).asUInt)
   val pw_array = Cat(Fill(2, prot_w), entries.init.map(_.pw).asUInt)
   val px_array = Cat(Fill(2, prot_x), entries.init.map(_.px).asUInt)
@@ -199,8 +197,9 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     Mux(Bool(usingAtomics) && isAMOArithmetic(io.req.bits.cmd), ~paa_array, 0.U)
   val ma_ld_array = Mux(misaligned && isRead(io.req.bits.cmd), ~eff_array, 0.U)
   val ma_st_array = Mux(misaligned && isWrite(io.req.bits.cmd), ~eff_array, 0.U)
-  val pf_ld_array = Mux(isRead(io.req.bits.cmd), ~r_array, 0.U)
-  val pf_st_array = Mux(isWrite(io.req.bits.cmd), ~w_array, 0.U)
+  val pf_ld_array = Mux(isRead(io.req.bits.cmd), ~(r_array | ptw_ae_array), 0.U)
+  val pf_st_array = Mux(isWrite(io.req.bits.cmd), ~(w_array | ptw_ae_array), 0.U)
+  val pf_inst_array = ~(x_array | ptw_ae_array)
 
   val tlb_hit = hits(totalEntries-1, 0).orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit && !io.req.bits.sfence.valid
@@ -218,7 +217,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   io.req.ready := state === s_ready
   io.resp.pf.ld := (bad_va && isRead(io.req.bits.cmd)) || (pf_ld_array & hits).orR
   io.resp.pf.st := (bad_va && isWrite(io.req.bits.cmd)) || (pf_st_array & hits).orR
-  io.resp.pf.inst := bad_va || (~x_array & hits).orR
+  io.resp.pf.inst := bad_va || (pf_inst_array & hits).orR
   io.resp.ae.ld := (ae_ld_array & hits).orR
   io.resp.ae.st := (ae_st_array & hits).orR
   io.resp.ae.inst := (~px_array & hits).orR

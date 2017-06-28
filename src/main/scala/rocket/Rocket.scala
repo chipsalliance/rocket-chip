@@ -231,14 +231,16 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
 
-  val id_xcpt_pf = ibuf.io.inst(0).bits.pf0 || ibuf.io.inst(0).bits.pf1
-  val id_xcpt_ae = ibuf.io.inst(0).bits.ae0 || ibuf.io.inst(0).bits.ae1
+  val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
+  val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
     (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
-    (id_xcpt_pf,       UInt(Causes.fetch_page_fault)),
-    (id_xcpt_ae,       UInt(Causes.fetch_access)),
+    (id_xcpt0.pf.inst, UInt(Causes.fetch_page_fault)),
+    (id_xcpt0.ae.inst, UInt(Causes.fetch_access)),
+    (id_xcpt1.pf.inst, UInt(Causes.fetch_page_fault)),
+    (id_xcpt1.ae.inst, UInt(Causes.fetch_access)),
     (id_illegal_insn,  UInt(Causes.illegal_instruction))))
 
   val dcache_bypass_data =
@@ -305,14 +307,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ex_ctrl.alu_dw := DW_XPR
       ex_ctrl.sel_alu1 := A1_RS1 // badaddr := instruction
       ex_ctrl.sel_alu2 := A2_ZERO
-      when (bpu.io.xcpt_if || id_xcpt_pf || id_xcpt_ae) { // badaddr := PC
+      when (id_xcpt1.asUInt.orR) { // badaddr := PC+2
         ex_ctrl.sel_alu1 := A1_PC
-      }
-      val pf_second = !ibuf.io.inst(0).bits.pf0 && ibuf.io.inst(0).bits.pf1
-      val ae_second = !ibuf.io.inst(0).bits.ae0 && ibuf.io.inst(0).bits.ae1
-      when (!bpu.io.xcpt_if && (pf_second || (!id_xcpt_pf && ae_second))) { // badaddr := PC+2
         ex_ctrl.sel_alu2 := A2_SIZE
         ex_reg_rvc := true
+      }
+      when (bpu.io.xcpt_if || id_xcpt0.asUInt.orR) { // badaddr := PC
+        ex_ctrl.sel_alu1 := A1_PC
+        ex_ctrl.sel_alu2 := A2_ZERO
       }
     }
     ex_reg_flush_pipe := id_ctrl.fence_i || id_csr_flush
@@ -354,6 +356,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killx = take_pc_mem_wb || replay_ex || !ex_reg_valid
   // detect 2-cycle load-use delay for LB/LH/SC
   val ex_slow_bypass = ex_ctrl.mem_cmd === M_XSC || Vec(MT_B, MT_BU, MT_H, MT_HU).contains(ex_ctrl.mem_type)
+  val ex_sfence = Bool(usingVM) && ex_ctrl.mem && ex_ctrl.mem_cmd === M_SFENCE
 
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause)))
@@ -385,7 +388,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_rvc := ex_reg_rvc
     mem_reg_load := ex_ctrl.mem && isRead(ex_ctrl.mem_cmd)
     mem_reg_store := ex_ctrl.mem && isWrite(ex_ctrl.mem_cmd)
-    mem_reg_sfence := Bool(usingVM) && ex_ctrl.mem && ex_ctrl.mem_cmd === M_SFENCE
+    mem_reg_sfence := ex_sfence
     mem_reg_btb_hit := ex_reg_btb_hit
     when (ex_reg_btb_hit) { mem_reg_btb_resp := ex_reg_btb_resp }
     mem_reg_flush_pipe := ex_reg_flush_pipe
@@ -395,7 +398,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_inst := ex_reg_inst
     mem_reg_pc := ex_reg_pc
     mem_reg_wdata := alu.io.out
-    when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc)) {
+    when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
       val typ = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_ctrl.mem_type)
       mem_reg_rs2 := new uncore.util.StoreGen(typ, 0.U, ex_rs(1), coreDataBytes).data
     }
@@ -429,7 +432,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_rvc := mem_reg_rvc
     wb_reg_sfence := mem_reg_sfence
     wb_reg_wdata := Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
-    when (mem_ctrl.rocc) {
+    when (mem_ctrl.rocc || mem_reg_sfence) {
       wb_reg_rs2 := mem_reg_rs2
     }
     wb_reg_cause := mem_cause
@@ -673,7 +676,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.hartid, csr.io.time(31,0), wb_valid, wb_reg_pc,
-         Mux(rf_wen, rf_waddr, UInt(0)), rf_wdata, rf_wen,
+         Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0)), rf_wdata, rf_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
          wb_reg_inst, wb_reg_inst)

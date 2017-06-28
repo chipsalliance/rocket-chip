@@ -18,13 +18,21 @@ class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val speculative = Bool()
 }
 
+class FrontendExceptions extends Bundle {
+  val pf = new Bundle {
+    val inst = Bool()
+  }
+  val ae = new Bundle {
+    val inst = Bool()
+  }
+}
+
 class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val btb = Valid(new BTBResp)
   val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
   val data = UInt(width = fetchWidth * coreInstBits)
   val mask = Bits(width = fetchWidth)
-  val pf = Bool()
-  val ae = Bool()
+  val xcpt = new FrontendExceptions
   val replay = Bool()
 }
 
@@ -82,12 +90,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_pc = Reg(init=io.resetVector)
   val s2_btb_resp_valid = Reg(init=Bool(false))
   val s2_btb_resp_bits = Reg(new BTBResp)
-  val s2_maybe_pf = Reg(Bool())
-  val s2_maybe_ae = Reg(Bool())
-  val s2_tlb_miss = Reg(Bool())
-  val s2_pf = s2_maybe_pf && !s2_tlb_miss
-  val s2_ae = s2_maybe_ae && !s2_tlb_miss
-  val s2_xcpt = s2_pf || s2_ae
+  val s2_tlb_resp = Reg(tlb.io.resp)
+  val s2_xcpt = !s2_tlb_resp.miss && fq.io.enq.bits.xcpt.asUInt.orR
   val s2_speculative = Reg(init=Bool(false))
 
   val fetchBytes = coreInstBytes * fetchWidth
@@ -113,9 +117,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     s2_valid := true
     s2_pc := s1_pc
     s2_speculative := s1_speculative
-    s2_maybe_pf := tlb.io.resp.pf.inst
-    s2_maybe_ae := tlb.io.resp.ae.inst
-    s2_tlb_miss := tlb.io.resp.miss
+    s2_tlb_resp := tlb.io.resp
   }
 
   if (usingBTB) {
@@ -149,7 +151,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.instruction := Bool(true)
-  tlb.io.req.bits.store := Bool(false)
   tlb.io.req.bits.sfence := io.cpu.sfence
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
 
@@ -160,7 +161,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s2_vaddr := s2_pc
   icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || s2_replay
-  icache.io.s2_kill := s2_valid && (s2_speculative || s2_xcpt)
+  icache.io.s2_kill := s2_valid && (s2_speculative && !s2_tlb_resp.cacheable || s2_xcpt)
 
   fq.io.enq.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
@@ -168,8 +169,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   fq.io.enq.bits.data := icache.io.resp.bits
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  fq.io.enq.bits.pf := s2_pf
-  fq.io.enq.bits.ae := s2_ae
+  fq.io.enq.bits.xcpt := s2_tlb_resp
   fq.io.enq.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
   fq.io.enq.bits.btb.valid := s2_btb_resp_valid
   fq.io.enq.bits.btb.bits := s2_btb_resp_bits

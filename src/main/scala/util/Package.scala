@@ -57,6 +57,9 @@ package object util {
       else x(hi, lo)
     }
 
+    def grouped(width: Int): Seq[UInt] =
+      (0 until x.getWidth by width).map(base => x(base + width - 1, base))
+
     def inRange(base: UInt, bounds: UInt) = x >= base && x < bounds
   }
 

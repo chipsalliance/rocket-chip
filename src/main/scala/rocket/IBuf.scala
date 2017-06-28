@@ -9,10 +9,8 @@ import tile._
 import util._
 
 class Instruction(implicit val p: Parameters) extends ParameterizedBundle with HasCoreParameters {
-  val pf0 = Bool() // page fault on first half of instruction
-  val pf1 = Bool() // page fault on second half of instruction
-  val ae0 = Bool() // access exception on first half of instruction
-  val ae1 = Bool() // access exception on second half of instruction
+  val xcpt0 = new FrontendExceptions // exceptions on first half of instruction
+  val xcpt1 = new FrontendExceptions // exceptions on second half of instruction
   val replay = Bool()
   val btb_hit = Bool()
   val rvc = Bool()
@@ -80,8 +78,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
 
   val valid = (UIntToOH(nValid) - 1)(fetchWidth-1, 0)
   val bufMask = UIntToOH(nBufValid) - 1
-  val pf = valid & (Mux(buf.pf, bufMask, UInt(0)) | Mux(io.imem.bits.pf, ~bufMask, UInt(0)))
-  val ae = valid & (Mux(buf.ae, bufMask, UInt(0)) | Mux(io.imem.bits.ae, ~bufMask, UInt(0)))
+  val xcpt = (0 until bufMask.getWidth).map(i => Mux(bufMask(i), buf.xcpt, io.imem.bits.xcpt))
   val ic_replay = valid & (Mux(buf.replay, bufMask, UInt(0)) | Mux(io.imem.bits.replay, ~bufMask, UInt(0)))
   val ibufBTBHitMask = Mux(ibufBTBHit, UIntToOH(ibufBTBResp.bridx), UInt(0))
   assert(!io.imem.valid || !io.imem.bits.btb.valid || io.imem.bits.btb.bits.bridx >= pcWordBits)
@@ -100,11 +97,9 @@ class IBuf(implicit p: Parameters) extends CoreModule {
 
     if (usingCompressed) {
       val replay = ic_replay(j) || (!exp.io.rvc && (btbHitMask(j) || ic_replay(j+1)))
-      io.inst(i).valid := valid(j) && (exp.io.rvc || valid(j+1) || pf(j+1) || ae(j+1) || replay)
-      io.inst(i).bits.pf0 := pf(j)
-      io.inst(i).bits.pf1 := !exp.io.rvc && pf(j+1)
-      io.inst(i).bits.ae0 := ae(j)
-      io.inst(i).bits.ae1 := !exp.io.rvc && ae(j+1)
+      io.inst(i).valid := valid(j) && (exp.io.rvc || valid(j+1) || xcpt(j+1).asUInt.orR || replay)
+      io.inst(i).bits.xcpt0 := xcpt(j)
+      io.inst(i).bits.xcpt1 := Mux(exp.io.rvc, 0.U, xcpt(j+1).asUInt).asTypeOf(new FrontendExceptions)
       io.inst(i).bits.replay := replay
       io.inst(i).bits.btb_hit := btbHitMask(j) || (!exp.io.rvc && btbHitMask(j+1))
       io.inst(i).bits.rvc := exp.io.rvc
@@ -115,10 +110,8 @@ class IBuf(implicit p: Parameters) extends CoreModule {
     } else {
       when (io.inst(i).ready) { nReady := i+1 }
       io.inst(i).valid := valid(i)
-      io.inst(i).bits.pf0 := pf(i)
-      io.inst(i).bits.pf1 := false
-      io.inst(i).bits.ae0 := ae(i)
-      io.inst(i).bits.ae1 := false
+      io.inst(i).bits.xcpt0 := xcpt(i)
+      io.inst(i).bits.xcpt1 := 0.U.asTypeOf(new FrontendExceptions)
       io.inst(i).bits.replay := ic_replay(i)
       io.inst(i).bits.rvc := false
       io.inst(i).bits.btb_hit := btbHitMask(i)

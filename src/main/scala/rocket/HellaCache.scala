@@ -22,6 +22,7 @@ case class DCacheParams(
     nTLBEntries: Int = 32,
     tagECC: Code = new IdentityCode,
     dataECC: Code = new IdentityCode,
+    dataECCBytes: Int = 1,
     nMSHRs: Int = 1,
     nSDQ: Int = 17,
     nRPQ: Int = 16,
