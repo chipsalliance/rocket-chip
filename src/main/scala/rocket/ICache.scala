@@ -40,7 +40,7 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
   val masterNode = TLClientNode(TLClientParameters(name = s"Core ${hartid} ICache"))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Nil)
+  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
   val slaveNode = icacheParams.itimAddr.map { itimAddr =>
     val wordBytes = icacheParams.fetchBytes
     TLManagerNode(Seq(TLManagerPortParameters(
