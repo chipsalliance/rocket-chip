@@ -42,7 +42,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       val c = if (rocketParams.core.useCompressed) "c" else ""
       val isa = s"rv${p(XLen)}i$m$a$f$d$c"
 
-      val dcache = rocketParams.dcache.map(d => Map(
+      val dcache = rocketParams.dcache.filter(!_.scratch.isDefined).map(d => Map(
         "d-cache-block-size"   -> ofInt(block),
         "d-cache-sets"         -> ofInt(d.nSets),
         "d-cache-size"         -> ofInt(d.nSets * d.nWays * block))).getOrElse(Map())
