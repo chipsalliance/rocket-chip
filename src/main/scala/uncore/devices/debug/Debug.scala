@@ -283,7 +283,6 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   val dmiNode = TLRegisterNode (
     address = AddressSet.misaligned(DMI_DMCONTROL << 2, 4),
     device = device,
-    deviceKey = "reg",
     beatBytes = 4,
     executable = false
   )
@@ -430,7 +429,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     address = AddressSet.misaligned(0, DMI_RegAddrs.DMI_DMCONTROL << 2) ++
               AddressSet.misaligned((DMI_RegAddrs.DMI_DMCONTROL + 1) << 2, (0x200 - ((DMI_RegAddrs.DMI_DMCONTROL + 1) << 2))),
     device = device,
-    deviceKey = "reg",
     beatBytes = 4,
     executable = false
   )
@@ -438,7 +436,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
   val tlNode = TLRegisterNode(
     address=Seq(AddressSet(0, 0xFFF)), // This is required for correct functionality, it's not configurable.
     device=device,
-    deviceKey="reg",
     beatBytes=p(XLen)/8,
     executable=true
   )

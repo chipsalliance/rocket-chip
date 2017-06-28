@@ -46,7 +46,7 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
     TLManagerNode(Seq(TLManagerPortParameters(
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
-        resources       = device.reg,
+        resources       = device.reg("mem"),
         regionType      = RegionType.UNCACHED,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),

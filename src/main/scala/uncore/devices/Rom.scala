@@ -13,7 +13,7 @@ import uncore.util._
 import config._
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
-  resources: Seq[Resource] = new SimpleDevice("rom", Nil).reg)(implicit p: Parameters) extends LazyModule
+  resources: Seq[Resource] = new SimpleDevice("rom", Nil).reg("mem"))(implicit p: Parameters) extends LazyModule
 {
 
   val node = TLManagerNode(beatBytes, TLManagerParameters (

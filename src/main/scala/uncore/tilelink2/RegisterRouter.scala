@@ -11,7 +11,7 @@ import scala.math.{min,max}
 class TLRegisterNode(
     address:     Seq[AddressSet],
     device:      Device,
-    deviceKey:   String  = "reg",
+    deviceKey:   String  = "reg/control",
     concurrency: Int     = 0,
     beatBytes:   Int     = 4,
     undefZero:   Boolean = true,
@@ -88,7 +88,7 @@ object TLRegisterNode
   def apply(
       address:     Seq[AddressSet],
       device:      Device,
-      deviceKey:   String  = "reg",
+      deviceKey:   String  = "reg/control",
       concurrency: Int     = 0,
       beatBytes:   Int     = 4,
       undefZero:   Boolean = true,
@@ -103,7 +103,7 @@ object TLRegisterNode
 abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val device = new SimpleDevice(devname, devcompat)
-  val node = TLRegisterNode(Seq(address), device, "reg", concurrency, beatBytes, undefZero, executable)
+  val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
 

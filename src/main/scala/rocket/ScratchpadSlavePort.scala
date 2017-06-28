@@ -19,7 +19,7 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
-      resources          = device.reg,
+      resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHED,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,

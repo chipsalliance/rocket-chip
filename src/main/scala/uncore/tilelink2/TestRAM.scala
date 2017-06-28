@@ -15,7 +15,7 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
-      resources          = device.reg,
+      resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHED,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),
