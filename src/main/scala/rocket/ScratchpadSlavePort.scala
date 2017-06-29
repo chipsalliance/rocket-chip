@@ -13,13 +13,20 @@ import uncore.tilelink2._
 import uncore.util._
 import util._
 
-class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends LazyModule
+class ScratchpadSlavePort(address: AddressSet, owner: => Option[Device] = None)(implicit p: Parameters) extends LazyModule
     with HasCoreParameters {
-  val device = new SimpleDevice("dtim", Nil)
+  val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
+    override def describe(resources: ResourceBindings): Description = {
+      val extra = owner.map(x => ("sifive,cpu" -> Seq(ResourceReference(x.label))))
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ extra)
+    }
+  }
+
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
-      resources          = device.reg,
+      resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHED,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
@@ -102,6 +109,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCor
   val module: CanHaveScratchpadModule
 
   val slaveNode = TLInputNode() // Up to two uses for this input node:
+  def dtimOwner: Option[Device] = None // who owns the Scratchpad?
 
   // 1) Frontend always exists, but may or may not have a scratchpad node
   val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), earlyAck=true))
@@ -112,7 +120,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCor
 
   // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
   val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1)))))
+    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), dtimOwner))))
   scratch foreach { lm => lm.node := TLFragmenter(xLen/8, p(CacheBlockBytes), earlyAck=true)(slaveNode) }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>

@@ -14,7 +14,7 @@ class TLError(address: Seq[AddressSet], beatBytes: Int = 4)(implicit p: Paramete
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = address,
-      resources          = device.reg,
+      resources          = device.reg("mem"),
       supportsGet        = TransferSizes(1, beatBytes),
       supportsPutPartial = TransferSizes(1, beatBytes),
       supportsPutFull    = TransferSizes(1, beatBytes),
