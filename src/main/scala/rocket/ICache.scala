@@ -35,19 +35,12 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
   val addr = UInt(width = vaddrBits)
 }
 
-class ICache(val icacheParams: ICacheParams, val hartid: Int, owner: => Option[Device] = None)(implicit p: Parameters) extends LazyModule {
+class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
   val masterNode = TLClientNode(TLClientParameters(name = s"Core ${hartid} ICache"))
 
-  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
-      override def describe(resources: ResourceBindings): Description = {
-      val extra = owner.map(x => ("sifive,cpu" -> Seq(ResourceReference(x.label))))
-      val Description(name, mapping) = super.describe(resources)
-      Description(name, mapping ++ extra)
-    }
-  }
-
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
+  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
   val slaveNode = icacheParams.itimAddr.map { itimAddr =>
     val wordBytes = icacheParams.fetchBytes
     TLManagerNode(Seq(TLManagerPortParameters(

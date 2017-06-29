@@ -91,7 +91,6 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
   }
 
   override def dtimOwner = Some(cpuDevice)
-  override def itimOwner = Some(cpuDevice)
 
   val intcDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
