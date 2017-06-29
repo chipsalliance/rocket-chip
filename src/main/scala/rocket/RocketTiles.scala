@@ -89,9 +89,6 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
         ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb)
     }
   }
-
-  override def dtimOwner = Some(cpuDevice)
-
   val intcDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
       Description(s"cpus/cpu@${hartid}/interrupt-controller", Map(
