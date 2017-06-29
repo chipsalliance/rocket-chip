@@ -31,6 +31,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 
   private def ofInt(x: Int) = Seq(ResourceInt(BigInt(x)))
   private def ofStr(x: String) = Seq(ResourceString(x))
+  private def ofRef(x: Device) = Seq(ResourceReference(x.label))
 
   val cpuDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
@@ -46,6 +47,12 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
         "d-cache-block-size"   -> ofInt(block),
         "d-cache-sets"         -> ofInt(d.nSets),
         "d-cache-size"         -> ofInt(d.nSets * d.nWays * block))).getOrElse(Map())
+
+      val dtim = scratch.map(d => Map(
+        "sifive,dtim"          -> ofRef(d.device))).getOrElse(Map())
+
+      val itim = if (!frontend.icache.slaveNode.isDefined) Map() else Map(
+        "sifive,itim"          -> ofRef(frontend.icache.device))
 
       val icache = rocketParams.icache.map(i => Map(
         "i-cache-block-size"   -> ofInt(block),
@@ -86,7 +93,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
         "riscv,isa"            -> ofStr(isa))
-        ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb)
+        ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb ++ dtim ++itim)
     }
   }
   val intcDevice = new Device {
