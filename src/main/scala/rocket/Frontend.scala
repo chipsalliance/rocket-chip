@@ -59,8 +59,9 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int, owner: => Option[Dev
   val masterNode = TLOutputNode()
   val slaveNode = TLInputNode()
 
-  icache.slaveNode.map { _ := slaveNode }
   masterNode := icache.masterNode
+  // Avoid breaking tile dedup due to address constants in the monitor
+  icache.slaveNode.map { _ connectButDontMonitor slaveNode }
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {

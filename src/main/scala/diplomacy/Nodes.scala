@@ -18,7 +18,8 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
   def colour: String
   def reverse: Boolean = false
-  def connect(edges: () => Seq[EI], bundles: () => Seq[(BI, BI)])(implicit p: Parameters, sourceInfo: SourceInfo): (Option[MonitorBase], () => Unit) = {
+  def connect(edges: () => Seq[EI], bundles: () => Seq[(BI, BI)], enableMonitoring: Boolean)
+              (implicit p: Parameters, sourceInfo: SourceInfo): (Option[MonitorBase], () => Unit) = {
     (None, () => bundles().foreach { case (i, o) => i <> o })
   }
 
@@ -229,7 +230,8 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val bundleIn  = wireI(flipI(HeterogeneousBag(edgesIn .map(inner.bundleI(_)))))
 
   // connects the outward part of a node with the inward part of this node
-  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = {
+  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding, enableMonitoring: Boolean)
+                  (implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = {
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
@@ -255,14 +257,16 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         (x.bundleIn(iStart+j), y.bundleOut(oStart+j))
       }
     }
-    val (out, newbinding) = inner.connect(edges _, bundles _)
+    val (out, newbinding) = inner.connect(edges _, bundles _, enableMonitoring)
     LazyModule.stack.head.bindings = newbinding :: LazyModule.stack.head.bindings
     out
   }
 
-  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE)
-  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_STAR)
-  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY)
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE, true)
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_STAR, true)
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY, true)
+
+  def connectButDontMonitor(h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE, false)
 
   // meta-data for printing the node graph
   protected[diplomacy] def colour  = inner.colour
