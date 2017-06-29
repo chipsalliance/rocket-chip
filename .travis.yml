@@ -40,6 +40,18 @@ branches:
     - hwacha
     - boom
     - /^hurricane.*$/
+    
+# These branches are the only ones that
+# will build when "build branch updates"
+# is set in settings (branches which PR against
+# them are still built). With this set, 
+# the above blacklist is not useful.
+# Adding this allows us to keep "Build Branch Updates" 
+# set to 'ON'.
+
+branches:
+  only:
+  - master
 
 jobs:
   include:
