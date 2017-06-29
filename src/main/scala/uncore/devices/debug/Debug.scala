@@ -540,8 +540,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       DMSTATUSRdData.anyrunning := true.B
     }
 
-    DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg)
-    DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg)
+    val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
+ 
+    DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
+    DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
 
     //TODO
     DMSTATUSRdData.cfgstrvalid := false.B
@@ -710,7 +712,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
             resumeReqRegs(component) := false.B
           }
         }
-        when(io.innerCtrl.fire() && io.innerCtrl.bits.resumereq) {
+        when(resumereq) {
           resumeReqRegs(io.innerCtrl.bits.hartsel) := true.B
         }
       }
