@@ -5,6 +5,7 @@ import Keys._
 import complete._
 import complete.DefaultParsers._
 import xerial.sbt.Pack._
+import chiselBuild.ChiselDependencies
 
 object BuildSettings extends Build {
 
@@ -19,9 +20,9 @@ object BuildSettings extends Build {
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
 
-  lazy val chisel = project in file("chisel3")
-  lazy val hardfloat  = project.dependsOn(chisel)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, hardfloat)
+//  lazy val chisel3 = project in file("chisel3")
+  lazy val hardfloat  = project.dependsOn(SubprojectBuild.chisel3)
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(SubprojectBuild.chisel3, hardfloat)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
