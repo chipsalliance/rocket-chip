@@ -8,7 +8,7 @@ things fast again. We don't generally build on merges to master, just PRs.
 
 1. Wait for your PR that you want to merge to go green. This will take a long time.
 2. On Travis, click `More Options -> Caches` on the upper right.
-3. Click `Delete all Repository Caches`. 
+3. Click `Delete` for the `master` cache.
 4. Click `More Options->Settings`
 5. On the `General Settings` section, switch the `Build Branch Updates` toggle to `ON`.
 6. perform your PR's merge to master. This will cause the master cache to build `riscv-tools`.
