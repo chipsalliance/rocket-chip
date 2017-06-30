@@ -147,13 +147,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
     val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
     val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
-
-    for ((p, g) <- pending zip gateways) {
-      g.ready := !p
-      g.complete := false
-      when (g.valid) { p := true }
-    }
-
+    
     def findMax(x: Seq[UInt]): (UInt, UInt) = {
       if (x.length > 1) {
         val half = 1 << (log2Ceil(x.length) - 1)
@@ -182,14 +176,28 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
     }
 
+    val claimer = Wire(init = Vec.fill(nHarts){Bool(false)})
+    val claiming = Wire(init = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i)), UInt(0, width=log2Up(nDevices+1)))})
+    val claimedDevs = Wire(init = Vec(claiming.reduceLeft( _ | _ ).toBools))
+
+    for ((pg, c) <- (pending zip gateways) zip claimedDevs) {
+      val p = pg._1
+      val g = pg._2
+      g.ready := !p
+      g.complete := false
+      when(c) {
+        p := false
+      }.elsewhen (g.valid) {
+        p := true
+      }
+    }
+
     val hartRegFields = Seq.tabulate(nHarts) { i =>
       PLICConsts.hartBase(i) -> Seq(
         priorityRegField(threshold(i)),
         RegField(32,
           RegReadFn { valid =>
-            when (valid) {
-              pending(maxDevs(i)) := Bool(false)
-            }
+            claimer(i) := valid
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
@@ -202,6 +210,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
         )
       )
     }
+
 
     node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
