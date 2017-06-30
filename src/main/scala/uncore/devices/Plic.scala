@@ -146,13 +146,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
     val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
     val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
-
-    for ((p, g) <- pending zip gateways) {
-      g.ready := !p
-      g.complete := false
-      when (g.valid) { p := true }
-    }
-
+    
     def findMax(x: Seq[UInt]): (UInt, UInt) = {
       if (x.length > 1) {
         val half = 1 << (log2Ceil(x.length) - 1)
@@ -181,21 +175,50 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
     }
 
+    // When a hart reads a claim/complete register, then the
+    // device which is currently its highest priority is no longer pending.
+    // This code exploits the fact that, practically, only one claim/complete
+    // register can be read at a time. We check for this because if the address map
+    // were to change, it may no longer be true.
+    // Note: PLIC doesn't care which hart reads the register.
+    val claimer = Wire(Vec(nHarts, Bool()))
+    assert((claimer.asUInt & (claimer.asUInt - UInt(1))) === UInt(0)) // One-Hot
+    val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
+    val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
+
+    ((pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
+      g.ready := !p
+      when (c || g.valid) { p := !c }
+    }
+
+    // When a hart writes a claim/complete register, then
+    // the written device (as long as it is actually enabled for that
+    // hart) is marked complete.
+    // This code exploits the fact that, practically, only one claim/complete register
+    // can be written at a time. We check for this because if the address map
+    // were to change, it may no longer be true.
+    // Note -- PLIC doesn't care which hart writes the register.
+    val completer = Wire(Vec(nHarts, Bool()))
+    assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
+    val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
+    val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(completerDev, nDevices+1), UInt(0))
+    (gateways zip completedDevs.toBools) foreach { case (g, c) =>
+       g.complete := c
+    }
+
     val hartRegFields = Seq.tabulate(nHarts) { i =>
       PLICConsts.hartBase(i) -> Seq(
         priorityRegField(threshold(i)),
         RegField(32,
           RegReadFn { valid =>
-            when (valid) {
-              pending(maxDevs(i)) := Bool(false)
-            }
+            claimer(i) := valid
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
-            val irq = data.extract(log2Ceil(nDevices+1)-1, 0)
-            when (valid && enables(i)(irq)) {
-              gateways(irq).complete := Bool(true)
-            }
+            assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0), 
+                   "completerDev should be consistent for all harts")
+            completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
+            completer(i) := valid && enables(i)(completerDev)
             Bool(true)
           }
         )
