@@ -198,7 +198,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     // This code expolits the fact that, practically, only one claim/complete register
     // can be written at a time. We check for this because if the address map
     // were to change, it may no longer be true.
-    // (Note -- PLIC doesn't care which hart writes the register)
+    // Note -- PLIC doesn't care which hart writes the register.
     val completer = Wire(Vec(nHarts, Bool()))
     assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
