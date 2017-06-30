@@ -177,12 +177,10 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     }
 
     val claimer = Wire(init = Vec.fill(nHarts){Bool(false)})
-    val claiming = Wire(init = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i)), UInt(0, width=log2Up(nDevices+1)))})
+    val claiming = Wire(init = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i)), UInt(0))})
     val claimedDevs = Wire(init = Vec(claiming.reduceLeft( _ | _ ).toBools))
 
-    for ((pg, c) <- (pending zip gateways) zip claimedDevs) {
-      val p = pg._1
-      val g = pg._2
+    for ((p, g), c) <- (pending zip gateways) zip claimedDevs) {
       g.ready := !p
       g.complete := false
       when(c) {
