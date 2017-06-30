@@ -216,7 +216,8 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
-            assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0), "completerDev should be constant for all harts")
+            assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0), 
+                   "completerDev should be consistent for all harts")
             completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
             completer(i) := valid && enables(i)(completerDev)
             Bool(true)
