@@ -176,18 +176,31 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
     }
 
+    // When a hart reads its claim/complete register, then the
+    // device which is currently its highest priority is no longer pending.
+    // This code expolits the fact that only one hart can claim a device at
+    // a time through the TL interface.
+    // Note: PLIC doesn't care which hart reads the register.
     val claimer = Wire(Vec(nHarts, Bool()))
     val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
     val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
 
     ((pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
       g.ready := !p
-      g.complete := false
-      when(c) {
-        p := false
-      }.elsewhen (g.valid) {
-        p := true
-      }
+      when (c || g.valid) { p := !c }
+    }
+
+    // When a hart writes a claim/complete register, then
+    // the written device (as long as it is actually enabled for that
+    // hart) is marked complete.
+    // This code expolits the fact that only one hart can complete a device at
+    // a time through the TL interface
+    // (Note -- PLIC doesn't care which hart writes the register)
+    val completer = Wire(Vec(nHarts, Bool()))
+    val irq = data.extract(log2Ceil(nDevices+1)-1, 0)
+    val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(irq, nDevices+1), UInt(0))
+    (gateways zip completedDevs.toBools) foreach { case (g, c) =>
+       g.complete := c
     }
 
     val hartRegFields = Seq.tabulate(nHarts) { i =>
@@ -199,10 +212,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
-            val irq = data.extract(log2Ceil(nDevices+1)-1, 0)
-            when (valid && enables(i)(irq)) {
-              gateways(irq).complete := Bool(true)
-            }
+            completer(i) := valid && enables(i)(irq)
             Bool(true)
           }
         )
