@@ -56,6 +56,6 @@ run: run-asm-tests run-bmark-tests
 run-debug: run-asm-tests-debug run-bmark-tests-debug
 run-fast: run-asm-tests-fast run-bmark-tests-fast
 
-.PHONY: run-asm-tests run-bmarks-test
+.PHONY: run-asm-tests run-bmark-tests
 .PHONY: run-asm-tests-debug run-bmark-tests-debug
 .PHONY: run run-debug run-fast
