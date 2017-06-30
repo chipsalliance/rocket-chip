@@ -198,8 +198,9 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     // (Note -- PLIC doesn't care which hart writes the register)
     val completer = Wire(Vec(nHarts, Bool()))
     val irq = data.extract(log2Ceil(nDevices+1)-1, 0)
-    when (completer.reduce(_ || _)) {
-       gateways(irq).complete := Bool(false)
+    val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(irq, nDevices+1), UInt(0))
+    (gateways zip completedDevs.toBools) foreach { case (g, c) =>
+       g.complete := c
     }
 
     val hartRegFields = Seq.tabulate(nHarts) { i =>
