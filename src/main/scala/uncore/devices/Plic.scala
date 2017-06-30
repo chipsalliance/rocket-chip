@@ -176,12 +176,14 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
     }
 
-    // When a hart reads its claim/complete register, then the
+    // When a hart reads a claim/complete register, then the
     // device which is currently its highest priority is no longer pending.
-    // This code expolits the fact that only one hart can claim a device at
-    // a time through the TL interface.
+    // This code expolits the fact that, practically, only one claim/complete
+    // register can be read at a time. We check for this because if the address map
+    // were to change, it may no longer be true.
     // Note: PLIC doesn't care which hart reads the register.
     val claimer = Wire(Vec(nHarts, Bool()))
+    assert((claimer.asUInt & (claimer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
     val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
 
@@ -193,12 +195,15 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     // When a hart writes a claim/complete register, then
     // the written device (as long as it is actually enabled for that
     // hart) is marked complete.
-    // This code expolits the fact that only one hart can complete a device at
-    // a time through the TL interface
+    // This code expolits the fact that, practically, only one claim/complete register
+    // can be written at a time. We check for this because if the address map
+    // were to change, it may no longer be true.
     // (Note -- PLIC doesn't care which hart writes the register)
     val completer = Wire(Vec(nHarts, Bool()))
-    val irq = data.extract(log2Ceil(nDevices+1)-1, 0)
-    val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(irq, nDevices+1), UInt(0))
+    assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
+    val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
+    val checkCompleterDev = Wire(Vec(nHarts, UInt(width = log2Up(nDevices + 1)))) // For assertion purposes only.
+    val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(completerDev, nDevices+1), UInt(0))
     (gateways zip completedDevs.toBools) foreach { case (g, c) =>
        g.complete := c
     }
@@ -212,7 +217,12 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
-            completer(i) := valid && enables(i)(irq)
+            if (i > 0) {
+              assert(checkCompleterDev(i-1) === data.extract(log2Ceil(nDevices+1)-1, 0))
+            }
+            checkCompleterDev(i) := data.extract(log2Ceil(nDevices+1)-1, 0)
+            completer(i) := valid && enables(i)(completerDev)
+            completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
             Bool(true)
           }
         )
