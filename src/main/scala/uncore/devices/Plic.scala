@@ -180,7 +180,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
     val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
 
-    (pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
+    ((pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
       g.ready := !p
       g.complete := false
       when(c) {
