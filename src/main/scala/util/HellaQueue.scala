@@ -1,9 +1,8 @@
 // See LICENSE.Berkeley for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
-import config._
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val io = new QueueIO(data, entries)

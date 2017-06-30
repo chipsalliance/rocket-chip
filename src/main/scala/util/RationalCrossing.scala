@@ -1,11 +1,12 @@
 // See LICENSE.SiFive for license details.
 
+package freechips.rocketchip.util
+
+import Chisel._
+
 // If you know two clocks are related with an N:M relationship, you
 // can cross the clock domains with lower latency than an AsyncQueue.
 // This crossing adds 1 cycle in the target clock domain.
-
-package util
-import Chisel._
 
 // A rational crossing must put registers on the slow side.
 // This trait covers the options of how/where to put the registers.

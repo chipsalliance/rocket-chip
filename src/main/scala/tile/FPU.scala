@@ -1,16 +1,15 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import FPConstants._
-import rocket.DecodeLogic
-import rocket.Instructions._
-import uncore.constants.MemoryOpConstants._
-import config._
-import util._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.rocket.Instructions._
+import freechips.rocketchip.util._
 
 case class FPUParams(
   divSqrt: Boolean = true,
@@ -23,6 +22,7 @@ object FPConstants
   val RM_SZ = 3
   val FLAGS_SZ = 5
 }
+import FPConstants._
 
 trait HasFPUCtrlSigs {
   val ldst = Bool()

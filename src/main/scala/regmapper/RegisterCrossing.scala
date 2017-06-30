@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package regmapper
+package freechips.rocketchip.regmapper
 
 import Chisel._
 import chisel3.util.{Irrevocable}
-import util.{AsyncQueue,AsyncResetRegVec}
+
+import freechips.rocketchip.util.{AsyncQueue,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing extends Module {

@@ -1,16 +1,16 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
-import config._
-import diplomacy._
-import tile._
-import uncore.tilelink2._
-import uncore.util._
-import util._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex.RocketTilesKey
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -99,7 +99,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
   def lineInScratchpad(line: UInt) = scratchpadMax.map(scratchpadOn && line <= _).getOrElse(false.B)
   def addrMaybeInScratchpad(addr: UInt) = if (outer.icacheParams.itimAddr.isEmpty) false.B else {
-    val base = GetPropertyByHartId(p(coreplex.RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
+    val base = GetPropertyByHartId(p(RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
     addr >= base && addr < base + outer.size
   }
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))
@@ -209,8 +209,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   // output signals
   outer.icacheParams.latency match {
     case 1 =>
-      require(tECC.isInstanceOf[uncore.util.IdentityCode])
-      require(dECC.isInstanceOf[uncore.util.IdentityCode])
+      require(tECC.isInstanceOf[IdentityCode])
+      require(dECC.isInstanceOf[IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
       io.resp.bits := Mux1H(s1_tag_hit, s1_dout)
       io.resp.valid := s1_valid && s1_hit

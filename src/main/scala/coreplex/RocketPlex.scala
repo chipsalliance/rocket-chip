@@ -1,9 +1,10 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config.Parameters
+
+import freechips.rocketchip.config.Parameters
 
 class RocketPlex(implicit p: Parameters) extends BaseCoreplex
     with CoreplexRISCVPlatform

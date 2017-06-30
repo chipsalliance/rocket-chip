@@ -1,12 +1,11 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
-import config._
-import tile._
-import Instructions._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.tile.CoreModule
 
 object ALU
 {
@@ -44,7 +43,9 @@ object ALU
   def cmpInverted(cmd: UInt) = cmd(0)
   def cmpEq(cmd: UInt) = !cmd(3)
 }
+
 import ALU._
+import Instructions._
 
 class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {

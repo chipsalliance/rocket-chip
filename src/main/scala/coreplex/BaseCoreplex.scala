@@ -1,14 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import tile.XLen
-import tile.TileInterrupts
-import uncore.tilelink2._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tile.{ XLen, TileInterrupts}
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 /** Widths of various points in the SoC */
 case class TLBusConfig(beatBytes: Int)

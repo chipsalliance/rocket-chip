@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
 import scala.collection.immutable.SortedMap
 

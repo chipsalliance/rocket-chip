@@ -1,11 +1,12 @@
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
-import config.Parameters
-import uncore.tilelink2.{IntSinkNode, IntSinkPortSimple}
-import util._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.tilelink.{IntSinkNode, IntSinkPortSimple}
+import freechips.rocketchip.util._
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
   val debug = Bool()

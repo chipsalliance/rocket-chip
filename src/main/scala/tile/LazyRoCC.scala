@@ -1,14 +1,16 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
-import config._
-import coreplex._
-import diplomacy._
-import rocket._
-import uncore.tilelink2._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.coreplex._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util.InOrderArbiter
 
 case object RoccNPTWPorts extends Field[Int]
 case object BuildRoCC extends Field[Seq[RoCCParams]]
@@ -206,7 +208,7 @@ class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p
   io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
   io.mem.req.bits.addr := addend
   io.mem.req.bits.tag := addr
-  io.mem.req.bits.cmd := uncore.constants.M_XRD // perform a load (M_XWR for stores)
+  io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.req.bits.phys := Bool(false)

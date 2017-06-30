@@ -4,7 +4,7 @@ $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
 MODEL ?= TestHarness
-PROJECT ?= rocketchip
+PROJECT ?= freechips.rocketchip.chip
 CFG_PROJECT ?= $(PROJECT)
 CONFIG ?= DefaultConfig
 # TODO: For now must match rocketchip.Generator

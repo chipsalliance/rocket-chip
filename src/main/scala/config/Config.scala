@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package config
+package freechips.rocketchip.config
 
 class Field[T]
 

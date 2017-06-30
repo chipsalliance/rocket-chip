@@ -1,13 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
-import config._
-import diplomacy._
-import rocket._
-import uncore.tilelink2._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 case object SharedMemoryTLEdge extends Field[TLEdgeOut]
 case object TileKey extends Field[TileParams]

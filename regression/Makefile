@@ -53,20 +53,17 @@ endif
 
 ifeq ($(SUITE),RocketSuiteC)
 PROJECT=rocketchip
-CONFIGS=DefaultL2Config TinyConfig
+CONFIGS=TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
 PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig \
-        BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
-# FancyMemtestConfig takes too long to compile
+CONFIGS=TraceGenConfig TraceGenBufferlessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=unittest
-CONFIGS=UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
+CONFIGS=AMBAUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)

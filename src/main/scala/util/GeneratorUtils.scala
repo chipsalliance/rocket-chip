@@ -1,11 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.internal.firrtl.Circuit
 import chisel3.experimental.{RawModule}
-import config._
-import diplomacy.LazyModule
+// TODO: better job of Makefrag generation for non-RocketChip testing platforms
+import freechips.rocketchip.chip.{TestGeneration, DefaultTestSuites}
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
 
 /** Representation of the information this Generator needs to collect from external sources. */
@@ -40,7 +43,6 @@ trait HasGeneratorUtilities {
 
   def getParameters(config: Config): Parameters = Parameters.root(config.toInstance)
 
-  import chisel3.internal.firrtl.Circuit
   def elaborate(names: ParsedInputNames, params: Parameters): Circuit = {
     val gen = () =>
       Class.forName(names.fullTopModuleClass)
@@ -92,13 +94,10 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   /** Output software test Makefrags, which provide targets for integration testing. */
   def generateTestSuiteMakefrags {
     addTestSuites
-    writeOutputFile(td, s"$longName.d", rocketchip.TestGeneration.generateMakefrag) // Coreplex-specific test suites
+    writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Coreplex-specific test suites
   }
 
   def addTestSuites {
-    // TODO: better job of Makefrag generation
-    //       for non-RocketChip testing platforms
-    import rocketchip.{DefaultTestSuites, TestGeneration}
     TestGeneration.addSuite(DefaultTestSuites.groundtest64("p"))
     TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)

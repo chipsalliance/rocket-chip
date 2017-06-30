@@ -1,22 +1,22 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import rocket._
-import tile._
-import uncore.tilelink2._
-import util._
+import freechips.rocketchip.config.Field
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
-sealed trait ClockCrossing
-case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends ClockCrossing
-case class RationalCrossing(direction: RationalDirection = FastToSlow) extends ClockCrossing
-case class AsynchronousCrossing(depth: Int, sync: Int = 2) extends ClockCrossing
+sealed trait CoreplexClockCrossing
+case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends CoreplexClockCrossing
+case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
+case class AsynchronousCrossing(depth: Int, sync: Int = 2) extends CoreplexClockCrossing
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]]
-case object RocketCrossing extends Field[ClockCrossing]
+case object RocketCrossing extends Field[CoreplexClockCrossing]
 
 trait HasRocketTiles extends CoreplexRISCVPlatform {
   val module: HasRocketTilesModule

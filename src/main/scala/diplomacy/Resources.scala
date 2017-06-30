@@ -1,9 +1,7 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
-import Chisel._
-import config._
 import scala.collection.immutable.{ListMap,SortedMap}
 
 sealed trait ResourceValue

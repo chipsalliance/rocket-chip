@@ -1,11 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
-import Chisel._
-import config._
+import Chisel.Module
 import chisel3.experimental.{BaseModule, RawModule, MultiIOModule}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import freechips.rocketchip.config.Parameters
 
 abstract class LazyModule()(implicit val p: Parameters)
 {

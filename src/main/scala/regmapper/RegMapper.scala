@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package regmapper
+package freechips.rocketchip.regmapper
 
 import Chisel._
-import diplomacy._
-import util.{GenericParameterizedBundle}
+
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers}
 
 // A bus agnostic register interface to a register-based device
 
@@ -154,7 +155,7 @@ object RegMapper
     def mux(valid: Bool, select: Seq[Bool], guard: Seq[Bool], flow: Seq[Seq[(Bool, Bool)]]): Vec[Bool] =
       Vec(((select zip guard) zip flow).map { case ((s, g), f) =>
         val out = Wire(Bool())
-        util.ReduceOthers((out, valid && s && g) +: f)
+        ReduceOthers((out, valid && s && g) +: f)
         out || !g
       })
 
