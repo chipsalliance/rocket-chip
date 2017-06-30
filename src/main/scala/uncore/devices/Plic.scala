@@ -176,11 +176,11 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
     }
 
-    val claimer = Wire(init = Vec.fill(nHarts){Bool(false)})
-    val claiming = Wire(init = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i)), UInt(0))})
-    val claimedDevs = Wire(init = Vec(claiming.reduceLeft( _ | _ ).toBools))
+    val claimer = Wire(Vec(nHarts, Bool()))
+    val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
+    val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
 
-    for ((p, g), c) <- (pending zip gateways) zip claimedDevs) {
+    (pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
       g.ready := !p
       g.complete := false
       when(c) {
