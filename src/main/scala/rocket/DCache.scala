@@ -232,16 +232,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
   when ((s2_valid_masked && lrscCount > 0) || io.cpu.invalidate_lr) { lrscCount := 0 }
 
-  if (usingDataScratchpad) {
-    require(!usingVM) // therefore, req.phys means this is a slave-port access
-    val s2_isSlavePortAccess = s2_req.phys
-    when (s2_isSlavePortAccess) {
-      assert(!s2_valid || s2_hit_valid)
-      io.cpu.s2_xcpt := 0.U.asTypeOf(io.cpu.s2_xcpt)
-    }
-    assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
-  }
-
   // pending store buffer
   val s2_correct = s2_data_error && !any_pstore_valid && Bool(usingDataScratchpad)
   val s2_valid_correct = s2_valid_hit_pre_data_ecc && s2_correct
@@ -524,6 +514,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
   val s1_xcpt = tlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
+
+  if (usingDataScratchpad) {
+    require(!usingVM) // therefore, req.phys means this is a slave-port access
+    val s2_isSlavePortAccess = s2_req.phys
+    when (s2_isSlavePortAccess) {
+      assert(!s2_valid || s2_hit_valid)
+      io.cpu.s2_xcpt := 0.U.asTypeOf(io.cpu.s2_xcpt)
+    }
+    assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
+  }
 
   // uncached response
   io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
