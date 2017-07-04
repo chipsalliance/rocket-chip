@@ -55,14 +55,14 @@ branches:
 
 jobs:
   include:
-    - stage: prepare cache-riscv-tools
+    - stage: prepare cache
       script:
         - travis_wait 120 make tools -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8
       before_cache:
         - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
-    - stage: prepare cache-verilator
+    - stage: prepare cache
       script:
         - travis_wait 120 make verilator -C regression SUITE=none
       before_install:
