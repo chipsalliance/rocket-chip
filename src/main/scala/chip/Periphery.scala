@@ -180,11 +180,11 @@ trait HasPeripheryMasterAXI4MemPortModuleImp extends LazyMultiIOModuleImp with H
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
 trait HasPeripheryMasterAXI4MMIOPort extends HasSystemNetworks {
   private val config = p(ExtBus)
-  private val device = new SimpleDevice("mmio", Nil)
+  private val device = new SimpleBus("mmio", Nil)
   val mmio_axi4 = AXI4BlindOutputNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
       address       = List(AddressSet(BigInt(config.base), config.size-1)),
-      resources     = device.reg,
+      resources     = device.ranges,
       executable    = true,                  // Can we run programs on this memory?
       supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
       supportsRead  = TransferSizes(1, 256))),
@@ -255,11 +255,11 @@ trait HasPeripherySlaveAXI4PortModuleImp extends LazyMultiIOModuleImp with HasPe
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
 trait HasPeripheryMasterTLMMIOPort extends HasSystemNetworks {
   private val config = p(ExtBus)
-  private val device = new SimpleDevice("mmio", Nil)
+  private val device = new SimpleBus("mmio", Nil)
   val mmio_tl = TLBlindOutputNode(Seq(TLManagerPortParameters(
     managers = Seq(TLManagerParameters(
       address            = List(AddressSet(BigInt(config.base), config.size-1)),
-      resources          = device.reg,
+      resources          = device.ranges,
       executable         = true,
       supportsGet        = TransferSizes(1, cacheBlockBytes),
       supportsPutFull    = TransferSizes(1, cacheBlockBytes),
@@ -350,10 +350,9 @@ trait HasPeripheryErrorSlave extends HasSystemNetworks {
   private val maxXfer = min(config.address.map(_.alignment).max.toInt, 4096)
   val error = LazyModule(new TLError(config.address, peripheryBusConfig.beatBytes))
 
-  // Override the default Parameters to exclude the TLMonitor between the Fragmenter and error slave.
-  // Most slaves do not support a 4kB burst so this slave ends up with many more source bits than others.
-  private def sourceInfo(implicit x: chisel3.internal.sourceinfo.SourceInfo) = x
-  error.node.:=(TLFragmenter(peripheryBusConfig.beatBytes, maxXfer)(peripheryBus.node))(new WithoutTLMonitors ++ p, sourceInfo)
+  // Most slaves do not support a 4kB burst so this slave ends up with many more source bits than others;
+  // we exclude the onerously large TLMonitor that results.
+  error.node connectButDontMonitor TLFragmenter(peripheryBusConfig.beatBytes, maxXfer)(peripheryBus.node)
 }
 
 

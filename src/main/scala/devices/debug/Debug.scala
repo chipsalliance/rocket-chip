@@ -282,7 +282,6 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   val dmiNode = TLRegisterNode (
     address = AddressSet.misaligned(DMI_DMCONTROL << 2, 4),
     device = device,
-    deviceKey = "reg",
     beatBytes = 4,
     executable = false
   )
@@ -328,6 +327,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       when (DMCONTROLWrEn) {
         DMCONTROLNxt.ndmreset  := DMCONTROLWrData.ndmreset
         DMCONTROLNxt.hartsel   := DMCONTROLWrData.hartsel
+        DMCONTROLNxt.haltreq   := DMCONTROLWrData.haltreq
+        DMCONTROLNxt.resumereq := DMCONTROLWrData.resumereq
       }
     }
 
@@ -429,7 +430,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     address = AddressSet.misaligned(0, DMI_RegAddrs.DMI_DMCONTROL << 2) ++
               AddressSet.misaligned((DMI_RegAddrs.DMI_DMCONTROL + 1) << 2, (0x200 - ((DMI_RegAddrs.DMI_DMCONTROL + 1) << 2))),
     device = device,
-    deviceKey = "reg",
     beatBytes = 4,
     executable = false
   )
@@ -437,7 +437,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
   val tlNode = TLRegisterNode(
     address=Seq(AddressSet(0, 0xFFF)), // This is required for correct functionality, it's not configurable.
     device=device,
-    deviceKey="reg",
     beatBytes=p(XLen)/8,
     executable=true
   )
@@ -540,8 +539,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       DMSTATUSRdData.anyrunning := true.B
     }
 
-    DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg)
-    DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg)
+    val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
+ 
+    DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
+    DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
 
     //TODO
     DMSTATUSRdData.cfgstrvalid := false.B
@@ -710,7 +711,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
             resumeReqRegs(component) := false.B
           }
         }
-        when(io.innerCtrl.fire() && io.innerCtrl.bits.resumereq) {
+        when(resumereq) {
           resumeReqRegs(io.innerCtrl.bits.hartsel) := true.B
         }
       }
@@ -936,6 +937,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val commandWrIsAccessRegister = (COMMANDWrData.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
     val commandRegIsAccessRegister = (COMMANDReg.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
 
+    val commandWrIsUnsupported = COMMANDWrEn && !commandWrIsAccessRegister;
+
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
     when (commandRegIsAccessRegister) {
@@ -953,16 +956,20 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // -----------------------
 
     when (ctrlStateReg === CtrlState(Waiting)){
-
       when (wrAccessRegisterCommand || regAccessRegisterCommand) {
         ctrlStateNxt := CtrlState(CheckGenerate)
+      }.elsewhen (commandWrIsUnsupported) { // These checks are really on the command type.
+        errorUnsupported := true.B
+      }.elsewhen (autoexec && commandRegIsUnsupported) {
+        errorUnsupported := true.B
       }
     }.elsewhen (ctrlStateReg === CtrlState(CheckGenerate)){
 
       // We use this state to ensure that the COMMAND has been
       // registered by the time that we need to use it, to avoid
       // generating it directly from the COMMANDWrData.
-
+      // This 'commandRegIsUnsupported' is really just checking the
+      // AccessRegisterCommand parameters (regno)
       when (commandRegIsUnsupported) {
         errorUnsupported := true.B
         ctrlStateNxt := CtrlState(Waiting)

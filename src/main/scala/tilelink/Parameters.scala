@@ -57,11 +57,11 @@ case class TLManagerParameters(
   require (minAlignment >= maxTransfer, s"minAlignment ($minAlignment) must be >= maxTransfer ($maxTransfer)")
 
   def toResource: ResourceAddress = {
-    ResourceAddress(address,
+    ResourceAddress(address, ResourcePermissions(
       r = supportsAcquireB || supportsGet,
       w = supportsAcquireT || supportsPutFull,
       x = executable,
-      c = supportsAcquireB)
+      c = supportsAcquireB))
   }
 }
 

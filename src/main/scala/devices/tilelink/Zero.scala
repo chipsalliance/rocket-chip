@@ -9,12 +9,12 @@ import freechips.rocketchip.tilelink._
 
 class TLZero(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
 {
-  val device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero"))
+  val device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
-      resources          = device.reg,
+      resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHED,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),

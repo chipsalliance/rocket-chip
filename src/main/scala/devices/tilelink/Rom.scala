@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
-  resources: Seq[Resource] = new SimpleDevice("rom", Nil).reg)(implicit p: Parameters) extends LazyModule
+  resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem"))(implicit p: Parameters) extends LazyModule
 {
 
   val node = TLManagerNode(beatBytes, TLManagerParameters (

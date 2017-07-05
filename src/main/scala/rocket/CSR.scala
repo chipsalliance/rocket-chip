@@ -57,9 +57,7 @@ class DCSR extends Bundle {
   val stopcycle = Bool()
   val stoptime = Bool()
   val cause = UInt(width = 3)
-  // TODO: debugint is not in the Debug Spec v13
-  val debugint = Bool()
-  val zero1 = UInt(width=2)
+  val zero1 = UInt(width=3)
   val step = Bool()
   val prv = UInt(width = PRV.SZ)
 }
@@ -212,6 +210,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   reset_dcsr.xdebugver := 1
   reset_dcsr.prv := PRV.M
   val reg_dcsr = Reg(init=reset_dcsr)
+  val reg_debugint = Reg(Bool())
 
   val (supported_interrupts, delegable_interrupts) = {
     val sup = Wire(new MIP)
@@ -310,7 +309,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.pmp := reg_pmp.map(PMP(_))
 
   // debug interrupts are only masked by being in debug mode
-  when (Bool(usingDebug) && reg_dcsr.debugint && !reg_debug) {
+  when (Bool(usingDebug) && reg_debugint && !reg_debug) {
     io.interrupt := true
     io.interrupt_cause := UInt(interruptMSB) + CSR.debugIntCause
   }
@@ -503,8 +502,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val exception = insn_call || insn_break || io.exception
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
-  when (insn_wfi) { reg_wfi := true }
-  when (pending_interrupts.orR || exception) { reg_wfi := false }
+  when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
+  when (pending_interrupts.orR || exception || reg_debugint) { reg_wfi := false }
   assert(!reg_wfi || io.retire === UInt(0))
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
@@ -719,7 +718,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   reg_mip.mtip := io.interrupts.mtip
   reg_mip.msip := io.interrupts.msip
   reg_mip.meip := io.interrupts.meip
-  reg_dcsr.debugint := io.interrupts.debug
+  reg_debugint := io.interrupts.debug
 
   if (!usingVM) {
     reg_mideleg := 0
