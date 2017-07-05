@@ -300,21 +300,16 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val read_mip = mip.asUInt & supported_interrupts
 
   val pending_interrupts = read_mip & reg_mie
+  val d_interrupts = reg_debugint << CSR.debugIntCause
   val m_interrupts = Mux(reg_mstatus.prv <= PRV.S || (reg_mstatus.prv === PRV.M && reg_mstatus.mie), pending_interrupts & ~reg_mideleg, UInt(0))
   val s_interrupts = Mux(m_interrupts === 0 && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & reg_mideleg, UInt(0))
-  val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts))
+  val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, d_interrupts))
   val interruptMSB = BigInt(1) << (xLen-1)
   val interruptCause = UInt(interruptMSB) + whichInterrupt
   io.interrupt := anyInterrupt && !reg_debug && !io.singleStep || reg_singleStepped
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
   io.pmp := reg_pmp.map(PMP(_))
-
-  // debug interrupts are only masked by being in debug mode
-  when (Bool(usingDebug) && reg_debugint && !reg_debug) {
-    io.interrupt := true
-    io.interrupt_cause := UInt(interruptMSB) + CSR.debugIntCause
-  }
 
   val isaMaskString =
     (if (usingMulDiv) "M" else "") +
