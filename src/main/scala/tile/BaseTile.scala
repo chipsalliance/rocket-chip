@@ -79,17 +79,14 @@ trait HasExternallyDrivenTileConstants extends Bundle {
 
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with HasTileLinkMasterPort
-    with HasExternalInterrupts {
+    with HasTileParameters
+    with HasTileLinkMasterPort {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with HasTileParameters
     with HasTileLinkMasterPortBundle
-    with HasExternalInterruptsBundle
     with HasExternallyDrivenTileConstants
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
     with HasTileLinkMasterPortModule
-    with HasExternalInterruptsModule

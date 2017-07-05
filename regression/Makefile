@@ -42,27 +42,27 @@ $(error Set SUITE to the regression suite you want to run)
 endif
 
 ifeq ($(SUITE),RocketSuiteA)
-PROJECT=rocketchip
+PROJECT=freechips.rocketchip.chip
 CONFIGS=DefaultConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteB)
-PROJECT=rocketchip
+PROJECT=freechips.rocketchip.chip
 CONFIGS=DefaultBufferlessConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteC)
-PROJECT=rocketchip
+PROJECT=freechips.rocketchip.chip
 CONFIGS=TinyConfig
 endif
 
 ifeq ($(SUITE),GroundtestSuite)
-PROJECT=groundtest
+PROJECT=freechips.rocketchip.groundtest
 CONFIGS=TraceGenConfig TraceGenBufferlessConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
-PROJECT=unittest
+PROJECT=freechips.rocketchip.unittest
 CONFIGS=AMBAUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
 endif
 

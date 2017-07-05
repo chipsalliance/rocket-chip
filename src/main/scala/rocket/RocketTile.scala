@@ -24,6 +24,7 @@ case class RocketTileParams(
 }
   
 class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
+    with HasExternalInterrupts
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
 
@@ -124,9 +125,11 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 }
 
 class RocketTileBundle(outer: RocketTile) extends BaseTileBundle(outer)
+    with HasExternalInterruptsBundle
     with CanHaveScratchpadBundle
 
 class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => new RocketTileBundle(outer))
+    with HasExternalInterruptsModule
     with HasLazyRoCCModule
     with CanHaveScratchpadModule {
 

@@ -17,7 +17,10 @@ case object TileId extends Field[Int]
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
   val tileParams = p(GroundTestTilesKey)
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
-    c.build(i, p.alterPartial { case SharedMemoryTLEdge => tile_splitter.node.edgesIn(0) })
+    c.build(i, p.alterPartial {
+      case TileKey => c
+      case SharedMemoryTLEdge => tile_splitter.node.edgesIn(0)
+    })
   )}
 
   val fixer = LazyModule(new TLFIFOFixer)

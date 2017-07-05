@@ -163,10 +163,9 @@ along with the appropriate testing collateral.
 This utility package provides Scala interfaces for configuring a generator via a dynamically-scoped
 parameterization library.
 * **coreplex**
-This RTL package generates a complete coreplex by gluing together a variety of other components,
-including tiled Rocket cores, a system bus network, coherence agents, and devices
-such as the debug unit, interrupt handlers and externally-facing peripheral devices.
-It also includes clock-crossers and converters from TileLink to external bus protocols (e.g. AXI or AHB).
+This RTL package generates a complete coreplex by gluing together a variety of components from other packages,
+including: tiled Rocket cores, a system bus network, coherence agents, debug devices, interrupt handlers, externally-facing peripherals,
+clock-crossers and converters from TileLink to external bus protocols (e.g. AXI or AHB).
 * **devices**
 This RTL package contains implementations for peripheral devices, including the Debug module and various TL slaves.
 * **diplomacy**
