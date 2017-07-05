@@ -5,7 +5,8 @@ Administrators: Are PRs taking > 1 hr to run through Travis? If you look at the 
 This is because someone committed a PR to `master` which bumped `riscv-tools` and the master cache needs to be updated.
 This is the procedure to follow to get things fast again. We don't generally branch updates (e.g. to `master`), just PRs.
 
-To get the master cache good again:
+To get the `master` cache good again:
+----------------------------------
 
 1. Wait for the PR that is changing `riscv-tools` to go green.
 2. On Travis, click `More Options -> Caches` on the upper right.
@@ -16,6 +17,7 @@ To get the master cache good again:
 7. Once the merge commit goes green on Travis, switch the `Build Branch Updates` toggle to `OFF`.
 
 For other PRs which were happening in parallel to the bump of `riscv-tools`:
+----------------------------------------------------------------------------
 
 If your PR already has a cache and you want to keep doing development with the old version of `riscv-tools`, no action is needed. 
 
