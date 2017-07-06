@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel.Module
+import Chisel._
 import chisel3.experimental.{BaseModule, RawModule, MultiIOModule}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
