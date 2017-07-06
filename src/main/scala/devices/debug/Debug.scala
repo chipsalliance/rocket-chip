@@ -61,11 +61,11 @@ object DsbRegAddrs{
 
   // We want DATA to immediately follow PROGBUF so that we can
   // use them interchangeably.
-  def PROGBUF(cfg:DebugModuleConfig) = {DATA - (cfg.nProgramBufferWords * 4)}
+  def PROGBUF(cfg:DebugModuleParams) = {DATA - (cfg.nProgramBufferWords * 4)}
 
   // We want abstract to be immediately before PROGBUF
   // because we auto-generate 2 instructions.
-  def ABSTRACT(cfg:DebugModuleConfig) = PROGBUF(cfg) - 8
+  def ABSTRACT(cfg:DebugModuleParams) = PROGBUF(cfg) - 8
 
   def FLAGS        = 0x400
   def ROMBASE      = 0x800
@@ -112,7 +112,7 @@ import DebugAbstractCommandType._
   *  supportHartArray : Whether or not to implement the hart array register.
   **/
 
-case class DebugModuleConfig (
+case class DebugModuleParams (
   nDMIAddrSize  : Int = 7,
   nProgramBufferWords: Int = 16,
   nAbstractDataWords : Int = 4,
@@ -152,17 +152,17 @@ case class DebugModuleConfig (
 
 }
 
-object DefaultDebugModuleConfig {
+object DefaultDebugModuleParams {
 
-  def apply(xlen:Int /*TODO , val configStringAddr: Int*/): DebugModuleConfig = {
-    new DebugModuleConfig().copy(
+  def apply(xlen:Int /*TODO , val configStringAddr: Int*/): DebugModuleParams = {
+    new DebugModuleParams().copy(
       nAbstractDataWords  = (if (xlen == 32) 1 else if (xlen == 64) 2 else 4)
     )
   }
 }
 
 
-case object DMKey extends Field[DebugModuleConfig]
+case object DebugModuleParams extends Field[DebugModuleParams]
 
 // *****************************************
 // Module Interfaces
@@ -192,7 +192,7 @@ class DMIResp( ) extends Bundle {
   *  Therefore it has the 'flipped' version of this.
   */
 class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val req = new  DecoupledIO(new DMIReq(p(DMKey).nDMIAddrSize))
+  val req = new  DecoupledIO(new DMIReq(p(DebugModuleParams).nDMIAddrSize))
   val resp = new DecoupledIO(new DMIResp).flip()
 }
 
@@ -443,7 +443,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
   lazy val module = new LazyModuleImp(this){
 
-    val cfg = p(DMKey)
+    val cfg = p(DebugModuleParams)
 
     val nComponents = getNComponents()
 

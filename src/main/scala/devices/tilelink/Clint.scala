@@ -3,7 +3,8 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tile.XLen
@@ -28,6 +29,8 @@ case class ClintParams(baseAddress: BigInt = 0x02000000)
 {
   def address = AddressSet(baseAddress, ClintConsts.size-1)
 }
+
+case object ClintParams extends Field[ClintParams]
 
 class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) extends LazyModule
 {
@@ -89,4 +92,10 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
       timecmpOffset(0) -> makeRegFields(timecmp.flatten),
       timeOffset       -> makeRegFields(time))
   }
+}
+
+/** Trait that will connect a Clint to a coreplex */
+trait HasPeripheryClint extends HasPeripheryBus {
+  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintParams)))
+  clint.node := pbus.outwardFragNode
 }

@@ -21,6 +21,11 @@ class ParameterizedBundle(implicit p: Parameters) extends Bundle {
   }
 }
 
+trait Clocked extends Bundle {
+  val clock = Clock()
+  val reset = Bool()  
+}
+
 object DecoupledHelper {
   def apply(rvs: Bool*) = new DecoupledHelper(rvs)
 }

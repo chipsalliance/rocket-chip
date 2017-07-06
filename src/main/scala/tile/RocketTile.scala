@@ -1,14 +1,13 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package freechips.rocketchip.rocket
+package freechips.rocketchip.tile
 
 import Chisel._
-
 import freechips.rocketchip.config._
 import freechips.rocketchip.coreplex._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile._
+import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -164,29 +163,14 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   ptw.io.requestor <> ptwPorts
 }
 
-class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
+abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
   val rocket = LazyModule(new RocketTile(rtp, hartid))
-
-  val masterNode = TLOutputNode()
-  masterNode :=* rocket.masterNode
-
-  val slaveNode = new TLInputNode() { override def reverse = true }
-  rocket.slaveNode :*= slaveNode
-
-  // Fully async interrupts need synchronizers.
-  // Others need no synchronization.
-
+  val masterNode: OutputNode[_,_,_,_,_]
+  val slaveNode: InputNode[_,_,_,_,_]
   val asyncIntNode   = IntInputNode()
   val periphIntNode  = IntInputNode()
   val coreIntNode    = IntInputNode()
-
-  val xing = LazyModule(new IntXing(3))
-  xing.intnode := asyncIntNode
-
   val intXbar = LazyModule(new IntXbar)
-  intXbar.intnode  := xing.intnode
-  intXbar.intnode  := periphIntNode
-  intXbar.intnode  := coreIntNode
 
   rocket.intNode := intXbar.intnode
 
@@ -198,15 +182,30 @@ class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters)
       val periphInterrupts = periphIntNode.bundleIn
       val coreInterrupts   = coreIntNode.bundleIn
     }
-    // signals that do not change:
+    // signals that do not change based on crossing type:
     rocket.module.io.hartid := io.hartid
     rocket.module.io.resetVector := io.resetVector
   }
 }
 
-class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(rtp, hartid))
+class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends RocketTileWrapper(rtp, hartid) {
+  val masterNode = TLOutputNode()
+  masterNode :=* rocket.masterNode
 
+  val slaveNode = new TLInputNode() { override def reverse = true }
+  rocket.slaveNode :*= slaveNode
+
+  // Fully async interrupts need synchronizers.
+  // Others need no synchronization.
+  val xing = LazyModule(new IntXing(3))
+  xing.intnode := asyncIntNode
+
+  intXbar.intnode  := xing.intnode
+  intXbar.intnode  := periphIntNode
+  intXbar.intnode  := coreIntNode
+}
+
+class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends RocketTileWrapper(rtp, hartid) {
   val masterNode = TLAsyncOutputNode()
   val source = LazyModule(new TLAsyncCrossingSource)
   source.node :=* rocket.masterNode
@@ -220,40 +219,17 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
   // Fully async interrupts need synchronizers,
   // as do those coming from the periphery clock.
   // Others need no synchronization.
-
-  val asyncIntNode   = IntInputNode()
-  val periphIntNode  = IntInputNode()
-  val coreIntNode    = IntInputNode()
-
   val asyncXing = LazyModule(new IntXing(3))
   val periphXing = LazyModule(new IntXing(3))
   asyncXing.intnode := asyncIntNode
   periphXing.intnode := periphIntNode
 
-  val intXbar = LazyModule(new IntXbar)
   intXbar.intnode  := asyncXing.intnode
   intXbar.intnode  := periphXing.intnode
   intXbar.intnode  := coreIntNode
-
-  rocket.intNode := intXbar.intnode
-
-  lazy val module = new LazyModuleImp(this) {
-    val io = new CoreBundle with HasExternallyDrivenTileConstants {
-      val master = masterNode.bundleOut
-      val slave = slaveNode.bundleIn
-      val asyncInterrupts   = asyncIntNode.bundleIn
-      val periphInterrupts  = periphIntNode.bundleIn
-      val coreInterrupts    = coreIntNode.bundleIn
-    }
-    // signals that do not change:
-    rocket.module.io.hartid := io.hartid
-    rocket.module.io.resetVector := io.resetVector
-  }
 }
 
-class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
-  val rocket = LazyModule(new RocketTile(rtp, hartid))
-
+class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends RocketTileWrapper(rtp, hartid) {
   val masterNode = TLRationalOutputNode()
   val source = LazyModule(new TLRationalCrossingSource)
   source.node :=* rocket.masterNode
@@ -268,33 +244,12 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   // Those coming from periphery clock need a
   // rational synchronizer.
   // Others need no synchronization.
-
-  val asyncIntNode   = IntInputNode()
-  val periphIntNode  = IntInputNode()
-  val coreIntNode    = IntInputNode()
-
   val asyncXing    = LazyModule(new IntXing(3))
   val periphXing = LazyModule(new IntXing(1))
   asyncXing.intnode := asyncIntNode
   periphXing.intnode := periphIntNode
 
-  val intXbar = LazyModule(new IntXbar)
   intXbar.intnode  := asyncXing.intnode
   intXbar.intnode  := periphXing.intnode
   intXbar.intnode  := coreIntNode
-
-  rocket.intNode := intXbar.intnode
-
-  lazy val module = new LazyModuleImp(this) {
-    val io = new CoreBundle with HasExternallyDrivenTileConstants {
-      val master = masterNode.bundleOut
-      val slave = slaveNode.bundleIn
-      val asyncInterrupts   = asyncIntNode.bundleIn
-      val periphInterrupts  = periphIntNode.bundleIn
-      val coreInterrupts    = coreIntNode.bundleIn
-    }
-    // signals that do not change:
-    rocket.module.io.hartid := io.hartid
-    rocket.module.io.resetVector := io.resetVector
-  }
 }

@@ -2,16 +2,11 @@
 
 package freechips.rocketchip.chip
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.DTB
-import freechips.rocketchip.coreplex.BootROMFile
-import java.nio.file.{Files, Paths}
-import java.nio.{ByteBuffer, ByteOrder}
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 class RangeManager {
   private var finalized = false
-  private val l = collection.mutable.ListBuffer[(String, Int)]()
+  private val l = ListBuffer[(String, Int)]()
   def add(name: String, element: Int) = { require(!finalized); l += (name -> element) }
   def rangeMap = {
     finalized = true
@@ -45,12 +40,4 @@ class GlobalVariable[T] {
   private var variable: T = _
   def assign(value: T) = { require(!assigned); assigned = true; variable = value }
   def get: T = { require(assigned); variable }
-}
-
-object GenerateBootROM {
-  def apply(dtb: DTB)(implicit p: Parameters) = {
-    val romdata = Files.readAllBytes(Paths.get(p(BootROMFile)))
-    val rom = ByteBuffer.wrap(romdata)
-    rom.array() ++ dtb.contents
-  }
 }

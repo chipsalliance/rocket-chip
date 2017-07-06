@@ -3,37 +3,24 @@
 package freechips.rocketchip.chip
 
 import Chisel._
-
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex._
+import freechips.rocketchip.devices.tilelink._
 
-/** Example system with periphery devices (w/o coreplex) */
-abstract class ExampleSystem(implicit p: Parameters) extends BaseSystem
-    with HasPeripheryAsyncExtInterrupts
-    with HasPeripheryMasterAXI4MemPort
-    with HasPeripheryMasterAXI4MMIOPort
-    with HasPeripherySlaveAXI4Port
-    with HasPeripheryErrorSlave
-    with HasPeripheryZeroSlave {
-  override lazy val module = new ExampleSystemModule(this)
-}
-
-class ExampleSystemModule[+L <: ExampleSystem](_outer: L) extends BaseSystemModule(_outer)
-    with HasPeripheryExtInterruptsModuleImp
-    with HasPeripheryMasterAXI4MemPortModuleImp
-    with HasPeripheryMasterAXI4MMIOPortModuleImp
-    with HasPeripherySlaveAXI4PortModuleImp
-
-/** Example Top with periphery and a Rocket coreplex */
-class ExampleRocketTop(implicit p: Parameters) extends ExampleSystem
+/** Example Top with periphery devices and ports, and a Rocket coreplex */
+class ExampleRocketTop(implicit p: Parameters) extends RocketCoreplex
+    with HasAsyncExtInterrupts
+    with HasMasterAXI4MemPort
+    with HasMasterAXI4MMIOPort
+    with HasSlaveAXI4Port
     with HasPeripheryBootROM
-    with HasPeripheryDebug
-    with HasPeripheryRTCCounter
-    with HasRocketPlexMaster {
+    with HasPeripheryErrorSlave
+    with HasMemoryZeroSlave {
   override lazy val module = new ExampleRocketTopModule(this)
 }
 
-class ExampleRocketTopModule[+L <: ExampleRocketTop](_outer: L) extends ExampleSystemModule(_outer)
-    with HasPeripheryBootROMModuleImp
-    with HasPeripheryDebugModuleImp
-    with HasPeripheryRTCCounterModuleImp
-    with HasRocketPlexMasterModuleImp
+class ExampleRocketTopModule[+L <: ExampleRocketTop](_outer: L) extends RocketCoreplexModule(_outer)
+    with HasExtInterruptsModuleImp
+    with HasMasterAXI4MemPortModuleImp
+    with HasMasterAXI4MMIOPortModuleImp
+    with HasSlaveAXI4PortModuleImp
