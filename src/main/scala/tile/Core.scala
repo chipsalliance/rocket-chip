@@ -25,6 +25,7 @@ trait CoreParams {
   val retireWidth: Int
   val instBits: Int
   val nLocalInterrupts: Int
+  val nL2TLBEntries: Int
 }
 
 trait HasCoreParameters extends HasTileParameters {

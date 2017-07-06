@@ -24,6 +24,7 @@ case class RocketCoreParams(
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
   nCustomMRWCSRs: Int = 0,
+  nL2TLBEntries: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
   mtvecWritable: Boolean = true,
   fastLoadWord: Boolean = true,
@@ -587,8 +588,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
   io.imem.sfence.bits.rs1 := wb_ctrl.mem_type(0)
   io.imem.sfence.bits.rs2 := wb_ctrl.mem_type(1)
+  io.imem.sfence.bits.addr := wb_reg_wdata
   io.imem.sfence.bits.asid := wb_reg_rs2
-  io.ptw.invalidate := io.imem.sfence.valid && !io.imem.sfence.bits.rs1
+  io.ptw.sfence := io.imem.sfence
 
   ibuf.io.inst(0).ready := !ctrl_stalld || csr.io.interrupt
 
