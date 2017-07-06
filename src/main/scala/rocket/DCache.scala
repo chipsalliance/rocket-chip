@@ -146,6 +146,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
   tlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
   tlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
+  tlb.io.req.bits.sfence.bits.addr := s1_req.addr
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.instruction := false
@@ -473,7 +474,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << idxLSB
   }
   when (s2_probe) {
-    s1_nack := true
+    val probeNack = Wire(init = true.B)
     when (s2_meta_error) {
       release_state := s_probe_retry
     }.elsewhen (s2_prb_ack_data) {
@@ -484,9 +485,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       release_state := Mux(releaseDone, s_probe_write_meta, s_probe_rep_clean)
     }.otherwise {
       tl_out.c.valid := true
-      s1_nack := !releaseDone
+      probeNack := !releaseDone
       release_state := Mux(releaseDone, s_ready, s_probe_rep_miss)
     }
+    when (probeNack) { s1_nack := true }
   }
   when (release_state === s_probe_retry) {
     metaArb.io.in(6).valid := true

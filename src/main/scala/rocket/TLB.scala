@@ -20,6 +20,7 @@ case object ASIdBits extends Field[Int]
 class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
   val rs1 = Bool()
   val rs2 = Bool()
+  val addr = UInt(width = vaddrBits)
   val asid = UInt(width = asIdBits max 1) // TODO zero-width
 }
 
@@ -252,6 +253,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     }
 
     when (sfence) {
+      assert((io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn(vpnBits-1,0))
       valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
                Mux(io.req.bits.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }

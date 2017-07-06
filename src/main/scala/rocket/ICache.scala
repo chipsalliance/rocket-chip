@@ -58,6 +58,13 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
   }
 }
 
+class ICacheResp(outer: ICache) extends Bundle {
+  val data = UInt(width = outer.icacheParams.fetchBytes*8)
+  val ae = Bool()
+
+  override def cloneType = new ICacheResp(outer).asInstanceOf[this.type]
+}
+
 class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val hartid = UInt(INPUT, hartIdLen)
   val req = Decoupled(new ICacheReq).flip
@@ -66,7 +73,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
   val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
 
-  val resp = Valid(UInt(width = outer.icacheParams.fetchBytes*8))
+  val resp = Valid(new ICacheResp(outer))
   val invalidate = Bool(INPUT)
   val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.map(_.bundleIn)
@@ -145,15 +152,18 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = SeqMem(nSets, Vec(nWays, Bits(width = tECC.width(tagBits))))
+  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
+  val accruedRefillError = Reg(Bool())
+  val refillError = tl_out.d.bits.error || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
-    val tag = tECC.encode(refill_tag)
-    tag_array.write(refill_idx, Vec.fill(nWays)(tag), Vec.tabulate(nWays)(repl_way === _))
+    val enc_tag = tECC.encode(Cat(refillError, refill_tag))
+    tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (tl_out.d.fire()) {
+    accruedRefillError := refillError
     // clear bit when refill starts so hit-under-miss doesn't fetch bad data
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), refill_done && !invalidated)
   }
@@ -164,6 +174,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
 
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
+  val s1_tl_error = Wire(Vec(nWays, Bool()))
   val wordBits = outer.icacheParams.fetchBytes*8
   val s1_dout = Wire(Vec(nWays, UInt(width = dECC.width(wordBits))))
 
@@ -179,8 +190,12 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         lineInScratchpad(scratchpadLine(s1s3_slaveAddr)) && scratchpadWay(s1s3_slaveAddr) === i,
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i)
     val s1_vb = vb_array(Cat(UInt(i), s1_idx)) && !s1_slaveValid
-    s1_tag_disparity(i) := s1_vb && tECC.decode(tag_rdata(i)).error
-    s1_tag_hit(i) := scratchpadHit || (s1_vb && tECC.decode(tag_rdata(i)).uncorrected === s1_tag)
+    val enc_tag = tECC.decode(tag_rdata(i))
+    val (tl_error, tag) = Split(enc_tag.uncorrected, tagBits)
+    val tagMatch = s1_vb && tag === s1_tag
+    s1_tag_disparity(i) := s1_vb && enc_tag.error
+    s1_tl_error(i) := tagMatch && tl_error.toBool
+    s1_tag_hit(i) := tagMatch || scratchpadHit
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
@@ -212,7 +227,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       require(tECC.isInstanceOf[uncore.util.IdentityCode])
       require(dECC.isInstanceOf[uncore.util.IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
-      io.resp.bits := Mux1H(s1_tag_hit, s1_dout)
+      io.resp.bits.data := Mux1H(s1_tag_hit, s1_dout)
+      io.resp.bits.ae := s1_tl_error.asUInt.orR
       io.resp.valid := s1_valid && s1_hit
 
     case 2 =>
@@ -221,11 +237,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
 
       val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_valid || s1_slaveValid).asUInt.orR
+      val s2_tl_error = RegEnable(s1_tl_error.asUInt.orR, s1_valid || s1_slaveValid)
       val s2_data_decoded = dECC.decode(s2_way_mux)
       val s2_disparity = s2_tag_disparity || s2_data_decoded.error
       when (s2_valid && s2_disparity) { invalidate := true }
 
-      io.resp.bits := s2_data_decoded.uncorrected
+      io.resp.bits.data := s2_data_decoded.uncorrected
+      io.resp.bits.ae := s2_tl_error
       io.resp.valid := s2_valid && s2_hit && !s2_disparity
 
       tl_in.map { tl =>

@@ -168,12 +168,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := ~(~Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc) | (coreInstBytes-1)) // discard LSB(s)
 
-  fq.io.enq.bits.data := icache.io.resp.bits
+  fq.io.enq.bits.data := icache.io.resp.bits.data
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  fq.io.enq.bits.xcpt := s2_tlb_resp
   fq.io.enq.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
   fq.io.enq.bits.btb.valid := s2_btb_resp_valid
   fq.io.enq.bits.btb.bits := s2_btb_resp_bits
+  fq.io.enq.bits.xcpt := s2_tlb_resp
+  when (icache.io.resp.valid && icache.io.resp.bits.ae) { fq.io.enq.bits.xcpt.ae.inst := true }
 
   io.cpu.resp <> fq.io.deq
 
