@@ -146,6 +146,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
   tlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
   tlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
+  tlb.io.req.bits.sfence.bits.addr := s1_req.addr
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.instruction := false
