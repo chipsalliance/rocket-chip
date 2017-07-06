@@ -56,11 +56,6 @@ PROJECT=freechips.rocketchip.chip
 CONFIGS=TinyConfig
 endif
 
-ifeq ($(SUITE),GroundtestSuite)
-PROJECT=freechips.rocketchip.groundtest
-CONFIGS=TraceGenConfig TraceGenBufferlessConfig
-endif
-
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=freechips.rocketchip.unittest
 CONFIGS=AMBAUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
