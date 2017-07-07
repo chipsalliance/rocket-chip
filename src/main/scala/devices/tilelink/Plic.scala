@@ -77,7 +77,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     address   = Seq(params.address),
     device    = device,
     beatBytes = p(XLen)/8,
-    undefZero = false,
+    undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
   val intnode = IntNexusNode(
