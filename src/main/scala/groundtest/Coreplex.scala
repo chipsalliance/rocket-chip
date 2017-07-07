@@ -1,44 +1,27 @@
 // See LICENSE.SiFive for license details.
 
-package groundtest
+package freechips.rocketchip.groundtest
 
 import Chisel._
-import config._
-import diplomacy._
-import coreplex._
-import rocket._
-import tile._
-import uncore.agents._
-import uncore.coherence._
-import uncore.devices._
-import uncore.tilelink._
-import uncore.tilelink2._
-import uncore.util._
+
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.coreplex._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.tile._
+
 import scala.math.max
 
 case object TileId extends Field[Int]
 
 class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex {
-  val tiles = List.tabulate(p(NTiles)) { i =>
-    LazyModule(new GroundTestTile()(p.alter { (site, here, up) => {
-      case TileId => i
-      case CacheBlockOffsetBits => log2Up(site(CacheBlockBytes))
-      case AmoAluOperandBits => site(XLen)
+  val tileParams = p(GroundTestTilesKey)
+  val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
+    c.build(i, p.alterPartial {
+      case TileKey => c
       case SharedMemoryTLEdge => tile_splitter.node.edgesIn(0)
-      case TLId => "L1toL2"
-      case TLKey("L1toL2") =>
-        TileLinkParameters(
-          coherencePolicy = new MESICoherence(new NullRepresentation(site(NTiles))),
-          nManagers = site(BankedL2Config).nBanks + 1,
-          nCachingClients = 1,
-          nCachelessClients = 1,
-          maxClientXacts = site(GroundTestKey).map(_.maxXacts).reduce(max(_, _)),
-          maxClientsPerPort = site(GroundTestKey).map(_.uncached).sum,
-          maxManagerXacts = 8,
-          dataBeats = (8 * site(CacheBlockBytes)) / site(XLen),
-          dataBits = site(CacheBlockBytes)*8)
-    }}))
-  }
+    })
+  )}
 
   val fixer = LazyModule(new TLFIFOFixer)
   tile_splitter.node :=* fixer.node
@@ -55,5 +38,9 @@ class GroundTestCoreplexBundle[+L <: GroundTestCoreplex](_outer: L) extends Base
 }
 
 class GroundTestCoreplexModule[+L <: GroundTestCoreplex, +B <: GroundTestCoreplexBundle[L]](_outer: L, _io: () => B) extends BaseCoreplexModule(_outer, _io) {
-  io.success := outer.tiles.map(_.module.io.success).reduce(_&&_)
+
+  outer.tiles.zipWithIndex.map { case(t, i) => t.module.io.hartid := UInt(i) }
+
+  val status = DebugCombiner(outer.tiles.map(_.module.io.status))
+  io.success := status.finished
 }

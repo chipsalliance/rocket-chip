@@ -1,17 +1,16 @@
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import coreplex.CacheBlockBytes
-import diplomacy._
-import tile._
-import uncore.constants._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends LazyModule
     with HasCoreParameters {

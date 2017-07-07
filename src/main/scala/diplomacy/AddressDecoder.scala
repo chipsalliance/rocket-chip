@@ -1,8 +1,8 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
-import Chisel._
+import Chisel.log2Ceil
 import scala.math.{max,min}
 
 object AddressDecoder

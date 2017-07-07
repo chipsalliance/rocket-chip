@@ -1,13 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.PAddrBits
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
@@ -112,7 +113,7 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val io: CoreplexNetworkBundle
 
   println("Generated Address Map")
-  private val aw = (outer.p(rocket.PAddrBits)-1)/4 + 1
+  private val aw = (outer.p(PAddrBits)-1)/4 + 1
   private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c %s"
 
   private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {

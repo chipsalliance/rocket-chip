@@ -1,11 +1,12 @@
 // See LICENSE.SiFive for license details.
 
-package groundtest
+package freechips.rocketchip.groundtest
 
 import Chisel._
-import config.Parameters
-import diplomacy.LazyModule
-import rocketchip._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomacy.LazyModule
+import freechips.rocketchip.chip._
 
 class GroundTestTop(implicit p: Parameters) extends BaseSystem
     with HasPeripheryMasterAXI4MemPort

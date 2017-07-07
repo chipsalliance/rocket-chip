@@ -1,13 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
-import config._
-import diplomacy._
-import rocket._
-import uncore.tilelink2._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 case object SharedMemoryTLEdge extends Field[TLEdgeOut]
 case object TileKey extends Field[TileParams]
@@ -78,17 +79,14 @@ trait HasExternallyDrivenTileConstants extends Bundle {
 
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with HasTileLinkMasterPort
-    with HasExternalInterrupts {
+    with HasTileParameters
+    with HasTileLinkMasterPort {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with HasTileParameters
     with HasTileLinkMasterPortBundle
-    with HasExternalInterruptsBundle
     with HasExternallyDrivenTileConstants
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
     with HasTileLinkMasterPortModule
-    with HasExternalInterruptsModule

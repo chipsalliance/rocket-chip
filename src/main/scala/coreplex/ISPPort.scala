@@ -1,14 +1,10 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import rocket._
-import tile._
-import uncore.tilelink2._
-import util._
+import freechips.rocketchip.diplomacy.LazyModule
+import freechips.rocketchip.tilelink._
 
 trait HasISPPort extends CoreplexNetwork {
   val module: HasISPPortModule

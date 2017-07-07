@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
 import chisel3.util.{DecoupledIO, Decoupled, Irrevocable, IrrevocableIO, ReadyValidIO}

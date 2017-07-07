@@ -1,15 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import diplomacy._
-import uncore.constants._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex.{RationalCrossing, RocketCrossing, RocketTilesKey}
+import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 import TLMessages._
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
@@ -83,8 +82,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.out.ready := true
   metaArb.io.out.ready := true
 
-  val rational = p(coreplex.RocketCrossing) match {
-    case coreplex.RationalCrossing(_) => true
+  val rational = p(RocketCrossing) match {
+    case RationalCrossing(_) => true
     case _ => false
   }
 
@@ -160,7 +159,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_victim_way = Wire(init = replacer.way)
   val (s1_hit_way, s1_hit_state, s1_meta, s1_victim_meta) =
     if (usingDataScratchpad) {
-      val baseAddr = GetPropertyByHartId(p(coreplex.RocketTilesKey), _.dcache.flatMap(_.scratch.map(_.U)), io.hartid)
+      val baseAddr = GetPropertyByHartId(p(RocketTilesKey), _.dcache.flatMap(_.scratch.map(_.U)), io.hartid)
       val inScratchpad = s1_paddr >= baseAddr && s1_paddr < baseAddr + nSets * cacheBlockBytes
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       val dummyMeta = L1Metadata(UInt(0), ClientMetadata.onReset)

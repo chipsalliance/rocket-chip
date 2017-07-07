@@ -1,12 +1,13 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import util._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.util._
 
 /**
  * This module buffers requests made by the SimpleHellaCacheIF in case they

@@ -1,10 +1,8 @@
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
-
-import config._
 
 /** This black-boxes an Async Reset
   *  (or Set)

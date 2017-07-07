@@ -1,10 +1,9 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
-import config._
 
 class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val data = dType.cloneType

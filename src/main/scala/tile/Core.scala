@@ -1,11 +1,12 @@
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
-import config._
-import rocket._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.util._
 
 case object BuildCore extends Field[Parameters => CoreModule with HasCoreIO]
 case object XLen extends Field[Int]

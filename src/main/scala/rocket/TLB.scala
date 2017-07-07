@@ -1,17 +1,17 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import diplomacy._
-import coreplex.CacheBlockBytes
-import tile.{XLen, CoreModule, CoreBundle}
-import uncore.tilelink2._
-import uncore.constants._
-import util._
+
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.diplomacy.RegionType
+import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 case object PAddrBits extends Field[Int]
 case object PgLevels extends Field[Int]

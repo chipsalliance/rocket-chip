@@ -154,13 +154,20 @@ Some of these packages provide Scala utilities for generator configuration,
 while other contain the actual Chisel RTL generators themselves.
 Here is a brief description of what can be found in each package:
 
+* **amba**
+This RTL package uses diplomacy to generate bus implementations of AMBA protocols, including AXI4, AHB-lite, and APB.
+* **chip**
+This top-level utility package invokes Chisel to elaborate a particular configuration of a coreplex,
+along with the appropriate testing collateral.
 * **config**
 This utility package provides Scala interfaces for configuring a generator via a dynamically-scoped
 parameterization library.
 * **coreplex**
-This RTL package generates a complete coreplex by gluing together a variety of other components,
-including tiled Rocket cores, an L1-to-L2 network, L2 coherence agents, and internal devices
-such as the debug unit and interrupt handlers.
+This RTL package generates a complete coreplex by gluing together a variety of components from other packages,
+including: tiled Rocket cores, a system bus network, coherence agents, debug devices, interrupt handlers, externally-facing peripherals,
+clock-crossers and converters from TileLink to external bus protocols (e.g. AXI or AHB).
+* **devices**
+This RTL package contains implementations for peripheral devices, including the Debug module and various TL slaves.
 * **diplomacy**
 This utility package extends Chisel by allowing for two-phase hardware elaboration, in which certain parameters
 are dynamically negotiated between modules.
@@ -176,16 +183,13 @@ This RTL package generates the Rocket in-order pipelined core,
 as well as the L1 instruction and data caches.
 This library is intended to be used by a chip generator that instantiates the
 core within a memory system and connects it to the outside world.
-* **uncore**
-This RTL package generates a variety of uncore logic and devices, such as
-such as the L2 coherence hub and Debug modules, as well as defining their interfaces and protocols.
-Contains implementations of both TileLink and AXI4.
+* **tile**
+This RTL package contains components that can be combined with cores to construct tiles, such as FPUs and accelerators.
+* **tilelink**
+This RTL package uses diplomacy to generate bus implementations of the TileLink protocol. It also contains a variety
+of adapters and protocol converters.
 * **unittest**
 This utility package contains a framework for generateing synthesizeable hardware testers of individual modules.
-* **rocketchip**
-This top-level RTL package instantiates a coreplex and drops in any additional
-externally-facing peripheral devices. It also includes clock-crossers and converters
-from TileLink to external bus protocols (e.g. AXI or AHB).
 * **util**
 This utility package provides a variety of common Scala and Chisel constructs that are re-used across
 multiple other packages,

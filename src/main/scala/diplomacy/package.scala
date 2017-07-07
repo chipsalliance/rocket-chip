@@ -1,6 +1,7 @@
 // See LICENSE.SiFive for license details.
 
-import Chisel._
+package freechips.rocketchip
+
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 
 package object diplomacy

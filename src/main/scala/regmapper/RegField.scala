@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package regmapper
+package freechips.rocketchip.regmapper
 
 import Chisel._
 import chisel3.util.{ReadyValidIO}
-import util.{SimpleRegIO}
+
+import freechips.rocketchip.util.{SimpleRegIO}
 
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn

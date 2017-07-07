@@ -1,8 +1,10 @@
 // See LICENSE.SiFive for license details.
 
-package groundtest
+package freechips.rocketchip.groundtest
 
-object Generator extends util.GeneratorApp {
+import freechips.rocketchip.util.GeneratorApp
+
+object Generator extends GeneratorApp {
   val longName = names.topModuleProject + "." + names.configs
   generateFirrtl
   generateTestSuiteMakefrags // TODO: Needed only for legacy make targets

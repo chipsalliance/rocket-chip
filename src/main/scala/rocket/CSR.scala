@@ -1,17 +1,15 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
-
-import collection.mutable.LinkedHashMap
+package freechips.rocketchip.rocket
 
 import Chisel._
-import Instructions._
-import config._
-import tile._
-import uncore.devices._
-import util._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.tile._
+import freechips.rocketchip.util._
+import scala.collection.mutable.LinkedHashMap
+import Instructions._
 
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient
