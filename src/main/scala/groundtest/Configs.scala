@@ -8,7 +8,7 @@ import freechips.rocketchip.chip.{BaseConfig, ExtMem}
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.coreplex.{CacheBlockBytes, L1toL2Config, WithBufferlessBroadcastHub}
 import freechips.rocketchip.rocket.{DCacheParams, PAddrBits}
-import freechips.rocketchip.tile.{XLen}
+import freechips.rocketchip.tile.{MaxHartIdBits, XLen}
 
 /** Actual testing target Configs */
 
@@ -36,4 +36,5 @@ class WithTraceGen(params: Seq[DCacheParams], nReqs: Int = 8192) extends Config(
     memStart = site(ExtMem).base,
     numGens = params.size)
   }   
+  case MaxHartIdBits => log2Up(params.size)
 })

@@ -186,13 +186,13 @@ class TagMan(val logNumTags : Int) extends Module {
 // Trace generator
 // ===============
 
-class TraceGenerator(val id: Int, val params: TraceGenParams)(implicit val p: Parameters) extends Module
+class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) extends Module
     with HasTraceGenParams {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val timeout = Bool(OUTPUT)
     val mem = new HellaCacheIO
-    val hartid = UInt(INPUT)
+    val hartid = UInt(INPUT, log2Up(numGens))
   }
 
   val totalNumAddrs = addressBag.size + numExtraAddrs
@@ -574,11 +574,13 @@ class TraceGenerator(val id: Int, val params: TraceGenParams)(implicit val p: Pa
 // Trace-generator wrapper
 // =======================
 
-class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params)
+class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params) {
+  override lazy val module = new TraceGenTileModule(this)
+}
 
-class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModule(outer, () => new GroundTestTileBundle(outer)) {
+class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer, () => new GroundTestTileBundle(outer)) {
 
-  val tracegen = Module(new TraceGenerator(outer.id, outer.params))
+  val tracegen = Module(new TraceGenerator(outer.params))
   tracegen.io.hartid := io.hartid
 
   outer.dcacheOpt foreach { dcache =>
