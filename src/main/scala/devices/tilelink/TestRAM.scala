@@ -9,13 +9,13 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 // Do not use this for synthesis! Only for simulation.
-class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
+class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
 {
   val device = new MemoryDevice
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(address),
+      address            = List(address) ++ errors,
       resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = executable,
