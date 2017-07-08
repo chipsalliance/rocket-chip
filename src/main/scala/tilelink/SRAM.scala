@@ -43,6 +43,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
     val edge = node.edgesIn(0)
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
+    val a_legal = address.contains(in.a.bits.address)
     val memAddress = Cat(addrBits.reverse)
     val mem = SeqMem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8)))
 
@@ -52,6 +53,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
     val d_source = Reg(UInt())
     val d_addr = Reg(UInt())
     val d_data = Wire(UInt())
+    val d_legal = Reg(Bool())
 
     // Flow control
     when (in.d.fire()) { d_full := Bool(false) }
@@ -59,7 +61,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
     in.d.valid := d_full
     in.a.ready := in.d.ready || !d_full
 
-    in.d.bits := edge.AccessAck(d_addr, UInt(0), d_source, d_size)
+    in.d.bits := edge.AccessAck(d_addr, UInt(0), d_source, d_size, !d_legal)
     // avoid data-bus Mux
     in.d.bits.data := d_data
     in.d.bits.opcode := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
@@ -73,10 +75,11 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
       d_size   := in.a.bits.size
       d_source := in.a.bits.source
       d_addr   := edge.addr_lo(in.a.bits)
+      d_legal  := a_legal
     }
 
     // exactly this pattern is required to get a RWM memory
-    when (in.a.fire() && !read) {
+    when (in.a.fire() && !read && a_legal) {
       mem.write(memAddress, wdata, in.a.bits.mask.toBools)
     }
     val ren = in.a.fire() && read
