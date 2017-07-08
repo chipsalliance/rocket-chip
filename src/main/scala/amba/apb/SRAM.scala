@@ -7,11 +7,11 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class APBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters) extends LazyModule
+class APBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
 {
   val node = APBSlaveNode(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(
-      address       = List(address),
+      address       = List(address) ++ errors,
       regionType    = RegionType.UNCACHED,
       executable    = executable,
       supportsRead  = true,
