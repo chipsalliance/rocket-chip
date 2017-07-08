@@ -8,14 +8,14 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, name: Option[String] = None)(implicit p: Parameters) extends LazyModule
+class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, name: Option[String] = None, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
 {
   private val resources =
     name.map(new SimpleDevice(_, Seq("sifive,sram0")).reg("mem")).getOrElse(new MemoryDevice().reg)
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(address),
+      address            = List(address) ++ errors,
       resources          = resources,
       regionType         = RegionType.UNCACHED,
       executable         = executable,
