@@ -38,6 +38,7 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     val a_mask      = MaskGen(in.haddr, in.hsize, beatBytes)
     val a_address   = Cat((mask zip (in.haddr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
     val a_write     = in.hwrite
+    val a_legal     = address.contains(in.haddr)
 
     // The data phase signals
     val d_wdata = Vec.tabulate(beatBytes) { i => in.hwdata(8*(i+1)-1, 8*i) }
@@ -67,6 +68,7 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     val read = a_request && !a_write
     // In case we choose to stall, we need to hold the read data
     val d_rdata = mem.readAndHold(a_address, read)
+    val d_legal = RegEnable(a_legal, in.hreadyout)
     // Whenever the port is not needed for reading, execute pending writes
     when (!read && p_valid) {
       p_valid := Bool(false)
@@ -75,7 +77,7 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
 
     // Record the request for later?
     p_latch_d := a_request && a_write
-    when (a_request && a_write) {
+    when (a_request && a_write && a_legal) {
       p_valid   := Bool(true)
       p_address := a_address
       p_mask    := a_mask
@@ -96,7 +98,7 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
 
     // Finally, the outputs
     in.hreadyout := (if(fuzzHreadyout) { !d_request || LFSR16(Bool(true))(0) } else { Bool(true) })
-    in.hresp     := AHBParameters.RESP_OKAY
+    in.hresp     := Mux(d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
 }
