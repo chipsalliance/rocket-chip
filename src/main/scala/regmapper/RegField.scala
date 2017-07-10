@@ -77,6 +77,7 @@ case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, name: String
 {
   require (width > 0)
   def pipelined = !read.combinational || !write.combinational
+  def readOnly = this.copy(write = ())
 }
 
 object RegField
@@ -105,6 +106,22 @@ object RegField
       bb.d := data
       Bool(true)
     }))
+
+  // Create byte-sized read-write RegFields out of a large UInt register.
+  // It is updated when any of the bytes are written. Because the RegFields
+  // are all byte-sized, this is also suitable when a register is larger
+  // than the intended bus width of the device (atomic updates are impossible).
+  def bytes(reg: UInt, numBytes: Int): Seq[RegField] = {
+    val pad = reg | UInt(0, width = 8*numBytes)
+    val bytes = Wire(init = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) })
+    val valids = Wire(init = Vec.fill(numBytes) { Bool(false) })
+    when (valids.reduce(_ || _)) { reg := bytes.asUInt }
+    bytes.zipWithIndex.map { case (b, i) => RegField(8, b,
+      RegWriteFn((valid, data) => {
+        valids(i) := valid
+        when (valid) { bytes(i) := data }
+        Bool(true)
+      }))}}
 }
 
 trait HasRegMap
