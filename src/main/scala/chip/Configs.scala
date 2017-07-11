@@ -34,6 +34,8 @@ class BasePlatformConfig extends Config((site, here, up) => {
   case SOCBusConfig => site(L1toL2Config)
   case PeripheryBusConfig => TLBusConfig(beatBytes = 4)
   case PeripheryBusArithmetic => true
+  // Default BootROMParams
+  case PeripheryBootROMKey => BootROMParams()
   // Note that PLIC asserts that this is > 0.
   case IncludeJtagDTM => false
   case JtagDTMKey => new JtagDTMKeyDefault()
