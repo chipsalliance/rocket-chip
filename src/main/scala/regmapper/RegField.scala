@@ -75,7 +75,7 @@ object RegWriteFn
 
 case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, name: String, description: String)
 {
-  require (width > 0)
+  require (width > 0, s"RegField width must be > 0, not $width")
   def pipelined = !read.combinational || !write.combinational
 }
 
