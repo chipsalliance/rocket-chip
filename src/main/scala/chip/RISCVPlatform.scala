@@ -100,10 +100,15 @@ trait HasPeripheryRTCCounterModuleImp extends LazyMultiIOModuleImp {
 }
 
 /** Adds a boot ROM that contains the DTB describing the system's coreplex. */
+case class BootROMParams(address: BigInt = 0x10000, size: Int = 0x10000, hang: BigInt = 0x10040)
+
+case object PeripheryBootROMKey extends Field[BootROMParams]
+
 trait HasPeripheryBootROM extends HasSystemNetworks with HasCoreplexRISCVPlatform {
-  val bootrom_address = 0x10000
-  val bootrom_size    = 0x10000
-  val bootrom_hang    = 0x10040
+  val bootROMParams   = p(PeripheryBootROMKey)
+  val bootrom_address = bootROMParams.address
+  val bootrom_size    = bootROMParams.size
+  val bootrom_hang    = bootROMParams.hang
   private lazy val bootrom_contents = GenerateBootROM(coreplex.dtb)
   val bootrom = LazyModule(new TLROM(bootrom_address, bootrom_size, bootrom_contents, true, peripheryBusConfig.beatBytes))
 
