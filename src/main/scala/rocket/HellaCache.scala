@@ -183,8 +183,10 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
 
-  // IOMSHRs must be FIFO
-  edge.manager.requireFifo()
+  // IOMSHRs must be FIFO for all regions with effects
+  edge.manager.managers.foreach { m =>
+    require (m.fifoId == Some(0) || !TLFIFOFixer.allUncacheable(m))
+  }
 }
 
 object HellaCache {

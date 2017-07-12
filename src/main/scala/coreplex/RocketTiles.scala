@@ -61,7 +61,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(c, i)(pWithExtra))
         val buffer = LazyModule(new TLBuffer(params))
-        val fixer = LazyModule(new TLFIFOFixer)
+        val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
         buffer.node :=* wrapper.masterNode
         fixer.node :=* buffer.node
         tile_splitter.node :=* fixer.node
@@ -79,7 +79,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         val wrapper = LazyModule(new AsyncRocketTile(c, i)(pWithExtra))
         val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
         val source = LazyModule(new TLAsyncCrossingSource(sync))
-        val fixer = LazyModule(new TLFIFOFixer)
+        val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
         sink.node :=* wrapper.masterNode
         fixer.node :=* sink.node
         tile_splitter.node :=* fixer.node
@@ -99,7 +99,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
         val wrapper = LazyModule(new RationalRocketTile(c, i)(pWithExtra))
         val sink = LazyModule(new TLRationalCrossingSink(direction))
         val source = LazyModule(new TLRationalCrossingSource)
-        val fixer = LazyModule(new TLFIFOFixer)
+        val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
         sink.node :=* wrapper.masterNode
         fixer.node :=* sink.node
         tile_splitter.node :=* fixer.node
