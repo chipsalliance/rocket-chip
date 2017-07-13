@@ -8,11 +8,37 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.max
 
-class TLFIFOFixer(implicit p: Parameters) extends LazyModule
+class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
 {
+  private def fifoMap(seq: Seq[TLManagerParameters]) = {
+    val (flatManagers, keepManagers) = seq.partition(policy)
+    // We need to be careful if one flatManager and one keepManager share an existing domain
+    // Erring on the side of caution, we will also flatten the keepManager in this case
+    val flatDomains = Set(flatManagers.flatMap(_.fifoId):_*) // => ID 0
+    val keepDomains = Set(keepManagers.flatMap(_.fifoId):_*) -- flatDomains // => IDs compacted
+    // Calculate what the FIFO domains look like after the fixer is applied
+    val flatMap = flatDomains.map { x => (x, 0) }.toMap
+    val keepMap = keepDomains.scanLeft((-1,0)) { case ((_,s),x) => (x, s+1) }.toMap
+    val map = flatMap ++ keepMap
+    val fixMap = seq.map { m => m.fifoId match {
+      case None => if (policy(m)) Some(0) else None
+      case Some(id) => Some(map(id)) // also flattens some who did not ask
+    } }
+    // Compress the FIFO domain space of those we are combining
+    val reMap = flatDomains.scanLeft((-1,-1)) { case ((_,s),x) => (x, s+1) }.toMap
+    val splatMap = seq.map { m => m.fifoId match {
+      case None => None
+      case Some(id) => reMap.lift(id)
+    } }
+    (fixMap, splatMap)
+  }
+
   val node = TLAdapterNode(
     clientFn  = { cp => cp },
-    managerFn = { mp => mp.copy(managers = mp.managers.map(m => m.copy(fifoId = Some(0)))) })
+    managerFn = { mp =>
+      val (fixMap, _) = fifoMap(mp.managers)
+      mp.copy(managers = (fixMap zip mp.managers) map { case (id, m) => m.copy(fifoId = id) })
+    })
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -21,33 +47,50 @@ class TLFIFOFixer(implicit p: Parameters) extends LazyModule
     }
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      val maxId = edgeOut.manager.managers.flatMap(_.fifoId).foldLeft(0)(max)
-      val a_id = edgeOut.manager.findFifoIdFast(in.a.bits.address)
-      val a_nid = a_id === UInt(0) // no id = not FIFO
+      val (fixMap, splatMap) = fifoMap(edgeOut.manager.managers)
 
+      // Do we need to serialize the request to this manager?
+      // println(s"make FIFO: ${edgeIn.manager.managers.filter(_.fifoId==Some(0)).map(_.name).mkString(", ")}")
+      // println(s"not  FIFO: ${edgeIn.manager.managers.filter(_.fifoId!=Some(0)).map(_.name).mkString(", ")}")
+      val a_notFIFO = edgeIn.manager.fastProperty(in.a.bits.address, _.fifoId != Some(0), (b:Boolean) => Bool(b))
+      // Does this manager have an existing FIFO domain? (don't care about unserialized cases)
+      val hackExist = ((fixMap zip splatMap) zip edgeOut.manager.managers) flatMap {
+        case ((f, s), m) => if (f == Some(0)) Some(m.copy(fifoId = s)) else None
+      }
+      // println(s"has domain: ${hackExist.filter( _.fifoId.isDefined).map(_.name).mkString(", ")}")
+      // println(s"no  domain: ${hackExist.filter(!_.fifoId.isDefined).map(_.name).mkString(", ")}")
+      val a_noDomain = edgeOut.manager.copy(managers = hackExist).fastProperty(in.a.bits.address, !_.fifoId.isDefined, (b:Boolean) => Bool(b))
+      // What is that domain? (don't care about noDomain cases)
+      val hackDomain = hackExist.filter(_.fifoId.isDefined)
+      // println(s"domains: ${hackDomain.groupBy(_.name).mapValues(_.map(_.fifoId))}")
+      // println("")
+      val a_id = edgeOut.manager.copy(managers = hackDomain).fastProperty(in.a.bits.address, _.fifoId.get, (id:Int) => UInt(id))
+      val maxId = hackDomain.flatMap(_.fifoId).foldLeft(0)(max)
+
+      // Count beats
       val a_first = edgeIn.first(in.a)
       val d_first = edgeOut.first(out.d) && out.d.bits.opcode =/= TLMessages.ReleaseAck
 
+      // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
+      // Sources unused in the stall signal calculation should be pruned by DCE
+      val flight = RegInit(Vec.fill(edgeIn.client.endSourceId) { Bool(false) })
+      when (d_first && in.d.fire()) { flight(in.d.bits.source) := Bool(false) }
+      when (a_first && in.a.fire()) { flight(in.a.bits.source) := !a_notFIFO }
+
       val stalls = edgeIn.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
         val a_sel = c.sourceId.contains(in.a.bits.source)
-        val d_sel = c.sourceId.contains(in.d.bits.source)
-        val id    = RegInit(UInt(0, width = log2Up(maxId+1))) // TODO zero-width
-        val count = RegInit(UInt(0, width = log2Up(c.sourceId.size+1))) // TODO zero-width
+        val id    = RegEnable(a_id, in.a.fire() && a_sel && !a_notFIFO)
+        val track = flight.slice(c.sourceId.start, c.sourceId.end)
 
-        val a_inc = in.a.fire() && a_first && a_sel
-        val d_dec = in.d.fire() && d_first && d_sel
-        count := count + a_inc.asUInt - d_dec.asUInt
-        when (in.a.fire() && a_sel) { id := a_id }
-
-        a_sel && a_first && count =/= UInt(0) && (a_nid || id =/= a_id)
+        a_sel && a_first && track.reduce(_ || _) && (a_noDomain || id =/= a_id)
       }
 
       val stall = stalls.foldLeft(Bool(false))(_||_)
 
       out.a <> in.a
       in.d <> out.d
-      out.a.valid := in.a.valid && !stall
-      in.a.ready := out.a.ready && !stall
+      out.a.valid := in.a.valid && (a_notFIFO || !stall)
+      in.a.ready := out.a.ready && (a_notFIFO || !stall)
 
       if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {
         in .b <> out.b
@@ -67,11 +110,19 @@ class TLFIFOFixer(implicit p: Parameters) extends LazyModule
 
 object TLFIFOFixer
 {
+  // Which slaves should have their FIFOness combined?
+  // NOTE: this transformation is still only applied for masters with requestFifo
+  type Policy = TLManagerParameters => Boolean
+  import RegionType._
+
+  val all:            Policy = m => true
+  val allFIFO:        Policy = m => m.fifoId.isDefined
+  val allUncacheable: Policy = m => m.regionType <= UNCACHEABLE
+
   // applied to the TL source node; y.node := TLFIFOFixer()(x.node)
-  def apply()(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val fixer = LazyModule(new TLFIFOFixer)
+  def apply(policy: Policy = all)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
+    val fixer = LazyModule(new TLFIFOFixer(policy))
     fixer.node := x
     fixer.node
   }
 }
-

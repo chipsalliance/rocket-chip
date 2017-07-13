@@ -343,8 +343,8 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     require (oStars == 0, s"${name} (a nexus) appears right of a :=* (perhaps you should flip the '*' to :*=?)${lazyModule.line}")
     (0, 0)
   }
-  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = Seq.fill(n) { dFn(p) }
-  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = Seq.fill(n) { uFn(p) }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = { val a = dFn(p); Seq.fill(n)(a) }
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = { val a = uFn(p); Seq.fill(n)(a) }
 }
 
 class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
