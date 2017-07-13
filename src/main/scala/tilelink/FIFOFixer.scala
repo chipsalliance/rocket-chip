@@ -50,22 +50,27 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       val (fixMap, splatMap) = fifoMap(edgeOut.manager.managers)
 
       // Do we need to serialize the request to this manager?
-      // println(s"make FIFO: ${edgeIn.manager.managers.filter(_.fifoId==Some(0)).map(_.name).mkString(", ")}")
-      // println(s"not  FIFO: ${edgeIn.manager.managers.filter(_.fifoId!=Some(0)).map(_.name).mkString(", ")}")
       val a_notFIFO = edgeIn.manager.fastProperty(in.a.bits.address, _.fifoId != Some(0), (b:Boolean) => Bool(b))
       // Does this manager have an existing FIFO domain? (don't care about unserialized cases)
       val hackExist = ((fixMap zip splatMap) zip edgeOut.manager.managers) flatMap {
         case ((f, s), m) => if (f == Some(0)) Some(m.copy(fifoId = s)) else None
       }
-      // println(s"has domain: ${hackExist.filter( _.fifoId.isDefined).map(_.name).mkString(", ")}")
-      // println(s"no  domain: ${hackExist.filter(!_.fifoId.isDefined).map(_.name).mkString(", ")}")
-      val a_noDomain = edgeOut.manager.copy(managers = hackExist).fastProperty(in.a.bits.address, !_.fifoId.isDefined, (b:Boolean) => Bool(b))
+      val a_noDomain = if (hackExist.isEmpty) Bool(true) else
+        edgeOut.manager.copy(managers = hackExist).fastProperty(in.a.bits.address, !_.fifoId.isDefined, (b:Boolean) => Bool(b))
       // What is that domain? (don't care about noDomain cases)
       val hackDomain = hackExist.filter(_.fifoId.isDefined)
-      // println(s"domains: ${hackDomain.groupBy(_.name).mapValues(_.map(_.fifoId))}")
-      // println("")
-      val a_id = edgeOut.manager.copy(managers = hackDomain).fastProperty(in.a.bits.address, _.fifoId.get, (id:Int) => UInt(id))
+      val a_id = if (hackDomain.isEmpty) UInt(0) else
+        edgeOut.manager.copy(managers = hackDomain).fastProperty(in.a.bits.address, _.fifoId.get, (id:Int) => UInt(id))
       val maxId = hackDomain.flatMap(_.fifoId).foldLeft(0)(max)
+
+      if (false) {
+         println(s"make FIFO: ${edgeIn.manager.managers.filter(_.fifoId==Some(0)).map(_.name).mkString(", ")}")
+         println(s"not  FIFO: ${edgeIn.manager.managers.filter(_.fifoId!=Some(0)).map(_.name).mkString(", ")}")
+         println(s"has domain: ${hackExist.filter( _.fifoId.isDefined).map(_.name).mkString(", ")}")
+         println(s"no  domain: ${hackExist.filter(!_.fifoId.isDefined).map(_.name).mkString(", ")}")
+         println(s"domains: ${hackDomain.groupBy(_.name).mapValues(_.map(_.fifoId))}")
+         println("")
+      }
 
       // Count beats
       val a_first = edgeIn.first(in.a)
