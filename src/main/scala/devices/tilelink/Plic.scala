@@ -68,6 +68,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       val extra = Map(
         "interrupt-controller" -> Nil,
         "riscv,ndev" -> Seq(ResourceInt(nDevices)),
+        "riscv,maxpri" -> Seq(ResourceInt(maxPriorities)),        
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
     }
