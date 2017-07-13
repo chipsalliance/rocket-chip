@@ -5,8 +5,8 @@ $(addprefix $(torture_dir)/, $(addsuffix .elf, $(torture-tests))): $(torture_dir
 	ln -fs $(regression_dir)/$* $@
 
 .PRECIOUS: $(torture_dir)/%.rtlsim.sig
-$(torture_dir)/%.rtlsim.sig: $(torture_dir)/%.elf $(sim_dir)/dramsim2_ini $(simv)
-	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=$(timeout_cycles) +signature=$@ $< $(disasm) $(torture_dir)/$*.rtlsim.out && [ $$PIPESTATUS -eq 0 ]
+$(torture_dir)/%.rtlsim.sig: $(torture_dir)/%.elf $(simv)
+	cd $(sim_dir) && $(exec_simv) +verbose +max-cycles=$(timeout_cycles) +signature=$@ $< $(disasm) $(torture_dir)/$*.rtlsim.out && [ $$PIPESTATUS -eq 0 ]
 
 .PRECIOUS: $(torture_dir)/%.spike.sig
 $(torture_dir)/%.spike.sig: $(torture_dir)/%.elf
@@ -15,7 +15,7 @@ $(torture_dir)/%.spike.sig: $(torture_dir)/%.elf
 $(torture_dir)/%.diff: $(torture_dir)/%.rtlsim.sig $(torture_dir)/%.spike.sig
 	cd $(sim_dir) && diff $(torture_dir)/$*.rtlsim.sig $(torture_dir)/$*.spike.sig > $@
 
-$(torture_dir)/%.rtlsim.vpd: $(torture_dir)/%.elf $(sim_dir)/dramsim2_ini $(simv_debug)
-	cd $(sim_dir) && $(exec_simv_debug) +dramsim +verbose +max-cycles=$(timeout_cycles) +vcdplusfile=$@ $< $(disasm) $(torture_dir)/$*.rtlsim.out && [ $$PIPESTATUS -eq 0 ]
+$(torture_dir)/%.rtlsim.vpd: $(torture_dir)/%.elf $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +verbose +max-cycles=$(timeout_cycles) +vcdplusfile=$@ $< $(disasm) $(torture_dir)/$*.rtlsim.out && [ $$PIPESTATUS -eq 0 ]
 
 run-torture-tests: $(addprefix $(torture_dir)/, $(addsuffix .diff, $(torture-tests)))

@@ -40,18 +40,17 @@ def calc_v(npr, lid, bid, paddr, sid):
   strip_id = paddr/npr
   strip_id_div = strip_id/lstrip
   strip_id_rem = strip_id%lstrip
-  eidx = ((((lid + strip_id_div) * lstrip) + strip_id_rem) * nstrip) + (bid*nslices) + sid
+  eidx = (((((strip_id_div * nlanes) + lid) * lstrip) + strip_id_rem) * nstrip) + (bid*nslices) + sid
   addr = paddr%npr
   return (eidx, addr)
 
 def calc_p(npr, lid, bid, paddr, sid):
   strip_id = paddr/npr
   strip_id_div = strip_id/lstrip
+  sid_div = sid/nslices
   strip_id_rem = strip_id%lstrip
-  strip_eidx_comp = ((((lid + strip_id_div) * lstrip) + strip_id_rem) * nstrip*(nstrip/nslices))
-  bank_eidx_comp = bid*nslices
-  sid_eidx_comp = ((sid/nslices)*nstrip)+(sid%nslices)
-  eidx = strip_eidx_comp + bank_eidx_comp + sid_eidx_comp
+  sid_rem = sid%nslices
+  eidx = (((((((strip_id_div * (nstrip/nslices)) + sid_div) * nlanes) + lid) * lstrip) + strip_id_rem) * nstrip) + (bid*nslices) + sid_rem
   addr = paddr%npr
   return (eidx, addr)
 
