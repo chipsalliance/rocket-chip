@@ -76,7 +76,7 @@ trait HasSystemNetworks extends HasPeripheryParameters {
 abstract trait HasPeripheryExtInterrupts extends HasSystemNetworks {
   private val device = new Device with DeviceInterrupts {
     def describe(resources: ResourceBindings): Description = {
-      Description("soc/offchip-interrupts", describeInterrupts(resources))
+      Description("soc/external-interrupts", describeInterrupts(resources))
     }
   }
 
