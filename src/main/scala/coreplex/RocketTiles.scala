@@ -37,6 +37,7 @@ trait HasRocketTiles extends CoreplexRISCVPlatform {
       case TileKey => c
       case BuildRoCC => c.rocc
       case SharedMemoryTLEdge => tile_splitter.node.edgesIn(0)
+      case TLMonitorBuilder => (args: TLMonitorArgs) => None
     }
 
     val asyncIntXbar  = LazyModule(new IntXbar)
