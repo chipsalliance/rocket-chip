@@ -1,17 +1,17 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.core.withReset
-import config._
-import coreplex._
-import diplomacy._
-import uncore.tilelink2._
-import tile._
-import util._
+import freechips.rocketchip.config._
+import freechips.rocketchip.coreplex._
+import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.util._
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -59,8 +59,9 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
   val masterNode = TLOutputNode()
   val slaveNode = TLInputNode()
 
-  icache.slaveNode.map { _ := slaveNode }
   masterNode := icache.masterNode
+  // Avoid breaking tile dedup due to address constants in the monitor
+  icache.slaveNode.map { _ connectButDontMonitor slaveNode }
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
@@ -167,12 +168,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := ~(~Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc) | (coreInstBytes-1)) // discard LSB(s)
 
-  fq.io.enq.bits.data := icache.io.resp.bits
+  fq.io.enq.bits.data := icache.io.resp.bits.data
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  fq.io.enq.bits.xcpt := s2_tlb_resp
   fq.io.enq.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
   fq.io.enq.bits.btb.valid := s2_btb_resp_valid
   fq.io.enq.bits.btb.bits := s2_btb_resp_bits
+  fq.io.enq.bits.xcpt := s2_tlb_resp
+  when (icache.io.resp.valid && icache.io.resp.bits.ae) { fq.io.enq.bits.xcpt.ae.inst := true }
 
   io.cpu.resp <> fq.io.deq
 

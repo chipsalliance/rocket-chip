@@ -1,18 +1,18 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import rocket._
-import tile._
-import uncore.converters._
-import uncore.devices._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.devices.debug._
+import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PAddrBits => 32
@@ -20,14 +20,13 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case ASIdBits => 0
   case XLen => 64 // Applies to all cores
   case ResetVectorBits => site(PAddrBits)
-  case MaxHartIdBits => log2Up(site(NTiles))
+  case MaxHartIdBits => log2Up(site(RocketTilesKey).size)
   case BuildCore => (p: Parameters) => new Rocket()(p)
   case RocketCrossing => SynchronousCrossing()
   case RocketTilesKey =>  Nil
   case DMKey => DefaultDebugModuleConfig(site(XLen))
   case PLICKey => PLICParams()
   case ClintKey => ClintParams()
-  case NTiles => site(RocketTilesKey).size
   case CBusConfig => TLBusConfig(beatBytes = site(XLen)/8)
   case L1toL2Config => TLBusConfig(beatBytes = site(XLen)/8) // increase for more PCIe bandwidth
   case BootROMFile => "./bootrom/bootrom.img"
@@ -111,10 +110,6 @@ class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
   case CacheBlockBytes => linesize
 })
-
-class WithL2Cache extends Config(Parameters.empty) // TODO: re-add L2
-class WithL2Capacity(size_kb: Int) extends Config(Parameters.empty) // TODO: re-add L2
-class WithNL2Ways(n: Int) extends Config(Parameters.empty) // TODO: re-add L2
 
 class WithBufferlessBroadcastHub extends Config((site, here, up) => {
   case BroadcastConfig => up(BroadcastConfig, site).copy(bufferless = true)

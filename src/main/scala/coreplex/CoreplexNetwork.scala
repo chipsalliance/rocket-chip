@@ -1,13 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.PAddrBits
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 trait CoreplexNetwork extends HasCoreplexParameters {
   val module: CoreplexNetworkModule
@@ -112,20 +113,21 @@ trait CoreplexNetworkModule extends HasCoreplexParameters {
   val io: CoreplexNetworkBundle
 
   println("Generated Address Map")
-  private val aw = (outer.p(rocket.PAddrBits)-1)/4 + 1
+  private val aw = (outer.p(PAddrBits)-1)/4 + 1
   private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c %s"
 
   private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
     value match {
       case r: ResourceAddress => List((path(1), r))
+      case b: ResourceMapping => List((path(1), ResourceAddress(b.address, b.permissions)))
       case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
       case _ => Nil
     }
   }
   private val ranges = collect(Nil, outer.bindingTree).groupBy(_._2).toList.flatMap { case (key, seq) =>
-    AddressRange.fromSets(key.address).map { r => (r, key.r, key.w, key.x, key.c, seq.map(_._1)) }
+    AddressRange.fromSets(key.address).map { r => (r, key.permissions, seq.map(_._1)) }
   }.sortBy(_._1)
-  private val json = ranges.map { case (range, r, w, x, c, names) =>
+  private val json = ranges.map { case (range, ResourcePermissions(r, w, x, c), names) =>
     println(fmt.format(
       range.base,
       range.base+range.size,

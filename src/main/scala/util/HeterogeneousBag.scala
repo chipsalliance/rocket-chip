@@ -1,4 +1,6 @@
-package util
+// See LICENSE.SiFive for license details.
+
+package freechips.rocketchip.util
 
 import Chisel._
 import chisel3.core.Record

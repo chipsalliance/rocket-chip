@@ -1,17 +1,17 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import diplomacy._
-import coreplex.CacheBlockBytes
-import tile.{XLen, CoreModule, CoreBundle}
-import uncore.tilelink2._
-import uncore.constants._
-import util._
+
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.diplomacy.RegionType
+import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 case object PAddrBits extends Field[Int]
 case object PgLevels extends Field[Int]
@@ -20,6 +20,7 @@ case object ASIdBits extends Field[Int]
 class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
   val rs1 = Bool()
   val rs2 = Bool()
+  val addr = UInt(width = vaddrBits)
   val asid = UInt(width = asIdBits max 1) // TODO zero-width
 }
 
@@ -252,6 +253,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
     }
 
     when (sfence) {
+      assert((io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn(vpnBits-1,0))
       valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
                Mux(io.req.bits.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }

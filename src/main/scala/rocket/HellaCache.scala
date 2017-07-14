@@ -1,17 +1,15 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
-import config.{Parameters, Field}
-import coreplex._
-import diplomacy._
-import tile._
-import uncore.constants._
-import uncore.tilelink2._
-import uncore.util.{Code, IdentityCode}
-import util.{ParameterizedBundle, RandomReplacement}
+import freechips.rocketchip.config.{Parameters, Field}
+import freechips.rocketchip.coreplex._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
 import scala.math.max
 
@@ -185,8 +183,10 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   val io = new HellaCacheBundle(outer)
   val tl_out = io.mem(0)
 
-  // IOMSHRs must be FIFO
-  edge.manager.requireFifo()
+  // IOMSHRs must be FIFO for all regions with effects
+  edge.manager.managers.foreach { m =>
+    require (m.fifoId == Some(0) || !TLFIFOFixer.allUncacheable(m))
+  }
 }
 
 object HellaCache {

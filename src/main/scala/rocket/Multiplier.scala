@@ -1,12 +1,12 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
-import ALU._
-import util._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.util._
+import ALU._
 
 class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
   val fn = Bits(width = SZ_ALU_FN)

@@ -1,18 +1,23 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
 import Chisel._
 
 /** Options for memory regions */
 object RegionType {
-  sealed trait T
+  // Define the 'more relaxed than' ordering
+  val cases = Seq(CACHED, TRACKED, UNCACHED, UNCACHEABLE, PUT_EFFECTS, GET_EFFECTS)
+  sealed trait T extends Ordered[T] {
+    def compare(that: T): Int = cases.indexOf(that) compare cases.indexOf(this)
+  }
+
   case object CACHED      extends T
   case object TRACKED     extends T
-  case object UNCACHED    extends T
-  case object PUT_EFFECTS extends T
+  case object UNCACHED    extends T // not cached yet, but could be
+  case object UNCACHEABLE extends T // may spontaneously change contents
+  case object PUT_EFFECTS extends T // PUT_EFFECTS => UNCACHEABLE
   case object GET_EFFECTS extends T // GET_EFFECTS => PUT_EFFECTS
-  val cases = Seq(CACHED, TRACKED, UNCACHED, PUT_EFFECTS, GET_EFFECTS)
 }
 
 // A non-empty half-open range; [start, end)

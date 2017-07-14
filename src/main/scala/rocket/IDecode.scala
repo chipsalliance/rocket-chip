@@ -1,16 +1,15 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.tile.HasCoreParameters
+import freechips.rocketchip.util._
 import Instructions._
-import uncore.constants.MemoryOpConstants._
 import ALU._
-import config._
-import tile.HasCoreParameters
-import util._
 
 abstract trait DecodeConstants extends HasCoreParameters
 {

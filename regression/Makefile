@@ -42,31 +42,23 @@ $(error Set SUITE to the regression suite you want to run)
 endif
 
 ifeq ($(SUITE),RocketSuiteA)
-PROJECT=rocketchip
+PROJECT=freechips.rocketchip.chip
 CONFIGS=DefaultConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteB)
-PROJECT=rocketchip
+PROJECT=freechips.rocketchip.chip
 CONFIGS=DefaultBufferlessConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteC)
-PROJECT=rocketchip
-CONFIGS=DefaultL2Config TinyConfig
-endif
-
-ifeq ($(SUITE),GroundtestSuite)
-PROJECT=groundtest
-CONFIGS=MemtestConfig MemtestBufferlessConfig MemtestStatelessConfig \
-        BroadcastRegressionTestConfig BufferlessRegressionTestConfig CacheRegressionTestConfig \
-	ComparatorConfig ComparatorBufferlessConfig ComparatorStatelessConfig
-# FancyMemtestConfig takes too long to compile
+PROJECT=freechips.rocketchip.chip
+CONFIGS=TinyConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
-PROJECT=unittest
-CONFIGS=UncoreUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
+PROJECT=freechips.rocketchip.unittest
+CONFIGS=AMBAUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)

@@ -1,6 +1,7 @@
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
+
 import Chisel._
 
 class plusarg_reader(val format: String, val default: Int, val docstring: String) extends BlackBox(Map(

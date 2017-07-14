@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
 import scala.collection.immutable.SortedMap
 
@@ -26,12 +26,12 @@ object JSON
   }
 
   private def helper(res: ResourceValue)(implicit path: Map[String, String]): Seq[String] = res match {
-    case ResourceAddress(address, r, w, x, c) =>
+    case ResourceAddress(address, ResourcePermissions(r, w, x, c)) =>
       AddressRange.fromSets(address).map { case AddressRange(base, size) =>
         s"""{"base":${base},"size":${size},"r":${r},"w":${w},"x":${x},"c":${c}}"""}
-    case ResourceMapping(address, offset) =>
+    case ResourceMapping(address, offset, ResourcePermissions(r, w, x, c)) =>
       AddressRange.fromSets(address).map { case AddressRange(base, size) =>
-        s"""{"base":${base},"size":${size},"offset":${offset}}"""}
+        s"""{"base":${base},"size":${size},"offset":${offset},"r":${r},"w":${w},"x":${x},"c":${c}}"""}
     case ResourceInt(value) => Seq(value.toString)
     case ResourceString(value) => Seq("\"" + value + "\"")
     case ResourceReference(value) => Seq("\"&" + path(value) + "\"")

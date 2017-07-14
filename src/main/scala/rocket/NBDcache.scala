@@ -1,16 +1,14 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import diplomacy._
-import uncore.constants._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 trait HasMissInfo extends HasL1HellaCacheParameters {
   val tag_match = Bool()
@@ -708,6 +706,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
   dtlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
+  dtlb.io.req.bits.sfence.bits.addr := s1_req.addr
   dtlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.vaddr := s1_req.addr

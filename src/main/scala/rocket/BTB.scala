@@ -1,13 +1,14 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import tile.HasCoreParameters
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.tile.HasCoreParameters
+import freechips.rocketchip.util._
 
 case class BTBParams(
   nEntries: Int = 40,
@@ -18,7 +19,7 @@ case class BTBParams(
 
 trait HasBtbParameters extends HasCoreParameters {
   val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
-  val matchBits = btbParams.nMatchBits max log2Ceil(p(coreplex.CacheBlockBytes) * tileParams.icache.get.nSets)
+  val matchBits = btbParams.nMatchBits max log2Ceil(p(CacheBlockBytes) * tileParams.icache.get.nSets)
   val entries = btbParams.nEntries
   val nRAS = btbParams.nRAS
   val updatesOutOfOrder = btbParams.updatesOutOfOrder

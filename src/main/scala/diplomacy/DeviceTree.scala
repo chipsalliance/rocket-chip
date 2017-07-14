@@ -1,9 +1,8 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
-import Chisel._
-import config._
+import freechips.rocketchip.config.Field
 import sys.process._
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 

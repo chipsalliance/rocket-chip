@@ -1,6 +1,6 @@
 // See LICENSE.jtag for license details.
 
-package jtag
+package freechips.rocketchip.jtag
 
 import chisel3._
 import chisel3.util._
@@ -8,7 +8,7 @@ import chisel3.util._
   */
 class JTAGIO(hasTRSTn: Boolean = false) extends Bundle {
   val TRSTn = if (hasTRSTn) Some(Output(Bool())) else None
-  val TCK   = Clock(OUTPUT)
+  val TCK   = Output(Clock())
   val TMS   = Output(Bool())
   val TDI   = Output(Bool())
   val TDO   = Input(new Tristate())

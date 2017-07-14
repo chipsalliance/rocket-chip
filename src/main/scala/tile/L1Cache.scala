@@ -1,14 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
-import config.{Parameters, Field}
-import coreplex.CacheBlockBytes
-import rocket.PAddrBits
-import uncore.tilelink2.ClientMetadata
-import uncore.util.{Code, IdentityCode}
-import util.ParameterizedBundle
+
+import freechips.rocketchip.config.{Parameters, Field}
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.rocket.PAddrBits
+import freechips.rocketchip.tilelink.ClientMetadata
+import freechips.rocketchip.util._
 
 trait L1CacheParams {
   def nSets:         Int

@@ -1,10 +1,10 @@
 // See LICENSE.jtag for license details.
 
-package jtag
+package freechips.rocketchip.jtag
 
-import util.{AsyncResetRegVec}
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.util.{AsyncResetRegVec}
 
 object JtagState {
   sealed abstract class State(val id: Int) {

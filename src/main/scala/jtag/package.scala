@@ -1,5 +1,7 @@
 // See LICENSE.jtag for license details
 
+package freechips.rocketchip
+
 import scala.language.implicitConversions
 
 package object jtag {

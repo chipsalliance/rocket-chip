@@ -1,25 +1,24 @@
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import coreplex.CacheBlockBytes
-import diplomacy._
-import tile._
-import uncore.constants._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends LazyModule
     with HasCoreParameters {
-  val device = new SimpleDevice("dtim", Nil)
+  val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),
-      resources          = device.reg,
+      resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHED,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
