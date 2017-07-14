@@ -176,7 +176,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'C' channel ProbeAck smaller than a beat" + extra)
       assert (is_aligned, "'C' channel ProbeAck address not aligned to size" + extra)
       assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAck carries invalid report param" + extra)
-      assert (!bundle.error, "'C' channel Probe carries an error" + extra)
+      assert (!bundle.error, "'C' channel ProbeAck carries an error" + extra)
     }
 
     when (bundle.opcode === TLMessages.ProbeAckData) {
@@ -225,7 +225,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (source_ok, "'C' channel HintAck carries invalid source ID" + extra)
       assert (is_aligned, "'C' channel HintAck address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'C' channel HintAck carries invalid param" + extra)
-      assert (!bundle.error, "'C' channel HintAck carries an error" + extra)
     }
   }
 
@@ -242,7 +241,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (sink_ok, "'D' channel ReleaseAck carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel ReleaseAck smaller than a beat" + extra)
       assert (bundle.param === UInt(0), "'D' channel ReleaseeAck carries invalid param" + extra)
-      assert (!bundle.error, "'D' channel ReleaseAck carries an error" + extra)
     }
 
     when (bundle.opcode === TLMessages.Grant) {
@@ -283,7 +281,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (sink_ok, "'D' channel HintAck carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel HintAck carries invalid param" + extra)
-      assert (!bundle.error, "'D' channel HintAck carries an error" + extra)
     }
   }
 
