@@ -26,6 +26,11 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val replay = Bool()
 }
 
+class ExtBTBIO(implicit p: Parameters) extends CoreBundle()(p) {
+  val req = Valid(new BTBReq).flip
+  val resp = Valid(new BTBResp)
+}
+
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
   val resp = Decoupled(new FrontendResp).flip
@@ -35,6 +40,8 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val flush_tlb = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
+
+  val ext_btb = new ExtBTBIO()
 }
 
 class Frontend(implicit p: Parameters) extends LazyModule {
@@ -106,7 +113,22 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     s2_valid := Bool(false)
   }
 
-  if (usingBTB) {
+   // hack: boom will bring in its own BTB
+  if (usingExternalBTB) {
+    println("Frontend: using external BTB")
+    io.cpu.ext_btb.req.valid := false
+    io.cpu.ext_btb.req.bits.addr := io.cpu.npc
+    when (!stall && !icmiss) {
+      io.cpu.ext_btb.req.valid := true
+    }
+    when (io.cpu.ext_btb.resp.valid && io.cpu.ext_btb.resp.bits.taken) {
+      predicted_npc := io.cpu.ext_btb.resp.bits.target.sextTo(vaddrBitsExtended)
+      predicted_taken := Bool(true)
+    }
+  } else if (usingBTB) {
+    val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
+//    require (!tileParams.btb.get.updatesOutofOrder)
+    require (!btbParams.updatesOutOfOrder)
     val btb = Module(new BTB)
     btb.io.req.valid := false
     btb.io.req.bits.addr := s1_pc_
