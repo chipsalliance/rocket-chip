@@ -30,6 +30,7 @@ trait HasTileParameters {
   val usingDebug = tileParams.core.useDebug
   val usingRoCC = !tileParams.rocc.isEmpty
   val usingBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
+  val usingExternalBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries == 0 && tileParams.btb.get.updatesOutOfOrder
   val usingPTW = usingVM
   val usingDataScratchpad = tileParams.dcache.isDefined && tileParams.dataScratchpadBytes > 0
 
