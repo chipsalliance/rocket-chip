@@ -93,7 +93,7 @@ class TLFuzzer(
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val out = node.bundleOut
-      val finished = Bool()
+      val finished = Bool(OUTPUT)
     }
 
     val out = io.out(0)
