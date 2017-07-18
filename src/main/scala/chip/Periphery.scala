@@ -143,8 +143,8 @@ trait HasPeripheryMasterAXI4MemPort extends HasSystemNetworks {
         resources     = device.reg,
         regionType    = RegionType.UNCACHED,   // cacheable
         executable    = true,
-        supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
-        supportsRead  = TransferSizes(1, 256),
+        supportsWrite = TransferSizes(1, blockBytes),
+        supportsRead  = TransferSizes(1, blockBytes),
         interleavedId = Some(0))),             // slave does not interleave read responses
       beatBytes = config.beatBytes)
   })
@@ -334,11 +334,16 @@ trait HasPeripherySlaveTLPortModuleImp extends LazyMultiIOModuleImp with HasPeri
 /** Adds a /dev/null slave that generates */
 trait HasPeripheryZeroSlave extends HasSystemNetworks {
   private val config = p(ZeroConfig)
-  private val address = AddressSet(config.base, config.size-1)
+  private val channels = p(BankedL2Config).nMemoryChannels
   private val blockBytes = p(CacheBlockBytes)
 
-  val zeros = mem map { case xbar =>
-    val zero = LazyModule(new TLZero(address, beatBytes = config.beatBytes))
+  private val device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))
+
+  val zeros = mem.zipWithIndex.map { case (xbar, channel) =>
+    val base = AddressSet(config.base, config.size-1)
+    val filter = AddressSet(channel * blockBytes, ~((channels-1) * blockBytes))
+    val address = base.intersect(filter).get
+    val zero = LazyModule(new TLZero(address, beatBytes = config.beatBytes, resources = device.reg("mem")))
     zero.node := TLFragmenter(config.beatBytes, blockBytes)(xbar.node)
     zero
   }
