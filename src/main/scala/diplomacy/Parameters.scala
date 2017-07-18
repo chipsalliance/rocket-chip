@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import freechips.rocketchip.util.ShiftQueue
 
 /** Options for memory regions */
 object RegionType {
@@ -267,6 +268,13 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
   def apply[T <: Data](x: DecoupledIO[T]) =
     if (isDefined) Queue(x, depth, flow=flow, pipe=pipe)
     else x
+
+  def sq[T <: Data](x: DecoupledIO[T]) =
+    if (!isDefined) x else {
+      val sq = Module(new ShiftQueue(x.bits, depth, flow=flow, pipe=pipe))
+      sq.io.enq <> x
+      sq.io.deq
+    }
 }
 
 object BufferParams
