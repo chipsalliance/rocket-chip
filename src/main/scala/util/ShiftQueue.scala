@@ -17,8 +17,7 @@ class ShiftQueue[T <: Data](gen: T,
     val mask = UInt(OUTPUT, entries)
   })
 
-  private val ram = Mem(entries, gen)
-  private val valid = RegInit(UInt(0, entries))
+  private val valid = RegInit(Vec.fill(entries) { Bool(false) })
   private val elts = Reg(Vec(entries, gen))
 
   private val do_enq = io.enq.fire()
@@ -30,7 +29,12 @@ class ShiftQueue[T <: Data](gen: T,
     val enqNew = io.enq.fire() && Mux(io.deq.ready, valid(i), !valid(i) && (if (i == 0) true.B else valid(i-1)))
     when (shiftDown || enqNew) { elts(i) := wdata }
   }
-  when (do_enq =/= do_deq) { valid := Mux(do_enq, (valid << 1) | UInt(1), valid >> 1) }
+
+  val padded = Seq(true.B) ++ valid ++ Seq(false.B)
+  for (i <- 0 until entries) {
+    when ( do_enq && !do_deq &&  padded(i+0)) { valid(i) := true.B }
+    when (!do_enq &&  do_deq && !padded(i+2)) { valid(i) := false.B }
+  }
 
   io.enq.ready := !valid(entries-1)
   io.deq.valid := valid(0)
@@ -45,6 +49,6 @@ class ShiftQueue[T <: Data](gen: T,
     when (io.deq.ready) { io.enq.ready := true.B }
   }
 
-  io.count := PopCount(valid)
-  io.mask := valid
+  io.mask := valid.asUInt
+  io.count := PopCount(io.mask)
 }
