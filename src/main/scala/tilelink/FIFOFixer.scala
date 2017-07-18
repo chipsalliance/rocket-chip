@@ -51,25 +51,20 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
 
       // Do we need to serialize the request to this manager?
       val a_notFIFO = edgeIn.manager.fastProperty(in.a.bits.address, _.fifoId != Some(0), (b:Boolean) => Bool(b))
-      // Does this manager have an existing FIFO domain? (don't care about unserialized cases)
-      val hackExist = ((fixMap zip splatMap) zip edgeOut.manager.managers) flatMap {
+      // Compact the IDs of the cases we serialize
+      val compacted = ((fixMap zip splatMap) zip edgeOut.manager.managers) flatMap {
         case ((f, s), m) => if (f == Some(0)) Some(m.copy(fifoId = s)) else None
       }
-      val a_noDomain = if (hackExist.isEmpty) Bool(true) else
-        edgeOut.manager.copy(managers = hackExist).fastProperty(in.a.bits.address, !_.fifoId.isDefined, (b:Boolean) => Bool(b))
-      // What is that domain? (don't care about noDomain cases)
-      val hackDomain = hackExist.filter(_.fifoId.isDefined)
-      val a_id = if (hackDomain.isEmpty) UInt(0) else
-        edgeOut.manager.copy(managers = hackDomain).fastProperty(in.a.bits.address, _.fifoId.get, (id:Int) => UInt(id))
-      val maxId = hackDomain.flatMap(_.fifoId).foldLeft(0)(max)
+      val a_id = if (compacted.isEmpty) UInt(0) else
+        edgeOut.manager.copy(managers = compacted).findFifoIdFast(in.a.bits.address)
+      val a_noDomain = a_id === UInt(0)
 
       if (false) {
-         println(s"make FIFO: ${edgeIn.manager.managers.filter(_.fifoId==Some(0)).map(_.name).mkString(", ")}")
-         println(s"not  FIFO: ${edgeIn.manager.managers.filter(_.fifoId!=Some(0)).map(_.name).mkString(", ")}")
-         println(s"has domain: ${hackExist.filter( _.fifoId.isDefined).map(_.name).mkString(", ")}")
-         println(s"no  domain: ${hackExist.filter(!_.fifoId.isDefined).map(_.name).mkString(", ")}")
-         println(s"domains: ${hackDomain.groupBy(_.name).mapValues(_.map(_.fifoId))}")
-         println("")
+        println(s"FIFOFixer for: ${edgeIn.client.clients.map(_.name).mkString(", ")}")
+        println(s"make FIFO: ${edgeIn.manager.managers.filter(_.fifoId==Some(0)).map(_.name).mkString(", ")}")
+        println(s"not  FIFO: ${edgeIn.manager.managers.filter(_.fifoId!=Some(0)).map(_.name).mkString(", ")}")
+        println(s"domains: ${compacted.groupBy(_.name).mapValues(_.map(_.fifoId))}")
+        println("")
       }
 
       // Count beats
