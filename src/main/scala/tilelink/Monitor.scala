@@ -26,14 +26,14 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends MonitorBase()(args.sou
 
 class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 {
-  def extra(implicit sourceInfo: SourceInfo) = {
+  def extra = {
     sourceInfo match {
       case SourceLine(filename, line, col) => s" (connected at $filename:$line:$col)"
       case _ => ""
     }
   }
 
-  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
     assert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
@@ -99,7 +99,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge) {
     assert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
@@ -163,7 +163,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge) {
     assert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -228,7 +228,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge) {
     assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -284,12 +284,12 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge) {
     val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
     assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
-  def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) = {
+  def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge) = {
     when (bundle.a.valid) { legalizeFormatA(bundle.a.bits, edge) }
     when (bundle.d.valid) { legalizeFormatD(bundle.d.bits, edge) }
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
@@ -303,7 +303,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge) {
     val a_first = edge.first(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -326,7 +326,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatB(b: DecoupledSnoop[TLBundleB], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatB(b: DecoupledSnoop[TLBundleB], edge: TLEdge) {
     val b_first = edge.first(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -349,7 +349,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatC(c: DecoupledSnoop[TLBundleC], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatC(c: DecoupledSnoop[TLBundleC], edge: TLEdge) {
     val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -372,7 +372,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatD(d: DecoupledSnoop[TLBundleD], edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeatD(d: DecoupledSnoop[TLBundleD], edge: TLEdge) {
     val d_first = edge.first(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -398,7 +398,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeat(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeMultibeat(bundle: TLBundleSnoop, edge: TLEdge) {
     legalizeMultibeatA(bundle.a, edge)
     legalizeMultibeatD(bundle.d, edge)
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
@@ -407,7 +407,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeADSource(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeADSource(bundle: TLBundleSnoop, edge: TLEdge) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
@@ -440,7 +440,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := UInt(0) }
   }
 
-  def legalizeDESink(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeDESink(bundle: TLBundleSnoop, edge: TLEdge) {
     val inflight = RegInit(UInt(0, width = edge.manager.endSinkId))
 
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
@@ -463,7 +463,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     inflight := (inflight | d_set) & ~e_clr
   }
 
-  def legalizeUnique(bundle: TLBundleSnoop, edge: TLEdge)(implicit sourceInfo: SourceInfo) {
+  def legalizeUnique(bundle: TLBundleSnoop, edge: TLEdge) {
     val sourceBits = log2Ceil(edge.client.endSourceId)
     val tooBig = 14 // >16kB worth of flight information gets to be too much
     if (sourceBits > tooBig) {
