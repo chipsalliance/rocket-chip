@@ -35,32 +35,6 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
   case PLICParams => PLICParams()
   case ClintParams => ClintParams()
-  case ZeroParams => ZeroParams(
-                      base = 0x0a000000L,
-                      size = 0x02000000L,
-                      beatBytes= site(MemoryBusParams).beatBytes)
-  case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)))
-  case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
-  // External port parameters
-  case NExtTopInterrupts => 2
-  case IncludeJtagDTM => false
-  case JtagDTMKey => new JtagDTMKeyDefault()
-  case ExtMem => MasterPortParams(
-                      base = 0x80000000L,
-                      size = 0x10000000L,
-                      beatBytes = site(MemoryBusParams).beatBytes,
-                      idBits = 4)
-  case ExtBus => MasterPortParams(
-                      base = 0x60000000L,
-                      size = 0x20000000L,
-                      beatBytes = site(MemoryBusParams).beatBytes,
-                      idBits = 4)
-  case ExtIn  => SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4)
-  // DTS descriptive parameters
-  case DTSModel => "ucbbar,rocketchip-unknown"
-  case DTSCompat => Nil
-  case DTSTimebase => BigInt(1000000) // 1 MHz
-  case RTCPeriod => 1000 // Implies coreplex clock is DTSTimebase * RTCPeriod = 1 GHz
   // TileLink connection global parameters
   case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
   case TLCombinationalCheck => false

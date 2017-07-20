@@ -29,7 +29,7 @@ trait CanHaveRTCBundle {
 
 trait HasRTCModuleImp extends LazyMultiIOModuleImp with CanHaveRTCBundle {
   val outer: HasRTC
-  private val internalPeriod = p(RTCPeriod)
+  private val internalPeriod: Option[Int] = p(RTCPeriod)
 
   // RTC is driven exernally if static period is not provided
   val rtc_toggle = if(internalPeriod.isDefined) None else Some(IO(Bool(INPUT)))

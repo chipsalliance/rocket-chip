@@ -10,7 +10,13 @@ import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.util._
 
 /** Specifies the size and width of external memory ports */
-case class MasterPortParams(base: Long, size: Long, beatBytes: Int, idBits: Int)
+case class MasterPortParams(
+  base: Long,
+  size: Long,
+  beatBytes: Int,
+  idBits: Int,
+  maxXferBytes: Int = 256,
+  executable: Boolean = true)
 case object ExtMem extends Field[MasterPortParams]
 case object ExtBus extends Field[MasterPortParams]
 
@@ -48,8 +54,8 @@ trait HasMasterAXI4MemPort extends HasMemoryBus {
   val yank = LazyModule(new AXI4UserYanker)
   val buffer = LazyModule(new AXI4Buffer)
 
-  memBuses.map(_.outwardNode).foreach { case mbus =>
-    converter.node := mbus
+  memBuses.map(_.toDRAMController).foreach { case node =>
+    converter.node := node
     trim.node := converter.node
     yank.node := trim.node
     buffer.node := yank.node
@@ -76,24 +82,24 @@ trait HasMasterAXI4MemPortModuleImp extends LazyMultiIOModuleImp with HasMasterA
 
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
 trait HasMasterAXI4MMIOPort extends HasSystemBus {
-  private val config = p(ExtBus)
+  private val params = p(ExtBus)
   private val device = new SimpleBus("mmio", Nil)
   val mmio_axi4 = AXI4BlindOutputNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
-      address       = List(AddressSet(BigInt(config.base), config.size-1)),
+      address       = List(AddressSet(BigInt(params.base), params.size-1)),
       resources     = device.ranges,
-      executable    = true,                  // Can we run programs on this memory?
-      supportsWrite = TransferSizes(1, 256), // The slave supports 1-256 byte transfers
-      supportsRead  = TransferSizes(1, 256))),
-    beatBytes = config.beatBytes)))
+      executable    = params.executable,
+      supportsWrite = TransferSizes(1, params.maxXferBytes),
+      supportsRead  = TransferSizes(1, params.maxXferBytes))),
+    beatBytes = params.beatBytes)))
 
   mmio_axi4 :=
     AXI4Buffer()(
     AXI4UserYanker()(
     AXI4Deinterleaver(sbus.blockBytes)(
-    AXI4IdIndexer(config.idBits)(
-    TLToAXI4(config.beatBytes)(
-    sbus.outwardWWNode)))))
+    AXI4IdIndexer(params.idBits)(
+    TLToAXI4(params.beatBytes)(
+    sbus.toFixedWidthPorts)))))
 }
 
 /** Common io name and methods for propagating or tying off the port bundle */
@@ -113,17 +119,17 @@ trait HasMasterAXI4MMIOPortModuleImp extends LazyMultiIOModuleImp with HasMaster
 
 /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
 trait HasSlaveAXI4Port extends HasSystemBus {
-  private val config = p(ExtIn)
+  private val params = p(ExtIn)
   val l2FrontendAXI4Node = AXI4BlindInputNode(Seq(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
       name = "AXI4 periphery",
-      id   = IdRange(0, 1 << config.idBits))))))
+      id   = IdRange(0, 1 << params.idBits))))))
 
   private val fifoBits = 1
-  sbus.inwardFIFONode(TLFIFOFixer.all) :=
-    TLWidthWidget(config.beatBytes)(
+  sbus.fromSyncPorts(TLFIFOFixer.all) :=
+    TLWidthWidget(params.beatBytes)(
     AXI4ToTL()(
-    AXI4UserYanker(Some(1 << (config.sourceBits - fifoBits - 1)))(
+    AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))(
     AXI4Fragmenter()(
     AXI4IdIndexer(fifoBits)(
     l2FrontendAXI4Node)))))
@@ -158,7 +164,7 @@ trait HasMasterTLMMIOPort extends HasSystemBus {
     managers = Seq(TLManagerParameters(
       address            = List(AddressSet(BigInt(params.base), params.size-1)),
       resources          = device.ranges,
-      executable         = true,
+      executable         = params.executable,
       supportsGet        = TransferSizes(1, sbus.blockBytes),
       supportsPutFull    = TransferSizes(1, sbus.blockBytes),
       supportsPutPartial = TransferSizes(1, sbus.blockBytes))),
@@ -167,7 +173,7 @@ trait HasMasterTLMMIOPort extends HasSystemBus {
   mmio_tl :=
     TLBuffer()(
     TLSourceShrinker(1 << params.idBits)(
-    sbus.outwardWWNode))
+    sbus.toFixedWidthPorts))
 }
 
 /** Common io name and methods for propagating or tying off the port bundle */
@@ -201,7 +207,7 @@ trait HasSlaveTLPort extends HasSystemBus {
       name     = "Front Port (TL)",
       sourceId = IdRange(0, 1 << params.idBits))))))
 
-  sbus.inwardFIFONode :=
+  sbus.fromSyncPorts(TLFIFOFixer.all) :=
     TLSourceShrinker(1 << params.sourceBits)(
     TLWidthWidget(params.beatBytes)(
     l2FrontendTLNode))
@@ -226,40 +232,6 @@ trait HasSlaveTLPortBundle {
 trait HasSlaveTLPortModuleImp extends LazyMultiIOModuleImp with HasSlaveTLPortBundle {
   val outer: HasSlaveTLPort
   val l2_frontend_bus_tl = IO(outer.l2FrontendTLNode.bundleIn)
-}
-
-/** Inter-System Port (ISP): 
-  * Adds a pair of Asynchronous TL ports to the system, used to peer with other TL-based coreplexes
-  */
-trait HasISPPort extends HasSystemBus {
-  val module: HasISPPortModule
-
-  // TODO: use ChipLink instead of AsyncTileLink
-  val isp_in = TLAsyncInputNode()
-  val isp_out = TLAsyncOutputNode()
-
-  private val out_xbar = LazyModule(new TLXbar)
-  private val out_nums = LazyModule(new TLNodeNumberer)
-  private val out_async = LazyModule(new TLAsyncCrossingSource)
-  out_xbar.node :=* sbus.outwardSplitNode
-  out_nums.node :*= out_xbar.node
-  out_async.node :*= out_nums.node
-  isp_out :*= out_async.node
-
-  private val in_async = LazyModule(new TLAsyncCrossingSink)
-  in_async.node :=* isp_in
-  sbus.inwardBufNode :=* in_async.node
-}
-
-trait HasISPPortBundle {
-  val isp_in: HeterogeneousBag[TLAsyncBundle]
-  val isp_out: HeterogeneousBag[TLAsyncBundle]
-}
-
-trait HasISPPortModule extends LazyMultiIOModuleImp with HasISPPortBundle {
-  val outer: HasISPPort
-  val isp_in = IO(outer.isp_in.bundleIn)
-  val isp_out = IO(outer.isp_out.bundleOut)
 }
 
 /** Memory with AXI port for use in elaboratable test harnesses. */

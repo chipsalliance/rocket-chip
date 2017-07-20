@@ -15,13 +15,6 @@ case class SynchronousCrossing(params: BufferParams = BufferParams.default) exte
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
 case class AsynchronousCrossing(depth: Int, sync: Int = 2) extends CoreplexClockCrossing
 
-/** Interrupt bus collects interrupts from devices and feeds them into the PLIC */ 
-trait HasInterruptBus {
-  implicit val p: Parameters
-  val int_bus = LazyModule(new IntXbar)    // Interrupt crossbar
-  def interruptBusNode = int_bus.intnode
-}
-
 /** BareCoreplex is the root class for creating a coreplex sub-system */
 abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with BindingScope {
   lazy val dts = DTS(bindingTree)

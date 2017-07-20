@@ -23,7 +23,7 @@ case class BankedL2Params(
   nBanksPerChannel: Int = 1,
   coherenceManager: (Parameters, HasMemoryBus) => (TLInwardNode, TLOutwardNode) = { case (q, _) =>
     implicit val p = q
-    val MemoryBusParams(_, blockBytes, _, _, _) = p(MemoryBusParams)
+    val MemoryBusParams(_, blockBytes, _, _) = p(MemoryBusParams)
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastParams)
     val bh = LazyModule(new TLBroadcast(blockBytes, nTrackers, bufferless))
     (bh.node, bh.node)
@@ -37,18 +37,21 @@ case class MemoryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.none,
-  slaveBuffering: BufferParams = BufferParams.none,
-  masterFIFOPolicy: TLFIFOFixer.Policy = TLFIFOFixer.all
+  slaveBuffering: BufferParams = BufferParams.none
 ) extends TLBusParams
 
 case object MemoryBusParams extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
-class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params)(p)
+class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params)(p) {
+  def fromCoherenceManager: TLInwardNode = inwardBufNode
+  def toDRAMController: TLOutwardNode = outwardBufNode
+  def toVariableWidthSlave: TLOutwardNode = outwardFragNode
+}
 
-trait HasMemoryBus extends HasSystemBus {
+trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBus {
   private val mbusParams = p(MemoryBusParams)
-  private val MemoryBusParams(beatBytes, blockBytes, _, _, _) = mbusParams
+  private val MemoryBusParams(beatBytes, blockBytes, _, _) = mbusParams
   private val l2Params = p(BankedL2Params)
   val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
   val nBanks = l2Params.nBanks
@@ -64,8 +67,8 @@ trait HasMemoryBus extends HasSystemBus {
     val mbus = new MemoryBus(mbusParams)
     for (bank <- 0 until nBanksPerChannel) {
       val offset = (bank * nMemoryChannels) + channel
-      in := sbus.outwardWWNode(BufferParams.none)
-      mbus.inwardBufNode := TLFilter(AddressSet(offset * blockBytes, mask))(out)
+      in := sbus.toMemoryBus
+      mbus.fromCoherenceManager := TLFilter(AddressSet(offset * blockBytes, mask))(out)
     }
     mbus
   }

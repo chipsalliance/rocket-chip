@@ -3,9 +3,31 @@
 package freechips.rocketchip.coreplex
 
 import Chisel._
-import freechips.rocketchip.config.Field
+import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+
+/** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
+class InterruptBusWrapper(implicit p: Parameters) {
+
+  val int_bus = LazyModule(new IntXbar)    // Interrupt crossbar
+
+  private def synchronize(sync: Int): IntInwardNode = {
+    val asyncXing = LazyModule(new IntXing(sync))
+    int_bus.intnode := asyncXing.intnode
+    asyncXing.intnode
+  }
+
+  def fromAsync: IntInwardNode = synchronize(3)
+  def fromRational: IntInwardNode = synchronize(1)
+  def fromSync: IntInwardNode = int_bus.intnode
+  def toPLIC: IntOutwardNode = int_bus.intnode
+}
+
+trait HasInterruptBus {
+  implicit val p: Parameters
+  val ibus = new InterruptBusWrapper
+}
 
 /** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int]
@@ -30,9 +52,7 @@ abstract trait HasExtInterrupts extends HasInterruptBus {
   */
 trait HasAsyncExtInterrupts extends HasExtInterrupts {
   if (nExtInterrupts > 0) {
-    val extInterruptXing = LazyModule(new IntXing)
-    interruptBusNode := extInterruptXing.intnode
-    extInterruptXing.intnode := extInterrupts
+    ibus.fromAsync := extInterrupts
   }
 }
 
@@ -41,7 +61,7 @@ trait HasAsyncExtInterrupts extends HasExtInterrupts {
   */
 trait HasSyncExtInterrupts extends HasExtInterrupts {
   if (nExtInterrupts > 0) {
-    interruptBusNode := extInterrupts
+    ibus.fromSync := extInterrupts
   }
 }
 

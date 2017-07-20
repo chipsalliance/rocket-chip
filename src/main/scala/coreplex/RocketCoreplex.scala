@@ -26,8 +26,10 @@ trait HasRocketTiles extends HasSystemBus
   val nRocketTiles = tileParams.size
 
   // Handle interrupts to be routed directly into each tile
+  // TODO: figure out how to merge the localIntNodes and coreIntXbar below
+  val localIntCounts = tileParams.map(_.core.nLocalInterrupts)
   val localIntNodes = tileParams map { t =>
-    (t.core.nLocalInterrupts > 0).option(IntInputNode())
+    (t.core.nLocalInterrupts > 0).option(LazyModule(new IntXbar).intnode)
   }
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
@@ -40,61 +42,50 @@ trait HasRocketTiles extends HasSystemBus
       case SharedMemoryTLEdge => sharedMemoryTLEdge
     }
 
-    val asyncIntXbar  = LazyModule(new IntXbar)
-    val periphIntXbar = LazyModule(new IntXbar)
-    val coreIntXbar   = LazyModule(new IntXbar)
-
-    // Local Interrupts must be synchronized to the core clock
-    // before being passed into this module.
-    // This allows faster latency for interrupts which are already synchronized.
-    // The CLINT and PLIC outputs interrupts that are synchronous to the periphery clock,
-    // so may or may not need to be synchronized depending on the Tile's
-    // synchronization type.
-    // Debug interrupt is definitely asynchronous in all cases.
-
-    asyncIntXbar.intnode  := debug.intnode                  // debug
-    periphIntXbar.intnode := clint.intnode                  // msip+mtip
-    periphIntXbar.intnode := plic.intnode                   // meip
-    if (c.core.useVM) periphIntXbar.intnode := plic.intnode // seip
-    lip.foreach { coreIntXbar.intnode := _ }                // lip
-
-    crossing match {
+    val wrapper = crossing match {
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(c, i)(pWithExtra))
-        sbus.inwardBufNode :=* wrapper.masterNode 
-        wrapper.slaveNode :*= pbus.outwardBufNode
-        wrapper.asyncIntNode  := asyncIntXbar.intnode
-        wrapper.periphIntNode := periphIntXbar.intnode
-        wrapper.coreIntNode   := coreIntXbar.intnode
+        sbus.fromSyncTiles(params) :=* wrapper.masterNode 
+        wrapper.slaveNode :*= pbus.bufferToSlaves
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(c, i)(pWithExtra))
-        val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-        val source = LazyModule(new TLAsyncCrossingSource(sync))
-        sink.node :=* wrapper.masterNode
-        sbus.inwardFIFONode :=* sink.node
-        source.node :*= pbus.outwardBufNode
-        wrapper.slaveNode :*= source.node
-        wrapper.asyncIntNode  := asyncIntXbar.intnode
-        wrapper.periphIntNode := periphIntXbar.intnode
-        wrapper.coreIntNode   := coreIntXbar.intnode
+        sbus.fromAsyncTiles(depth, sync) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync)
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(c, i)(pWithExtra))
         val sink = LazyModule(new TLRationalCrossingSink(direction))
         val source = LazyModule(new TLRationalCrossingSource)
-        sink.node :=* wrapper.masterNode
-        sbus.inwardFIFONode :=* sink.node
-        source.node :*= pbus.outwardBufNode
-        wrapper.slaveNode :*= source.node
-        wrapper.asyncIntNode  := asyncIntXbar.intnode
-        wrapper.periphIntNode := periphIntXbar.intnode
-        wrapper.coreIntNode   := coreIntXbar.intnode
+        sbus.fromRationalTiles(direction) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toRationalSlaves
         wrapper
       }
     }
+
+    // Local Interrupts must be synchronized to the core clock
+    // before being passed into this module.
+    // This allows faster latency for interrupts which are already synchronized.
+    // The CLINT and PLIC outputs interrupts that are synchronous to the periphery clock,
+    // so may or may not need to be synchronized depending on the Tile's crossing type.
+    // Debug interrupt is definitely asynchronous in all cases.
+    val asyncIntXbar  = LazyModule(new IntXbar)
+    asyncIntXbar.intnode  := debug.intnode                  // debug
+    wrapper.asyncIntNode  := asyncIntXbar.intnode
+
+    val periphIntXbar = LazyModule(new IntXbar)
+    periphIntXbar.intnode := clint.intnode                  // msip+mtip
+    periphIntXbar.intnode := plic.intnode                   // meip
+    if (c.core.useVM) periphIntXbar.intnode := plic.intnode // seip
+    wrapper.periphIntNode := periphIntXbar.intnode
+
+    val coreIntXbar = LazyModule(new IntXbar)
+    lip.foreach { coreIntXbar.intnode := _ }                // lip
+    wrapper.coreIntNode   := coreIntXbar.intnode
+
+    wrapper
   }
 }
 
@@ -132,11 +123,10 @@ trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
 
 class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
     with HasRTC
-    with HasPeripheryErrorSlave
     with HasRocketTiles {
   override lazy val module = new RocketCoreplexModule(this)
 }
 
 class RocketCoreplexModule[+L <: RocketCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
-    with HasGlobalResetVectorWire
+    with HasRTCModuleImp
     with HasRocketTilesModuleImp

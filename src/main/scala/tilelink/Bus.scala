@@ -12,7 +12,6 @@ trait TLBusParams {
   val beatBytes: Int
   val blockBytes: Int
   val masterBuffering: BufferParams
-  val masterFIFOPolicy: TLFIFOFixer.Policy
   val slaveBuffering: BufferParams
 
   def beatBits: Int = beatBytes * 8
@@ -26,50 +25,77 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
   val blockBytes = params.blockBytes
   val masterBuffering = params.masterBuffering
   val slaveBuffering = params.slaveBuffering
-  val masterFIFOPolicy = params.masterFIFOPolicy
   require(blockBytes % beatBytes == 0)
 
   private val xbar = LazyModule(new TLXbar)
-  private val masterBuffer = LazyModule(new TLBuffer(masterBuffering))
-  private val masterFIFO = LazyModule(new TLFIFOFixer(masterFIFOPolicy))
-  private val masterSplitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
-  private val slaveBuffer = LazyModule(new TLBuffer(slaveBuffering))
-  private val slaveFrag = LazyModule(new TLFragmenter(beatBytes, blockBytes))
-  private val slaveWW = LazyModule(new TLWidthWidget(beatBytes))
+  private val master_buffer = LazyModule(new TLBuffer(masterBuffering))
+  private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
+  private val slave_buffer = LazyModule(new TLBuffer(slaveBuffering))
+  private val slave_frag = LazyModule(new TLFragmenter(beatBytes, blockBytes))
+  private val slave_ww = LazyModule(new TLWidthWidget(beatBytes))
 
-  masterFIFO.node :=* masterBuffer.node
-  masterSplitter.node :=* masterFIFO.node
-  xbar.node :=* masterSplitter.node
+  master_splitter.node :=* master_buffer.node
+  xbar.node :=* master_splitter.node
 
-  slaveBuffer.node :*= xbar.node
-  slaveFrag.node :*= slaveBuffer.node
-  slaveWW.node :*= slaveBuffer.node
+  slave_buffer.node :*= xbar.node
+  slave_frag.node :*= slave_buffer.node
+  slave_ww.node :*= slave_buffer.node
+
+  protected def outwardNode: TLOutwardNode = xbar.node
+  protected def outwardBufNode: TLOutwardNode = slave_buffer.node
+  protected def outwardFragNode: TLOutwardNode = slave_frag.node
+  protected def outwardWWNode: TLOutwardNode = slave_ww.node
+  protected def inwardNode: TLInwardNode = xbar.node
+  protected def inwardBufNode: TLInwardNode = master_buffer.node
+  protected def inwardSplitNode: TLInwardNode = master_splitter.node
+  protected def outwardSplitNode: TLOutwardNode = master_splitter.node
 
   def edgesIn = xbar.node.edgesIn
-  def outwardNode: TLOutwardNode = xbar.node
-  def outwardBufNode: TLOutwardNode = slaveBuffer.node
-  def outwardFragNode: TLOutwardNode = slaveFrag.node
-  def outwardFragNode(maxXfer: Int): TLOutwardNode = {
-    TLFragmenter(params.beatBytes, maxXfer)(slaveBuffer.node)
+
+  def bufferFromMasters: TLInwardNode = inwardBufNode
+
+  def bufferToSlaves: TLOutwardNode = outwardBufNode 
+
+  def toAsyncSlaves(sync: Int = 3): TLAsyncOutwardNode = {
+    val source = LazyModule(new TLAsyncCrossingSource(sync))
+    source.node :*= outwardNode
+    source.node
   }
-  def outwardWWNode: TLOutwardNode = slaveWW.node
-  def outwardWWNode(buf: BufferParams): TLOutwardNode = {
-    val buffer = LazyModule(new TLBuffer(buf))
-    val ww = LazyModule(new TLWidthWidget(beatBytes))
-    buffer.node :*= xbar.node
-    ww.node :*= buffer.node
-    ww.node
+
+  def toRationalSlaves: TLRationalOutwardNode = {
+    val source = LazyModule(new TLRationalCrossingSource())
+    source.node :*= outwardNode
+    source.node
   }
-  def inwardNode: TLInwardNode = xbar.node
-  def inwardBufNode: TLInwardNode = masterBuffer.node
-  def inwardFIFONode: TLInwardNode = masterFIFO.node
-  def inwardFIFONode(policy: TLFIFOFixer.Policy): TLInwardNode = {
-    val buffer = LazyModule(new TLBuffer())
-    val ff =  LazyModule(new TLFIFOFixer(policy))
-    ff.node :=* buffer.node
-    masterSplitter.node :=* ff.node
-    buffer.node 
+
+  def toVariableWidthSlaves: TLOutwardNode = outwardFragNode
+
+  def toAsyncVariableWidthSlaves(sync: Int = 3): TLAsyncOutwardNode = {
+    val source = LazyModule(new TLAsyncCrossingSource(sync))
+    source.node :*= outwardFragNode
+    source.node
   }
-  def inwardSplitNode: TLInwardNode = masterSplitter.node
-  def outwardSplitNode: TLOutwardNode = masterSplitter.node
+
+  def toRationalVariableWidthSlaves: TLRationalOutwardNode = {
+    val source = LazyModule(new TLRationalCrossingSource())
+    source.node :*= outwardFragNode
+    source.node
+  }
+
+  def toFixedWidthSlaves: TLOutwardNode = outwardWWNode
+
+  def toAsyncFixedWidthSlaves(sync: Int = 3): TLAsyncOutwardNode = {
+    val source = LazyModule(new TLAsyncCrossingSource(sync))
+    source.node := outwardWWNode
+    source.node
+  }
+
+  def toRationalFixedWidthSlaves: TLRationalOutwardNode = {
+    val source = LazyModule(new TLRationalCrossingSource())
+    source.node :*= outwardWWNode
+    source.node
+  }
+
+  def toFixedWidthPorts: TLOutwardNode = outwardWWNode // TODO, do/don't buffer here; knowing we will after the necessary port conversions
+
 }

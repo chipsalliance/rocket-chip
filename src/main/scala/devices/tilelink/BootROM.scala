@@ -20,7 +20,7 @@ case object BootROMParams extends Field[BootROMParams]
 /** Adds a boot ROM that contains the DTB describing the system's coreplex. */
 trait HasPeripheryBootROM extends HasPeripheryBus {
   val dtb: DTB
-  private val params   = p(BootROMParams)
+  private val params = p(BootROMParams)
   private lazy val contents = {
     val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
     val rom = ByteBuffer.wrap(romdata)
@@ -30,7 +30,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
 
   val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, pbus.beatBytes))
 
-  bootrom.node := pbus.outwardFragNode
+  bootrom.node := pbus.toVariableWidthSlaves
 }
 
 /** Coreplex will power-on running at 0x10040 (BootROM) */

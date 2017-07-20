@@ -25,10 +25,10 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
     })
   )}
 
-  tiles.foreach { sbus.inwardFIFONode :=* _.masterNode }
+  tiles.foreach { sbus.fromSyncTiles(BufferParams.default) :=* _.masterNode }
 
   val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), false, pbus.beatBytes))
-  pbusRAM.node := pbus.outwardFragNode
+  pbusRAM.node := pbus.toVariableWidthSlaves
 
   override lazy val module = new GroundTestCoreplexModule(this)
 }
@@ -46,11 +46,11 @@ class GroundTestCoreplexModule[+L <: GroundTestCoreplex](_outer: L) extends Base
 /** Adds a SRAM to the system for testing purposes. */
 trait HasPeripheryTestRAMSlave extends HasPeripheryBus {
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, pbus.beatBytes))
-  testram.node := pbus.outwardFragNode
+  testram.node := pbus.toVariableWidthSlaves
 }
 
 /** Adds a fuzzing master to the system for testing purposes. */
 trait HasPeripheryTestFuzzMaster extends HasPeripheryBus {
   val fuzzer = LazyModule(new TLFuzzer(5000))
-  pbus.inwardBufNode := fuzzer.node
+  pbus.bufferFromMasters := fuzzer.node
 }

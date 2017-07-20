@@ -71,5 +71,5 @@ trait HasPeripheryErrorSlave extends HasPeripheryBus {
 
   // Most slaves do not support a 4kB burst so this slave ends up with many more source bits than others;
   // we exclude the onerously large TLMonitor that results.
-  error.node connectButDontMonitor pbus.outwardFragNode(maxXfer)
+  error.node connectButDontMonitor pbus.toLargeBurstSlave(maxXfer)
 }

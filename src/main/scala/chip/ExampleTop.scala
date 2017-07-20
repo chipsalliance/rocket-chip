@@ -14,8 +14,7 @@ class ExampleRocketTop(implicit p: Parameters) extends RocketCoreplex
     with HasMasterAXI4MMIOPort
     with HasSlaveAXI4Port
     with HasPeripheryBootROM
-    with HasPeripheryErrorSlave
-    with HasMemoryZeroSlave {
+    with HasPeripheryErrorSlave {
   override lazy val module = new ExampleRocketTopModule(this)
 }
 
