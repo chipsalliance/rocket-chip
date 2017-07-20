@@ -74,8 +74,8 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
       // Sources unused in the stall signal calculation should be pruned by DCE
       val flight = RegInit(Vec.fill(edgeIn.client.endSourceId) { Bool(false) })
-      when (d_first && in.d.fire()) { flight(in.d.bits.source) := Bool(false) }
       when (a_first && in.a.fire()) { flight(in.a.bits.source) := !a_notFIFO }
+      when (d_first && in.d.fire()) { flight(in.d.bits.source) := Bool(false) }
 
       val stalls = edgeIn.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
         val a_sel = c.sourceId.contains(in.a.bits.source)
