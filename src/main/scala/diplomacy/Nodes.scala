@@ -267,6 +267,8 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY, true)
 
   def connectButDontMonitor(h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE, false)
+  def connectButDontMonitorSlaves(h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_STAR, false)
+  def connectButDontMonitorMasters(h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY, false)
 
   // meta-data for printing the node graph
   protected[diplomacy] def colour  = inner.colour
