@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package freechips.rocketchip.chip
+package freechips.rocketchip.system
 
 import Chisel._
 import freechips.rocketchip.config.Config
@@ -15,7 +15,7 @@ class BaseConfig extends Config(new BaseCoreplexConfig().alter((site,here,up) =>
   case DTSModel => "freechips,rocketchip-unknown"
   case DTSCompat => Nil
   case DTSTimebase => BigInt(1000000) // 1 MHz
-  case RTCPeriod => 1000 // Implies coreplex clock is DTSTimebase * RTCPeriod = 1 GHz
+  case RTCPeriod => Some(1000) // Implies coreplex clock is DTSTimebase * RTCPeriod = 1 GHz
   // External port parameters
   case IncludeJtagDTM => false
   case JtagDTMKey => new JtagDTMKeyDefault()

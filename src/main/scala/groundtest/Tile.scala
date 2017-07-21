@@ -6,11 +6,8 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.coreplex._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.rocket._
-import freechips.rocketchip.chip._
+import freechips.rocketchip.rocket.{HellaCache, RocketCoreParams}
 import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
 import scala.collection.mutable.ListBuffer
 
 trait GroundTestTileParams extends TileParams {

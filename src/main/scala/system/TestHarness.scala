@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.chip
+package freechips.rocketchip.system
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
@@ -11,7 +11,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
     val success = Bool(OUTPUT)
   }
 
-  val dut = Module(LazyModule(new ExampleRocketTop).module)
+  val dut = Module(LazyModule(new ExampleRocketSystem).module)
   dut.reset := reset | dut.debug.ndreset
 
   dut.tieOffInterrupts()

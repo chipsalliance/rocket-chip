@@ -156,9 +156,6 @@ Here is a brief description of what can be found in each package:
 
 * **amba**
 This RTL package uses diplomacy to generate bus implementations of AMBA protocols, including AXI4, AHB-lite, and APB.
-* **chip**
-This top-level utility package invokes Chisel to elaborate a particular configuration of a coreplex,
-along with the appropriate testing collateral.
 * **config**
 This utility package provides Scala interfaces for configuring a generator via a dynamically-scoped
 parameterization library.
@@ -188,6 +185,9 @@ This RTL package contains components that can be combined with cores to construc
 * **tilelink**
 This RTL package uses diplomacy to generate bus implementations of the TileLink protocol. It also contains a variety
 of adapters and protocol converters.
+* **system**
+This top-level utility package invokes Chisel to elaborate a particular configuration of a coreplex,
+along with the appropriate testing collateral.
 * **unittest**
 This utility package contains a framework for generateing synthesizeable hardware testers of individual modules.
 * **util**

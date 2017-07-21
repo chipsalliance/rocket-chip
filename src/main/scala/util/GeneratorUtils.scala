@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.firrtl.Circuit
 import chisel3.experimental.{RawModule}
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
-import freechips.rocketchip.chip.{TestGeneration, DefaultTestSuites}
+import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
