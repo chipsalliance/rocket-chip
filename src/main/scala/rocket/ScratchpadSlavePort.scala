@@ -105,14 +105,14 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCor
   // 1) Frontend always exists, but may or may not have a scratchpad node
   val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), earlyAck=true))
   val ww = LazyModule(new TLWidthWidget(xLen/8))
-  frontend.slaveNode :*= fg.node
-  fg.node :*= ww.node
-  ww.node :*= slaveNode
+  frontend.slaveNode connectButDontMonitorSlaves fg.node
+  fg.node connectButDontMonitorSlaves ww.node
+  ww.node connectButDontMonitorSlaves slaveNode
 
   // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
   val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1)))))
-  scratch foreach { lm => lm.node := TLFragmenter(xLen/8, p(CacheBlockBytes), earlyAck=true)(slaveNode) }
+  scratch foreach { lm => lm.node connectButDontMonitor TLFragmenter(xLen/8, p(CacheBlockBytes), earlyAck=true)(slaveNode) }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
     val finalNode = frontend.masterNode.edgesOut.head.manager.managers.find(_.nodePath.last == s.node)
