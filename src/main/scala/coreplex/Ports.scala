@@ -126,7 +126,7 @@ trait HasSlaveAXI4Port extends HasSystemBus {
       id   = IdRange(0, 1 << params.idBits))))))
 
   private val fifoBits = 1
-  sbus.fromSyncPorts(TLFIFOFixer.all) :=
+  sbus.fromSyncPorts() :=
     TLWidthWidget(params.beatBytes)(
     AXI4ToTL()(
     AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))(
@@ -207,7 +207,7 @@ trait HasSlaveTLPort extends HasSystemBus {
       name     = "Front Port (TL)",
       sourceId = IdRange(0, 1 << params.idBits))))))
 
-  sbus.fromSyncPorts(TLFIFOFixer.all) :=
+  sbus.fromSyncPorts() :=
     TLSourceShrinker(1 << params.sourceBits)(
     TLWidthWidget(params.beatBytes)(
     l2FrontendTLNode))

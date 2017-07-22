@@ -25,7 +25,9 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   protected def outwardSplitNode: TLOutwardNode = master_splitter.node
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
+  private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   master_splitter.node :=* tile_fixer.node
+  master_splitter.node :=* port_fixer.node
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
@@ -57,13 +59,29 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     sink.node
   }
 
-  def fromSyncPorts(policy: TLFIFOFixer.Policy): TLInwardNode = {
-    val buffer = LazyModule(new TLBuffer())
-    val ff =  LazyModule(new TLFIFOFixer(policy))
-    ff.node :=* buffer.node
-    inwardSplitNode :=* ff.node
-    buffer.node 
+  def fromSyncPorts(params: BufferParams =  BufferParams.default): TLInwardNode = {
+    val buffer = LazyModule(new TLBuffer(params))
+    port_fixer.node :=* buffer.node
+    buffer.node
   }
+
+  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default): TLInwardNode = fromSyncPorts(params)
+
+  def fromAsyncPorts(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
+    val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+    port_fixer.node :=* sink.node
+    sink.node
+  }
+
+  def fromAsyncFIFOMaster(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = fromAsyncPorts(depth, sync)
+
+  def fromRationalPorts(dir: RationalDirection): TLRationalInwardNode = {
+    val sink = LazyModule(new TLRationalCrossingSink(dir))
+    port_fixer.node :=* sink.node
+    sink.node
+  }
+
+  def fromRationalFIFOMaster(dir: RationalDirection): TLRationalInwardNode = fromRationalPorts(dir)
 }
 
 /** Provides buses that serve as attachment points,
