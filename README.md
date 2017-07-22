@@ -291,11 +291,11 @@ verilator.
     DefaultConfig.graphml
     DefaultConfig.json
     DefaultConfig.memmap.json
-    freechips.rocketchip.chip.DefaultConfig
-    freechips.rocketchip.chip.DefaultConfig.d
-    freechips.rocketchip.chip.DefaultConfig.fir
-    freechips.rocketchip.chip.DefaultConfig.v
-    $ ls $ROCKETCHIP/emulator/generated-src/freechips.rocketchip.chip.DefaultConfig
+    freechips.rocketchip.system.DefaultConfig
+    freechips.rocketchip.system.DefaultConfig.d
+    freechips.rocketchip.system.DefaultConfig.fir
+    freechips.rocketchip.system.DefaultConfig.v
+    $ ls $ROCKETCHIP/emulator/generated-src/freechips.rocketchip.system.DefaultConfig
     VTestHarness__1.cpp
     VTestHarness__2.cpp
     VTestHarness__3.cpp
@@ -360,11 +360,11 @@ Top.DefaultConfig.conf file:
     DefaultConfig.graphml
     DefaultConfig.json
     DefaultConfig.memmap.json
-    freechips.rocketchip.chip.DefaultConfig.behav_srams.v
-    freechips.rocketchip.chip.DefaultConfig.conf
-    freechips.rocketchip.chip.DefaultConfig.d
-    freechips.rocketchip.chip.DefaultConfig.fir
-    freechips.rocketchip.chip.DefaultConfig.v
+    freechips.rocketchip.system.DefaultConfig.behav_srams.v
+    freechips.rocketchip.system.DefaultConfig.conf
+    freechips.rocketchip.system.DefaultConfig.d
+    freechips.rocketchip.system.DefaultConfig.fir
+    freechips.rocketchip.system.DefaultConfig.v
     $ cat $ROCKETCHIP/vsim/generated-src/*.conf
     name data_arrays_0_ext depth 512 width 256 ports mrw mask_gran 8
     name tag_array_ext depth 64 width 88 ports mrw mask_gran 22
