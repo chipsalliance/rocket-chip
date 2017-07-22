@@ -28,7 +28,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   val addedBits = fragmentBits + toggleBits
 
   def expandTransfer(x: TransferSizes) = if (!x) x else {
-    require (x.max >= minSize) // validate that we can apply the fragmenter correctly
+    // validate that we can apply the fragmenter correctly
+    require (x.max >= minSize, s"max transfer size (${x.max}) must be >= min transfer size (${minSize})")
     TransferSizes(x.min, maxSize)
   }
   def shrinkTransfer(x: TransferSizes) =
