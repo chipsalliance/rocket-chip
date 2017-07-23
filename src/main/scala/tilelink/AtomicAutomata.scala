@@ -22,7 +22,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       def widen(x: TransferSizes) = if (passthrough && x.min <= 2*mp.beatBytes) TransferSizes(1, max(mp.beatBytes, x.max)) else ourSupport
       val canDoit = m.supportsPutFull.contains(ourSupport) && m.supportsGet.contains(ourSupport)
       // Blow up if there are devices to which we cannot add Atomics, because their R|W are too inflexible
-      require (!m.supportsPutFull || !m.supportsGet || canDoit)
+      require (!m.supportsPutFull || !m.supportsGet || canDoit, s"${m.name} has $ourSupport, needed PutFull(${m.supportsPutFull}) or Get(${m.supportsGet})")
       m.copy(
         supportsArithmetic = if (!arithmetic || !canDoit) m.supportsArithmetic else widen(m.supportsArithmetic),
         supportsLogical    = if (!logical    || !canDoit) m.supportsLogical    else widen(m.supportsLogical))

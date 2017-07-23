@@ -1,15 +1,12 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.chip
+package freechips.rocketchip.devices.debug
 
 import Chisel._
 
 import freechips.rocketchip.config._
-import freechips.rocketchip.devices.debug.{DMIConsts, DMIIO, DMIReq, DMIResp}
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
-
-case object IncludeJtagDTM extends Field[Boolean]
 
 case class JtagDTMConfig (
   idcodeVersion    : Int,      // chosen by manuf.
@@ -63,12 +60,19 @@ class DTMInfo extends Bundle {
   val debugVersion = UInt(4.W)
 }
 
+/** A wrapper around JTAG providing a reset signal and manufacturer id. */
+class SystemJTAGIO extends Bundle {
+  val jtag = new JTAGIO(hasTRSTn = false).flip
+  val reset = Bool(INPUT)
+  val mfr_id = UInt(INPUT, 11)
+}
+
 class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   (implicit val p: Parameters) extends Module  {
 
   val io = new Bundle {
     val dmi = new DMIIO()(p)
-    val jtag = Flipped(new JTAGIO(hasTRSTn = false))
+    val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
     val jtag_reset = Bool(INPUT)
     val jtag_mfr_id = UInt(INPUT, 11)
     val fsmReset = Bool(OUTPUT)

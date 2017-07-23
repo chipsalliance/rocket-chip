@@ -4,7 +4,8 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.coreplex.{HasInterruptBus, HasPeripheryBus}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tile.XLen
@@ -56,6 +57,8 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7)
   require (maxPriorities >= 0)
   def address = AddressSet(baseAddress, PLICConsts.size-1)
 }
+
+case object PLICParams extends Field[PLICParams]
 
 /** Platform-Level Interrupt Controller */
 class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
@@ -231,4 +234,11 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     for (e <- enables)
       e(0) := false
   }
+}
+
+/** Trait that will connect a PLIC to a coreplex */
+trait HasPeripheryPLIC extends HasInterruptBus with HasPeripheryBus {
+  val plic  = LazyModule(new TLPLIC(p(PLICParams)))
+  plic.node := pbus.toVariableWidthSlaves
+  plic.intnode := ibus.toPLIC
 }
