@@ -35,7 +35,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
 
 /** Coreplex will power-on running at 0x10040 (BootROM) */
 trait HasPeripheryBootROMModuleImp extends LazyMultiIOModuleImp
-    with HasGlobalResetVectorWire {
+    with HasResetVectorWire {
   val outer: HasPeripheryBootROM
   global_reset_vector := UInt(outer.resetVector, width = resetVectorBits)
 }

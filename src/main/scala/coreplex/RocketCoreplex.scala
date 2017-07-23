@@ -99,7 +99,7 @@ trait HasRocketTilesBundle {
 
 trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
     with HasRocketTilesBundle
-    with HasGlobalResetVectorWire
+    with HasResetVectorWire
     with HasPeripheryDebugModuleImp {
   val outer: HasRocketTiles
   val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs))
@@ -122,11 +122,9 @@ trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
 }
 
 class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
-    with HasRTC
     with HasRocketTiles {
   override lazy val module = new RocketCoreplexModule(this)
 }
 
 class RocketCoreplexModule[+L <: RocketCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
-    with HasRTCModuleImp
     with HasRocketTilesModuleImp

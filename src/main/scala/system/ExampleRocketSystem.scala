@@ -19,6 +19,7 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketCoreplex
 }
 
 class ExampleRocketSystemModule[+L <: ExampleRocketSystem](_outer: L) extends RocketCoreplexModule(_outer)
+    with HasRTCModuleImp
     with HasExtInterruptsModuleImp
     with HasMasterAXI4MemPortModuleImp
     with HasMasterAXI4MMIOPortModuleImp
