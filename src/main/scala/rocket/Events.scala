@@ -10,9 +10,13 @@ class EventSet(gate: (UInt, UInt) => Bool, events: Seq[(String, () => Bool)]) {
   def size = events.size
   def hits = events.map(_._2()).asUInt
   def check(mask: UInt) = gate(mask, hits)
+  def dump() {
+    for (((name, _), i) <- events.zipWithIndex)
+      when (check(1.U << i)) { printf(s"Event $name\n") }
+  }
 }
 
-class EventSets(eventSets: Seq[EventSet]) {
+class EventSets(val eventSets: Seq[EventSet]) {
   def maskEventSelector(eventSel: UInt): UInt = {
     // allow full associativity between counters and event sets (for now?)
     val setMask = (BigInt(1) << log2Ceil(eventSets.size)) - 1
