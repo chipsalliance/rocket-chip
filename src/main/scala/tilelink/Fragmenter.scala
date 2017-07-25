@@ -21,10 +21,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   require (isPow2 (minSize))
   require (minSize < maxSize)
 
-  // EarlyAck means that 1.999 transactions can be inflight at a time
-  // Thus, we need an extra toggle bit to prevent source collisions
   val fragmentBits = log2Ceil(maxSize / minSize)
-  val toggleBits = if (earlyAck) 1 else 0
+  val toggleBits = 1
   val addedBits = fragmentBits + toggleBits
 
   def expandTransfer(x: TransferSizes) = if (!x) x else {
@@ -141,9 +139,28 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val counterBits = log2Up(maxSize/beatBytes)
       val maxDownSize = if (alwaysMin) minSize else min(manager.maxTransfer, maxSize)
 
+      // Consider the following waveform for two 4-beat bursts:
+      // ---A----A------------
+      // -------D-----DDD-DDDD
+      // Under TL rules, the second A can use the same source as the first A,
+      // because the source is released for reuse on the first response beat.
+      //
+      // However, if we fragment the requests, it looks like this:
+      // ---3210-3210---------
+      // -------3-----210-3210
+      // ... now we've broken the rules because 210 are twice inflight.
+      //
+      // This phenomenon means we can have essentially 2*maxSize/minSize-1
+      // fragmented transactions in flight per original transaction source.
+      //
+      // To keep the source unique, we encode the beat counter in the low
+      // bits of the source. To solve the overlap, we use a toggle bit.
+      // Whatever toggle bit the D is reassembling, A will use the opposite.
+
       // First, handle the return path
       val acknum = RegInit(UInt(0, width = counterBits))
       val dOrig = Reg(UInt())
+      val dToggle = Reg(Bool())
       val dFragnum = out.d.bits.source(fragmentBits-1, 0)
       val dFirst = acknum === UInt(0)
       val dLast = dFragnum === UInt(0)
@@ -162,7 +179,10 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
       when (out.d.fire()) {
         acknum := Mux(dFirst, dFirst_acknum, acknum - ack_decrement)
-        when (dFirst) { dOrig := dFirst_size }
+        when (dFirst) {
+          dOrig := dFirst_size
+          dToggle := out.d.bits.source(fragmentBits)
+        }
       }
 
       // Swallow up non-data ack fragments
@@ -240,22 +260,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val new_gennum = ~(~old_gennum1 | (aMask >> log2Ceil(beatBytes))) // ~(~x|y) is width safe
       val aFragnum = ~(~(old_gennum1 >> log2Ceil(minSize/beatBytes)) | (aFragOH1 >> log2Ceil(minSize)))
       val aLast = aFragnum === UInt(0)
+      val aToggle = !Mux(aFirst, dToggle, RegEnable(dToggle, aFirst))
 
       when (out.a.fire()) { gennum := new_gennum }
-
-      // We need to alternate bits by source to handle the 1.999 txns inflight per Id
-      val toggleBitOpt = if (!earlyAck) None else {
-        val state = Reg(UInt(width = edgeIn.client.endSourceId))
-        val toggle = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
-        when (in_a.fire() && aLast) { toggle := UIntToOH(in_a.bits.source) }
-        state := state ^ toggle
-        Some(state(in_a.bits.source))
-      }
 
       repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
       out.a <> in_a
       out.a.bits.address := in_a.bits.address | ~(old_gennum1 << log2Ceil(beatBytes) | ~aOrigOH1 | aFragOH1 | UInt(minSize-1))
-      out.a.bits.source := Cat(Seq(in_a.bits.source) ++ toggleBitOpt.toList ++ Seq(aFragnum))
+      out.a.bits.source := Cat(Seq(in_a.bits.source) ++ Seq(aToggle.asUInt, aFragnum))
       out.a.bits.size := aFrag
 
       // Optimize away some of the Repeater's registers
