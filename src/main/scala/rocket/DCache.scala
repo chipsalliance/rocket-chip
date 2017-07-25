@@ -90,6 +90,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val q_depth = if (rational) (2 min maxUncachedInFlight-1) else 0
   val tl_out_a = Wire(tl_out.a)
   tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true, pipe = true))
+  val tl_out_c = Wire(tl_out.c)
+  tl_out.c <> (if (cacheParams.acquireBeforeRelease) Queue(tl_out_c, cacheDataBeats, flow = true) else tl_out_c)
 
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_probe = Reg(next=tl_out.b.fire(), init=Bool(false))
@@ -342,7 +344,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Wire(new TLBundleA(edge.bundle))
   }
 
-  tl_out_a.valid := (s2_valid_cached_miss && !s2_victim_dirty) ||
+  tl_out_a.valid := (s2_valid_cached_miss && (Bool(cacheParams.acquireBeforeRelease) || !s2_victim_dirty)) ||
                     (s2_valid_uncached && !uncachedInFlight.asUInt.andR)
   tl_out_a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!s2_read, put, atomics)))
 
@@ -371,7 +373,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
-  tl_out.d.ready := tl_out.e.ready
+  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) release_state === s_ready else true.B
+  tl_out.d.ready := Mux(grantIsCached, tl_out.e.ready && canAcceptCachedGrant, true.B)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
       grantInProgress := true
@@ -406,7 +409,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // data refill
-  val doRefillBeat = grantIsRefill && tl_out.d.valid // OK to ignore d.ready
+  val doRefillBeat = grantIsRefill && tl_out.d.fire()
   dataArb.io.in(1).valid := doRefillBeat
   assert(dataArb.io.in(1).ready || !doRefillBeat)
   dataArb.io.in(1).bits.write := true
@@ -438,7 +441,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // Finish TileLink transaction by issuing a GrantAck
-  tl_out.e.valid := tl_out.d.valid && d_first && grantIsCached
+  tl_out.e.valid := tl_out.d.valid && d_first && grantIsCached && canAcceptCachedGrant
   tl_out.e.bits := edge.GrantAck(tl_out.d.bits)
   when (tl_out.e.fire()) { assert(tl_out.d.fire()) }
 
