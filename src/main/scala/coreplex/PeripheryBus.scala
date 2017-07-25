@@ -7,12 +7,15 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
+import freechips.rocketchip.config.Field
+
 case class PeripheryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.default,
   slaveBuffering: BufferParams = BufferParams.none,
-  arithmetic: Boolean = true
+  arithmetic: Boolean = true,
+  frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
 ) extends TLBusParams {
 }
 
