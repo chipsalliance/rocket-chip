@@ -35,7 +35,7 @@ trait HasRocketTiles extends HasSystemBus
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
   val wiringTuple = localIntNodes.zip(tileParams).zipWithIndex
-  val wrappers: Seq[RocketTileWrapper] = wiringTuple.map { case ((lip, c), i) =>
+  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case ((lip, c), i) =>
     val pWithExtra = p.alterPartial {
       case TileKey => c
       case BuildRoCC => c.rocc
@@ -105,7 +105,7 @@ trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
   val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs))
 
   // Unconditionally wire up the non-diplomatic tile inputs
-  outer.wrappers.map(_.module).zip(rocket_tile_inputs).foreach { case(tile, wire) =>
+  outer.rocket_tiles.map(_.module).zip(rocket_tile_inputs).foreach { case(tile, wire) =>
     tile.clock := wire.clock
     tile.reset := wire.reset
     tile.io.hartid := wire.hartid
