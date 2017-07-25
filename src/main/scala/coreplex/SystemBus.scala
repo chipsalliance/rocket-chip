@@ -20,6 +20,7 @@ case object SystemBusParams extends Field[SystemBusParams]
 class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params) {
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
   inwardBufNode :=* master_splitter.node
+  def busView = master_splitter.node.edgesIn.head
 
   protected def inwardSplitNode: TLInwardNode = master_splitter.node
   protected def outwardSplitNode: TLOutwardNode = master_splitter.node
@@ -39,6 +40,12 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     inwardNode :=* sink.node
     sink.node
+  }
+
+  def fromSyncMasters(params: BufferParams = BufferParams.default): TLInwardNode = {
+    val buffer = LazyModule(new TLBuffer(params))
+    inwardNode :=* buffer.node
+    buffer.node
   }
 
   def fromSyncTiles(params: BufferParams): TLInwardNode = {
@@ -93,5 +100,5 @@ trait HasSystemBus extends HasInterruptBus {
 
   val sbus = new SystemBus(sbusParams)
 
-  def sharedMemoryTLEdge: TLEdge = sbus.edgesIn.head
+  def sharedMemoryTLEdge: TLEdge = sbus.busView
 }

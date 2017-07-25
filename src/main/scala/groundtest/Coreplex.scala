@@ -21,7 +21,7 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
     c.build(i, p.alterPartial {
       case TileKey => c
-      case SharedMemoryTLEdge => sbus.edgesIn.head
+      case SharedMemoryTLEdge => sbus.busView
     })
   )}
 
