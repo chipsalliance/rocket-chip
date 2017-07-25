@@ -35,6 +35,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
   case PLICParams => PLICParams()
   case ClintParams => ClintParams()
+  case DTSTimebase => BigInt(1000000) // 1 MHz
   // TileLink connection global parameters
   case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
   case TLCombinationalCheck => false
@@ -279,10 +280,6 @@ class WithoutTLMonitors extends Config ((site, here, up) => {
 
 class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
   case NExtTopInterrupts => nExtInts
-})
-
-class WithRTCPeriod(nCycles: Int) extends Config((site, here, up) => {
-  case RTCPeriod => nCycles
 })
 
 class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {

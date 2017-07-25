@@ -3,21 +3,22 @@
 package freechips.rocketchip.coreplex
 
 import Chisel._
-import freechips.rocketchip.config.Field
-import freechips.rocketchip.diplomacy.LazyMultiIOModuleImp
+import freechips.rocketchip.diplomacy.{LazyMultiIOModuleImp, DTSTimebase}
 import freechips.rocketchip.devices.tilelink.HasPeripheryClint
-
-/** Real-time clock is based on RTCPeriod relative to system clock.
-  */
-case object RTCPeriod extends Field[Option[Int]]
 
 trait HasRTCModuleImp extends LazyMultiIOModuleImp {
   val outer: HasPeripheryClint
-  private val internalPeriod: Option[Int] = outer.p(RTCPeriod)
-  require(internalPeriod.isDefined, "RTCPeriod is not defined")
+  private val pbusFreq = outer.p(PeripheryBusParams).frequency
+  private val rtcFreq = outer.p(DTSTimebase)
+  private val internalPeriod: BigInt = pbusFreq / rtcFreq
+
+  // check whether pbusFreq >= rtcFreq
+  require(internalPeriod > 0)
+  // check wehther the integer division is within 5% of the real division
+  require((pbusFreq - rtcFreq * internalPeriod) * 100 / pbusFreq <= 5)
 
   // Use the static period to toggle the RTC
-  val (_, int_rtc_tick) = Counter(true.B, internalPeriod.get)
+  val (_, int_rtc_tick) = Counter(true.B, internalPeriod.toInt)
 
   outer.clint.module.io.rtcTick := int_rtc_tick
 }
