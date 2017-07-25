@@ -26,6 +26,7 @@ case class DCacheParams(
     nRPQ: Int = 16,
     nMMIOs: Int = 1,
     blockBytes: Int = 64,
+    acquireBeforeRelease: Boolean = false,
     scratch: Option[BigInt] = None) extends L1CacheParams {
 
   def dataScratchpadBytes: Int = scratch.map(_ => nSets*blockBytes).getOrElse(0)

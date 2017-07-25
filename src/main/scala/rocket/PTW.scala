@@ -32,12 +32,17 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val pmp = Vec(nPMPs, new PMP).asInput
 }
 
+class PTWPerfEvents extends Bundle {
+  val l2miss = Bool()
+}
+
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasRocketCoreParameters {
   val ptbr = new PTBR().asInput
   val sfence = Valid(new SFenceReq).flip
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
+  val perf = new PTWPerfEvents().asOutput
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -129,6 +134,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   val l2_refill = RegNext(false.B)
+  io.dpath.perf.l2miss := false
   val (l2_hit, l2_pte) = if (coreParams.nL2TLBEntries == 0) (false.B, Wire(new PTE)) else {
     class Entry extends Bundle {
       val ppn = UInt(width = ppnBits)
@@ -172,6 +178,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val (s2_entry, s2_tag) = Split(s2_rdata.uncorrected, tagBits)
     val s2_hit = s2_valid && !s2_rdata.error && r_tag === s2_tag
+    io.dpath.perf.l2miss := s2_valid && !(r_tag === s2_tag)
     val s2_pte = Wire(new PTE)
     s2_pte := s2_entry.asTypeOf(new Entry)
     s2_pte.g := g(r_idx)
