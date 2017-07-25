@@ -106,7 +106,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ("D$ miss", () => io.dmem.perf.acquire),
       ("D$ release", () => io.dmem.perf.release),
       ("ITLB miss", () => io.imem.perf.tlbMiss),
-      ("DTLB miss", () => io.dmem.perf.tlbMiss)))))
+      ("DTLB miss", () => io.dmem.perf.tlbMiss),
+      ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
 
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
