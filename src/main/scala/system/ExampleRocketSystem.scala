@@ -24,3 +24,4 @@ class ExampleRocketSystemModule[+L <: ExampleRocketSystem](_outer: L) extends Ro
     with HasMasterAXI4MemPortModuleImp
     with HasMasterAXI4MMIOPortModuleImp
     with HasSlaveAXI4PortModuleImp
+    with HasPeripheryBootROMModuleImp
