@@ -26,58 +26,55 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = outBytes / inBytes
+      val keepBits  = log2Ceil(outBytes)
+      val dropBits  = log2Ceil(inBytes)
+      val countBits = log2Ceil(ratio)
 
-      val rdata = Reg(UInt(width = (ratio-1)*inBytes*8))
-      val rmask = Reg(UInt(width = (ratio-1)*inBytes))
-      val data = Cat(edgeIn.data(in.bits), rdata)
-      val mask = Cat(edgeIn.mask(in.bits), rmask)
-      val address = edgeIn.address(in.bits)
-      val size = edgeIn.size(in.bits)
+      val size    = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
+      val limit   = UIntToOH1(size, keepBits) >> dropBits
 
-      val count = RegInit(UInt(0, width = log2Ceil(ratio)))
-      val first = count === UInt(0)
-      val limit = UIntToOH1(size, log2Ceil(outBytes)) >> log2Ceil(inBytes)
-      val last = count === limit || !hasData
+      val count  = RegInit(UInt(0, width = countBits))
+      val first  = count === UInt(0)
+      val last   = count === limit || !hasData
+      val enable = Seq.tabulate(ratio) { i => !((count ^ UInt(i)) & limit).orR }
 
       when (in.fire()) {
-        rdata := data >> inBytes*8
-        rmask := mask >> inBytes
         count := count + UInt(1)
         when (last) { count := UInt(0) }
       }
 
-      val cases = Seq.tabulate(log2Ceil(ratio)+1) { i =>
-        val high = outBytes
-        val take = (1 << i)*inBytes
-        (Fill(1 << (log2Ceil(ratio)-i), data(high*8-1, (high-take)*8)),
-         Fill(1 << (log2Ceil(ratio)-i), mask(high  -1, (high-take))))
-      }
-      val dataMux = Vec.tabulate(log2Ceil(edgeIn.maxTransfer)+1) { lgSize =>
-        cases(min(max(lgSize - log2Ceil(inBytes), 0), log2Ceil(ratio)))._1
-      }
-      val maskMux = Vec.tabulate(log2Ceil(edgeIn.maxTransfer)+1) { lgSize =>
-        cases(min(max(lgSize - log2Ceil(inBytes), 0), log2Ceil(ratio)))._2
+      def helper(idata: UInt): UInt = {
+        val odata = Seq.fill(ratio) { idata }
+        val rdata = Reg(Vec(ratio-1, idata))
+        val pdata = rdata :+ idata
+        val mdata = (enable zip (odata zip pdata)) map { case (e, (o, p)) => Mux(e, o, p) }
+        when (in.fire() && !last) {
+          (rdata zip mdata) foreach { case (r, m) => r := m }
+        }
+        Cat(mdata.reverse)
       }
 
-      val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else dataMux(size)
-      lazy val maskFull = edgeOut.mask(address, size)
-      lazy val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
+      def reduce(i: Bool): Bool = {
+        val state = Reg(Bool())
+        val next = i || (!first && state)
+        when (in.fire()) { state := next }
+        next
+      }
 
       in.ready := out.ready || !last
       out.valid := in.valid && last
       out.bits := in.bits
-      edgeOut.data(out.bits) := dataOut
 
-      out.bits match {
-        case a: TLBundleA => a.mask := maskOut
-        case b: TLBundleB => b.mask := maskOut
-        case c: TLBundleC => ()
-        case d: TLBundleD => ()
-          // addr_lo gets padded with 0s on D channel, the only lossy transform in this core
-          // this should be safe, because we only care about addr_lo on D to determine which
-          // piece of data to extract when the D data bus is narrowed. Since we duplicated the
-          // data to all locations, addr_lo still points at a valid copy.
+      // Don't put down hardware if we never carry data
+      edgeOut.data(out.bits) := (if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else helper(edgeIn.data(in.bits)))
+
+      (out.bits, in.bits) match {
+        case (o: TLBundleA, i: TLBundleA) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
+        case (o: TLBundleB, i: TLBundleB) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
+        case (o: TLBundleC, i: TLBundleC) => o.error := reduce(i.error)
+        case (o: TLBundleD, i: TLBundleD) => o.error := reduce(i.error)
+        case _ => require(false, "Impossible bundle combination in WidthWidget")
       }
     }
 
