@@ -17,8 +17,7 @@ trait HasRTCModuleImp extends LazyMultiIOModuleImp {
   require(internalPeriod.isDefined, "RTCPeriod is not defined")
 
   // Use the static period to toggle the RTC
-  val (rtc_counter, _) = Counter(true.B, internalPeriod.get)
-  val tick = rtc_counter(log2Up(internalPeriod.get)-1)
+  val (_, int_rtc_tick) = Counter(true.B, internalPeriod.get)
 
-  outer.clint.module.io.rtcTick := tick
+  outer.clint.module.io.rtcTick := int_rtc_tick
 }
