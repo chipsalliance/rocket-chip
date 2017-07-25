@@ -45,8 +45,6 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
   protected def inwardNode: TLInwardNode = xbar.node
   protected def inwardBufNode: TLInwardNode = master_buffer.node
 
-  def edgesIn = xbar.node.edgesIn
-
   def bufferFromMasters: TLInwardNode = inwardBufNode
 
   def bufferToSlaves: TLOutwardNode = outwardBufNode 
