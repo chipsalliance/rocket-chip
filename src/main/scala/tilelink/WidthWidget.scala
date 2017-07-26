@@ -78,7 +78,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       }
     }
 
-    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T], sourceMap: UInt => UInt) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = inBytes / outBytes
@@ -104,7 +104,11 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         case a: TLBundleA => a.address(keepBits-1, dropBits)
         case b: TLBundleB => b.address(keepBits-1, dropBits)
         case c: TLBundleC => c.address(keepBits-1, dropBits)
-        case d: TLBundleD => d.addr_lo(keepBits-1, dropBits)
+        case d: TLBundleD => {
+          val sel = sourceMap(d.source)
+          val hold = Mux(first, sel, RegEnable(sel, first)) // a_first is not for whole xfer
+          hold & ~limit // if more than one a_first/xfer, the address must be aligned anyway
+        }
       }
 
       val index  = sel | count
@@ -130,7 +134,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       !last
     }
     
-    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T], sourceMap: UInt => UInt) = {
       if (edgeIn.manager.beatBytes == edgeOut.manager.beatBytes) {
         // nothing to do; pass it through
         out <> in
@@ -143,7 +147,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         edgeIn.data(cated.bits) := Cat(
           edgeIn.data(repeated.bits)(edgeIn.manager.beatBytes*8-1, edgeOut.manager.beatBytes*8),
           edgeIn.data(in.bits)(edgeOut.manager.beatBytes*8-1, 0))
-        repeat := split(edgeIn, cated, edgeOut, out)
+        repeat := split(edgeIn, cated, edgeOut, out, sourceMap)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)
@@ -151,12 +155,33 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
     }
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      splice(edgeIn,  in.a,  edgeOut, out.a)
-      splice(edgeOut, out.d, edgeIn,  in.d)
+
+      // If the master is narrower than the slave, the D channel must be narrowed.
+      // This is tricky, because the D channel has no address data.
+      // Thus, you don't know which part of a sub-beat transfer to extract.
+      // To fix this, we record the relevant address bits for all sources.
+      // The assumption is that this sort of situation happens only where
+      // you connect a narrow master to the system bus, so there are few sources.
+
+      def sourceMap(source: UInt) = {
+        require (edgeOut.manager.beatBytes > edgeIn.manager.beatBytes)
+        val keepBits = log2Ceil(edgeOut.manager.beatBytes)
+        val dropBits = log2Ceil(edgeIn.manager.beatBytes)
+        val sources  = Reg(Vec(edgeIn.client.endSourceId, UInt(width = keepBits-dropBits)))
+        val a_sel = in.a.bits.address(keepBits-1, dropBits)
+        when (in.a.fire()) {
+          sources(in.a.bits.source) := a_sel
+        }
+        val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.fire() && in.a.bits.source === source
+        Mux(bypass, a_sel, sources(source))
+      }
+
+      splice(edgeIn,  in.a,  edgeOut, out.a, sourceMap)
+      splice(edgeOut, out.d, edgeIn,  in.d,  sourceMap)
 
       if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
-        splice(edgeOut, out.b, edgeIn,  in.b)
-        splice(edgeIn,  in.c,  edgeOut, out.c)
+        splice(edgeOut, out.b, edgeIn,  in.b,  sourceMap)
+        splice(edgeIn,  in.c,  edgeOut, out.c, sourceMap)
         out.e <> in.e
       } else {
         in.b.valid := Bool(false)
