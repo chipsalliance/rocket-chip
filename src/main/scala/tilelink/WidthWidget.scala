@@ -82,41 +82,48 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = inBytes / outBytes
+      val keepBits  = log2Ceil(inBytes)
+      val dropBits  = log2Ceil(outBytes)
+      val countBits = log2Ceil(ratio)
 
+      val size    = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
-      val size = edgeIn.size(in.bits)
-      val data = edgeIn.data(in.bits)
-      val mask = edgeIn.mask(in.bits)
+      val limit   = UIntToOH1(size, keepBits) >> dropBits
 
-      val dataSlices = Vec.tabulate(ratio) { i => data((i+1)*outBytes*8-1, i*outBytes*8) }
-      val maskSlices = Vec.tabulate(ratio) { i => mask((i+1)*outBytes  -1, i*outBytes)   }
-      val filter = Reg(UInt(width = ratio), init = SInt(-1, width = ratio).asUInt)
-      val maskR = maskSlices.map(_.orR)
+      val count = RegInit(UInt(0, width = countBits))
+      val first = count === UInt(0)
+      val last  = count === limit || !hasData
 
-      // decoded_size = 1111 (for smallest), 0101, 0001 (for largest)
-      val sizeOH1 = UIntToOH1(size, log2Ceil(inBytes)) >> log2Ceil(outBytes)
-      val decoded_size = Seq.tabulate(ratio) { i => trailingZeros(i).map(!sizeOH1(_)).getOrElse(Bool(true)) }
-
-      val first = filter(ratio-1)
-      val new_filter = Mux(first, Cat(decoded_size.reverse), filter << 1)
-      val last = new_filter(ratio-1) || !hasData
       when (out.fire()) {
-        filter := new_filter 
-        when (!hasData) { filter := SInt(-1, width = ratio).asUInt }
+        count := count + UInt(1)
+        when (last) { count := UInt(0) }
       }
 
-      val select = Cat(maskR.reverse) & new_filter
-      val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else Mux1H(select, dataSlices)
-      val maskOut = Mux1H(select, maskSlices)
+      // For sub-beat transfer, extract which part matters
+      val sel = in.bits match {
+        case a: TLBundleA => a.address(keepBits-1, dropBits)
+        case b: TLBundleB => b.address(keepBits-1, dropBits)
+        case c: TLBundleC => c.address(keepBits-1, dropBits)
+        case d: TLBundleD => d.addr_lo(keepBits-1, dropBits)
+      }
+
+      val index  = sel | count
+      def helper(idata: UInt, width: Int): UInt = {
+        val mux = Vec.tabulate(ratio) { i => idata((i+1)*outBytes*width-1, i*outBytes*width) }
+        mux(index)
+      }
 
       out <> in
-      edgeOut.data(out.bits) := dataOut
 
-      out.bits match {
-        case a: TLBundleA => a.mask := maskOut
-        case b: TLBundleB => b.mask := maskOut
-        case c: TLBundleC => ()
-        case d: TLBundleD => () // addr_lo gets truncated automagically
+      // Don't put down hardware if we never carry data
+      edgeOut.data(out.bits) := (if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else helper(edgeIn.data(in.bits), 8))
+
+      (out.bits, in.bits) match {
+        case (o: TLBundleA, i: TLBundleA) => o.mask := helper(i.mask, 1)
+        case (o: TLBundleB, i: TLBundleB) => o.mask := helper(i.mask, 1)
+        case (o: TLBundleC, i: TLBundleC) => () // error handled by bulk connect
+        case (o: TLBundleD, i: TLBundleD) => () // error handled by bulk connect
+        case _ => require(false, "Impossbile bundle combination in WidthWidget")
       }
 
       // Repeat the input if we're not last
@@ -150,9 +157,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
         splice(edgeOut, out.b, edgeIn,  in.b)
         splice(edgeIn,  in.c,  edgeOut, out.c)
-        in.e.ready := out.e.ready
-        out.e.valid := in.e.valid
-        out.e.bits := in.e.bits
+        out.e <> in.e
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
