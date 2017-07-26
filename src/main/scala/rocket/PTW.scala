@@ -261,6 +261,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     resp_valid(r_req_dest) := true
     resp_ae := false
     r_pte := l2_pte
+    count := pgLevels-1
   }
 }
 
