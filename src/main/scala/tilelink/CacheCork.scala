@@ -79,7 +79,6 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       c_d.bits.size    := in.c.bits.size
       c_d.bits.source  := in.c.bits.source
       c_d.bits.sink    := UInt(0)
-      c_d.bits.addr_lo := in.c.bits.address
       c_d.bits.data    := UInt(0)
       c_d.bits.error   := Bool(false)
 

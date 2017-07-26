@@ -53,7 +53,6 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters) e
     d.bits.size    := a.bits.size
     d.bits.source  := a.bits.source
     d.bits.sink    := UInt(0)
-    d.bits.addr_lo := a.bits.address
     d.bits.data    := UInt(0)
     d.bits.error   := a.bits.opcode =/= Hint // Hints may not error
 

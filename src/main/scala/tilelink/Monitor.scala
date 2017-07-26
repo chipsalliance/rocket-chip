@@ -232,12 +232,10 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
-    val is_aligned = edge.isAligned(bundle.addr_lo, bundle.size)
     val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assert (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
-      assert (is_aligned, "'D' channel ReleaseAck address not aligned to size" + extra)
       assert (sink_ok, "'D' channel ReleaseAck carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel ReleaseAck smaller than a beat" + extra)
       assert (bundle.param === UInt(0), "'D' channel ReleaseeAck carries invalid param" + extra)
@@ -245,7 +243,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.Grant) {
       assert (source_ok, "'D' channel Grant carries invalid source ID" + extra)
-      assert (is_aligned, "'D' channel Grant address not aligned to size" + extra)
       assert (sink_ok, "'D' channel Grant carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel Grant smaller than a beat" + extra)
       assert (TLPermissions.isCap(bundle.param), "'D' channel Grant carries invalid cap param" + extra)
@@ -253,7 +250,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.GrantData) {
       assert (source_ok, "'D' channel GrantData carries invalid source ID" + extra)
-      assert (is_aligned, "'D' channel GrantData address not aligned to size" + extra)
       assert (sink_ok, "'D' channel GrantData carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel GrantData smaller than a beat" + extra)
       assert (TLPermissions.isCap(bundle.param), "'D' channel GrantData carries invalid cap param" + extra)
@@ -261,7 +257,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.AccessAck) {
       assert (source_ok, "'D' channel AccessAck carries invalid source ID" + extra)
-      assert (is_aligned, "'D' channel AccessAck address not aligned to size" + extra)
       assert (sink_ok, "'D' channel AccessAck carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel AccessAck carries invalid param" + extra)
@@ -269,7 +264,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.AccessAckData) {
       assert (source_ok, "'D' channel AccessAckData carries invalid source ID" + extra)
-      assert (is_aligned, "'D' channel AccessAckData address not aligned to size" + extra)
       assert (sink_ok, "'D' channel AccessAckData carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel AccessAckData carries invalid param" + extra)
@@ -277,7 +271,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.HintAck) {
       assert (source_ok, "'D' channel HintAck carries invalid source ID" + extra)
-      assert (is_aligned, "'D' channel HintAck address not aligned to size" + extra)
       assert (sink_ok, "'D' channel HintAck carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel HintAck carries invalid param" + extra)
@@ -379,14 +372,12 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val sink    = Reg(UInt())
-    val addr_lo = Reg(UInt())
     when (d.valid && !d_first) {
       assert (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
       assert (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
       assert (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
       assert (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
       assert (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
-      assert (d.bits.addr_lo=== addr_lo,"'D' channel addr_lo changed with multibeat operation" + extra)
     }
     when (d.fire() && d_first) {
       opcode  := d.bits.opcode
@@ -394,7 +385,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       size    := d.bits.size
       source  := d.bits.source
       sink    := d.bits.sink
-      addr_lo := d.bits.addr_lo
     }
   }
 

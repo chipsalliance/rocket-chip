@@ -93,18 +93,16 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
         ElaborationArtefacts.add(s"${n}.axi4.json", s"""{"mapping":[${maps.mkString(",")}]}""")
       }
 
-      // We need to keep the following state from A => D: (addr_lo, size, source)
+      // We need to keep the following state from A => D: (size, source)
       // All of those fields could potentially require 0 bits (argh. Chisel.)
       // We will pack all of that extra information into the user bits.
 
       val sourceBits = log2Ceil(edgeIn.client.endSourceId)
       val sizeBits = log2Ceil(edgeIn.maxLgSize+1)
-      val addrBits = log2Ceil(edgeIn.manager.beatBytes)
-      val stateBits = addrBits + sizeBits + sourceBits // could be 0
+      val stateBits = sizeBits + sourceBits // could be 0
       require (stateBits <= out.aw.bits.params.userBits)
 
       val a_address = edgeIn.address(in.a.bits)
-      val a_addr_lo = edgeIn.addr_lo(a_address)
       val a_source  = in.a.bits.source
       val a_size    = edgeIn.size(in.a.bits)
       val a_isPut   = edgeIn.hasData(in.a.bits)
@@ -113,26 +111,22 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       // Make sure the fields are within the bounds we assumed
       assert (a_source  < UInt(BigInt(1) << sourceBits))
       assert (a_size    < UInt(BigInt(1) << sizeBits))
-      assert (a_addr_lo < UInt(BigInt(1) << addrBits))
 
       // Carefully pack/unpack fields into the state we send
       val baseEnd = 0
       val (sourceEnd, sourceOff) = (sourceBits + baseEnd,   baseEnd)
       val (sizeEnd,   sizeOff)   = (sizeBits   + sourceEnd, sourceEnd)
-      val (addrEnd,   addrOff)   = (addrBits   + sizeEnd,   sizeEnd)
-      require (addrEnd == stateBits)
+      require (sizeEnd == stateBits)
 
-      val a_state = (a_source << sourceOff) | (a_size << sizeOff) | (a_addr_lo << addrOff)
+      val a_state = (a_source << sourceOff) | (a_size << sizeOff)
 
       val r_state = out.r.bits.user.getOrElse(UInt(0))
       val r_source  = if (sourceBits > 0) r_state(sourceEnd-1, sourceOff) else UInt(0)
       val r_size    = if (sizeBits   > 0) r_state(sizeEnd  -1, sizeOff)   else UInt(0)
-      val r_addr_lo = if (addrBits   > 0) r_state(addrEnd  -1, addrOff)   else UInt(0)
 
       val b_state = out.b.bits.user.getOrElse(UInt(0))
       val b_source  = if (sourceBits > 0) b_state(sourceEnd-1, sourceOff) else UInt(0)
       val b_size    = if (sizeBits   > 0) b_state(sizeEnd  -1, sizeOff)   else UInt(0)
-      val b_addr_lo = if (addrBits   > 0) b_state(addrEnd  -1, addrOff)   else UInt(0)
 
       // We need these Queues because AXI4 queues are irrevocable
       val depth = if (combinational) 1 else 2
@@ -188,8 +182,8 @@ class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Optio
       val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
       val b_error = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
 
-      val r_d = edgeIn.AccessAck(r_addr_lo, UInt(0), r_source, r_size, UInt(0), r_error)
-      val b_d = edgeIn.AccessAck(b_addr_lo, UInt(0), b_source, b_size, b_error)
+      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), r_error)
+      val b_d = edgeIn.AccessAck(b_source, b_size, b_error)
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux

@@ -190,7 +190,6 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       out.d.ready := in.d.ready || drop
       in.d.valid  := out.d.valid && !drop
       in.d.bits   := out.d.bits // pass most stuff unchanged
-      in.d.bits.addr_lo := out.d.bits.addr_lo & ~dsizeOH1
       in.d.bits.source := out.d.bits.source >> addedBits
       in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 

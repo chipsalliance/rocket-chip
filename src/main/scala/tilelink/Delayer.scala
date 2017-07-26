@@ -61,7 +61,6 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       dnoise.size    := LFSRNoiseMaker(dnoise.params.sizeBits)
       dnoise.source  := LFSRNoiseMaker(dnoise.params.sourceBits)
       dnoise.sink    := LFSRNoiseMaker(dnoise.params.sinkBits)
-      dnoise.addr_lo := LFSRNoiseMaker(dnoise.params.addrLoBits)
       dnoise.data    := LFSRNoiseMaker(dnoise.params.dataBits)
       dnoise.error   := LFSRNoiseMaker(1)(0)
 

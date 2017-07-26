@@ -52,7 +52,7 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
     val legal = address.contains(in.a.bits.address)
     val wdata = Vec.tabulate(beatBytes) { i => in.a.bits.data(8*(i+1)-1, 8*i) }
 
-    in.d.bits := edge.AccessAck(in.a.bits, UInt(0), !legal)
+    in.d.bits := edge.AccessAck(in.a.bits, !legal)
     in.d.bits.data := Cat(mem(memAddress).reverse)
     in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
     when (in.a.fire() && hasData && legal) { mem.write(memAddress, wdata, in.a.bits.mask.toBools) }
