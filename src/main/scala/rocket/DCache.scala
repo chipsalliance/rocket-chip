@@ -153,7 +153,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.instruction := false
   tlb.io.req.bits.size := s1_req.typ
   tlb.io.req.bits.cmd := s1_req.cmd
-  when (!tlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
+  when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
 
   val s1_paddr = tlb.io.resp.paddr
