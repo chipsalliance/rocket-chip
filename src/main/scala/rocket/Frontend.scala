@@ -259,6 +259,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         when (taken) {
           fq.io.enq.bits.btb.valid := true
           fq.io.enq.bits.btb.bits.taken := true
+          fq.io.enq.bits.btb.bits.entry := UInt(tileParams.btb.get.nEntries)
           s2_redirect := true
         }
       }

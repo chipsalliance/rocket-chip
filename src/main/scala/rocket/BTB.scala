@@ -11,7 +11,7 @@ import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._
 
 case class BTBParams(
-  nEntries: Int = 32,
+  nEntries: Int = 30,
   nMatchBits: Int = 14,
   nPages: Int = 6,
   nRAS: Int = 6,
@@ -24,7 +24,6 @@ trait HasBtbParameters extends HasCoreParameters {
   val entries = btbParams.nEntries
   val updatesOutOfOrder = btbParams.updatesOutOfOrder
   val nPages = (btbParams.nPages + 1) / 2 * 2 // control logic assumes 2 divides pages
-  val opaqueBits = log2Up(entries)
 }
 
 abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters
@@ -141,7 +140,7 @@ class BTBResp(implicit p: Parameters) extends BtbBundle()(p) {
   val mask = Bits(width = fetchWidth)
   val bridx = Bits(width = log2Up(fetchWidth))
   val target = UInt(width = vaddrBits)
-  val entry = UInt(width = opaqueBits)
+  val entry = UInt(width = log2Up(entries + 1))
   val bht = new BHTResp
 }
 
@@ -196,7 +195,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
     if (updatesOutOfOrder) {
       val updateHits = (pageHit << 1)(Mux1H(idxMatch(r_btb_update.bits.pc), idxPages))
       (updateHits.orR, OHToUInt(updateHits))
-    } else (r_btb_update.bits.prediction.valid, r_btb_update.bits.prediction.bits.entry)
+    } else (r_btb_update.bits.prediction.valid && r_btb_update.bits.prediction.bits.entry < entries, r_btb_update.bits.prediction.bits.entry)
 
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
