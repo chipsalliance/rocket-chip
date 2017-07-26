@@ -26,107 +26,115 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = outBytes / inBytes
+      val keepBits  = log2Ceil(outBytes)
+      val dropBits  = log2Ceil(inBytes)
+      val countBits = log2Ceil(ratio)
 
-      val rdata = Reg(UInt(width = (ratio-1)*inBytes*8))
-      val rmask = Reg(UInt(width = (ratio-1)*inBytes))
-      val data = Cat(edgeIn.data(in.bits), rdata)
-      val mask = Cat(edgeIn.mask(in.bits), rmask)
-      val address = edgeIn.address(in.bits)
-      val size = edgeIn.size(in.bits)
+      val size    = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
+      val limit   = UIntToOH1(size, keepBits) >> dropBits
 
-      val count = RegInit(UInt(0, width = log2Ceil(ratio)))
-      val first = count === UInt(0)
-      val limit = UIntToOH1(size, log2Ceil(outBytes)) >> log2Ceil(inBytes)
-      val last = count === limit || !hasData
+      val count  = RegInit(UInt(0, width = countBits))
+      val first  = count === UInt(0)
+      val last   = count === limit || !hasData
+      val enable = Seq.tabulate(ratio) { i => !((count ^ UInt(i)) & limit).orR }
 
       when (in.fire()) {
-        rdata := data >> inBytes*8
-        rmask := mask >> inBytes
         count := count + UInt(1)
         when (last) { count := UInt(0) }
       }
 
-      val cases = Seq.tabulate(log2Ceil(ratio)+1) { i =>
-        val high = outBytes
-        val take = (1 << i)*inBytes
-        (Fill(1 << (log2Ceil(ratio)-i), data(high*8-1, (high-take)*8)),
-         Fill(1 << (log2Ceil(ratio)-i), mask(high  -1, (high-take))))
-      }
-      val dataMux = Vec.tabulate(log2Ceil(edgeIn.maxTransfer)+1) { lgSize =>
-        cases(min(max(lgSize - log2Ceil(inBytes), 0), log2Ceil(ratio)))._1
-      }
-      val maskMux = Vec.tabulate(log2Ceil(edgeIn.maxTransfer)+1) { lgSize =>
-        cases(min(max(lgSize - log2Ceil(inBytes), 0), log2Ceil(ratio)))._2
+      def helper(idata: UInt): UInt = {
+        val odata = Seq.fill(ratio) { idata }
+        val rdata = Reg(Vec(ratio-1, idata))
+        val pdata = rdata :+ idata
+        val mdata = (enable zip (odata zip pdata)) map { case (e, (o, p)) => Mux(e, o, p) }
+        when (in.fire() && !last) {
+          (rdata zip mdata) foreach { case (r, m) => r := m }
+        }
+        Cat(mdata.reverse)
       }
 
-      val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else dataMux(size)
-      lazy val maskFull = edgeOut.mask(address, size)
-      lazy val maskOut = Mux(hasData, maskMux(size) & maskFull, maskFull)
+      def reduce(i: Bool): Bool = {
+        val state = Reg(Bool())
+        val next = i || (!first && state)
+        when (in.fire()) { state := next }
+        next
+      }
 
       in.ready := out.ready || !last
       out.valid := in.valid && last
       out.bits := in.bits
-      edgeOut.data(out.bits) := dataOut
 
-      out.bits match {
-        case a: TLBundleA => a.mask := maskOut
-        case b: TLBundleB => b.mask := maskOut
-        case c: TLBundleC => ()
-        case d: TLBundleD => ()
-          // addr_lo gets padded with 0s on D channel, the only lossy transform in this core
-          // this should be safe, because we only care about addr_lo on D to determine which
-          // piece of data to extract when the D data bus is narrowed. Since we duplicated the
-          // data to all locations, addr_lo still points at a valid copy.
+      // Don't put down hardware if we never carry data
+      edgeOut.data(out.bits) := (if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else helper(edgeIn.data(in.bits)))
+
+      (out.bits, in.bits) match {
+        case (o: TLBundleA, i: TLBundleA) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
+        case (o: TLBundleB, i: TLBundleB) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
+        case (o: TLBundleC, i: TLBundleC) => o.error := reduce(i.error)
+        case (o: TLBundleD, i: TLBundleD) => o.error := reduce(i.error)
+        case _ => require(false, "Impossible bundle combination in WidthWidget")
       }
     }
 
-    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def split[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T], sourceMap: UInt => UInt) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
       val ratio = inBytes / outBytes
+      val keepBits  = log2Ceil(inBytes)
+      val dropBits  = log2Ceil(outBytes)
+      val countBits = log2Ceil(ratio)
 
+      val size    = edgeIn.size(in.bits)
       val hasData = edgeIn.hasData(in.bits)
-      val size = edgeIn.size(in.bits)
-      val data = edgeIn.data(in.bits)
-      val mask = edgeIn.mask(in.bits)
+      val limit   = UIntToOH1(size, keepBits) >> dropBits
 
-      val dataSlices = Vec.tabulate(ratio) { i => data((i+1)*outBytes*8-1, i*outBytes*8) }
-      val maskSlices = Vec.tabulate(ratio) { i => mask((i+1)*outBytes  -1, i*outBytes)   }
-      val filter = Reg(UInt(width = ratio), init = SInt(-1, width = ratio).asUInt)
-      val maskR = maskSlices.map(_.orR)
+      val count = RegInit(UInt(0, width = countBits))
+      val first = count === UInt(0)
+      val last  = count === limit || !hasData
 
-      // decoded_size = 1111 (for smallest), 0101, 0001 (for largest)
-      val sizeOH1 = UIntToOH1(size, log2Ceil(inBytes)) >> log2Ceil(outBytes)
-      val decoded_size = Seq.tabulate(ratio) { i => trailingZeros(i).map(!sizeOH1(_)).getOrElse(Bool(true)) }
-
-      val first = filter(ratio-1)
-      val new_filter = Mux(first, Cat(decoded_size.reverse), filter << 1)
-      val last = new_filter(ratio-1) || !hasData
       when (out.fire()) {
-        filter := new_filter 
-        when (!hasData) { filter := SInt(-1, width = ratio).asUInt }
+        count := count + UInt(1)
+        when (last) { count := UInt(0) }
       }
 
-      val select = Cat(maskR.reverse) & new_filter
-      val dataOut = if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else Mux1H(select, dataSlices)
-      val maskOut = Mux1H(select, maskSlices)
+      // For sub-beat transfer, extract which part matters
+      val sel = in.bits match {
+        case a: TLBundleA => a.address(keepBits-1, dropBits)
+        case b: TLBundleB => b.address(keepBits-1, dropBits)
+        case c: TLBundleC => c.address(keepBits-1, dropBits)
+        case d: TLBundleD => {
+          val sel = sourceMap(d.source)
+          val hold = Mux(first, sel, RegEnable(sel, first)) // a_first is not for whole xfer
+          hold & ~limit // if more than one a_first/xfer, the address must be aligned anyway
+        }
+      }
+
+      val index  = sel | count
+      def helper(idata: UInt, width: Int): UInt = {
+        val mux = Vec.tabulate(ratio) { i => idata((i+1)*outBytes*width-1, i*outBytes*width) }
+        mux(index)
+      }
 
       out <> in
-      edgeOut.data(out.bits) := dataOut
 
-      out.bits match {
-        case a: TLBundleA => a.mask := maskOut
-        case b: TLBundleB => b.mask := maskOut
-        case c: TLBundleC => ()
-        case d: TLBundleD => () // addr_lo gets truncated automagically
+      // Don't put down hardware if we never carry data
+      edgeOut.data(out.bits) := (if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else helper(edgeIn.data(in.bits), 8))
+
+      (out.bits, in.bits) match {
+        case (o: TLBundleA, i: TLBundleA) => o.mask := helper(i.mask, 1)
+        case (o: TLBundleB, i: TLBundleB) => o.mask := helper(i.mask, 1)
+        case (o: TLBundleC, i: TLBundleC) => () // error handled by bulk connect
+        case (o: TLBundleD, i: TLBundleD) => () // error handled by bulk connect
+        case _ => require(false, "Impossbile bundle combination in WidthWidget")
       }
 
       // Repeat the input if we're not last
       !last
     }
     
-    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
+    def splice[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T], sourceMap: UInt => UInt) = {
       if (edgeIn.manager.beatBytes == edgeOut.manager.beatBytes) {
         // nothing to do; pass it through
         out <> in
@@ -139,7 +147,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         edgeIn.data(cated.bits) := Cat(
           edgeIn.data(repeated.bits)(edgeIn.manager.beatBytes*8-1, edgeOut.manager.beatBytes*8),
           edgeIn.data(in.bits)(edgeOut.manager.beatBytes*8-1, 0))
-        repeat := split(edgeIn, cated, edgeOut, out)
+        repeat := split(edgeIn, cated, edgeOut, out, sourceMap)
       } else {
         // merge input to output
         merge(edgeIn, in, edgeOut, out)
@@ -147,15 +155,34 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
     }
 
     ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
-      splice(edgeIn,  in.a,  edgeOut, out.a)
-      splice(edgeOut, out.d, edgeIn,  in.d)
+
+      // If the master is narrower than the slave, the D channel must be narrowed.
+      // This is tricky, because the D channel has no address data.
+      // Thus, you don't know which part of a sub-beat transfer to extract.
+      // To fix this, we record the relevant address bits for all sources.
+      // The assumption is that this sort of situation happens only where
+      // you connect a narrow master to the system bus, so there are few sources.
+
+      def sourceMap(source: UInt) = {
+        require (edgeOut.manager.beatBytes > edgeIn.manager.beatBytes)
+        val keepBits = log2Ceil(edgeOut.manager.beatBytes)
+        val dropBits = log2Ceil(edgeIn.manager.beatBytes)
+        val sources  = Reg(Vec(edgeIn.client.endSourceId, UInt(width = keepBits-dropBits)))
+        val a_sel = in.a.bits.address(keepBits-1, dropBits)
+        when (in.a.fire()) {
+          sources(in.a.bits.source) := a_sel
+        }
+        val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.fire() && in.a.bits.source === source
+        Mux(bypass, a_sel, sources(source))
+      }
+
+      splice(edgeIn,  in.a,  edgeOut, out.a, sourceMap)
+      splice(edgeOut, out.d, edgeIn,  in.d,  sourceMap)
 
       if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
-        splice(edgeOut, out.b, edgeIn,  in.b)
-        splice(edgeIn,  in.c,  edgeOut, out.c)
-        in.e.ready := out.e.ready
-        out.e.valid := in.e.valid
-        out.e.bits := in.e.bits
+        splice(edgeOut, out.b, edgeIn,  in.b,  sourceMap)
+        splice(edgeIn,  in.c,  edgeOut, out.c, sourceMap)
+        out.e <> in.e
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
