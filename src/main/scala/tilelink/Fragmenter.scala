@@ -160,7 +160,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       // First, handle the return path
       val acknum = RegInit(UInt(0, width = counterBits))
       val dOrig = Reg(UInt())
-      val dToggle = Reg(Bool())
+      val dToggle = RegInit(Bool(false))
       val dFragnum = out.d.bits.source(fragmentBits-1, 0)
       val dFirst = acknum === UInt(0)
       val dLast = dFragnum === UInt(0)
