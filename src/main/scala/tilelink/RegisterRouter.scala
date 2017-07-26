@@ -47,15 +47,14 @@ class TLRegisterNode(
     val baseEnd = 0
     val (sizeEnd,   sizeOff)   = (edge.bundle.sizeBits   + baseEnd, baseEnd)
     val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
-    val (addrLoEnd, addrLoOff) = (log2Up(beatBytes)      + sourceEnd, sourceEnd)
 
-    val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, addrLoEnd)
+    val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, sourceEnd)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
     in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra := Cat(edge.addr_lo(a.bits), a.bits.source, a.bits.size)
+    in.bits.extra := Cat(a.bits.source, a.bits.size)
 
     // Invoke the register map builder
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
@@ -66,10 +65,8 @@ class TLRegisterNode(
     d.valid   := out.valid
     out.ready := d.ready
 
-    // We must restore the size and addr_lo to enable width adapters to work
+    // We must restore the size to enable width adapters to work
     d.bits := edge.AccessAck(
-      fromAddress = out.bits.extra(addrLoEnd-1, addrLoOff),
-      fromSink    = UInt(0), // our unique sink id
       toSource    = out.bits.extra(sourceEnd-1, sourceOff),
       lgSize      = out.bits.extra(sizeEnd-1, sizeOff))
 

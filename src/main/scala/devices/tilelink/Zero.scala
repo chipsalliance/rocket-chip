@@ -36,7 +36,7 @@ class TLZero(address: AddressSet, resources: Seq[Resource], executable: Boolean 
 
     a.ready := in.d.ready
     in.d.valid := a.valid
-    in.d.bits := edge.AccessAck(a.bits, UInt(0))
+    in.d.bits := edge.AccessAck(a.bits)
     in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
 
     // Tie off unused channels

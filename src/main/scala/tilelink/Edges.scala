@@ -144,30 +144,27 @@ class TLEdge(
     }
   }
 
-  def mask(x: TLDataChannel): UInt = {
+  def mask(x: TLAddrChannel): UInt = {
     x match {
       case a: TLBundleA => a.mask
       case b: TLBundleB => b.mask
       case c: TLBundleC => mask(c.address, c.size)
-      case d: TLBundleD => mask(d.addr_lo, d.size)
     }
   }
 
-  def full_mask(x: TLDataChannel): UInt = {
+  def full_mask(x: TLAddrChannel): UInt = {
     x match {
       case a: TLBundleA => mask(a.address, a.size)
       case b: TLBundleB => mask(b.address, b.size)
       case c: TLBundleC => mask(c.address, c.size)
-      case d: TLBundleD => mask(d.addr_lo, d.size)
     }
   }
 
-  def address(x: TLDataChannel): UInt = {
+  def address(x: TLAddrChannel): UInt = {
     x match {
       case a: TLBundleA => a.address
       case b: TLBundleB => b.address
       case c: TLBundleC => c.address
-      case d: TLBundleD => d.addr_lo
     }
   }
 
@@ -185,7 +182,7 @@ class TLEdge(
     if (manager.beatBytes == 1) UInt(0) else x(log2Ceil(manager.beatBytes)-1, 0)
 
   def addr_hi(x: TLAddrChannel): UInt = addr_hi(address(x))
-  def addr_lo(x: TLDataChannel): UInt = addr_lo(address(x))
+  def addr_lo(x: TLAddrChannel): UInt = addr_lo(address(x))
 
   def numBeats(x: TLChannel): UInt = {
     x match {
@@ -497,42 +494,40 @@ class TLEdgeIn(
     (legal, b)
   }
 
-  def Grant(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt): TLBundleD = Grant(fromAddress, fromSink, toSource, lgSize, capPermissions, Bool(false))
-  def Grant(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, error: Bool) = {
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt): TLBundleD = Grant(fromSink, toSource, lgSize, capPermissions, Bool(false))
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.Grant
     d.param   := capPermissions
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := addr_lo(fromAddress)
     d.data    := UInt(0)
     d.error   := error
     d
   }
 
-  def Grant(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt): TLBundleD = Grant(fromAddress, fromSink, toSource, lgSize, capPermissions, data, Bool(false))
-  def Grant(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt, error: Bool) = {
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt): TLBundleD = Grant(fromSink, toSource, lgSize, capPermissions, data, Bool(false))
+  def Grant(fromSink: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt, data: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.GrantData
     d.param   := capPermissions
     d.size    := lgSize
     d.source  := toSource
     d.sink    := fromSink
-    d.addr_lo := addr_lo(fromAddress)
     d.data    := data
     d.error   := error
     d
   }
 
-  def ReleaseAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt) = {
+  def ReleaseAck(c: TLBundleC): TLBundleD = ReleaseAck(c.source, c.size)
+  def ReleaseAck(toSource: UInt, lgSize: UInt): TLBundleD = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.ReleaseAck
     d.param   := UInt(0)
     d.size    := lgSize
     d.source  := toSource
-    d.sink    := fromSink
-    d.addr_lo := addr_lo(fromAddress)
+    d.sink    := UInt(0)
     d.data    := UInt(0)
     d.error   := Bool(false)
     d
@@ -623,47 +618,44 @@ class TLEdgeIn(
     (legal, b)
   }
 
-  def AccessAck(a: TLBundleA, fromSink: UInt): TLBundleD = AccessAck(address(a), fromSink, a.source, a.size)
-  def AccessAck(a: TLBundleA, fromSink: UInt, error: Bool): TLBundleD = AccessAck(address(a), fromSink, a.source, a.size, error)
-  def AccessAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt): TLBundleD = AccessAck(fromAddress, fromSink, toSource, lgSize, Bool(false))
-  def AccessAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, error: Bool) = {
+  def AccessAck(a: TLBundleA): TLBundleD = AccessAck(a.source, a.size)
+  def AccessAck(a: TLBundleA, error: Bool): TLBundleD = AccessAck(a.source, a.size, error)
+  def AccessAck(toSource: UInt, lgSize: UInt): TLBundleD = AccessAck(toSource, lgSize, Bool(false))
+  def AccessAck(toSource: UInt, lgSize: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.AccessAck
     d.param   := UInt(0)
     d.size    := lgSize
     d.source  := toSource
-    d.sink    := fromSink
-    d.addr_lo := addr_lo(fromAddress)
+    d.sink    := UInt(0)
     d.data    := UInt(0)
     d.error   := error
     d
   }
 
-  def AccessAck(a: TLBundleA, fromSink: UInt, data: UInt): TLBundleD = AccessAck(address(a), fromSink, a.source, a.size, data)
-  def AccessAck(a: TLBundleA, fromSink: UInt, data: UInt, error: Bool): TLBundleD = AccessAck(address(a), fromSink, a.source, a.size, data, error)
-  def AccessAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, data: UInt): TLBundleD = AccessAck(fromAddress, fromSink, toSource, lgSize, data, Bool(false))
-  def AccessAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt, data: UInt, error: Bool) = {
+  def AccessAck(a: TLBundleA, data: UInt): TLBundleD = AccessAck(a.source, a.size, data)
+  def AccessAck(a: TLBundleA, data: UInt, error: Bool): TLBundleD = AccessAck(a.source, a.size, data, error)
+  def AccessAck(toSource: UInt, lgSize: UInt, data: UInt): TLBundleD = AccessAck(toSource, lgSize, data, Bool(false))
+  def AccessAck(toSource: UInt, lgSize: UInt, data: UInt, error: Bool) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.AccessAckData
     d.param   := UInt(0)
     d.size    := lgSize
     d.source  := toSource
-    d.sink    := fromSink
-    d.addr_lo := addr_lo(fromAddress)
+    d.sink    := UInt(0)
     d.data    := data
     d.error   := error
     d
   }
 
-  def HintAck(a: TLBundleA, fromSink: UInt): TLBundleD = HintAck(address(a), fromSink, a.source, a.size)
-  def HintAck(fromAddress: UInt, fromSink: UInt, toSource: UInt, lgSize: UInt) = {
+  def HintAck(a: TLBundleA): TLBundleD = HintAck(a.source, a.size)
+  def HintAck(toSource: UInt, lgSize: UInt) = {
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.HintAck
     d.param   := UInt(0)
     d.size    := lgSize
     d.source  := toSource
-    d.sink    := fromSink
-    d.addr_lo := addr_lo(fromAddress)
+    d.sink    := UInt(0)
     d.data    := UInt(0)
     d.error   := Bool(false)
     d

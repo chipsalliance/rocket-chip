@@ -42,7 +42,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
 
     val index = in.a.bits.address(log2Ceil(wrapSize)-1,log2Ceil(beatBytes))
     val high = if (wrapSize == size) UInt(0) else in.a.bits.address(log2Ceil(size)-1, log2Ceil(wrapSize))
-    in.d.bits := edge.AccessAck(in.a.bits, UInt(0), Mux(high.orR, UInt(0), rom(index)))
+    in.d.bits := edge.AccessAck(in.a.bits, Mux(high.orR, UInt(0), rom(index)))
 
     // Tie off unused channels
     in.b.valid := Bool(false)

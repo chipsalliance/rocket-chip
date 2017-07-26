@@ -285,8 +285,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
         tl.d.valid := respValid
         tl.d.bits := Mux(edge_in.get.hasData(s1_a),
-          edge_in.get.AccessAck(s1_a, UInt(0)),
-          edge_in.get.AccessAck(s1_a, UInt(0), UInt(0)))
+          edge_in.get.AccessAck(s1_a),
+          edge_in.get.AccessAck(s1_a, UInt(0)))
         tl.d.bits.data := s1s3_slaveData
 
         // Tie off unused channels

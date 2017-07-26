@@ -85,8 +85,8 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
-      edge.AccessAck(acq, UInt(0)),
-      edge.AccessAck(acq, UInt(0), UInt(0)))
+      edge.AccessAck(acq),
+      edge.AccessAck(acq, UInt(0)))
     tl_in.d.bits.data := Mux(io.dmem.resp.valid, io.dmem.resp.bits.data_raw, acq.data)
 
     // Tie off unused channels

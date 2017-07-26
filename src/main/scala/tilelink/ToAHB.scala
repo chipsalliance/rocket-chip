@@ -170,7 +170,6 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
       val d_error   = Reg(Bool())
       val d_write   = RegEnable(send.write,  out.hreadyout)
       val d_source  = RegEnable(send.source, out.hreadyout)
-      val d_addr    = RegEnable(send.addr,   out.hreadyout)
       val d_size    = RegEnable(send.size,   out.hreadyout)
 
       when (out.hreadyout) {
@@ -180,7 +179,7 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
       }
 
       d.valid := d_valid && out.hreadyout
-      d.bits  := edgeIn.AccessAck(d_addr, UInt(0), d_source, d_size, out.hrdata, out.hresp || d_error)
+      d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata, out.hresp || d_error)
       d.bits.opcode := Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData)
 
       // AHB has no cache coherence
