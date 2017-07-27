@@ -231,8 +231,8 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val d_crc_new = FillInterleaved(8, d_mask) & d.data
       val d_crc = CRC(divisor, Cat(d_crc_acc, d_crc_new), 16 + beatBytes*8)
       val crc_bypass = if (edge.manager.minLatency > 0) Bool(false) else a_fire && a.source === d.source
-      val d_crc_valid = Mux(crc_bypass, a_crc_valid, crc_valid.read(d.source))
-      val d_crc_check = Mux(crc_bypass, a_crc, crc.read(d.source))
+      val d_crc_valid = Mux(crc_bypass, a_crc_valid, crc_valid.read(d.source)) holdUnless d_first
+      val d_crc_check = Mux(crc_bypass, a_crc, crc.read(d.source)) holdUnless d_first
 
       val d_no_race_reg = Reg(Bool())
       val d_no_race = Wire(init = d_no_race_reg)
