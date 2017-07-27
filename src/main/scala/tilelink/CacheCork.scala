@@ -48,10 +48,15 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       //   Put: 1, Release: 0 => AccessAck
       //   *: 0, Acquire: 1 => AccessAckData
 
-      // Take requests from A to A
-      val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
+      // Take requests from A to A or D (if BtoT Acquire)
       val a_a = Wire(out.a)
-      a_a <> in.a
+      val a_d = Wire(in.d)
+      val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
+      val toD = in.a.bits.opcode === Acquire && in.a.bits.param === TLPermissions.BtoT
+      in.a.ready := Mux(toD, a_d.ready, a_a.ready)
+
+      a_a.valid := in.a.valid && !toD
+      a_a.bits := in.a.bits
       a_a.bits.source := in.a.bits.source << 1 | Mux(isPut, UInt(1), UInt(0))
 
       // Transform Acquire into Get
@@ -60,6 +65,16 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
         a_a.bits.param  := UInt(0)
         a_a.bits.source := in.a.bits.source << 1 | UInt(1)
       }
+
+      // Upgrades are instantly successful
+      a_d.valid := in.a.valid && toD
+      a_d.bits.opcode := Grant
+      a_d.bits.param  := TLPermissions.toT
+      a_d.bits.size   := in.a.bits.size
+      a_d.bits.source := in.a.bits.source
+      a_d.bits.sink   := UInt(0)
+      a_d.bits.data   := UInt(0)
+      a_d.bits.error  := Bool(false)
 
       // Take ReleaseData from C to A; Release from C to D
       val c_a = Wire(out.a)
@@ -72,6 +87,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       c_a.bits.mask    := edgeOut.mask(in.c.bits.address, in.c.bits.size)
       c_a.bits.data    := in.c.bits.data
 
+      // Releases without Data succeed instantly
       val c_d = Wire(in.d)
       c_d.valid := in.c.valid && in.c.bits.opcode === Release
       c_d.bits.opcode  := ReleaseAck
@@ -99,7 +115,10 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
 
       when (out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {
         d_d.bits.opcode := GrantData
-        d_d.bits.param  := TLPermissions.toT
+        // On Grant error, you do NOT get the permissions you asked for.
+        // We only enter this case from NtoT or NtoB, so that means use toN.
+        // (the BtoT case was handled by a_d)
+        d_d.bits.param  := Mux(out.d.bits.error, TLPermissions.toN, TLPermissions.toT)
       }
       when (out.d.bits.opcode === AccessAck && !out.d.bits.source(0)) {
         d_d.bits.opcode := ReleaseAck
@@ -107,7 +126,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
 
       // Combine the sources of messages into the channels
       TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (edgeOut.numBeats1(c_a.bits), c_a), (edgeOut.numBeats1(a_a.bits), a_a))
-      TLArbiter(TLArbiter.lowestIndexFirst)(in.d,  (edgeIn .numBeats1(d_d.bits), d_d), (UInt(0), Queue(c_d, 2)))
+      TLArbiter(TLArbiter.lowestIndexFirst)(in.d,  (edgeIn .numBeats1(d_d.bits), d_d), (UInt(0), Queue(c_d, 2)), (UInt(0), Queue(a_d, 2)))
 
       // Tie off unused ports
       in.b.valid := Bool(false)
