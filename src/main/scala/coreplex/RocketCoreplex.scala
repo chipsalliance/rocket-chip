@@ -62,6 +62,7 @@ trait HasRocketTiles extends HasSystemBus
         wrapper
       }
     }
+    wrapper.suggestName("tile") // Try to stabilize this name for downstream tools
 
     // Local Interrupts must be synchronized to the core clock
     // before being passed into this module.
