@@ -38,8 +38,9 @@ case class TLManagerParameters(
   require (supportsAcquireB.contains(supportsAcquireT))
 
   // Make sure that the regionType agrees with the capabilities
-  require ((regionType == RegionType.CACHED || regionType == RegionType.TRACKED) != supportsAcquireB.none)
-  require (regionType != RegionType.UNCACHED || supportsGet)
+  require (!supportsAcquireB || regionType >= RegionType.UNCACHED) // acquire -> uncached, tracked, cached
+  require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
+  require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = List( // Largest supported transfer of all types

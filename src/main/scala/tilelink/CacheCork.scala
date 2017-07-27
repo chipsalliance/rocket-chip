@@ -20,9 +20,8 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       mp.copy(
         endSinkId = 1,
         managers = mp.managers.map { m => m.copy(
-          regionType         = if (m.regionType == RegionType.UNCACHED) RegionType.TRACKED else m.regionType,
-          supportsAcquireB   = m.supportsGet,
-          supportsAcquireT   = m.supportsPutFull)})})
+          supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
+          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.supportsAcquireT)})})
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
@@ -37,6 +36,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       require (caches.size <= 1 || unsafe, "Only one caching client allowed")
       edgeOut.manager.managers.foreach { case m =>
         require (!m.supportsAcquireB || unsafe, "Cannot support caches beyond the Cork")
+        require (m.regionType <= RegionType.UNCACHED)
       }
 
       // The Cork turns [Acquire=>Get] => [AccessAckData=>GrantData]
