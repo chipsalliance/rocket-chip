@@ -227,6 +227,7 @@ object AddressRange
 
 object AddressSet
 {
+  val everything = AddressSet(0, -1)
   def misaligned(base: BigInt, size: BigInt, tail: Seq[AddressSet] = Seq()): Seq[AddressSet] = {
     if (size == 0) tail.reverse else {
       val maxBaseAlignment = base & (-base) // 0 for infinite (LSB)
