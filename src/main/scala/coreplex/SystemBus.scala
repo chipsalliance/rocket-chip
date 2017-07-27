@@ -36,6 +36,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   val toMemoryBus: TLOutwardNode = outwardNode
 
+  val toSlave: TLOutwardNode = outwardNode
+
   def fromAsyncMasters(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     inwardNode :=* sink.node
