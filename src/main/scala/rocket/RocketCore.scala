@@ -90,10 +90,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ("load-use interlock", () => id_ex_hazard && ex_ctrl.mem || id_mem_hazard && mem_ctrl.mem || id_wb_hazard && wb_ctrl.mem),
       ("long-latency interlock", () => id_sboard_hazard),
       ("csr interlock", () => id_ex_hazard && ex_ctrl.csr =/= CSR.N || id_mem_hazard && mem_ctrl.csr =/= CSR.N || id_wb_hazard && wb_ctrl.csr =/= CSR.N),
-      ("I$ blocked", () => !(ibuf.io.inst(0).valid || Reg(next = take_pc))),
+      ("I$ blocked", () => icache_blocked),
       ("D$ blocked", () => id_ctrl.mem && dcache_blocked),
       ("branch misprediction", () => take_pc_mem && mem_direction_misprediction),
-      ("control-flow target misprediction", () => take_pc_mem && mem_misprediction && !mem_direction_misprediction),
+      ("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !icache_blocked),
       ("flush", () => wb_reg_flush_pipe),
       ("replay", () => replay_wb))
       ++ (if (!usingMulDiv) Seq() else Seq(
@@ -642,6 +642,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
   // evaluate performance counters
+  val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   if (enableCommitLog) {
