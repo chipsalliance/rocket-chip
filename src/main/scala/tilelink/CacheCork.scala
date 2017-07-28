@@ -68,35 +68,25 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
 
       // Upgrades are instantly successful
       a_d.valid := in.a.valid && toD
-      a_d.bits.opcode := Grant
-      a_d.bits.param  := TLPermissions.toT
-      a_d.bits.size   := in.a.bits.size
-      a_d.bits.source := in.a.bits.source
-      a_d.bits.sink   := UInt(0)
-      a_d.bits.data   := UInt(0)
-      a_d.bits.error  := Bool(false)
+      a_d.bits := edgeIn.Grant(
+        fromSink = UInt(0),
+        toSource = in.a.bits.source,
+        lgSize   = in.a.bits.size,
+        capPermissions = TLPermissions.toT)
 
       // Take ReleaseData from C to A; Release from C to D
       val c_a = Wire(out.a)
       c_a.valid := in.c.valid && in.c.bits.opcode === ReleaseData
-      c_a.bits.opcode  := PutFullData
-      c_a.bits.param   := UInt(0)
-      c_a.bits.size    := in.c.bits.size
-      c_a.bits.source  := in.c.bits.source << 1
-      c_a.bits.address := in.c.bits.address
-      c_a.bits.mask    := edgeOut.mask(in.c.bits.address, in.c.bits.size)
-      c_a.bits.data    := in.c.bits.data
+      c_a.bits := edgeOut.Put(
+        fromSource = in.c.bits.source << 1,
+        toAddress  = in.c.bits.address,
+        lgSize     = in.c.bits.size,
+        data       = in.c.bits.data)._2
 
       // Releases without Data succeed instantly
       val c_d = Wire(in.d)
       c_d.valid := in.c.valid && in.c.bits.opcode === Release
-      c_d.bits.opcode  := ReleaseAck
-      c_d.bits.param   := UInt(0)
-      c_d.bits.size    := in.c.bits.size
-      c_d.bits.source  := in.c.bits.source
-      c_d.bits.sink    := UInt(0)
-      c_d.bits.data    := UInt(0)
-      c_d.bits.error   := Bool(false)
+      c_d.bits := edgeIn.ReleaseAck(in.c.bits)
 
       assert (!in.c.valid || in.c.bits.opcode === Release || in.c.bits.opcode === ReleaseData)
       in.c.ready := Mux(in.c.bits.opcode === Release, c_d.ready, c_a.ready)
