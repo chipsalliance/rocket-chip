@@ -49,8 +49,7 @@ abstract class NodeImp[D, U, EO, EI, B <: Data]
 
 abstract class BaseNode
 {
-  // You cannot create a Node outside a LazyModule!
-  require (!LazyModule.stack.isEmpty)
+  require (!LazyModule.stack.isEmpty, "You cannot create a node outside a LazyModule!")
 
   val lazyModule = LazyModule.stack.head
   val index = lazyModule.nodes.size
