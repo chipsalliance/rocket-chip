@@ -97,5 +97,5 @@ trait HasSystemErrorSlave extends HasSystemBus {
   private val params = p(ErrorParams)
   val error = LazyModule(new TLError(params, sbus.beatBytes))
 
-  error.node := sbus.toSlave
+  error.node := TLBuffer(BufferParams.pipe)(sbus.toSlave)
 }
