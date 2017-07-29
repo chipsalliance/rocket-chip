@@ -19,7 +19,7 @@ case object SystemBusParams extends Field[SystemBusParams]
 
 class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params) {
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
-  inwardBufNode :=* master_splitter.node
+  inwardNode :=* master_splitter.node
   def busView = master_splitter.node.edgesIn.head
 
   protected def inwardSplitNode: TLInwardNode = master_splitter.node
@@ -27,8 +27,10 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   master_splitter.node :=* tile_fixer.node
   master_splitter.node :=* port_fixer.node
+  inwardNode :=* master_fixer.node
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
@@ -40,13 +42,13 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromAsyncMasters(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    inwardNode :=* sink.node
+    master_fixer.node :=* sink.node
     sink.node
   }
 
   def fromSyncMasters(params: BufferParams = BufferParams.default): TLInwardNode = {
     val buffer = LazyModule(new TLBuffer(params))
-    inwardNode :=* buffer.node
+    master_fixer.node :=* buffer.node
     buffer.node
   }
 
