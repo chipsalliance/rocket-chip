@@ -397,7 +397,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
   val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) release_state === s_ready else true.B
-  tl_out.d.ready := Mux(grantIsCached, tl_out.e.ready && canAcceptCachedGrant, true.B)
+  tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
       grantInProgress := true
@@ -432,9 +432,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // data refill
-  val doRefillBeat = grantIsRefill && tl_out.d.fire()
-  dataArb.io.in(1).valid := doRefillBeat
-  assert(dataArb.io.in(1).ready || !doRefillBeat)
+  // note this ready-valid signaling ignores E-channel backpressure, which
+  // benignly means the data RAM might occasionally be redundantly written
+  dataArb.io.in(1).valid := tl_out.d.valid && grantIsRefill && canAcceptCachedGrant
+  when (grantIsRefill && !dataArb.io.in(1).ready) { tl_out.d.ready := false }
   dataArb.io.in(1).bits.write := true
   dataArb.io.in(1).bits.addr :=  s2_req_block_addr | d_address_inc
   dataArb.io.in(1).bits.way_en := s2_victim_way
