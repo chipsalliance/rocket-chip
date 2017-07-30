@@ -57,7 +57,9 @@ trait HasTileLinkMasterPort {
   val module: HasTileLinkMasterPortModule
   val masterNode = TLOutputNode()
   val tileBus = LazyModule(new TLXbar) // TileBus xbar for cache backends to connect to
-  masterNode := tileBus.node
+  val fq = LazyModule(new TLBuffer(BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.flow, BufferParams.none))
+  fq.node := tileBus.node
+  masterNode := fq.node
 }
 
 trait HasTileLinkMasterPortBundle {

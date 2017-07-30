@@ -103,16 +103,22 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCor
   val slaveNode = TLInputNode() // Up to two uses for this input node:
 
   // 1) Frontend always exists, but may or may not have a scratchpad node
-  val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), earlyAck=true))
+  val ffq = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
   val ww = LazyModule(new TLWidthWidget(xLen/8))
-  frontend.slaveNode connectButDontMonitorSlaves fg.node
+  val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), earlyAck=true))
+  ffq.node connectButDontMonitorSlaves slaveNode
+  ww.node connectButDontMonitorSlaves ffq.node
   fg.node connectButDontMonitorSlaves ww.node
-  ww.node connectButDontMonitorSlaves slaveNode
+  frontend.slaveNode connectButDontMonitorSlaves fg.node
 
   // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
   val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1)))))
-  scratch foreach { lm => lm.node connectButDontMonitor TLFragmenter(xLen/8, p(CacheBlockBytes), earlyAck=true)(slaveNode) }
+  scratch foreach { lm =>
+    val sfq = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
+    sfq.node connectButDontMonitorSlaves slaveNode
+    lm.node connectButDontMonitor TLFragmenter(xLen/8, p(CacheBlockBytes), earlyAck=true)(sfq.node)
+  }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
     val finalNode = frontend.masterNode.edgesOut.head.manager.managers.find(_.nodePath.last == s.node)
