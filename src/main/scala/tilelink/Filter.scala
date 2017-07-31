@@ -83,6 +83,9 @@ object TLFilter
   def Mnocache: TLManagerParameters => Option[TLManagerParameters] = { m =>
     if (m.supportsAcquireB) None else Some(m)
   }
+  def Mcache: TLManagerParameters => Option[TLManagerParameters] = { m =>
+    if (m.supportsAcquireB) Some(m) else None
+  }
   def Cnocache: TLClientParameters => Option[TLClientParameters] = { c =>
     if (c.supportsProbe) None else Some(c)
   }
