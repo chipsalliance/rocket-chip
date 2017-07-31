@@ -93,7 +93,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_btb_resp_valid = if (usingBTB) Reg(Bool()) else false.B
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_tlb_resp = Reg(tlb.io.resp)
-  val s2_xcpt = !s2_tlb_resp.miss && fq.io.enq.bits.xcpt.asUInt.orR
+  val s2_xcpt = s2_tlb_resp.ae.inst || s2_tlb_resp.pf.inst
   val s2_speculative = Reg(init=Bool(false))
   val s2_partial_insn_valid = RegInit(false.B)
   val s2_partial_insn = Reg(UInt(width = coreInstBits))
@@ -140,9 +140,9 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s2_vaddr := s2_pc
   icache.io.s1_kill := s2_redirect || tlb.io.resp.miss || s2_replay
-  icache.io.s2_kill := s2_valid && (s2_speculative && !s2_tlb_resp.cacheable || s2_xcpt)
+  icache.io.s2_kill := s2_speculative && !s2_tlb_resp.cacheable || s2_xcpt
 
-  fq.io.enq.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
+  fq.io.enq.valid := s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
 
