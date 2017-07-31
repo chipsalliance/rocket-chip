@@ -49,7 +49,8 @@ case object SlowToFast extends RationalDirection {
 
 final class RationalIO[T <: Data](gen: T) extends Bundle
 {
-  val bits   = gen.chiselCloneType
+  val bits0  = gen.chiselCloneType
+  val bits1  = gen.chiselCloneType
   val valid  = Bool()
   val source = UInt(width = 2)
   val ready  = Bool().flip
@@ -83,7 +84,8 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
 
   deq.valid  := enq.valid
   deq.source := count
-  deq.bits   := Mux(equal, enq.bits, RegEnable(enq.bits, equal))
+  deq.bits0  := enq.bits
+  deq.bits1  := RegEnable(enq.bits, equal)
   enq.ready  := Mux(equal, deq.ready, count(1) =/= deq.sink(0))
 
   when (enq.fire()) { count := Cat(count(0), !count(1)) }
@@ -118,7 +120,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
 
   enq.ready := deq.ready
   enq.sink  := count
-  deq.bits  := enq.bits
+  deq.bits  := Mux(equal, enq.bits0, enq.bits1)
   deq.valid := Mux(equal, enq.valid, count(1) =/= enq.source(0))
 
   when (deq.fire()) { count := Cat(count(0), !count(1)) }
@@ -160,7 +162,7 @@ object ToRational
 object FromRational
 {
   def apply[T <: Data](x: RationalIO[T], direction: RationalDirection = Symmetric): DecoupledIO[T] = {
-    val sink = Module(new RationalCrossingSink(x.bits, direction))
+    val sink = Module(new RationalCrossingSink(x.bits0, direction))
     sink.io.enq <> x
     sink.io.deq
   }

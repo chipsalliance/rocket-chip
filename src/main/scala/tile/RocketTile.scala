@@ -231,14 +231,18 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
 
 class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends RocketTileWrapper(rtp, hartid) {
   val masterNode = TLRationalOutputNode()
+  val mbuf = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams.default))
   val source = LazyModule(new TLRationalCrossingSource)
-  source.node :=* rocket.masterNode
+  mbuf.node :=* rocket.masterNode
+  source.node :=* mbuf.node
   masterNode :=* source.node
 
   val slaveNode = new TLRationalInputNode() { override def reverse = true }
+  val sbuf = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
   val sink = LazyModule(new TLRationalCrossingSink(SlowToFast))
-  rocket.slaveNode connectButDontMonitorSlaves sink.node
   sink.node connectButDontMonitorSlaves slaveNode
+  sbuf.node connectButDontMonitorSlaves sink.node
+  rocket.slaveNode connectButDontMonitorSlaves sbuf.node
 
   // Fully async interrupts need synchronizers.
   // Those coming from periphery clock need a
