@@ -68,7 +68,7 @@ trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBu
     for (bank <- 0 until nBanksPerChannel) {
       val offset = (bank * nMemoryChannels) + channel
       in := sbus.toMemoryBus
-      mbus.fromCoherenceManager := TLFilter(AddressSet(offset * blockBytes, mask))(out)
+      mbus.fromCoherenceManager := TLFilter(TLFilter.Mmask(AddressSet(offset * blockBytes, mask)))(out)
     }
     mbus
   }
