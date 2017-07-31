@@ -17,7 +17,8 @@ case class RocketTileParams(
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     rocc: Seq[RoCCParams] = Nil,
     btb: Option[BTBParams] = Some(BTBParams()),
-    dataScratchpadBytes: Int = 0) extends TileParams {
+    dataScratchpadBytes: Int = 0,
+    boundaryBuffers: Boolean = false) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }
@@ -174,6 +175,26 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
 
   rocket.intNode := intXbar.intnode
 
+  def optionalMasterBuffer(in: TLOutwardNode): TLOutwardNode = {
+    if (rtp.boundaryBuffers) {
+      val mbuf = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams.default))
+      mbuf.node :=* in
+      mbuf.node
+    } else {
+      in
+    }
+  }
+
+  def optionalSlaveBuffer(in: TLOutwardNode): TLOutwardNode = {
+    if (rtp.boundaryBuffers) {
+      val sbuf = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
+      sbuf.node connectButDontMonitorSlaves in
+      sbuf.node
+    } else {
+      in
+    }
+  }
+
   lazy val module = new LazyModuleImp(this) {
     val io = new CoreBundle with HasExternallyDrivenTileConstants {
       val master = masterNode.bundleOut
@@ -190,10 +211,10 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
 
 class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends RocketTileWrapper(rtp, hartid) {
   val masterNode = TLOutputNode()
-  masterNode :=* rocket.masterNode
+  masterNode :=* optionalMasterBuffer(rocket.masterNode)
 
   val slaveNode = new TLInputNode() { override def reverse = true }
-  rocket.slaveNode connectButDontMonitorSlaves slaveNode
+  rocket.slaveNode connectButDontMonitorSlaves optionalSlaveBuffer(slaveNode)
 
   // Fully async interrupts need synchronizers.
   // Others need no synchronization.
@@ -232,13 +253,13 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
 class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters) extends RocketTileWrapper(rtp, hartid) {
   val masterNode = TLRationalOutputNode()
   val source = LazyModule(new TLRationalCrossingSource)
-  source.node :=* rocket.masterNode
+  source.node :=* optionalMasterBuffer(rocket.masterNode)
   masterNode :=* source.node
 
   val slaveNode = new TLRationalInputNode() { override def reverse = true }
   val sink = LazyModule(new TLRationalCrossingSink(SlowToFast))
-  rocket.slaveNode connectButDontMonitorSlaves sink.node
   sink.node connectButDontMonitorSlaves slaveNode
+  rocket.slaveNode connectButDontMonitorSlaves optionalSlaveBuffer(sink.node)
 
   // Fully async interrupts need synchronizers.
   // Those coming from periphery clock need a
