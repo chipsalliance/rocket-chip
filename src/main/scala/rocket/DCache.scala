@@ -230,7 +230,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && !release_ack_wait
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   val s2_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
-  val s2_valid_uncached = s2_valid_miss && s2_uncached
+  val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
   val s2_victim_way = Mux(s2_hit_valid && !s2_flush_valid_pre_tag_ecc, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
   val s2_victim_tag = Mux(s2_valid_data_error, s2_req.addr >> untagBits, RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
   val s2_victim_state = Mux(s2_hit_valid && !s2_flush_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
@@ -238,7 +238,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
-  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached && tl_out_a.ready && !uncachedInFlight.asUInt.andR)
+  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached_pending && tl_out_a.ready)
   when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
 
   // tag updates on ECC errors
@@ -286,7 +286,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   any_pstore_valid := pstore1_valid || pstore2_valid
   val pstore_drain_structural = pstore1_valid && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
   val pstore_drain_opportunistic = !(io.cpu.req.valid && s0_needsRead)
-  val pstore_drain_on_miss = releaseInFlight || io.cpu.s2_nack
+  val pstore_drain_on_miss = releaseInFlight || (s2_valid && !s2_valid_hit && !s2_valid_uncached_pending)
   val pstore_drain = !pstore1_merge &&
     (Bool(usingRMW) && pstore_drain_structural ||
      (((pstore1_valid && !pstore1_rmw) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss)))
@@ -367,8 +367,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Wire(new TLBundleA(edge.bundle))
   }
 
-  tl_out_a.valid := (s2_valid_cached_miss && (Bool(cacheParams.acquireBeforeRelease) || !s2_victim_dirty)) ||
-                    (s2_valid_uncached && !uncachedInFlight.asUInt.andR)
+  tl_out_a.valid := (s2_valid_cached_miss && (Bool(cacheParams.acquireBeforeRelease) || !s2_victim_dirty)) || s2_valid_uncached_pending
   tl_out_a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!s2_read, put, atomics)))
 
   // Set pending bits for outstanding TileLink transaction
