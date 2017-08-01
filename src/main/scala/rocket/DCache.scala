@@ -89,7 +89,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val q_depth = if (rational) (2 min maxUncachedInFlight-1) else 0
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true, pipe = true))
+  tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true))
   val tl_out_c = Wire(tl_out.c)
   tl_out.c <> (if (cacheParams.acquireBeforeRelease) Queue(tl_out_c, cacheDataBeats, flow = true) else tl_out_c)
 
