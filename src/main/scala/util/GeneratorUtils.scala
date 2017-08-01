@@ -53,6 +53,21 @@ trait HasGeneratorUtilities {
     Driver.elaborate(gen)
   }
 
+  def enumerateROMs(circuit: Circuit): String = {
+    val res = new StringBuilder
+    val configs =
+      circuit.components flatMap { m =>
+        m.id match {
+          case rom: BlackBoxedROM => Some((rom.name, ROMGenerator.lookup(rom)))
+          case _ => None
+        }
+      }
+    configs foreach { case (name, c) =>
+      res append s"name ${name} depth ${c.depth} width ${c.width}\n"
+    }
+    res.toString
+  }
+
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
     val f = new File(targetDir, fname) 
     val fw = new FileWriter(f)
@@ -102,6 +117,10 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
   } 
+
+  def generateROMs {
+    writeOutputFile(td, s"$longName.rom.conf", enumerateROMs(circuit))
+  }
 
   /** Output files created as a side-effect of elaboration */
   def generateArtefacts {
