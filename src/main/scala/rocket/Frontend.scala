@@ -180,7 +180,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         Mux(returnAddrLSBs(log2Ceil(fetchWidth)), ntpc, s1_base_pc | ((returnAddrLSBs << log2Ceil(coreInstBytes)) & (fetchBytes - 1)))
       btb.io.ras_update.bits.cfiType := btb.io.resp.bits.cfiType
       btb.io.ras_update.bits.prediction.valid := true
-    } else when (fq.io.enq.fire()) {
+    } else {
       val s2_btb_hit = s2_btb_resp_valid && s2_btb_resp_bits.taken
       val s2_base_pc = ~(~s2_pc | (fetchBytes-1))
       val taken_idx = Wire(UInt())
@@ -213,7 +213,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         when (!prevTaken) {
           taken_idx := idx
           after_idx := idx + 1
-          btb.io.ras_update.valid := !s2_wrong_path && (prevRVI && (rviCall || rviReturn) || valid && (rvcCall || rvcReturn))
+          btb.io.ras_update.valid := fq.io.enq.fire() && !s2_wrong_path && (prevRVI && (rviCall || rviReturn) || valid && (rvcCall || rvcReturn))
           btb.io.ras_update.bits.prediction.valid := true
           btb.io.ras_update.bits.cfiType := Mux(Mux(prevRVI, rviReturn, rvcReturn), CFIType.ret, CFIType.call)
 
@@ -222,7 +222,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
                   valid && (rvcJALR || (rvcJR && !btb.io.ras_head.valid))) {
               s2_wrong_path := true
             }
-            when (taken) {
+            when (s2_valid && taken) {
               val pc = s2_base_pc | (idx*coreInstBytes)
               val npc =
                 if (idx == 0) pc.asSInt + Mux(prevRVI, rviImm -& 2.S, rvcImm)
@@ -231,17 +231,19 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
             }
 
             when (prevRVI && rviBranch || valid && rvcBranch) {
-              btb.io.bht_advance.valid := !s2_wrong_path && !s2_btb_resp_valid
+              btb.io.bht_advance.valid := fq.io.enq.fire() && !s2_wrong_path && !s2_btb_resp_valid
               btb.io.bht_advance.bits := s2_btb_resp_bits
             }
           }
         }
 
         if (idx == fetchWidth-1) {
-          s2_partial_insn_valid := false
-          when (valid && !prevTaken && !rvc) {
-            s2_partial_insn_valid := true
-            s2_partial_insn := bits | 0x3
+          when (fq.io.enq.fire()) {
+            s2_partial_insn_valid := false
+            when (valid && !prevTaken && !rvc) {
+              s2_partial_insn_valid := true
+              s2_partial_insn := bits | 0x3
+            }
           }
           prevTaken || taken
         } else {
@@ -252,15 +254,16 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       btb.io.ras_update.bits.returnAddr := s2_base_pc + (after_idx << log2Ceil(coreInstBytes))
 
       val taken = scanInsns(0, s2_partial_insn_valid, s2_partial_insn, false.B)
-      when (s2_btb_hit) {
+      when (fq.io.enq.fire() && s2_btb_hit) {
         s2_partial_insn_valid := false
-      }.otherwise {
+      }
+      when (!s2_btb_hit) {
         fq.io.enq.bits.btb.bits.bridx := taken_idx
         when (taken) {
           fq.io.enq.bits.btb.valid := true
           fq.io.enq.bits.btb.bits.taken := true
           fq.io.enq.bits.btb.bits.entry := UInt(tileParams.btb.get.nEntries)
-          s2_redirect := true
+          when (fq.io.enq.fire()) { s2_redirect := true }
         }
       }
     }
