@@ -430,11 +430,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   }
 
+  // Finish TileLink transaction by issuing a GrantAck
+  tl_out.e.valid := tl_out.d.valid && d_first && grantIsCached && canAcceptCachedGrant
+  tl_out.e.bits := edge.GrantAck(tl_out.d.bits)
+  assert(tl_out.e.fire() === (tl_out.d.fire() && d_first && grantIsCached))
+
   // data refill
   // note this ready-valid signaling ignores E-channel backpressure, which
   // benignly means the data RAM might occasionally be redundantly written
   dataArb.io.in(1).valid := tl_out.d.valid && grantIsRefill && canAcceptCachedGrant
-  when (grantIsRefill && !dataArb.io.in(1).ready) { tl_out.d.ready := false }
+  when (grantIsRefill && !dataArb.io.in(1).ready) {
+    tl_out.e.valid := false
+    tl_out.d.ready := false
+  }
   dataArb.io.in(1).bits.write := true
   dataArb.io.in(1).bits.addr :=  s2_req_block_addr | d_address_inc
   dataArb.io.in(1).bits.way_en := s2_victim_way
@@ -462,11 +470,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       blockUncachedGrant := !dataArb.io.in(1).ready
     }
   }
-
-  // Finish TileLink transaction by issuing a GrantAck
-  tl_out.e.valid := tl_out.d.valid && d_first && grantIsCached && canAcceptCachedGrant
-  tl_out.e.bits := edge.GrantAck(tl_out.d.bits)
-  when (tl_out.e.fire()) { assert(tl_out.d.fire()) }
 
   // Handle an incoming TileLink Probe message
   val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid || (s2_valid_hit && s2_lr)
