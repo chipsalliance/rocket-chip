@@ -92,7 +92,7 @@ class TLFuzzer(
     val n = nOrdered.get
     require(n > 0, s"nOrdered must be > 0, not $n")
     require((inFlight % n) == 0, s"inFlight (${inFlight}) must be evenly divisible by nOrdered (${nOrdered}).")
-    Seq.tabulate(inFlight/n) {i =>
+    Seq.tabulate(n) {i =>
       TLClientParameters(name =s"OrderedFuzzer$i",
         sourceId = IdRange(i * (inFlight/n),  (i + 1)*(inFlight/n)),
         requestFifo = true)
