@@ -92,6 +92,9 @@ case class TransferSizes(min: Int, max: Int)
   def intersect(x: TransferSizes) =
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
+
+  override def toString() = "TransferSizes[%d, %d]".format(min, max)
+ 
 }
 
 object TransferSizes {
