@@ -68,6 +68,10 @@ class ICacheResp(outer: ICache) extends Bundle {
   override def cloneType = new ICacheResp(outer).asInstanceOf[this.type]
 }
 
+class ICachePerfEvents extends Bundle {
+  val acquire = Bool()
+}
+
 class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val hartid = UInt(INPUT, hartIdLen)
   val req = Decoupled(new ICacheReq).flip
@@ -81,6 +85,8 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val invalidate = Bool(INPUT)
   val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.map(_.bundleIn)
+
+  val perf = new ICachePerfEvents().asOutput
 }
 
 // get a tile-specific property without breaking deduplication
@@ -343,4 +349,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   when (!refill_valid) { invalidated := false.B }
   when (refill_fire) { refill_valid := true.B }
   when (refill_done) { refill_valid := false.B}
+
+  io.perf.acquire := refill_fire
 }

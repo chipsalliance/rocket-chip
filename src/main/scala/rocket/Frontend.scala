@@ -285,7 +285,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp <> fq.io.deq
 
   // performance events
-  io.cpu.perf.acquire := edge.done(icache.io.tl_out(0).a)
+  io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
 
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
