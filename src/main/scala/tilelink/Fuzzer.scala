@@ -77,18 +77,34 @@ object LFSRNoiseMaker {
   * @param noiseMaker is a function that supplies a random UInt of a given width every time inc is true
   */
 class TLFuzzer(
-    nOperations: Int,
-    inFlight: Int = 32,
-    noiseMaker: (Int, Bool, Int) => UInt = {
-                  (wide: Int, increment: Bool, abs_values: Int) =>
-                   LFSRNoiseMaker(wide=wide, increment=increment)
-                  },
-    noModify: Boolean = false,
-    overrideAddress: Option[AddressSet] = None)(implicit p: Parameters) extends LazyModule
+  nOperations: Int,
+  inFlight: Int = 32,
+  noiseMaker: (Int, Bool, Int) => UInt = {
+    (wide: Int, increment: Bool, abs_values: Int) =>
+    LFSRNoiseMaker(wide=wide, increment=increment)
+  },
+  noModify: Boolean = false,
+  overrideAddress: Option[AddressSet] = None,
+  nOrdered: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLClientNode(TLClientParameters(
-    name = "Fuzzer",
-    sourceId = IdRange(0,inFlight)))
+
+  val clientParams = if (nOrdered.isDefined) {
+    val n = nOrdered.get
+    require(n > 0, s"nOrdered must be > 0, not $n")
+    require((inFlight % n) == 0, s"inFlight (${inFlight}) must be evenly divisible by nOrdered (${nOrdered}).")
+    Seq.tabulate(n) {i =>
+      TLClientParameters(name =s"OrderedFuzzer$i",
+        sourceId = IdRange(i * (inFlight/n),  (i + 1)*(inFlight/n)),
+        requestFifo = true)
+    }
+  } else {
+    Seq(TLClientParameters(
+      name = "Fuzzer",
+      sourceId = IdRange(0,inFlight)
+    ))
+  }
+
+  val node = TLClientNode(Seq(TLClientPortParameters(clientParams)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
