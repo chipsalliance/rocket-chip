@@ -89,7 +89,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val q_depth = if (rational) (2 min maxUncachedInFlight-1) else 0
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true, pipe = true))
+  tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true))
   val tl_out_c = Wire(tl_out.c)
   tl_out.c <> (if (cacheParams.acquireBeforeRelease) Queue(tl_out_c, cacheDataBeats, flow = true) else tl_out_c)
 
@@ -184,8 +184,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         .reduce (_|_))
       (s1_meta_hit_way, s1_meta_hit_state, s1_meta, s1_meta_uncorrected(s1_victim_way))
     }
-  val s1_data_way = Mux(inWriteback, releaseWay, s1_hit_way)
-  val s1_data = Mux1H(s1_data_way, data.io.resp) // retime into s2 if critical
+  val s1_data_way = Wire(init = Mux(inWriteback, releaseWay, s1_hit_way))
+  val s1_all_data_ways = Vec(data.io.resp :+ dummyEncodeData(tl_out.d.bits.data))
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask)
 
   val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
@@ -210,7 +210,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_meta_errors = s2_meta.map(_.error).asUInt
   val s2_meta_error = s2_meta_errors.orR
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
-  val s2_data = RegEnable(s1_data, s1_valid || inWriteback)
+  val s2_data = {
+    val en = s1_valid || inWriteback || tl_out.d.fire()
+    if (cacheParams.pipelineWayMux && nWays > 1) {
+      val s2_data_way = RegEnable(s1_data_way, en)
+      val s2_all_data_ways = (0 to nWays).map(i => RegEnable(s1_all_data_ways(i), en && s1_data_way(i)))
+      Mux1H(s2_data_way, s2_all_data_ways)
+    } else {
+      RegEnable(Mux1H(s1_data_way, s1_all_data_ways), en)
+    }
+  }
   val s2_probe_way = RegEnable(s1_hit_way, s1_probe)
   val s2_probe_state = RegEnable(s1_hit_state, s1_probe)
   val s2_hit_way = RegEnable(s1_hit_way, s1_valid_not_nacked)
@@ -417,7 +426,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         }
       }
       when (grantIsUncachedData) {
-        s2_data := dummyEncodeData(tl_out.d.bits.data)
+        s1_data_way := 1.U << nWays
         s2_req.cmd := M_XRD
         s2_req.typ := req.typ
         s2_req.tag := req.tag
