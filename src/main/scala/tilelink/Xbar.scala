@@ -9,8 +9,8 @@ import freechips.rocketchip.diplomacy._
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
   val node = TLNexusNode(
-    numClientPorts  = 1 to 32,
-    numManagerPorts = 1 to 32,
+    numClientPorts  = 1 to 999,
+    numManagerPorts = 1 to 999,
     clientFn  = { seq =>
       require (!seq.exists(_.unsafeAtomics) || seq.size == 1,
         "An unsafe atomic port can not be combined with any other!")
@@ -46,6 +46,11 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       val out = node.bundleOut
     }
 
+    if ((io.in.size * io.out.size) > (8*32)) {
+      println (s"!!! WARNING !!!")
+      println (s" Your TLXbar ($name) is very large, with ${io.in.size} Masters and ${io.out.size} Slaves.")
+      println (s"!!! WARNING !!!")
+    }
     // Grab the port ID mapping
     val inputIdRanges = TLXbar.mapInputIds(node.edgesIn.map(_.client))
     val outputIdRanges = TLXbar.mapOutputIds(node.edgesOut.map(_.manager))
