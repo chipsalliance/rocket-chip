@@ -76,10 +76,11 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val icMask = (~UInt(0, fetchWidth*coreInstBits) << (nBufValid << log2Ceil(coreInstBits)))(fetchWidth*coreInstBits-1,0)
   val inst = icData & icMask | buf.data & ~icMask
 
-  val valid = (UIntToOH(nValid) - 1)(fetchWidth-1, 0)
-  val bufMask = UIntToOH(nBufValid) - 1
+  val valid = UIntToOH1(nValid, fetchWidth)
+  val bufMask = UIntToOH1(nBufValid, fetchWidth)
   val xcpt = (0 until bufMask.getWidth).map(i => Mux(bufMask(i), buf.xcpt, io.imem.bits.xcpt))
-  val ic_replay = valid & (Mux(buf.replay, bufMask, UInt(0)) | Mux(io.imem.bits.replay, ~bufMask, UInt(0)))
+  val buf_replay = Mux(buf.replay, bufMask, UInt(0))
+  val ic_replay = buf_replay | Mux(io.imem.bits.replay, valid & ~bufMask, UInt(0))
   val ibufBTBHitMask = Mux(ibufBTBHit, UIntToOH(ibufBTBResp.bridx), UInt(0))
   assert(!io.imem.valid || !io.imem.bits.btb.valid || io.imem.bits.btb.bits.bridx >= pcWordBits)
   val icBTBHitMask = Mux(io.imem.bits.btb.valid, UIntToOH(io.imem.bits.btb.bits.bridx +& nBufValid - pcWordBits), UInt(0))
@@ -97,7 +98,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
 
     if (usingCompressed) {
       val replay = ic_replay(j) || (!exp.io.rvc && (btbHitMask(j) || ic_replay(j+1)))
-      val full_insn = exp.io.rvc || valid(j+1) || xcpt(j+1).asUInt.orR || replay
+      val full_insn = exp.io.rvc || valid(j+1) || xcpt(j+1).asUInt.orR || buf_replay(j)
       io.inst(i).valid := valid(j) && full_insn
       io.inst(i).bits.xcpt0 := xcpt(j)
       io.inst(i).bits.xcpt1 := Mux(exp.io.rvc, 0.U, xcpt(j+1).asUInt).asTypeOf(new FrontendExceptions)
