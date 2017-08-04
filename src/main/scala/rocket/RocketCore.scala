@@ -596,7 +596,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.imem.sfence.bits.asid := wb_reg_rs2
   io.ptw.sfence := io.imem.sfence
 
-  ibuf.io.inst(0).ready := !ctrl_stalld || csr.io.interrupt
+  ibuf.io.inst(0).ready := !ctrl_stalld
 
   io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && mem_wrong_npc && (!mem_cfi || mem_cfi_taken))
   io.imem.btb_update.bits.isValid := !mem_reg_replay && mem_cfi
