@@ -86,6 +86,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 5, flow = true)) }
 
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
+  val s1_valid = RegNext(s0_valid)
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
   val s2_valid = RegInit(false.B)
@@ -143,7 +144,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s2_kill := s2_speculative && !s2_tlb_resp.cacheable || s2_xcpt
   icache.io.s2_prefetch := s2_tlb_resp.prefetchable
 
-  fq.io.enq.valid := s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
+  fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
 
