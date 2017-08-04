@@ -2,19 +2,13 @@
 # Verilator Generation
 #--------------------------------------------------------------------
 firrtl = $(generated_dir)/$(long_name).fir
-firrtl_debug = $(generated_dir_debug)/$(long_name).fir
 verilog = $(generated_dir)/$(long_name).v
-verilog_debug = $(generated_dir_debug)/$(long_name).v
 
-.SECONDARY: $(firrtl) $(firrtl_debug) $(verilog) $(verilog_debug)
+.SECONDARY: $(firrtl) $(verilog)
 
 $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
-
-$(generated_dir_debug)/%.fir $(generated_dir_debug)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
-	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir_debug) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
 %.v: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
@@ -72,7 +66,7 @@ $(emu): $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
 	-CFLAGS "-I$(generated_dir) -include $(model_header)"
 	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir)/$(long_name) -f V$(MODEL).mk
 
-$(emu_debug): $(verilog_debug) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
+$(emu_debug): $(verilog) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(long_name)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(long_name)  --trace \
 	-o $(abspath $(sim_dir))/$@ $< $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
