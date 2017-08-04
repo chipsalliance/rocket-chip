@@ -180,6 +180,9 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   // performance events
   io.cpu.perf.acquire := edge.done(icache.io.tl_out(0).a)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+
+  val s1_valid = RegNext(s0_valid)
+  fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || icache.io.s2_kill)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
