@@ -6,7 +6,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.coreplex.{RationalCrossing, RocketCrossing, RocketTilesKey}
-import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import TLMessages._
@@ -640,7 +640,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
   val flushCounterWrap = flushCounterNext(log2Ceil(nSets)-1, 0)
-  when (tl_out_a.fire() && !s2_uncached) { flushed := false }
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
@@ -653,17 +652,21 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, flushCounter(idxBits-1, 0) << blockOffBits)
   metaArb.io.in(5).bits.way_en := ~UInt(0, nWays)
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
-  when (flushing) {
-    s1_victim_way := flushCounter >> log2Up(nSets)
-    when (s2_flush_valid) {
-      flushCounter := flushCounterNext
-      when (flushDone) {
-        flushed := true
-        if (!isPow2(nWays)) flushCounter := flushCounterWrap
+  // Only flush D$ on FENCE.I if some cached executable regions are untracked.
+  if (!edge.manager.managers.forall(m => !m.supportsAcquireB || !m.executable || m.regionType >= RegionType.TRACKED)) {
+    when (tl_out_a.fire() && !s2_uncached) { flushed := false }
+    when (flushing) {
+      s1_victim_way := flushCounter >> log2Up(nSets)
+      when (s2_flush_valid) {
+        flushCounter := flushCounterNext
+        when (flushDone) {
+          flushed := true
+          if (!isPow2(nWays)) flushCounter := flushCounterWrap
+        }
       }
-    }
-    when (flushed && release_state === s_ready && !release_ack_wait) {
-      flushing := false
+      when (flushed && release_state === s_ready && !release_ack_wait) {
+        flushing := false
+      }
     }
   }
   metaArb.io.in(0).valid := resetting
