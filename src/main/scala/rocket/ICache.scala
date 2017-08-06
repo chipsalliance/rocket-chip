@@ -63,6 +63,7 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
 
 class ICacheResp(outer: ICache) extends Bundle {
   val data = UInt(width = outer.icacheParams.fetchBytes*8)
+  val replay = Bool()
   val ae = Bool()
 
   override def cloneType = new ICacheResp(outer).asInstanceOf[this.type]
@@ -259,7 +260,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
       io.resp.bits.data := s2_data_decoded.uncorrected
       io.resp.bits.ae := s2_tl_error
-      io.resp.valid := s2_valid && s2_hit && !s2_disparity
+      io.resp.bits.replay := s2_disparity
+      io.resp.valid := s2_valid && s2_hit
 
       tl_in.map { tl =>
         val respValid = RegInit(false.B)
