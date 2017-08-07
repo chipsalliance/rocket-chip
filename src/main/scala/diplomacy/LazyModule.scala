@@ -141,7 +141,7 @@ object LazyModule
   }
 }
 
-trait LazyModuleImpLike extends BaseModule
+sealed trait LazyModuleImpLike extends BaseModule
 {
   val wrapper: LazyModule
 
