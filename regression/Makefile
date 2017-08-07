@@ -58,7 +58,7 @@ endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=freechips.rocketchip.unittest
-CONFIGS=TLSimpleUnitTestConfig TLWidthUnitTestConfig
+CONFIGS=AMBAUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)
