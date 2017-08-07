@@ -223,7 +223,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val d_inc = d_inc_bytes.map(_ + d_inc_tree)
       val d_dec = d_dec_bytes.map(_ + d_dec_tree)
       val d_shadow = shadow.map(_.read(d_addr_hi))
-      val d_valid = valid(d.source)
+      val d_valid = valid(d.source) holdUnless d_first
 
       // CRC check
       val d_crc_reg = Reg(UInt(width = 16))
