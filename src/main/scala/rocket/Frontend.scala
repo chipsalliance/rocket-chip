@@ -119,8 +119,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   val s2_redirect = Wire(init = io.cpu.req.valid)
   s2_valid := false
-  when (!s2_replay && !s2_redirect) {
-    s2_valid := true
+  when (!s2_replay) {
+    s2_valid := !s2_redirect
     s2_pc := s1_pc
     s2_speculative := s1_speculative
     s2_tlb_resp := tlb.io.resp
