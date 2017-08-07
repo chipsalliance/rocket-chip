@@ -39,6 +39,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   // TileLink connection global parameters
   case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
   case TLCombinationalCheck => false
+  case TLBusDelayProbability => 0.0
 })
 
 /* Composable partial function Configs to set individual parameters */
