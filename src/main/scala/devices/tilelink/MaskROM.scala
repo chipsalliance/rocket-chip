@@ -49,6 +49,7 @@ class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
     val d_full = RegInit(Bool(false))
     val d_size = Reg(UInt())
     val d_source = Reg(UInt())
+    val d_data = rom.io.q holdUnless RegNext(in.a.fire())
 
     // Flow control
     when (in.d.fire()) { d_full := Bool(false) }
@@ -61,7 +62,7 @@ class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
       d_source := in.a.bits.source
     }
 
-    in.d.bits := edge.AccessAck(d_source, d_size, rom.io.q)
+    in.d.bits := edge.AccessAck(d_source, d_size, d_data)
 
     // Tie off unused channels
     in.b.valid := Bool(false)
