@@ -232,7 +232,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_hit, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_data_decoded = decodeData(s2_data)
   val s2_word_idx = s2_req.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
-  val s2_data_error = needsRead(s2_req) && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
+  val s2_data_error = {
+    val word_errors = s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq
+    needsRead(s2_req) && (if (usingDataScratchpad) word_errors(s2_word_idx) else word_errors.reduce(_||_))
+  }
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
