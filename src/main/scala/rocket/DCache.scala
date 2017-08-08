@@ -200,7 +200,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
-    s2_uncached := !tlb.io.resp.cacheable || Bool(usingDataScratchpad)
+    s2_uncached := !tlb.io.resp.cacheable
   }
   val s2_read = isRead(s2_req.cmd)
   val s2_write = isWrite(s2_req.cmd)
