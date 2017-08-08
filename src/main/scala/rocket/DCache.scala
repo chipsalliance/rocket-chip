@@ -206,9 +206,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_write = isWrite(s2_req.cmd)
   val s2_readwrite = s2_read || s2_write
   val s2_flush_valid_pre_tag_ecc = RegNext(s1_flush_valid)
-  val s2_meta = s1_meta.map(RegEnable(_, s1_valid_not_nacked || s1_flush_valid || s1_probe)).map(tECC.decode(_))
-  val s2_meta_corrected = s2_meta.map(_.corrected.asTypeOf(new L1Metadata))
-  val s2_meta_errors = s2_meta.map(_.error).asUInt
+  val s1_meta_decoded = s1_meta.map(tECC.decode(_))
+  val s1_meta_clk_en = s1_valid_not_nacked || s1_flush_valid || s1_probe
+  val s2_meta_errors = s1_meta_decoded.map(m => RegEnable(m.error, s1_meta_clk_en)).asUInt
+  val s2_meta_corrected = s1_meta_decoded.map(m => RegEnable(m.corrected, s1_meta_clk_en).asTypeOf(new L1Metadata))
   val s2_meta_error = s2_meta_errors.orR
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
   val s2_data = {
