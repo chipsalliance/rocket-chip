@@ -98,8 +98,8 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
     // Determine if a request is allowed
     val needW = in.a.bits.opcode =/= TLMessages.Get
     val needR = in.a.bits.opcode =/= TLMessages.PutFullData && in.a.bits.opcode =/= TLMessages.PutPartialData
-    val lte = Bool(false) +: pmps.map(in.a.bits.address < _.address)
-    val sel = (pmps.map(_.a) zip (lte.init zip lte.tail)) map { case (a, (l, r)) => a(0) && !l && r }
+    val lt = Bool(false) +: pmps.map(in.a.bits.address < _.address)
+    val sel = (pmps.map(_.a) zip (lt.init zip lt.tail)) map { case (a, (l, r)) => a(0) && !l && r }
     val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
     val allow = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // no match => deny
 
