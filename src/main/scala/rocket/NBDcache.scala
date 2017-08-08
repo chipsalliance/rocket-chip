@@ -700,7 +700,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   // check for unsupported operations
   assert(!s1_valid || !s1_req.cmd.isOneOf(M_PWR))
 
-  val dtlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
+  val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
@@ -710,7 +710,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.vaddr := s1_req.addr
-  dtlb.io.req.bits.instruction := Bool(false)
   dtlb.io.req.bits.size := s1_req.typ
   dtlb.io.req.bits.cmd := s1_req.cmd
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }

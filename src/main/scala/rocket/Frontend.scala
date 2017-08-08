@@ -82,7 +82,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 
   val fetchBytes = coreInstBytes * fetchWidth
-  val tlb = Module(new TLB(log2Ceil(fetchBytes), nTLBEntries))
+  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), nTLBEntries))
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 5, flow = true)) }
 
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
@@ -130,7 +130,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.valid := !s2_replay
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
-  tlb.io.req.bits.instruction := Bool(true)
   tlb.io.req.bits.sfence := io.cpu.sfence
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
 
