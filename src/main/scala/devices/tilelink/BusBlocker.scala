@@ -37,16 +37,17 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
 
   val addr_hi = UInt(width = params.addressBits-12)
   def address = Cat(addr_hi, UInt(0, width=12))
+  def blockPriorAddress = l(0) && a(0)
 
-  def fields(locked: Bool): Seq[RegField] = {
-    def field(bits: Int, reg: UInt) =
+  def fields(blockAddress: Bool): Seq[RegField] = {
+    def field(bits: Int, reg: UInt, lock: Bool = l(0)) =
       RegField(bits, RegReadFn(reg), RegWriteFn((wen, data) => {
-        when (wen && !locked) { reg := data }
+        when (wen && !lock) { reg := data }
         Bool(true)
       }))
     Seq(
       RegField(10),
-      field(params.addressBits-12, addr_hi),
+      field(params.addressBits-12, addr_hi, l(0) || blockAddress),
       RegField(56 - (params.addressBits-2)),
       field(1, r),
       field(1, w),
@@ -88,8 +89,8 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
     // We need to be able to represent +1 larger than the largest populated address
     val addressBits = log2Ceil(nodeOut.edgesOut(0).manager.maxAddress+1+1)
     val pmps = RegInit(Vec.fill(params.pmpRegisters) { DevicePMP(addressBits) })
-    val locks = (pmps.map(_.l) zip (UInt(0) +: pmps.map(_.l))) map { case (x, n) => x | n }
-    controlNode.regmap(0 -> (pmps zip locks).map { case (p, l) => p.fields(l(0)) }.toList.flatten)
+    val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
+    controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
 
     val in = io.in(0)
     val edge = nodeIn.edgesIn(0)
