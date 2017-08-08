@@ -29,7 +29,7 @@ trait HasPeripheryDebug extends HasPeripheryBus {
 
   val debug = LazyModule(new TLDebugModule())
 
-  debug.node := pbus.toVariableWidthSlaves
+  debug.node := pbus.toFixedWidthSlaves
 }
 
 trait HasPeripheryDebugBundle {

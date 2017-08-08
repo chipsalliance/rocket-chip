@@ -97,5 +97,5 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
 /** Trait that will connect a Clint to a coreplex */
 trait HasPeripheryClint extends HasPeripheryBus {
   val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintParams)))
-  clint.node := pbus.toVariableWidthSlaves
+  clint.node := pbus.toFixedWidthSlaves
 }
