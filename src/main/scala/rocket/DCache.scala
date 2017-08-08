@@ -144,7 +144,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (!metaArb.io.in(7).ready) { io.cpu.req.ready := false }
 
   // address translation
-  val tlb = Module(new TLB(log2Ceil(coreDataBytes), nTLBEntries))
+  val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
@@ -154,7 +154,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.sfence.bits.addr := s1_req.addr
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
-  tlb.io.req.bits.instruction := false
   tlb.io.req.bits.size := s1_req.typ
   tlb.io.req.bits.cmd := s1_req.cmd
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
@@ -201,7 +200,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
-    s2_uncached := !tlb.io.resp.cacheable || Bool(usingDataScratchpad)
+    s2_uncached := !tlb.io.resp.cacheable
   }
   val s2_read = isRead(s2_req.cmd)
   val s2_write = isWrite(s2_req.cmd)

@@ -52,7 +52,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val prefetchable = Bool()
 }
 
-class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
+class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
     val resp = new TLBResp().asOutput
@@ -92,7 +92,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val r_refill_waddr = Reg(UInt(width = log2Ceil(normalEntries)))
   val r_req = Reg(new TLBReq(lgMaxSize))
 
-  val priv = Mux(io.req.bits.instruction, io.ptw.status.prv, io.ptw.status.dprv)
+  val priv = if (instruction) io.ptw.status.prv else io.ptw.status.dprv
   val priv_s = priv(0)
   val priv_uses_vm = priv <= PRV.S
   val vm_enabled = Bool(usingVM) && io.ptw.ptbr.mode(io.ptw.ptbr.mode.getWidth-1) && priv_uses_vm && !io.req.bits.passthrough
@@ -113,7 +113,7 @@ class TLB(lgMaxSize: Int, nEntries: Int)(implicit edge: TLEdgeOut, p: Parameters
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && edge.manager.fastProperty(mpu_physaddr, member, (b:Boolean) => Bool(b))
-  val cacheable = fastCheck(_.supportsAcquireB)
+  val cacheable = fastCheck(_.supportsAcquireB) && (instruction || !usingDataScratchpad)
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
   val prot_r = fastCheck(_.supportsGet) && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
