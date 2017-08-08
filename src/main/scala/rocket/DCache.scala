@@ -312,11 +312,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   pstore2_valid := pstore2_valid && !pstore_drain || advance_pstore1
   val pstore2_addr = RegEnable(Mux(s2_correct, s2_req.addr, pstore1_addr), advance_pstore1)
   val pstore2_way = RegEnable(Mux(s2_correct, s2_hit_way, pstore1_way), advance_pstore1)
-  s2_store_merge := {
-    val idxMatch = s2_req.addr(untagBits-1, log2Ceil(wordBytes)) === pstore2_addr(untagBits-1, log2Ceil(wordBytes))
-    val tagMatch = (s2_hit_way & pstore2_way).orR
-    Bool(eccBytes > 1) && pstore2_valid && idxMatch && tagMatch
-  }
   val pstore2_storegen_data = {
     for (i <- 0 until wordBytes)
       yield RegEnable(pstore1_storegen_data(8*(i+1)-1, 8*i), advance_pstore1 || pstore1_merge && pstore1_mask(i))
@@ -328,6 +323,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       mask := ~Mux(s2_correct, 0.U, ~mergedMask)
     }
     mask
+  }
+  s2_store_merge := {
+    // only merge stores to ECC granules that are already stored-to, to avoid
+    // WAW hazards
+    val wordMatch = (eccMask(pstore2_storegen_mask) | ~eccMask(pstore1_mask)).andR
+    val idxMatch = s2_req.addr(untagBits-1, log2Ceil(wordBytes)) === pstore2_addr(untagBits-1, log2Ceil(wordBytes))
+    val tagMatch = (s2_hit_way & pstore2_way).orR
+    Bool(eccBytes > 1) && pstore2_valid && wordMatch && idxMatch && tagMatch
   }
   dataArb.io.in(0).valid := pstore_drain
   dataArb.io.in(0).bits.write := true
