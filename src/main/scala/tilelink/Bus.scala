@@ -3,9 +3,10 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+
+case object TLBusDelayProbability extends Field[Double]
 
 /** Specifies widths of various attachement points in the SoC */
 trait TLBusParams {
@@ -26,19 +27,32 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
   val masterBuffering = params.masterBuffering
   val slaveBuffering = params.slaveBuffering
   require(blockBytes % beatBytes == 0)
+  private val delayProb = p(TLBusDelayProbability)
 
-  private val xbar = LazyModule(new TLXbar)
+  protected val xbar = LazyModule(new TLXbar)
   private val master_buffer = LazyModule(new TLBuffer(masterBuffering))
   private val slave_buffer = LazyModule(new TLBuffer(slaveBuffering))
   private val slave_frag = LazyModule(new TLFragmenter(beatBytes, blockBytes))
   private val slave_ww = LazyModule(new TLWidthWidget(beatBytes))
 
+  private val delayedNode = if (delayProb > 0.0) {
+    val firstDelay = LazyModule(new TLDelayer(delayProb))
+    val flowDelay = LazyModule(new TLBuffer(BufferParams.flow))
+    val secondDelay = LazyModule(new TLDelayer(delayProb))
+    firstDelay.node :*= xbar.node
+    flowDelay.node :*= firstDelay.node
+    secondDelay.node :*= flowDelay.node
+    secondDelay.node
+  } else {
+    xbar.node
+  }
+
   xbar.node :=* master_buffer.node
-  slave_buffer.node :*= xbar.node
+  slave_buffer.node :*= delayedNode
   slave_frag.node :*= slave_buffer.node
   slave_ww.node :*= slave_buffer.node
 
-  protected def outwardNode: TLOutwardNode = xbar.node
+  protected def outwardNode: TLOutwardNode = delayedNode
   protected def outwardBufNode: TLOutwardNode = slave_buffer.node
   protected def outwardFragNode: TLOutwardNode = slave_frag.node
   protected def outwardWWNode: TLOutwardNode = slave_ww.node
