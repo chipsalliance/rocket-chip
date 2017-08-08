@@ -16,6 +16,7 @@ class Instruction(implicit val p: Parameters) extends ParameterizedBundle with H
   val rvc = Bool()
   val inst = new ExpandedInstruction
   val raw = UInt(width = 32)
+  val cinst = UInt(width = 32)
   require(coreInstBits == (if (usingCompressed) 16 else 32))
 }
 
@@ -95,6 +96,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
     exp.io.in := curInst
     io.inst(i).bits.inst := exp.io.out
     io.inst(i).bits.raw := curInst
+    io.inst(i).bits.cinst := Mux(exp.io.rvc, curInst & 0xFFFF, curInst)
 
     if (usingCompressed) {
       val replay = ic_replay(j) || (!exp.io.rvc && (btbHitMask(j) || ic_replay(j+1)))
