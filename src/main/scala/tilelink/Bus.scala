@@ -29,22 +29,30 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
   require(blockBytes % beatBytes == 0)
   private val delayProb = p(TLBusDelayProbability)
 
-  private val delayer = if (delayProb > 0.0) Some(LazyModule(new TLDelayer(delayProb))) else None
   protected val xbar = LazyModule(new TLXbar)
   private val master_buffer = LazyModule(new TLBuffer(masterBuffering))
   private val slave_buffer = LazyModule(new TLBuffer(slaveBuffering))
   private val slave_frag = LazyModule(new TLFragmenter(beatBytes, blockBytes))
   private val slave_ww = LazyModule(new TLWidthWidget(beatBytes))
 
+  private val delayedNode = if (delayProb > 0.0) {
+    val firstDelay = LazyModule(new TLDelayer(delayProb))
+    val flowDelay = LazyModule(new TLBuffer(BufferParams.flow))
+    val secondDelay = LazyModule(new TLDelayer(delayProb))
+    firstDelay.node :*= xbar.node
+    flowDelay.node :*= firstDelay.node
+    secondDelay.node :*= flowDelay.node
+    secondDelay.node
+  } else {
+    xbar.node
+  }
+
   xbar.node :=* master_buffer.node
-  slave_buffer.node :*= delayer.map { d =>
-    d.node :*= xbar.node
-    d.node
-  } .getOrElse { xbar.node }
+  slave_buffer.node :*= delayedNode
   slave_frag.node :*= slave_buffer.node
   slave_ww.node :*= slave_buffer.node
 
-  protected def outwardNode: TLOutwardNode = delayer.map(_.node).getOrElse(xbar.node)
+  protected def outwardNode: TLOutwardNode = delayedNode
   protected def outwardBufNode: TLOutwardNode = slave_buffer.node
   protected def outwardFragNode: TLOutwardNode = slave_frag.node
   protected def outwardWWNode: TLOutwardNode = slave_ww.node
