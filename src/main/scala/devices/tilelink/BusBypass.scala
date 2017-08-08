@@ -10,19 +10,23 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends LazyModule
+abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
-  private val nodeIn = TLInputNode()
-  private val nodeOut = TLOutputNode()
+  protected val nodeIn = TLInputNode()
+  protected val nodeOut = TLOutputNode()
   val node = NodeHandle(nodeIn, nodeOut)
 
-  private val bar = LazyModule(new TLBusBypassBar)
-  private val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
-  private val error = LazyModule(new TLError(ErrorParams(everything), beatBytes))
+  protected val bar = LazyModule(new TLBusBypassBar)
+  protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
+  protected val error = LazyModule(new TLError(ErrorParams(everything), beatBytes))
+
   bar.node := nodeIn
   error.node := bar.node
   nodeOut := bar.node
+}
 
+class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends TLBusBypassBase(beatBytes)
+{
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val in = nodeIn.bundleIn
@@ -33,7 +37,7 @@ class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends LazyModule
   }
 }
 
-private class TLBusBypassBar(implicit p: Parameters) extends LazyModule
+class TLBusBypassBar(implicit p: Parameters) extends LazyModule
 {
   // The client only sees the second slave port
   val node = TLNexusNode(
