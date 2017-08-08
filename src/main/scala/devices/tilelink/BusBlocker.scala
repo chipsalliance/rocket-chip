@@ -62,10 +62,9 @@ object DevicePMP
   def apply(addressBits: Int) = {
     val out = Wire(new DevicePMP(DevicePMPParams(addressBits)))
     out.l := UInt(0)
-    out.a := UInt(1) // TOR
+    out.a := UInt(0)
     out.r := UInt(0)
     out.w := UInt(0)
-    out.addr_hi := ~UInt(0, width=addressBits-12)
     out
   }
 }
@@ -101,7 +100,7 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
     val lte = Bool(false) +: pmps.map(in.a.bits.address < _.address)
     val sel = (pmps.map(_.a) zip (lte.init zip lte.tail)) map { case (a, (l, r)) => a(0) && !l && r }
     val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
-    val allow = PriorityMux(sel :+ Bool(true), ok :+ Bool(true)) // no match => allow
+    val allow = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // no match => deny
 
     bar.module.io.bypass := !allow
   }
