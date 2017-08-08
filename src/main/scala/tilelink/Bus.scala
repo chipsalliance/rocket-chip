@@ -30,7 +30,7 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
   private val delayProb = p(TLBusDelayProbability)
 
   private val delayer = if (delayProb > 0.0) Some(LazyModule(new TLDelayer(delayProb))) else None
-  private val xbar = LazyModule(new TLXbar)
+  protected val xbar = LazyModule(new TLXbar)
   private val master_buffer = LazyModule(new TLBuffer(masterBuffering))
   private val slave_buffer = LazyModule(new TLBuffer(slaveBuffering))
   private val slave_frag = LazyModule(new TLFragmenter(beatBytes, blockBytes))
