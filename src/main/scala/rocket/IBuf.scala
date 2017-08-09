@@ -107,6 +107,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
       when (io.inst(i).fire()) { nReady := Mux(exp.io.rvc, j+1, j+2) }
 
       expand(i+1, Mux(exp.io.rvc, j+1, j+2), Mux(exp.io.rvc, curInst >> 16, curInst >> 32))
+      io.inst(i).valid := valid(j) && (exp.io.rvc || valid(j+1) || replay)
     } else {
       when (io.inst(i).ready) { nReady := i+1 }
       io.inst(i).valid := valid(i)
