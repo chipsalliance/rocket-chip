@@ -100,7 +100,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
 
     if (usingCompressed) {
       val replay = ic_replay(j) || (!exp.io.rvc && (btbHitMask(j) || ic_replay(j+1)))
-      val full_insn = exp.io.rvc || valid(j+1) || xcpt(j+1).asUInt.orR || buf_replay(j)
+      val full_insn = exp.io.rvc || valid(j+1) || buf_replay(j)
       io.inst(i).valid := valid(j) && full_insn
       io.inst(i).bits.xcpt0 := xcpt(j)
       io.inst(i).bits.xcpt1 := Mux(exp.io.rvc, 0.U, xcpt(j+1).asUInt).asTypeOf(new FrontendExceptions)
