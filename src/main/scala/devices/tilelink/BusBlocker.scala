@@ -16,6 +16,7 @@ case class BusBlockerParams(
   pmpRegisters:     Int)
 {
   val page = 4096
+  val pageBits = log2Ceil(page)
   val size = (((pmpRegisters * 8) + page - 1) / page) * page
 
   require (pmpRegisters > 0)
@@ -25,18 +26,18 @@ case class BusBlockerParams(
   require (deviceBeatBytes  > 0 && isPow2(deviceBeatBytes))
 }
 
-case class DevicePMPParams(addressBits: Int)
+case class DevicePMPParams(addressBits: Int, pageBits: Int)
 class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(params)
 {
-  require (params.addressBits > 12)
+  require (params.addressBits > params.pageBits)
 
   val l = UInt(width = 1) // locked
   val a = UInt(width = 1) // LSB of A (0=disabled, 1=TOR)
   val r = UInt(width = 1)
   val w = UInt(width = 1)
 
-  val addr_hi = UInt(width = params.addressBits-12)
-  def address = Cat(addr_hi, UInt(0, width=12))
+  val addr_hi = UInt(width = params.addressBits-params.pageBits)
+  def address = Cat(addr_hi, UInt(0, width=params.pageBits))
   def blockPriorAddress = l(0) && a(0)
 
   def fields(blockAddress: Bool): Seq[RegField] = {
@@ -47,7 +48,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
       }))
     Seq(
       RegField(10),
-      field(params.addressBits-12, addr_hi, l(0) || blockAddress),
+      field(params.addressBits-params.pageBits, addr_hi, l(0) || blockAddress),
       RegField(56 - (params.addressBits-2)),
       field(1, r),
       field(1, w),
@@ -60,8 +61,8 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
 
 object DevicePMP
 {
-  def apply(addressBits: Int) = {
-    val out = Wire(new DevicePMP(DevicePMPParams(addressBits)))
+  def apply(addressBits: Int, pageBits: Int) = {
+    val out = Wire(new DevicePMP(DevicePMPParams(addressBits, pageBits)))
     out.l := UInt(0)
     out.a := UInt(0)
     out.r := UInt(0)
@@ -88,7 +89,7 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
 
     // We need to be able to represent +1 larger than the largest populated address
     val addressBits = log2Ceil(nodeOut.edgesOut(0).manager.maxAddress+1+1)
-    val pmps = RegInit(Vec.fill(params.pmpRegisters) { DevicePMP(addressBits) })
+    val pmps = RegInit(Vec.fill(params.pmpRegisters) { DevicePMP(addressBits, params.pageBits) })
     val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
     controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
 
