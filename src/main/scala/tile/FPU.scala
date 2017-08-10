@@ -581,12 +581,17 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_reg_inst = RegEnable(io.inst, io.valid)
   val ex_cp_valid = io.cp_req.fire()
-  val mem_reg_valid = Reg(next=ex_reg_valid && !io.killx || ex_cp_valid, init=Bool(false))
-  val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
   val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
-  val killm = (io.killm || io.nack_mem) && !mem_cp_valid
-  val wb_reg_valid = Reg(next=mem_reg_valid && (!killm || mem_cp_valid), init=Bool(false))
   val wb_cp_valid = Reg(next=mem_cp_valid, init=Bool(false))
+  val mem_reg_valid = RegInit(false.B)
+  val killm = (io.killm || io.nack_mem) && !mem_cp_valid
+  // Kill X-stage instruction if M-stage is killed.  This prevents it from
+  // speculatively being sent to the div-sqrt unit, which can cause priority
+  // inversion for two back-to-back divides, the first of which is killed.
+  val killx = io.killx || mem_reg_valid && killm
+  mem_reg_valid := ex_reg_valid && !killx || ex_cp_valid
+  val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
+  val wb_reg_valid = Reg(next=mem_reg_valid && (!killm || mem_cp_valid), init=Bool(false))
 
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.inst
