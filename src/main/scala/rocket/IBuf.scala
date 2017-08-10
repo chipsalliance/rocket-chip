@@ -77,8 +77,8 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val icMask = (~UInt(0, fetchWidth*coreInstBits) << (nBufValid << log2Ceil(coreInstBits)))(fetchWidth*coreInstBits-1,0)
   val inst = icData & icMask | buf.data & ~icMask
 
-  val valid = UIntToOH1(nValid, fetchWidth)
-  val bufMask = UIntToOH1(nBufValid, fetchWidth)
+  val valid = (UIntToOH(nValid) - 1)(fetchWidth-1, 0)
+  val bufMask = UIntToOH(nBufValid) - 1
   val xcpt = (0 until bufMask.getWidth).map(i => Mux(bufMask(i), buf.xcpt, io.imem.bits.xcpt))
   val buf_replay = Mux(buf.replay, bufMask, UInt(0))
   val ic_replay = buf_replay | Mux(io.imem.bits.replay, valid & ~bufMask, UInt(0))
