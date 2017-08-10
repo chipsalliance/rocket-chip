@@ -6,15 +6,15 @@ module plusarg_reader #(FORMAT="borked=%d", DEFAULT=0) (
    output [31:0] out
 );
 
+`ifdef SYNTHESIS
+assign out = DEFAULT;
+`else
 reg [31:0] myplus;
 assign out = myplus;
 
 initial begin
-`ifdef SYNTHESIS
-   myplus = DEFAULT;
-`else
    if (!$value$plusargs(FORMAT, myplus)) myplus = DEFAULT;
-`endif
 end
+`endif
 
 endmodule
