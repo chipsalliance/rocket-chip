@@ -242,7 +242,7 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMParams => up(BootROMParams, site).copy(contentFileName = bootROMFile)
+  case BootROMParams => up(BootROMParams, site).get.copy(contentFileName = bootROMFile)
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {

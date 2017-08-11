@@ -15,6 +15,7 @@ LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L$(abspath $(sim_d
 emu = emulator-$(PROJECT)-$(CONFIG)
 emu_debug = emulator-$(PROJECT)-$(CONFIG)-debug
 
+include $(base_dir)/bootrom/fsbl.mk
 include $(sim_dir)/Makefrag-verilator
 
 all: $(emu)

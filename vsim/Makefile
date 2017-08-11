@@ -12,6 +12,7 @@ default: all
 base_dir = $(abspath ..)
 generated_dir = $(abspath ./generated-src)
 mem_gen = $(VLSI_MEM_GEN)
+rom_gen = $(VLSI_ROM_GEN)
 sim_dir = .
 output_dir = $(sim_dir)/output
 
@@ -23,6 +24,7 @@ include $(sim_dir)/Makefrag
 ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
 -include $(generated_dir)/$(long_name).d
 endif
+include $(base_dir)/bootrom/fsbl.mk
 include $(base_dir)/vsim/Makefrag-verilog
 
 all: $(simv)

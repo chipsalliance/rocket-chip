@@ -11,6 +11,7 @@ CONFIG ?= DefaultConfig
 long_name = $(PROJECT).$(CONFIG)
 
 VLSI_MEM_GEN ?= $(base_dir)/scripts/vlsi_mem_gen
+VLSI_ROM_GEN ?= $(base_dir)/scripts/vlsi_rom_gen
 
 CXX ?= g++
 CXXFLAGS := -O1

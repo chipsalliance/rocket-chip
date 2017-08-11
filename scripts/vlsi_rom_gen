@@ -24,7 +24,12 @@ module {name}(
 
 
   // 1024 is the maximum length of $readmemh filename supported by Cadence Incisive
+  // while verilator can only suuport 256
+`ifdef VERILATOR
+  reg [256 * 8 - 1:0] path;
+`else
   reg [1024 * 8 - 1:0] path;
+`endif
 
   integer i;
   initial begin

@@ -14,6 +14,7 @@ bb_vsrcs = \
 sim_vsrcs = \
 	$(generated_dir)/$(long_name).v \
 	$(generated_dir)/$(long_name).behav_srams.v \
+	$(generated_dir)/$(long_name).rom.v \
 	$(base_dir)/vsrc/$(TB).v \
 	$(base_dir)/vsrc/SimDTM.v \
 	$(bb_vsrcs)

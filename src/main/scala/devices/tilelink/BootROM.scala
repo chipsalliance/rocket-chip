@@ -18,7 +18,7 @@ case class BootROMParams(
   size: Int = 0x10000,
   hang: BigInt = 0x10040,
   contentFileName: String)
-case object BootROMParams extends Field[BootROMParams]
+case object BootROMParams extends Field[Option[BootROMParams]]
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
   resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem"))(implicit p: Parameters) extends LazyModule
@@ -61,25 +61,31 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
   }
 }
 
-/** Adds a boot ROM that contains the DTB describing the system's coreplex. */
-trait HasPeripheryBootROM extends HasPeripheryBus {
+/** If configured Adds a boot ROM that contains the DTB describing the system's coreplex. */
+trait CanHavePeripheryBootROM extends HasPeripheryBus {
   val dtb: DTB
   private val params = p(BootROMParams)
-  private lazy val contents = {
-    val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
-    val rom = ByteBuffer.wrap(romdata)
-    rom.array() ++ dtb.contents
+
+  def resetVector: Option[BigInt] = params.map(_.hang)
+
+   private lazy val contents = params.map{ params =>
+     val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
+     val rom = ByteBuffer.wrap(romdata)
+     rom.array() ++ dtb.contents
+   }
+
+  params.foreach { params =>
+    val bootrom = LazyModule(new TLROM(params.address, params.size, contents.get, true, pbus.beatBytes))
+
+    bootrom.node := pbus.toVariableWidthSlaves
   }
-  def resetVector: BigInt = params.hang
-
-  val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, pbus.beatBytes))
-
-  bootrom.node := pbus.toVariableWidthSlaves
 }
 
 /** Coreplex will power-on running at 0x10040 (BootROM) */
-trait HasPeripheryBootROMModuleImp extends LazyMultiIOModuleImp
+trait CanHavePeripheryBootROMModuleImp extends LazyMultiIOModuleImp
     with HasResetVectorWire {
-  val outer: HasPeripheryBootROM
-  global_reset_vector := UInt(outer.resetVector, width = resetVectorBits)
+  val outer: CanHavePeripheryBootROM
+  outer.resetVector.foreach { rVec =>
+    global_reset_vector := UInt(rVec, width = resetVectorBits)
+  }
 }

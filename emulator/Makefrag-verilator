@@ -5,10 +5,11 @@ firrtl = $(generated_dir)/$(long_name).fir
 verilog = \
   $(generated_dir)/$(long_name).v \
   $(generated_dir)/$(long_name).behav_srams.v \
+  $(generated_dir)/$(long_name).rom.v \
 
 .SECONDARY: $(firrtl) $(verilog)
 
-$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.d $(generated_dir)/%.rom.conf $(generated_dir)/%.dts: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
 	cd $(base_dir) && $(SBT) "run-main $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
 
@@ -20,6 +21,10 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 	cd $(generated_dir) && \
 	$(VLSI_MEM_GEN) $(generated_dir)/$(long_name).conf > $@.tmp && \
 	mv -f $@.tmp $@
+
+$(generated_dir)/$(long_name).rom.v : $(generated_dir)/$(long_name).rom.conf $(generated_dir)/$(long_name).fsbl.hx $(VLSI_ROM_GEN)
+	cd $(generated_dir) && \
+	$(VLSI_ROM_GEN) $(generated_dir)/$(long_name).rom.conf $(generated_dir)/$(long_name).fsbl.hx > $@
 
 # Build and install our own Verilator, to work around versionining issues.
 VERILATOR_VERSION=3.904
