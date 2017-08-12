@@ -136,7 +136,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(3).bits.wordMask := UIntToOH(io.cpu.req.bits.addr.extract(rowOffBits-1,offsetlsb))
   dataArb.io.in(3).bits.way_en := ~UInt(0, nWays)
   when (!dataArb.io.in(3).ready && s0_read) { io.cpu.req.ready := false }
-  val s1_didntRead = RegEnable(s0_needsRead && !dataArb.io.in(3).ready, s0_clk_en)
+  val s1_did_read = RegEnable(dataArb.io.in(3).fire(), s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
@@ -233,7 +233,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_hit, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_data_decoded = decodeData(s2_data)
   val s2_word_idx = s2_req.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
-  val s2_data_error = needsRead(s2_req) && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
+  val s2_did_read = RegEnable(s1_did_read, s1_valid_not_nacked)
+  val s2_data_error = s2_did_read && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
@@ -349,7 +350,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     (pstore1_valid && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
   val s1_raw_hazard = s1_read && s1_hazard
-  s1_waw_hazard := Bool(eccBytes > 1) && s1_write && (s1_hazard || s1_didntRead)
+  s1_waw_hazard := Bool(eccBytes > 1) && s1_write && (s1_hazard || needsRead(s1_req) && !s1_did_read)
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   // Prepare a TileLink request message that initiates a transaction
