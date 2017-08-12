@@ -6,11 +6,13 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util._
 
-sealed trait Pattern {
+trait Pattern {
   def address: BigInt
   def size: Int
   def bits(edge: TLEdgeOut): (Bool, TLBundleA)
+  def dataIn: Option[BigInt] = None
   require ((address & ((BigInt(1) << size) - 1)) == 0)
 }
 
@@ -23,6 +25,12 @@ case class WritePattern(address: BigInt, size: Int, data: BigInt) extends Patter
 case class ReadPattern(address: BigInt, size: Int) extends Pattern
 {
   def bits(edge: TLEdgeOut) = edge.Get(UInt(0), UInt(address), UInt(size))
+}
+
+case class ReadExpectPattern(address: BigInt, size: Int, data: BigInt) extends Pattern
+{
+  def bits(edge: TLEdgeOut) = edge.Get(UInt(0), UInt(address), UInt(size))
+  override def dataIn = Some(data)
 }
 
 class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameters) extends LazyModule
@@ -50,6 +58,11 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
 
     val a = io.tl_out(0).a
     val d = io.tl_out(0).d
+
+    // Expected response?
+    val check  = Vec(pattern.map(p => Bool(p.dataIn.isDefined)))(step) holdUnless a.fire()
+    val expect = Vec(pattern.map(p => UInt(p.dataIn.getOrElse(BigInt(0)))))(step) holdUnless a.fire()
+    assert (!check || !d.fire() || expect === d.bits.data)
 
     when (a.fire()) {
       flight := Bool(true)
