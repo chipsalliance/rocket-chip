@@ -411,7 +411,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
-  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) release_state === s_ready else true.B
+  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta) else true.B
   tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
