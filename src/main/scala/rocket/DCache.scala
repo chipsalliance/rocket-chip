@@ -100,7 +100,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_valid_not_nacked = s1_valid && !s1_nack
   val s1_req = Reg(io.cpu.req.bits)
-  when (metaArb.io.out.valid && !metaArb.io.out.bits.write) {
+  val s0_clk_en = metaArb.io.out.valid && !metaArb.io.out.bits.write
+  when (s0_clk_en) {
     s1_req := io.cpu.req.bits
     s1_req.addr := Cat(metaArb.io.out.bits.addr >> blockOffBits, io.cpu.req.bits.addr(blockOffBits-1,0))
     when (!metaArb.io.in(7).ready) { s1_req.phys := true }
@@ -135,7 +136,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(3).bits.wordMask := UIntToOH(io.cpu.req.bits.addr.extract(rowOffBits-1,offsetlsb))
   dataArb.io.in(3).bits.way_en := ~UInt(0, nWays)
   when (!dataArb.io.in(3).ready && s0_read) { io.cpu.req.ready := false }
-  val s1_didntRead = RegEnable(s0_needsRead && !dataArb.io.in(3).ready, metaArb.io.out.valid && !metaArb.io.out.bits.write)
+  val s1_did_read = RegEnable(dataArb.io.in(3).fire(), s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
@@ -232,11 +233,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_hit, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_data_decoded = decodeData(s2_data)
   val s2_word_idx = s2_req.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
-  val s2_data_error = needsRead(s2_req) && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
+  val s2_did_read = RegEnable(s1_did_read, s1_valid_not_nacked)
+  val s2_data_error = s2_did_read && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
-  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error
+  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error && !release_ack_wait
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && !release_ack_wait
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
@@ -348,7 +350,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     (pstore1_valid && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
   val s1_raw_hazard = s1_read && s1_hazard
-  s1_waw_hazard := Bool(eccBytes > 1) && s1_write && (s1_hazard || s1_didntRead)
+  s1_waw_hazard := Bool(eccBytes > 1) && s1_write && (s1_hazard || needsRead(s1_req) && !s1_did_read)
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   // Prepare a TileLink request message that initiates a transaction
@@ -409,7 +411,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
-  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) release_state === s_ready else true.B
+  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta) else true.B
   tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
