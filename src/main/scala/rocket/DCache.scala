@@ -100,7 +100,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_valid_not_nacked = s1_valid && !s1_nack
   val s1_req = Reg(io.cpu.req.bits)
-  when (metaArb.io.out.valid && !metaArb.io.out.bits.write) {
+  val s0_clk_en = metaArb.io.out.valid && !metaArb.io.out.bits.write
+  when (s0_clk_en) {
     s1_req := io.cpu.req.bits
     s1_req.addr := Cat(metaArb.io.out.bits.addr >> blockOffBits, io.cpu.req.bits.addr(blockOffBits-1,0))
     when (!metaArb.io.in(7).ready) { s1_req.phys := true }
@@ -135,7 +136,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(3).bits.wordMask := UIntToOH(io.cpu.req.bits.addr.extract(rowOffBits-1,offsetlsb))
   dataArb.io.in(3).bits.way_en := ~UInt(0, nWays)
   when (!dataArb.io.in(3).ready && s0_read) { io.cpu.req.ready := false }
-  val s1_didntRead = RegEnable(s0_needsRead && !dataArb.io.in(3).ready, metaArb.io.out.valid && !metaArb.io.out.bits.write)
+  val s1_didntRead = RegEnable(s0_needsRead && !dataArb.io.in(3).ready, s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
