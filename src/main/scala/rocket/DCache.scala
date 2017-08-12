@@ -236,7 +236,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
-  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error
+  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error && !release_ack_wait
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && !release_ack_wait
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
