@@ -1,5 +1,5 @@
-GCC=riscv64-unknown-elf-gcc
-OBJCOPY=riscv64-unknown-elf-objcopy
+GCC=$(RISCV)/bin/riscv64-unknown-elf-gcc
+OBJCOPY=$(RISCV)/bin/riscv64-unknown-elf-objcopy
 
 SECOND_STAGE ?= 0x80000000
 dtb = $(generated_dir)/$(CONFIG).dtb
