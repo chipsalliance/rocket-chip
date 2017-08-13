@@ -497,8 +497,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(6).bits.data := metaArb.io.in(4).bits.data
 
   // release
-  val (c_first, c_last, releaseDone, c_count) = edge.count(tl_out.c)
-  val releaseRejected = tl_out.c.valid && !tl_out.c.ready
+  val (c_first, c_last, releaseDone, c_count) = edge.count(tl_out_c)
+  val releaseRejected = tl_out_c.valid && !tl_out_c.ready
   val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
   val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
   val releaseDataBeat = Cat(UInt(0), c_count) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
@@ -507,8 +507,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val cleanReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param)
   val dirtyReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param, data = 0.U)
 
-  tl_out.c.valid := s2_release_data_valid
-  tl_out.c.bits := nackResponseMessage
+  tl_out_c.valid := s2_release_data_valid
+  tl_out_c.bits := nackResponseMessage
   val newCoh = Wire(init = probeNewCoh)
   releaseWay := s2_probe_way
 
@@ -524,11 +524,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }.elsewhen (s2_prb_ack_data) {
       release_state := s_probe_rep_dirty
     }.elsewhen (s2_probe_state.isValid()) {
-      tl_out.c.valid := true
-      tl_out.c.bits := cleanReleaseMessage
+      tl_out_c.valid := true
+      tl_out_c.bits := cleanReleaseMessage
       release_state := Mux(releaseDone, s_probe_write_meta, s_probe_rep_clean)
     }.otherwise {
-      tl_out.c.valid := true
+      tl_out_c.valid := true
       probeNack := !releaseDone
       release_state := Mux(releaseDone, s_ready, s_probe_rep_miss)
     }
@@ -543,21 +543,21 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   }
   when (release_state === s_probe_rep_miss) {
-    tl_out.c.valid := true
+    tl_out_c.valid := true
     when (releaseDone) { release_state := s_ready }
   }
   when (release_state === s_probe_rep_clean) {
-    tl_out.c.valid := true
-    tl_out.c.bits := cleanReleaseMessage
+    tl_out_c.valid := true
+    tl_out_c.bits := cleanReleaseMessage
     when (releaseDone) { release_state := s_probe_write_meta }
   }
   when (release_state === s_probe_rep_dirty) {
-    tl_out.c.bits := dirtyReleaseMessage
+    tl_out_c.bits := dirtyReleaseMessage
     when (releaseDone) { release_state := s_probe_write_meta }
   }
   when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
     if (edge.manager.anySupportAcquireB)
-      tl_out.c.bits := edge.Release(fromSource = 0.U,
+      tl_out_c.bits := edge.Release(fromSource = 0.U,
                                     toAddress = 0.U,
                                     lgSize = lgCacheBlockBytes,
                                     shrinkPermissions = s2_shrink_param,
@@ -565,23 +565,23 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     newCoh := voluntaryNewCoh
     releaseWay := s2_victim_way
     when (releaseDone) { release_state := s_voluntary_write_meta }
-    when (tl_out.c.fire() && c_first) { release_ack_wait := true }
+    when (tl_out_c.fire() && c_first) { release_ack_wait := true }
   }
-  tl_out.c.bits.address := probe_bits.address
-  tl_out.c.bits.data := s2_data_corrected
+  tl_out_c.bits.address := probe_bits.address
+  tl_out_c.bits.data := s2_data_corrected
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
   dataArb.io.in(2).bits.write := false
-  dataArb.io.in(2).bits.addr := tl_out.c.bits.address | (releaseDataBeat(log2Up(refillCycles)-1,0) << rowOffBits)
+  dataArb.io.in(2).bits.addr := tl_out_c.bits.address | (releaseDataBeat(log2Up(refillCycles)-1,0) << rowOffBits)
   dataArb.io.in(2).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
   dataArb.io.in(2).bits.way_en := ~UInt(0, nWays)
 
   metaArb.io.in(4).valid := release_state.isOneOf(s_voluntary_write_meta, s_probe_write_meta)
   metaArb.io.in(4).bits.write := true
   metaArb.io.in(4).bits.way_en := releaseWay
-  metaArb.io.in(4).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, tl_out.c.bits.address(idxMSB, 0))
+  metaArb.io.in(4).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, tl_out_c.bits.address(idxMSB, 0))
   metaArb.io.in(4).bits.data.coh := newCoh
-  metaArb.io.in(4).bits.data.tag := tl_out.c.bits.address >> untagBits
+  metaArb.io.in(4).bits.data.tag := tl_out_c.bits.address >> untagBits
   when (metaArb.io.in(4).fire()) { release_state := s_ready }
 
   // cached response
@@ -690,7 +690,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // performance events
   io.cpu.perf.acquire := edge.done(tl_out_a)
-  io.cpu.perf.release := edge.done(tl_out.c)
+  io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
 
   def encodeData(x: UInt) = x.grouped(eccBits).map(dECC.encode(_)).asUInt
