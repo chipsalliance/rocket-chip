@@ -702,6 +702,13 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
          wb_reg_cinst, wb_reg_cinst)
   }
 
+  val max_core_cycles = PlusArg("max-core-cycles",
+    default = 0,
+    docstring = "Maximum Core Clock cycles simulation may run before timeout. Ignored if 0 (Default).")
+  when (max_core_cycles > UInt(0)) {
+    assert (csr.io.time < max_core_cycles, "Maximum Core Cycles reached.")
+  }
+
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
 
