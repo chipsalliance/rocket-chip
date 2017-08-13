@@ -90,8 +90,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val q_depth = if (rational) (2 min maxUncachedInFlight-1) else 0
   val tl_out_a = Wire(tl_out.a)
   tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true))
-  val tl_out_c = Wire(tl_out.c)
-  tl_out.c <> (if (cacheParams.acquireBeforeRelease) Queue(tl_out_c, cacheDataBeats, flow = true) else tl_out_c)
+  val (tl_out_c, release_queue_empty) =
+    if (cacheParams.acquireBeforeRelease) {
+      val q = Module(new Queue(tl_out.c.bits, cacheDataBeats, flow = true))
+      tl_out.c <> q.io.deq
+      (q.io.enq, q.io.count === 0)
+    } else {
+      (tl_out.c, true.B)
+    }
 
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_probe = Reg(next=tl_out.b.fire(), init=Bool(false))
@@ -116,6 +122,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_retry :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 8)
   val cached_grant_wait = Reg(init=Bool(false))
   val release_ack_wait = Reg(init=Bool(false))
+  val can_acquire_before_release = !release_ack_wait && release_queue_empty
   val release_state = Reg(init=s_ready)
   val any_pstore_valid = Wire(Bool())
   val inWriteback = release_state.isOneOf(s_voluntary_writeback, s_probe_rep_dirty)
@@ -238,9 +245,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
-  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error && !release_ack_wait
+  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error && can_acquire_before_release
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error && (!s2_waw_hazard || s2_store_merge)
-  val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && !release_ack_wait
+  val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && can_acquire_before_release
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   val s2_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
