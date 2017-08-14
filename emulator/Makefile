@@ -30,8 +30,10 @@ clean:
 # Run assembly tests and benchmarks
 #--------------------------------------------------------------------
 
-ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
+ifeq ($(filter clean verilog,$(MAKECMDGOALS)),)
+ifeq ($(findstring n,$(MAKEFLAGS)),)
 -include $(generated_dir)/$(long_name).d
+endif
 endif
 
 $(output_dir)/%.run: $(output_dir)/% $(emu)

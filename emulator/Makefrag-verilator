@@ -4,8 +4,9 @@
 firrtl = $(generated_dir)/$(long_name).fir
 verilog = \
   $(generated_dir)/$(long_name).v \
-  $(generated_dir)/$(long_name).behav_srams.v \
-  $(generated_dir)/$(long_name).rom.v \
+  $(generated_dir)/$(long_name).behav_srams.v
+
+$(if $(wildcard $(generated_dir)/$(long_name).rom.conf),$(eval verilog += $(generated_dir)/$(long_name).rom.v))
 
 .SECONDARY: $(firrtl) $(verilog)
 
