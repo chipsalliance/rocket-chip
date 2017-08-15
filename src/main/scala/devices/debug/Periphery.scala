@@ -3,6 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import Chisel._
+import chisel3.core.{IntParam}
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.devices.tilelink._
@@ -37,12 +38,12 @@ trait HasPeripheryDebugBundle {
 
   val debug: DebugIO
 
-  def connectDebug(c: Clock, r: Bool, out: Bool) {
+  def connectDebug(c: Clock, r: Bool, out: Bool, tckHalfPeriod: Int = 2, cmdDelay: Int = 2) {
     debug.clockeddmi.foreach { d =>
       val dtm = Module(new SimDTM).connect(c, r, d, out)
     }
     debug.systemjtag.foreach { sj =>
-      val jtag = Module(new JTAGVPI).connect(sj.jtag, sj.reset, r, out)
+      val jtag = Module(new JTAGVPI(tckHalfPeriod = tckHalfPeriod, cmdDelay = cmdDelay)).connect(sj.jtag, sj.reset, r, out)
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
     }
   }
@@ -100,7 +101,9 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
   }
 }
 
-class JTAGVPI(implicit val p: Parameters) extends BlackBox {
+class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Parameters)
+    extends BlackBox ( Map ("TCK_HALF_PERIOD" -> IntParam(tckHalfPeriod),
+      "CMD_DELAY" -> IntParam(cmdDelay))) {
   val io = new Bundle {
     val jtag = new JTAGIO(hasTRSTn = false)
     val enable = Bool(INPUT)
