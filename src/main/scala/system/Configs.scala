@@ -32,7 +32,7 @@ class BaseSystemConfig extends Config(new BaseCoreplexConfig().alter((site,here,
   // Additional device Parameters
   case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)))
   case BootROMParams => None
-  case MaskROMParams => Seq.empty
+  case MaskROMParams => Nil
 }))
 
 class BaseConfig extends Config(new BaseSystemConfig().alter((site,here,up) => {

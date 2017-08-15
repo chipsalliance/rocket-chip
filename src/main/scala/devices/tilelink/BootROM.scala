@@ -68,7 +68,7 @@ trait CanHavePeripheryBootROM extends HasPeripheryBus {
 
   def resetVector: Option[BigInt] = params.map(_.hang)
 
-   private lazy val contents = params.map{ params =>
+   private lazy val contents = params.map { params =>
      val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
      val rom = ByteBuffer.wrap(romdata)
      rom.array() ++ dtb.contents
