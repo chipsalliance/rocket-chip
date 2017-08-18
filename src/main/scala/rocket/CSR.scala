@@ -756,12 +756,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
 
-  def chooseInterrupt(masks: Seq[UInt]) = {
-    // we can't simply choose the highest-numbered interrupt, because timer
-    // interrupts are in the wrong place in mip.
-    val timerMask = UInt(0xF0, xLen)
-    val masked = masks.map(m => Cat(m.padTo(xLen) & ~timerMask, m.padTo(xLen) & timerMask))
-    (masks.map(_.orR).reduce(_||_), Log2(masked.asUInt)(log2Ceil(xLen)-1, 0))
+  def chooseInterrupt(masks: Seq[UInt]): (Bool, UInt) = {
+    val nonstandard = supported_interrupts.getWidth-1 to 12 by -1
+    // MEI, MSI, MTI, SEI, SSI, STI, UEI, USI, UTI
+    val standard = Seq(11, 3, 7, 9, 1, 5, 8, 0, 4)
+    val priority = nonstandard ++ standard
+    val paddedMasks = masks.reverse.map(_.padTo(xLen))
+    val any = paddedMasks.flatMap(m => priority.map(i => m(i))).reduce(_||_)
+    val which = PriorityMux(paddedMasks.flatMap(m => priority.map(i => (m(i), i.U))))
+    (any, which)
   }
 
   def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) =
