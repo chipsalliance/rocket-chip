@@ -49,18 +49,18 @@ module AsyncResetReg (
    integer                       initvar;
    reg [31:0]                    _RAND;
    initial begin
- `ifndef verilator
+`ifndef verilator
       #0.002 begin end
- `endif
- `ifdef RANDOMIZE_REG_INIT
+`endif
+`ifdef RANDOMIZE_REG_INIT
       _RAND = {1{$random}};
       q = _RAND[0];
- `endif
+`endif
    end
 `endif //  `ifdef RANDOMIZE
    
    always @(posedge clk or posedge rst) begin
-
+      
       if (rst) begin
          q <= 1'b0;
       end else if (en) begin
@@ -68,6 +68,5 @@ module AsyncResetReg (
       end
    end
    
-
 endmodule // AsyncResetReg
 
