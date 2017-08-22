@@ -20,7 +20,7 @@ SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-l
 SHELL := /bin/bash
 
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
-FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
+FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver --no-dce
 
 # Build firrtl.jar and put it where chisel3 can find it.
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
