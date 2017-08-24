@@ -63,6 +63,9 @@ class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
   }
 
   io.q := q.asUInt
+
+  override def desiredName = s"AsyncResetRegVec_w${w}_i${init}"
+
 }
 
 object AsyncResetReg {
