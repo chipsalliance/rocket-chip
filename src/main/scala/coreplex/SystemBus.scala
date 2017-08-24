@@ -60,13 +60,16 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     sink.node
   }
 
-  def fromSyncPorts(params: BufferParams =  BufferParams.default): TLInwardNode = {
+  def fromSyncPorts(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
     val buffer = LazyModule(new TLBuffer(params))
+    name.foreach{ n => buffer.suggestName(s"${n}_TLBuffer") }
     port_fixer.node :=* buffer.node
     buffer.node
   }
 
-  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default): TLInwardNode = fromSyncPorts(params)
+  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
+    fromSyncPorts(params, name)
+  }
 
   def fromAsyncPorts(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
