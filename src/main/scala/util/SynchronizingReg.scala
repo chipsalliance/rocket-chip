@@ -13,7 +13,6 @@ import Chisel._
   *  
   *  The 3 different types vary in their reset behavior:
   *  AsyncResetSynchronizerShiftReg -- asynchronously reset to 0
-  *  SynchronizerShiftRegInit -- synchronously reset to 0
   *  SynchronizerShiftReg -- no reset, pipeline only.
   *  
   */
@@ -61,32 +60,6 @@ object AsyncResetSynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
     AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new AsyncResetSynchronizerShiftReg(w, sync)},
-      in, sync, name)
-}
-
-class SynchronizerShiftRegInit(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg {
-
-  override def desiredName = s"SynchronizerShiftRegInit_w${w}_d${sync}"
-
-  val syncv = List.tabulate(sync) { i =>
-    val r = RegInit(UInt(0, width = w))
-    r.suggestName(s"sync_${i}")
-  }
-
-  syncv.last := io.d
-
-  (syncv.init zip syncv.tail).foreach { case (sink, source) =>
-    sink := source
-  }
-
-  io.q := syncv.head
-
-}
-
-object SynchronizerShiftRegInit {
-
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new SynchronizerShiftRegInit(w, sync)},
       in, sync, name)
 }
 
