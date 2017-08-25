@@ -31,7 +31,7 @@ abstract class AbstractSynchronizerReg(w: Int = 1, sync: Int = 3) extends Module
 object AbstractSynchronizerReg {
 
   def apply [T <: Chisel.Data](gen: (Int, Int) => AbstractSynchronizerReg, in: T, sync: Int = 3, name: Option[String] = None): T = {
-    val sync_reg = Module(gen(in.getWidth, sync))
+    val sync_chain = Module(gen(in.getWidth, sync))
     name.foreach{ sync_reg.suggestName(_) }
     sync_reg.io.d := in.asUInt
       (in.chiselCloneType).fromBits(sync_reg.io.q)
