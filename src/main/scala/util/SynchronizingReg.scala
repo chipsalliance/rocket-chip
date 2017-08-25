@@ -18,16 +18,29 @@ import Chisel._
   *  
   */
 
-class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends Module {
-
+abstract class AbstractSynchronizerReg(w: Int = 1, sync: Int = 3) extends Module {
   require(sync > 0, "Sync must be greater than 0.")
-
-  override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}"
 
   val io = new Bundle {
     val d = UInt(INPUT, width = w)
     val q = UInt(OUTPUT, width = w)
   }
+
+}
+
+object AbstractSynchronizerReg {
+
+  def apply [T <: Chisel.Data](gen: (Int, Int) => AbstractSynchronizerReg, in: T, sync: Int = 3, name: Option[String] = None): T = {
+    val sync_reg = Module(gen(in.getWidth, sync))
+    name.foreach{ sync_reg.suggestName(_) }
+    sync_reg.io.d := in.asUInt
+      (in.chiselCloneType).fromBits(sync_reg.io.q)
+  }
+}
+
+class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg {
+
+  override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}"
 
   val syncv = List.tabulate(sync) { i =>
     Module (new AsyncResetRegVec(w, 0)).suggestName(s"sync_${i}")
@@ -45,26 +58,14 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends Module {
 
 object AsyncResetSynchronizerShiftReg {
 
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T = {
-    val sync_reg = Module(new AsyncResetSynchronizerShiftReg(in.getWidth, sync))
-    name.foreach{ sync_reg.suggestName(_) }
-
-    sync_reg.io.d := in.asUInt
-    (in.chiselCloneType).fromBits(sync_reg.io.q)
-  }
-
+  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
+    AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new AsyncResetSynchronizerShiftReg(w, sync)},
+      in, sync, name)
 }
 
-class SynchronizerShiftRegInit(w: Int = 1, sync: Int = 3) extends Module {
-
-  require(sync > 0, "Sync must be greater than 0.")
+class SynchronizerShiftRegInit(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg {
 
   override def desiredName = s"SynchronizerShiftRegInit_w${w}_d${sync}"
-
-  val io = new Bundle {
-    val d = UInt(INPUT, width = w)
-    val q = UInt(OUTPUT, width = w)
-  }
 
   val syncv = List.tabulate(sync) { i =>
     val r = RegInit(UInt(0, width = w))
@@ -83,26 +84,14 @@ class SynchronizerShiftRegInit(w: Int = 1, sync: Int = 3) extends Module {
 
 object SynchronizerShiftRegInit {
 
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T = {
-    val sync_reg = Module(new SynchronizerShiftRegInit(in.getWidth, sync))
-    name.foreach{ sync_reg.suggestName(_) }
-
-    sync_reg.io.d := in.asUInt
-    (in.chiselCloneType).fromBits(sync_reg.io.q)
-  }
+  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
+    AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new SynchronizerShiftRegInit(w, sync)},
+      in, sync, name)
 }
 
-
-class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends Module {
-
-  require(sync > 0, "Sync must be greater than 0.")
+class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg {
 
   override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
-
-  val io = new Bundle {
-    val d = UInt(INPUT, width = w)
-    val q = UInt(OUTPUT, width = w)
-  }
 
   val syncv = List.tabulate(sync) { i =>
     val r = Reg(UInt(width = w))
@@ -120,11 +109,7 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends Module {
 
 object SynchronizerShiftReg {
 
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T = {
-    val sync_reg = Module(new SynchronizerShiftReg(in.getWidth, sync))
-    name.foreach{ sync_reg.suggestName(_) }
-
-    sync_reg.io.d := in.asUInt
-    (in.chiselCloneType).fromBits(sync_reg.io.q)
-  }
+  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
+    AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new SynchronizerShiftReg(w, sync)},
+      in, sync, name)
 }
