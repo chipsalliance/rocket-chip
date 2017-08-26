@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasSystemBus
+import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -93,9 +93,9 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters) e
   }
 }
 
-trait HasSystemErrorSlave extends HasSystemBus {
+trait HasSystemErrorSlave extends HasPeripheryBus {
   private val params = p(ErrorParams)
-  val error = LazyModule(new TLError(params, sbus.beatBytes))
+  val error = LazyModule(new TLError(params, pbus.beatBytes))
 
-  error.node := TLBuffer(BufferParams.pipe)(sbus.toSlave)
+  error.node := TLBuffer(BufferParams.pipe)(pbus.toFixedWidthSlaves)
 }

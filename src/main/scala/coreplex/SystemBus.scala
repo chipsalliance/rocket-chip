@@ -12,7 +12,8 @@ case class SystemBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.flow // TODO should be BufferParams.none on BCE
+  slaveBuffering: BufferParams = BufferParams.flow, // TODO should be BufferParams.none on BCE
+  splitSlavesBuffering : BufferParams = BufferParams.default
 ) extends TLBusParams
 
 case object SystemBusParams extends Field[SystemBusParams]
@@ -24,15 +25,24 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   inwardNode :=* master_splitter.node
   def busView = master_splitter.node.edgesIn.head
 
+  private val split_slaves_buffer = LazyModule(new TLBuffer(params.splitSlavesBuffering))
+  split_slaves_buffer.node :=* master_splitter.node
+
   protected def inwardSplitNode: TLInwardNode = master_splitter.node
-  protected def outwardSplitNode: TLOutwardNode = master_splitter.node
+  protected def outwardSplitNode: TLOutwardNode = split_slaves_buffer.node
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+
+  private val port_buffer =  LazyModule(new TLBuffer(BufferParams.default))
+  private val master_buffer =  LazyModule(new TLBuffer(BufferParams.default))
+  port_buffer.node :=* port_fixer.node
+  master_buffer.node :=* master_fixer.node
+
   master_splitter.node :=* tile_fixer.node
-  master_splitter.node :=* port_fixer.node
-  inwardNode :=* master_fixer.node
+  master_splitter.node :=* port_buffer.node
+  inwardNode :=* master_buffer.node
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
@@ -48,10 +58,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     sink.node
   }
 
-  def fromSyncMasters(params: BufferParams = BufferParams.default): TLInwardNode = {
-    val buffer = LazyModule(new TLBuffer(params))
-    master_fixer.node :=* buffer.node
-    buffer.node
+  def fromSyncMasters(): TLInwardNode = {
+    master_fixer.node
   }
 
   def fromSyncTiles(params: BufferParams): TLInwardNode = {
@@ -72,13 +80,11 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     sink.node
   }
 
-  def fromSyncPorts(params: BufferParams =  BufferParams.default): TLInwardNode = {
-    val buffer = LazyModule(new TLBuffer(params))
-    port_fixer.node :=* buffer.node
-    buffer.node
+  def fromSyncPorts(): TLInwardNode = {
+    port_fixer.node
   }
 
-  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default): TLInwardNode = fromSyncPorts(params)
+  def fromSyncFIFOMaster(): TLInwardNode = fromSyncPorts()
 
   def fromAsyncPorts(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
