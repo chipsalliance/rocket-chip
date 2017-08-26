@@ -12,7 +12,7 @@ case class SystemBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.flow // TODO should be BufferParams.none on BCE
+  slaveBuffering: BufferParams = BufferParams.default
 ) extends TLBusParams
 
 case object SystemBusParams extends Field[SystemBusParams]
