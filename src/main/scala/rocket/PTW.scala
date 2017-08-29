@@ -32,12 +32,17 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val pmp = Vec(nPMPs, new PMP).asInput
 }
 
+class PTWPerfEvents extends Bundle {
+  val l2miss = Bool()
+}
+
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasRocketCoreParameters {
   val ptbr = new PTBR().asInput
   val sfence = Valid(new SFenceReq).flip
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
+  val perf = new PTWPerfEvents().asOutput
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -129,8 +134,15 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   val l2_refill = RegNext(false.B)
-  val (l2_hit, l2_pte) = if (coreParams.nL2TLBEntries == 0) (false.B, Wire(new PTE)) else {
+  io.dpath.perf.l2miss := false
+  val (l2_hit, l2_valid, l2_pte) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE)) else {
+    val code = new ParityCode
+    require(isPow2(coreParams.nL2TLBEntries))
+    val idxBits = log2Ceil(coreParams.nL2TLBEntries)
+    val tagBits = vpnBits - idxBits
+
     class Entry extends Bundle {
+      val tag = UInt(width = tagBits)
       val ppn = UInt(width = ppnBits)
       val d = Bool()
       val a = Bool()
@@ -138,20 +150,19 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       val x = Bool()
       val w = Bool()
       val r = Bool()
+
+      override def cloneType = new Entry().asInstanceOf[this.type]
     }
 
-    val code = new ParityCode
-    require(isPow2(coreParams.nL2TLBEntries))
-    val idxBits = log2Ceil(coreParams.nL2TLBEntries)
-    val tagBits = vpnBits - idxBits
-    val ram = SeqMem(coreParams.nL2TLBEntries, UInt(width = code.width(new Entry().getWidth + tagBits)))
+    val ram = SeqMem(coreParams.nL2TLBEntries, UInt(width = code.width(new Entry().getWidth)))
     val g = Reg(UInt(width = coreParams.nL2TLBEntries))
     val valid = RegInit(UInt(0, coreParams.nL2TLBEntries))
     val (r_tag, r_idx) = Split(r_req.addr, idxBits)
     when (l2_refill) {
       val entry = Wire(new Entry)
       entry := r_pte
-      ram.write(r_idx, code.encode(Cat(entry.asUInt, r_tag)))
+      entry.tag := r_tag
+      ram.write(r_idx, code.encode(entry.asUInt))
 
       val mask = UIntToOH(r_idx)
       valid := valid | mask
@@ -165,22 +176,25 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val s0_valid = !l2_refill && arb.io.out.fire()
     val s1_valid = RegNext(s0_valid)
-    val s2_valid = RegNext(s1_valid && valid(r_idx))
+    val s2_valid = RegNext(s1_valid)
     val s1_rdata = ram.read(arb.io.out.bits.addr(idxBits-1, 0), s0_valid)
     val s2_rdata = code.decode(RegEnable(s1_rdata, s1_valid))
-    when (s2_valid && s2_rdata.error) { valid := 0.U }
+    val s2_valid_bit = RegEnable(valid(r_idx), s1_valid)
+    val s2_g = RegEnable(g(r_idx), s1_valid)
+    when (s2_valid && s2_valid_bit && s2_rdata.error) { valid := 0.U }
 
-    val (s2_entry, s2_tag) = Split(s2_rdata.uncorrected, tagBits)
-    val s2_hit = s2_valid && !s2_rdata.error && r_tag === s2_tag
+    val s2_entry = s2_rdata.uncorrected.asTypeOf(new Entry)
+    val s2_hit = s2_valid && s2_valid_bit && !s2_rdata.error && r_tag === s2_entry.tag
+    io.dpath.perf.l2miss := s2_valid && !(s2_valid_bit && r_tag === s2_entry.tag)
     val s2_pte = Wire(new PTE)
-    s2_pte := s2_entry.asTypeOf(new Entry)
-    s2_pte.g := g(r_idx)
+    s2_pte := s2_entry
+    s2_pte.g := s2_g
     s2_pte.v := true
 
-    (s2_hit, s2_pte)
+    (s2_hit, s2_valid && s2_valid_bit, s2_pte)
   }
   
-  io.mem.req.valid := state === s_req && !l2_hit
+  io.mem.req.valid := state === s_req && !l2_valid
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
   io.mem.req.bits.typ  := log2Ceil(xLen/8)
@@ -219,7 +233,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         s1_kill := true
         count := count + 1
         r_pte.ppn := pte_cache_data
-      }.elsewhen (io.mem.req.ready) {
+      }.elsewhen (io.mem.req.fire()) {
         state := s_wait1
       }
     }
@@ -254,6 +268,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     resp_valid(r_req_dest) := true
     resp_ae := false
     r_pte := l2_pte
+    count := pgLevels-1
   }
 }
 

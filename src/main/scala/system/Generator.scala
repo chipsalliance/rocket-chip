@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.chip
+package freechips.rocketchip.system
 
 import freechips.rocketchip.coreplex.RocketTilesKey
 import freechips.rocketchip.tile.XLen
@@ -88,5 +88,6 @@ object Generator extends GeneratorApp {
   val longName = names.topModuleProject + "." + names.configs
   generateFirrtl
   generateTestSuiteMakefrags
+  generateROMs
   generateArtefacts
 }

@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import freechips.rocketchip.util.ShiftQueue
 
 /** Options for memory regions */
 object RegionType {
@@ -91,6 +92,9 @@ case class TransferSizes(min: Int, max: Int)
   def intersect(x: TransferSizes) =
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
+
+  override def toString() = "TransferSizes[%d, %d]".format(min, max)
+ 
 }
 
 object TransferSizes {
@@ -226,6 +230,7 @@ object AddressRange
 
 object AddressSet
 {
+  val everything = AddressSet(0, -1)
   def misaligned(base: BigInt, size: BigInt, tail: Seq[AddressSet] = Seq()): Seq[AddressSet] = {
     if (size == 0) tail.reverse else {
       val maxBaseAlignment = base & (-base) // 0 for infinite (LSB)
@@ -267,6 +272,13 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
   def apply[T <: Data](x: DecoupledIO[T]) =
     if (isDefined) Queue(x, depth, flow=flow, pipe=pipe)
     else x
+
+  def sq[T <: Data](x: DecoupledIO[T]) =
+    if (!isDefined) x else {
+      val sq = Module(new ShiftQueue(x.bits, depth, flow=flow, pipe=pipe))
+      sq.io.enq <> x
+      sq.io.deq
+    }
 }
 
 object BufferParams

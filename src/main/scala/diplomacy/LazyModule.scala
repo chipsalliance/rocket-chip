@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import chisel3.experimental.{BaseModule, RawModule, MultiIOModule}
+import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 
@@ -141,7 +141,7 @@ object LazyModule
   }
 }
 
-trait LazyModuleImpLike extends BaseModule
+sealed trait LazyModuleImpLike extends BaseModule
 {
   val wrapper: LazyModule
 
@@ -151,13 +151,19 @@ trait LazyModuleImpLike extends BaseModule
   override def desiredName = wrapper.moduleName
   suggestName(wrapper.instanceName)
 
-  wrapper.instantiate()
-
   implicit val p = wrapper.p
 }
 
-abstract class LazyModuleImp(val wrapper: LazyModule) extends Module with LazyModuleImpLike
+abstract class LazyModuleImp(val wrapper: LazyModule) extends Module with LazyModuleImpLike {
+  wrapper.instantiate()
+}
 
-abstract class LazyMultiIOModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike
+abstract class LazyMultiIOModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
+  wrapper.instantiate()
+}
 
-abstract class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike
+abstract class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
+  withClockAndReset(Bool(false).asClock, Bool(true)) {
+    wrapper.instantiate()
+  }
+}

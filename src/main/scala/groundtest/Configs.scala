@@ -4,15 +4,14 @@
 package freechips.rocketchip.groundtest
 
 import Chisel._
-import freechips.rocketchip.chip.{BaseConfig, ExtMem}
 import freechips.rocketchip.config.Config
-import freechips.rocketchip.coreplex.{CacheBlockBytes, L1toL2Config, WithBufferlessBroadcastHub}
+import freechips.rocketchip.coreplex._
 import freechips.rocketchip.rocket.{DCacheParams, PAddrBits}
 import freechips.rocketchip.tile.{MaxHartIdBits, XLen}
 
 /** Actual testing target Configs */
 
-class TraceGenConfig extends Config(new WithTraceGen(List.fill(2){ DCacheParams(nSets = 16, nWays = 1) }) ++ new BaseConfig)
+class TraceGenConfig extends Config(new WithTraceGen(List.fill(2){ DCacheParams(nSets = 16, nWays = 1) }) ++ new BaseCoreplexConfig)
 
 class TraceGenBufferlessConfig extends Config(new WithBufferlessBroadcastHub ++ new TraceGenConfig)
 
@@ -26,8 +25,8 @@ class WithTraceGen(params: Seq[DCacheParams], nReqs: Int = 8192) extends Config(
     addrBag = {
       val nSets = 2
       val nWays = 1
-      val blockOffset = log2Up(site(CacheBlockBytes))
-      val nBeats = site(CacheBlockBytes)/site(L1toL2Config).beatBytes
+      val blockOffset = site(SystemBusParams).blockOffset
+      val nBeats = site(SystemBusParams).blockBeats
       List.tabulate(4 * nWays) { i =>
         Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
       }.flatten

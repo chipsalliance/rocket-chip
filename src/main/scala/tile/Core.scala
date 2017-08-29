@@ -26,6 +26,7 @@ trait CoreParams {
   val instBits: Int
   val nLocalInterrupts: Int
   val nL2TLBEntries: Int
+  val jumpInFrontend: Boolean
 }
 
 trait HasCoreParameters extends HasTileParameters {

@@ -38,8 +38,9 @@ case class TLManagerParameters(
   require (supportsAcquireB.contains(supportsAcquireT))
 
   // Make sure that the regionType agrees with the capabilities
-  require ((regionType == RegionType.CACHED || regionType == RegionType.TRACKED) != supportsAcquireB.none)
-  require (regionType != RegionType.UNCACHED || supportsGet)
+  require (!supportsAcquireB || regionType >= RegionType.UNCACHED) // acquire -> uncached, tracked, cached
+  require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
+  require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = List( // Largest supported transfer of all types
@@ -76,7 +77,9 @@ case class TLManagerPortParameters(
   require (endSinkId >= 0)
   require (minLatency >= 0)
 
-  def requireFifo() = managers.foreach { m =>require (m.fifoId == Some(0))  }
+  def requireFifo() = managers.foreach { m =>
+    require(m.fifoId == Some(0), s"${m.name} had fifoId ${m.fifoId}, which was not 0 (${managers.map(s => (s.name, s.fifoId))}) ")
+  }
 
   // Bounds on required sizes
   def maxAddress  = managers.map(_.maxAddress).max
@@ -315,7 +318,7 @@ case class TLEdgeParameters(
   val maxLgSize = log2Ceil(maxTransfer)
 
   // Sanity check the link...
-  require (maxTransfer >= manager.beatBytes)
+  require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
 
   val bundle = TLBundleParameters(client, manager)
 }

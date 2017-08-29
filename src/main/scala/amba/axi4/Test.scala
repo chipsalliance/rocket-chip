@@ -4,7 +4,7 @@ package freechips.rocketchip.amba.axi4
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.devices.tilelink.TLError
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
@@ -98,10 +98,10 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTar
   val node = AXI4InputNode()
   val xbar = LazyModule(new TLXbar)
   val ram  = LazyModule(new TLRAM(fuzzAddr))
-  val error= LazyModule(new TLError(Seq(AddressSet(0x1800, 0xff))))
+  val error= LazyModule(new TLError(ErrorParams(Seq(AddressSet(0x1800, 0xff)), maxTransfer = 256)))
 
   ram.node   := TLFragmenter(4, 16)(xbar.node)
-  error.node := TLFragmenter(4, 16)(xbar.node)
+  error.node := xbar.node
 
   xbar.node :=
     TLFIFOFixer()(

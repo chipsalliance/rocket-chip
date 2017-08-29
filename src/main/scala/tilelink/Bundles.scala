@@ -171,7 +171,6 @@ final class TLBundleD(params: TLBundleParameters)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
   val sink    = UInt(width = params.sinkBits)   // from
-  val addr_lo = UInt(width = params.addrLoBits) // instead of mask
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val error   = Bool() // AccessAck[Data], Grant[Data]

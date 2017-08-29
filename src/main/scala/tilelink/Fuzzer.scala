@@ -14,11 +14,10 @@ class IDMapGenerator(numIds: Int) extends Module {
     val alloc = Decoupled(UInt(width = w))
   }
 
+  io.free.ready := Bool(true)
+
   // True indicates that the id is available
   val bitmap = RegInit(UInt((BigInt(1) << numIds) -  1, width = numIds))
-
-  io.free.ready := Bool(true)
-  assert (!io.free.valid || !bitmap(io.free.bits)) // No double freeing
 
   val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
@@ -31,6 +30,7 @@ class IDMapGenerator(numIds: Int) extends Module {
   when (io.free.fire()) { set := UIntToOH(io.free.bits) }
 
   bitmap := (bitmap & ~clr) | set
+  assert (!io.free.valid || !(bitmap & ~clr)(io.free.bits)) // No double freeing
 }
 
 object LFSR64
@@ -77,23 +77,39 @@ object LFSRNoiseMaker {
   * @param noiseMaker is a function that supplies a random UInt of a given width every time inc is true
   */
 class TLFuzzer(
-    nOperations: Int,
-    inFlight: Int = 32,
-    noiseMaker: (Int, Bool, Int) => UInt = {
-                  (wide: Int, increment: Bool, abs_values: Int) =>
-                   LFSRNoiseMaker(wide=wide, increment=increment)
-                  },
-    noModify: Boolean = false,
-    overrideAddress: Option[AddressSet] = None)(implicit p: Parameters) extends LazyModule
+  nOperations: Int,
+  inFlight: Int = 32,
+  noiseMaker: (Int, Bool, Int) => UInt = {
+    (wide: Int, increment: Bool, abs_values: Int) =>
+    LFSRNoiseMaker(wide=wide, increment=increment)
+  },
+  noModify: Boolean = false,
+  overrideAddress: Option[AddressSet] = None,
+  nOrdered: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLClientNode(TLClientParameters(
-    name = "Fuzzer",
-    sourceId = IdRange(0,inFlight)))
+
+  val clientParams = if (nOrdered.isDefined) {
+    val n = nOrdered.get
+    require(n > 0, s"nOrdered must be > 0, not $n")
+    require((inFlight % n) == 0, s"inFlight (${inFlight}) must be evenly divisible by nOrdered (${nOrdered}).")
+    Seq.tabulate(n) {i =>
+      TLClientParameters(name =s"OrderedFuzzer$i",
+        sourceId = IdRange(i * (inFlight/n),  (i + 1)*(inFlight/n)),
+        requestFifo = true)
+    }
+  } else {
+    Seq(TLClientParameters(
+      name = "Fuzzer",
+      sourceId = IdRange(0,inFlight)
+    ))
+  }
+
+  val node = TLClientNode(Seq(TLClientPortParameters(clientParams)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = new Bundle {
       val out = node.bundleOut
-      val finished = Bool()
+      val finished = Bool(OUTPUT)
     }
 
     val out = io.out(0)
@@ -111,7 +127,7 @@ class TLFuzzer(
     val num_reqs = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
     val num_resps = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
     if (nOperations>0) {
-      io.finished  := num_resps === UInt(0)
+      io.finished := num_resps === UInt(0)
     } else {
       io.finished := Bool(false)
     }
@@ -125,12 +141,7 @@ class TLFuzzer(
 
     // Source ID generation
     val idMap = Module(new IDMapGenerator(inFlight))
-    val alloc = Queue.irrevocable(idMap.io.alloc, 1, pipe = true)
-    val src = alloc.bits
-    alloc.ready := req_done
-    idMap.io.free.valid := resp_done
-    idMap.io.free.bits := out.d.bits.source
-
+    val src = idMap.io.alloc.bits holdUnless a_first
     // Increment random number generation for the following subfields
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
@@ -183,12 +194,13 @@ class TLFuzzer(
       UInt("b100") -> lbits,
       UInt("b101") -> hbits))
 
-    // Wire both the used and un-used channel signals
-    if (nOperations>0) {
-      out.a.valid := legal && alloc.valid && num_reqs =/= UInt(0)
-    } else {
-      out.a.valid := legal && alloc.valid
-    }
+    // Wire up Fuzzer flow control
+    val a_gen = if (nOperations>0) num_reqs =/= UInt(0) else Bool(true)
+    out.a.valid := a_gen && legal && (!a_first || idMap.io.alloc.valid)
+    idMap.io.alloc.ready := a_gen && legal && a_first && out.a.ready
+    idMap.io.free.valid := d_first && out.d.fire()
+    idMap.io.free.bits := out.d.bits.source
+
     out.a.bits  := bits
     out.b.ready := Bool(true)
     out.c.valid := Bool(false)

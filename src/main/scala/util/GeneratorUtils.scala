@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.firrtl.Circuit
 import chisel3.experimental.{RawModule}
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
-import freechips.rocketchip.chip.{TestGeneration, DefaultTestSuites}
+import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
@@ -51,6 +51,21 @@ trait HasGeneratorUtilities {
         .asInstanceOf[RawModule]
 
     Driver.elaborate(gen)
+  }
+
+  def enumerateROMs(circuit: Circuit): String = {
+    val res = new StringBuilder
+    val configs =
+      circuit.components flatMap { m =>
+        m.id match {
+          case rom: BlackBoxedROM => Some((rom.name, ROMGenerator.lookup(rom)))
+          case _ => None
+        }
+      }
+    configs foreach { case (name, c) =>
+      res append s"name ${name} depth ${c.depth} width ${c.width}\n"
+    }
+    res.toString
   }
 
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
@@ -102,6 +117,10 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
   } 
+
+  def generateROMs {
+    writeOutputFile(td, s"$longName.rom.conf", enumerateROMs(circuit))
+  }
 
   /** Output files created as a side-effect of elaboration */
   def generateArtefacts {

@@ -51,7 +51,6 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
     val d_read = Reg(Bool())
     val d_size = Reg(UInt())
     val d_source = Reg(UInt())
-    val d_addr = Reg(UInt())
     val d_data = Wire(UInt())
     val d_legal = Reg(Bool())
 
@@ -61,7 +60,7 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
     in.d.valid := d_full
     in.a.ready := in.d.ready || !d_full
 
-    in.d.bits := edge.AccessAck(d_addr, UInt(0), d_source, d_size, !d_legal)
+    in.d.bits := edge.AccessAck(d_source, d_size, !d_legal)
     // avoid data-bus Mux
     in.d.bits.data := d_data
     in.d.bits.opcode := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
@@ -74,7 +73,6 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
       d_read   := read
       d_size   := in.a.bits.size
       d_source := in.a.bits.source
-      d_addr   := edge.addr_lo(in.a.bits)
       d_legal  := a_legal
     }
 

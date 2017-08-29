@@ -29,8 +29,8 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
           if (m.regionType == RegionType.UNCACHED) {
             // The device had better support line transfers
             val lowerBound = max(m.supportsPutFull.min, m.supportsGet.min)
-            require (!m.supportsPutFull || m.supportsPutFull.contains(lineBytes))
-            require (!m.supportsGet     || m.supportsGet    .contains(lineBytes))
+            require (!m.supportsPutFull || m.supportsPutFull.contains(lineBytes), s"${m.name} only supports PutFull(${m.supportsPutFull}), which does not include $lineBytes")
+            require (!m.supportsGet     || m.supportsGet    .contains(lineBytes), s"${m.name} only supports Get(${m.supportsGet}), which does not include $lineBytes")
             m.copy(
               regionType         = RegionType.TRACKED,
               supportsAcquireB   = TransferSizes(lowerBound, lineBytes),
@@ -133,7 +133,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       in.c.ready := c_probeack || Mux(c_release, releaseack.ready, putfull.ready)
 
       releaseack.valid := in.c.valid && c_release
-      releaseack.bits  := edgeIn.ReleaseAck(in.c.bits.address, UInt(0), in.c.bits.source, in.c.bits.size)
+      releaseack.bits  := edgeIn.ReleaseAck(in.c.bits)
 
       val put_what = Mux(c_releasedata, TRANSFORM_B, DROP)
       val put_who  = Mux(c_releasedata, in.c.bits.source, c_trackerSrc)

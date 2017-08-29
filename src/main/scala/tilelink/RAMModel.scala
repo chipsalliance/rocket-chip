@@ -95,7 +95,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
 
       when (in.a.fire()) { flight(in.a.bits.source) := a_flight }
       val bypass = if (edge.manager.minLatency > 0) Bool(false) else in.a.valid && in.a.bits.source === out.d.bits.source
-      val d_flight = RegNext(Mux(bypass, a_flight, flight(out.d.bits.source)))
+      val d_flight = RegEnable(Mux(bypass, a_flight, flight(out.d.bits.source)), edge.first(out.d))
 
       // Process A access requests
       val a = Reg(next = in.a.bits)
@@ -223,7 +223,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val d_inc = d_inc_bytes.map(_ + d_inc_tree)
       val d_dec = d_dec_bytes.map(_ + d_dec_tree)
       val d_shadow = shadow.map(_.read(d_addr_hi))
-      val d_valid = valid(d.source)
+      val d_valid = valid(d.source) holdUnless d_first
 
       // CRC check
       val d_crc_reg = Reg(UInt(width = 16))
@@ -231,8 +231,8 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
       val d_crc_new = FillInterleaved(8, d_mask) & d.data
       val d_crc = CRC(divisor, Cat(d_crc_acc, d_crc_new), 16 + beatBytes*8)
       val crc_bypass = if (edge.manager.minLatency > 0) Bool(false) else a_fire && a.source === d.source
-      val d_crc_valid = Mux(crc_bypass, a_crc_valid, crc_valid.read(d.source))
-      val d_crc_check = Mux(crc_bypass, a_crc, crc.read(d.source))
+      val d_crc_valid = Mux(crc_bypass, a_crc_valid, crc_valid.read(d.source)) holdUnless d_first
+      val d_crc_check = Mux(crc_bypass, a_crc, crc.read(d.source)) holdUnless d_first
 
       val d_no_race_reg = Reg(Bool())
       val d_no_race = Wire(init = d_no_race_reg)
