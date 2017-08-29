@@ -110,7 +110,8 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
   // be considered unless the asynchronously reset deq valid register is set.
   // It is possible that bits latches when the source domain is reset / has power cut
   // This is safe, because isolation gates brought mem low before the zeroed widx reached us
-  io.deq.bits  := RegEnable(io.mem(if(narrowData) UInt(0) else index), valid)
+  val deq_bits_nxt = Mux(valid, io.mem(if(narrowData) UInt(0) else index), io.deq.bits)
+  io.deq.bits  := SynchronizerShiftReg(deq_bits_nxt, sync = 1, name = Some("deq_bits_reg"))
 
   val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
   io.deq.valid := valid_reg && source_ready
