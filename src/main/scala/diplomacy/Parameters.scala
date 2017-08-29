@@ -279,6 +279,9 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
       sq.io.enq <> x
       sq.io.deq
     }
+
+  override def toString() = "BufferParams:%d%s%s".format(depth, if (flow) "F" else "", if (pipe) "P" else "")
+
 }
 
 object BufferParams
