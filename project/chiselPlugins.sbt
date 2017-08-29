@@ -10,20 +10,20 @@ resolvers += Classpaths.sbtPluginReleases
 
 resolvers += Resolver.url("scalasbt", new URL("http://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases")) (Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.0")
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.5")
 
-addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.6.1")
+addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.7.0")
 
-addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.3.3")
+addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.4.1")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.5.4")
+addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.6.2")
 
-addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.11")
+addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.12")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-pgp" % "0.8.3")
+addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "1.3.0")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "0.8.2")
-
-addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.8.0")
+addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.5.0")
+
+addSbtPlugin("edu.berkeley.cs" % "sbt-chisel-dep" % "1.3-SNAPSHOT")
