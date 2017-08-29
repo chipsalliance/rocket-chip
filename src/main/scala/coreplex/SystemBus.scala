@@ -29,10 +29,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   master_splitter.node :=* tile_fixer.node
   master_splitter.node :=* port_fixer.node
-  inwardNode :=* master_fixer.node
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
@@ -42,17 +40,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   val toSlave: TLOutwardNode = outwardBufNode
 
-  def fromAsyncMasters(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
-    val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    master_fixer.node :=* sink.node
-    sink.node
-  }
-
-  def fromSyncMasters(params: BufferParams = BufferParams.default): TLInwardNode = {
-    val buffer = LazyModule(new TLBuffer(params))
-    master_fixer.node :=* buffer.node
-    buffer.node
-  }
+  def fromCoherentChip: TLInwardNode = inwardNode
 
   def fromSyncTiles(params: BufferParams): TLInwardNode = {
     val buf = LazyModule(new TLBuffer(params))
@@ -72,13 +60,16 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     sink.node
   }
 
-  def fromSyncPorts(params: BufferParams =  BufferParams.default): TLInwardNode = {
+  def fromSyncPorts(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
     val buffer = LazyModule(new TLBuffer(params))
+    name.foreach{ n => buffer.suggestName(s"${n}_TLBuffer") }
     port_fixer.node :=* buffer.node
     buffer.node
   }
 
-  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default): TLInwardNode = fromSyncPorts(params)
+  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
+    fromSyncPorts(params, name)
+  }
 
   def fromAsyncPorts(depth: Int = 8, sync: Int = 3): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
