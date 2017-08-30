@@ -20,8 +20,12 @@ case object FrontBusParams extends Field[FrontBusParams]
 class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params) {
   xbar.suggestName("FrontBus")
 
-  def fromSyncMasters(params: BufferParams = BufferParams.default, buffers: Int = 1): TLInwardNode = {
+  def fromSyncMasters(params: BufferParams = BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode =
+    fromSyncPorts(params, buffers, name)
+
+  def fromSyncPorts(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode = {
     val buf = List.fill(buffers)(LazyModule(new TLBuffer(params)))
+    name.foreach { n => buf.zipWithIndex foreach {case (b, i) => b.suggestName(s"FrontBus_${n}_${i}_TLBuffer")}}
     for(i<-1 until buffers) {
       buf(i).node :=* buf(i-1).node
     }
@@ -29,18 +33,8 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
     if(buffers>0) buf(0).node else inwardNode
   }
 
-  def fromSyncPorts(params: BufferParams =  BufferParams.default, buffers: Int = 1): TLInwardNode = {
-    val buf = List.fill(buffers)(LazyModule(new TLBuffer(params)))
-    for(i<-1 until buffers) {
-      buf(i).node :=* buf(i-1).node
-    }
-    inwardNode :=* buf(buffers-1).node
-    if(buffers>0) buf(0).node else inwardNode
-  }
-
-  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, buffers: Int = 1): TLInwardNode = fromSyncPorts(params, buffers)
-
-
+  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode =
+    fromSyncPorts(params, buffers, name)
 
   def toSystemBus : TLOutwardNode = outwardBufNode
 
