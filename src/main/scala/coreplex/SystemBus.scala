@@ -29,12 +29,14 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  private val pbus_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   master_splitter.node :=* tile_fixer.node
   master_splitter.node :=* port_fixer.node
+  pbus_fixer.node :*= outwardWWNode
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
-  val toPeripheryBus: TLOutwardNode = outwardWWNode
+  val toPeripheryBus: TLOutwardNode = pbus_fixer.node
 
   val toMemoryBus: TLOutwardNode = outwardNode
 
