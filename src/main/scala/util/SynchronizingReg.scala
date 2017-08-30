@@ -38,7 +38,7 @@ object AbstractSynchronizerReg {
   }
 }
 
-class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg {
+class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w, sync) {
 
   override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}"
 
@@ -63,7 +63,7 @@ object AsyncResetSynchronizerShiftReg {
       in, sync, name)
 }
 
-class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg {
+class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w, sync) {
 
   override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
 
