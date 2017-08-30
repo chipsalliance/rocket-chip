@@ -12,7 +12,7 @@ case class SystemBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.flow // TODO should be BufferParams.none on BCE
+  slaveBuffering: BufferParams = BufferParams.default
 ) extends TLBusParams
 
 case object SystemBusParams extends Field[SystemBusParams]
@@ -29,12 +29,14 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  private val pbus_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   master_splitter.node :=* tile_fixer.node
   master_splitter.node :=* port_fixer.node
+  pbus_fixer.node :*= outwardWWNode
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
-  val toPeripheryBus: TLOutwardNode = outwardWWNode
+  val toPeripheryBus: TLOutwardNode = pbus_fixer.node
 
   val toMemoryBus: TLOutwardNode = outwardNode
 
