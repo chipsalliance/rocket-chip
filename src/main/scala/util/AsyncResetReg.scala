@@ -107,13 +107,3 @@ object AsyncResetReg {
   def apply(updateData: UInt, name:String): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true), Some(name))
 }
 
-
-// While this extends from the SynchronizingShiftRegister
-// classes, it is just a convenience.
-
-class AsyncResetShiftReg
-object AsyncResetShiftRegister(w: Int = 1, depth: Int = 3) extends AbstractSynchronizerReg(w, depth) {
-  override def desiredName = s"AsyncResetShiftReg_w${w}_d{$sync}"
-}
-
-}

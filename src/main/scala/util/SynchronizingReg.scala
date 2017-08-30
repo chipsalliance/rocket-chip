@@ -29,12 +29,12 @@ abstract class AbstractSynchronizerReg(w: Int = 1, sync: Int = 3) extends Module
 
 object AbstractSynchronizerReg {
 
-  def apply [T <: Chisel.Data](gen: (Int, Int) => AbstractSynchronizerReg, in: T, sync: Int = 3, name: Option[String] = None): T = {
-    val sync_chain = Module(gen(in.getWidth, sync))
+  def apply [T <: Chisel.Data](gen: => AbstractSynchronizerReg, in: T, sync: Int = 3, name: Option[String] = None): T = {
+    val sync_chain = Module(gen)
     name.foreach{ sync_chain.suggestName(_) }
     sync_chain.io.d := in.asUInt
 
-    (in.chiselCloneType).fromBits(sync_chain.io.q)
+    sync_chain.io.q.asTypeOf(in)
   }
 }
 
@@ -59,7 +59,7 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends Abstract
 object AsyncResetSynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new AsyncResetSynchronizerShiftReg(w, sync)},
+    AbstractSynchronizerReg(gen = {new AsyncResetSynchronizerShiftReg(in.getWidth, sync)},
       in, sync, name)
 }
 
@@ -84,6 +84,6 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchroniz
 object SynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = (w: Int, sync: Int) => { new SynchronizerShiftReg(w, sync)},
+    AbstractSynchronizerReg(gen = { new SynchronizerShiftReg(in.getWidth, sync)},
       in, sync, name)
 }
