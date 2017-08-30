@@ -17,8 +17,7 @@ import Chisel._
   *  
   */
 
-abstract class AbstractSynchronizerReg(w: Int = 1, sync: Int = 3) extends Module {
-  require(sync > 0, "Sync must be greater than 0.")
+abstract class AbstractSynchronizerReg(w: Int = 1) extends Module {
 
   val io = new Bundle {
     val d = UInt(INPUT, width = w)
@@ -29,7 +28,7 @@ abstract class AbstractSynchronizerReg(w: Int = 1, sync: Int = 3) extends Module
 
 object AbstractSynchronizerReg {
 
-  def apply [T <: Chisel.Data](gen: => AbstractSynchronizerReg, in: T, sync: Int = 3, name: Option[String] = None): T = {
+  def apply [T <: Chisel.Data](gen: => AbstractSynchronizerReg, in: T, name: Option[String] = None): T = {
     val sync_chain = Module(gen)
     name.foreach{ sync_chain.suggestName(_) }
     sync_chain.io.d := in.asUInt
@@ -38,7 +37,8 @@ object AbstractSynchronizerReg {
   }
 }
 
-class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w, sync) {
+class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w) {
+  require(sync > 0, "Sync must be greater than 0.")
 
   override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}"
 
@@ -59,11 +59,11 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends Abstract
 object AsyncResetSynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = {new AsyncResetSynchronizerShiftReg(in.getWidth, sync)},
-      in, sync, name)
+    AbstractSynchronizerReg(gen = {new AsyncResetSynchronizerShiftReg(in.getWidth, sync)}, in, name)
 }
 
-class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w, sync) {
+class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w) {
+  require(sync > 0, "Sync must be greater than 0.")
 
   override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
 
@@ -84,6 +84,5 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchroniz
 object SynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = { new SynchronizerShiftReg(in.getWidth, sync)},
-      in, sync, name)
+    AbstractSynchronizerReg(gen = { new SynchronizerShiftReg(in.getWidth, sync)}, in, name)
 }
