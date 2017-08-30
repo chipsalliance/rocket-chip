@@ -21,7 +21,8 @@ trait TLBusParams {
   def blockOffset: Int = log2Up(blockBytes)
 }
 
-abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends TLBusParams {
+abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p: Parameters) extends TLBusParams {
+
   val beatBytes = params.beatBytes
   val blockBytes = params.blockBytes
   val masterBuffering = params.masterBuffering
@@ -30,10 +31,16 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
   private val delayProb = p(TLBusDelayProbability)
 
   protected val xbar = LazyModule(new TLXbar)
+  xbar.suggestName(busName)
   private val master_buffer = LazyModule(new TLBuffer(masterBuffering))
+  master_buffer.suggestName(s"${busName}_master_TLBuffer")
   private val slave_buffer = LazyModule(new TLBuffer(slaveBuffering))
+  slave_buffer.suggestName(s"${busName}_slave_TLBuffer")
   private val slave_frag = LazyModule(new TLFragmenter(beatBytes, blockBytes))
+  slave_frag.suggestName(s"${busName}_slave_TLFragmenter")
+  
   private val slave_ww = LazyModule(new TLWidthWidget(beatBytes))
+  slave_ww.suggestName(s"${busName}_slave_TLWidthWidget")
 
   private val delayedNode = if (delayProb > 0.0) {
     val firstDelay = LazyModule(new TLDelayer(delayProb))
@@ -63,44 +70,48 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
 
   def bufferToSlaves: TLOutwardNode = outwardBufNode 
 
-  def toAsyncSlaves(sync: Int = 3)(name: Option[String] = None): TLAsyncOutwardNode = {
+  def toAsyncSlaves(sync: Int = 3, name: Option[String] = None): TLAsyncOutwardNode = {
     val source = LazyModule(new TLAsyncCrossingSource(sync))
-    name.foreach(source.suggestName)
+    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
     source.node :*= outwardNode
     source.node
   }
 
   def toRationalSlaves(name: Option[String] = None): TLRationalOutwardNode = {
     val source = LazyModule(new TLRationalCrossingSource())
-    name.foreach(source.suggestName)
+    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
     source.node :*= outwardNode
     source.node
   }
 
   def toVariableWidthSlaves: TLOutwardNode = outwardFragNode
 
-  def toAsyncVariableWidthSlaves(sync: Int = 3): TLAsyncOutwardNode = {
+  def toAsyncVariableWidthSlaves(sync: Int = 3, name: Option[String] = None): TLAsyncOutwardNode = {
     val source = LazyModule(new TLAsyncCrossingSource(sync))
+    name.foreach {n =>  source.suggestName(s"${busName}_${name}_TLAsyncCrossingSource")}
     source.node :*= outwardFragNode
     source.node
   }
 
-  def toRationalVariableWidthSlaves: TLRationalOutwardNode = {
+  def toRationalVariableWidthSlaves(name: Option[String] = None): TLRationalOutwardNode = {
     val source = LazyModule(new TLRationalCrossingSource())
+    name.foreach {n =>  source.suggestName(s"${busName}_${name}_TLRationalCrossingSource")}
     source.node :*= outwardFragNode
     source.node
   }
 
   def toFixedWidthSlaves: TLOutwardNode = outwardWWNode
 
-  def toAsyncFixedWidthSlaves(sync: Int = 3): TLAsyncOutwardNode = {
+  def toAsyncFixedWidthSlaves(sync: Int = 3, name: Option[String] = None): TLAsyncOutwardNode = {
     val source = LazyModule(new TLAsyncCrossingSource(sync))
+    name.foreach { n => source.suggestName(s"${busName}_${name}_TLAsyncCrossingSource")}
     source.node := outwardWWNode
     source.node
   }
 
-  def toRationalFixedWidthSlaves: TLRationalOutwardNode = {
+  def toRationalFixedWidthSlaves(name: Option[String] = None): TLRationalOutwardNode = {
     val source = LazyModule(new TLRationalCrossingSource())
+    name.foreach {n => source.suggestName(s"${busName}_${name}_TLRationalCrossingSource")}
     source.node :*= outwardWWNode
     source.node
   }

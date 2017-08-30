@@ -17,10 +17,10 @@ case class SystemBusParams(
 
 case object SystemBusParams extends Field[SystemBusParams]
 
-class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params) {
-  xbar.suggestName("SystemBus")
+class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus") {
 
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
+  master_splitter.suggestName(s"${busName}_master_TLSplitter"}
   inwardNode :=* master_splitter.node
   def busView = master_splitter.node.edgesIn.head
 
@@ -28,8 +28,12 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   protected def outwardSplitNode: TLOutwardNode = master_splitter.node
 
   private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
+  tile_fixer.suggestName(s"${busName}_tile_TLFIFOFixer")
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  port_fixer.suggestName(s"${busName}_port_TLFIFOFixer")
   private val pbus_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  pbus_fixer.suggestName(s"${busName}_pbus_TLFIFOFixer")
+  
   master_splitter.node :=* tile_fixer.node
   master_splitter.node :=* port_fixer.node
   pbus_fixer.node :*= outwardWWNode
@@ -54,28 +58,28 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromSyncTiles(params: BufferParams, name: Option[String] = None): TLInwardNode = {
     val buf = LazyModule(new TLBuffer(params))
-    name.foreach{n => buf.suggestName(s"SystemBus_${n}_TLBuffer")}
+    name.foreach{n => buf.suggestName(s"${busName}_${n}_TLBuffer")}
     tile_fixer.node :=* buf.node
     buf.node
   }
 
   def fromRationalTiles(dir: RationalDirection, name: Option[String] = None): TLRationalInwardNode = {
     val sink = LazyModule(new TLRationalCrossingSink(direction = dir))
-    name.foreach{n => sink.suggestName(s"SystemBus_${n}_TLRationalCrossingSink")}
+    name.foreach{n => sink.suggestName(s"${busName}_${n}_TLRationalCrossingSink")}
     tile_fixer.node :=* sink.node
     sink.node
   }
 
   def fromAsyncTiles(depth: Int, sync: Int, name: Option[String] = None): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    name.foreach{n => sink.suggestName(s"SystemBus_${n}_TLAsyncCrossingSink")}
+    name.foreach{n => sink.suggestName(s"${busName}_${n}_TLAsyncCrossignSink")}
     tile_fixer.node :=* sink.node
     sink.node
   }
 
   def fromSyncPorts(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
     val buffer = LazyModule(new TLBuffer(params))
-    name.foreach{ n => buffer.suggestName(s"SystemBus_${n}_TLBuffer") }
+    name.foreach{ n => buffer.suggestName(s"${busName}_${n}_TLBuffer") }
     port_fixer.node :=* buffer.node
     buffer.node
   }
@@ -86,7 +90,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromAsyncPorts(depth: Int = 8, sync: Int = 3, name : Option[String] = None): TLAsyncInwardNode = {
     val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    name.foreach{ n => sink.suggestName(s"SystemBus_${n}_TLAsyncCrossingSink") }
+    name.foreach{ n => sink.suggestName(s"${busName}_${n}_TLAsyncCrossingSink") }
     port_fixer.node :=* sink.node
     sink.node
   }
@@ -95,7 +99,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromRationalPorts(dir: RationalDirection, name: Option[String] = None): TLRationalInwardNode = {
     val sink = LazyModule(new TLRationalCrossingSink(dir))
-    name.foreach{ n => sink.suggestName(s"SystemBus_${n}_TLRationalCrossingSink") }
+    name.foreach{ n => sink.suggestName(s"${busName}_${n}_TLRationalCrossingSink") }
     port_fixer.node :=* sink.node
     sink.node
   }

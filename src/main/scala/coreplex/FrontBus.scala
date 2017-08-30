@@ -17,15 +17,14 @@ case class FrontBusParams(
 
 case object FrontBusParams extends Field[FrontBusParams]
 
-class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params) {
-  xbar.suggestName("FrontBus")
+class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "FrontBus") {
 
   def fromSyncMasters(params: BufferParams = BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode =
     fromSyncPorts(params, buffers, name)
 
   def fromSyncPorts(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode = {
     val buf = List.fill(buffers)(LazyModule(new TLBuffer(params)))
-    name.foreach { n => buf.zipWithIndex foreach {case (b, i) => b.suggestName(s"FrontBus_${n}_${i}_TLBuffer")}}
+    name.foreach { n => buf.zipWithIndex foreach {case (b, i) => b.suggestName(s"${busName}_${n}_${i}_TLBuffer")}}
     for(i<-1 until buffers) {
       buf(i).node :=* buf(i-1).node
     }

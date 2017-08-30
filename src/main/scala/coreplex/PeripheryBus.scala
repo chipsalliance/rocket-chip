@@ -21,8 +21,7 @@ case class PeripheryBusParams(
 
 case object PeripheryBusParams extends Field[PeripheryBusParams]
 
-class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends TLBusWrapper(params) {
-  xbar.suggestName("PeripheryBus")
+class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "PeripheryBus") {
 
   def toFixedWidthSingleBeatSlave(widthBytes: Int) = {
     TLFragmenter(widthBytes, params.blockBytes)(outwardWWNode)
