@@ -63,14 +63,16 @@ abstract class TLBusWrapper(params: TLBusParams)(implicit p: Parameters) extends
 
   def bufferToSlaves: TLOutwardNode = outwardBufNode 
 
-  def toAsyncSlaves(sync: Int = 3): TLAsyncOutwardNode = {
+  def toAsyncSlaves(sync: Int = 3)(name: Option[String] = None): TLAsyncOutwardNode = {
     val source = LazyModule(new TLAsyncCrossingSource(sync))
+    name.foreach(source.suggestName)
     source.node :*= outwardNode
     source.node
   }
 
-  def toRationalSlaves: TLRationalOutwardNode = {
+  def toRationalSlaves(name: Option[String] = None): TLRationalOutwardNode = {
     val source = LazyModule(new TLRationalCrossingSource())
+    name.foreach(source.suggestName)
     source.node :*= outwardNode
     source.node
   }

@@ -52,17 +52,17 @@ trait HasRocketTiles extends HasSystemBus
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(c, i)(pWithExtra))
         sbus.fromAsyncTiles(depth, sync) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync)
+        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync)(c.name)
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(c, i)(pWithExtra))
         sbus.fromRationalTiles(direction) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toRationalSlaves
+        wrapper.slaveNode :*= pbus.toRationalSlaves(c.name)
         wrapper
       }
     }
-    wrapper.suggestName("tile") // Try to stabilize this name for downstream tools
+    c.name.foreach(wrapper.suggestName) // Try to stabilize this name for downstream tools
 
     // Local Interrupts must be synchronized to the core clock
     // before being passed into this module.
