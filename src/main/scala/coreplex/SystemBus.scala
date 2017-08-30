@@ -36,7 +36,15 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
-  val toPeripheryBus: TLOutwardNode = pbus_fixer.node
+  private val pbusBuffer0 = LazyModule(new TLBuffer(BufferParams.default))
+  private val pbusBuffer1 = LazyModule(new TLBuffer(BufferParams.default))
+  private val pbusBuffer2 = LazyModule(new TLBuffer(BufferParams.default))
+  private val pbusBuffer3 = LazyModule(new TLBuffer(BufferParams.default))
+  pbusBuffer0.node :*= pbus_fixer.node
+  pbusBuffer1.node :*= pbusBuffer0.node
+  pbusBuffer2.node :*= pbusBuffer1.node
+  pbusBuffer3.node :*= pbusBuffer2.node
+  val toPeripheryBus: TLOutwardNode = pbusBuffer3.node
 
   val toMemoryBus: TLOutwardNode = outwardNode
 
