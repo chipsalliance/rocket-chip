@@ -31,7 +31,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   protected def inwardSplitNode: TLInwardNode = master_splitter.node
   protected def outwardSplitNode: TLOutwardNode = split_slaves_buffer.node
 
-  private val tile_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
+  private val tile_fixer = LazyModule(new TLBuffer(BufferParams.none)) //TLFIFOFixer(TLFIFOFixer.allUncacheable))
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
 
