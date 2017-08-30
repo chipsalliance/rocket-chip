@@ -12,12 +12,16 @@ import Chisel._
   *  rather than buffering.
   *  
   *  The 3 different types vary in their reset behavior:
+  *  AsyncResetShiftReg -- This is identical to the AsyncResetSynchronizerShiftReg, 
+  *      it is just named differently
+  *      to distinguish its use case. This is a ShiftRegister meant for timing, 
+  *      not for synchronization.
   *  AsyncResetSynchronizerShiftReg -- asynchronously reset to 0
   *  SynchronizerShiftReg -- no reset, pipeline only.
   *  
   */
 
-abstract class AbstractSynchronizerReg(w: Int = 1) extends Module {
+abstract class AbstractPipelineReg(w: Int = 1) extends Module {
 
   val io = new Bundle {
     val d = UInt(INPUT, width = w)
@@ -26,43 +30,57 @@ abstract class AbstractSynchronizerReg(w: Int = 1) extends Module {
 
 }
 
-object AbstractSynchronizerReg {
+object AbstractPipelineReg {
 
-  def apply [T <: Chisel.Data](gen: => AbstractSynchronizerReg, in: T, name: Option[String] = None): T = {
-    val sync_chain = Module(gen)
-    name.foreach{ sync_chain.suggestName(_) }
-    sync_chain.io.d := in.asUInt
+  def apply [T <: Chisel.Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
+    val chain = Module(gen)
+    name.foreach{ chain.suggestName(_) }
+    chain.io.d := in.asUInt
 
-    sync_chain.io.q.asTypeOf(in)
+    chain.io.q.asTypeOf(in)
   }
 }
 
-class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w) {
-  require(sync > 0, "Sync must be greater than 0.")
+class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String = "pipe") extends AbstractPipelineReg(w) {
+  require(depth > 0, "Depth must be greater than 0.")
 
-  override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}"
+  override def desiredName = s"AsyncResetShiftReg_w${w}_d${depth}_i${init}"
 
-  val syncv = List.tabulate(sync) { i =>
-    Module (new AsyncResetRegVec(w, 0)).suggestName(s"sync_${i}")
+  val chain = List.tabulate(depth) { i =>
+    Module (new AsyncResetRegVec(w, init)).suggestName(s"${name}_${i}")
   }
 
-  syncv.last.io.d := io.d
-  syncv.last.io.en := Bool(true)
+  chain.last.io.d := io.d
+  chain.last.io.en := Bool(true)
 
-  (syncv.init zip syncv.tail).foreach { case (sink, source) =>
+  (chain.init zip chain.tail).foreach { case (sink, source) =>
     sink.io.d := source.io.q
     sink.io.en := Bool(true)
   }
-  io.q := syncv.head.io.q
+  io.q := chain.head.io.q
+
+}
+
+object AsyncResetShiftReg {
+
+  def apply [T <: Chisel.Data](in: T, depth: Int = 1, init: Int = 0, name: Option[String] = None ): T =
+    AbstractPipelineReg(gen = {new AsyncResetShiftReg(in.getWidth, depth, init)}, in, name)
+}
+
+//Note that it is important to ovveride "name" in order to ensure that the Chisel dedup does
+// not try to merge instances of this with instances of the superclass.
+class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AsyncResetShiftReg(w, depth = sync, name = "sync") {
+  require(sync > 0, "Sync must be greater than 0.")
+  override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}"
 }
 
 object AsyncResetSynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = {new AsyncResetSynchronizerShiftReg(in.getWidth, sync)}, in, name)
+    AbstractPipelineReg(gen = {new AsyncResetSynchronizerShiftReg(in.getWidth, sync)}, in, name)
 }
 
-class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchronizerReg(w) {
+class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
   require(sync > 0, "Sync must be greater than 0.")
 
   override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
@@ -84,5 +102,5 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractSynchroniz
 object SynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractSynchronizerReg(gen = { new SynchronizerShiftReg(in.getWidth, sync)}, in, name)
+    AbstractPipelineReg(gen = { new SynchronizerShiftReg(in.getWidth, sync)}, in, name)
 }
