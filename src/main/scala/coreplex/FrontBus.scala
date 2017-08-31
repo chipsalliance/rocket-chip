@@ -23,7 +23,8 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
     fromSyncPorts(params, buffers, name)
 
   def fromSyncPorts(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode = {
-    val (in, out) = bufferChain(buffers, params, name)
+    require(params == BufferParams.default, "Only BufferParams.default supported for FrontBus at this time.")
+    val (in, out) = bufferChain(buffers, name)
     inwardNode :=* out
     in
   }
