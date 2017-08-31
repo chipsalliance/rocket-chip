@@ -35,34 +35,34 @@ trait HasRocketTiles extends HasSystemBus
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
   val wiringTuple = localIntNodes.zip(tileParams).zipWithIndex
-  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case ((lip, c), i) =>
+  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case ((lip, tp), i) =>
     val pWithExtra = p.alterPartial {
-      case TileKey => c
-      case BuildRoCC => c.rocc
+      case TileKey => tp
+      case BuildRoCC => tp.rocc
       case SharedMemoryTLEdge => sharedMemoryTLEdge
     }
 
     val wrapper = crossing match {
       case SynchronousCrossing(params) => {
-        val wrapper = LazyModule(new SyncRocketTile(c, i)(pWithExtra))
-        sbus.fromSyncTiles(params) :=* wrapper.masterNode 
+        val wrapper = LazyModule(new SyncRocketTile(tp, i)(pWithExtra))
+        sbus.fromSyncTiles(params, tp.externalBuffers, tp.name) :=* wrapper.masterNode
         wrapper.slaveNode :*= pbus.bufferToSlaves
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
-        val wrapper = LazyModule(new AsyncRocketTile(c, i)(pWithExtra))
-        sbus.fromAsyncTiles(depth, sync) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, c.name)
+        val wrapper = LazyModule(new AsyncRocketTile(tp, i)(pWithExtra))
+        sbus.fromAsyncTiles(depth, sync, tp.externalBuffers, tp.name) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name)
         wrapper
       }
       case RationalCrossing(direction) => {
-        val wrapper = LazyModule(new RationalRocketTile(c, i)(pWithExtra))
-        sbus.fromRationalTiles(direction) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toRationalSlaves(c.name)
+        val wrapper = LazyModule(new RationalRocketTile(tp, i)(pWithExtra))
+        sbus.fromRationalTiles(direction, tp.externalBuffers, tp.name) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name)
         wrapper
       }
     }
-    c.name.foreach(wrapper.suggestName) // Try to stabilize this name for downstream tools
+    tp.name.foreach(wrapper.suggestName) // Try to stabilize this name for downstream tools
 
     // Local Interrupts must be synchronized to the core clock
     // before being passed into this module.
@@ -77,7 +77,7 @@ trait HasRocketTiles extends HasSystemBus
     val periphIntXbar = LazyModule(new IntXbar)
     periphIntXbar.intnode := clint.intnode                  // msip+mtip
     periphIntXbar.intnode := plic.intnode                   // meip
-    if (c.core.useVM) periphIntXbar.intnode := plic.intnode // seip
+    if (tp.core.useVM) periphIntXbar.intnode := plic.intnode // seip
     wrapper.periphIntNode := periphIntXbar.intnode
 
     val coreIntXbar = LazyModule(new IntXbar)

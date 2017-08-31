@@ -19,7 +19,8 @@ case class RocketTileParams(
     btb: Option[BTBParams] = Some(BTBParams()),
     dataScratchpadBytes: Int = 0,
     boundaryBuffers: Boolean = false,
-    name: Option[String] = Some("tile")) extends TileParams {
+    name: Option[String] = Some("tile"),
+    externalBuffers: Int = 0) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }

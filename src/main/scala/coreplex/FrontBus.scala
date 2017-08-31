@@ -23,13 +23,9 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
     fromSyncPorts(params, buffers, name)
 
   def fromSyncPorts(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode = {
-    val buf = List.fill(buffers)(LazyModule(new TLBuffer(params)))
-    name.foreach { n => buf.zipWithIndex foreach {case (b, i) => b.suggestName(s"${busName}_${n}_${i}_TLBuffer")}}
-    for(i<-1 until buffers) {
-      buf(i).node :=* buf(i-1).node
-    }
-    inwardNode :=* buf(buffers-1).node
-    if(buffers>0) buf(0).node else inwardNode
+    val (in, out) = bufferChain(buffers, params, name)
+    inwardNode :=* out
+    in
   }
 
   def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode =

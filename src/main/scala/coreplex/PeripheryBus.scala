@@ -48,5 +48,5 @@ trait HasPeripheryBus extends HasSystemBus {
   val pbus = new PeripheryBus(pbusParams)
 
   // The peripheryBus hangs off of systemBus; here we convert TL-UH -> TL-UL
-  pbus.fromSystemBus := sbus.toPeripheryBus
+  pbus.fromSystemBus := sbus.toPeripheryBus(nBuffers = 4)
 }

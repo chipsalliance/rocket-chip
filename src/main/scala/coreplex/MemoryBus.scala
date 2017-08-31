@@ -44,7 +44,6 @@ case object MemoryBusParams extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "MemoryBus")(p) {
-
   def fromCoherenceManager: TLInwardNode = inwardBufNode
   def toDRAMController: TLOutwardNode = outwardBufNode
   def toVariableWidthSlave: TLOutwardNode = outwardFragNode
