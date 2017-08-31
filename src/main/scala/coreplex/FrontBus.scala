@@ -48,6 +48,6 @@ trait HasFrontBus extends HasSystemBus {
 
   val frontbus = new FrontBus(frontbusParams)
 
-  sbus.fromSyncPorts() := frontbus.toSystemBus
+  sbus.fromSyncPorts(name = Some("FrontBus")) := frontbus.toSystemBus
 
 }

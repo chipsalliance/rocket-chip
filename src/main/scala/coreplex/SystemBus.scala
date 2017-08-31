@@ -20,7 +20,7 @@ case object SystemBusParams extends Field[SystemBusParams]
 class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus") {
 
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
-  master_splitter.suggestName(s"${busName}_master_TLSplitter"}
+  master_splitter.suggestName(s"${busName}_master_TLSplitter"})
   inwardNode :=* master_splitter.node
   def busView = master_splitter.node.edgesIn.head
 
