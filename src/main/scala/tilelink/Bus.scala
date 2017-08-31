@@ -67,15 +67,15 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
   protected def inwardNode: TLInwardNode = xbar.node
   protected def inwardBufNode: TLInwardNode = master_buffer.node
 
-  protected def bufferChain(n: Int, params: BufferParams = BufferParams.default, name: Option[String] = None): (TLInwardNode, TLOutwardNode) = {
-    if (n > 0) {
-      val chain = List.fill(n)(LazyModule(new TLBuffer(params)))
+  protected def bufferChain(depth: Int, params: BufferParams = BufferParams.default, name: Option[String] = None): (TLInwardNode, TLOutwardNode) = {
+    if (depth > 0) {
+      val chain = List.fill(depth)(LazyModule(new TLBuffer(params)))
       name.foreach { n => chain.zipWithIndex foreach { case(b, i) => b.suggestName(s"${busName}_${n}_${i}_TLBuffer") } }
       (chain.init zip chain.tail) foreach { case(prev, next) => next.node :=* prev.node }
       (chain.head.node, chain.last.node)
     } else {
       val dummy = LazyModule(new TLBuffer(BufferParams.none))
-      dummy.suggestName(s"${busName}_${n}_empty_TLBuffer")
+      name.foreach { n => dummy.suggestName(s"${busName}_${n}_empty_TLBuffer")}
       (dummy.node, dummy.node)
     }
   }
