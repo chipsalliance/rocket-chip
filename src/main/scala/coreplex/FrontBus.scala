@@ -12,25 +12,36 @@ case class FrontBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.none // TODO should be BufferParams.none on BCE
+  slaveBuffering: BufferParams = BufferParams.none
 ) extends TLBusParams
 
 case object FrontBusParams extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "FrontBus") {
 
-  def fromSyncMasters(params: BufferParams = BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode =
-    fromSyncPorts(params, buffers, name)
+  private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  master_fixer.suggestName(s"${busName}_master_TLFIFOFixer")
+  inwardBufNode :=* master_fixer.node
 
-  def fromSyncPorts(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode = {
-    require(params == BufferParams.default, "Only BufferParams.default supported for FrontBus at this time.")
-    val (in, out) = bufferChain(buffers, name)
-    inwardNode :=* out
+  def fromSyncMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+    val (in, out) = bufferChain(addBuffers, name)
+    inwardBufNode :=* out
     in
   }
 
-  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, buffers: Int = 1, name: Option[String] = None): TLInwardNode =
-    fromSyncPorts(params, buffers, name)
+  def fromSyncPorts(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+    val (in, out) = bufferChain(addBuffers, name)
+    master_fixer.node :=* out
+    in
+  }
+
+  def fromSyncFIFOMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+    val (in, out) = bufferChain(addBuffers, name)
+    master_fixer.node :=* out
+    in
+  }
+
+  def fromCoherentChip: TLInwardNode = inwardNode
 
   def toSystemBus : TLOutwardNode = outwardBufNode
 
@@ -43,8 +54,8 @@ trait HasFrontBus extends HasSystemBus {
   private val frontbusParams = p(FrontBusParams)
   val frontbusBeatBytes = frontbusParams.beatBytes
 
-  val frontbus = new FrontBus(frontbusParams)
+  val fbus = new FrontBus(frontbusParams)
 
-  sbus.fromSyncPorts(name = Some("FrontBus")) := frontbus.toSystemBus
+  sbus.bufferFromMasters := fbus.toSystemBus
 
 }
