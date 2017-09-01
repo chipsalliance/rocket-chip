@@ -34,6 +34,7 @@ trait HasTileParameters {
   val usingBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
   val usingPTW = usingVM
   val usingDataScratchpad = tileParams.dcache.flatMap(_.scratch).isDefined
+
   val hartIdLen = p(MaxHartIdBits)
 
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size

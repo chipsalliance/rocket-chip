@@ -6,7 +6,7 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.coreplex._
-import freechips.rocketchip.rocket.{DCacheParams, PAddrBits}
+import freechips.rocketchip.rocket.{DCacheParams}
 import freechips.rocketchip.tile.{MaxHartIdBits, XLen}
 
 /** Actual testing target Configs */
@@ -21,7 +21,7 @@ class WithTraceGen(params: Seq[DCacheParams], nReqs: Int = 8192) extends Config(
   case GroundTestTilesKey => params.map { dcp => TraceGenParams(
     dcache = Some(dcp),
     wordBits = site(XLen),
-    addrBits = site(PAddrBits),
+    addrBits = 32,
     addrBag = {
       val nSets = 2
       val nWays = 1

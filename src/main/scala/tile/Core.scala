@@ -27,6 +27,9 @@ trait CoreParams {
   val nLocalInterrupts: Int
   val nL2TLBEntries: Int
   val jumpInFrontend: Boolean
+
+  def instBytes: Int = instBits / 8
+  def fetchBytes: Int = fetchWidth * instBytes
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -56,14 +59,14 @@ trait HasCoreParameters extends HasTileParameters {
   def pgIdxBits = 12
   def pgLevelBits = 10 - log2Ceil(xLen / 32)
   def vaddrBits = pgIdxBits + pgLevels * pgLevelBits
-  val paddrBits = p(PAddrBits)
+  def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
   def ppnBits = paddrBits - pgIdxBits
   def vpnBits = vaddrBits - pgIdxBits
   val pgLevels = p(PgLevels)
   val asIdBits = p(ASIdBits)
   val vpnBitsExtended = vpnBits + (vaddrBits < xLen).toInt
   val vaddrBitsExtended = vpnBitsExtended + pgIdxBits
-  val coreMaxAddrBits = paddrBits max vaddrBitsExtended
+  def coreMaxAddrBits = paddrBits max vaddrBitsExtended
   val maxPAddrBits = xLen match { case 32 => 34; case 64 => 56 }
   require(paddrBits <= maxPAddrBits)
 
