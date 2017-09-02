@@ -140,7 +140,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
   core.io.hartid := io.hartid // Pass through the hartid
   outer.frontend.module.io.cpu <> core.io.imem
-  outer.frontend.module.io.resetVector := io.resetVector
+  outer.frontend.module.io.reset_vector := io.reset_vector
   outer.frontend.module.io.hartid := io.hartid
   outer.dcache.module.io.hartid := io.hartid
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
@@ -205,7 +205,7 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
     }
     // signals that do not change based on crossing type:
     rocket.module.io.hartid := io.hartid
-    rocket.module.io.resetVector := io.resetVector
+    rocket.module.io.reset_vector := io.reset_vector
   }
 }
 

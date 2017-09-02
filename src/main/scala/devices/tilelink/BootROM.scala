@@ -81,5 +81,5 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
 trait HasPeripheryBootROMModuleImp extends LazyMultiIOModuleImp
     with HasResetVectorWire {
   val outer: HasPeripheryBootROM
-  global_reset_vector := UInt(outer.resetVector, width = resetVectorBits)
+  global_reset_vector := outer.resetVector.U
 }

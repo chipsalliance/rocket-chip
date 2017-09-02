@@ -64,13 +64,12 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
   DisableMonitors { implicit p => icache.slaveNode.map { _ := slaveNode } }
 }
 
-class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
+class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)
+    with HasExternallyDrivenTileConstants {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
   val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.bundleIn
-  val resetVector = UInt(INPUT, vaddrBitsExtended)
-  val hartid = UInt(INPUT, hartIdLen)
 }
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
@@ -90,7 +89,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
   val s2_valid = RegInit(false.B)
-  val s2_pc = RegInit(alignPC(io.resetVector))
+  val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io.reset_vector))
   val s2_btb_resp_valid = if (usingBTB) Reg(Bool()) else false.B
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_tlb_resp = Reg(tlb.io.resp)

@@ -98,24 +98,23 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
 /** Mix-ins for constructing tiles that have optional scratchpads */
 trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
-  val xLenBytes = p(XLen)/8
   val cacheBlockBytes = p(CacheBlockBytes)
-  val fetchBytes = tileParams.core.fetchBytes
 
   val slaveNode = TLInputNode() // Up to two uses for this input node:
 
   // 1) Frontend always exists, but may or may not have a scratchpad node
   // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
-  val fg = LazyModule(new TLFragmenter(fetchBytes, cacheBlockBytes, earlyAck=true))
-  val ww = LazyModule(new TLWidthWidget(xLenBytes))
-  val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xLenBytes, tileParams.core.useAtomics))))
+  val fg = LazyModule(new TLFragmenter(tileParams.core.fetchBytes, cacheBlockBytes, earlyAck=true))
+  val ww = LazyModule(new TLWidthWidget(xBytes))
+  val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
+    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics)))
+  }
 
   DisableMonitors { implicit p =>
     frontend.slaveNode :*= fg.node
     fg.node :*= ww.node
     ww.node :*= slaveNode
-    scratch foreach { lm => lm.node := TLFragmenter(xLenBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
+    scratch foreach { lm => lm.node := TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
   }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>

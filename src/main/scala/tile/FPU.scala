@@ -232,7 +232,7 @@ object FType {
 
 trait HasFPUParameters {
   val fLen: Int
-  val xLen: Int
+  def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
   val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
