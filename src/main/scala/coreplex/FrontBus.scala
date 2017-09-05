@@ -12,7 +12,7 @@ case class FrontBusParams(
   beatBytes: Int,
   blockBytes: Int,
   masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.none
+  slaveBuffering: BufferParams = BufferParams.default
 ) extends TLBusParams
 
 case object FrontBusParams extends Field[FrontBusParams]
@@ -56,6 +56,6 @@ trait HasFrontBus extends HasSystemBus {
 
   val fbus = new FrontBus(frontbusParams)
 
-  sbus.bufferFromMasters := fbus.toSystemBus
+  sbus.fromFrontBus := fbus.toSystemBus
 
 }

@@ -49,6 +49,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromCoherentChip: TLInwardNode = inwardNode
 
+  def fromFrontBus: TLInwardNode = master_splitter.node
+
   def fromSyncTiles(params: BufferParams, addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
     val tile_buf = LazyModule(new TLBuffer(params))
     name.foreach { n => tile_buf.suggestName(s"${busName}_${n}_TLBuffer") }
