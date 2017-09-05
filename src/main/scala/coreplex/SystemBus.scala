@@ -37,7 +37,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
-  def toPeripheryBus(addBuffers: Int): TLOutwardNode = {
+  def toPeripheryBus(addBuffers: Int = 0): TLOutwardNode = {
     val (in, out) = bufferChain(addBuffers, name = Some("pbus"))
     in := pbus_fixer.node
     out
