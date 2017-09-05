@@ -19,25 +19,24 @@ case object FrontBusParams extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "FrontBus") {
 
+  private val master_buffer = LazyModule(new TLBuffer(params.masterBuffering))
   private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  master_fixer.suggestName(s"${busName}_master_TLFIFOFixer")
-  inwardBufNode :=* master_fixer.node
 
-  def fromSyncMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
-    val (in, out) = bufferChain(addBuffers, name)
-    inwardBufNode :=* out
-    in
-  }
+  master_buffer.suggestName(s"${busName}_master_TLBuffer")
+  master_fixer.suggestName(s"${busName}_master_TLFIFOFixer")
+
+  master_fixer.node :=* master_buffer.node
+  inwardNode :=* master_fixer.node
 
   def fromSyncPorts(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
     val (in, out) = bufferChain(addBuffers, name)
-    master_fixer.node :=* out
+    master_buffer.node :=* out
     in
   }
 
-  def fromSyncFIFOMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+  def fromSyncMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
     val (in, out) = bufferChain(addBuffers, name)
-    master_fixer.node :=* out
+    master_buffer.node :=* out
     in
   }
 
