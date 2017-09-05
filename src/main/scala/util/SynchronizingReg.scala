@@ -22,21 +22,17 @@ import Chisel._
   */
 
 abstract class AbstractPipelineReg(w: Int = 1) extends Module {
-
   val io = new Bundle {
     val d = UInt(INPUT, width = w)
     val q = UInt(OUTPUT, width = w)
   }
-
 }
 
 object AbstractPipelineReg {
-
   def apply [T <: Chisel.Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
     val chain = Module(gen)
     name.foreach{ chain.suggestName(_) }
     chain.io.d := in.asUInt
-
     chain.io.q.asTypeOf(in)
   }
 }
@@ -58,16 +54,14 @@ class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String
     sink.io.en := Bool(true)
   }
   io.q := chain.head.io.q
-
 }
 
 object AsyncResetShiftReg {
-
   def apply [T <: Chisel.Data](in: T, depth: Int = 1, init: Int = 0, name: Option[String] = None ): T =
-    AbstractPipelineReg(gen = {new AsyncResetShiftReg(in.getWidth, depth, init)}, in, name)
+    AbstractPipelineReg(new AsyncResetShiftReg(in.getWidth, depth, init), in, name)
 }
 
-//Note that it is important to ovveride "name" in order to ensure that the Chisel dedup does
+// Note that it is important to ovveride "name" in order to ensure that the Chisel dedup does
 // not try to merge instances of this with instances of the superclass.
 class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AsyncResetShiftReg(w, depth = sync, name = "sync") {
   require(sync > 0, "Sync must be greater than 0.")
@@ -75,9 +69,8 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AsyncRes
 }
 
 object AsyncResetSynchronizerShiftReg {
-
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractPipelineReg(gen = {new AsyncResetSynchronizerShiftReg(in.getWidth, sync)}, in, name)
+    AbstractPipelineReg(new AsyncResetSynchronizerShiftReg(in.getWidth, sync), in, name)
 }
 
 class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
@@ -96,11 +89,9 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineRe
     sink := source
   }
   io.q := syncv.head
-
 }
 
 object SynchronizerShiftReg {
-
   def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractPipelineReg(gen = { new SynchronizerShiftReg(in.getWidth, sync)}, in, name)
+    AbstractPipelineReg(new SynchronizerShiftReg(in.getWidth, sync), in, name)
 }
