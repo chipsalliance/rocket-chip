@@ -86,10 +86,10 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
     source.node
   }
 
-  def toRationalSlaves(name: Option[String] = None): TLRationalOutwardNode = {
+  def toRationalSlaves(name: Option[String] = None, addBuffers: Int = 0): TLRationalOutwardNode = LeftStar { implicit p =>
     val source = LazyModule(new TLRationalCrossingSource())
     name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
-    source.node :*= outwardNode
+    source.node :=? TLBufferChain(addBuffers)(outwardNode)
     source.node
   }
 
