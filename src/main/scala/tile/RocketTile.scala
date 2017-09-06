@@ -20,7 +20,7 @@ case class RocketTileParams(
     dataScratchpadBytes: Int = 0,
     boundaryBuffers: Boolean = false,
     name: Option[String] = Some("tile"),
-    externalBuffers: Int = 0) extends TileParams {
+    externalMasterBuffers: Int = 0) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }
