@@ -6,9 +6,14 @@ class Field[T]
 
 abstract class View {
   final def apply[T](pname: Field[T]): T = apply(pname, this)
-  final def apply[T](pname: Field[T], site: View): T = find(pname, site).asInstanceOf[T]
+  final def apply[T](pname: Field[T], site: View): T = find(pname, site) match {
+    case Some(x) => x.asInstanceOf[T]
+  }
 
-  protected[config] def find(pname: Any, site: View): Any
+  final def lift[T](pname: Field[T]): Option[T] = lift(pname, this)
+  final def lift[T](pname: Field[T], site: View): Option[T] = find(pname, site).map(_.asInstanceOf[T])
+
+  protected[config] def find(pname: Any, site: View): Option[Any]
 }
 
 abstract class Parameters extends View {
@@ -16,7 +21,7 @@ abstract class Parameters extends View {
   final def alter(f: (View, View, View) => PartialFunction[Any,Any]): Parameters = Parameters(f) ++ this
   final def alterPartial(f: PartialFunction[Any,Any]):                Parameters = Parameters((_,_,_) => f) ++ this
 
-  protected[config] def chain(site: View, tail: View, pname: Any): Any
+  protected[config] def chain(site: View, tail: View, pname: Any): Option[Any]
   protected[config] def find(pname: Any, site: View) = chain(site, new TerminalView, pname)
 }
 
@@ -37,8 +42,7 @@ class Config(p: Parameters) extends Parameters {
 // Internal implementation:
 
 private class TerminalView extends View {
-  private class Unusable
-  def find(pname: Any, site: View): Any = pname match { case x: Unusable => () }
+  def find(pname: Any, site: View): Option[Any] = None
 }
 
 private class ChainView(head: Parameters, tail: View) extends View {
@@ -56,6 +60,6 @@ private class EmptyParameters extends Parameters {
 private class PartialParameters(f: (View, View, View) => PartialFunction[Any,Any]) extends Parameters {
   protected[config] def chain(site: View, tail: View, pname: Any) = {
     val g = f(site, this, tail)
-    if (g.isDefinedAt(pname)) g.apply(pname) else tail.find(pname, site)
+    if (g.isDefinedAt(pname)) Some(g.apply(pname)) else tail.find(pname, site)
   }
 }
