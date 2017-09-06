@@ -52,7 +52,7 @@ object PLICConsts
   require(hartBase >= enableBase(maxHarts))
 }
 
-case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7)
+case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, intStages: Int = 0)
 {
   require (maxPriorities >= 0)
   def address = AddressSet(baseAddress, PLICConsts.size-1)
@@ -166,7 +166,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       val (maxPri, maxDev) = findMax(effectivePriority)
 
       maxDevs(hart) := maxDev
-      harts(hart) := Reg(next = maxPri) > Cat(UInt(1), threshold(hart))
+      harts(hart) := ShiftRegister(Reg(next = maxPri) > Cat(UInt(1), threshold(hart)), params.intStages)
     }
 
     def priorityRegField(x: UInt) = if (nPriorities > 0) RegField(32, x) else RegField.r(32, x)
