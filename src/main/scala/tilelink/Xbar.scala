@@ -219,7 +219,7 @@ object TLXbar
   def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool]) = {
     val filtered = Wire(Vec(select.size, input))
     for (i <- 0 until select.size) {
-      filtered(i).bits := input.bits
+      filtered(i).bits := IdentityModule(input.bits) // force fanout of wires
       filtered(i).valid := input.valid && select(i)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))
