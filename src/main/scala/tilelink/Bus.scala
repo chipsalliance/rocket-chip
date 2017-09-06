@@ -68,9 +68,11 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
   protected def inwardBufNode: TLInwardNode = master_buffer.node
 
   protected def bufferChain(depth: Int, name: Option[String] = None): (TLInwardNode, TLOutwardNode) = {
-    val chain = LazyModule(new TLBufferChain(depth))
-    name.foreach { n => chain.suggestName(s"${busName}_${n}_TLBufferChain")}
-    (chain.nodeIn, chain.nodeOut)
+    RightStar { implicit p =>
+      val chain = LazyModule(new TLBufferChain(depth))
+      name.foreach { n => chain.suggestName(s"${busName}_${n}_TLBufferChain")}
+      (chain.nodeIn, chain.nodeOut)
+    }
   }
 
   def bufferFromMasters: TLInwardNode = inwardBufNode
