@@ -79,10 +79,14 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
 
   def bufferToSlaves: TLOutwardNode = outwardBufNode 
 
-  def toAsyncSlaves(sync: Int = 3, name: Option[String] = None, addBuffers: Int = 0): TLAsyncOutwardNode = {
+  def toSyncSlaves(name: Option[String] = None, addBuffers: Int = 0): TLOutwardNode = LeftStar { implicit p =>
+    TLBufferChain(addBuffers)(outwardBufNode)
+  }
+
+  def toAsyncSlaves(sync: Int = 3, name: Option[String] = None, addBuffers: Int = 0): TLAsyncOutwardNode = LeftStar { implicit p =>
     val source = LazyModule(new TLAsyncCrossingSource(sync))
     name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
-    source.node :*= outwardNode
+    source.node :=? TLBufferChain(addBuffers)(outwardNode)
     source.node
   }
 
