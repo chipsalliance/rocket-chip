@@ -77,3 +77,28 @@ object TLBuffer
     buffer.node
   }
 }
+
+class TLBufferChain(depth: Int)(implicit p: Parameters) extends LazyModule {
+
+  val nodeIn = TLInputNode()
+  val nodeOut = TLOutputNode()
+
+  val buf_chain = if (depth > 0) {
+    val chain = List.fill(depth)(LazyModule(new TLBuffer(BufferParams.default)))
+
+    (chain.init zip chain.tail) foreach { case(prev, next) => next.node :=* prev.node }
+    chain
+  } else {
+    List(LazyModule(new TLBuffer(BufferParams.none)))
+  }
+
+  buf_chain.head.node :=* nodeIn
+  nodeOut :=* buf_chain.last.node
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = new Bundle {
+      val in  = nodeIn.bundleIn
+      val out = nodeOut.bundleOut
+    }
+  }
+}
