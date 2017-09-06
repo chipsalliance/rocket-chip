@@ -52,3 +52,12 @@ class ShiftQueue[T <: Data](gen: T,
   io.mask := valid.asUInt
   io.count := PopCount(io.mask)
 }
+
+object ShiftQueue
+{
+  def apply[T <: Data](enq: DecoupledIO[T], entries: Int = 2, pipe: Boolean = false, flow: Boolean = false): DecoupledIO[T] = {
+    val q = Module(new ShiftQueue(enq.bits.cloneType, entries, pipe, flow))
+    q.io.enq <> enq
+    q.io.deq
+  }
+}
