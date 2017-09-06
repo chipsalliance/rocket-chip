@@ -3,6 +3,7 @@
 package freechips.rocketchip
 
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import freechips.rocketchip.config.Parameters
 
 package object diplomacy
 {
@@ -20,4 +21,20 @@ package object diplomacy
       bitIndexes(x.clearBit(lowest), lowest +: tail)
     }
   }
+
+  def LeftStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SINK_TO_SOURCE
+  })
+  def RightStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SOURCE_TO_SINK
+  })
+  def NoStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.NO_INFERENCE
+  })
+  def FlipStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => p
+      .lift(CardinalityInferenceDirectionKey)
+      .map(_.flip)
+      .getOrElse(CardinalityInferenceDirection.NO_INFERENCE)
+  })
 }
