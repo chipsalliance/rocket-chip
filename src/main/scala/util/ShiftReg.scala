@@ -4,7 +4,64 @@ package freechips.rocketchip.util
 
 import Chisel._
 
-/** These wrap behavioral 
+
+object ShiftReg {
+  /** Similar to Chisel ShiftRegister, but allows the user to
+    * specify a name and initial value. This is different from 
+    * ShiftRegInit in that it allows the enable signal to be specified. 
+    * Returns the n-cycle delayed version of the input signal.
+    *
+    * @param in input to delay
+    * @param n number of cycles to delay
+    * @param en enable the shift
+    * @param name set the elaborated name of the registers.
+    */
+  def apply[T <: Chisel.Data](in: T,
+    n: Int,
+    en: Chisel.Bool = Chisel.Bool(true),
+    name: Option[String] = None): T = {
+    // The order of tests reflects the expected use cases.
+    if (n != 0) {
+      val r = Chisel.RegEnable(apply(in, n-1, en, name), en)
+      name.foreach { na =>  r.suggestName(s"${na}_pipe_${n-1}") }
+      r
+    } else {
+      in
+    }
+  }
+  
+  /** Returns the n-cycle delayed version of the input signal with reset initialization.
+    *
+    * @param in input to delay
+    * @param n number of cycles to delay
+    * @param init reset value for each register in the shift
+    * @param en enable the shift
+    * @param name set the elaborated name of the registers.
+    */
+  def apply[T <: Chisel.Data](in: T, n: Int, init: T, en: Chisel.Bool, name: Option[String]): T = {
+    // The order of tests reflects the expected use cases.
+    if (n != 0) {
+      val r = Chisel.RegEnable(apply(in, n-1, init, en, name), init, en)
+      if (name.isDefined) r.suggestName(s"${name.get}_pipe_${n-1}")
+      r
+    } else {
+      in
+    }
+  }
+
+  def apply[T <: Chisel.Data](in: T, n: Int, init: T, name: Option[String]): T = {
+    apply(in, n, en = Bool(true), name)
+  }
+}
+// Similar to the Chisel ShiftRegister but allows the user to suggest a
+// name to the registers that get instantiated, and
+// to provide a reset value.
+object ShiftRegInit {
+  def apply[T <: Data](in: T, n: Int, init: T, name: Option[String] = None): T =
+  ShiftReg(in, n, init, en = Bool(true), name)
+}
+
+/** These wrap behavioral
   *  shift registers  into specific
   *  modules to allow for 
   *  backend flows to replace or constrain
