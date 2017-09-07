@@ -121,16 +121,16 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
   require (numPI.start >= 0, s"${name} accepts a negative number of inputs${lazyModule.line}")
 
-  private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding)]()
+  private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding, Parameters)]()
   private var iRealized = false
 
   protected[diplomacy] def iPushed = accPI.size
-  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit sourceInfo: SourceInfo) {
+  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
     val noIs = numPI.size == 1 && numPI.contains(0)
     require (!noIs, s"${name}${lazyModule.line} was incorrectly connected as a sink" + info)
     require (!iRealized, s"${name}${lazyModule.line} was incorrectly connected as a sink after it's .module was used" + info)
-    accPI += ((index, node, binding))
+    accPI += ((index, node, binding, p))
   }
 
   protected[diplomacy] lazy val iBindings = { iRealized = true; accPI.result() }
@@ -154,16 +154,16 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
   require (numPO.start >= 0, s"${name} accepts a negative number of outputs${lazyModule.line}")
 
-  private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding)]()
+  private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding, Parameters)]()
   private var oRealized = false
 
   protected[diplomacy] def oPushed = accPO.size
-  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit sourceInfo: SourceInfo) {
+  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
     val noOs = numPO.size == 1 && numPO.contains(0)
     require (!noOs, s"${name}${lazyModule.line} was incorrectly connected as a source" + info)
     require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after it's .module was used" + info)
-    accPO += ((index, node, binding))
+    accPO += ((index, node, binding, p))
   }
 
   protected[diplomacy] lazy val oBindings = { oRealized = true; accPO.result() }
@@ -186,22 +186,22 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
-    val oStars = oBindings.filter { case (_,_,b) => b == BIND_STAR }.size
-    val iStars = iBindings.filter { case (_,_,b) => b == BIND_STAR }.size
-    val oKnown = oBindings.map { case (_, n, b) => b match {
+    val oStars = oBindings.filter { case (_,_,b,_) => b == BIND_STAR }.size
+    val iStars = iBindings.filter { case (_,_,b,_) => b == BIND_STAR }.size
+    val oKnown = oBindings.map { case (_, n, b, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
-    val iKnown = iBindings.map { case (_, n, b) => b match {
+    val iKnown = iBindings.map { case (_, n, b, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
     val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
-    val oSum = oBindings.map { case (_, n, b) => b match {
+    val oSum = oBindings.map { case (_, n, b, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
       case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
-    val iSum = iBindings.map { case (_, n, b) => b match {
+    val iSum = iBindings.map { case (_, n, b, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
@@ -212,11 +212,11 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
   }
 
-  lazy val oPorts = oBindings.flatMap { case (i, n, _) =>
+  lazy val oPorts = oBindings.flatMap { case (i, n, _, _) =>
     val (start, end) = n.iPortMapping(i)
     (start until end) map { j => (j, n) }
   }
-  lazy val iPorts = iBindings.flatMap { case (i, n, _) =>
+  lazy val iPorts = iBindings.flatMap { case (i, n, _, _) =>
     val (start, end) = n.oPortMapping(i)
     (start until end) map { j => (j, n) }
   }
@@ -239,6 +239,9 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n), i) => inner.edgeI(n.oParams(o), i) }
   lazy val externalEdgesOut = if (externalOut) {edgesOut} else { Seq() }
   lazy val externalEdgesIn = if (externalIn) {edgesIn} else { Seq() }
+
+  lazy val paramsOut: Seq[Parameters] = (oPortMapping zip oBindings).flatMap { case ((s, e), b) => Seq.fill(e-s) { b._4 } }
+  lazy val paramsIn:  Seq[Parameters] = (iPortMapping zip iBindings).flatMap { case ((s, e), b) => Seq.fill(e-s) { b._4 } }
 
   val flip = false // needed for blind nodes
   private def flipO(b: HeterogeneousBag[BO]) = if (flip) b.flip else b
