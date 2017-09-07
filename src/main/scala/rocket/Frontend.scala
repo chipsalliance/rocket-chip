@@ -8,7 +8,7 @@ import Chisel.ImplicitConversions._
 import chisel3.core.withReset
 import freechips.rocketchip.config._
 import freechips.rocketchip.coreplex._
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
+import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -61,7 +61,7 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
 
   masterNode := icache.masterNode
   // Avoid breaking tile dedup due to address constants in the monitor
-  icache.slaveNode.map { _ connectButDontMonitor slaveNode }
+  DisableMonitors { implicit p => icache.slaveNode.map { _ := slaveNode } }
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {

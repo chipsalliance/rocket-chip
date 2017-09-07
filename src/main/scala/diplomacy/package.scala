@@ -34,4 +34,10 @@ package object diplomacy
   def FlipStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case CardinalityInferenceDirectionKey => p(CardinalityInferenceDirectionKey).flip
   })
+  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case MonitorsEnabled => true
+  })
+  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case MonitorsEnabled => false
+  })
 }
