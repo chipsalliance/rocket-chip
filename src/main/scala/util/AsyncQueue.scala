@@ -13,27 +13,12 @@ object GrayCounter {
   }
 }
 
-object UIntSyncChain {
-  def apply(in: UInt, sync: Int, name: String = "gray"): UInt = {
-    val syncv = List.tabulate(sync) { i =>
-      Module (new AsyncResetRegVec(w = in.getWidth, 0)).suggestName(s"${name}_sync_${i}")
-    }
-    syncv.last.io.d := in
-    syncv.last.io.en := Bool(true)
-      (syncv.init zip syncv.tail).foreach { case (sink, source) =>
-        sink.io.d := source.io.q
-        sink.io.en := Bool(true)
-      }
-    syncv.head.io.q
-  }
-}
-
 class AsyncValidSync(sync: Int, desc: String) extends Module {
   val io = new Bundle {
     val in = Bool(INPUT)
     val out = Bool(OUTPUT)
   }
-  io.out := UIntSyncChain(io.in.asUInt, sync, desc)(0)
+  io.out := AsyncResetSynchronizerShiftReg(io.in, sync, Some(desc))
 }
 
 class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = true, narrowData: Boolean = false) extends Module {
@@ -55,7 +40,7 @@ class AsyncQueueSource[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean =
   val sink_ready = Wire(init = Bool(true))
   val mem = Reg(Vec(depth, gen)) // This does NOT need to be reset at all.
   val widx = GrayCounter(bits+1, io.enq.fire(), !sink_ready, "widx_bin")
-  val ridx = UIntSyncChain(io.ridx, sync, "ridx_gray")
+  val ridx = AsyncResetSynchronizerShiftReg(io.ridx, sync, Some("ridx_gray"))
   val ready = sink_ready && widx =/= (ridx ^ UInt(depth | depth >> 1))
 
   val index = if (depth == 1) UInt(0) else io.widx(bits-1, 0) ^ (io.widx(bits, bits) << (bits-1))
@@ -112,7 +97,7 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
 
   val source_ready = Wire(init = Bool(true))
   val ridx = GrayCounter(bits+1, io.deq.fire(), !source_ready, "ridx_bin")
-  val widx = UIntSyncChain(io.widx, sync, "widx_gray")
+  val widx = AsyncResetSynchronizerShiftReg(io.widx, sync, Some("widx_gray"))
   val valid = source_ready && ridx =/= widx
 
   // The mux is safe because timing analysis ensures ridx has reached the register
@@ -125,7 +110,8 @@ class AsyncQueueSink[T <: Data](gen: T, depth: Int, sync: Int, safe: Boolean = t
   // be considered unless the asynchronously reset deq valid register is set.
   // It is possible that bits latches when the source domain is reset / has power cut
   // This is safe, because isolation gates brought mem low before the zeroed widx reached us
-  io.deq.bits  := RegEnable(io.mem(if(narrowData) UInt(0) else index), valid)
+  val deq_bits_nxt = Mux(valid, io.mem(if(narrowData) UInt(0) else index), io.deq.bits)
+  io.deq.bits  := SynchronizerShiftReg(deq_bits_nxt, sync = 1, name = Some("deq_bits_reg"))
 
   val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
   io.deq.valid := valid_reg && source_ready

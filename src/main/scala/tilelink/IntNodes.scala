@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.SynchronizerShiftReg
 import scala.collection.mutable.ListBuffer
 import scala.math.max
 
@@ -139,7 +140,7 @@ class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
     }
 
     (io.in zip io.out) foreach { case (in, out) =>
-      out := (0 to sync).foldLeft(in) { case (a, _) => RegNext(a) }
+      out := SynchronizerShiftReg(in, sync)
     }
   }
 }

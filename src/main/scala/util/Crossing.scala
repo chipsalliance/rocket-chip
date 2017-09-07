@@ -99,7 +99,7 @@ object LevelSyncCrossing {
       val out = Bool(OUTPUT)
     }
 
-    io.out := ShiftRegister(io.in, sync)
+    io.out := SynchronizerShiftReg(io.in, sync)
   }
 
   class SynchronizerFrontend(_clock: Clock) extends Module(Some(_clock)) {

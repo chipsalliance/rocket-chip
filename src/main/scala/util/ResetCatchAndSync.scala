@@ -15,12 +15,7 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
     val sync_reset = Bool(OUTPUT)
   }
 
-  val reset_n_catch_reg = Module (new AsyncResetRegVec(sync, 0))
-
-  reset_n_catch_reg.io.en := Bool(true)
-  reset_n_catch_reg.io.d  := Cat(Bool(true), reset_n_catch_reg.io.q >> 1)
-
-  io.sync_reset := ~reset_n_catch_reg.io.q(0)
+  io.sync_reset := ~AsyncResetSynchronizerShiftReg(Bool(true), sync)
 
 }
 
