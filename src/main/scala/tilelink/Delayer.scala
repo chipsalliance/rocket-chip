@@ -81,7 +81,7 @@ object TLDelayer
   // applied to the TL source node; y.node := TLDelayer(0.01)(x.node)
   def apply(q: Double)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val delayer = LazyModule(new TLDelayer(q))
-    delayer.node := x
+    delayer.node :=? x
     delayer.node
   }
 }

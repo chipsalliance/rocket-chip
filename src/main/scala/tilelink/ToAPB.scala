@@ -94,7 +94,7 @@ object TLToAPB
   // applied to the TL source node; y.node := TLToAPB()(x.node)
   def apply(aFlow: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): APBOutwardNode = {
     val apb = LazyModule(new TLToAPB(aFlow))
-    apb.node := x
+    apb.node :=? x
     apb.node
   }
 }

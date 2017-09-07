@@ -48,7 +48,7 @@ object TLMap
   // applied to the TL source node; y.node := TLMap(fn)(x.node)
   def apply(fn: AddressSet => BigInt)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val map = LazyModule(new TLMap(fn))
-    map.node := x
+    map.node :=? x
     map.node
   }
 }

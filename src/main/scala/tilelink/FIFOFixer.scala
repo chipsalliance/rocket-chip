@@ -122,7 +122,7 @@ object TLFIFOFixer
   // applied to the TL source node; y.node := TLFIFOFixer()(x.node)
   def apply(policy: Policy = all)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val fixer = LazyModule(new TLFIFOFixer(policy))
-    fixer.node := x
+    fixer.node :=? x
     fixer.node
   }
 }

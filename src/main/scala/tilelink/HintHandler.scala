@@ -100,7 +100,7 @@ object TLHintHandler
   // applied to the TL source node; y.node := TLHintHandler(x.node)
   def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
-    hints.node := x
+    hints.node :=? x
     hints.node
   }
 }

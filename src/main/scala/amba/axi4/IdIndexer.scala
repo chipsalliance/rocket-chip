@@ -84,7 +84,7 @@ object AXI4IdIndexer
   // applied to the AXI4 source node; y.node := AXI4IdIndexer(idBits)(x.node)
   def apply(idBits: Int)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val indexer = LazyModule(new AXI4IdIndexer(idBits))
-    indexer.node := x
+    indexer.node :=? x
     indexer.node
   }
 }

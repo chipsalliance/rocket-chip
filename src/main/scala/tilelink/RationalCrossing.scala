@@ -92,7 +92,7 @@ object TLRationalCrossingSource
   // applied to the TL source node; y.node := TLRationalCrossingSource()(x.node)
   def apply()(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLRationalOutwardNode = {
     val source = LazyModule(new TLRationalCrossingSource)
-    source.node := x
+    source.node :=? x
     source.node
   }
 }
@@ -102,7 +102,7 @@ object TLRationalCrossingSink
   // applied to the TL source node; y.node := TLRationalCrossingSink()(x.node)
   def apply(direction: RationalDirection = Symmetric)(x: TLRationalOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val sink = LazyModule(new TLRationalCrossingSink(direction))
-    sink.node := x
+    sink.node :=? x
     sink.node
   }
 }

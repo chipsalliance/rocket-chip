@@ -139,7 +139,7 @@ object AHBToTL
 {
   def apply()(x: AHBOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val tl = LazyModule(new AHBToTL)
-    tl.node := x
+    tl.node :=? x
     tl.node
   }
 }

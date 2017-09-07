@@ -208,7 +208,7 @@ object AXI4Fragmenter
   // applied to the AXI4 source node; y.node := AXI4Fragmenter()(x.node)
   def apply()(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val fragmenter = LazyModule(new AXI4Fragmenter)
-    fragmenter.node := x
+    fragmenter.node :=? x
     fragmenter.node
   }
 }

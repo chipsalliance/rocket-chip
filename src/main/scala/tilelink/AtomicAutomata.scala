@@ -265,7 +265,7 @@ object TLAtomicAutomata
   // applied to the TL source node; y.node := TLAtomicAutomata(x.node)
   def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
-    atomics.node := x
+    atomics.node :=? x
     atomics.node
   }
 

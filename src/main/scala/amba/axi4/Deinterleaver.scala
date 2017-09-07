@@ -108,7 +108,7 @@ object AXI4Deinterleaver
   // applied to the AXI4 source node; y.node := AXI4Deinterleaver()(x.node)
   def apply(maxReadBytes: Int)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val deinterleaver = LazyModule(new AXI4Deinterleaver(maxReadBytes))
-    deinterleaver.node := x
+    deinterleaver.node :=? x
     deinterleaver.node
   }
 }
