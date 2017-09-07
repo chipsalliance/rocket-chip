@@ -9,13 +9,14 @@ import Chisel._
 // to provide a reset value.
 object ShiftRegInit {
   def apply[T <: Data](in: T, n: Int, init: T, name: Option[String] = None): T =
-    (0 until n).foldLeft(in) {
-      case (next, i) => {
-        val r = Reg(next, next = next, init = init)
-        name.foreach { na => r.suggestName(s"${na}_${i}") }
-        r
-      }
+
+  (0 until n).foldRight(in) {
+    case (next, i) => {
+      val r = Reg(next, next = next, init = init)
+      name.foreach { na => r.suggestName(s"${na}_${i}") }
+      r
     }
+  }
 }
 
 /** These wrap behavioral
@@ -51,7 +52,7 @@ object AbstractPipelineReg {
 }
 
 class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String = "pipe") extends AbstractPipelineReg(w) {
-  require(depth > 0, "Depth must be greater than 0.")
+  require(depth >= 0, "Depth must be greater than or equal to 0.")
 
   override def desiredName = s"AsyncResetShiftReg_w${w}_d${depth}_i${init}"
 
