@@ -22,16 +22,16 @@ package object diplomacy
     }
   }
 
-  def LeftStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+  def SinkCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SINK_TO_SOURCE
   })
-  def RightStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+  def SourceCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SOURCE_TO_SINK
   })
-  def NoStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+  def UnaryCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.NO_INFERENCE
   })
-  def FlipStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+  def FlipCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case CardinalityInferenceDirectionKey => p(CardinalityInferenceDirectionKey).flip
   })
   def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
