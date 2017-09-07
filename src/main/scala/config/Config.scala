@@ -2,7 +2,11 @@
 
 package freechips.rocketchip.config
 
-abstract class Field[T]
+abstract class Field[T] private (val default: Option[T])
+{
+  def this() = this(None)
+  def this(x: T) = this(Some(x))
+}
 
 abstract class View {
   final def apply[T](pname: Field[T]): T = apply(pname, this)
@@ -42,7 +46,7 @@ class Config(p: Parameters) extends Parameters {
 // Internal implementation:
 
 private class TerminalView extends View {
-  def find[T](pname: Field[T], site: View): Option[T] = None
+  def find[T](pname: Field[T], site: View): Option[T] = pname.default
 }
 
 private class ChainView(head: Parameters, tail: View) extends View {
