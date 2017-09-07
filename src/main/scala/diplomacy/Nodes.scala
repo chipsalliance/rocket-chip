@@ -97,7 +97,7 @@ case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
 
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
-  val inward: InwardNode[DI, UI, BI]
+  protected[diplomacy] val inward: InwardNode[DI, UI, BI]
   def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
     inward.:=(h)(p, sourceInfo)
   def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
@@ -115,7 +115,7 @@ case object BIND_STAR  extends NodeBinding
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, UI, BI]
 {
-  val inward = this
+  protected[diplomacy] val inward = this
 
   protected[diplomacy] val numPI: Range.Inclusive
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
@@ -138,17 +138,17 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val iParams: Seq[UI]
-  val bundleIn: HeterogeneousBag[BI]
+  protected[diplomacy] val bundleIn: HeterogeneousBag[BI]
 }
 
 trait OutwardNodeHandle[DO, UO, BO <: Data]
 {
-  val outward: OutwardNode[DO, UO, BO]
+  protected[diplomacy] val outward: OutwardNode[DO, UO, BO]
 }
 
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO, UO, BO]
 {
-  val outward = this
+  protected[diplomacy] val outward = this
 
   protected[diplomacy] val numPO: Range.Inclusive
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
@@ -171,7 +171,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val oParams: Seq[DO]
-  val bundleOut: HeterogeneousBag[BO]
+  protected[diplomacy] val bundleOut: HeterogeneousBag[BO]
 }
 
 abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
