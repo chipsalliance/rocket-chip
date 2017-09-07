@@ -32,9 +32,6 @@ package object diplomacy
     case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.NO_INFERENCE
   })
   def FlipStar[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case CardinalityInferenceDirectionKey => p
-      .lift(CardinalityInferenceDirectionKey)
-      .map(_.flip)
-      .getOrElse(CardinalityInferenceDirection.NO_INFERENCE)
+    case CardinalityInferenceDirectionKey => p(CardinalityInferenceDirectionKey).flip
   })
 }
