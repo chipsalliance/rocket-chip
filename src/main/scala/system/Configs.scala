@@ -19,13 +19,13 @@ class BaseConfig extends Config(new BaseCoreplexConfig().alter((site,here,up) =>
   case JtagDTMKey => new JtagDTMKeyDefault()
   case NExtTopInterrupts => 2
   case ExtMem => MasterPortParams(
-                      base = 0x80000000L,
-                      size = 0x10000000L,
+                      base = x"8000_0000",
+                      size = x"1000_0000",
                       beatBytes = site(MemoryBusParams).beatBytes,
                       idBits = 4)
   case ExtBus => MasterPortParams(
-                      base = 0x60000000L,
-                      size = 0x20000000L,
+                      base = x"6000_0000",
+                      size = x"2000_0000",
                       beatBytes = site(MemoryBusParams).beatBytes,
                       idBits = 4)
   case ExtIn  => SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4)
