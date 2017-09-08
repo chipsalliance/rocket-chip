@@ -290,8 +290,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
   when ((s2_valid_masked && lrscCount > 0) || io.cpu.invalidate_lr) { lrscCount := 0 }
 
+  // don't perform data correction if it might clobber a recent store
+  val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
   // pending store buffer
-  val s2_correct = s2_data_error && !any_pstore_valid && Bool(usingDataScratchpad)
   val s2_valid_correct = s2_valid_hit_pre_data_ecc && s2_correct
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
   val pstore1_addr = RegEnable(s1_paddr, s1_valid_not_nacked && s1_write)
