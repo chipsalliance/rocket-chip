@@ -223,7 +223,7 @@ object TLToAXI4
   // applied to the TL source node; y.node := TLToAXI4(beatBytes)(x.node)
   def apply(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val axi4 = LazyModule(new TLToAXI4(beatBytes, combinational, adapterName, stripBits))
-    axi4.node := x
+    axi4.node :=? x
     axi4.node
   }
 

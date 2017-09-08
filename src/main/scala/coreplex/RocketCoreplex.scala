@@ -45,20 +45,20 @@ trait HasRocketTiles extends HasSystemBus
     val wrapper = crossing match {
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(tp, i)(pWithExtra))
-        sbus.fromSyncTiles(params, tp.externalBuffers, tp.name) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.bufferToSlaves
+        sbus.fromSyncTiles(params, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, tp.externalSlaveBuffers)
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(tp, i)(pWithExtra))
-        sbus.fromAsyncTiles(depth, sync, tp.externalBuffers, tp.name) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name)
+        sbus.fromAsyncTiles(depth, sync, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, tp.externalSlaveBuffers)
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(tp, i)(pWithExtra))
-        sbus.fromRationalTiles(direction, tp.externalBuffers, tp.name) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name)
+        sbus.fromRationalTiles(direction, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
+        wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, tp.externalSlaveBuffers)
         wrapper
       }
     }

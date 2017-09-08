@@ -68,26 +68,32 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
   protected def inwardBufNode: TLInwardNode = master_buffer.node
 
   protected def bufferChain(depth: Int, name: Option[String] = None): (TLInwardNode, TLOutwardNode) = {
-    val chain = LazyModule(new TLBufferChain(depth))
-    name.foreach { n => chain.suggestName(s"${busName}_${n}_TLBufferChain")}
-    (chain.nodeIn, chain.nodeOut)
+    SourceCardinality { implicit p =>
+      val chain = LazyModule(new TLBufferChain(depth))
+      name.foreach { n => chain.suggestName(s"${busName}_${n}_TLBufferChain")}
+      (chain.nodeIn, chain.nodeOut)
+    }
   }
 
   def bufferFromMasters: TLInwardNode = inwardBufNode
 
   def bufferToSlaves: TLOutwardNode = outwardBufNode 
 
-  def toAsyncSlaves(sync: Int = 3, name: Option[String] = None): TLAsyncOutwardNode = {
+  def toSyncSlaves(name: Option[String] = None, addBuffers: Int = 0): TLOutwardNode = SinkCardinality { implicit p =>
+    TLBufferChain(addBuffers)(outwardBufNode)
+  }
+
+  def toAsyncSlaves(sync: Int = 3, name: Option[String] = None, addBuffers: Int = 0): TLAsyncOutwardNode = SinkCardinality { implicit p =>
     val source = LazyModule(new TLAsyncCrossingSource(sync))
     name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
-    source.node :*= outwardNode
+    source.node :=? TLBufferChain(addBuffers)(outwardNode)
     source.node
   }
 
-  def toRationalSlaves(name: Option[String] = None): TLRationalOutwardNode = {
+  def toRationalSlaves(name: Option[String] = None, addBuffers: Int = 0): TLRationalOutwardNode = SinkCardinality { implicit p =>
     val source = LazyModule(new TLRationalCrossingSource())
     name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
-    source.node :*= outwardNode
+    source.node :=? TLBufferChain(addBuffers)(outwardNode)
     source.node
   }
 

@@ -26,7 +26,7 @@ class ShiftQueue[T <: Data](gen: T,
     val wdata = if (i == entries-1) io.enq.bits else Mux(valid(i+1), elts(i+1), io.enq.bits)
     val wen =
       Mux(io.deq.ready,
-          paddedValid(i+1) || io.enq.fire() && valid(i),
+          paddedValid(i+1) || io.enq.fire() && (Bool(i == 0 && !flow) || valid(i)),
           io.enq.fire() && paddedValid(i-1) && !valid(i))
     when (wen) { elts(i) := wdata }
 
@@ -51,4 +51,13 @@ class ShiftQueue[T <: Data](gen: T,
 
   io.mask := valid.asUInt
   io.count := PopCount(io.mask)
+}
+
+object ShiftQueue
+{
+  def apply[T <: Data](enq: DecoupledIO[T], entries: Int = 2, pipe: Boolean = false, flow: Boolean = false): DecoupledIO[T] = {
+    val q = Module(new ShiftQueue(enq.bits.cloneType, entries, pipe, flow))
+    q.io.enq <> enq
+    q.io.deq
+  }
 }

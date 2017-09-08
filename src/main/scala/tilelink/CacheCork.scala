@@ -131,7 +131,7 @@ object TLCacheCork
   // applied to the TL source node; y.node := TLCacheCork()(x.node)
   def apply(unsafe: Boolean = false)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val cork = LazyModule(new TLCacheCork(unsafe))
-    cork.node := x
+    cork.node :=? x
     cork.node
   }
 }

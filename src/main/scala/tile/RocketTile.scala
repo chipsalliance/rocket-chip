@@ -20,7 +20,8 @@ case class RocketTileParams(
     dataScratchpadBytes: Int = 0,
     boundaryBuffers: Boolean = false,
     name: Option[String] = Some("tile"),
-    externalBuffers: Int = 0) extends TileParams {
+    externalMasterBuffers: Int = 0,
+    externalSlaveBuffers: Int = 0) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }
@@ -190,7 +191,7 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
   def optionalSlaveBuffer(in: TLOutwardNode): TLOutwardNode = {
     if (rtp.boundaryBuffers) {
       val sbuf = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
-      sbuf.node connectButDontMonitorSlaves in
+      DisableMonitors { implicit p => sbuf.node :*= in }
       sbuf.node
     } else {
       in
@@ -216,7 +217,7 @@ class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters)
   masterNode :=* optionalMasterBuffer(rocket.masterNode)
 
   val slaveNode = new TLInputNode() { override def reverse = true }
-  rocket.slaveNode connectButDontMonitorSlaves optionalSlaveBuffer(slaveNode)
+  DisableMonitors { implicit p => rocket.slaveNode :*= optionalSlaveBuffer(slaveNode) }
 
   // Fully async interrupts need synchronizers.
   // Others need no synchronization.
@@ -236,8 +237,11 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
 
   val slaveNode = new TLAsyncInputNode() { override def reverse = true }
   val sink = LazyModule(new TLAsyncCrossingSink)
-  rocket.slaveNode connectButDontMonitorSlaves sink.node
-  sink.node connectButDontMonitorSlaves slaveNode
+
+  DisableMonitors { implicit p =>
+    rocket.slaveNode :*= sink.node
+    sink.node :*= slaveNode
+  }
 
   // Fully async interrupts need synchronizers,
   // as do those coming from the periphery clock.
@@ -260,8 +264,11 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
 
   val slaveNode = new TLRationalInputNode() { override def reverse = true }
   val sink = LazyModule(new TLRationalCrossingSink(SlowToFast))
-  sink.node connectButDontMonitorSlaves slaveNode
-  rocket.slaveNode connectButDontMonitorSlaves optionalSlaveBuffer(sink.node)
+
+  DisableMonitors { implicit p =>
+    sink.node :*= slaveNode
+    rocket.slaveNode :*= optionalSlaveBuffer(sink.node)
+  }
 
   // Fully async interrupts need synchronizers.
   // Those coming from periphery clock need a

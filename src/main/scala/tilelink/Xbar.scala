@@ -3,8 +3,30 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
+
+// Trades off slave port proximity against routing resource cost
+object ForceFanout
+{
+  def apply[T](
+    a: TriStateValue = TriStateValue.unset,
+    b: TriStateValue = TriStateValue.unset,
+    c: TriStateValue = TriStateValue.unset,
+    d: TriStateValue = TriStateValue.unset,
+    e: TriStateValue = TriStateValue.unset)(body: Parameters => T)(implicit p: Parameters) =
+  {
+    body(p.alterPartial {
+      case ForceFanoutKey => p(ForceFanoutKey) match {
+        case ForceFanoutParams(pa, pb, pc, pd, pe) =>
+          ForceFanoutParams(a.update(pa), b.update(pb), c.update(pc), d.update(pd), e.update(pe))
+      }
+    })
+  }
+}
+
+private case class ForceFanoutParams(a: Boolean, b: Boolean, c: Boolean, d: Boolean, e: Boolean)
+private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false, false, false, false))
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
@@ -157,11 +179,11 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
 
     // Fanout the input sources to the output sinks
-    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar.fanout(i.a, r) })
-    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar.fanout(o.b, r) })
-    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => TLXbar.fanout(i.c, r) })
-    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => TLXbar.fanout(o.d, r) })
-    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => TLXbar.fanout(i.e, r) })
+    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar.fanout(i.a, r, node.paramsOut.map(_(ForceFanoutKey).a)) })
+    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar.fanout(o.b, r, node.paramsIn .map(_(ForceFanoutKey).b)) })
+    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => TLXbar.fanout(i.c, r, node.paramsOut.map(_(ForceFanoutKey).c)) })
+    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => TLXbar.fanout(o.d, r, node.paramsIn .map(_(ForceFanoutKey).d)) })
+    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => TLXbar.fanout(i.e, r, node.paramsOut.map(_(ForceFanoutKey).e)) })
 
     // Arbitrate amongst the sources
     for (o <- 0 until out.size) {
@@ -216,10 +238,10 @@ object TLXbar
   }
 
   // Replicate an input port to each output port
-  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool]) = {
+  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool], force: Seq[Boolean] = Nil) = {
     val filtered = Wire(Vec(select.size, input))
     for (i <- 0 until select.size) {
-      filtered(i).bits := input.bits
+      filtered(i).bits := (if (force.lift(i).getOrElse(false)) IdentityModule(input.bits) else input.bits)
       filtered(i).valid := input.valid && select(i)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))

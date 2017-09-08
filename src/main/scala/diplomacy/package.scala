@@ -3,6 +3,7 @@
 package freechips.rocketchip
 
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import freechips.rocketchip.config.Parameters
 
 package object diplomacy
 {
@@ -20,4 +21,23 @@ package object diplomacy
       bitIndexes(x.clearBit(lowest), lowest +: tail)
     }
   }
+
+  def SinkCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SINK_TO_SOURCE
+  })
+  def SourceCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SOURCE_TO_SINK
+  })
+  def UnaryCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.NO_INFERENCE
+  })
+  def FlipCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case CardinalityInferenceDirectionKey => p(CardinalityInferenceDirectionKey).flip
+  })
+  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case MonitorsEnabled => true
+  })
+  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case MonitorsEnabled => false
+  })
 }

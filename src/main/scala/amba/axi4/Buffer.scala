@@ -62,7 +62,7 @@ object AXI4Buffer
     ar: BufferParams,
     r:  BufferParams)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
     val buffer = LazyModule(new AXI4Buffer(aw, w, b, ar, r))
-    buffer.node := x
+    buffer.node :=? x
     buffer.node
   }
 }

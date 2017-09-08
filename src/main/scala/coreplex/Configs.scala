@@ -36,9 +36,6 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PLICParams => PLICParams()
   case ClintParams => ClintParams()
   case DTSTimebase => BigInt(1000000) // 1 MHz
-  // TileLink connection global parameters
-  case TLMonitorBuilder => (args: TLMonitorArgs) => Some(LazyModule(new TLMonitor(args)))
-  case TLCombinationalCheck => false
   case TLBusDelayProbability => 0.0
 })
 

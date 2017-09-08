@@ -79,7 +79,7 @@ object TLIsolation
   // **** WARNING: the isolation functions must bring the values to 0 ****
   def apply(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(x: TLAsyncOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): (TLAsyncOutwardNode, () => (Bool, Bool)) = {
     val iso = LazyModule(new TLIsolation(fOut, fIn))
-    iso.node := x
+    iso.node :=? x
     (iso.node, () => (iso.module.io.iso_out, iso.module.io.iso_in))
   }
 }

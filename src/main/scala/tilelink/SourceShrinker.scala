@@ -83,7 +83,7 @@ object TLSourceShrinker
   // applied to the TL source node; y.node := TLSourceShrinker(n)(x.node)
   def apply(maxInFlight: Int)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val shrinker = LazyModule(new TLSourceShrinker(maxInFlight))
-    shrinker.node := x
+    shrinker.node :=? x
     shrinker.node
   }
 }

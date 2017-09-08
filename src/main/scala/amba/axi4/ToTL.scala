@@ -168,7 +168,7 @@ object AXI4ToTL
 {
   def apply()(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val tl = LazyModule(new AXI4ToTL)
-    tl.node := x
+    tl.node :=? x
     tl.node
   }
 }

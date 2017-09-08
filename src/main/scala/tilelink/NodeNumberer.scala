@@ -67,7 +67,7 @@ object TLNodeNumberer
   // applied to the TL source node; y.node := TLBuffer(x.node)
   def apply(nodeAddressOffset: Option[Int] = None)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val numberer = LazyModule(new TLNodeNumberer(nodeAddressOffset))
-    numberer.node := x
+    numberer.node :=? x
     numberer.node
   }
 }

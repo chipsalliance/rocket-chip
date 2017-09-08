@@ -195,7 +195,7 @@ object TLToAHB
   // applied to the TL source node; y.node := TLToAHB()(x.node)
   def apply(aFlow: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AHBOutwardNode = {
     val ahb = LazyModule(new TLToAHB(aFlow))
-    ahb.node := x
+    ahb.node :=? x
     ahb.node
   }
 }

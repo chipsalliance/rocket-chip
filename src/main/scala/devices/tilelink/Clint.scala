@@ -25,7 +25,7 @@ object ClintConsts
   def ints = 2
 }
 
-case class ClintParams(baseAddress: BigInt = 0x02000000)
+case class ClintParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 {
   def address = AddressSet(baseAddress, ClintConsts.size-1)
 }
@@ -71,8 +71,8 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
     val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 
     io.int.zipWithIndex.foreach { case (int, i) =>
-      int(0) := ipi(i)(0) // msip
-      int(1) := time.asUInt >= timecmp(i).asUInt // mtip
+      int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
+      int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
     }
 
     /* 0000 msip hart 0

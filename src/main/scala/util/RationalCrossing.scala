@@ -73,10 +73,10 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
 
   val deq = io.deq
   val enq = direction match {
-    case Symmetric  => Queue(io.enq, 1, flow=true)
-    case Flexible => Queue(io.enq, 2)
+    case Symmetric  => ShiftQueue(io.enq, 1, flow=true)
+    case Flexible => ShiftQueue(io.enq, 2)
     case FastToSlow => io.enq
-    case SlowToFast => Queue(io.enq, 2)
+    case SlowToFast => ShiftQueue(io.enq, 2)
   }
 
   val count = RegInit(UInt(0, width = 2))
@@ -109,9 +109,9 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   val enq = io.enq
   val deq = Wire(io.deq)
   direction match {
-    case Symmetric  => io.deq <> Queue(deq, 1, pipe=true)
-    case Flexible   => io.deq <> Queue(deq, 2)
-    case FastToSlow => io.deq <> Queue(deq, 2)
+    case Symmetric  => io.deq <> ShiftQueue(deq, 1, pipe=true)
+    case Flexible   => io.deq <> ShiftQueue(deq, 2)
+    case FastToSlow => io.deq <> ShiftQueue(deq, 2)
     case SlowToFast => io.deq <> deq
   }
 
