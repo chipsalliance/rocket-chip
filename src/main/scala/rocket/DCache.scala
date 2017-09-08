@@ -473,8 +473,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
   dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   // tag updates on refill
+  // ignore backpressure from metaArb, which can only be caused by tag ECC
+  // errors on hit-under-miss.  failing to write the new tag will leave the
+  // line invalid, so we'll simply request the line again later.
   metaArb.io.in(3).valid := grantIsCached && d_done
-  assert(!metaArb.io.in(3).valid || metaArb.io.in(3).ready)
   metaArb.io.in(3).bits.write := true
   metaArb.io.in(3).bits.way_en := s2_victim_way
   metaArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_req.addr(idxMSB, 0))
