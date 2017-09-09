@@ -19,7 +19,7 @@ case class JtagDTMConfig (
   // the lines of p(JtagDTMKey).idcodeManufId.U(11.W).
   debugIdleCycles  : Int)
 
-case object JtagDTMKey extends Field[JtagDTMConfig]
+case object JtagDTMKey extends Field[JtagDTMConfig](new JtagDTMKeyDefault())
 
 class JtagDTMKeyDefault extends JtagDTMConfig(
   idcodeVersion = 0,

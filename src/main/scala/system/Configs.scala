@@ -6,32 +6,27 @@ package freechips.rocketchip.system
 import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.coreplex._
-import freechips.rocketchip.devices.debug._
-import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.devices.debug.{IncludeJtagDTM, JtagDTMKey}
 import freechips.rocketchip.diplomacy._
 
 class BaseConfig extends Config(new BaseCoreplexConfig().alter((site,here,up) => {
   // DTS descriptive parameters
   case DTSModel => "freechips,rocketchip-unknown"
   case DTSCompat => Nil
+  case DTSTimebase => BigInt(1000000) // 1 MHz
   // External port parameters
-  case IncludeJtagDTM => false
-  case JtagDTMKey => new JtagDTMKeyDefault()
   case NExtTopInterrupts => 2
   case ExtMem => MasterPortParams(
                       base = x"8000_0000",
                       size = x"1000_0000",
-                      beatBytes = site(MemoryBusParams).beatBytes,
+                      beatBytes = site(MemoryBusKey).beatBytes,
                       idBits = 4)
   case ExtBus => MasterPortParams(
                       base = x"6000_0000",
                       size = x"2000_0000",
-                      beatBytes = site(MemoryBusParams).beatBytes,
+                      beatBytes = site(MemoryBusKey).beatBytes,
                       idBits = 4)
   case ExtIn  => SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4)
-  // Additional device Parameters
-  case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)))
-  case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
 }))
 
 class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)

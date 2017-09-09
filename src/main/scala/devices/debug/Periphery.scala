@@ -12,7 +12,7 @@ import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 
 /** A knob selecting one of the two possible debug interfaces */
-case object IncludeJtagDTM extends Field[Boolean]
+case object IncludeJtagDTM extends Field[Boolean](false)
 
 /** A wrapper bundle containing one of the two possible debug interfaces */
 class DebugIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
