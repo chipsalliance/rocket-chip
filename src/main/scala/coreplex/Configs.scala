@@ -22,7 +22,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case PeripheryBusKey => PeripheryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
-  case MemoryBusKey => MemoryBusParams(beatBytes = 8, blockBytes = site(CacheBlockBytes))
+  case MemoryBusKey => MemoryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)))
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
