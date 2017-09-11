@@ -14,7 +14,9 @@ case class BootROMParams(
   address: BigInt = 0x10000,
   size: Int = 0x10000,
   hang: BigInt = 0x10040,
-  contentFileName: String)
+  contentFileName: String,
+  patchFunction: ByteBuffer => Unit = (buffer: ByteBuffer) => ())
+
 case object BootROMParams extends Field[BootROMParams]
 
 /** Adds a boot ROM that contains the DTB describing the system's coreplex. */
@@ -24,6 +26,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
   private lazy val contents = {
     val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
     val rom = ByteBuffer.wrap(romdata)
+    params.patchFunction(rom)
     rom.array() ++ dtb.contents
   }
   def resetVector: BigInt = params.hang
