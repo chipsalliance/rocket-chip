@@ -6,7 +6,6 @@ import Chisel._
 
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.coreplex.CacheBlockBytes
-import freechips.rocketchip.rocket.PAddrBits
 import freechips.rocketchip.tilelink.ClientMetadata
 import freechips.rocketchip.util._
 

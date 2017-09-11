@@ -25,16 +25,32 @@ trait TileParams {
 
 trait HasTileParameters {
   implicit val p: Parameters
-  val tileParams: TileParams = p(TileKey)
+  def tileParams: TileParams = p(TileKey)
 
-  val usingVM = tileParams.core.useVM
-  val usingUser = tileParams.core.useUser || usingVM
-  val usingDebug = tileParams.core.useDebug
-  val usingRoCC = !tileParams.rocc.isEmpty
-  val usingBTB = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
-  val usingPTW = usingVM
-  val usingDataScratchpad = tileParams.dcache.flatMap(_.scratch).isDefined
-  val hartIdLen = p(MaxHartIdBits)
+  def usingVM: Boolean = tileParams.core.useVM
+  def usingUser: Boolean = tileParams.core.useUser || usingVM
+  def usingDebug: Boolean = tileParams.core.useDebug
+  def usingRoCC: Boolean = !tileParams.rocc.isEmpty
+  def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
+  def usingPTW: Boolean = usingVM
+  def usingDataScratchpad: Boolean = tileParams.dcache.flatMap(_.scratch).isDefined
+
+  def xLen: Int = p(XLen)
+  def xBytes: Int = xLen / 8
+  def pgIdxBits: Int = 12
+  def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
+  def vaddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
+  def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
+  def vpnBits: Int = vaddrBits - pgIdxBits
+  def ppnBits: Int = paddrBits - pgIdxBits
+  def pgLevels: Int = p(PgLevels)
+  def asIdBits: Int = p(ASIdBits)
+  def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
+  def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
+  def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
+
+  def hartIdLen: Int = p(MaxHartIdBits)
+  def resetVectorLen: Int = paddrBits min vaddrBitsExtended
 
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
 }
@@ -71,10 +87,9 @@ trait HasTileLinkMasterPortModule {
 }
 
 /** Some other standard inputs */
-trait HasExternallyDrivenTileConstants extends Bundle {
-  implicit val p: Parameters
-  val hartid = UInt(INPUT, p(MaxHartIdBits))
-  val resetVector = UInt(INPUT, p(ResetVectorBits))
+trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
+  val hartid = UInt(INPUT, hartIdLen)
+  val reset_vector = UInt(INPUT, resetVectorLen)
 }
 
 /** Base class for all Tiles that use TileLink */
@@ -89,4 +104,10 @@ class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
     with HasExternallyDrivenTileConstants
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
-    with HasTileLinkMasterPortModule
+    with HasTileParameters
+    with HasTileLinkMasterPortModule {
+  require(xLen == 32 || xLen == 64)
+  require(paddrBits <= maxPAddrBits)
+  require(resetVectorLen <= xLen)
+  require(resetVectorLen <= vaddrBitsExtended)
+}

@@ -12,8 +12,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends LazyModule
-    with HasCoreParameters {
+class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
@@ -97,23 +96,25 @@ class ScratchpadSlavePort(address: AddressSet)(implicit p: Parameters) extends L
 }
 
 /** Mix-ins for constructing tiles that have optional scratchpads */
-trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend with HasCoreParameters {
+trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
+  val cacheBlockBytes = p(CacheBlockBytes)
 
   val slaveNode = TLInputNode() // Up to two uses for this input node:
 
   // 1) Frontend always exists, but may or may not have a scratchpad node
   // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
-  val fg = LazyModule(new TLFragmenter(fetchWidth*coreInstBytes, p(CacheBlockBytes), earlyAck=true))
-  val ww = LazyModule(new TLWidthWidget(xLen/8))
-  val scratch = tileParams.dcache.flatMap(d => d.scratch.map(s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1)))))
+  val fg = LazyModule(new TLFragmenter(tileParams.core.fetchBytes, cacheBlockBytes, earlyAck=true))
+  val ww = LazyModule(new TLWidthWidget(xBytes))
+  val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
+    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics)))
+  }
 
   DisableMonitors { implicit p =>
     frontend.slaveNode :*= fg.node
     fg.node :*= ww.node
     ww.node :*= slaveNode
-    scratch foreach { lm => lm.node := TLFragmenter(xLen/8, p(CacheBlockBytes), earlyAck=true)(slaveNode) }
+    scratch foreach { lm => lm.node := TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
   }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>

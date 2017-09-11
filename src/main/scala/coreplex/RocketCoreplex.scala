@@ -101,14 +101,19 @@ trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
     with HasResetVectorWire
     with HasPeripheryDebugModuleImp {
   val outer: HasRocketTiles
-  val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs))
+
+  // TODO make this less gross and/or support tiles with differently sized reset vectors
+  def resetVectorBits: Int = outer.paddrBits
+  val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
+    case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
+  })))
 
   // Unconditionally wire up the non-diplomatic tile inputs
   outer.rocket_tiles.map(_.module).zip(rocket_tile_inputs).foreach { case(tile, wire) =>
     tile.clock := wire.clock
     tile.reset := wire.reset
     tile.io.hartid := wire.hartid
-    tile.io.resetVector := wire.resetVector
+    tile.io.reset_vector := wire.reset_vector
   }
 
   // Default values for tile inputs; may be overriden in other traits
@@ -116,7 +121,7 @@ trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
     wire.clock := clock
     wire.reset := reset
     wire.hartid := UInt(i)
-    wire.resetVector := global_reset_vector
+    wire.reset_vector := global_reset_vector
   }
 }
 

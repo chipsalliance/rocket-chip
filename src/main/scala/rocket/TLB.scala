@@ -13,7 +13,6 @@ import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case object PAddrBits extends Field[Int]
 case object PgLevels extends Field[Int]
 case object ASIdBits extends Field[Int]
 
