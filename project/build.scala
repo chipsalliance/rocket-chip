@@ -21,7 +21,8 @@ object BuildSettings extends Build {
 
   lazy val chisel = project in file("chisel3")
   lazy val hardfloat  = project.dependsOn(chisel)
-  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, hardfloat)
+  lazy val macros = project in file("macros")
+  lazy val rocketchip = (project in file(".")).settings(chipSettings).dependsOn(chisel, hardfloat, macros)
 
   lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
   lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
