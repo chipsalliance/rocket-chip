@@ -17,7 +17,9 @@ case class BootROMParams(
   address: BigInt = 0x10000,
   size: Int = 0x10000,
   hang: BigInt = 0x10040,
-  contentFileName: String)
+  contentFileName: String,
+  patchFunction: ByteBuffer => Unit = (buffer: ByteBuffer) => ())
+
 case object BootROMParams extends Field[BootROMParams]
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
@@ -68,6 +70,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
   private lazy val contents = {
     val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
     val rom = ByteBuffer.wrap(romdata)
+    params.patchFunction(rom)
     rom.array() ++ dtb.contents
   }
   def resetVector: BigInt = params.hang
