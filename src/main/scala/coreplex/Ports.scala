@@ -69,7 +69,10 @@ trait HasMasterAXI4MemPortBundle {
   val mem_axi4: HeterogeneousBag[AXI4Bundle]
   val nMemoryChannels: Int
   def connectSimAXIMem(dummy: Int = 1) = {
-    if (nMemoryChannels > 0) Module(LazyModule(new SimAXIMem(nMemoryChannels)).module).io.axi4 <> mem_axi4
+    if (nMemoryChannels > 0)  {
+      val mem = LazyModule(new SimAXIMem(nMemoryChannels))
+      Module(mem.module).io.axi4 <> mem_axi4
+    }
   }
 }
 
@@ -107,7 +110,8 @@ trait HasMasterAXI4MMIOPortBundle {
   implicit val p: Parameters
   val mmio_axi4: HeterogeneousBag[AXI4Bundle]
   def connectSimAXIMMIO(dummy: Int = 1) {
-    Module(LazyModule(new SimAXIMem(1, 4096)).module).io.axi4 <> mmio_axi4
+    val mmio_mem = LazyModule(new SimAXIMem(1, 4096))
+    Module(mmio_mem.module).io.axi4 <> mmio_axi4
   }
 }
 
