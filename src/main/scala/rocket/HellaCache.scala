@@ -195,8 +195,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 
 object HellaCache {
   def apply(hartid: Int, blocking: Boolean, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
-    if (blocking) LazyModule(new DCache(hartid, scratch))
-    else LazyModule(new NonBlockingDCache(hartid))
+    if (blocking) new DCache(hartid, scratch) else new NonBlockingDCache(hartid)
   }
 }
 
@@ -208,7 +207,7 @@ trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   def findScratchpadFromICache: Option[AddressSet]
   val hartid: Int
   var nDCachePorts = 0
-  val dcache = HellaCache(hartid, tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
+  val dcache = LazyModule(HellaCache(hartid, tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _))
   tileBus.node := dcache.node
 }
 
