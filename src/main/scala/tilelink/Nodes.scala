@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.RationalDirection
 import scala.collection.mutable.ListBuffer
 
-case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => LazyModule(new TLMonitor(args)))
+case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => new TLMonitor(args))
 case object TLCombinationalCheck extends Field[Boolean](false)
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
@@ -26,7 +26,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 
   override def connect(edges: () => Seq[TLEdgeIn], bundles: () => Seq[(TLBundle, TLBundle)], enableMonitoring: Boolean)
                       (implicit p: Parameters, sourceInfo: SourceInfo): (Option[TLMonitorBase], () => Unit) = {
-    val monitor = if (enableMonitoring) Some(p(TLMonitorBuilder)(TLMonitorArgs(edges, sourceInfo, p))) else None
+    val monitor = if (enableMonitoring) Some(LazyModule(p(TLMonitorBuilder)(TLMonitorArgs(edges, sourceInfo, p)))) else None
     (monitor, () => {
       val eval = bundles ()
       monitor.foreach { m => (eval zip m.module.io.in) foreach { case ((i,o), m) => m := TLBundleSnoop(o,i) } }
