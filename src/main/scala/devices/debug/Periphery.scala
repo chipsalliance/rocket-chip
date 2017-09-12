@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import Chisel._
-import chisel3.core.{IntParam}
+import chisel3.core.{IntParam, Input, Output}
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.devices.tilelink._
@@ -12,10 +12,10 @@ import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 
 /** A knob selecting one of the two possible debug interfaces */
-case object IncludeJtagDTM extends Field[Boolean]
-
+case object IncludeJtagDTM extends Field[Boolean](false)
 /** A wrapper bundle containing one of the two possible debug interfaces */
-class DebugIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
+
+class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
   val clockeddmi = (!p(IncludeJtagDTM)).option(new ClockedDMIIO().flip)
   val systemjtag = (p(IncludeJtagDTM)).option(new SystemJTAGIO)
   val ndreset    = Bool(OUTPUT)
@@ -48,7 +48,6 @@ trait HasPeripheryDebugBundle {
     }
   }
 }
-
 trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryDebugBundle {
   val outer: HasPeripheryDebug
 
@@ -57,6 +56,9 @@ trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryD
   debug.clockeddmi.foreach { dbg => outer.debug.module.io.dmi <> dbg }
 
   val dtm = debug.systemjtag.map { sj =>
+
+    val psd = debug.psd.getOrElse(Wire(init = new PSDTestModeIO().fromBits(0.U)))
+
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
     dtm.io.jtag <> sj.jtag
 
@@ -67,7 +69,9 @@ trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryD
 
     outer.debug.module.io.dmi.dmi <> dtm.io.dmi
     outer.debug.module.io.dmi.dmiClock := sj.jtag.TCK
-    outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch")
+
+    outer.debug.module.io.psd <> psd
+    outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd.test_mode, psd.test_mode_reset)
     dtm
   }
 
