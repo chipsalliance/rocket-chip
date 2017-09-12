@@ -10,8 +10,8 @@ import freechips.rocketchip.tilelink.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
 import scala.math.{min,max}
 
-class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
+  extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address       = Seq(address),
       executable    = executable,
@@ -75,12 +75,6 @@ class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int
     b.bits.resp := AXI4Parameters.RESP_OKAY
     b.bits.user.foreach { _ := out.bits.extra }
   }
-}
-
-object AXI4RegisterNode
-{
-  def apply(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false) =
-    new AXI4RegisterNode(address, concurrency, beatBytes, undefZero, executable)
 }
 
 // These convenience methods below combine to make it possible to create a AXI4

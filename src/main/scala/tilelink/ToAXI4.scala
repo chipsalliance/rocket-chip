@@ -10,7 +10,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import scala.math.{min, max}
 
-case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0) extends MixedAdapterNode(TLImp, AXI4Imp)(
+case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
     p.clients.foreach { c =>
       require (c.sourceId.start % (1 << stripBits) == 0 &&

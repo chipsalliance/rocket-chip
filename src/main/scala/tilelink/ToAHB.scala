@@ -11,7 +11,7 @@ import freechips.rocketchip.util._
 import scala.math.{min, max}
 import AHBParameters._
 
-case class TLToAHBNode() extends MixedAdapterNode(TLImp, AHBImp)(
+case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
   dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
     AHBMasterPortParameters(masters)

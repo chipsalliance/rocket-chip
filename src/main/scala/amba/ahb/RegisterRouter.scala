@@ -10,8 +10,8 @@ import freechips.rocketchip.tilelink.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
 import scala.math.{min,max}
 
-class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends AHBSlaveNode(Seq(AHBSlavePortParameters(
+case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
+  extends SinkNode(AHBImp)(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
@@ -65,12 +65,6 @@ class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
     out.ready := Bool(true)
     assert (d_phase || !out.valid)
   }
-}
-
-object AHBRegisterNode
-{
-  def apply(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false) =
-    new AHBRegisterNode(address, concurrency, beatBytes, undefZero, executable)
 }
 
 // These convenience methods below combine to make it possible to create a AHB

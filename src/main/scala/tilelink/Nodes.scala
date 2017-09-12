@@ -64,57 +64,61 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 }
 
 // Nodes implemented inside modules
-case class TLIdentityNode() extends IdentityNode(TLImp)
-case class TLClientNode(portParams: Seq[TLClientPortParameters]) extends SourceNode(TLImp)(portParams)
-case class TLManagerNode(portParams: Seq[TLManagerPortParameters]) extends SinkNode(TLImp)(portParams)
+case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)
+case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams)
+case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams)
 
 object TLClientNode
 {
-  def apply(params: TLClientParameters) =
+  def apply(params: TLClientParameters)(implicit valName: ValName) =
     new TLClientNode(Seq(TLClientPortParameters(Seq(params))))
 }
 
 object TLManagerNode
 {
-  def apply(beatBytes: Int, params: TLManagerParameters) =
+  def apply(beatBytes: Int, params: TLManagerParameters)(implicit valName: ValName) =
     new TLManagerNode(Seq(TLManagerPortParameters(Seq(params), beatBytes, minLatency = 0)))
 }
 
 case class TLAdapterNode(
   clientFn:  TLClientPortParameters  => TLClientPortParameters,
   managerFn: TLManagerPortParameters => TLManagerPortParameters,
-  num:       Range.Inclusive = 0 to 999)
+  num:       Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
   extends AdapterNode(TLImp)(clientFn, managerFn, num)
 
 case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
   managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
   numClientPorts:  Range.Inclusive = 1 to 999,
-  numManagerPorts: Range.Inclusive = 1 to 999)
+  numManagerPorts: Range.Inclusive = 1 to 999)(
+  implicit valName: ValName)
   extends NexusNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
 case class TLSplitterNode(
   clientFn:        SplitterArg[TLClientPortParameters]  => Seq[TLClientPortParameters],
   managerFn:       SplitterArg[TLManagerPortParameters] => Seq[TLManagerPortParameters],
   numClientPorts:  Range.Inclusive = 0 to 999,
-  numManagerPorts: Range.Inclusive = 0 to 999)
+  numManagerPorts: Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
   extends SplitterNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
 abstract class TLCustomNode(
   numClientPorts:  Range.Inclusive,
-  numManagerPorts: Range.Inclusive)
+  numManagerPorts: Range.Inclusive)(
+  implicit valName: ValName)
   extends CustomNode(TLImp)(numClientPorts, numManagerPorts)
 
 // Nodes passed from an inner module
-case class TLOutputNode() extends OutputNode(TLImp)
-case class TLInputNode() extends InputNode(TLImp)
+case class TLOutputNode()(implicit valName: ValName) extends OutputNode(TLImp)
+case class TLInputNode()(implicit valName: ValName) extends InputNode(TLImp)
 
 // Nodes used for external ports
-case class TLBlindOutputNode(portParams: Seq[TLManagerPortParameters]) extends BlindOutputNode(TLImp)(portParams)
-case class TLBlindInputNode(portParams: Seq[TLClientPortParameters]) extends BlindInputNode(TLImp)(portParams)
+case class TLBlindOutputNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends BlindOutputNode(TLImp)(portParams)
+case class TLBlindInputNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends BlindInputNode(TLImp)(portParams)
 
-case class TLInternalOutputNode(portParams: Seq[TLManagerPortParameters]) extends InternalOutputNode(TLImp)(portParams)
-case class TLInternalInputNode(portParams: Seq[TLClientPortParameters]) extends InternalInputNode(TLImp)(portParams)
+case class TLInternalOutputNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends InternalOutputNode(TLImp)(portParams)
+case class TLInternalInputNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends InternalInputNode(TLImp)(portParams)
 
 /** Synthesizeable unit tests */
 import freechips.rocketchip.unittest._
@@ -156,16 +160,16 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
    pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
-case class TLAsyncIdentityNode() extends IdentityNode(TLAsyncImp)
-case class TLAsyncOutputNode() extends OutputNode(TLAsyncImp)
-case class TLAsyncInputNode() extends InputNode(TLAsyncImp)
+case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)
+case class TLAsyncOutputNode()(implicit valName: ValName) extends OutputNode(TLAsyncImp)
+case class TLAsyncInputNode()(implicit valName: ValName) extends InputNode(TLAsyncImp)
 
-case class TLAsyncSourceNode(sync: Int)
+case class TLAsyncSourceNode(sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = sync+1) }) // discard cycles in other clock domain
 
-case class TLAsyncSinkNode(depth: Int, sync: Int)
+case class TLAsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(TLAsyncImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = sync+1) },
     uFn = { p => TLAsyncManagerPortParameters(depth, p) })
@@ -186,16 +190,16 @@ object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalM
    pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
-case class TLRationalIdentityNode() extends IdentityNode(TLRationalImp)
-case class TLRationalOutputNode() extends OutputNode(TLRationalImp)
-case class TLRationalInputNode() extends InputNode(TLRationalImp)
+case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)
+case class TLRationalOutputNode()(implicit valName: ValName) extends OutputNode(TLRationalImp)
+case class TLRationalInputNode()(implicit valName: ValName) extends InputNode(TLRationalImp)
 
-case class TLRationalSourceNode()
+case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(
     dFn = { p => TLRationalClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = 1) }) // discard cycles from other clock domain
 
-case class TLRationalSinkNode(direction: RationalDirection)
+case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: ValName)
   extends MixedAdapterNode(TLRationalImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = 1) },
     uFn = { p => TLRationalManagerPortParameters(direction, p) })

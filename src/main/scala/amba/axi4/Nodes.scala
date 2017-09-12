@@ -26,22 +26,23 @@ object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters
 }
 
 // Nodes implemented inside modules
-case class AXI4IdentityNode() extends IdentityNode(AXI4Imp)
-case class AXI4MasterNode(portParams: Seq[AXI4MasterPortParameters]) extends SourceNode(AXI4Imp)(portParams)
-case class AXI4SlaveNode(portParams: Seq[AXI4SlavePortParameters]) extends SinkNode(AXI4Imp)(portParams)
+case class AXI4IdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4Imp)
+case class AXI4MasterNode(portParams: Seq[AXI4MasterPortParameters])(implicit valName: ValName) extends SourceNode(AXI4Imp)(portParams)
+case class AXI4SlaveNode(portParams: Seq[AXI4SlavePortParameters])(implicit valName: ValName) extends SinkNode(AXI4Imp)(portParams)
 case class AXI4AdapterNode(
   masterFn:  AXI4MasterPortParameters => AXI4MasterPortParameters,
   slaveFn:   AXI4SlavePortParameters  => AXI4SlavePortParameters,
-  numPorts:  Range.Inclusive = 0 to 999)
+  numPorts:  Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
   extends AdapterNode(AXI4Imp)(masterFn, slaveFn, numPorts)
 
 // Nodes passed from an inner module
-case class AXI4OutputNode() extends OutputNode(AXI4Imp)
-case class AXI4InputNode() extends InputNode(AXI4Imp)
+case class AXI4OutputNode()(implicit valName: ValName) extends OutputNode(AXI4Imp)
+case class AXI4InputNode()(implicit valName: ValName) extends InputNode(AXI4Imp)
 
 // Nodes used for external ports
-case class AXI4BlindOutputNode(portParams: Seq[AXI4SlavePortParameters]) extends BlindOutputNode(AXI4Imp)(portParams)
-case class AXI4BlindInputNode(portParams: Seq[AXI4MasterPortParameters]) extends BlindInputNode(AXI4Imp)(portParams)
+case class AXI4BlindOutputNode(portParams: Seq[AXI4SlavePortParameters])(implicit valName: ValName) extends BlindOutputNode(AXI4Imp)(portParams)
+case class AXI4BlindInputNode(portParams: Seq[AXI4MasterPortParameters])(implicit valName: ValName) extends BlindInputNode(AXI4Imp)(portParams)
 
-case class AXI4InternalOutputNode(portParams: Seq[AXI4SlavePortParameters]) extends InternalOutputNode(AXI4Imp)(portParams)
-case class AXI4InternalInputNode(portParams: Seq[AXI4MasterPortParameters]) extends InternalInputNode(AXI4Imp)(portParams)
+case class AXI4InternalOutputNode(portParams: Seq[AXI4SlavePortParameters])(implicit valName: ValName) extends InternalOutputNode(AXI4Imp)(portParams)
+case class AXI4InternalInputNode(portParams: Seq[AXI4MasterPortParameters])(implicit valName: ValName) extends InternalInputNode(AXI4Imp)(portParams)

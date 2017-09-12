@@ -9,15 +9,16 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.util.HeterogeneousBag
 import scala.math.{min,max}
 
-class TLRegisterNode(
+case class TLRegisterNode(
     address:     Seq[AddressSet],
     device:      Device,
     deviceKey:   String  = "reg/control",
     concurrency: Int     = 0,
     beatBytes:   Int     = 4,
     undefZero:   Boolean = true,
-    executable:  Boolean = false)
-  extends TLManagerNode(Seq(TLManagerPortParameters(
+    executable:  Boolean = false)(
+    implicit valName: ValName)
+  extends SinkNode(TLImp)(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = address,
       resources          = Seq(Resource(device, deviceKey)),
@@ -81,20 +82,6 @@ class TLRegisterNode(
   }
 }
 
-object TLRegisterNode
-{
-  def apply(
-      address:     Seq[AddressSet],
-      device:      Device,
-      deviceKey:   String  = "reg/control",
-      concurrency: Int     = 0,
-      beatBytes:   Int     = 4,
-      undefZero:   Boolean = true,
-      executable:  Boolean = false) =
-    new TLRegisterNode(address, device, deviceKey, concurrency, beatBytes, undefZero, executable)
-}
-
-// These convenience methods below combine to make it possible to create a TL2 
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 

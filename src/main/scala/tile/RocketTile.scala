@@ -244,7 +244,7 @@ class SyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters)
   val masterNode = TLOutputNode()
   masterNode :=* optionalMasterBuffer(rocket.masterNode)
 
-  val slaveNode = new TLInputNode() { override def reverse = true }
+  val slaveNode = new TLInputNode()(ValName("slave")) { override def reverse = true }
   DisableMonitors { implicit p => rocket.slaveNode :*= optionalSlaveBuffer(slaveNode) }
 
   // Fully async interrupts need synchronizers.
@@ -265,7 +265,7 @@ class AsyncRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Parameters
   source.node :=* rocket.masterNode
   masterNode :=* source.node
 
-  val slaveNode = new TLAsyncInputNode() { override def reverse = true }
+  val slaveNode = new TLAsyncInputNode()(ValName("slave")) { override def reverse = true }
   val sink = LazyModule(new TLAsyncCrossingSink)
 
   DisableMonitors { implicit p =>
@@ -294,7 +294,7 @@ class RationalRocketTile(rtp: RocketTileParams, hartid: Int)(implicit p: Paramet
   source.node :=* optionalMasterBuffer(rocket.masterNode)
   masterNode :=* source.node
 
-  val slaveNode = new TLRationalInputNode() { override def reverse = true }
+  val slaveNode = new TLRationalInputNode()(ValName("slave")) { override def reverse = true }
   val sink = LazyModule(new TLRationalCrossingSink(SlowToFast))
 
   DisableMonitors { implicit p =>

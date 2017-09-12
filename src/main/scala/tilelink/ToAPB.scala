@@ -10,7 +10,7 @@ import freechips.rocketchip.amba.apb._
 import scala.math.{min, max}
 import APBParameters._
 
-case class TLToAPBNode() extends MixedAdapterNode(TLImp, APBImp)(
+case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
     val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath) }
     APBMasterPortParameters(masters)

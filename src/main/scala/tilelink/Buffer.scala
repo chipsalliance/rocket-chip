@@ -13,7 +13,7 @@ class TLBufferNode (
   b: BufferParams,
   c: BufferParams,
   d: BufferParams,
-  e: BufferParams)(implicit p: Parameters) extends TLAdapterNode(
+  e: BufferParams)(implicit valName: ValName) extends TLAdapterNode(
     clientFn  = { p => p.copy(minLatency = p.minLatency + b.latency + c.latency) },
     managerFn = { p => p.copy(minLatency = p.minLatency + a.latency + d.latency) }
 ) {

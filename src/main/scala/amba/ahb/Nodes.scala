@@ -25,23 +25,24 @@ object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, A
 }
 
 // Nodes implemented inside modules
-case class AHBIdentityNode() extends IdentityNode(AHBImp)
-case class AHBMasterNode(portParams: Seq[AHBMasterPortParameters]) extends SourceNode(AHBImp)(portParams)
-case class AHBSlaveNode(portParams: Seq[AHBSlavePortParameters]) extends SinkNode(AHBImp)(portParams)
+case class AHBIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImp)
+case class AHBMasterNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImp)(portParams)
+case class AHBSlaveNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImp)(portParams)
 case class AHBNexusNode(
   masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
   slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters,
   numMasterPorts: Range.Inclusive = 1 to 999,
-  numSlavePorts:  Range.Inclusive = 1 to 999)
+  numSlavePorts:  Range.Inclusive = 1 to 999)(
+  implicit valName: ValName)
   extends NexusNode(AHBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
 
 // Nodes passed from an inner module
-case class AHBOutputNode() extends OutputNode(AHBImp)
-case class AHBInputNode() extends InputNode(AHBImp)
+case class AHBOutputNode()(implicit valName: ValName) extends OutputNode(AHBImp)
+case class AHBInputNode()(implicit valName: ValName) extends InputNode(AHBImp)
 
 // Nodes used for external ports
-case class AHBBlindOutputNode(portParams: Seq[AHBSlavePortParameters]) extends BlindOutputNode(AHBImp)(portParams)
-case class AHBBlindInputNode(portParams: Seq[AHBMasterPortParameters]) extends BlindInputNode(AHBImp)(portParams)
+case class AHBBlindOutputNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends BlindOutputNode(AHBImp)(portParams)
+case class AHBBlindInputNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends BlindInputNode(AHBImp)(portParams)
 
-case class AHBInternalOutputNode(portParams: Seq[AHBSlavePortParameters]) extends InternalOutputNode(AHBImp)(portParams)
-case class AHBInternalInputNode(portParams: Seq[AHBMasterPortParameters]) extends InternalInputNode(AHBImp)(portParams)
+case class AHBInternalOutputNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends InternalOutputNode(AHBImp)(portParams)
+case class AHBInternalInputNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends InternalInputNode(AHBImp)(portParams)

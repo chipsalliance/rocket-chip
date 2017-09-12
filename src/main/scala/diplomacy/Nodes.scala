@@ -67,7 +67,7 @@ trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 abstract class NodeImp[D, U, EO, EI, B <: Data]
   extends Object with InwardNodeImp[D, U, EI, B] with OutwardNodeImp[D, U, EO, B]
 
-abstract class BaseNode
+abstract class BaseNode(implicit val valName: ValName)
 {
   require (!LazyModule.stack.isEmpty, "You cannot create a node outside a LazyModule!")
 
@@ -178,7 +178,8 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
   protected[diplomacy] val numPO: Range.Inclusive,
-  protected[diplomacy] val numPI: Range.Inclusive)
+  protected[diplomacy] val numPI: Range.Inclusive)(
+  implicit valName: ValName)
   extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
@@ -308,7 +309,8 @@ abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
   numPO: Range.Inclusive,
-  numPI: Range.Inclusive)
+  numPI: Range.Inclusive)(
+  implicit valName: ValName)
   extends MixedNode(inner, outer)(numPO, numPI)
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int)
@@ -318,7 +320,8 @@ abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
 abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   numPO: Range.Inclusive,
-  numPI: Range.Inclusive)
+  numPI: Range.Inclusive)(
+  implicit valName: ValName)
   extends MixedCustomNode(imp, imp)(numPO, numPI)
 
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
@@ -326,7 +329,8 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   outer: OutwardNodeImp[DO, UO, EO, BO])(
   dFn: DI => DO,
   uFn: UO => UI,
-  num: Range.Inclusive = 0 to 999)
+  num: Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
   extends MixedNode(inner, outer)(num, num)
 {
   val externalIn: Boolean = true
@@ -358,7 +362,8 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   dFn: Seq[DI] => DO,
   uFn: Seq[UO] => UI,
   numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)
+  numPI: Range.Inclusive = 1 to 999)(
+  implicit valName: ValName)
   extends MixedNode(inner, outer)(numPO, numPI)
 {
 //  require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
@@ -379,14 +384,16 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: D => D,
   uFn: U => U,
-  num: Range.Inclusive = 0 to 999)
+  num: Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
     extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, num)
 
 class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: Seq[D] => D,
   uFn: Seq[U] => U,
   numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)
+  numPI: Range.Inclusive = 1 to 999)(
+  implicit valName: ValName)
     extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
 
 case class SplitterArg[T](newSize: Int, ports: Seq[T])
@@ -396,7 +403,8 @@ class MixedSplitterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   dFn: SplitterArg[DI] => Seq[DO],
   uFn: SplitterArg[UO] => Seq[UI],
   numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)
+  numPI: Range.Inclusive = 1 to 999)(
+  implicit valName: ValName)
   extends MixedNode(inner, outer)(numPO, numPI)
 {
   override val externalIn: Boolean = true
@@ -425,20 +433,21 @@ class SplitterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: SplitterArg[D] => Seq[D],
   uFn: SplitterArg[U] => Seq[U],
   numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)
+  numPI: Range.Inclusive = 1 to 999)(
+  implicit valName: ValName)
     extends MixedSplitterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
 
-class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])
+class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName)
   extends AdapterNode(imp)({s => s}, {s => s})
 
-class OutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends IdentityNode(imp)
+class OutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName) extends IdentityNode(imp)
 {
   override val externalIn: Boolean = false
   override val externalOut: Boolean = true
   override lazy val bundleIn = bundleOut
 }
 
-class InputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends IdentityNode(imp)
+class InputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName) extends IdentityNode(imp)
 {
   override val externalIn: Boolean = true
   override val externalOut: Boolean = false
@@ -446,7 +455,7 @@ class InputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]) extends 
   override lazy val bundleOut = bundleIn
 }
 
-class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
+class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
   extends MixedNode(imp, imp)(po.size to po.size, 0 to 0)
 {
   override val externalIn: Boolean = false
@@ -465,7 +474,7 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   override lazy val bundleIn = { require(false, s"${name} has no bundleIn; try bundleOut?"); bundleOut }
 }
 
-class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
+class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
   extends MixedNode(imp, imp)(0 to 0, pi.size to pi.size)
 {
   override val externalIn: Boolean = true
@@ -484,7 +493,7 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   override lazy val bundleOut = { require(false, s"${name} has no bundleOut; try bundleIn?"); bundleIn }
 }
 
-class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
+class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
   extends SinkNode(imp)(pi)
 {
   override val externalIn: Boolean = false
@@ -492,7 +501,7 @@ class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi
   override lazy val bundleOut = bundleIn
 }
 
-class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
+class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
   extends SourceNode(imp)(po)
 {
   override val externalOut: Boolean = false
@@ -500,7 +509,7 @@ class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po:
   override lazy val bundleIn = bundleOut
 }
 
-class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])
+class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
   extends SinkNode(imp)(pi)
 {
   override val externalIn: Boolean = false
@@ -509,7 +518,7 @@ class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])
   override lazy val bundleOut = bundleIn
 }
 
-class InternalInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])
+class InternalInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
   extends SourceNode(imp)(po)
 {
   override val externalIn: Boolean = false

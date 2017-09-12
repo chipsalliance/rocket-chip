@@ -26,23 +26,24 @@ object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, A
 }
 
 // Nodes implemented inside modules
-case class APBIdentityNode() extends IdentityNode(APBImp)
-case class APBMasterNode(portParams: Seq[APBMasterPortParameters]) extends SourceNode(APBImp)(portParams)
-case class APBSlaveNode(portParams: Seq[APBSlavePortParameters]) extends SinkNode(APBImp)(portParams)
+case class APBIdentityNode()(implicit valName: ValName) extends IdentityNode(APBImp)
+case class APBMasterNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends SourceNode(APBImp)(portParams)
+case class APBSlaveNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends SinkNode(APBImp)(portParams)
 case class APBNexusNode(
   masterFn:       Seq[APBMasterPortParameters] => APBMasterPortParameters,
   slaveFn:        Seq[APBSlavePortParameters]  => APBSlavePortParameters,
   numMasterPorts: Range.Inclusive = 1 to 1,
-  numSlavePorts:  Range.Inclusive = 1 to 1)
+  numSlavePorts:  Range.Inclusive = 1 to 1)(
+  implicit valName: ValName)
   extends NexusNode(APBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
 
 // Nodes passed from an inner module
-case class APBOutputNode() extends OutputNode(APBImp)
-case class APBInputNode() extends InputNode(APBImp)
+case class APBOutputNode()(implicit valName: ValName) extends OutputNode(APBImp)
+case class APBInputNode()(implicit valName: ValName) extends InputNode(APBImp)
 
 // Nodes used for external ports
-case class APBBlindOutputNode(portParams: Seq[APBSlavePortParameters]) extends BlindOutputNode(APBImp)(portParams)
-case class APBBlindInputNode(portParams: Seq[APBMasterPortParameters]) extends BlindInputNode(APBImp)(portParams)
+case class APBBlindOutputNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends BlindOutputNode(APBImp)(portParams)
+case class APBBlindInputNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends BlindInputNode(APBImp)(portParams)
 
-case class APBInternalOutputNode(portParams: Seq[APBSlavePortParameters]) extends InternalOutputNode(APBImp)(portParams)
-case class APBInternalInputNode(portParams: Seq[APBMasterPortParameters]) extends InternalInputNode(APBImp)(portParams)
+case class APBInternalOutputNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends InternalOutputNode(APBImp)(portParams)
+case class APBInternalInputNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends InternalInputNode(APBImp)(portParams)

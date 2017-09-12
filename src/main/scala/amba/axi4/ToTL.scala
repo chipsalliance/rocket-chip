@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class AXI4ToTLNode() extends MixedAdapterNode(AXI4Imp, TLImp)(
+case class AXI4ToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
   dFn = { case AXI4MasterPortParameters(masters, userBits) =>
     masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = masters.map(_.maxFlight.get).max

@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-case class TLNodeNumbererNode(nodeAddressOffset: Option[Int] = None) extends TLCustomNode(0 to 999, 0 to 999)
+case class TLNodeNumbererNode(nodeAddressOffset: Option[Int] = None)(implicit valName: ValName) extends TLCustomNode(0 to 999, 0 to 999)
 {
   val externalIn = true
   val externalOut = true

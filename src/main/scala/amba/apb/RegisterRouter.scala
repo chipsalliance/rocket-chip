@@ -10,8 +10,8 @@ import freechips.rocketchip.tilelink.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.HeterogeneousBag
 import scala.math.{min,max}
 
-class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends APBSlaveNode(Seq(APBSlavePortParameters(
+case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
+  extends SinkNode(APBImp)(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
@@ -49,12 +49,6 @@ class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
     apb.pslverr := Bool(false)
     apb.prdata  := out.bits.data
   }
-}
-
-object APBRegisterNode
-{
-  def apply(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false) =
-    new APBRegisterNode(address, concurrency, beatBytes, undefZero, executable)
 }
 
 // These convenience methods below combine to make it possible to create a APB

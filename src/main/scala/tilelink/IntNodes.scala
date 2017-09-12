@@ -88,25 +88,26 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
    pu.copy(sinks   = pu.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
 }
 
-case class IntIdentityNode() extends IdentityNode(IntImp)
-case class IntSourceNode(portParams: Seq[IntSourcePortParameters]) extends SourceNode(IntImp)(portParams)
-case class IntSinkNode(portParams: Seq[IntSinkPortParameters]) extends SinkNode(IntImp)(portParams)
+case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)
+case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends SourceNode(IntImp)(portParams)
+case class IntSinkNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends SinkNode(IntImp)(portParams)
 
 case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
   sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
   numSourcePorts: Range.Inclusive = 0 to 128,
-  numSinkPorts:   Range.Inclusive = 0 to 128)
+  numSinkPorts:   Range.Inclusive = 0 to 128)(
+  implicit valName: ValName)
   extends NexusNode(IntImp)(sourceFn, sinkFn, numSourcePorts, numSinkPorts)
 
-case class IntOutputNode() extends OutputNode(IntImp)
-case class IntInputNode() extends InputNode(IntImp)
+case class IntOutputNode()(implicit valName: ValName) extends OutputNode(IntImp)
+case class IntInputNode()(implicit valName: ValName) extends InputNode(IntImp)
 
-case class IntBlindOutputNode(portParams: Seq[IntSinkPortParameters]) extends BlindOutputNode(IntImp)(portParams)
-case class IntBlindInputNode(portParams: Seq[IntSourcePortParameters]) extends BlindInputNode(IntImp)(portParams)
+case class IntBlindOutputNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends BlindOutputNode(IntImp)(portParams)
+case class IntBlindInputNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends BlindInputNode(IntImp)(portParams)
 
-case class IntInternalOutputNode(portParams: Seq[IntSinkPortParameters]) extends InternalOutputNode(IntImp)(portParams)
-case class IntInternalInputNode(portParams: Seq[IntSourcePortParameters]) extends InternalInputNode(IntImp)(portParams)
+case class IntInternalOutputNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends InternalOutputNode(IntImp)(portParams)
+case class IntInternalInputNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends InternalInputNode(IntImp)(portParams)
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {
