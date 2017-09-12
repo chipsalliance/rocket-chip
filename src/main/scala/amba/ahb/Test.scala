@@ -21,7 +21,7 @@ class AHBFuzzNative(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
 {
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AHBFuzzNative"))
-  var xbar  = LazyModule(new AHBFanout)
+  val xbar  = LazyModule(new AHBFanout)
   val ram   = LazyModule(new AHBRAM(AddressSet(0x0, 0xff)))
   val gpio  = LazyModule(new RRTest0(0x100))
 
