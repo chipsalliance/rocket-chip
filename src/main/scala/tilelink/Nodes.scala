@@ -95,14 +95,6 @@ case class TLNexusNode(
   implicit valName: ValName)
   extends NexusNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
 
-case class TLSplitterNode(
-  clientFn:        SplitterArg[TLClientPortParameters]  => Seq[TLClientPortParameters],
-  managerFn:       SplitterArg[TLManagerPortParameters] => Seq[TLManagerPortParameters],
-  numClientPorts:  Range.Inclusive = 0 to 999,
-  numManagerPorts: Range.Inclusive = 0 to 999)(
-  implicit valName: ValName)
-  extends SplitterNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
-
 abstract class TLCustomNode(
   numClientPorts:  Range.Inclusive,
   numManagerPorts: Range.Inclusive)(

@@ -396,47 +396,6 @@ class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
     extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
 
-case class SplitterArg[T](newSize: Int, ports: Seq[T])
-class MixedSplitterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
-  inner: InwardNodeImp [DI, UI, EI, BI],
-  outer: OutwardNodeImp[DO, UO, EO, BO])(
-  dFn: SplitterArg[DI] => Seq[DO],
-  uFn: SplitterArg[UO] => Seq[UI],
-  numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)(
-  implicit valName: ValName)
-  extends MixedNode(inner, outer)(numPO, numPI)
-{
-  override val externalIn: Boolean = true
-  override val externalOut: Boolean = true
-
-  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (oKnown == 0, s"${name} (a splitter) appears right of a := or :*=; use a :=* instead${lazyModule.line}")
-    require (iStars == 0, s"${name} (a splitter) cannot appear left of a :*=; did you mean :=*?${lazyModule.line}")
-    (0, iKnown)
-  }
-  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
-    require (p.size == 0 || n % p.size == 0, s"Diplomacy bug; splitter inputs do not divide outputs")
-    val out = dFn(SplitterArg(n, p))
-    require (out.size == n, s"${name} created the wrong number of outputs from inputs${lazyModule.line}")
-    out
-  }
-  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = {
-    require (n == 0 || p.size % n == 0, s"Diplomacy bug; splitter outputs indivisable by inputs")
-    val out = uFn(SplitterArg(n, p))
-    require (out.size == n, s"${name} created the wrong number of inputs from outputs${lazyModule.line}")
-    out
-  }
-}
-
-class SplitterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
-  dFn: SplitterArg[D] => Seq[D],
-  uFn: SplitterArg[U] => Seq[U],
-  numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)(
-  implicit valName: ValName)
-    extends MixedSplitterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
-
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName)
   extends AdapterNode(imp)({s => s}, {s => s})
 

@@ -6,6 +6,37 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
+case class SplitterArg[T](newSize: Int, ports: Seq[T])
+case class TLSplitterNode(
+  clientFn:        SplitterArg[TLClientPortParameters]  => Seq[TLClientPortParameters],
+  managerFn:       SplitterArg[TLManagerPortParameters] => Seq[TLManagerPortParameters],
+  numClientPorts:  Range.Inclusive = 0 to 999,
+  numManagerPorts: Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
+  extends TLCustomNode(numClientPorts, numManagerPorts)
+{
+  val externalIn = true
+  val externalOut = true
+
+  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (oKnown == 0, s"${name} (a splitter) appears right of a := or :*=; use a :=* instead${lazyModule.line}")
+    require (iStars == 0, s"${name} (a splitter) cannot appear left of a :*=; did you mean :=*?${lazyModule.line}")
+    (0, iKnown)
+  }
+  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = {
+    require (p.size == 0 || n % p.size == 0, s"Diplomacy bug; splitter inputs do not divide outputs")
+    val out = clientFn(SplitterArg(n, p))
+    require (out.size == n, s"${name} created the wrong number of outputs from inputs${lazyModule.line}")
+    out
+  }
+  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = {
+    require (n == 0 || p.size % n == 0, s"Diplomacy bug; splitter outputs indivisable by inputs")
+    val out = managerFn(SplitterArg(n, p))
+    require (out.size == n, s"${name} created the wrong number of inputs from outputs${lazyModule.line}")
+    out
+  }
+}
+
 class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
   val node = TLSplitterNode(
