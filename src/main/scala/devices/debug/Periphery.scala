@@ -70,7 +70,7 @@ trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryD
     outer.debug.module.io.dmi.dmi <> dtm.io.dmi
     outer.debug.module.io.dmi.dmiClock := sj.jtag.TCK
 
-    outer.debug.module.io.psd <> psd
+    psd <> outer.debug.module.io.psd
     outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd.test_mode, psd.test_mode_reset)
     dtm
   }
