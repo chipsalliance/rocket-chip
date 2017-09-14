@@ -283,7 +283,7 @@ trait CanHavePTW extends HasHellaCache {
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edgesOut(0), outer.p))
+  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.out(0)._2, outer.p))
   if (outer.usingPTW)
     dcachePorts += ptw.io.mem
 }

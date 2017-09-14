@@ -22,11 +22,7 @@ class APBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
-
-    val in = io.in(0)
+    val (in, _) = node.in(0)
 
     def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
       if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)

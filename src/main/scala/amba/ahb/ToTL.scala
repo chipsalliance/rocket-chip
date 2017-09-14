@@ -41,12 +41,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
   val node = AHBToTLNode()
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.manager.beatBytes
 
       val d_send  = RegInit(Bool(false))

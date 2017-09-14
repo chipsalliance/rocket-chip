@@ -14,8 +14,8 @@ case object TLCombinationalCheck extends Field[Boolean](false)
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
-  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeOut = new TLEdgeOut(pd, pu)
-  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters): TLEdgeIn  = new TLEdgeIn(pd, pu)
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters): TLEdgeOut = new TLEdgeOut(pd, pu, p)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters): TLEdgeIn  = new TLEdgeIn(pd, pu, p)
 
   def bundleO(eo: TLEdgeOut): TLBundle = TLBundle(eo.bundle)
   def bundleI(ei: TLEdgeIn):  TLBundle = TLBundle(ei.bundle)
@@ -63,29 +63,17 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   }
 }
 
-// Nodes implemented inside modules
-case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)
 case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams)
 case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams)
 
-object TLClientNode
-{
-  def apply(params: TLClientParameters)(implicit valName: ValName) =
-    new TLClientNode(Seq(TLClientPortParameters(Seq(params))))
-}
-
-object TLManagerNode
-{
-  def apply(beatBytes: Int, params: TLManagerParameters)(implicit valName: ValName) =
-    new TLManagerNode(Seq(TLManagerPortParameters(Seq(params), beatBytes, minLatency = 0)))
-}
-
 case class TLAdapterNode(
-  clientFn:  TLClientPortParameters  => TLClientPortParameters,
-  managerFn: TLManagerPortParameters => TLManagerPortParameters,
+  clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
+  managerFn: TLManagerPortParameters => TLManagerPortParameters = { s => s },
   num:       Range.Inclusive = 0 to 999)(
   implicit valName: ValName)
   extends AdapterNode(TLImp)(clientFn, managerFn, num)
+
+case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)()
 
 case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
@@ -101,43 +89,12 @@ abstract class TLCustomNode(
   implicit valName: ValName)
   extends CustomNode(TLImp)(numClientPorts, numManagerPorts)
 
-// Nodes passed from an inner module
-case class TLOutputNode()(implicit valName: ValName) extends OutputNode(TLImp)
-case class TLInputNode()(implicit valName: ValName) extends InputNode(TLImp)
-
-// Nodes used for external ports
-case class TLBlindOutputNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends BlindOutputNode(TLImp)(portParams)
-case class TLBlindInputNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends BlindInputNode(TLImp)(portParams)
-
-case class TLInternalOutputNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends InternalOutputNode(TLImp)(portParams)
-case class TLInternalInputNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends InternalInputNode(TLImp)(portParams)
-
-/** Synthesizeable unit tests */
-import freechips.rocketchip.unittest._
-
-class TLInputNodeTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  class Acceptor extends LazyModule {
-    val node = TLInputNode()
-    val tlram = LazyModule(new TLRAM(AddressSet(0x54321000, 0xfff)))
-    tlram.node := node
-
-    lazy val module = new LazyModuleImp(this) {
-      val io = new Bundle {
-        val in = node.bundleIn
-      }
-    }
-  }
-
-  val fuzzer = LazyModule(new TLFuzzer(txns))
-  LazyModule(new Acceptor).node := TLFragmenter(4, 64)(fuzzer.node)
-
-  io.finished := Module(fuzzer.module).io.finished
-}
+// Asynchronous crossings
 
 object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
-  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
-  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu)
+  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p)
+  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p)
 
   def bundleO(eo: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(eo.bundle)
   def bundleI(ei: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(ei.bundle)
@@ -152,9 +109,14 @@ object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPor
    pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
-case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)
-case class TLAsyncOutputNode()(implicit valName: ValName) extends OutputNode(TLAsyncImp)
-case class TLAsyncInputNode()(implicit valName: ValName) extends InputNode(TLAsyncImp)
+case class TLAsyncAdapterNode(
+  clientFn:  TLAsyncClientPortParameters  => TLAsyncClientPortParameters  = { s => s },
+  managerFn: TLAsyncManagerPortParameters => TLAsyncManagerPortParameters = { s => s },
+  num:       Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
+  extends AdapterNode(TLAsyncImp)(clientFn, managerFn, num)
+
+case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)()
 
 case class TLAsyncSourceNode(sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
@@ -166,10 +128,12 @@ case class TLAsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
     dFn = { p => p.base.copy(minLatency = sync+1) },
     uFn = { p => TLAsyncManagerPortParameters(depth, p) })
 
+// Rationally related crossings
+
 object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
-  def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu)
-  def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu)
+  def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p)
+  def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p)
 
   def bundleO(eo: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(eo.bundle)
   def bundleI(ei: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(ei.bundle)
@@ -182,9 +146,14 @@ object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalM
    pu.copy(base = pu.base.copy(managers = pu.base.managers.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
-case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)
-case class TLRationalOutputNode()(implicit valName: ValName) extends OutputNode(TLRationalImp)
-case class TLRationalInputNode()(implicit valName: ValName) extends InputNode(TLRationalImp)
+case class TLRationalAdapterNode(
+  clientFn:  TLRationalClientPortParameters  => TLRationalClientPortParameters  = { s => s },
+  managerFn: TLRationalManagerPortParameters => TLRationalManagerPortParameters = { s => s },
+  num:       Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
+  extends AdapterNode(TLRationalImp)(clientFn, managerFn, num)
+
+case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)()
 
 case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(

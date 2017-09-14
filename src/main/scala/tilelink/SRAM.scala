@@ -29,18 +29,12 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
   // We require the address range to include an entire beat (for the write mask)
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
-  lazy val module = new Implementation
-  @chiselName class Implementation extends LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
-
+  lazy val module = new LazyModuleImp(this) {
     def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
       if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
     val mask = bigBits(address.mask >> log2Ceil(beatBytes))
 
-    val in = io.in(0)
-    val edge = node.edgesIn(0)
+    val (in, edge) = node.in(0)
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
     val a_legal = address.contains(in.a.bits.address)
@@ -101,7 +95,7 @@ class TLRAMSimple(ramBeatBytes: Int, txns: Int)(implicit p: Parameters) extends 
   model.node := fuzz.node
   ram.node := TLDelayer(0.25)(model.node)
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

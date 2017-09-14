@@ -13,12 +13,7 @@ class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyM
   val node = TLAsyncSourceNode(sync)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val sink_reset_n = out.a.sink_reset_n
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
       val depth = edgeOut.manager.depth
@@ -47,12 +42,7 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
   val node = TLAsyncSinkNode(depth, sync)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val source_reset_n = in.a.source_reset_n
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
 
@@ -97,8 +87,8 @@ object TLAsyncCrossingSink
 
 class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
-  val nodeIn = TLInputNode()
-  val nodeOut = TLOutputNode()
+  val nodeIn = TLIdentityNode()
+  val nodeOut = TLIdentityNode()
   val node = NodeHandle(nodeIn, nodeOut)
 
   val source = LazyModule(new TLAsyncCrossingSource(sync))
@@ -109,14 +99,12 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) ext
   val out  = (nodeOut := sink.node)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in        = nodeIn.bundleIn
+    val io = IO(new Bundle {
       val in_clock  = Clock(INPUT)
       val in_reset  = Bool(INPUT)
-      val out       = nodeOut.bundleOut
       val out_clock = Clock(INPUT)
       val out_reset = Bool(INPUT)
-    }
+    })
 
     source.module.clock := io.in_clock
     source.module.reset := io.in_reset
@@ -147,7 +135,7 @@ class TLRAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
   cross.node := TLFragmenter(4, 256)(TLDelayer(0.1)(model.node))
   val monitor = (ram.node := cross.node)
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain

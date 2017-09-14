@@ -15,9 +15,6 @@ case class TLSplitterNode(
   implicit valName: ValName)
   extends TLCustomNode(numClientPorts, numManagerPorts)
 {
-  val externalIn = true
-  val externalOut = true
-
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oKnown == 0, s"${name} (a splitter) appears right of a := or :*=; use a :=* instead${lazyModule.line}")
     require (iStars == 0, s"${name} (a splitter) cannot appear left of a :*=; did you mean :=*?${lazyModule.line}")
@@ -65,18 +62,14 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Pa
     })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
-    }
-
     def group[T](x: Seq[T]) =
-      if (x.isEmpty) Nil else x.grouped(node.edgesIn.size).toList.transpose
+      if (x.isEmpty) Nil else x.grouped(node.in.size).toList.transpose
 
-    if (node.edgesOut.size == node.edgesIn.size) {
-      io.out <> io.in
-    } else ((node.edgesIn zip io.in) zip (group(node.edgesOut) zip group(io.out))) foreach {
-      case ((edgeIn, io_in), (edgesOut, io_out)) =>
+    if (node.out.size == node.in.size) {
+      (node.in zip node.out) foreach { case ((i, _), (o, _)) => o <> i }
+    } else (node.in zip group(node.out)) foreach {
+      case ((io_in, edgeIn), seq) =>
+      val (io_out, edgesOut) = seq.unzip
 
       // Grab the port ID mapping
       val outputIdRanges = TLXbar.mapOutputIds(edgesOut.map(_.manager))

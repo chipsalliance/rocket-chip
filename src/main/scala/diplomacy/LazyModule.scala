@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
+import scala.collection.immutable.ListMap
 
 abstract class LazyModule()(implicit val p: Parameters)
 {
@@ -53,15 +54,6 @@ abstract class LazyModule()(implicit val p: Parameters)
   def line = sourceLine(info)
 
   def module: LazyModuleImpLike
-
-  protected[diplomacy] def instantiate() = {
-    children.reverse.foreach { c =>
-      // !!! fix chisel3 so we can pass the desired sourceInfo
-      // implicit val sourceInfo = c.module.outer.info
-      Module(c.module)
-    }
-    bindings.reverse.foreach { f => f () }
-  }
 
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
@@ -144,6 +136,8 @@ object LazyModule
 sealed trait LazyModuleImpLike extends BaseModule
 {
   val wrapper: LazyModule
+  val auto: AutoBundle
+  protected[diplomacy] val dangles: Seq[Dangle]
 
   // .module had better not be accessed while LazyModules are still being built!
   require (LazyModule.stack.isEmpty, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
@@ -152,18 +146,47 @@ sealed trait LazyModuleImpLike extends BaseModule
   suggestName(wrapper.instanceName)
 
   implicit val p = wrapper.p
+
+  protected[diplomacy] def instantiate() = {
+    val childDangles = wrapper.children.reverse.flatMap { c =>
+      implicit val sourceInfo = c.info
+      Module(c.module).dangles
+    }
+    val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
+    val (toConnect, toForward) = (nodeDangles ++ childDangles).groupBy(_.source).partition(_._2.size == 2)
+    val forward = toForward.map(_._2(0)).toList
+    toConnect.foreach { case (_, Seq(a, b)) =>
+      require (a.flipped != b.flipped)
+      if (a.flipped) { a.data <> b.data } else { b.data <> a.data }
+    }
+    val auto = IO(new AutoBundle(forward.map { d => (d.name, d.data, d.flipped) }:_*))
+    val dangles = (forward zip auto.elements) map { case (d, (_, io)) =>
+      if (d.flipped) { d.data <> io } else { io <> d.data }
+      d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
+    }
+    wrapper.bindings.reverse.foreach { f => f () }
+    (auto, dangles)
+  }
 }
 
-abstract class LazyModuleImp(val wrapper: LazyModule) extends Module with LazyModuleImpLike {
-  wrapper.instantiate()
-}
-
-abstract class LazyMultiIOModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
-  wrapper.instantiate()
+abstract class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
+  val (auto, dangles) = instantiate()
 }
 
 abstract class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
-  withClockAndReset(Bool(false).asClock, Bool(true)) {
-    wrapper.instantiate()
+  val (auto, dangles) = withClockAndReset(Bool(false).asClock, Bool(true)) {
+    instantiate()
   }
+}
+
+case class HalfEdge(serial: Int, index: Int)
+case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, data: Data)
+
+final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
+  // !!! need to fix-up name collision better than appending _#
+  val elements = ListMap(elts.zipWithIndex map { case ((field, elt, flip), i) =>
+    (field + "_" + i) -> (if (flip) elt.cloneType.flip else elt.cloneType)
+  }:_*)
+
+  override def cloneType = (new AutoBundle(elts:_*)).asInstanceOf[this.type]
 }

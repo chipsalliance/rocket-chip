@@ -107,13 +107,11 @@ class TLFuzzer(
   val node = TLClientNode(Seq(TLClientPortParameters(clientParams)))
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val out = node.bundleOut
+    val io = IO(new Bundle {
       val finished = Bool(OUTPUT)
-    }
+    })
 
-    val out = io.out(0)
-    val edge = node.edgesOut(0)
+    val (out, edge) = node.out(0)
 
     // Extract useful parameters from the TL edge
     val maxTransfer  = edge.manager.maxTransfer
@@ -245,7 +243,7 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val monitor = (ram.node := cross.node)
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain

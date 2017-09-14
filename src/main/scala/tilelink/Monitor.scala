@@ -16,9 +16,9 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends MonitorBase()(args.sou
 
   lazy val module = new LazyModuleImp(this) {
     val edges = args.edge()
-    val io = new Bundle {
+    val io = IO(new Bundle {
       val in = HeterogeneousBag(edges.map(p => new TLBundleSnoop(p.bundle))).flip
-    }
+    })
 
     (edges zip io.in).foreach { case (e, in) => legalize(in, e, reset) }
   }

@@ -34,7 +34,7 @@ class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
     TLDelayer(0.2)(
     model.node))))
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

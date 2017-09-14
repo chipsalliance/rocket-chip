@@ -91,12 +91,12 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
   /* Negotiated sizes */
-  def nDevices: Int = intnode.edgesIn.map(_.source.num).sum
+  def nDevices: Int = intnode.in.map(_._2.source.num).sum
   def nPriorities = min(params.maxPriorities, nDevices)
-  def nHarts = intnode.edgesOut.map(_.source.num).sum
+  def nHarts = intnode.out.map(_._2.source.num).sum
 
   // Assign all the devices unique ranges
-  lazy val sources = intnode.edgesIn.map(_.source)
+  lazy val sources = intnode.in.map(_._2.source)
   lazy val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
     case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
   }.flatten
@@ -109,16 +109,13 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
   }
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val tl_in = node.bundleIn
-      val devices = intnode.bundleIn
-      val harts = intnode.bundleOut
-    }
+    val (io_devices, edgesIn) = intnode.in.unzip
+    val (io_harts, _) = intnode.out.unzip
 
     // Compact the interrupt vector the same way
-    val interrupts = (intnode.edgesIn zip io.devices).map { case (e, i) => i.take(e.source.num) }.flatten
+    val interrupts = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
-    val harts = io.harts.flatten
+    val harts = io_harts.flatten
 
     println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>

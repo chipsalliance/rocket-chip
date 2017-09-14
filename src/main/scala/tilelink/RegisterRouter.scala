@@ -40,9 +40,9 @@ case class TLRegisterNode(
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
   def regmap(mapping: RegField.Map*) = {
-    val a = bundleIn(0).a
-    val d = bundleIn(0).d
-    val edge = edgesIn(0)
+    val (bundleIn, edge) = this.in(0)
+    val a = bundleIn.a
+    val d = bundleIn.d
 
     // Please forgive me ...
     val baseEnd = 0
@@ -76,9 +76,9 @@ case class TLRegisterNode(
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
 
     // Tie off unused channels
-    bundleIn(0).b.valid := Bool(false)
-    bundleIn(0).c.ready := Bool(true)
-    bundleIn(0).e.ready := Bool(true)
+    bundleIn.b.valid := Bool(false)
+    bundleIn.c.ready := Bool(true)
+    bundleIn.e.ready := Bool(true)
   }
 }
 
@@ -92,13 +92,11 @@ abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
 
-case class TLRegBundleArg(interrupts: HeterogeneousBag[Vec[Bool]], in: HeterogeneousBag[TLBundle])(implicit val p: Parameters)
+case class TLRegBundleArg()(implicit val p: Parameters)
 
 class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
 {
   implicit val p = arg.p
-  val interrupts = arg.interrupts
-  val in = arg.in
 }
 
 class TLRegBundle[P](val params: P, arg: TLRegBundleArg)(implicit p: Parameters) extends TLRegBundleBase(arg)
@@ -106,8 +104,8 @@ class TLRegBundle[P](val params: P, arg: TLRegBundleArg)(implicit p: Parameters)
 class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
-  val io = bundleBuilder
-  val interrupts = if (io.interrupts.isEmpty) Vec(0, Bool()) else io.interrupts(0)
+  val io = IO(bundleBuilder)
+  val interrupts = if (router.intnode.in.isEmpty) Vec(0, Bool()) else router.intnode.in(0)._1
   val address = router.address
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
@@ -129,5 +127,5 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
-  lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg(intnode.bundleOut, node.bundleIn)), this)
+  lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg()), this)
 }

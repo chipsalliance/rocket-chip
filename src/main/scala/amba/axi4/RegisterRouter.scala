@@ -26,11 +26,12 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
   // Calling this method causes the matching AXI4 bundle to be
   // configured to route all requests to the listed RegFields.
   def regmap(mapping: RegField.Map*) = {
-    val ar = bundleIn(0).ar
-    val aw = bundleIn(0).aw
-    val w  = bundleIn(0).w
-    val r  = bundleIn(0).r
-    val b  = bundleIn(0).b
+    val (io, _) = this.in(0)
+    val ar = io.ar
+    val aw = io.aw
+    val w  = io.w
+    val r  = io.r
+    val b  = io.b
 
     val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, ar.bits.params.idBits + ar.bits.params.userBits)
     val in = Wire(Decoupled(new RegMapperInput(params)))
@@ -86,13 +87,11 @@ abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, conc
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
-case class AXI4RegBundleArg(interrupts: HeterogeneousBag[Vec[Bool]], in: HeterogeneousBag[AXI4Bundle])(implicit val p: Parameters)
+case class AXI4RegBundleArg()(implicit val p: Parameters)
 
 class AXI4RegBundleBase(arg: AXI4RegBundleArg) extends Bundle
 {
   implicit val p = arg.p
-  val interrupts = arg.interrupts
-  val in = arg.in
 }
 
 class AXI4RegBundle[P](val params: P, arg: AXI4RegBundleArg) extends AXI4RegBundleBase(arg)
@@ -100,8 +99,8 @@ class AXI4RegBundle[P](val params: P, arg: AXI4RegBundleArg) extends AXI4RegBund
 class AXI4RegModule[P, B <: AXI4RegBundleBase](val params: P, bundleBuilder: => B, router: AXI4RegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
-  val io = bundleBuilder
-  val interrupts = if (io.interrupts.isEmpty) Vec(0, Bool()) else io.interrupts(0)
+  val io = IO(bundleBuilder)
+  val interrupts = if (router.intnode.in.isEmpty) Vec(0, Bool()) else router.intnode.in(0)._1
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
@@ -114,5 +113,5 @@ class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
-  lazy val module = moduleBuilder(bundleBuilder(AXI4RegBundleArg(intnode.bundleOut, node.bundleIn)), this)
+  lazy val module = moduleBuilder(bundleBuilder(AXI4RegBundleArg()), this)
 }

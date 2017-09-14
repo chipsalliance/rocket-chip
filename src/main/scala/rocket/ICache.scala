@@ -45,9 +45,9 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 
 class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
-  val masterNode = TLClientNode(TLClientParameters(
+  val masterNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters(
     sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
-    name = s"Core ${hartid} ICache"))
+    name = s"Core ${hartid} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val device = new SimpleDevice("itim", Seq("sifive,itim0"))
@@ -91,8 +91,6 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
 
   val resp = Valid(new ICacheResp(outer))
   val invalidate = Bool(INPUT)
-  val tl_out = outer.masterNode.bundleOut
-  val tl_in = outer.slaveNode.map(_.bundleIn)
 
   val errors = new ICacheErrors
   val perf = new ICachePerfEvents().asOutput
@@ -109,11 +107,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   override val cacheParams = outer.icacheParams // Use the local parameters
 
-  val io = new ICacheBundle(outer)
-  val edge_out = outer.masterNode.edgesOut.head
-  val tl_out = io.tl_out.head
-  val edge_in = outer.slaveNode.map(_.edgesIn.head)
-  val tl_in = io.tl_in.map(_.head)
+  val io = IO(new ICacheBundle(outer))
+  val (tl_out, edge_out) = outer.masterNode.out(0)
+  val tl_in   = outer.slaveNode.map(_.in(0)._1)
+  val edge_in = outer.slaveNode.map(_.in(0)._2)
 
   val tECC = cacheParams.tagECC
   val dECC = cacheParams.dataECC

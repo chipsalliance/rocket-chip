@@ -176,15 +176,14 @@ class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends CoreBu
   val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
-  val mem = outer.node.bundleOut
   val errors = new DCacheErrors
 }
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
-  implicit val edge = outer.node.edgesOut(0)
-  val io = new HellaCacheBundle(outer)
-  val tl_out = io.mem(0)
+  implicit val edge = outer.node.out(0)._2
+  val tl_out = outer.node.out(0)._1
+  val io = IO(new HellaCacheBundle(outer))
 
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
   fifoManagers.foreach { m =>

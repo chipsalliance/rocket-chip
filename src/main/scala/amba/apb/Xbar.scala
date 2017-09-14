@@ -16,34 +16,30 @@ class APBFanout()(implicit p: Parameters) extends LazyModule {
     slaveFn  = { seq => seq(0).copy(slaves = seq.flatMap(_.slaves)) })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    val in = io.in(0)
+    val (in, _) = node.in(0)
 
     // Require consistent bus widths
-    val port0 = node.edgesOut(0).slave
-    node.edgesOut.foreach { edge =>
+    val (io_out, edgesOut) = node.out.unzip
+    val port0 = edgesOut(0).slave
+    edgesOut.foreach { edge =>
       val port = edge.slave
       require (port.beatBytes == port0.beatBytes,
         s"${port.slaves.map(_.name)} ${port.beatBytes} vs ${port0.slaves.map(_.name)} ${port0.beatBytes}")
     }
 
-    val port_addrs = node.edgesOut.map(_.slave.slaves.map(_.address).flatten)
+    val port_addrs = edgesOut.map(_.slave.slaves.map(_.address).flatten)
     val routingMask = AddressDecoder(port_addrs)
     val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 
     val sel = Vec(route_addrs.map(seq => seq.map(_.contains(in.paddr)).reduce(_ || _)))
-    (sel zip io.out) foreach { case (sel, out) =>
+    (sel zip io_out) foreach { case (sel, out) =>
       out := in
       out.psel    := sel && in.psel
       out.penable := sel && in.penable
     }
 
-    in.pready  := !Mux1H(sel, io.out.map(!_.pready))
-    in.pslverr :=  Mux1H(sel, io.out.map(_.pslverr))
-    in.prdata  :=  Mux1H(sel, io.out.map(_.prdata))
+    in.pready  := !Mux1H(sel, io_out.map(!_.pready))
+    in.pslverr :=  Mux1H(sel, io_out.map(_.pslverr))
+    in.prdata  :=  Mux1H(sel, io_out.map(_.prdata))
   }
 }

@@ -24,15 +24,10 @@ import freechips.rocketchip.util._
 
 class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
 {
-  val node = TLIdentityNode()
+  val node = TLAdapterNode()
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val edge         = edgeIn
       val endAddress   = edge.manager.maxAddress + 1
       val endSourceId  = edge.client.endSourceId

@@ -24,7 +24,7 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
   // Calling this method causes the matching APB bundle to be
   // configured to route all requests to the listed RegFields.
   def regmap(mapping: RegField.Map*) = {
-    val apb = bundleIn(0)
+    val (apb, _) = this.in(0)
 
     val indexBits = log2Up((address.mask+1)/beatBytes)
     val params = RegMapperParams(indexBits, beatBytes, 1)
@@ -60,13 +60,11 @@ abstract class APBRegisterRouterBase(address: AddressSet, interrupts: Int, concu
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
-case class APBRegBundleArg(interrupts: HeterogeneousBag[Vec[Bool]], in: HeterogeneousBag[APBBundle])(implicit val p: Parameters)
+case class APBRegBundleArg()(implicit val p: Parameters)
 
 class APBRegBundleBase(arg: APBRegBundleArg) extends Bundle
 {
   implicit val p = arg.p
-  val interrupts = arg.interrupts
-  val in = arg.in
 }
 
 class APBRegBundle[P](val params: P, arg: APBRegBundleArg) extends APBRegBundleBase(arg)
@@ -74,8 +72,8 @@ class APBRegBundle[P](val params: P, arg: APBRegBundleArg) extends APBRegBundleB
 class APBRegModule[P, B <: APBRegBundleBase](val params: P, bundleBuilder: => B, router: APBRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
-  val io = bundleBuilder
-  val interrupts = if (io.interrupts.isEmpty) Vec(0, Bool()) else io.interrupts(0)
+  val io = IO(bundleBuilder)
+  val interrupts = if (router.intnode.in.isEmpty) Vec(0, Bool()) else router.intnode.in(0)._1
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
@@ -88,5 +86,5 @@ class APBRegisterRouter[B <: APBRegBundleBase, M <: LazyModuleImp]
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
-  lazy val module = moduleBuilder(bundleBuilder(APBRegBundleArg(intnode.bundleOut, node.bundleIn)), this)
+  lazy val module = moduleBuilder(bundleBuilder(APBRegBundleArg()), this)
 }

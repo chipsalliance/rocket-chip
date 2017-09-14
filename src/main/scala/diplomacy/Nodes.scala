@@ -34,7 +34,7 @@ private case object MonitorsEnabled extends Field[Boolean](true)
 // BI = Bundle type used when connecting to the inner side of the node
 trait InwardNodeImp[DI, UI, EI, BI <: Data]
 {
-  def edgeI(pd: DI, pu: UI): EI
+  def edgeI(pd: DI, pu: UI, p: Parameters): EI
   def bundleI(ei: EI): BI
   def colour: String
   def reverse: Boolean = false
@@ -55,7 +55,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
 // BO = Bundle type used when connecting to the outer side of the node
 trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 {
-  def edgeO(pd: DO, pu: UO): EO
+  def edgeO(pd: DO, pu: UO, p: Parameters): EO
   def bundleO(eo: EO): BO
 
   // optional methods to track node graph
@@ -75,11 +75,11 @@ abstract class BaseNode(implicit val valName: ValName)
   val index = lazyModule.nodes.size
   lazyModule.nodes = this :: lazyModule.nodes
 
-  val externalIn: Boolean
-  val externalOut: Boolean
+  val serial = BaseNode.serial
+  BaseNode.serial = BaseNode.serial + 1
+  protected[diplomacy] def instantiate(): Seq[Dangle]
 
-  def nodename = getClass.getName.split('.').last
-  def name = lazyModule.name + "." + nodename
+  def name = lazyModule.name + "." + valName.name
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
 
@@ -89,6 +89,11 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] def inputs:  Seq[(BaseNode, String)]
   protected[diplomacy] def colour:  String
   protected[diplomacy] def reverse: Boolean
+}
+
+object BaseNode
+{
+  protected[diplomacy] var serial = 0
 }
 
 case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
@@ -138,7 +143,6 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val iParams: Seq[UI]
-  protected[diplomacy] val bundleIn: HeterogeneousBag[BI]
 }
 
 trait OutwardNodeHandle[DO, UO, BO <: Data]
@@ -171,10 +175,9 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val oParams: Seq[DO]
-  protected[diplomacy] val bundleOut: HeterogeneousBag[BO]
 }
 
-abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
   protected[diplomacy] val numPO: Range.Inclusive,
@@ -213,22 +216,22 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
   }
 
-  lazy val oPorts = oBindings.flatMap { case (i, n, _, _) =>
+  lazy val oPorts = oBindings.flatMap { case (i, n, _, p) =>
     val (start, end) = n.iPortMapping(i)
-    (start until end) map { j => (j, n) }
+    (start until end) map { j => (j, n, p) }
   }
-  lazy val iPorts = iBindings.flatMap { case (i, n, _, _) =>
+  lazy val iPorts = iBindings.flatMap { case (i, n, _, p) =>
     val (start, end) = n.oPortMapping(i)
-    (start until end) map { j => (j, n) }
+    (start until end) map { j => (j, n, p) }
   }
 
   protected[diplomacy] lazy val oParams: Seq[DO] = {
-    val o = mapParamsD(oPorts.size, iPorts.map { case (i, n) => n.oParams(i) })
+    val o = mapParamsD(oPorts.size, iPorts.map { case (i, n, _) => n.oParams(i) })
     require (o.size == oPorts.size, s"Bug in diplomacy; ${name} has ${o.size} != ${oPorts.size} down/up outer parameters${lazyModule.line}")
     o.map(outer.mixO(_, this))
   }
   protected[diplomacy] lazy val iParams: Seq[UI] = {
-    val i = mapParamsU(iPorts.size, oPorts.map { case (o, n) => n.iParams(o) })
+    val i = mapParamsU(iPorts.size, oPorts.map { case (o, n, _) => n.iParams(o) })
     require (i.size == iPorts.size, s"Bug in diplomacy; ${name} has ${i.size} != ${iPorts.size} up/down inner parameters${lazyModule.line}")
     i.map(inner.mixI(_, this))
   }
@@ -236,23 +239,48 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def gco = if (iParams.size != 1) None else inner.getO(iParams(0))
   protected[diplomacy] def gci = if (oParams.size != 1) None else outer.getI(oParams(0))
 
-  lazy val edgesOut = (oPorts zip oParams).map { case ((i, n), o) => outer.edgeO(o, n.iParams(i)) }
-  lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n), i) => inner.edgeI(n.oParams(o), i) }
-  lazy val externalEdgesOut = if (externalOut) {edgesOut} else { Seq() }
-  lazy val externalEdgesIn = if (externalIn) {edgesIn} else { Seq() }
+  protected[diplomacy] lazy val edgesOut = (oPorts zip oParams).map { case ((i, n, p), o) => outer.edgeO(o, n.iParams(i), p) }
+  protected[diplomacy] lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n, p), i) => inner.edgeI(n.oParams(o), i, p) }
 
-  lazy val paramsOut: Seq[Parameters] = (oPortMapping zip oBindings).flatMap { case ((s, e), b) => Seq.fill(e-s) { b._4 } }
-  lazy val paramsIn:  Seq[Parameters] = (iPortMapping zip iBindings).flatMap { case ((s, e), b) => Seq.fill(e-s) { b._4 } }
+  // If you need access to the edges of a foreign Node, use this method (in/out create bundles)
+  lazy val edges = (edgesIn, edgesOut)
 
-  val flip = false // needed for blind nodes
-  private def flipO(b: HeterogeneousBag[BO]) = if (flip) b.flip else b
-  private def flipI(b: HeterogeneousBag[BI]) = if (flip) b      else b.flip
-  val wire = false // needed if you want to grab access to from inside a module
-  private def wireO(b: HeterogeneousBag[BO]) = if (wire) Wire(b) else b
-  private def wireI(b: HeterogeneousBag[BI]) = if (wire) Wire(b) else b
+  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => Wire(outer.bundleO(e)))
+  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => Wire(inner.bundleI(e)))
 
-  lazy val bundleOut = wireO(flipO(HeterogeneousBag(edgesOut.map(outer.bundleO(_)))))
-  lazy val bundleIn  = wireI(flipI(HeterogeneousBag(edgesIn .map(inner.bundleI(_)))))
+  protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _), i) =>
+    Dangle(
+      source = HalfEdge(serial, i),
+      sink   = HalfEdge(n.serial, j),
+      flipped= false,
+      name   = valName.name + "_out",
+      data   = bundleOut(i))
+  }
+  protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _), i) =>
+    Dangle(
+      source = HalfEdge(n.serial, j),
+      sink   = HalfEdge(serial, i),
+      flipped= true,
+      name   = valName.name + "_in",
+      data   = bundleIn(i))
+  }
+
+  // Used by LazyModules.module.instantiate
+  private var bundlesSafeNow = false
+  protected[diplomacy] def instantiate() = {
+    bundlesSafeNow = true
+    danglesOut ++ danglesIn
+  }
+
+  // Accessors to the result of negotiation to be used in LazyModuleImp:
+  def out: Seq[(BO, EO)] = {
+    require(bundlesSafeNow, s"${name}.out should only be called from the context of it's module implementation")
+    bundleOut zip edgesOut
+  }
+  def in: Seq[(BI, EI)] = {
+    require(bundlesSafeNow, s"${name}.in should only be called from the context of it's module implementation")
+    bundleIn zip edgesIn
+  }
 
   // connects the outward part of a node with the inward part of this node
   private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)
@@ -268,23 +296,7 @@ abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_STAR  => BIND_QUERY
       case BIND_QUERY => BIND_STAR })
     x.iPush(o, y, binding)
-    def edges() = {
-      val (iStart, iEnd) = x.iPortMapping(i)
-      val (oStart, oEnd) = y.oPortMapping(o)
-      require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
-      Seq.tabulate(iEnd - iStart) { j => x.edgesIn(iStart+j) }
-    }
-    def bundles() = {
-      val (iStart, iEnd) = x.iPortMapping(i)
-      val (oStart, oEnd) = y.oPortMapping(o)
-      require (iEnd - iStart == oEnd - oStart, s"Bug in diplomacy; ${iEnd-iStart} != ${oEnd-oStart} means port resolution failed")
-      Seq.tabulate(iEnd - iStart) { j =>
-        (x.bundleIn(iStart+j), y.bundleOut(oStart+j))
-      }
-    }
-    val (out, newbinding) = inner.connect(edges _, bundles _, p(MonitorsEnabled))
-    LazyModule.stack.head.bindings = newbinding :: LazyModule.stack.head.bindings
-    out
+    None // !!! create monitors
   }
 
   override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE)
@@ -333,9 +345,6 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   implicit valName: ValName)
   extends MixedNode(inner, outer)(num, num)
 {
-  val externalIn: Boolean = true
-  val externalOut: Boolean = true
-
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"${name} (an adapter) appears left of a :*= ${iStars} times and right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     if (oStars > 0) {
@@ -356,6 +365,24 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 }
 
+class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  dFn: D => D,
+  uFn: U => U,
+  num: Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
+    extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, num)
+
+// IdentityNodes automatically connect their inputs to outputs
+class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
+  extends AdapterNode(imp)({ s => s }, { s => s })
+{
+  override protected[diplomacy] def instantiate() = {
+    val dangles = super.instantiate()
+    (out zip in) map { case ((o, _), (i, _)) => o <> i }
+    dangles
+  } 
+}
+
 class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -369,9 +396,6 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 //  require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
 //  require (numPI.end >= 1, s"${name} does not accept inputs${lazyModule.line}")
 
-  val externalIn: Boolean = true
-  val externalOut: Boolean = true
-
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (iStars == 0, s"${name} (a nexus) appears left of :*= (perhaps you should flip the '*' to :=*?)${lazyModule.line}")
     require (oStars == 0, s"${name} (a nexus) appears right of a :=* (perhaps you should flip the '*' to :*=?)${lazyModule.line}")
@@ -381,13 +405,6 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = { val a = uFn(p); Seq.fill(n)(a) }
 }
 
-class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
-  dFn: D => D,
-  uFn: U => U,
-  num: Range.Inclusive = 0 to 999)(
-  implicit valName: ValName)
-    extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, num)
-
 class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: Seq[D] => D,
   uFn: Seq[U] => U,
@@ -396,30 +413,10 @@ class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
     extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
 
-class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName)
-  extends AdapterNode(imp)({s => s}, {s => s})
-
-class OutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName) extends IdentityNode(imp)
-{
-  override val externalIn: Boolean = false
-  override val externalOut: Boolean = true
-  override lazy val bundleIn = bundleOut
-}
-
-class InputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(implicit valName: ValName) extends IdentityNode(imp)
-{
-  override val externalIn: Boolean = true
-  override val externalOut: Boolean = false
-
-  override lazy val bundleOut = bundleIn
-}
-
+// There are no Mixed SourceNodes
 class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
   extends MixedNode(imp, imp)(po.size to po.size, 0 to 0)
 {
-  override val externalIn: Boolean = false
-  override val externalOut: Boolean = true
-
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars <= 1, s"${name} (a source) appears right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     require (iStars == 0, s"${name} (a source) cannot appear left of a :*=${lazyModule.line}")
@@ -429,16 +426,12 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
-
-  override lazy val bundleIn = { require(false, s"${name} has no bundleIn; try bundleOut?"); bundleOut }
 }
 
+// There are no Mixed SinkNodes
 class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
   extends MixedNode(imp, imp)(0 to 0, pi.size to pi.size)
 {
-  override val externalIn: Boolean = true
-  override val externalOut: Boolean = false
-
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (iStars <= 1, s"${name} (a sink) appears left of a :*= ${iStars} times; at most once is allowed${lazyModule.line}")
     require (oStars == 0, s"${name} (a sink) cannot appear right of a :=*${lazyModule.line}")
@@ -448,40 +441,4 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
-
-  override lazy val bundleOut = { require(false, s"${name} has no bundleOut; try bundleIn?"); bundleIn }
-}
-
-class BlindOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
-  extends SinkNode(imp)(pi)
-{
-  override val externalIn: Boolean = false
-  override val flip = true
-  override lazy val bundleOut = bundleIn
-}
-
-class BlindInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
-  extends SourceNode(imp)(po)
-{
-  override val externalOut: Boolean = false
-  override val flip = true
-  override lazy val bundleIn = bundleOut
-}
-
-class InternalOutputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
-  extends SinkNode(imp)(pi)
-{
-  override val externalIn: Boolean = false
-  override val externalOut: Boolean = false
-  override val wire = true
-  override lazy val bundleOut = bundleIn
-}
-
-class InternalInputNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
-  extends SourceNode(imp)(po)
-{
-  override val externalIn: Boolean = false
-  override val externalOut: Boolean = false
-  override val wire = true
-  override lazy val bundleIn = bundleOut
 }

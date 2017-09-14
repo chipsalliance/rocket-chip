@@ -30,13 +30,11 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     minLatency = 1)))
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val tl_in = node.bundleIn
+    val io = IO(new Bundle {
       val dmem = new HellaCacheIO
-    }
+    })
 
-    val tl_in = io.tl_in(0)
-    val edge = node.edgesIn(0)
+    val (tl_in, edge) = node.in(0)
 
     val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
     val state = Reg(init = s_ready)
@@ -104,7 +102,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics)))
   }
 
-  val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntOutputNode())
+  val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntIdentityNode())
   val busErrorUnit = tileParams.core.tileControlAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
     intOutputNode.get := beu.intNode
@@ -112,7 +110,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   }
 
   // connect any combination of ITIM, DTIM, and BusErrorUnit
-  val slaveNode = TLInputNode()
+  val slaveNode = TLIdentityNode()
   DisableMonitors { implicit p =>
     val xbarPorts =
       scratch.map(lm => (lm.node, xBytes)) ++
@@ -129,7 +127,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
-    val finalNode = frontend.masterNode.edgesOut.head.manager.managers.find(_.nodePath.last == s.node)
+    val finalNode = frontend.masterNode.out.head._2.manager.managers.find(_.nodePath.last == s.node)
     require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
     require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
     finalNode.get.address(0)
@@ -140,8 +138,6 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
 
 trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
   val outer: CanHaveScratchpad
-  val slave = outer.slaveNode.bundleIn
-  val intOutput = outer.intOutputNode.map(_.bundleOut)
 }
 
 trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontendModule {

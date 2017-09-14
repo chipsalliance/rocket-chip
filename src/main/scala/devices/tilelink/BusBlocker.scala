@@ -81,20 +81,13 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
     beatBytes = params.controlBeatBytes)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val ctl = controlNode.bundleIn
-      val in = nodeIn.bundleIn
-      val out = nodeOut.bundleOut
-    }
-
     // We need to be able to represent +1 larger than the largest populated address
-    val addressBits = log2Ceil(nodeOut.edgesOut(0).manager.maxAddress+1+1)
+    val addressBits = log2Ceil(nodeOut.out(0)._2.manager.maxAddress+1+1)
     val pmps = RegInit(Vec.fill(params.pmpRegisters) { DevicePMP(addressBits, params.pageBits) })
     val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
     controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
 
-    val in = io.in(0)
-    val edge = nodeIn.edgesIn(0)
+    val (in, edge) = nodeIn.in(0)
 
     // Determine if a request is allowed
     val needW = in.a.bits.opcode =/= TLMessages.Get

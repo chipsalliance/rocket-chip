@@ -124,7 +124,8 @@ object AXI4BundleParameters
 
 case class AXI4EdgeParameters(
   master: AXI4MasterPortParameters,
-  slave:  AXI4SlavePortParameters)
+  slave:  AXI4SlavePortParameters,
+  params: Parameters)
 {
   val bundle = AXI4BundleParameters(master, slave)
 }

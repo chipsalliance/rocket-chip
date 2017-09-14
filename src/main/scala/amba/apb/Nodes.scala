@@ -9,8 +9,8 @@ import freechips.rocketchip.diplomacy._
 
 object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBEdgeParameters, APBBundle]
 {
-  def edgeO(pd: APBMasterPortParameters, pu: APBSlavePortParameters): APBEdgeParameters = APBEdgeParameters(pd, pu)
-  def edgeI(pd: APBMasterPortParameters, pu: APBSlavePortParameters): APBEdgeParameters = APBEdgeParameters(pd, pu)
+  def edgeO(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters): APBEdgeParameters = APBEdgeParameters(pd, pu, p)
+  def edgeI(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters): APBEdgeParameters = APBEdgeParameters(pd, pu, p)
 
   def bundleO(eo: APBEdgeParameters): APBBundle = APBBundle(eo.bundle)
   def bundleI(ei: APBEdgeParameters): APBBundle = APBBundle(ei.bundle)
@@ -25,8 +25,6 @@ object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, A
    pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
-// Nodes implemented inside modules
-case class APBIdentityNode()(implicit valName: ValName) extends IdentityNode(APBImp)
 case class APBMasterNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends SourceNode(APBImp)(portParams)
 case class APBSlaveNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends SinkNode(APBImp)(portParams)
 case class APBNexusNode(
@@ -37,13 +35,4 @@ case class APBNexusNode(
   implicit valName: ValName)
   extends NexusNode(APBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
 
-// Nodes passed from an inner module
-case class APBOutputNode()(implicit valName: ValName) extends OutputNode(APBImp)
-case class APBInputNode()(implicit valName: ValName) extends InputNode(APBImp)
-
-// Nodes used for external ports
-case class APBBlindOutputNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends BlindOutputNode(APBImp)(portParams)
-case class APBBlindInputNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends BlindInputNode(APBImp)(portParams)
-
-case class APBInternalOutputNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends InternalOutputNode(APBImp)(portParams)
-case class APBInternalInputNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends InternalInputNode(APBImp)(portParams)
+case class APBIdentityNode()(implicit valName: ValName) extends IdentityNode(APBImp)()

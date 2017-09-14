@@ -21,7 +21,7 @@ abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with Bind
   lazy val json = JSON(bindingTree)
 }
 
-abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyMultiIOModuleImp(_outer) {
+abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyModuleImp(_outer) {
   val outer = _outer
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)

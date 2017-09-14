@@ -78,7 +78,8 @@ object APBBundleParameters
 
 case class APBEdgeParameters(
   master: APBMasterPortParameters,
-  slave:  APBSlavePortParameters)
+  slave:  APBSlavePortParameters,
+  params: Parameters)
 {
   val bundle = APBBundleParameters(master, slave)
 }
