@@ -1033,7 +1033,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
     }
 
     dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
-    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, 3, Some("dmactiveSync"), io.psd.test_mode, io.psd.test_mode_reset)
+    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd.test_mode, io.psd.test_mode_reset)
     dmInner.module.io.debugUnavail := io.debugUnavail
   }
 }
