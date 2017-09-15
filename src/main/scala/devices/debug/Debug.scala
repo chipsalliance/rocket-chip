@@ -1029,11 +1029,11 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
       val innerCtrl = new AsyncBundle(1, new DebugInternalBundle()).flip
       // This comes from tlClk domain.
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
-      val psd = new PSDTestModeIO()
+      val psd = new PSDTestMode().asInput
     }
 
     dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
-    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd.test_mode, io.psd.test_mode_reset)
+    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
     dmInner.module.io.debugUnavail := io.debugUnavail
   }
 }
@@ -1067,7 +1067,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
       val dmi = new ClockedDMIIO().flip
       val in = node.bundleIn
       val debugInterrupts = intnode.bundleOut
-      val psd = new PSDTestModeIO()
+      val psd = new PSDTestMode()
     }
 
     dmOuter.module.io.dmi <> io.dmi.dmi

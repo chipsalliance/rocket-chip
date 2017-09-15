@@ -7,13 +7,13 @@ import freechips.rocketchip.config._
 
 case object IncludePSDTest extends Field[Boolean](false)
 
-class PSDTestModeIO extends Bundle {
-  val test_mode       = Bool(INPUT)
-  val test_mode_reset = Bool(INPUT)
+class PSDTestMode extends Bundle {
+  val test_mode       = Bool()
+  val test_mode_reset = Bool()
   // TODO: Clocks?
 }
 
 trait CanHavePSDTestModeIO {
   implicit val p: Parameters
-  val psd = p(IncludePSDTest).option(new PSDTestModeIO())
+  val psd = p(IncludePSDTest).option(new PSDTestMode().asInput)
 }

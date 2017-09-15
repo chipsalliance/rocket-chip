@@ -57,7 +57,7 @@ trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryD
 
   val dtm = debug.systemjtag.map { sj =>
 
-    val psd = debug.psd.getOrElse(Wire(init = new PSDTestModeIO().fromBits(0.U)))
+    val psd = debug.psd.getOrElse(Wire(init = new PSDTestMode().fromBits(0.U)))
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
     dtm.io.jtag <> sj.jtag
@@ -71,7 +71,7 @@ trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryD
     outer.debug.module.io.dmi.dmiClock := sj.jtag.TCK
 
     psd <> outer.debug.module.io.psd
-    outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd.test_mode, psd.test_mode_reset)
+    outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch",  psd)
     dtm
   }
 
