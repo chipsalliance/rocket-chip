@@ -129,3 +129,5 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 
   lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg()), this)
 }
+
+// !!! eliminate third trait

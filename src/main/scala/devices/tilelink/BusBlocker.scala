@@ -82,7 +82,7 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
 
   lazy val module = new LazyModuleImp(this) {
     // We need to be able to represent +1 larger than the largest populated address
-    val addressBits = log2Ceil(nodeOut.out(0)._2.manager.maxAddress+1+1)
+    val addressBits = log2Ceil(nodeOut.edges.out(0).manager.maxAddress+1+1)
     val pmps = RegInit(Vec.fill(params.pmpRegisters) { DevicePMP(addressBits, params.pageBits) })
     val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
     controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)

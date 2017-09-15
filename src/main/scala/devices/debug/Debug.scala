@@ -353,8 +353,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     debugIntNxt := debugIntRegs
 
+    val (intnode_out, _) = intnode.out.unzip
     for (component <- 0 until nComponents) {
-      intnode.out(component)._1(0) := debugIntRegs(component)
+      intnode_out(component)(0) := debugIntRegs(component)
     }
 
     // Halt request registers are set & cleared by writes to DMCONTROL.haltreq
@@ -1015,7 +1016,6 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
   lazy val module = new LazyModuleImp(this) {
 
     val io = IO(new Bundle {
-      // this comes from tlClk domain.
       // These are all asynchronous and come from Outer
       val dmactive = Bool(INPUT)
       val innerCtrl = new AsyncBundle(1, new DebugInternalBundle()).flip
@@ -1045,7 +1045,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
   val intnode = IntIdentityNode()
 
   val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
-  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {intnode.edges._2.size})(p))
+  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {intnode.edges.out.size})(p))
 
   dmInner.dmiNode := dmOuter.dmiInnerNode
   dmInner.tlNode := node

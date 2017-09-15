@@ -56,6 +56,7 @@ trait HasExternalInterruptsModule {
 
     val core_ips = core.lip
 
-    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(outer.intNode.in(0)._1).foreach { case(c, i) => c := i }
+    val (interrupts, _) = outer.intNode.in(0)
+    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
   }
 }

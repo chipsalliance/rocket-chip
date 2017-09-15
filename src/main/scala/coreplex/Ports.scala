@@ -79,7 +79,7 @@ trait HasMasterAXI4MemPortBundle {
 /** Actually generates the corresponding IO in the concrete Module */
 trait HasMasterAXI4MemPortModuleImp extends LazyModuleImp with HasMasterAXI4MemPortBundle {
   val outer: HasMasterAXI4MemPort
-  val mem_axi4 = IO(HeterogeneousBag(outer.mem_axi4.in.map(_._1.cloneType)))
+  val mem_axi4 = IO(HeterogeneousBag.fromNode(outer.mem_axi4.in))
   (mem_axi4 zip outer.mem_axi4.in) foreach { case (i, (o, _)) => i <> o }
   val nMemoryChannels = outer.nMemoryChannels
 }
@@ -119,7 +119,7 @@ trait HasMasterAXI4MMIOPortBundle {
 /** Actually generates the corresponding IO in the concrete Module */
 trait HasMasterAXI4MMIOPortModuleImp extends LazyModuleImp with HasMasterAXI4MMIOPortBundle {
   val outer: HasMasterAXI4MMIOPort
-  val mmio_axi4 = IO(HeterogeneousBag(outer.mmio_axi4.in.map(_._1.cloneType)))
+  val mmio_axi4 = IO(HeterogeneousBag.fromNode(outer.mmio_axi4.in))
   (mmio_axi4 zip outer.mmio_axi4.in) foreach { case (i, (o, _)) => i <> o }
 }
 
@@ -159,7 +159,7 @@ trait HasSlaveAXI4PortBundle {
 /** Actually generates the corresponding IO in the concrete Module */
 trait HasSlaveAXI4PortModuleImp extends LazyModuleImp with HasSlaveAXI4PortBundle {
   val outer: HasSlaveAXI4Port
-  val l2_frontend_bus_axi4 = IO(HeterogeneousBag(outer.l2FrontendAXI4Node.out.map(_._1.cloneType)).flip)
+  val l2_frontend_bus_axi4 = IO(HeterogeneousBag.fromNode(outer.l2FrontendAXI4Node.out).flip)
   (outer.l2FrontendAXI4Node.out zip l2_frontend_bus_axi4) foreach { case ((i, _), o) => i <> o }
 }
 
@@ -201,7 +201,7 @@ trait HasMasterTLMMIOPortBundle {
 /** Actually generates the corresponding IO in the concrete Module */
 trait HasMasterTLMMIOPortModuleImp extends LazyModuleImp with HasMasterTLMMIOPortBundle {
   val outer: HasMasterTLMMIOPort
-  val mmio_tl = IO(HeterogeneousBag(outer.mmio_tl.in.map(_._1.cloneType)))
+  val mmio_tl = IO(HeterogeneousBag.fromNode(outer.mmio_tl.in))
   (mmio_tl zip outer.mmio_tl.out) foreach { case (i, (o, _)) => i <> o }
 }
 
@@ -239,7 +239,7 @@ trait HasSlaveTLPortBundle {
 /** Actually generates the corresponding IO in the concrete Module */
 trait HasSlaveTLPortModuleImp extends LazyModuleImp with HasSlaveTLPortBundle {
   val outer: HasSlaveTLPort
-  val l2_frontend_bus_tl = IO(HeterogeneousBag(outer.l2FrontendTLNode.out.map(_._1.cloneType)).flip)
+  val l2_frontend_bus_tl = IO(HeterogeneousBag.fromNode(outer.l2FrontendTLNode.out).flip)
   (outer.l2FrontendTLNode.in zip l2_frontend_bus_tl) foreach { case ((i, _), o) => i <> o }
 }
 
@@ -264,7 +264,7 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val axi4 = HeterogeneousBag(node.out.map(_._1.cloneType)).flip
+      val axi4 = HeterogeneousBag.fromNode(node.out).flip
     })
     (node.out zip io.axi4) foreach { case ((i, _), o) => i <> o }
   }

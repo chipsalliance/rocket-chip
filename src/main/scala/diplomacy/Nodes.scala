@@ -96,6 +96,7 @@ object BaseNode
   protected[diplomacy] var serial = 0
 }
 
+// !!! rename the nodes we bind?
 case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
   (inward: InwardNode[DI, UI, BI], outward: OutwardNode[DO, UO, BO])
   extends Object with InwardNodeHandle[DI, UI, BI] with OutwardNodeHandle[DO, UO, BO]
@@ -177,6 +178,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   protected[diplomacy] val oParams: Seq[DO]
 }
 
+case class Edges[EI, EO](in: EI, out: EO)
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -243,7 +245,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n, p), i) => inner.edgeI(n.oParams(o), i, p) }
 
   // If you need access to the edges of a foreign Node, use this method (in/out create bundles)
-  lazy val edges = (edgesIn, edgesOut)
+  lazy val edges = Edges(edgesIn, edgesOut)
 
   protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => Wire(outer.bundleO(e)))
   protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => Wire(inner.bundleI(e)))

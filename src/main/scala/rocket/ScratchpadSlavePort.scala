@@ -127,7 +127,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
-    val finalNode = frontend.masterNode.out.head._2.manager.managers.find(_.nodePath.last == s.node)
+    val finalNode = frontend.masterNode.edges.out.head.manager.managers.find(_.nodePath.last == s.node)
     require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
     require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
     finalNode.get.address(0)

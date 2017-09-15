@@ -22,7 +22,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
   master_splitter.suggestName(s"${busName}_master_TLSplitter")
   inwardNode :=* master_splitter.node
-  def busView = master_splitter.node.in.head._2
+  def busView = master_splitter.node.edges.in.head
 
   protected def inwardSplitNode: TLInwardNode = master_splitter.node
   protected def outwardSplitNode: TLOutwardNode = master_splitter.node

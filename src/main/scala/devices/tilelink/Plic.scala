@@ -91,12 +91,12 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
   /* Negotiated sizes */
-  def nDevices: Int = intnode.in.map(_._2.source.num).sum
+  def nDevices: Int = intnode.edges.in.map(_.source.num).sum
   def nPriorities = min(params.maxPriorities, nDevices)
-  def nHarts = intnode.out.map(_._2.source.num).sum
+  def nHarts = intnode.edges.out.map(_.source.num).sum
 
   // Assign all the devices unique ranges
-  lazy val sources = intnode.in.map(_._2.source)
+  lazy val sources = intnode.edges.in.map(_.source)
   lazy val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
     case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
   }.flatten

@@ -82,7 +82,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
       }))
 
       // Find all the caches
-      val outer = masterNode.out.map(_._2)
+      val outer = masterNode.edges.out
         .flatMap(_.manager.managers)
         .filter(_.supportsAcquireB)
         .flatMap(_.resources.headOption)
@@ -115,7 +115,7 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
     Resource(cpuDevice, "reg").bind(ResourceInt(BigInt(hartid)))
     Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartid)))
 
-    intNode.in.flatMap(_._2.source.sources).map { case s =>
+    intNode.edges.in.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
        csrIntMap.lift(i).foreach { j =>
           s.resources.foreach { r =>
