@@ -30,12 +30,12 @@ case class TLManagerParameters(
   address.foreach { a => require (a.finite) }
 
   address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
-  require (supportsPutFull.contains(supportsPutPartial))
-  require (supportsPutFull.contains(supportsArithmetic))
-  require (supportsPutFull.contains(supportsLogical))
-  require (supportsGet.contains(supportsArithmetic))
-  require (supportsGet.contains(supportsLogical))
-  require (supportsAcquireB.contains(supportsAcquireT))
+  require (supportsPutFull.contains(supportsPutPartial), s"PutFull($supportsPutFull) < PutPartial($supportsPutPartial)")
+  require (supportsPutFull.contains(supportsArithmetic), s"PutFull($supportsPutFull) < Arithmetic($supportsArithmetic)")
+  require (supportsPutFull.contains(supportsLogical),    s"PutFull($supportsPutFull) < Logical($supportsLogical)")
+  require (supportsGet.contains(supportsArithmetic),     s"Get($supportsGet) < Arithmetic($supportsArithmetic)")
+  require (supportsGet.contains(supportsLogical),        s"Get($supportsGet) < Logical($supportsLogical)")
+  require (supportsAcquireB.contains(supportsAcquireT),  s"AcquireB($supportsAcquireB) < AcquireT($supportsAcquireT)")
 
   // Make sure that the regionType agrees with the capabilities
   require (!supportsAcquireB || regionType >= RegionType.UNCACHED) // acquire -> uncached, tracked, cached

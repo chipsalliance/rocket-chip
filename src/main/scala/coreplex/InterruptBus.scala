@@ -30,7 +30,7 @@ trait HasInterruptBus {
 }
 
 /** Specifies the number of external interrupts */
-case object NExtTopInterrupts extends Field[Int]
+case object NExtTopInterrupts extends Field[Int](0)
 
 /** This trait adds externally driven interrupts to the system. 
   * However, it should not be used directly; instead one of the below
