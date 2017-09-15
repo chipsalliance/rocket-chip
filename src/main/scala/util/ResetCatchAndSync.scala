@@ -26,7 +26,7 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
 object ResetCatchAndSync {
 
   def apply(clk: Clock, rst: Bool, sync: Int = 3, name: Option[String] = None,
-    psd: Option[PSDTestMode] =None): Bool = {
+    psd: Option[PSDTestMode] = None): Bool = {
 
     val catcher = Module (new ResetCatchAndSync(sync))
     if (name.isDefined) {catcher.suggestName(name.get)}

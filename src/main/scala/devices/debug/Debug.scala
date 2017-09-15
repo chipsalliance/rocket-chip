@@ -1067,7 +1067,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
       val dmi = new ClockedDMIIO().flip
       val in = node.bundleIn
       val debugInterrupts = intnode.bundleOut
-      val psd = new PSDTestMode()
+      val psd = new PSDTestMode().asInput
     }
 
     dmOuter.module.io.dmi <> io.dmi.dmi
@@ -1078,7 +1078,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
     dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
     dmInner.module.io.debugUnavail := io.ctrl.debugUnavail
 
-    io.psd <> dmInner.module.io.psd
+    dmInner.module.io.psd <> io.psd
 
     io.ctrl <> dmOuter.module.io.ctrl
 
