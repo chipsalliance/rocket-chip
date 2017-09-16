@@ -25,8 +25,8 @@ class WithTraceGen(params: Seq[DCacheParams], nReqs: Int = 8192) extends Config(
     addrBag = {
       val nSets = 2
       val nWays = 1
-      val blockOffset = site(SystemBusParams).blockOffset
-      val nBeats = site(SystemBusParams).blockBeats
+      val blockOffset = site(SystemBusKey).blockOffset
+      val nBeats = site(SystemBusKey).blockBeats
       List.tabulate(4 * nWays) { i =>
         Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
       }.flatten

@@ -11,8 +11,8 @@ import freechips.rocketchip.util._
 
 /** Specifies the size and width of external memory ports */
 case class MasterPortParams(
-  base: Long,
-  size: Long,
+  base: BigInt,
+  size: BigInt,
   beatBytes: Int,
   idBits: Int,
   maxXferBytes: Int = 256,
@@ -86,7 +86,7 @@ trait HasMasterAXI4MMIOPort extends HasSystemBus {
   private val device = new SimpleBus("mmio", Nil)
   val mmio_axi4 = AXI4BlindOutputNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
-      address       = List(AddressSet(BigInt(params.base), params.size-1)),
+      address       = List(AddressSet(params.base, params.size-1)),
       resources     = device.ranges,
       executable    = params.executable,
       supportsWrite = TransferSizes(1, params.maxXferBytes),
@@ -162,7 +162,7 @@ trait HasMasterTLMMIOPort extends HasSystemBus {
   private val device = new SimpleBus("mmio", Nil)
   val mmio_tl = TLBlindOutputNode(Seq(TLManagerPortParameters(
     managers = Seq(TLManagerParameters(
-      address            = List(AddressSet(BigInt(params.base), params.size-1)),
+      address            = List(AddressSet(params.base, params.size-1)),
       resources          = device.ranges,
       executable         = params.executable,
       supportsGet        = TransferSizes(1, sbus.blockBytes),
@@ -237,7 +237,7 @@ trait HasSlaveTLPortModuleImp extends LazyMultiIOModuleImp with HasSlaveTLPortBu
 /** Memory with AXI port for use in elaboratable test harnesses. */
 class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) extends LazyModule {
   val config = p(ExtMem)
-  val totalSize = if (forceSize > 0) forceSize else BigInt(config.size)
+  val totalSize = if (forceSize > 0) forceSize else config.size
   val size = totalSize / channels
   require(totalSize % channels == 0)
 

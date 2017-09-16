@@ -58,7 +58,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
   def address = AddressSet(baseAddress, PLICConsts.size-1)
 }
 
-case object PLICParams extends Field[PLICParams]
+case object PLICKey extends Field(PLICParams())
 
 /** Platform-Level Interrupt Controller */
 class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
@@ -238,7 +238,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
 
 /** Trait that will connect a PLIC to a coreplex */
 trait HasPeripheryPLIC extends HasInterruptBus with HasPeripheryBus {
-  val plic  = LazyModule(new TLPLIC(p(PLICParams)))
+  val plic  = LazyModule(new TLPLIC(p(PLICKey)))
   plic.node := pbus.toVariableWidthSlaves
   plic.intnode := ibus.toPLIC
 }

@@ -5,7 +5,7 @@ package freechips.rocketchip.config
 abstract class Field[T] private (val default: Option[T])
 {
   def this() = this(None)
-  def this(x: T) = this(Some(x))
+  def this(default: T) = this(Some(default))
 }
 
 abstract class View {
