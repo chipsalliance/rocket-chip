@@ -25,13 +25,14 @@ class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors
          None, None, dcache.correctable, dcache.uncorrectable)
 }
 
-class BusErrorUnit[T <: BusErrors](t: => T, addr: BigInt)(implicit p: Parameters) extends LazyModule {
+case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
+
+class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit p: Parameters) extends LazyModule {
   val regWidth = 64
-  val size = 64
   val device = new SimpleDevice("bus-error-unit", Seq("sifive,buserror0"))
   val intNode = IntSourceNode(IntSourcePortSimple(resources = device.int))
   val node = TLRegisterNode(
-    address   = Seq(AddressSet(addr, size-1)),
+    address   = Seq(AddressSet(params.addr, params.size-1)),
     device    = device,
     beatBytes = p(XLen)/8)
 
@@ -45,7 +46,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, addr: BigInt)(implicit p: Parameters
     val sources = io.errors.toErrorList
     val mask = sources.map(_.nonEmpty.B).asUInt
     val cause = Reg(init = UInt(0, log2Ceil(sources.lastIndexWhere(_.nonEmpty) + 1)))
-    val value = Reg(UInt(width = sources.flatten.map(_.getWidth).max))
+    val value = Reg(UInt(width = sources.flatten.map(_.bits.getWidth).max))
     require(value.getWidth <= regWidth)
     val enable = Reg(init = mask)
     val interrupt = Reg(init = UInt(0, sources.size))

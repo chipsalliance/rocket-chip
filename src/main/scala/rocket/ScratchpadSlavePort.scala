@@ -100,14 +100,21 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
   val cacheBlockBytes = p(CacheBlockBytes)
 
-  val slaveNode = TLInputNode() // Up to two uses for this input node:
+  val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntOutputNode())
+  val slaveNode = TLInputNode() // Up to three uses for this input node:
 
   // 1) Frontend always exists, but may or may not have a scratchpad node
   // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
+  // 3) BusErrorUnit sometimes has a node
   val fg = LazyModule(new TLFragmenter(tileParams.core.fetchBytes, cacheBlockBytes, earlyAck=true))
   val ww = LazyModule(new TLWidthWidget(xBytes))
   val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics)))
+  }
+  val busErrorUnit = tileParams.core.tileControlAddr map { a =>
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
+    intOutputNode.get := beu.intNode
+    beu
   }
 
   DisableMonitors { implicit p =>
@@ -115,6 +122,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
     fg.node :*= ww.node
     ww.node :*= slaveNode
     scratch foreach { lm => lm.node := TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
+    busErrorUnit foreach { lm => lm.node := TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
   }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
@@ -130,6 +138,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
 trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
   val outer: CanHaveScratchpad
   val slave = outer.slaveNode.bundleIn
+  val intOutput = outer.intOutputNode.map(_.bundleOut)
 }
 
 trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontendModule {
@@ -137,4 +146,8 @@ trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontend
   val io: CanHaveScratchpadBundle
 
   outer.scratch.foreach { lm => dcachePorts += lm.module.io.dmem }
+  outer.busErrorUnit.foreach { lm =>
+    lm.module.io.errors.dcache := outer.dcache.module.io.errors
+    lm.module.io.errors.icache := outer.frontend.module.io.errors
+  }
 }

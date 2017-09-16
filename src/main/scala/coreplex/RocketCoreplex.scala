@@ -84,6 +84,8 @@ trait HasRocketTiles extends HasSystemBus
     lip.foreach { coreIntXbar.intnode := _ }                // lip
     wrapper.coreIntNode   := coreIntXbar.intnode
 
+    wrapper.intOutputNode.foreach { plic.intnode := _ }
+
     wrapper
   }
 }
