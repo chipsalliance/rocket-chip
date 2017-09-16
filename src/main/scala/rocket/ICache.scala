@@ -36,6 +36,11 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
   val addr = UInt(width = vaddrBits)
 }
 
+class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICacheParameters {
+  val correctable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+  val uncorrectable = (cacheParams.itimAddr.nonEmpty && cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+}
+
 class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
   val masterNode = TLClientNode(TLClientParameters(
@@ -87,6 +92,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
   val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.map(_.bundleIn)
 
+  val errors = new ICacheErrors
   val perf = new ICachePerfEvents().asOutput
 }
 
@@ -116,10 +122,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val scratchpadOn = RegInit(false.B)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
   def lineInScratchpad(line: UInt) = scratchpadMax.map(scratchpadOn && line <= _).getOrElse(false.B)
-  def addrMaybeInScratchpad(addr: UInt) = if (outer.icacheParams.itimAddr.isEmpty) false.B else {
-    val base = GetPropertyByHartId(p(RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
-    addr >= base && addr < base + outer.size
+  val scratchpadBase = outer.icacheParams.itimAddr.map { dummy =>
+    GetPropertyByHartId(p(RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
   }
+  def addrMaybeInScratchpad(addr: UInt) = scratchpadBase.map(base => addr >= base && addr < base + outer.size).getOrElse(false.B)
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))
   def scratchpadWay(addr: UInt) = addr.extract(untagBits+log2Ceil(nWays)-1, untagBits)
   def scratchpadWayValid(way: UInt) = way < nWays - 1
@@ -248,12 +254,15 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       io.resp.valid := s1_valid && s1_hit
 
     case 2 =>
-      val s2_tag_hit = RegEnable(s1_tag_hit, s1_valid || s1_slaveValid)
-      val s2_dout = RegEnable(s1_dout, s1_valid || s1_slaveValid)
+      val s1_clk_en = s1_valid || s1_slaveValid
+      val s2_tag_hit = RegEnable(s1_tag_hit, s1_clk_en)
+      val s2_hit_way = OHToUInt(s2_tag_hit)
+      val s2_scratchpad_word_addr = Cat(s2_hit_way, io.s2_vaddr(untagBits-1, log2Ceil(wordBits/8)), UInt(0, log2Ceil(wordBits/8)))
+      val s2_dout = RegEnable(s1_dout, s1_clk_en)
       val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
 
-      val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_valid || s1_slaveValid).asUInt.orR
-      val s2_tl_error = RegEnable(s1_tl_error.asUInt.orR, s1_valid || s1_slaveValid)
+      val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_clk_en).asUInt.orR
+      val s2_tl_error = RegEnable(s1_tl_error.asUInt.orR, s1_clk_en)
       val s2_data_decoded = dECC.decode(s2_way_mux)
       val s2_disparity = s2_tag_disparity || s2_data_decoded.error
       when (s2_valid && s2_disparity) { invalidate := true }
@@ -262,6 +271,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       io.resp.bits.ae := s2_tl_error
       io.resp.bits.replay := s2_disparity
       io.resp.valid := s2_valid && s2_hit
+
+      val s1_scratchpad_hit = Mux(s1_slaveValid, lineInScratchpad(scratchpadLine(s1s3_slaveAddr)), addrInScratchpad(io.s1_paddr))
+      val s2_scratchpad_hit = RegEnable(s1_scratchpad_hit, s1_clk_en)
+      io.errors.correctable.foreach { c =>
+        c.valid := s2_valid && Mux(s2_scratchpad_hit, s2_data_decoded.correctable, s2_disparity)
+        c.bits := 0.U
+      }
+      io.errors.uncorrectable.foreach { u =>
+        u.valid := s2_valid && s2_scratchpad_hit && s2_data_decoded.uncorrectable
+        u.bits := scratchpadBase.get + s2_scratchpad_word_addr
+      }
 
       tl_in.map { tl =>
         val respValid = RegInit(false.B)
@@ -290,7 +310,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           // a structural hazard on s1s3_slaveData/s1s3_slaveAddress).
           s3_slaveValid := true
           s1s3_slaveData := s2_data_decoded.corrected
-          s1s3_slaveAddr := Cat(OHToUInt(s2_tag_hit), io.s2_vaddr(untagBits-1, log2Ceil(wordBits/8)), s1s3_slaveAddr(log2Ceil(wordBits/8)-1, 0))
+          s1s3_slaveAddr := s2_scratchpad_word_addr | s1s3_slaveAddr(log2Ceil(wordBits/8)-1, 0)
         }
 
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
