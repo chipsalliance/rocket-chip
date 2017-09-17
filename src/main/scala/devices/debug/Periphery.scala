@@ -38,7 +38,12 @@ trait HasPeripheryDebugBundle {
 
   val debug: DebugIO
 
-  def connectDebug(c: Clock, r: Bool, out: Bool, tckHalfPeriod: Int = 2, cmdDelay: Int = 2, psd: PSDTestMode) {
+  def connectDebug(c: Clock,
+    r: Bool,
+    out: Bool,
+    tckHalfPeriod: Int = 2,
+    cmdDelay: Int = 2,
+    psd: PSDTestMode = new PSDTestMode().fromBits(0.U)): Unit =  {
     debug.clockeddmi.foreach { d =>
       val dtm = Module(new SimDTM).connect(c, r, d, out)
     }
@@ -49,9 +54,6 @@ trait HasPeripheryDebugBundle {
     debug.psd.foreach { _ <> psd }
   }
 
-  def connectDebug(c: Clock, r: Bool, out: Bool, tckHalfPeriod: Int = 2, cmdDelay: Int = 2) =
-    connectDebug(c, r, out, tckHalfPeriod, cmdDelay, new PSDTestMode.fromBits(0.U))
- 
 }
 trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryDebugBundle {
   val outer: HasPeripheryDebug
