@@ -15,7 +15,7 @@ case class FrontBusParams(
   slaveBuffering: BufferParams = BufferParams.default
 ) extends TLBusParams
 
-case object FrontBusParams extends Field[FrontBusParams]
+case object FrontBusKey extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "FrontBus") {
 
@@ -50,7 +50,7 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
   * for use in traits that connect individual devices or external ports.
   */
 trait HasFrontBus extends HasSystemBus {
-  private val frontbusParams = p(FrontBusParams)
+  private val frontbusParams = p(FrontBusKey)
   val frontbusBeatBytes = frontbusParams.beatBytes
 
   val fbus = new FrontBus(frontbusParams)

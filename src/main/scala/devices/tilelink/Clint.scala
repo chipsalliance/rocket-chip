@@ -30,7 +30,7 @@ case class ClintParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
   def address = AddressSet(baseAddress, ClintConsts.size-1)
 }
 
-case object ClintParams extends Field[ClintParams]
+case object ClintKey extends Field(ClintParams())
 
 class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) extends LazyModule
 {
@@ -96,6 +96,6 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
 
 /** Trait that will connect a Clint to a coreplex */
 trait HasPeripheryClint extends HasPeripheryBus {
-  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintParams)))
+  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey)))
   clint.node := pbus.toVariableWidthSlaves
 }

@@ -13,8 +13,8 @@ import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case object PgLevels extends Field[Int]
-case object ASIdBits extends Field[Int]
+case object PgLevels extends Field[Int](2)
+case object ASIdBits extends Field[Int](0)
 
 class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
   val rs1 = Bool()

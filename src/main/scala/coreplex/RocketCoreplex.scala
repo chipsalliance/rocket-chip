@@ -11,8 +11,8 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case object RocketTilesKey extends Field[Seq[RocketTileParams]]
-case object RocketCrossing extends Field[CoreplexClockCrossing]
+case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
+case object RocketCrossing extends Field[CoreplexClockCrossing](SynchronousCrossing())
 
 trait HasRocketTiles extends HasSystemBus
     with HasPeripheryBus

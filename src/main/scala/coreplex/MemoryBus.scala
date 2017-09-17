@@ -9,13 +9,14 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 // TODO: applies to all caches, for now
-case object CacheBlockBytes extends Field[Int]
+case object CacheBlockBytes extends Field[Int](64)
 
 /** L2 Broadcast Hub configuration */
 case class BroadcastParams(
   nTrackers:  Int     = 4,
   bufferless: Boolean = false)
-case object BroadcastParams extends Field[BroadcastParams]
+
+case object BroadcastKey extends Field(BroadcastParams())
 
 /** L2 memory subsystem configuration */
 case class BankedL2Params(
@@ -23,14 +24,15 @@ case class BankedL2Params(
   nBanksPerChannel: Int = 1,
   coherenceManager: (Parameters, HasMemoryBus) => (TLInwardNode, TLOutwardNode) = { case (q, _) =>
     implicit val p = q
-    val MemoryBusParams(_, blockBytes, _, _) = p(MemoryBusParams)
-    val BroadcastParams(nTrackers, bufferless) = p(BroadcastParams)
+    val MemoryBusParams(_, blockBytes, _, _) = p(MemoryBusKey)
+    val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
     val bh = LazyModule(new TLBroadcast(blockBytes, nTrackers, bufferless))
     (bh.node, bh.node)
   }) {
   val nBanks = nMemoryChannels*nBanksPerChannel
 }
-case object BankedL2Params extends Field[BankedL2Params]
+
+case object BankedL2Key extends Field(BankedL2Params())
 
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(
@@ -40,7 +42,7 @@ case class MemoryBusParams(
   slaveBuffering: BufferParams = BufferParams.none
 ) extends TLBusParams
 
-case object MemoryBusParams extends Field[MemoryBusParams]
+case object MemoryBusKey extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "MemoryBus")(p) {
@@ -50,9 +52,9 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWr
 }
 
 trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBus {
-  private val mbusParams = p(MemoryBusParams)
+  private val mbusParams = p(MemoryBusKey)
   private val MemoryBusParams(beatBytes, blockBytes, _, _) = mbusParams
-  private val l2Params = p(BankedL2Params)
+  private val l2Params = p(BankedL2Key)
   val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
   val nBanks = l2Params.nBanks
   val cacheBlockBytes = blockBytes
