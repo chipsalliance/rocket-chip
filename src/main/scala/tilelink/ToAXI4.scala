@@ -48,7 +48,7 @@ case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0) extends MixedAdapter
       minLatency = p.minLatency)
   })
 
-class TLToAXI4(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
+class TLToAXI4(val beatBytes: Int, val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAXI4Node(beatBytes, stripBits)
 
