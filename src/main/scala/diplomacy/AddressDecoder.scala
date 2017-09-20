@@ -70,10 +70,10 @@ object AddressDecoder
 
   def bitScore(partitions: Partitions): Seq[Int] = {
     val maxPortsPerPartition = partitions.map(_.size).max
-    val sumPortsPerPartition = partitions.map(_.size).sum
     val maxSetsPerPartition = partitions.map(_.map(_.size).sum).max
-    val sumSetsPerPartition = partitions.map(_.map(_.size).sum).sum
-    Seq(maxPortsPerPartition, sumPortsPerPartition, maxSetsPerPartition, sumSetsPerPartition)
+    val sumSquarePortsPerPartition = partitions.map(p => p.size * p.size).sum
+    val sumSquareSetsPerPartition = partitions.map(_.map(p => p.size * p.size).sum).max
+    Seq(maxPortsPerPartition, maxSetsPerPartition, sumSquarePortsPerPartition, sumSquareSetsPerPartition)
   }
 
   def partitionPort(port: Port, bit: BigInt): (Port, Port) = {
