@@ -27,6 +27,7 @@ trait CoreParams {
   val nLocalInterrupts: Int
   val nL2TLBEntries: Int
   val jumpInFrontend: Boolean
+  val tileControlAddr: Option[BigInt]
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
@@ -75,5 +76,6 @@ trait HasCoreIO extends HasTileParameters {
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
+    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
   }
 }

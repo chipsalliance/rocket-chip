@@ -11,6 +11,12 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import TLMessages._
 
+class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
+  val correctable = (cacheParams.tagECC.canCorrect || cacheParams.dataECC.canCorrect).option(Valid(UInt(width = paddrBits)))
+  val uncorrectable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+  val bus = Valid(UInt(width = paddrBits))
+}
+
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val eccBytes = cacheParams.dataECCBytes
   val addr = Bits(width = untagBits)
@@ -216,9 +222,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_flush_valid_pre_tag_ecc = RegNext(s1_flush_valid)
   val s1_meta_decoded = s1_meta.map(tECC.decode(_))
   val s1_meta_clk_en = s1_valid_not_nacked || s1_flush_valid || s1_probe
-  val s2_meta_errors = s1_meta_decoded.map(m => RegEnable(m.error, s1_meta_clk_en)).asUInt
+  val s2_meta_correctable_errors = s1_meta_decoded.map(m => RegEnable(m.correctable, s1_meta_clk_en)).asUInt
+  val s2_meta_uncorrectable_errors = s1_meta_decoded.map(m => RegEnable(m.uncorrectable, s1_meta_clk_en)).asUInt
+  val s2_meta_error_uncorrectable = s2_meta_uncorrectable_errors.orR
   val s2_meta_corrected = s1_meta_decoded.map(m => RegEnable(m.corrected, s1_meta_clk_en).asTypeOf(new L1Metadata))
-  val s2_meta_error = s2_meta_errors.orR
+  val s2_meta_error = (s2_meta_uncorrectable_errors | s2_meta_correctable_errors).orR
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
   val s2_data = {
     val en = s1_valid || inWriteback || tl_out.d.fire()
@@ -242,6 +250,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_word_idx = s2_req.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
   val s2_did_read = RegEnable(s1_did_read, s1_valid_not_nacked)
   val s2_data_error = s2_did_read && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
+  val s2_data_error_uncorrectable = (s2_data_decoded.map(_.uncorrectable).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
@@ -264,9 +273,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tag updates on ECC errors
   metaArb.io.in(1).valid := s2_meta_error && (s2_valid_masked || s2_flush_valid_pre_tag_ecc || s2_probe)
   metaArb.io.in(1).bits.write := true
-  metaArb.io.in(1).bits.way_en := PriorityEncoderOH(s2_meta_errors)
+  metaArb.io.in(1).bits.way_en := s2_meta_uncorrectable_errors | Mux(s2_meta_error_uncorrectable, 0.U, PriorityEncoderOH(s2_meta_correctable_errors))
   metaArb.io.in(1).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, Mux(s2_probe, probe_bits.address, s2_req.addr)(idxMSB, 0))
-  metaArb.io.in(1).bits.data := PriorityMux(s2_meta_errors, s2_meta_corrected)
+  metaArb.io.in(1).bits.data := PriorityMux(s2_meta_correctable_errors, s2_meta_corrected)
+  when (s2_meta_error_uncorrectable) { metaArb.io.in(1).bits.data.coh := ClientMetadata.onReset }
 
   // tag updates on hit/miss
   metaArb.io.in(2).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)
@@ -702,6 +712,30 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.acquire := edge.done(tl_out_a)
   io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+
+  // report errors
+  {
+    val (data_error, data_error_uncorrectable, data_error_addr) =
+      if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
+        (tl_out_c.valid && edge.hasData(tl_out_c.bits) && s2_data_decoded.map(_.error).reduce(_||_),
+         s2_data_decoded.map(_.uncorrectable).reduce(_||_),
+         tl_out_c.bits.address)
+      }
+    val error_addr =
+      Mux(metaArb.io.in(1).valid, Cat(metaArb.io.in(1).bits.data.tag, metaArb.io.in(1).bits.addr(untagBits-1, idxLSB)),
+          data_error_addr >> idxLSB) << idxLSB
+    io.errors.uncorrectable.foreach { u =>
+      u.valid := metaArb.io.in(1).valid && s2_meta_error_uncorrectable || data_error && data_error_uncorrectable
+      u.bits := error_addr
+    }
+    io.errors.correctable.foreach { c =>
+      c.valid := metaArb.io.in(1).valid || data_error
+      c.bits := error_addr
+      io.errors.uncorrectable.foreach { u => when (u.valid) { c.valid := false } }
+    }
+    io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.error
+    io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
+  }
 
   def encodeData(x: UInt) = x.grouped(eccBits).map(dECC.encode(_)).asUInt
   def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt

@@ -149,6 +149,16 @@ class PerfCounterIO(implicit p: Parameters) extends CoreBundle
   val inc = UInt(INPUT, log2Ceil(1+retireWidth))
 }
 
+class TracedInstruction(implicit p: Parameters) extends CoreBundle {
+  val valid = Bool()
+  val addr = UInt(width = coreMaxAddrBits)
+  val insn = UInt(width = iLen)
+  val priv = UInt(width = 3)
+  val exception = Bool()
+  val cause = UInt(width = 1 + log2Ceil(xLen))
+  val tval = UInt(width = coreMaxAddrBits max iLen)
+}
+
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasRocketCoreParameters {
   val interrupts = new TileInterrupts().asInput
@@ -192,6 +202,8 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val bp = Vec(nBreakpoints, new BP).asOutput
   val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
+  val inst = Vec(retireWidth, UInt(width = iLen)).asInput
+  val trace = Vec(retireWidth, new TracedInstruction).asOutput
 }
 
 class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Parameters) extends CoreModule()(p)
@@ -506,15 +518,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(!io.singleStep || io.retire <= UInt(1))
   assert(!reg_singleStepped || io.retire === UInt(0))
 
+  val epc = ~(~io.pc | (coreInstBytes-1))
+  val write_badaddr = cause isOneOf (Causes.illegal_instruction, Causes.breakpoint,
+    Causes.misaligned_load, Causes.misaligned_store,
+    Causes.load_access, Causes.store_access, Causes.fetch_access,
+    Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
+  val badaddr_value = Mux(write_badaddr, io.badaddr, 0.U)
+
   when (exception) {
-    val epc = ~(~io.pc | (coreInstBytes-1))
-
-    val write_badaddr = cause isOneOf (Causes.illegal_instruction, Causes.breakpoint,
-      Causes.misaligned_load, Causes.misaligned_store,
-      Causes.load_access, Causes.store_access, Causes.fetch_access,
-      Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
-    val badaddr_value = Mux(write_badaddr, io.badaddr, 0.U)
-
     when (trapToDebug) {
       when (!reg_debug) {
         reg_debug := true
@@ -754,6 +765,16 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       pmp.cfg.a := 0
       pmp.cfg.l := 0
     }
+  }
+
+  for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
+    t.exception := io.retire >= i && exception
+    t.valid := io.retire > i || t.exception
+    t.insn := insn
+    t.addr := io.pc
+    t.priv := Cat(reg_debug, reg_mstatus.prv)
+    t.cause := Cat(cause(xLen-1), cause(log2Ceil(xLen)-1, 0))
+    t.tval := badaddr_value
   }
 
   def chooseInterrupt(masks: Seq[UInt]): (Bool, UInt) = {
