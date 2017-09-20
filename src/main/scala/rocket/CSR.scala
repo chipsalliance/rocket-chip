@@ -510,7 +510,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     val epc = ~(~io.pc | (coreInstBytes-1))
 
     val write_badaddr = cause isOneOf (Causes.illegal_instruction, Causes.breakpoint,
-      Causes.misaligned_load, Causes.misaligned_store, Causes.misaligned_fetch,
+      Causes.misaligned_load, Causes.misaligned_store,
       Causes.load_access, Causes.store_access, Causes.fetch_access,
       Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
     val badaddr_value = Mux(write_badaddr, io.badaddr, 0.U)
