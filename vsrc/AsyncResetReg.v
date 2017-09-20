@@ -54,7 +54,9 @@ module AsyncResetReg (
 `endif
 `ifdef RANDOMIZE_REG_INIT
       _RAND = {1{$random}};
-      q = _RAND[0];
+      if (~rst) begin
+         q = _RAND[0];
+      end
 `endif
    end
 `endif //  `ifdef RANDOMIZE
