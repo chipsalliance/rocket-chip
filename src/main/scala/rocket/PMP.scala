@@ -127,7 +127,7 @@ class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {
 }
 
 class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val io = new Bundle {
     val prv = UInt(INPUT, PRV.SZ)
     val pmp = Vec(nPMPs, new PMP).asInput

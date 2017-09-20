@@ -63,7 +63,7 @@ class DCSR extends Bundle {
 }
 
 class MIP(implicit p: Parameters) extends CoreBundle()(p)
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
   val zero2 = Bool()
   val debug = Bool() // keep in sync with CSR.debugIntCause
@@ -144,7 +144,7 @@ object CSR
 }
 
 class PerfCounterIO(implicit p: Parameters) extends CoreBundle
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val eventSel = UInt(OUTPUT, xLen)
   val inc = UInt(INPUT, log2Ceil(1+retireWidth))
 }
@@ -161,7 +161,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val interrupts = new TileInterrupts().asInput
   val hartid = UInt(INPUT, hartIdLen)
   val rw = new Bundle {
@@ -207,7 +207,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
 }
 
 class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Parameters) extends CoreModule()(p)
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val io = new CSRFileIO
 
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))

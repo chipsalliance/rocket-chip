@@ -45,11 +45,6 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   val fastLoadWord = rocketParams.fastLoadWord
   val fastLoadByte = rocketParams.fastLoadByte
-  val nBreakpoints = rocketParams.nBreakpoints
-  val nPMPs = rocketParams.nPMPs
-  val nPerfCounters = rocketParams.nPerfCounters
-  val mtvecInit = rocketParams.mtvecInit
-  val mtvecWritable = rocketParams.mtvecWritable
 
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
