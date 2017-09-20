@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 
-case object TLBusDelayProbability extends Field[Double]
+case object TLBusDelayProbability extends Field[Double](0.0)
 
 /** Specifies widths of various attachement points in the SoC */
 trait TLBusParams {

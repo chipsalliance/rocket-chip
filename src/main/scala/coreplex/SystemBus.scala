@@ -15,7 +15,7 @@ case class SystemBusParams(
   slaveBuffering: BufferParams = BufferParams.default
 ) extends TLBusParams
 
-case object SystemBusParams extends Field[SystemBusParams]
+case object SystemBusKey extends Field[SystemBusParams]
 
 class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus") {
 
@@ -119,7 +119,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   * for use in traits that connect individual devices or external ports.
   */
 trait HasSystemBus extends HasInterruptBus {
-  private val sbusParams = p(SystemBusParams)
+  private val sbusParams = p(SystemBusKey)
   val sbusBeatBytes = sbusParams.beatBytes
 
   val sbus = new SystemBus(sbusParams)

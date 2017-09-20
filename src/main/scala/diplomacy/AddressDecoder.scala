@@ -31,11 +31,11 @@ object AddressDecoder
         } }
       }
 
-      val maxBits = log2Ceil(nonEmptyPorts.map(_.map(_.base).max).max)
-      val (bitsToTry, bitsToTake) = (0 to maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+      val maxBits = log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
+      val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
       val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
       val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
-      val selected = recurse(givenPartitions, bitsToTry.toSeq)
+      val selected = recurse(givenPartitions, bitsToTry.reverse.toSeq)
       val output = selected.reduceLeft(_ | _) | givenBits
 
       // Modify the AddressSets to allow the new wider match functions
@@ -70,10 +70,10 @@ object AddressDecoder
 
   def bitScore(partitions: Partitions): Seq[Int] = {
     val maxPortsPerPartition = partitions.map(_.size).max
-    val sumPortsPerPartition = partitions.map(_.size).sum
     val maxSetsPerPartition = partitions.map(_.map(_.size).sum).max
-    val sumSetsPerPartition = partitions.map(_.map(_.size).sum).sum
-    Seq(maxPortsPerPartition, sumPortsPerPartition, maxSetsPerPartition, sumSetsPerPartition)
+    val sumSquarePortsPerPartition = partitions.map(p => p.size * p.size).sum
+    val sumSquareSetsPerPartition = partitions.map(_.map(p => p.size * p.size).sum).max
+    Seq(maxPortsPerPartition, maxSetsPerPartition, sumSquarePortsPerPartition, sumSquareSetsPerPartition)
   }
 
   def partitionPort(port: Port, bit: BigInt): (Port, Port) = {
@@ -123,6 +123,8 @@ object AddressDecoder
       val candidates = bits.map { bit =>
         val result = partitionPartitions(partitions, bit)
         val score = bitScore(result)
+        if (debug)
+          println("  For bit %x, %s".format(bit, score.toString))
         (score, bit, result)
       }
       val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Iterable[Int]](_._1.toIterable))

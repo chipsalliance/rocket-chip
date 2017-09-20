@@ -19,7 +19,7 @@ case class PeripheryBusParams(
 ) extends TLBusParams {
 }
 
-case object PeripheryBusParams extends Field[PeripheryBusParams]
+case object PeripheryBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "PeripheryBus") {
 
@@ -42,7 +42,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
   * for use in traits that connect individual devices or external ports.
   */
 trait HasPeripheryBus extends HasSystemBus {
-  private val pbusParams = p(PeripheryBusParams)
+  private val pbusParams = p(PeripheryBusKey)
   val pbusBeatBytes = pbusParams.beatBytes
 
   val pbus = new PeripheryBus(pbusParams)

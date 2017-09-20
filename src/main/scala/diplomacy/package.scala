@@ -22,6 +22,13 @@ package object diplomacy
     }
   }
 
+  implicit class BigIntHexContext(val sc: StringContext) extends AnyVal {
+    def x(args: Any*): BigInt = {
+      val orig = sc.s(args: _*)
+      BigInt(orig.replace("_", ""), 16)
+    }
+  }
+
   def SinkCardinality[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case CardinalityInferenceDirectionKey => CardinalityInferenceDirection.SINK_TO_SOURCE
   })

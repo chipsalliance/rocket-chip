@@ -30,7 +30,7 @@ module {name}(
   initial begin
 `ifdef RANDOMIZE
   `ifdef RANDOMIZE_MEM_INIT
-    for (i = 0; i < {depth}; i++) begin
+    for (i = 0; i < {depth}; i = i + 1) begin
       rom[i] = {{{num_random_blocks}{{$random}}}};
     end
   `endif

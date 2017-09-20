@@ -135,7 +135,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val l2_refill = RegNext(false.B)
   io.dpath.perf.l2miss := false
-  val (l2_hit, l2_valid, l2_pte) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE)) else {
+  val (l2_hit, l2_valid, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
     require(isPow2(coreParams.nL2TLBEntries))
     val idxBits = log2Ceil(coreParams.nL2TLBEntries)
@@ -191,7 +191,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     s2_pte.g := s2_g
     s2_pte.v := true
 
-    (s2_hit, s2_valid && s2_valid_bit, s2_pte)
+    (s2_hit, s2_valid && s2_valid_bit, s2_pte, Some(ram))
   }
   
   io.mem.req.valid := state === s_req && !l2_valid

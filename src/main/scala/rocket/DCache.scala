@@ -35,9 +35,9 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
   val addr = io.req.bits.addr >> rowOffBits
-  val data_arrays = Seq.fill(rowBytes / wordBytes) { SeqMem(nSets * refillCycles, Vec(nWays * (wordBits / eccBits), UInt(width = encBits))) }
-  val rdata = for ((array, i) <- data_arrays zipWithIndex) yield {
-    val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
+  val dcache_data_arrays = Seq.fill(rowBytes / wordBytes) { SeqMem(nSets * refillCycles, Vec(nWays * (wordBits / eccBits), UInt(width = encBits))) }
+  val rdata = for ((array, i) <- dcache_data_arrays zipWithIndex) yield {
+    val valid = io.req.valid && (Bool(dcache_data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
       val wData = wWords(i).grouped(encBits)
       array.write(addr, Vec((0 until nWays).flatMap(i => wData)), wMask)
@@ -72,7 +72,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tags
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
+  val dcache_tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
 
   // data
   val data = Module(new DCacheDataArray)
@@ -182,9 +182,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       when (metaReq.valid && metaReq.bits.write) {
         val wdata = tECC.encode(metaReq.bits.data.asUInt)
         val wmask = if (nWays == 1) Seq(true.B) else metaReq.bits.way_en.toBools
-        tag_array.write(metaIdx, Vec.fill(nWays)(wdata), wmask)
+        dcache_tag_array.write(metaIdx, Vec.fill(nWays)(wdata), wmask)
       }
-      val s1_meta = tag_array.read(metaIdx, metaReq.valid && !metaReq.bits.write)
+      val s1_meta = dcache_tag_array.read(metaIdx, metaReq.valid && !metaReq.bits.write)
       val s1_meta_uncorrected = s1_meta.map(tECC.decode(_).uncorrected.asTypeOf(new L1Metadata))
       val s1_tag = s1_paddr >> untagBits
       val s1_meta_hit_way = s1_meta_uncorrected.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
@@ -294,6 +294,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
   // pending store buffer
   val s2_valid_correct = s2_valid_hit_pre_data_ecc && s2_correct
+  val s2_store_valid = s2_valid_hit && s2_write && !s2_sc_fail
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
   val pstore1_addr = RegEnable(s1_paddr, s1_valid_not_nacked && s1_write)
   val pstore1_data = RegEnable(io.cpu.s1_data.data, s1_valid_not_nacked && s1_write)
@@ -302,7 +303,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_storegen_data = Wire(init = pstore1_data)
   val pstore1_rmw = Bool(usingRMW) && RegEnable(needsRead(s1_req), s1_valid_not_nacked && s1_write)
   val pstore1_valid = Wire(Bool())
-  val pstore1_merge = pstore1_valid && s2_store_merge
+  val pstore1_merge = s2_store_valid && s2_store_merge
   val pstore2_valid = Reg(Bool())
   any_pstore_valid := pstore1_valid || pstore2_valid
   val pstore_drain_structural = pstore1_valid && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
@@ -312,7 +313,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     (Bool(usingRMW) && pstore_drain_structural ||
      (((pstore1_valid && !pstore1_rmw) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss)))
   pstore1_valid := {
-    val s2_store_valid = s2_valid_hit && s2_write && !s2_sc_fail
     val pstore1_held = Reg(Bool())
     assert(!s2_store_valid || !pstore1_held)
     pstore1_held := (s2_store_valid && !s2_store_merge || pstore1_held) && pstore2_valid && !pstore_drain
