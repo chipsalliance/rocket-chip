@@ -21,6 +21,7 @@ trait TileParams {
   val dcache: Option[DCacheParams]
   val rocc: Seq[RoCCParams]
   val btb: Option[BTBParams]
+  val trace: Boolean
 }
 
 trait HasTileParameters {
@@ -37,6 +38,7 @@ trait HasTileParameters {
 
   def xLen: Int = p(XLen)
   def xBytes: Int = xLen / 8
+  def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
   def vaddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
@@ -92,6 +94,10 @@ trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
   val reset_vector = UInt(INPUT, resetVectorLen)
 }
 
+trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
+  val trace = tileParams.trace.option(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput)
+}
+
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
     with HasTileParameters
@@ -102,6 +108,7 @@ abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
     with HasTileLinkMasterPortBundle
     with HasExternallyDrivenTileConstants
+    with CanHaveInstructionTracePort
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
     with HasTileParameters
