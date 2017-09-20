@@ -15,6 +15,9 @@ abstract class Decoding
 
 abstract class Code
 {
+  def canDetect: Boolean
+  def canCorrect: Boolean
+
   def width(w0: Int): Int
   def encode(x: UInt): UInt
   def decode(x: UInt): Decoding
@@ -29,6 +32,9 @@ abstract class Code
 
 class IdentityCode extends Code
 {
+  def canDetect = false
+  def canCorrect = false
+
   def width(w0: Int) = w0
   def encode(x: UInt) = x
   def swizzle(x: UInt) = x
@@ -42,6 +48,9 @@ class IdentityCode extends Code
 
 class ParityCode extends Code
 {
+  def canDetect = true
+  def canCorrect = false
+
   def width(w0: Int) = w0+1
   def encode(x: UInt) = Cat(x.xorR, x)
   def swizzle(x: UInt) = Cat(false.B, x)
@@ -55,6 +64,9 @@ class ParityCode extends Code
 
 class SECCode extends Code
 {
+  def canDetect = true
+  def canCorrect = true
+
   def width(k: Int) = {
     val m = log2Floor(k) + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
@@ -101,6 +113,9 @@ class SECCode extends Code
 
 class SECDEDCode extends Code
 {
+  def canDetect = true
+  def canCorrect = true
+
   private val sec = new SECCode
   private val par = new ParityCode
 

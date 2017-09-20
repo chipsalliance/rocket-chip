@@ -70,6 +70,7 @@ class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)
   val ptw = new TLBPTWIO()
   val tl_out = outer.masterNode.bundleOut
   val tl_in = outer.slaveNode.bundleIn
+  val errors = new ICacheErrors
 }
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
@@ -286,6 +287,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   // performance events
   io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  io.errors := icache.io.errors
 
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
 }

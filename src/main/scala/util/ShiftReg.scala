@@ -125,8 +125,10 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineRe
 
 
 object SynchronizerShiftReg {
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T =
-    AbstractPipelineReg(new SynchronizerShiftReg(in.getWidth, sync), in, name)
+  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T = {
+    if (sync == 0) in
+    else AbstractPipelineReg(new SynchronizerShiftReg(in.getWidth, sync), in, name)
+  }
 }
 
 class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) extends AbstractPipelineReg(w) {
