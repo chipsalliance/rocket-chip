@@ -151,7 +151,7 @@ class PerfCounterIO(implicit p: Parameters) extends CoreBundle
 
 class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val valid = Bool()
-  val addr = UInt(width = coreMaxAddrBits)
+  val iaddr = UInt(width = coreMaxAddrBits)
   val insn = UInt(width = iLen)
   val priv = UInt(width = 3)
   val exception = Bool()
@@ -771,7 +771,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     t.exception := io.retire >= i && exception
     t.valid := io.retire > i || t.exception
     t.insn := insn
-    t.addr := io.pc
+    t.iaddr := io.pc
     t.priv := Cat(reg_debug, reg_mstatus.prv)
     t.cause := Cat(cause(xLen-1), cause(log2Ceil(xLen)-1, 0))
     t.tval := badaddr_value
