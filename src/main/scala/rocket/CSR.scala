@@ -190,7 +190,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val evec = UInt(OUTPUT, vaddrBitsExtended)
   val exception = Bool(INPUT)
   val retire = UInt(INPUT, log2Up(1+retireWidth))
-  val custom_mrw_csrs = Vec(nCustomMrwCsrs, UInt(INPUT, xLen))
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
   val badaddr = UInt(INPUT, vaddrBitsExtended)
@@ -436,13 +435,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> read_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
     for ((pmp, i) <- read_pmp zipWithIndex)
       read_mapping += (CSRs.pmpaddr0 + i) -> pmp.addr
-  }
-
-  for (i <- 0 until nCustomMrwCsrs) {
-    val addr = 0xff0 + i
-    require(addr < (1 << CSR.ADDRSZ))
-    require(!read_mapping.contains(addr), "custom MRW CSR address " + i + " is already in use")
-    read_mapping += addr -> io.custom_mrw_csrs(i)
   }
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
