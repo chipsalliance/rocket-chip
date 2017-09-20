@@ -31,11 +31,11 @@ object AddressDecoder
         } }
       }
 
-      val maxBits = log2Ceil(nonEmptyPorts.map(_.map(_.base).max).max)
-      val (bitsToTry, bitsToTake) = (0 to maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+      val maxBits = log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
+      val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
       val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
       val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
-      val selected = recurse(givenPartitions, bitsToTry.toSeq)
+      val selected = recurse(givenPartitions, bitsToTry.reverse.toSeq)
       val output = selected.reduceLeft(_ | _) | givenBits
 
       // Modify the AddressSets to allow the new wider match functions
