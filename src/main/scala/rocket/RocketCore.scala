@@ -675,16 +675,16 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
     when (t.valid) {
       when (wfd) {
-        printf ("%d 0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", t.priv, t.addr, t.insn, rd, rd+UInt(32))
+        printf ("%d 0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", t.priv, t.iaddr, t.insn, rd, rd+UInt(32))
       }
       .elsewhen (wxd && rd =/= UInt(0) && has_data) {
-        printf ("%d 0x%x (0x%x) x%d 0x%x\n", t.priv, t.addr, t.insn, rd, rf_wdata)
+        printf ("%d 0x%x (0x%x) x%d 0x%x\n", t.priv, t.iaddr, t.insn, rd, rf_wdata)
       }
       .elsewhen (wxd && rd =/= UInt(0) && !has_data) {
-        printf ("%d 0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", t.priv, t.addr, t.insn, rd, rd)
+        printf ("%d 0x%x (0x%x) x%d p%d 0xXXXXXXXXXXXXXXXX\n", t.priv, t.iaddr, t.insn, rd, rd)
       }
       .otherwise {
-        printf ("%d 0x%x (0x%x)\n", t.priv, t.addr, t.insn)
+        printf ("%d 0x%x (0x%x)\n", t.priv, t.iaddr, t.insn)
       }
     }
 
@@ -694,7 +694,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   }
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.hartid, csr.io.time(31,0), csr.io.trace(0).valid, csr.io.trace(0).addr(vaddrBitsExtended-1, 0),
+         io.hartid, csr.io.time(31,0), csr.io.trace(0).valid, csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0),
          Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0)), rf_wdata, rf_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
