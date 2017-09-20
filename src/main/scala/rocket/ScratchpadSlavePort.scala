@@ -100,29 +100,32 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
   val cacheBlockBytes = p(CacheBlockBytes)
 
-  val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntOutputNode())
-  val slaveNode = TLInputNode() // Up to three uses for this input node:
-
-  // 1) Frontend always exists, but may or may not have a scratchpad node
-  // 2) ScratchpadSlavePort always has a node, but only exists when the HellaCache has a scratchpad
-  // 3) BusErrorUnit sometimes has a node
-  val fg = LazyModule(new TLFragmenter(tileParams.core.fetchBytes, cacheBlockBytes, earlyAck=true))
-  val ww = LazyModule(new TLWidthWidget(xBytes))
   val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics)))
   }
+
+  val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntOutputNode())
   val busErrorUnit = tileParams.core.tileControlAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
     intOutputNode.get := beu.intNode
     beu
   }
 
+  // connect any combination of ITIM, DTIM, and BusErrorUnit
+  val slaveNode = TLInputNode()
   DisableMonitors { implicit p =>
-    frontend.slaveNode :*= fg.node
-    fg.node :*= ww.node
-    ww.node :*= slaveNode
-    scratch foreach { lm => lm.node := TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
-    busErrorUnit foreach { lm => lm.node := TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode) }
+    val xbarPorts =
+      scratch.map(lm => (lm.node, xBytes)) ++
+      busErrorUnit.map(lm => (lm.node, xBytes)) ++
+      tileParams.icache.flatMap(icache => icache.itimAddr.map(a => (frontend.slaveNode, tileParams.core.fetchBytes)))
+
+    if (xbarPorts.nonEmpty) {
+      val xbar = LazyModule(new TLXbar)
+      xbar.node := TLFIFOFixer()(TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode))
+      xbarPorts.foreach { case (port, bytes) =>
+        port := (if (bytes == xBytes) xbar.node else TLFragmenter(bytes, xBytes, earlyAck=true)(TLWidthWidget(xBytes)(xbar.node)))
+      }
+    }
   }
 
   def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
