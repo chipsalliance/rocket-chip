@@ -14,6 +14,7 @@ import TLMessages._
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val correctable = (cacheParams.tagECC.canCorrect || cacheParams.dataECC.canCorrect).option(Valid(UInt(width = paddrBits)))
   val uncorrectable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+  val bus = Valid(UInt(width = paddrBits))
 }
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
@@ -732,6 +733,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       c.bits := error_addr
       io.errors.uncorrectable.foreach { u => when (u.valid) { c.valid := false } }
     }
+    io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.error
+    io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
   }
 
   def encodeData(x: UInt) = x.grouped(eccBits).map(dECC.encode(_)).asUInt

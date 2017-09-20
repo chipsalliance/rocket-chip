@@ -22,7 +22,7 @@ class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors
 
   def toErrorList = 
     List(None, None, icache.correctable, icache.uncorrectable,
-         None, None, dcache.correctable, dcache.uncorrectable)
+         None, Some(dcache.bus), dcache.correctable, dcache.uncorrectable)
 }
 
 case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
