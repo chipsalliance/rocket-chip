@@ -123,6 +123,8 @@ object AddressDecoder
       val candidates = bits.map { bit =>
         val result = partitionPartitions(partitions, bit)
         val score = bitScore(result)
+        if (debug)
+          println("  For bit %x, %s".format(bit, score.toString))
         (score, bit, result)
       }
       val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Iterable[Int]](_._1.toIterable))
