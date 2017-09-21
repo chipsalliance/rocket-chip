@@ -29,6 +29,7 @@ trait CoreParams {
   val nBreakpoints: Int
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
+  val misaWritable: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean

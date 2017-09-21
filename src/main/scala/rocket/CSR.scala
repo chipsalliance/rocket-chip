@@ -606,7 +606,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (decoded_addr(CSRs.misa)) {
       val mask = UInt(isaStringToMask(isaMaskString), xLen)
       val f = wdata('f' - 'a')
-      reg_misa := ~(~wdata | (!f << ('d' - 'a'))) & mask | reg_misa & ~mask
+      if (coreParams.misaWritable)
+        reg_misa := ~(~wdata | (!f << ('d' - 'a'))) & mask | reg_misa & ~mask
     }
     when (decoded_addr(CSRs.mip)) {
       // MIP should be modified based on the value in reg_mip, not the value
