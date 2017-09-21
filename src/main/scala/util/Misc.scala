@@ -26,6 +26,10 @@ trait Clocked extends Bundle {
   val reset = Bool()  
 }
 
+trait CanHaltAndCatchFire extends Bundle {
+  val halt_and_catch_fire = Bool(OUTPUT)
+}
+
 object DecoupledHelper {
   def apply(rvs: Bool*) = new DecoupledHelper(rvs)
 }
