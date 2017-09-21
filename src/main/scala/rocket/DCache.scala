@@ -11,7 +11,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import TLMessages._
 
-class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
+class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
+    with CanHaveErrors {
   val correctable = (cacheParams.tagECC.canCorrect || cacheParams.dataECC.canCorrect).option(Valid(UInt(width = paddrBits)))
   val uncorrectable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
   val bus = Valid(UInt(width = paddrBits))

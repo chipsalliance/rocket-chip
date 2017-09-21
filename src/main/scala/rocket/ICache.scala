@@ -36,7 +36,9 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
   val addr = UInt(width = vaddrBits)
 }
 
-class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICacheParameters {
+class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
+    with HasL1ICacheParameters
+    with CanHaveErrors {
   val correctable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
   val uncorrectable = (cacheParams.itimAddr.nonEmpty && cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
 }

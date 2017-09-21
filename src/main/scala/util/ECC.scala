@@ -173,3 +173,8 @@ class SECDEDTest extends Module
   io.correctable := d.correctable
   io.uncorrectable := d.uncorrectable
 }
+
+trait CanHaveErrors extends Bundle {
+  val correctable: Option[ValidIO[UInt]]
+  val uncorrectable: Option[ValidIO[UInt]]
+}
