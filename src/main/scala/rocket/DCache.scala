@@ -528,6 +528,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
   val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
   val releaseDataBeat = Cat(UInt(0), c_count) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
+  val writeback_data_error = s2_data_decoded.map(_.error).reduce(_||_)
+  val writeback_data_uncorrectable = s2_data_decoded.map(_.uncorrectable).reduce(_||_)
 
   val nackResponseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = TLPermissions.NtoN)
   val cleanReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param)
@@ -595,6 +597,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   tl_out_c.bits.address := probe_bits.address
   tl_out_c.bits.data := s2_data_corrected
+  tl_out_c.bits.error := inWriteback && {
+    val accrued = Reg(Bool())
+    val next = writeback_data_uncorrectable || (accrued && !c_first)
+    when (tl_out_c.fire()) { accrued := next }
+    next
+  }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
   dataArb.io.in(2).bits.write := false
@@ -728,8 +736,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   {
     val (data_error, data_error_uncorrectable, data_error_addr) =
       if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
-        (tl_out_c.valid && edge.hasData(tl_out_c.bits) && s2_data_decoded.map(_.error).reduce(_||_),
-         s2_data_decoded.map(_.uncorrectable).reduce(_||_),
+        (tl_out_c.fire() && inWriteback && writeback_data_error,
+         writeback_data_uncorrectable,
          tl_out_c.bits.address)
       }
     val error_addr =
