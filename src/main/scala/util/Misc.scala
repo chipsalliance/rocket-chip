@@ -27,7 +27,7 @@ trait Clocked extends Bundle {
 }
 
 trait CanHaltAndCatchFire extends Bundle {
-  val halt_and_catch_fire = Bool(OUTPUT)
+  val halt_and_catch_fire: Option[Bool]
 }
 
 object DecoupledHelper {

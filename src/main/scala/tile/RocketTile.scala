@@ -132,7 +132,9 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 class RocketTileBundle(outer: RocketTile) extends BaseTileBundle(outer)
     with HasExternalInterruptsBundle
     with CanHaveScratchpadBundle
-    with CanHaltAndCatchFire
+    with CanHaltAndCatchFire {
+  val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(Bool(OUTPUT))
+}
 
 class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => new RocketTileBundle(outer))
     with HasExternalInterruptsModule
@@ -145,7 +147,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
   core.io.hartid := io.hartid // Pass through the hartid
   io.trace.foreach { _ := core.io.trace }
-  io.halt_and_catch_fire := (if(outer.rocketParams.hcfOnUncorrectable) uncorrectable else false.B)
+  io.halt_and_catch_fire.foreach { _ := uncorrectable }
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.reset_vector := io.reset_vector
   outer.frontend.module.io.hartid := io.hartid
@@ -228,12 +230,13 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
       val asyncInterrupts  = asyncIntNode.bundleIn
       val periphInterrupts = periphIntNode.bundleIn
       val coreInterrupts   = coreIntNode.bundleIn
+      val halt_and_catch_fire = rocket.module.io.halt_and_catch_fire.map(_.cloneType)
     }
     // signals that do not change based on crossing type:
     rocket.module.io.hartid := io.hartid
     rocket.module.io.reset_vector := io.reset_vector
     io.trace.foreach { _ := rocket.module.io.trace.get }
-    io.halt_and_catch_fire := rocket.module.io.halt_and_catch_fire
+    io.halt_and_catch_fire.foreach { _ := rocket.module.io.halt_and_catch_fire.get }
   }
 }
 
