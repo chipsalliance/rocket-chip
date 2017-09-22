@@ -11,7 +11,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import TLMessages._
 
-class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
+class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
+    with CanHaveErrors {
   val correctable = (cacheParams.tagECC.canCorrect || cacheParams.dataECC.canCorrect).option(Valid(UInt(width = paddrBits)))
   val uncorrectable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
   val bus = Valid(UInt(width = paddrBits))
@@ -41,9 +42,9 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
   val addr = io.req.bits.addr >> rowOffBits
-  val dcache_data_arrays = Seq.fill(rowBytes / wordBytes) { SeqMem(nSets * refillCycles, Vec(nWays * (wordBits / eccBits), UInt(width = encBits))) }
-  val rdata = for ((array, i) <- dcache_data_arrays zipWithIndex) yield {
-    val valid = io.req.valid && (Bool(dcache_data_arrays.size == 1) || io.req.bits.wordMask(i))
+  val data_arrays = Seq.fill(rowBytes / wordBytes) { SeqMem(nSets * refillCycles, Vec(nWays * (wordBits / eccBits), UInt(width = encBits))) }
+  val rdata = for ((array, i) <- data_arrays zipWithIndex) yield {
+    val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
       val wData = wWords(i).grouped(encBits)
       array.write(addr, Vec((0 until nWays).flatMap(i => wData)), wMask)
@@ -78,7 +79,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tags
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
-  val dcache_tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
+  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
 
   // data
   val data = Module(new DCacheDataArray)
@@ -188,9 +189,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       when (metaReq.valid && metaReq.bits.write) {
         val wdata = tECC.encode(metaReq.bits.data.asUInt)
         val wmask = if (nWays == 1) Seq(true.B) else metaReq.bits.way_en.toBools
-        dcache_tag_array.write(metaIdx, Vec.fill(nWays)(wdata), wmask)
+        tag_array.write(metaIdx, Vec.fill(nWays)(wdata), wmask)
       }
-      val s1_meta = dcache_tag_array.read(metaIdx, metaReq.valid && !metaReq.bits.write)
+      val s1_meta = tag_array.read(metaIdx, metaReq.valid && !metaReq.bits.write)
       val s1_meta_uncorrected = s1_meta.map(tECC.decode(_).uncorrected.asTypeOf(new L1Metadata))
       val s1_tag = s1_paddr >> untagBits
       val s1_meta_hit_way = s1_meta_uncorrected.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt

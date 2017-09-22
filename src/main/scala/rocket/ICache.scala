@@ -36,7 +36,9 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
   val addr = UInt(width = vaddrBits)
 }
 
-class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICacheParameters {
+class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
+    with HasL1ICacheParameters
+    with CanHaveErrors {
   val correctable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
   val uncorrectable = (cacheParams.itimAddr.nonEmpty && cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
 }
@@ -174,13 +176,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val icache_tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
-  val tag_rdata = icache_tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
+  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
+  val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
   val refillError = tl_out.d.bits.error || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
     val enc_tag = tECC.encode(Cat(refillError, refill_tag))
-    icache_tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
+    tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
@@ -222,8 +224,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
-  val icache_data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
-  for ((data_array, i) <- icache_data_arrays zipWithIndex) {
+  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
+  for ((data_array, i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))
