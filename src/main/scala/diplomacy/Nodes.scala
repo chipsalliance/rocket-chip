@@ -135,7 +135,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
     val info = sourceLine(sourceInfo, " at ", "")
     val noIs = numPI.size == 1 && numPI.contains(0)
     require (!noIs, s"${name}${lazyModule.line} was incorrectly connected as a sink" + info)
-    require (!iRealized, s"${name}${lazyModule.line} was incorrectly connected as a sink after it's .module was used" + info)
+    require (!iRealized, s"${name}${lazyModule.line} was incorrectly connected as a sink after its .module was used" + info)
     accPI += ((index, node, binding, p))
   }
 
@@ -167,7 +167,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
     val info = sourceLine(sourceInfo, " at ", "")
     val noOs = numPO.size == 1 && numPO.contains(0)
     require (!noOs, s"${name}${lazyModule.line} was incorrectly connected as a source" + info)
-    require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after it's .module was used" + info)
+    require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after its .module was used" + info)
     accPO += ((index, node, binding, p))
   }
 
@@ -276,11 +276,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   // Accessors to the result of negotiation to be used in LazyModuleImp:
   def out: Seq[(BO, EO)] = {
-    require(bundlesSafeNow, s"${name}.out should only be called from the context of it's module implementation")
+    require(bundlesSafeNow, s"${name}.out should only be called from the context of its module implementation")
     bundleOut zip edgesOut
   }
   def in: Seq[(BI, EI)] = {
-    require(bundlesSafeNow, s"${name}.in should only be called from the context of it's module implementation")
+    require(bundlesSafeNow, s"${name}.in should only be called from the context of its module implementation")
     bundleIn zip edgesIn
   }
 
