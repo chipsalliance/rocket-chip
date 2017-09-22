@@ -240,7 +240,7 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   ram2.node := TLFragmenter(16, 256)(xbar2.node)
   xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
   cross.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  val monitor = (ram.node := cross.node)
+  ram.node := cross.node
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
@@ -255,12 +255,6 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
     cross.module.io.in_reset := reset
     cross.module.io.out_clock := clocks.io.clock_out
     cross.module.io.out_reset := reset
-
-    // Push the Monitor into the right clock domain
-    monitor.foreach { m =>
-      m.module.clock := clocks.io.clock_out
-      m.module.reset := reset
-    }
   }
 }
 

@@ -10,7 +10,6 @@ import freechips.rocketchip.util.RationalDirection
 import scala.collection.mutable.ListBuffer
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => new TLMonitor(args))
-case object TLCombinationalCheck extends Field[Boolean](false)
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
@@ -24,25 +23,9 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
   override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
   override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
 
-  override def connect(edges: () => Seq[TLEdgeIn], bundles: () => Seq[(TLBundle, TLBundle)], enableMonitoring: Boolean)
-                      (implicit p: Parameters, sourceInfo: SourceInfo): (Option[TLMonitorBase], () => Unit) = {
-    val monitor = if (enableMonitoring) Some(LazyModule(p(TLMonitorBuilder)(TLMonitorArgs(edges, sourceInfo, p)))) else None
-    (monitor, () => {
-      val eval = bundles ()
-      monitor.foreach { m => (eval zip m.module.io.in) foreach { case ((i,o), m) => m := TLBundleSnoop(o,i) } }
-      eval.foreach { case (bi, bo) =>
-        bi <> bo
-        if (p(TLCombinationalCheck)) {
-          // It is forbidden for valid to depend on ready in TL2
-          // If someone did that, then this will create a detectable combinational loop
-          bo.a.ready := bi.a.ready && bo.a.valid
-          bi.b.ready := bo.b.ready && bi.b.valid
-          bo.c.ready := bi.c.ready && bo.c.valid
-          bi.d.ready := bo.d.ready && bi.d.valid
-          bo.e.ready := bi.e.ready && bo.e.valid
-        }
-      }
-    })
+  override def monitor(bundle: TLBundle, edge: TLEdgeIn) {
+    val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
+    monitor.io.in := TLBundleSnoop(bundle, bundle)
   }
 
   override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLClientPortParameters  =

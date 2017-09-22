@@ -94,9 +94,9 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) ext
   val source = LazyModule(new TLAsyncCrossingSource(sync))
   val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
 
-  val _    = (sink.node := source.node) // no monitor
-  val in   = (source.node := nodeIn)
-  val out  = (nodeOut := sink.node)
+  sink.node := source.node
+  source.node := nodeIn
+  nodeOut := sink.node
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -108,17 +108,8 @@ class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) ext
 
     source.module.clock := io.in_clock
     source.module.reset := io.in_reset
-    in.foreach { lm =>
-      lm.module.clock := io.in_clock
-      lm.module.reset := io.in_reset
-    }
-
     sink.module.clock := io.out_clock
     sink.module.reset := io.out_reset
-    out.foreach { lm =>
-      lm.module.clock := io.out_clock
-      lm.module.reset := io.out_reset
-    }
   }
 }
 
@@ -133,7 +124,7 @@ class TLRAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   model.node := fuzz.node
   cross.node := TLFragmenter(4, 256)(TLDelayer(0.1)(model.node))
-  val monitor = (ram.node := cross.node)
+  ram.node := cross.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
@@ -147,12 +138,6 @@ class TLRAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
     cross.module.io.in_reset := reset
     cross.module.io.out_clock := clocks.io.clock_out
     cross.module.io.out_reset := reset
-
-    // Push the Monitor into the right clock domain
-    monitor.foreach { m =>
-      m.module.clock := clocks.io.clock_out
-      m.module.reset := reset
-    }
   }
 }
 

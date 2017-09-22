@@ -36,12 +36,9 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
 {
   def edgeI(pd: DI, pu: UI, p: Parameters, sourceInfo: SourceInfo): EI
   def bundleI(ei: EI): BI
+  def monitor(bundle: BI, edge: EI) {}
   def colour: String
   def reverse: Boolean = false
-  def connect(edges: () => Seq[EI], bundles: () => Seq[(BI, BI)], enableMonitoring: Boolean)
-              (implicit p: Parameters, sourceInfo: SourceInfo): (Option[MonitorBase], () => Unit) = {
-    (None, () => bundles().foreach { case (i, o) => i <> o })
-  }
 
   // optional methods to track node graph
   def mixI(pu: UI, node: InwardNode[DI, UI, BI]): UI = pu // insert node into parameters
@@ -104,14 +101,10 @@ case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
   protected[diplomacy] val inward: InwardNode[DI, UI, BI]
-  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
-    inward.:=(h)(p, sourceInfo)
-  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
-    inward.:*=(h)(p, sourceInfo)
-  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
-    inward.:=*(h)(p, sourceInfo)
-  def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] =
-    inward.:=?(h)(p, sourceInfo)
+  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=(h)(p, sourceInfo) }
+  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:*=(h)(p, sourceInfo) }
+  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=*(h)(p, sourceInfo) }
+  def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=?(h)(p, sourceInfo) }
 }
 
 sealed trait NodeBinding
@@ -267,13 +260,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       data   = bundleIn(i))
   }
 
-  // Used by LazyModules.module.instantiate
   private var bundlesSafeNow = false
-  protected[diplomacy] def instantiate() = {
-    bundlesSafeNow = true
-    danglesOut ++ danglesIn
-  }
-
   // Accessors to the result of negotiation to be used in LazyModuleImp:
   def out: Seq[(BO, EO)] = {
     require(bundlesSafeNow, s"${name}.out should only be called from the context of its module implementation")
@@ -284,9 +271,19 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     bundleIn zip edgesIn
   }
 
+  // Used by LazyModules.module.instantiate
+  protected val identity = false
+  protected[diplomacy] def instantiate() = {
+    bundlesSafeNow = true
+    if (!identity) {
+      (iPorts zip in) foreach {
+        case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
+    } }
+    danglesOut ++ danglesIn
+  }
+
   // connects the outward part of a node with the inward part of this node
-  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)
-                  (implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = {
+  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
@@ -298,13 +295,12 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case BIND_STAR  => BIND_QUERY
       case BIND_QUERY => BIND_STAR })
     x.iPush(o, y, binding)
-    None // !!! create monitors
   }
 
-  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_ONCE)
-  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_STAR)
-  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = bind(h, BIND_QUERY)
-  override def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): Option[MonitorBase] = {
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = bind(h, BIND_ONCE)
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = bind(h, BIND_STAR)
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = bind(h, BIND_QUERY)
+  override def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = {
     p(CardinalityInferenceDirectionKey) match {
       case CardinalityInferenceDirection.SOURCE_TO_SINK => this :=* h
       case CardinalityInferenceDirection.SINK_TO_SOURCE => this :*= h
@@ -378,6 +374,7 @@ class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
+  protected override val identity = true
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
     (out zip in) map { case ((o, _), (i, _)) => o <> i }

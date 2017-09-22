@@ -8,26 +8,22 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
 
-case class TLMonitorArgs(edge: () => Seq[TLEdge], sourceInfo: SourceInfo, p: Parameters)
+case class TLMonitorArgs(edge: TLEdge)
 
-abstract class TLMonitorBase(args: TLMonitorArgs) extends MonitorBase()(args.sourceInfo, args.p)
+abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
 {
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
-
-  lazy val module = new LazyModuleImp(this) {
-    val edges = args.edge()
-    val io = IO(new Bundle {
-      val in = HeterogeneousBag(edges.map(p => new TLBundleSnoop(p.bundle))).flip
-    })
-
-    (edges zip io.in).foreach { case (e, in) => legalize(in, e, reset) }
+  val io = new Bundle {
+    val in = new TLBundleSnoop(args.edge.bundle).flip
   }
+
+  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
+  legalize(io.in, args.edge, reset)
 }
 
 class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 {
   def extra = {
-    sourceInfo match {
+    args.edge.sourceInfo match {
       case SourceLine(filename, line, col) => s" (connected at $filename:$line:$col)"
       case _ => ""
     }

@@ -106,9 +106,9 @@ class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: P
   val source = LazyModule(new TLRationalCrossingSource)
   val sink = LazyModule(new TLRationalCrossingSink(direction))
 
-  val _    = (sink.node := source.node) // no monitor
-  val in   = (source.node := nodeIn)
-  val out  = (nodeOut := sink.node)
+  sink.node := source.node
+  source.node := nodeIn
+  nodeOut := sink.node
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -120,17 +120,8 @@ class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: P
 
     source.module.clock := io.in_clock
     source.module.reset := io.in_reset
-    in.foreach { lm =>
-      lm.module.clock := io.in_clock
-      lm.module.reset := io.in_reset
-    }
-
     sink.module.clock := io.out_clock
     sink.module.reset := io.out_reset
-    out.foreach { lm =>
-      lm.module.clock := io.out_clock
-      lm.module.reset := io.out_reset
-    }
   }
 }
 
