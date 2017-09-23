@@ -56,12 +56,8 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
 class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
   val icache = LazyModule(new ICache(icacheParams, hartid))
-  val masterNode = TLIdentityNode()
-  val slaveNode = TLIdentityNode()
-
-  masterNode := icache.masterNode
-  // Avoid breaking tile dedup due to address constants in the monitor
-  DisableMonitors { implicit p => icache.slaveNode.map { _ := slaveNode } }
+  val masterNode = icache.masterNode
+  val slaveNode = icache.slaveNode
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)

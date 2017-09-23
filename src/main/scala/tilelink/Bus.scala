@@ -71,7 +71,7 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
     SourceCardinality { implicit p =>
       val chain = LazyModule(new TLBufferChain(depth))
       name.foreach { n => chain.suggestName(s"${busName}_${n}_TLBufferChain")}
-      (chain.nodeIn, chain.nodeOut)
+      (chain.node, chain.node)
     }
   }
 

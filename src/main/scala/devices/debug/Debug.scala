@@ -392,15 +392,12 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmiXbar = LazyModule (new TLXbar())
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
-  val intnode = IntIdentityNode()
+  val intnode = dmOuter.intnode
 
-  val dmiInnerNode = TLAsyncIdentityNode()
-
-  intnode :*= dmOuter.intnode
+  val dmiInnerNode = TLAsyncCrossingSource()(dmiXbar.node)
 
   dmiXbar.node := dmi2tl.node
   dmOuter.dmiNode := dmiXbar.node
-  dmiInnerNode := TLAsyncCrossingSource()(dmiXbar.node)
   
   lazy val module = new LazyModuleImp(this) {
 
@@ -1006,12 +1003,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 // Also is the Sink side of hartsel & resumereq fields of DMCONTROL.
 class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implicit p: Parameters) extends LazyModule{
 
-  val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents)(p))
-  val dmiNode = TLAsyncIdentityNode()
-  val tlNode = TLIdentityNode()
+  val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents))
+  val dmiXing = LazyModule(new TLAsyncCrossingSink(depth=1))
+  val dmiNode: TLAsyncInwardNode = dmiXing.node
+  val tlNode = dmInner.tlNode
 
-  dmInner.dmiNode := TLAsyncCrossingSink(depth=1)(dmiNode)
-  dmInner.tlNode  := tlNode
+  dmInner.dmiNode := dmiXing.node
 
   lazy val module = new LazyModuleImp(this) {
 
@@ -1041,15 +1038,13 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
     override val alwaysExtended = true
   }
 
-  val node = TLIdentityNode()
-  val intnode = IntIdentityNode()
-
   val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
   val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {intnode.edges.out.size})(p))
 
+  val node = dmInner.tlNode
+  val intnode = dmOuter.intnode
+
   dmInner.dmiNode := dmOuter.dmiInnerNode
-  dmInner.tlNode := node
-  intnode :*= dmOuter.intnode
 
   lazy val module = new LazyModuleImp(this) {
     val nComponents = intnode.out.size

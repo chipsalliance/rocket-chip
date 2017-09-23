@@ -99,16 +99,11 @@ object TLRationalCrossingSink
 
 class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: Parameters) extends LazyModule
 {
-  val nodeIn = TLIdentityNode()
-  val nodeOut = TLIdentityNode()
-  val node = NodeHandle(nodeIn, nodeOut)
-
   val source = LazyModule(new TLRationalCrossingSource)
   val sink = LazyModule(new TLRationalCrossingSink(direction))
+  val node = NodeHandle(source.node, sink.node)
 
   sink.node := source.node
-  source.node := nodeIn
-  nodeOut := sink.node
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {

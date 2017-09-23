@@ -51,9 +51,9 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val device = new SimpleDevice("itim", Seq("sifive,itim0"))
-  val slaveNode = icacheParams.itimAddr.map { itimAddr =>
-    val wordBytes = icacheParams.fetchBytes
-    TLManagerNode(Seq(TLManagerPortParameters(
+  private val wordBytes = icacheParams.fetchBytes
+  val slaveNode =
+    TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
@@ -64,8 +64,7 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
         supportsGet     = TransferSizes(1, wordBytes),
         fifoId          = Some(0))), // requests handled in FIFO order
       beatBytes = wordBytes,
-      minLatency = 1)))
-  }
+      minLatency = 1)})
 }
 
 class ICacheResp(outer: ICache) extends Bundle {
@@ -110,9 +109,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val io = IO(new ICacheBundle(outer))
   val (tl_out, edge_out) = outer.masterNode.out(0)
   // Option.unzip does not exist :-(
-  // val (tl_in, edge_in) = outer.slaveNode.map(_.in(0)).unzip
-  val tl_in   = outer.slaveNode.map(_.in(0)._1)
-  val edge_in = outer.slaveNode.map(_.in(0)._2)
+  val tl_in   = outer.slaveNode.in.headOption.map(_._1)
+  val edge_in = outer.slaveNode.in.headOption.map(_._2)
 
   val tECC = cacheParams.tagECC
   val dECC = cacheParams.dataECC
