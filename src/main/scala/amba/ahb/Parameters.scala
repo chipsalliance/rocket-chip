@@ -3,6 +3,7 @@
 package freechips.rocketchip.amba.ahb
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.max
@@ -92,7 +93,8 @@ object AHBBundleParameters
 case class AHBEdgeParameters(
   master: AHBMasterPortParameters,
   slave:  AHBSlavePortParameters,
-  params: Parameters)
+  params: Parameters,
+  sourceInfo: SourceInfo)
 {
   val bundle = AHBBundleParameters(master, slave)
 }

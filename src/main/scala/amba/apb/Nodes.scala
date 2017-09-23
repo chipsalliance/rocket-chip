@@ -9,8 +9,8 @@ import freechips.rocketchip.diplomacy._
 
 object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBEdgeParameters, APBBundle]
 {
-  def edgeO(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters): APBEdgeParameters = APBEdgeParameters(pd, pu, p)
-  def edgeI(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters): APBEdgeParameters = APBEdgeParameters(pd, pu, p)
+  def edgeO(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): APBEdgeParameters = APBEdgeParameters(pd, pu, p, sourceInfo)
+  def edgeI(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): APBEdgeParameters = APBEdgeParameters(pd, pu, p, sourceInfo)
 
   def bundleO(eo: APBEdgeParameters): APBBundle = APBBundle(eo.bundle)
   def bundleI(ei: APBEdgeParameters): APBBundle = APBBundle(ei.bundle)

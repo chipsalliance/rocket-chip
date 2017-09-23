@@ -34,7 +34,7 @@ private case object MonitorsEnabled extends Field[Boolean](true)
 // BI = Bundle type used when connecting to the inner side of the node
 trait InwardNodeImp[DI, UI, EI, BI <: Data]
 {
-  def edgeI(pd: DI, pu: UI, p: Parameters): EI
+  def edgeI(pd: DI, pu: UI, p: Parameters, sourceInfo: SourceInfo): EI
   def bundleI(ei: EI): BI
   def colour: String
   def reverse: Boolean = false
@@ -55,7 +55,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
 // BO = Bundle type used when connecting to the outer side of the node
 trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 {
-  def edgeO(pd: DO, pu: UO, p: Parameters): EO
+  def edgeO(pd: DO, pu: UO, p: Parameters, sourceInfo: SourceInfo): EO
   def bundleO(eo: EO): BO
 
   // optional methods to track node graph
@@ -127,7 +127,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
   require (numPI.start >= 0, s"${name} accepts a negative number of inputs${lazyModule.line}")
 
-  private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding, Parameters)]()
+  private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding, Parameters, SourceInfo)]()
   private var iRealized = false
 
   protected[diplomacy] def iPushed = accPI.size
@@ -136,7 +136,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
     val noIs = numPI.size == 1 && numPI.contains(0)
     require (!noIs, s"${name}${lazyModule.line} was incorrectly connected as a sink" + info)
     require (!iRealized, s"${name}${lazyModule.line} was incorrectly connected as a sink after its .module was used" + info)
-    accPI += ((index, node, binding, p))
+    accPI += ((index, node, binding, p, sourceInfo))
   }
 
   protected[diplomacy] lazy val iBindings = { iRealized = true; accPI.result() }
@@ -159,7 +159,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
   require (numPO.start >= 0, s"${name} accepts a negative number of outputs${lazyModule.line}")
 
-  private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding, Parameters)]()
+  private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding, Parameters, SourceInfo)]()
   private var oRealized = false
 
   protected[diplomacy] def oPushed = accPO.size
@@ -168,7 +168,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO
     val noOs = numPO.size == 1 && numPO.contains(0)
     require (!noOs, s"${name}${lazyModule.line} was incorrectly connected as a source" + info)
     require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after its .module was used" + info)
-    accPO += ((index, node, binding, p))
+    accPO += ((index, node, binding, p, sourceInfo))
   }
 
   protected[diplomacy] lazy val oBindings = { oRealized = true; accPO.result() }
@@ -192,22 +192,22 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
-    val oStars = oBindings.filter { case (_,_,b,_) => b == BIND_STAR }.size
-    val iStars = iBindings.filter { case (_,_,b,_) => b == BIND_STAR }.size
-    val oKnown = oBindings.map { case (_, n, b, _) => b match {
+    val oStars = oBindings.filter { case (_,_,b,_,_) => b == BIND_STAR }.size
+    val iStars = iBindings.filter { case (_,_,b,_,_) => b == BIND_STAR }.size
+    val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
-    val iKnown = iBindings.map { case (_, n, b, _) => b match {
+    val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
     val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
-    val oSum = oBindings.map { case (_, n, b, _) => b match {
+    val oSum = oBindings.map { case (_, n, b, _, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.iStar
       case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
-    val iSum = iBindings.map { case (_, n, b, _) => b match {
+    val iSum = iBindings.map { case (_, n, b, _, _) => b match {
       case BIND_ONCE  => 1
       case BIND_QUERY => n.oStar
       case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
@@ -218,22 +218,22 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
   }
 
-  lazy val oPorts = oBindings.flatMap { case (i, n, _, p) =>
+  lazy val oPorts = oBindings.flatMap { case (i, n, _, p, s) =>
     val (start, end) = n.iPortMapping(i)
-    (start until end) map { j => (j, n, p) }
+    (start until end) map { j => (j, n, p, s) }
   }
-  lazy val iPorts = iBindings.flatMap { case (i, n, _, p) =>
+  lazy val iPorts = iBindings.flatMap { case (i, n, _, p, s) =>
     val (start, end) = n.oPortMapping(i)
-    (start until end) map { j => (j, n, p) }
+    (start until end) map { j => (j, n, p, s) }
   }
 
   protected[diplomacy] lazy val oParams: Seq[DO] = {
-    val o = mapParamsD(oPorts.size, iPorts.map { case (i, n, _) => n.oParams(i) })
+    val o = mapParamsD(oPorts.size, iPorts.map { case (i, n, _, _) => n.oParams(i) })
     require (o.size == oPorts.size, s"Bug in diplomacy; ${name} has ${o.size} != ${oPorts.size} down/up outer parameters${lazyModule.line}")
     o.map(outer.mixO(_, this))
   }
   protected[diplomacy] lazy val iParams: Seq[UI] = {
-    val i = mapParamsU(iPorts.size, oPorts.map { case (o, n, _) => n.iParams(o) })
+    val i = mapParamsU(iPorts.size, oPorts.map { case (o, n, _, _) => n.iParams(o) })
     require (i.size == iPorts.size, s"Bug in diplomacy; ${name} has ${i.size} != ${iPorts.size} up/down inner parameters${lazyModule.line}")
     i.map(inner.mixI(_, this))
   }
@@ -241,8 +241,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def gco = if (iParams.size != 1) None else inner.getO(iParams(0))
   protected[diplomacy] def gci = if (oParams.size != 1) None else outer.getI(oParams(0))
 
-  protected[diplomacy] lazy val edgesOut = (oPorts zip oParams).map { case ((i, n, p), o) => outer.edgeO(o, n.iParams(i), p) }
-  protected[diplomacy] lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n, p), i) => inner.edgeI(n.oParams(o), i, p) }
+  protected[diplomacy] lazy val edgesOut = (oPorts zip oParams).map { case ((i, n, p, s), o) => outer.edgeO(o, n.iParams(i), p, s) }
+  protected[diplomacy] lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n, p, s), i) => inner.edgeI(n.oParams(o), i, p, s) }
 
   // If you need access to the edges of a foreign Node, use this method (in/out create bundles)
   lazy val edges = Edges(edgesIn, edgesOut)
@@ -250,7 +250,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => Wire(outer.bundleO(e)))
   protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => Wire(inner.bundleI(e)))
 
-  protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _), i) =>
+  protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(serial, i),
       sink   = HalfEdge(n.serial, j),
@@ -258,7 +258,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       name   = valName.name + "_out",
       data   = bundleOut(i))
   }
-  protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _), i) =>
+  protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(n.serial, j),
       sink   = HalfEdge(serial, i),

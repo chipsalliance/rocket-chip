@@ -14,8 +14,8 @@ case object TLCombinationalCheck extends Field[Boolean](false)
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
-  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters): TLEdgeOut = new TLEdgeOut(pd, pu, p)
-  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters): TLEdgeIn  = new TLEdgeIn(pd, pu, p)
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLEdgeOut = new TLEdgeOut(pd, pu, p, sourceInfo)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLEdgeIn  = new TLEdgeIn (pd, pu, p, sourceInfo)
 
   def bundleO(eo: TLEdgeOut): TLBundle = TLBundle(eo.bundle)
   def bundleI(ei: TLEdgeIn):  TLBundle = TLBundle(ei.bundle)
@@ -93,8 +93,8 @@ abstract class TLCustomNode(
 
 object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
-  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p)
-  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p)
+  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
+  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
 
   def bundleO(eo: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(eo.bundle)
   def bundleI(ei: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(ei.bundle)
@@ -132,8 +132,8 @@ case class TLAsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
 
 object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
-  def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p)
-  def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p)
+  def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
+  def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
 
   def bundleO(eo: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(eo.bundle)
   def bundleI(ei: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(ei.bundle)

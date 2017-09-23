@@ -9,8 +9,8 @@ import freechips.rocketchip.diplomacy._
 
 object AXI4Imp extends NodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4EdgeParameters, AXI4EdgeParameters, AXI4Bundle]
 {
-  def edgeO(pd: AXI4MasterPortParameters, pu: AXI4SlavePortParameters, p: Parameters): AXI4EdgeParameters = AXI4EdgeParameters(pd, pu, p)
-  def edgeI(pd: AXI4MasterPortParameters, pu: AXI4SlavePortParameters, p: Parameters): AXI4EdgeParameters = AXI4EdgeParameters(pd, pu, p)
+  def edgeO(pd: AXI4MasterPortParameters, pu: AXI4SlavePortParameters, p: Parameters, sourceInfo: SourceInfo): AXI4EdgeParameters = AXI4EdgeParameters(pd, pu, p, sourceInfo)
+  def edgeI(pd: AXI4MasterPortParameters, pu: AXI4SlavePortParameters, p: Parameters, sourceInfo: SourceInfo): AXI4EdgeParameters = AXI4EdgeParameters(pd, pu, p, sourceInfo)
 
   def bundleO(eo: AXI4EdgeParameters): AXI4Bundle = AXI4Bundle(eo.bundle)
   def bundleI(ei: AXI4EdgeParameters): AXI4Bundle = AXI4Bundle(ei.bundle)

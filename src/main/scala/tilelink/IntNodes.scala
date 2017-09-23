@@ -61,12 +61,12 @@ object IntSinkPortSimple
     Seq.fill(ports)(IntSinkPortParameters(Seq.fill(sinks)(IntSinkParameters())))
 }
 
-case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters, params: Parameters)
+case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters, params: Parameters, sourceInfo: SourceInfo)
 
 object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, IntEdge, Vec[Bool]]
 {
-  def edgeO(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters): IntEdge = IntEdge(pd, pu, p)
-  def edgeI(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters): IntEdge = IntEdge(pd, pu, p)
+  def edgeO(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo): IntEdge = IntEdge(pd, pu, p, sourceInfo)
+  def edgeI(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo): IntEdge = IntEdge(pd, pu, p, sourceInfo)
   def bundleO(eo: IntEdge): Vec[Bool] = Vec(eo.source.num, Bool())
   def bundleI(ei: IntEdge): Vec[Bool] = Vec(ei.source.num, Bool())
 

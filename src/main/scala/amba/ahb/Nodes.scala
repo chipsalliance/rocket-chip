@@ -9,8 +9,8 @@ import freechips.rocketchip.diplomacy._
 
 object AHBImp extends NodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBEdgeParameters, AHBBundle]
 {
-  def edgeO(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters): AHBEdgeParameters = AHBEdgeParameters(pd, pu, p)
-  def edgeI(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters): AHBEdgeParameters = AHBEdgeParameters(pd, pu, p)
+  def edgeO(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): AHBEdgeParameters = AHBEdgeParameters(pd, pu, p, sourceInfo)
+  def edgeI(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): AHBEdgeParameters = AHBEdgeParameters(pd, pu, p, sourceInfo)
 
   def bundleO(eo: AHBEdgeParameters): AHBBundle = AHBBundle(eo.bundle)
   def bundleI(ei: AHBEdgeParameters): AHBBundle = AHBBundle(ei.bundle)
