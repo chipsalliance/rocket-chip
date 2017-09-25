@@ -7,6 +7,7 @@ import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndR
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.ListMap
+import scala.util.matching._
 
 abstract class LazyModule()(implicit val p: Parameters)
 {
@@ -183,10 +184,20 @@ case class HalfEdge(serial: Int, index: Int)
 case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, data: Data)
 
 final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
-  // !!! need to fix-up name collision better than appending _#
-  val elements = ListMap(elts.zipWithIndex map { case ((field, elt, flip), i) =>
-    (field + "_" + i) -> (if (flip) elt.cloneType.flip else elt.cloneType)
-  }:_*)
+  // We need to preserve the order of elts, despite grouping by name to disambiguate things
+  val elements = ListMap() ++ elts.zipWithIndex.map(makeElements).groupBy(_._1).values.flatMap {
+    case Seq((key, element, i)) => Seq(i -> (key -> element))
+    case seq => seq.zipWithIndex.map { case ((key, element, i), j) => i -> (key + "_" + j -> element) }
+  }.toList.sortBy(_._1).map(_._2)
+  require (elements.size == elts.size)
+
+  private def makeElements(tuple: ((String, Data, Boolean), Int)) = {
+    val ((key, data, flip), i) = tuple
+    // trim trailing _0_1_2 stuff so that when we append _# we don't create collisions
+    val regex = new Regex("(_[0-9]+)*$")
+    val element = if (flip) data.cloneType.flip else data.cloneType
+    (regex.replaceAllIn(key, ""), element, i)
+  }
 
   override def cloneType = (new AutoBundle(elts:_*)).asInstanceOf[this.type]
 }
