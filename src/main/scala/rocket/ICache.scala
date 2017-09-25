@@ -109,8 +109,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val io = IO(new ICacheBundle(outer))
   val (tl_out, edge_out) = outer.masterNode.out(0)
   // Option.unzip does not exist :-(
-  val tl_in   = outer.slaveNode.in.headOption.map(_._1)
-  val edge_in = outer.slaveNode.in.headOption.map(_._2)
+  val (tl_in, edge_in) = outer.slaveNode.in.headOption.unzip
 
   val tECC = cacheParams.tagECC
   val dECC = cacheParams.dataECC

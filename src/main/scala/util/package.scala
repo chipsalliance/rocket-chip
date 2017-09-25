@@ -6,6 +6,10 @@ import Chisel._
 import scala.math.min
 
 package object util {
+  implicit class UnzippableOption[S, T](val x: Option[(S, T)]) {
+    def unzip = (x.map(_._1), x.map(_._2))
+  }
+
   implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
     def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
   
