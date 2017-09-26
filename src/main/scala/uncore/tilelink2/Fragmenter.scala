@@ -234,7 +234,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       assert (!repeater.io.full || !aHasData)
       out.a.bits.data := in.a.bits.data
       val fullMask = UInt((BigInt(1) << beatBytes) - 1)
-      assert (!repeater.io.full || in_a.bits.mask === fullMask)
+      // FIXME: this breaks target when synthesized
+      // assert (!repeater.io.full || in_a.bits.mask === fullMask)
       out.a.bits.mask := Mux(repeater.io.full, fullMask, in.a.bits.mask)
 
       // Tie off unused channels
