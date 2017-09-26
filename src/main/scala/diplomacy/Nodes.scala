@@ -84,9 +84,9 @@ abstract class SimpleNodeImp[D, U, E, B <: Data]
 
 abstract class BaseNode(implicit val valName: ValName)
 {
-  require (!LazyModule.stack.isEmpty, "You cannot create a node outside a LazyModule!")
+  require (LazyModule.scope.isDefined, "You cannot create a node outside a LazyModule!")
 
-  val lazyModule = LazyModule.stack.head
+  val lazyModule = LazyModule.scope.get
   val index = lazyModule.nodes.size
   lazyModule.nodes = this :: lazyModule.nodes
 
@@ -311,7 +311,6 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     val x = this // x := y
     val y = h.outward
     val info = sourceLine(sourceInfo, " at ", "")
-    require (!LazyModule.stack.isEmpty, s"${y.name} cannot be connected to ${x.name} outside of LazyModule scope" + info)
     val i = x.iPushed
     val o = y.oPushed
     y.oPush(i, x, binding match {

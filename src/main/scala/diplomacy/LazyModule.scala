@@ -15,9 +15,9 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var children = List[LazyModule]()
   protected[diplomacy] var nodes = List[BaseNode]()
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
-  protected[diplomacy] val parent = LazyModule.stack.headOption
+  protected[diplomacy] val parent = LazyModule.scope
 
-  LazyModule.stack = this :: LazyModule.stack
+  LazyModule.scope = Some(this)
   parent.foreach(p => p.children = this :: p.children)
 
   private var suggestedName: Option[String] = None
@@ -120,16 +120,16 @@ abstract class LazyModule()(implicit val p: Parameters)
 
 object LazyModule
 {
-  protected[diplomacy] var stack = List[LazyModule]()
+  protected[diplomacy] var scope: Option[LazyModule] = None
   private var index = 0
 
   def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
-    require (!stack.isEmpty, s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}")
-    require (stack.head eq bc, s"LazyModule() applied to ${bc.name} before ${stack.head.name} ${sourceLine(sourceInfo)}")
-    stack = stack.tail
+    require (scope.isDefined, s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}")
+    require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
+    scope = bc.parent
     bc.info = sourceInfo
     bc
   }
@@ -142,7 +142,7 @@ sealed trait LazyModuleImpLike extends BaseModule
   protected[diplomacy] val dangles: Seq[Dangle]
 
   // .module had better not be accessed while LazyModules are still being built!
-  require (LazyModule.stack.isEmpty, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
+  require (!LazyModule.scope.isDefined, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.scope.get.name}")
 
   override def desiredName = wrapper.moduleName
   suggestName(wrapper.instanceName)
@@ -191,11 +191,12 @@ trait LazyScope
 {
   this: LazyModule =>
   def apply[T](body: => T)(implicit p: Parameters) = {
-    require (!LazyModule.stack.exists(x => x eq this))
-    LazyModule.stack = this :: LazyModule.stack
+    val saved = LazyModule.scope
+    LazyModule.scope = Some(this)
     val out = body
-    require (LazyModule.stack.head eq this)
-    LazyModule.stack = LazyModule.stack.tail
+    require (LazyModule.scope.isDefined, s"LazyScope ${name} tried to exit, but scope was empty!")
+    require (LazyModule.scope.get eq this, s"LazyScope ${name} exited before LazyModule ${LazyModule.scope.get.name} was closed")
+    LazyModule.scope = saved
     out
   }
 }
