@@ -154,12 +154,13 @@ sealed trait LazyModuleImpLike extends BaseModule
       Module(c.module).dangles
     }
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
-    val (toConnect, toForward) = (nodeDangles ++ childDangles).groupBy(_.source).partition(_._2.size == 2)
-    val forward = toForward.map(_._2(0)).toList
-    toConnect.foreach { case (_, Seq(a, b)) =>
+    val allDangles = nodeDangles ++ childDangles
+    val done = Set() ++ allDangles.groupBy(_.source).values.filter(_.size == 2).map { case Seq(a, b) =>
       require (a.flipped != b.flipped)
       if (a.flipped) { a.data <> b.data } else { b.data <> a.data }
+      a.source
     }
+    val forward = allDangles.filter(d => !done(d.source))
     val auto = IO(new AutoBundle(forward.map { d => (d.name, d.data, d.flipped) }:_*))
     val dangles = (forward zip auto.elements) map { case (d, (_, io)) =>
       if (d.flipped) { d.data <> io } else { io <> d.data }
