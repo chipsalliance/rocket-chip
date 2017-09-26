@@ -65,12 +65,9 @@ case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters,
 
 object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
 {
-  def edge(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo): IntEdge = IntEdge(pd, pu, p, sourceInfo)
-  def bundle(e: IntEdge): Vec[Bool] = Vec(e.source.num, Bool())
-
-  def colour = "#0000ff" // blue
-  override def reverse = true
-  override def label(e: IntEdge) = e.source.sources.map(_.range.size).sum.toString
+  def edge(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo) = IntEdge(pd, pu, p, sourceInfo)
+  def bundle(e: IntEdge) = Vec(e.source.num, Bool())
+  def render(e: IntEdge) = RenderedEdge(colour = "#0000ff" /* blue */, label = e.source.sources.map(_.range.size).sum.toString, flipped = true)
 
   override def mixO(pd: IntSourcePortParameters, node: OutwardNode[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]): IntSourcePortParameters =
    pd.copy(sources = pd.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })

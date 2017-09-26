@@ -13,15 +13,13 @@ case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args 
 
 object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
-  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLEdgeOut = new TLEdgeOut(pd, pu, p, sourceInfo)
-  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLEdgeIn  = new TLEdgeIn (pd, pu, p, sourceInfo)
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = new TLEdgeOut(pd, pu, p, sourceInfo)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = new TLEdgeIn (pd, pu, p, sourceInfo)
 
-  def bundleO(eo: TLEdgeOut): TLBundle = TLBundle(eo.bundle)
-  def bundleI(ei: TLEdgeIn):  TLBundle = TLBundle(ei.bundle)
+  def bundleO(eo: TLEdgeOut) = TLBundle(eo.bundle)
+  def bundleI(ei: TLEdgeIn)  = TLBundle(ei.bundle)
 
-  def colour = "#000000" // black
-  override def labelI(ei: TLEdgeIn)  = (ei.manager.beatBytes * 8).toString
-  override def labelO(eo: TLEdgeOut) = (eo.manager.beatBytes * 8).toString
+  def render(ei: TLEdgeIn) = RenderedEdge(colour = "#000000" /* black */, label = (ei.manager.beatBytes * 8).toString)
 
   override def monitor(bundle: TLBundle, edge: TLEdgeIn) {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
@@ -76,11 +74,9 @@ abstract class TLCustomNode(
 
 object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
-  def edge(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(e.bundle)
-
-  def colour = "#ff0000" // red
-  override def label(e: TLAsyncEdgeParameters) = e.manager.depth.toString
+  def edge(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: TLAsyncEdgeParameters) = new TLAsyncBundle(e.bundle)
+  def render(e: TLAsyncEdgeParameters) = RenderedEdge(colour = "#ff0000" /* red */, label = e.manager.depth.toString)
 
   override def mixO(pd: TLAsyncClientPortParameters, node: OutwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncClientPortParameters  =
    pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))
@@ -111,10 +107,9 @@ case class TLAsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
 
 object TLRationalImp extends SimpleNodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
-  def edge(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(e.bundle)
-
-  def colour = "#00ff00" // green
+  def edge(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: TLRationalEdgeParameters) = new TLRationalBundle(e.bundle)
+  def render(e: TLRationalEdgeParameters) = RenderedEdge(colour = "#00ff00" /* green */)
 
   override def mixO(pd: TLRationalClientPortParameters, node: OutwardNode[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalBundle]): TLRationalClientPortParameters  =
    pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))

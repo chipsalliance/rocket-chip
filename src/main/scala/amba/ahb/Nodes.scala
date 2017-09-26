@@ -9,11 +9,9 @@ import freechips.rocketchip.diplomacy._
 
 object AHBImp extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBBundle]
 {
-  def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): AHBEdgeParameters = AHBEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: AHBEdgeParameters): AHBBundle = AHBBundle(e.bundle)
-
-  def colour = "#00ccff" // bluish
-  override def label(e: AHBEdgeParameters) = (e.slave.beatBytes * 8).toString
+  def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: AHBEdgeParameters) = AHBBundle(e.bundle)
+  def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
 
   override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBBundle]): AHBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })

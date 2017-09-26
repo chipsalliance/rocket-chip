@@ -9,11 +9,9 @@ import freechips.rocketchip.diplomacy._
 
 object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
 {
-  def edge(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): APBEdgeParameters = APBEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: APBEdgeParameters): APBBundle = APBBundle(e.bundle)
-
-  def colour = "#00ccff" // bluish
-  override def label(e: APBEdgeParameters) = (e.slave.beatBytes * 8).toString
+  def edge(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = APBEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: APBEdgeParameters) = APBBundle(e.bundle)
+  def render(e: APBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, (e.slave.beatBytes * 8).toString)
 
   override def mixO(pd: APBMasterPortParameters, node: OutwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
