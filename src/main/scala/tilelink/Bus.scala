@@ -21,7 +21,8 @@ trait TLBusParams {
   def blockOffset: Int = log2Up(blockBytes)
 }
 
-abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p: Parameters) extends TLBusParams {
+abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p: Parameters)
+    extends SimpleLazyModule with LazyScope with TLBusParams {
 
   val beatBytes = params.beatBytes
   val blockBytes = params.blockBytes

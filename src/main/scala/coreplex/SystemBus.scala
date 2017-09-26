@@ -122,7 +122,7 @@ trait HasSystemBus extends HasInterruptBus {
   private val sbusParams = p(SystemBusKey)
   val sbusBeatBytes = sbusParams.beatBytes
 
-  val sbus = new SystemBus(sbusParams)
+  val sbus = LazyModule(new SystemBus(sbusParams))
 
   def sharedMemoryTLEdge: TLEdge = sbus.busView
   def paddrBits: Int = sbus.busView.bundle.addressBits
