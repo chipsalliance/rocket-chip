@@ -172,13 +172,40 @@ sealed trait LazyModuleImpLike extends BaseModule
   }
 }
 
-abstract class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
+class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
   val (auto, dangles) = instantiate()
 }
 
-abstract class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
+class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
   val (auto, dangles) = withClockAndReset(Bool(false).asClock, Bool(true)) {
     instantiate()
+  }
+}
+
+class SimpleLazyModule(implicit p: Parameters) extends LazyModule
+{
+  lazy val module = new LazyModuleImp(this)
+}
+
+trait LazyScope
+{
+  this: LazyModule =>
+  def apply[T](body: => T)(implicit p: Parameters) = {
+    require (!LazyModule.stack.exists(x => x eq this))
+    LazyModule.stack = this :: LazyModule.stack
+    val out = body
+    require (LazyModule.stack.head eq this)
+    LazyModule.stack = LazyModule.stack.tail
+    out
+  }
+}
+
+object LazyScope
+{
+  def apply[T](name: String)(body: => T)(implicit p: Parameters) = {
+    val scope = LazyModule(new SimpleLazyModule with LazyScope)
+    scope.suggestName(name)
+    scope { body }
   }
 }
 
