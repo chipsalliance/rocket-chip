@@ -7,17 +7,13 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-object APBImp extends NodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBEdgeParameters, APBBundle]
+object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
 {
-  def edgeO(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): APBEdgeParameters = APBEdgeParameters(pd, pu, p, sourceInfo)
-  def edgeI(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): APBEdgeParameters = APBEdgeParameters(pd, pu, p, sourceInfo)
-
-  def bundleO(eo: APBEdgeParameters): APBBundle = APBBundle(eo.bundle)
-  def bundleI(ei: APBEdgeParameters): APBBundle = APBBundle(ei.bundle)
+  def edge(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo): APBEdgeParameters = APBEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: APBEdgeParameters): APBBundle = APBBundle(e.bundle)
 
   def colour = "#00ccff" // bluish
-  override def labelI(ei: APBEdgeParameters) = (ei.slave.beatBytes * 8).toString
-  override def labelO(eo: APBEdgeParameters) = (eo.slave.beatBytes * 8).toString
+  override def label(e: APBEdgeParameters) = (e.slave.beatBytes * 8).toString
 
   override def mixO(pd: APBMasterPortParameters, node: OutwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })

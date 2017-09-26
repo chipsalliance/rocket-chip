@@ -63,17 +63,14 @@ object IntSinkPortSimple
 
 case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters, params: Parameters, sourceInfo: SourceInfo)
 
-object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, IntEdge, Vec[Bool]]
+object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
 {
-  def edgeO(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo): IntEdge = IntEdge(pd, pu, p, sourceInfo)
-  def edgeI(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo): IntEdge = IntEdge(pd, pu, p, sourceInfo)
-  def bundleO(eo: IntEdge): Vec[Bool] = Vec(eo.source.num, Bool())
-  def bundleI(ei: IntEdge): Vec[Bool] = Vec(ei.source.num, Bool())
+  def edge(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo): IntEdge = IntEdge(pd, pu, p, sourceInfo)
+  def bundle(e: IntEdge): Vec[Bool] = Vec(e.source.num, Bool())
 
   def colour = "#0000ff" // blue
   override def reverse = true
-  override def labelI(ei: IntEdge) = ei.source.sources.map(_.range.size).sum.toString
-  override def labelO(eo: IntEdge) = eo.source.sources.map(_.range.size).sum.toString
+  override def label(e: IntEdge) = e.source.sources.map(_.range.size).sum.toString
 
   override def mixO(pd: IntSourcePortParameters, node: OutwardNode[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]): IntSourcePortParameters =
    pd.copy(sources = pd.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })

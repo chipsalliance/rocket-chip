@@ -74,17 +74,13 @@ abstract class TLCustomNode(
 
 // Asynchronous crossings
 
-object TLAsyncImp extends NodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncEdgeParameters, TLAsyncBundle]
+object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
-  def edgeO(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
-  def edgeI(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
-
-  def bundleO(eo: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(eo.bundle)
-  def bundleI(ei: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(ei.bundle)
+  def edge(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLAsyncEdgeParameters = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: TLAsyncEdgeParameters): TLAsyncBundle = new TLAsyncBundle(e.bundle)
 
   def colour = "#ff0000" // red
-  override def labelI(ei: TLAsyncEdgeParameters) = ei.manager.depth.toString
-  override def labelO(eo: TLAsyncEdgeParameters) = eo.manager.depth.toString
+  override def label(e: TLAsyncEdgeParameters) = e.manager.depth.toString
 
   override def mixO(pd: TLAsyncClientPortParameters, node: OutwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncClientPortParameters  =
    pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))
@@ -113,13 +109,10 @@ case class TLAsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
 
 // Rationally related crossings
 
-object TLRationalImp extends NodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalEdgeParameters, TLRationalBundle]
+object TLRationalImp extends SimpleNodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
-  def edgeO(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
-  def edgeI(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
-
-  def bundleO(eo: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(eo.bundle)
-  def bundleI(ei: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(ei.bundle)
+  def edge(pd: TLRationalClientPortParameters, pu: TLRationalManagerPortParameters, p: Parameters, sourceInfo: SourceInfo): TLRationalEdgeParameters = TLRationalEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: TLRationalEdgeParameters): TLRationalBundle = new TLRationalBundle(e.bundle)
 
   def colour = "#00ff00" // green
 

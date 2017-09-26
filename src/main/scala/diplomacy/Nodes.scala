@@ -65,6 +65,21 @@ trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 abstract class NodeImp[D, U, EO, EI, B <: Data]
   extends Object with InwardNodeImp[D, U, EI, B] with OutwardNodeImp[D, U, EO, B]
 
+// If your edges have the same direction, using this saves you some typing
+abstract class SimpleNodeImp[D, U, E, B <: Data]
+  extends NodeImp[D, U, E, E, B]
+{
+  def edge(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo): E
+  def edgeO(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo) = edge(pd, pu, p, sourceInfo)
+  def edgeI(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo) = edge(pd, pu, p, sourceInfo)
+  def bundle(e: E): B
+  def bundleO(e: E) = bundle(e)
+  def bundleI(e: E) = bundle(e)
+  def label(e: E): String = ""
+  override def labelO(e: E) = label(e)
+  override def labelI(e: E) = label(e)
+}
+
 abstract class BaseNode(implicit val valName: ValName)
 {
   require (!LazyModule.stack.isEmpty, "You cannot create a node outside a LazyModule!")
