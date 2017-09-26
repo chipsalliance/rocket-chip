@@ -7,6 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Parameters,Field}
 import freechips.rocketchip.util.HeterogeneousBag
 import scala.collection.mutable.ListBuffer
+import scala.util.matching._
 
 object CardinalityInferenceDirection {
   val cases = Seq(SOURCE_TO_SINK, SINK_TO_SOURCE, NO_INFERENCE)
@@ -79,6 +80,14 @@ abstract class BaseNode(implicit val valName: ValName)
   def name = lazyModule.name + "." + valName.name
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
+
+  def wirePrefix = {
+    val camelCase = "([a-z])([A-Z])".r
+    val decamel = camelCase.replaceAllIn(valName.name, _ match { case camelCase(l, h) => l + "_" + h })
+    val trimNode = "_?node$".r
+    val name = trimNode.replaceFirstIn(decamel.toLowerCase, "")
+    if (name.isEmpty) "" else name + "_"
+  }
 
   protected[diplomacy] def gci: Option[BaseNode] // greatest common inner
   protected[diplomacy] def gco: Option[BaseNode] // greatest common outer
@@ -248,7 +257,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       source = HalfEdge(serial, i),
       sink   = HalfEdge(n.serial, j),
       flipped= false,
-      name   = valName.name + "_out",
+      name   = wirePrefix + "out",
       data   = bundleOut(i))
   }
   protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
@@ -256,7 +265,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       source = HalfEdge(n.serial, j),
       sink   = HalfEdge(serial, i),
       flipped= true,
-      name   = valName.name + "_in",
+      name   = wirePrefix + "in",
       data   = bundleIn(i))
   }
 
