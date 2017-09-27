@@ -119,8 +119,12 @@ object BaseNode
 
 // !!! rename the nodes we bind?
 case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
-  (inward: InwardNode[DI, UI, BI], outward: OutwardNode[DO, UO, BO])
+  (inwardHandle: InwardNodeHandle[DI, UI, BI], outwardHandle: OutwardNodeHandle[DO, UO, BO])
   extends Object with InwardNodeHandle[DI, UI, BI] with OutwardNodeHandle[DO, UO, BO]
+{
+  val inward = inwardHandle.inward
+  val outward = outwardHandle.outward
+}
 
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
