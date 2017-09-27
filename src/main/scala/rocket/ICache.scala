@@ -179,15 +179,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
-  val refillError = tl_out.d.bits.error || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
-    val enc_tag = tECC.encode(Cat(refillError, refill_tag))
+    val enc_tag = tECC.encode(Cat(tl_out.d.bits.error, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
-    accruedRefillError := refillError
     // clear bit when refill starts so hit-under-miss doesn't fetch bad data
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), refill_done && !invalidated)
   }

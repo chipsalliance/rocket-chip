@@ -204,7 +204,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_all_data_ways = Vec(data.io.resp :+ dummyEncodeData(tl_out.d.bits.data))
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask)
 
-  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
+  val s2_valid_pre_xcpt = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
+  val s2_valid = s2_valid_pre_xcpt && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
   val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
@@ -287,15 +288,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(2).bits.data.coh := Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)
   metaArb.io.in(2).bits.data.tag := s2_req.addr >> untagBits
 
-  // load reservations
+  // load reservations and TL error reporting
   val s2_lr = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XLR
   val s2_sc = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XSC
   val lrscCount = Reg(init=UInt(0))
+  val tl_error_valid = RegInit(false.B)
   val lrscValid = lrscCount > lrscBackoff
   val lrscAddr = Reg(UInt())
-  val s2_sc_fail = s2_sc && !(lrscValid && lrscAddr === (s2_req.addr >> blockOffBits))
-  when (s2_valid_hit && s2_lr) {
-    lrscCount := lrscCycles - 1
+  val lrscAddrMatch = lrscAddr === (s2_req.addr >> blockOffBits)
+  val s2_sc_fail = s2_sc && !(lrscValid && lrscAddrMatch)
+  val s2_tl_error = tl_error_valid && lrscAddrMatch
+  when (s2_valid_hit && s2_lr && !cached_grant_wait || s2_valid_cached_miss) {
+    tl_error_valid := false
+    lrscCount := Mux(s2_hit, lrscCycles - 1, 0.U)
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
@@ -437,6 +442,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       grantInProgress := true
       assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
       when(d_last) {
+        tl_error_valid := tl_out.d.bits.error
         cached_grant_wait := false
         grantInProgress := false
         blockProbeAfterGrantCount := blockProbeAfterGrantCycles - 1
@@ -488,7 +494,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // ignore backpressure from metaArb, which can only be caused by tag ECC
   // errors on hit-under-miss.  failing to write the new tag will leave the
   // line invalid, so we'll simply request the line again later.
-  metaArb.io.in(3).valid := grantIsCached && d_done
+  metaArb.io.in(3).valid := grantIsCached && d_done && !tl_out.d.bits.error
   metaArb.io.in(3).bits.write := true
   metaArb.io.in(3).bits.way_en := s2_victim_way
   metaArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_req.addr(idxMSB, 0))
@@ -523,6 +529,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
   val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
   val releaseDataBeat = Cat(UInt(0), c_count) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
+  val writeback_data_error = s2_data_decoded.map(_.error).reduce(_||_)
+  val writeback_data_uncorrectable = s2_data_decoded.map(_.uncorrectable).reduce(_||_)
 
   val nackResponseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = TLPermissions.NtoN)
   val cleanReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param)
@@ -590,6 +598,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   tl_out_c.bits.address := probe_bits.address
   tl_out_c.bits.data := s2_data_corrected
+  tl_out_c.bits.error := inWriteback && {
+    val accrued = Reg(Bool())
+    val next = writeback_data_uncorrectable || (accrued && !c_first)
+    when (tl_out_c.fire()) { accrued := next }
+    next
+  }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
   dataArb.io.in(2).bits.write := false
@@ -615,6 +629,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
   val s1_xcpt = tlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
+  when (s2_valid_pre_xcpt && s2_tl_error) {
+    assert(!s2_valid_hit && !s2_uncached)
+    when (s2_write) { io.cpu.s2_xcpt.ae.st := true }
+    when (s2_read) { io.cpu.s2_xcpt.ae.ld := true }
+  }
 
   if (usingDataScratchpad) {
     require(!usingVM) // therefore, req.phys means this is a slave-port access
@@ -718,8 +737,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   {
     val (data_error, data_error_uncorrectable, data_error_addr) =
       if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
-        (tl_out_c.valid && edge.hasData(tl_out_c.bits) && s2_data_decoded.map(_.error).reduce(_||_),
-         s2_data_decoded.map(_.uncorrectable).reduce(_||_),
+        (tl_out_c.fire() && inWriteback && writeback_data_error,
+         writeback_data_uncorrectable,
          tl_out_c.bits.address)
       }
     val error_addr =
