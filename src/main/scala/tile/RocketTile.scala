@@ -20,6 +20,7 @@ case class RocketTileParams(
     dataScratchpadBytes: Int = 0,
     boundaryBuffers: Boolean = false,
     trace: Boolean = false,
+    hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
     externalMasterBuffers: Int = 0,
     externalSlaveBuffers: Int = 0) extends TileParams {
@@ -131,6 +132,9 @@ class RocketTile(val rocketParams: RocketTileParams, val hartid: Int)(implicit p
 class RocketTileBundle(outer: RocketTile) extends BaseTileBundle(outer)
     with HasExternalInterruptsBundle
     with CanHaveScratchpadBundle
+    with CanHaltAndCatchFire {
+  val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(Bool(OUTPUT))
+}
 
 class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => new RocketTileBundle(outer))
     with HasExternalInterruptsModule
@@ -138,9 +142,12 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
     with CanHaveScratchpadModule {
 
   val core = Module(p(BuildCore)(outer.p))
+  val uncorrectable = RegInit(Bool(false))
+
   decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
   core.io.hartid := io.hartid // Pass through the hartid
   io.trace.foreach { _ := core.io.trace }
+  io.halt_and_catch_fire.foreach { _ := uncorrectable }
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.reset_vector := io.reset_vector
   outer.frontend.module.io.hartid := io.hartid
@@ -154,6 +161,12 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   core.io.rocc.busy := roccCore.busy
   core.io.rocc.interrupt := roccCore.interrupt
 
+  when(!uncorrectable) { uncorrectable :=
+    List(outer.frontend.module.io.errors, outer.dcache.module.io.errors)
+      .flatMap { e => e.uncorrectable.map(_.valid) }
+      .reduceOption(_||_)
+      .getOrElse(false.B)
+  }
 
   // TODO eliminate this redundancy
   val h = dcachePorts.size
@@ -200,25 +213,26 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
 
   def outputInterruptXingLatency: Int
 
-  rocket.intOutputNode.foreach { rocketIntOutputNode =>
-    val outXing = LazyModule(new IntXing(outputInterruptXingLatency))
-    intOutputNode.get := outXing.intnode
-    outXing.intnode := rocketIntOutputNode
-  }
+  intOutputNode.foreach { _ := rocket.intOutputNode.get }
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new CoreBundle with HasExternallyDrivenTileConstants with CanHaveInstructionTracePort {
+    val io = new CoreBundle
+        with HasExternallyDrivenTileConstants
+        with CanHaveInstructionTracePort
+        with CanHaltAndCatchFire {
       val master = masterNode.bundleOut
       val slave = slaveNode.bundleIn
       val outputInterrupts = intOutputNode.map(_.bundleOut)
       val asyncInterrupts  = asyncIntNode.bundleIn
       val periphInterrupts = periphIntNode.bundleIn
       val coreInterrupts   = coreIntNode.bundleIn
+      val halt_and_catch_fire = rocket.module.io.halt_and_catch_fire.map(_.cloneType)
     }
     // signals that do not change based on crossing type:
     rocket.module.io.hartid := io.hartid
     rocket.module.io.reset_vector := io.reset_vector
     io.trace.foreach { _ := rocket.module.io.trace.get }
+    io.halt_and_catch_fire.foreach { _ := rocket.module.io.halt_and_catch_fire.get }
   }
 }
 
