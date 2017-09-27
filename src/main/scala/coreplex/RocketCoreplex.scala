@@ -86,7 +86,7 @@ trait HasRocketTiles extends HasSystemBus
 
     wrapper.intOutputNode.foreach { case int =>
       val rocketIntXing = LazyModule(new IntXing(wrapper.outputInterruptXingLatency))
-      rocketIntXing.intnode := int
+      FlipRendering { implicit p => rocketIntXing.intnode := int }
       plic.intnode := rocketIntXing.intnode
     }
 
