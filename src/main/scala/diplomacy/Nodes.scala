@@ -27,8 +27,8 @@ object CardinalityInferenceDirection {
 private case object CardinalityInferenceDirectionKey extends
   Field[CardinalityInferenceDirection.T](CardinalityInferenceDirection.NO_INFERENCE)
 
-private case object MonitorsEnabled extends Field[Boolean](true)
-private case object RenderFlipped extends Field[Boolean](false)
+case object MonitorsEnabled extends Field[Boolean](true)
+case object RenderFlipped extends Field[Boolean](false)
 
 case class RenderedEdge(
   colour:  String,

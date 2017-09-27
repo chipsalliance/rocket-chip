@@ -270,7 +270,7 @@ class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {
 })
 
 class WithoutTLMonitors extends Config ((site, here, up) => {
-  case TLMonitorBuilder => (args: TLMonitorArgs) => None
+  case MonitorsEnabled => false
 })
 
 class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
