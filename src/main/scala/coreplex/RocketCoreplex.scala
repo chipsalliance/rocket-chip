@@ -84,7 +84,11 @@ trait HasRocketTiles extends HasSystemBus
     lip.foreach { coreIntXbar.intnode := _ }                // lip
     wrapper.coreIntNode   := coreIntXbar.intnode
 
-    wrapper.intOutputNode.foreach { plic.intnode := _ }
+    wrapper.intOutputNode.foreach { case int =>
+      val rocketIntXing = LazyModule(new IntXing(wrapper.outputInterruptXingLatency))
+      rocketIntXing.intnode := int
+      plic.intnode := rocketIntXing.intnode
+    }
 
     wrapper
   }

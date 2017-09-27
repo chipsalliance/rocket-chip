@@ -211,12 +211,6 @@ abstract class RocketTileWrapper(rtp: RocketTileParams, hartid: Int)(implicit p:
 
   def outputInterruptXingLatency: Int
 
-  rocket.intOutputNode.foreach { rocketIntOutputNode =>
-    val outXing = LazyModule(new IntXing(outputInterruptXingLatency))
-    intOutputNode.get := outXing.intnode
-    outXing.intnode := rocketIntOutputNode
-  }
-
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new CoreBundle
         with HasExternallyDrivenTileConstants
