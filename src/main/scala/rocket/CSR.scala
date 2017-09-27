@@ -155,7 +155,8 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val insn = UInt(width = iLen)
   val priv = UInt(width = 3)
   val exception = Bool()
-  val cause = UInt(width = 1 + log2Ceil(xLen))
+  val interrupt = Bool()
+  val cause = UInt(width = log2Ceil(xLen))
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
@@ -773,7 +774,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     t.insn := insn
     t.iaddr := io.pc
     t.priv := Cat(reg_debug, reg_mstatus.prv)
-    t.cause := Cat(cause(xLen-1), cause(log2Ceil(xLen)-1, 0))
+    t.cause := cause
+    t.interrupt := cause(xLen-1)
     t.tval := badaddr_value
   }
 
