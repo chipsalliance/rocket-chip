@@ -68,8 +68,8 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
     val timecmp = Seq.fill(nTiles) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
     val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 
-    val (intnode_in, _) = intnode.in.unzip
-    intnode_in.zipWithIndex.foreach { case (int, i) =>
+    val (intnode_out, _) = intnode.out.unzip
+    intnode_out.zipWithIndex.foreach { case (int, i) =>
       int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
       int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
     }
