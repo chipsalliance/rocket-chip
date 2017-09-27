@@ -55,6 +55,5 @@ trait HasFrontBus extends HasSystemBus {
 
   val fbus = LazyModule(new FrontBus(frontbusParams))
 
-  sbus.fromFrontBus := fbus.toSystemBus
-
+  FlipRendering { implicit p => sbus.fromFrontBus := fbus.toSystemBus }
 }
