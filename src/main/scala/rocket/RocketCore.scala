@@ -160,7 +160,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val take_pc_mem = Wire(Bool())
 
   val wb_reg_valid           = Reg(Bool())
-  val wb_reg_rvc             = Reg(Bool())
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_flush_pipe      = Reg(Bool())
@@ -446,7 +445,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   wb_reg_flush_pipe := !ctrl_killm && mem_reg_flush_pipe
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
-    wb_reg_rvc := mem_reg_rvc
     wb_reg_sfence := mem_reg_sfence
     wb_reg_wdata := Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
     when (mem_ctrl.rocc || mem_reg_sfence) {
@@ -518,7 +516,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.exception := wb_xcpt
   csr.io.cause := wb_cause
   csr.io.retire := wb_valid
-  csr.io.inst(0) := Cat(Mux(wb_reg_rvc, 0.U, wb_reg_inst >> 16), wb_reg_raw_inst(15, 0))
+  csr.io.inst(0) := (if (usingCompressed) Cat(Mux(wb_reg_raw_inst(1, 0).andR, wb_reg_inst >> 16, 0.U), wb_reg_raw_inst(15, 0)) else wb_reg_inst)
   csr.io.interrupts := io.interrupts
   csr.io.hartid := io.hartid
   io.fpu.fcsr_rm := csr.io.fcsr_rm
