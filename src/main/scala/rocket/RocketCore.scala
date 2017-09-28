@@ -160,7 +160,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val take_pc_mem = Wire(Bool())
 
   val wb_reg_valid           = Reg(Bool())
-  val wb_reg_rvc             = Reg(Bool())
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
   val wb_reg_flush_pipe      = Reg(Bool())
@@ -446,7 +445,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   wb_reg_flush_pipe := !ctrl_killm && mem_reg_flush_pipe
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
-    wb_reg_rvc := mem_reg_rvc
     wb_reg_sfence := mem_reg_sfence
     wb_reg_wdata := Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
     when (mem_ctrl.rocc || mem_reg_sfence) {
@@ -518,7 +516,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.exception := wb_xcpt
   csr.io.cause := wb_cause
   csr.io.retire := wb_valid
-  csr.io.inst(0) := Cat(Mux(wb_reg_rvc, 0.U, wb_reg_inst >> 16), wb_reg_raw_inst(15, 0))
+  csr.io.inst(0) := (if (usingCompressed) Cat(Mux(wb_reg_raw_inst(1, 0).andR, wb_reg_inst >> 16, 0.U), wb_reg_raw_inst(15, 0)) else wb_reg_inst)
   csr.io.interrupts := io.interrupts
   csr.io.hartid := io.hartid
   io.fpu.fcsr_rm := csr.io.fcsr_rm
@@ -673,7 +671,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     val wxd = wb_ctrl.wxd
     val has_data = wb_wen && !wb_set_sboard
 
-    when (t.valid) {
+    when (t.valid && !t.exception) {
       when (wfd) {
         printf ("%d 0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", t.priv, t.iaddr, t.insn, rd, rd+UInt(32))
       }
@@ -694,7 +692,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   }
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.hartid, csr.io.time(31,0), csr.io.trace(0).valid, csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0),
+         io.hartid, csr.io.time(31,0), csr.io.trace(0).valid && !csr.io.trace(0).exception,
+         csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0),
          Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0)), rf_wdata, rf_wen,
          wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
          wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
