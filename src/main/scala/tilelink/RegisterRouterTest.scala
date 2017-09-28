@@ -3,6 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.experimental.MultiIOModule
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -222,7 +223,7 @@ trait RRTest1Bundle
 {
 }
 
-trait RRTest1Module extends Module with HasRegMap
+trait RRTest1Module extends MultiIOModule with HasRegMap
 {
   val clocks = Module(new Pow2ClockDivider(2))
 
@@ -261,7 +262,7 @@ class FuzzRRTest0(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   rrtr.node := TLFragmenter(4, 32)(TLDelayer(0.1)(fuzz.node))
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -276,7 +277,7 @@ class FuzzRRTest1(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   rrtr.node := TLFragmenter(4, 32)(TLDelayer(0.1)(fuzz.node))
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

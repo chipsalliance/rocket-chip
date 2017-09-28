@@ -38,13 +38,12 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
   val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters(name = name)))))
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val tl_out = node.bundleOut
+    val io = IO(new Bundle {
       val run = Bool(INPUT)
       val done = Bool(OUTPUT)
-    }
+    })
 
-    val edgeOut = node.edgesOut(0)
+    val (tl_out, edgeOut) = node.out(0)
     pattern.foreach { p =>
       require (p.size <= log2Ceil(edgeOut.manager.beatBytes), "Patterns must fit in a single beat")
     }
@@ -56,8 +55,8 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
     val end = step === UInt(pattern.size)
     io.done := end && !flight
 
-    val a = io.tl_out(0).a
-    val d = io.tl_out(0).d
+    val a = tl_out.a
+    val d = tl_out.d
 
     // Expected response?
     val check  = Vec(pattern.map(p => Bool(p.dataIn.isDefined)))(step) holdUnless a.fire()
@@ -80,8 +79,8 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
     d.ready := Bool(true)
 
     // Tie off unused channels
-    io.tl_out(0).b.ready := Bool(true)
-    io.tl_out(0).c.valid := Bool(false)
-    io.tl_out(0).e.valid := Bool(false)
+    tl_out.b.ready := Bool(true)
+    tl_out.c.valid := Bool(false)
+    tl_out.e.valid := Bool(false)
   }
 }

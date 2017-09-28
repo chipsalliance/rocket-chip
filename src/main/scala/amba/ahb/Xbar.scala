@@ -16,35 +16,31 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
     slaveFn  = { seq => seq(0).copy(slaves = seq.flatMap(_.slaves)) })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
     // Require consistent bus widths
-    val port0 = node.edgesOut(0).slave
-    node.edgesOut.foreach { edge =>
+    val (io_out, edgesOut) = node.out.unzip
+    val port0 = edgesOut(0).slave
+    edgesOut.foreach { edge =>
       val port = edge.slave
       require (port.beatBytes == port0.beatBytes,
         s"${port.slaves.map(_.name)} ${port.beatBytes} vs ${port0.slaves.map(_.name)} ${port0.beatBytes}")
     }
 
-    val port_addrs = node.edgesOut.map(_.slave.slaves.map(_.address).flatten)
+    val port_addrs = edgesOut.map(_.slave.slaves.map(_.address).flatten)
     val routingMask = AddressDecoder(port_addrs)
     val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 
-    val in = io.in(0)
+    val (in, _) = node.in(0)
     val a_sel = Vec(route_addrs.map(seq => seq.map(_.contains(in.haddr)).reduce(_ || _)))
     val d_sel = Reg(a_sel)
 
     when (in.hready) { d_sel := a_sel }
-    (a_sel zip io.out) foreach { case (sel, out) =>
+    (a_sel zip io_out) foreach { case (sel, out) =>
       out := in
       out.hsel := in.hsel && sel
     }
 
-    in.hreadyout := !Mux1H(d_sel, io.out.map(!_.hreadyout))
-    in.hresp     :=  Mux1H(d_sel, io.out.map(_.hresp))
-    in.hrdata    :=  Mux1H(d_sel, io.out.map(_.hrdata))
+    in.hreadyout := !Mux1H(d_sel, io_out.map(!_.hreadyout))
+    in.hresp     :=  Mux1H(d_sel, io_out.map(_.hresp))
+    in.hrdata    :=  Mux1H(d_sel, io_out.map(_.hrdata))
   }
 }

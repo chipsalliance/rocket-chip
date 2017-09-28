@@ -68,7 +68,7 @@ trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBu
 
   private val mask = ~BigInt((nBanks-1) * memBusBlockBytes)
   val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
-    val mbus = new MemoryBus(mbusParams)
+    val mbus = LazyModule(new MemoryBus(mbusParams))
     for (bank <- 0 until nBanksPerChannel) {
       val offset = (bank * nMemoryChannels) + channel
       ForceFanout(a = true) { implicit p => in := sbus.toMemoryBus }

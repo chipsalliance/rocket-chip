@@ -187,14 +187,21 @@ class WithRoccExample extends Config((site, here, up) => {
       Seq(
         RoCCParams(
           opcodes = OpcodeSet.custom0,
-          generator = (p: Parameters) => LazyModule(new AccumulatorExample()(p))),
+          generator = (p: Parameters) => {
+            val accumulator = LazyModule(new AccumulatorExample()(p))
+            accumulator}),
         RoCCParams(
           opcodes = OpcodeSet.custom1,
-          generator = (p: Parameters) => LazyModule(new TranslatorExample()(p)),
+          generator = (p: Parameters) => {
+            val translator = LazyModule(new TranslatorExample()(p))
+            translator},
           nPTWPorts = 1),
         RoCCParams(
           opcodes = OpcodeSet.custom2,
-          generator = (p: Parameters) => LazyModule(new CharacterCountExample()(p)))
+          generator = (p: Parameters) => {
+            val counter = LazyModule(new CharacterCountExample()(p))
+            counter
+          })
         ))
     }
 })
@@ -265,7 +272,7 @@ class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {
 })
 
 class WithoutTLMonitors extends Config ((site, here, up) => {
-  case TLMonitorBuilder => (args: TLMonitorArgs) => None
+  case MonitorsEnabled => false
 })
 
 class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {

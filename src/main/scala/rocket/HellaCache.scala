@@ -176,15 +176,14 @@ class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends CoreBu
   val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
-  val mem = outer.node.bundleOut
   val errors = new DCacheErrors
 }
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
-  implicit val edge = outer.node.edgesOut(0)
-  val io = new HellaCacheBundle(outer)
-  val tl_out = io.mem(0)
+  implicit val edge = outer.node.edges.out(0)
+  val (tl_out, _) = outer.node.out(0)
+  val io = IO(new HellaCacheBundle(outer))
 
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
   fifoManagers.foreach { m =>
@@ -195,8 +194,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 
 object HellaCache {
   def apply(hartid: Int, blocking: Boolean, scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) = {
-    if (blocking) LazyModule(new DCache(hartid, scratch))
-    else LazyModule(new NonBlockingDCache(hartid))
+    if (blocking) new DCache(hartid, scratch) else new NonBlockingDCache(hartid)
   }
 }
 
@@ -208,7 +206,7 @@ trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   def findScratchpadFromICache: Option[AddressSet]
   val hartid: Int
   var nDCachePorts = 0
-  val dcache = HellaCache(hartid, tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _)
+  val dcache = LazyModule(HellaCache(hartid, tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _))
   tileBus.node := dcache.node
 }
 

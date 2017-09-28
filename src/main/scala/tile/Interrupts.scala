@@ -38,7 +38,6 @@ trait HasExternalInterrupts extends HasTileParameters {
 
 trait HasExternalInterruptsBundle {
   val outer: HasExternalInterrupts
-  val interrupts = outer.intNode.bundleIn
 }
 
 trait HasExternalInterruptsModule {
@@ -57,6 +56,7 @@ trait HasExternalInterruptsModule {
 
     val core_ips = core.lip
 
-    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(io.interrupts(0)).foreach { case(c, i) => c := i }
+    val (interrupts, _) = outer.intNode.in(0)
+    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
   }
 }

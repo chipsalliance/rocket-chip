@@ -3,6 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.RationalDirection
 import scala.math.max
@@ -312,7 +314,9 @@ object TLBundleParameters
 
 case class TLEdgeParameters(
   client:  TLClientPortParameters,
-  manager: TLManagerPortParameters)
+  manager: TLManagerPortParameters,
+  params:  Parameters,
+  sourceInfo: SourceInfo)
 {
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
@@ -340,7 +344,7 @@ object TLAsyncBundleParameters
   def union(x: Seq[TLAsyncBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 }
 
-case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters)
+case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
   val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
 }
@@ -348,7 +352,7 @@ case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: T
 case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters)
 case class TLRationalClientPortParameters(base: TLClientPortParameters)
 
-case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters)
+case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
   val bundle = TLBundleParameters(client.base, manager.base)
 }

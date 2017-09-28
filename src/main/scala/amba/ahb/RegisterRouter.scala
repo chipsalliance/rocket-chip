@@ -10,8 +10,8 @@ import freechips.rocketchip.tilelink.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
 import scala.math.{min,max}
 
-class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-  extends AHBSlaveNode(Seq(AHBSlavePortParameters(
+case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
+  extends SinkNode(AHBImp)(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
@@ -24,7 +24,7 @@ class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
   // Calling this method causes the matching AHB bundle to be
   // configured to route all requests to the listed RegFields.
   def regmap(mapping: RegField.Map*) = {
-    val ahb = bundleIn(0)
+    val (ahb, _) = this.in(0)
 
     val indexBits = log2Up((address.mask+1)/beatBytes)
     val params = RegMapperParams(indexBits, beatBytes, 1)
@@ -67,12 +67,6 @@ class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int 
   }
 }
 
-object AHBRegisterNode
-{
-  def apply(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false) =
-    new AHBRegisterNode(address, concurrency, beatBytes, undefZero, executable)
-}
-
 // These convenience methods below combine to make it possible to create a AHB
 // register mapped device from a totally abstract register mapped device.
 
@@ -82,13 +76,11 @@ abstract class AHBRegisterRouterBase(address: AddressSet, interrupts: Int, concu
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
-case class AHBRegBundleArg(interrupts: HeterogeneousBag[Vec[Bool]], in: HeterogeneousBag[AHBBundle])(implicit val p: Parameters)
+case class AHBRegBundleArg()(implicit val p: Parameters)
 
 class AHBRegBundleBase(arg: AHBRegBundleArg) extends Bundle
 {
   implicit val p = arg.p
-  val interrupts = arg.interrupts
-  val in = arg.in
 }
 
 class AHBRegBundle[P](val params: P, arg: AHBRegBundleArg) extends AHBRegBundleBase(arg)
@@ -96,8 +88,8 @@ class AHBRegBundle[P](val params: P, arg: AHBRegBundleArg) extends AHBRegBundleB
 class AHBRegModule[P, B <: AHBRegBundleBase](val params: P, bundleBuilder: => B, router: AHBRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
-  val io = bundleBuilder
-  val interrupts = if (io.interrupts.isEmpty) Vec(0, Bool()) else io.interrupts(0)
+  val io = IO(bundleBuilder)
+  val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
@@ -110,5 +102,5 @@ class AHBRegisterRouter[B <: AHBRegBundleBase, M <: LazyModuleImp]
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
-  lazy val module = moduleBuilder(bundleBuilder(AHBRegBundleArg(intnode.bundleOut, node.bundleIn)), this)
+  lazy val module = moduleBuilder(bundleBuilder(AHBRegBundleArg()), this)
 }

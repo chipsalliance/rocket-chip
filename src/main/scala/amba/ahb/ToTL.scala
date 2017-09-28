@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.MaskGen
 
-case class AHBToTLNode() extends MixedAdapterNode(AHBImp, TLImp)(
+case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImp, TLImp)(
   dFn = { case AHBMasterPortParameters(masters) =>
     TLClientPortParameters(clients = masters.map { m =>
       TLClientParameters(name = m.name, nodePath = m.nodePath)
@@ -41,12 +41,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
   val node = AHBToTLNode()
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.manager.beatBytes
 
       val d_send  = RegInit(Bool(false))

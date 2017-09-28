@@ -45,7 +45,7 @@ trait HasPeripheryBus extends HasSystemBus {
   private val pbusParams = p(PeripheryBusKey)
   val pbusBeatBytes = pbusParams.beatBytes
 
-  val pbus = new PeripheryBus(pbusParams)
+  val pbus = LazyModule(new PeripheryBus(pbusParams))
 
   // The peripheryBus hangs off of systemBus; here we convert TL-UH -> TL-UL
   pbus.fromSystemBus := sbus.toPeripheryBus()

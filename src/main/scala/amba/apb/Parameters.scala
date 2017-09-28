@@ -3,6 +3,7 @@
 package freechips.rocketchip.amba.apb
 
 import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.max
@@ -78,7 +79,9 @@ object APBBundleParameters
 
 case class APBEdgeParameters(
   master: APBMasterPortParameters,
-  slave:  APBSlavePortParameters)
+  slave:  APBSlavePortParameters,
+  params: Parameters,
+  sourceInfo: SourceInfo)
 {
   val bundle = APBBundleParameters(master, slave)
 }

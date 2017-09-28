@@ -37,11 +37,9 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     beatBytes = p(XLen)/8)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val tl = node.bundleIn
-      val interrupt = intNode.bundleOut
+    val io = IO(new Bundle {
       val errors = t.flip
-    }
+    })
 
     val sources = io.errors.toErrorList
     val mask = sources.map(_.nonEmpty.B).asUInt
@@ -61,7 +59,8 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
       }
     }
 
-    io.interrupt.head(0) := (accrued & interrupt).orR
+    val (int_out, _) = intNode.out(0)
+    int_out(0) := (accrued & interrupt).orR
 
     def reg(r: UInt) = RegField(regWidth, r)
     def maskedReg(r: UInt, m: UInt) = RegField(regWidth, r, RegWriteFn((v, d) => { when (v) { r := d & m }; true }))

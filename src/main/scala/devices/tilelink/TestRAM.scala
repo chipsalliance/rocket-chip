@@ -29,16 +29,11 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
-
     def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
       if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
     val mask = bigBits(address.mask >> log2Ceil(beatBytes))
 
-    val in = io.in(0)
-    val edge = node.edgesIn(0)
+    val (in, edge) = node.in(0)
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
     val memAddress = Cat(addrBits.reverse)
@@ -75,7 +70,7 @@ class TLRAMZeroDelay(ramBeatBytes: Int, txns: Int)(implicit p: Parameters) exten
   model.node := fuzz.node
   ram.node := TLDelayer(0.25)(model.node)
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

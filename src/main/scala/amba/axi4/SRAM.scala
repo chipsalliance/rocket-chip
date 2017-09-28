@@ -24,15 +24,11 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
   require ((address.mask & (beatBytes-1)) == beatBytes-1)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
-
     def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
       if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
     val mask = bigBits(address.mask >> log2Ceil(beatBytes))
 
-    val in = io.in(0)
+    val (in, _) = node.in(0)
     val mem = SeqMem(1 << mask.filter(b=>b).size, Vec(beatBytes, Bits(width = 8)))
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)

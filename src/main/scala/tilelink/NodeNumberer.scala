@@ -7,11 +7,8 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-case class TLNodeNumbererNode(nodeAddressOffset: Option[Int] = None) extends TLCustomNode(0 to 999, 0 to 999)
+case class TLNodeNumbererNode(nodeAddressOffset: Option[Int] = None)(implicit valName: ValName) extends TLCustomNode(0 to 999, 0 to 999)
 {
-  val externalIn = true
-  val externalOut = true
-
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"${name} (a custom adapter) appears left of a :*= ${iStars} times and right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     if (oStars > 0) {
@@ -46,15 +43,10 @@ class TLNodeNumberer(nodeAddressOffset: Option[Int] = None)(implicit p: Paramete
   val node = TLNodeNumbererNode(nodeAddressOffset)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    val minNodeOffset = log2Ceil(node.edgesOut.map(_.manager.maxAddress).max)
+    val minNodeOffset = log2Ceil(node.edges.out.map(_.manager.maxAddress).max)
     val nodeOffset = nodeAddressOffset.getOrElse(minNodeOffset)
 
-    (io.in zip io.out).zipWithIndex foreach { case ((in, out), i) =>
+    (node.in zip node.out).zipWithIndex foreach { case (((in, _), (out, _)), i) =>
       out <> in
       // a&c address already get truncated
       in.b.bits.address := (UInt(i+1) << nodeOffset) | out.b.bits.address

@@ -10,7 +10,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import scala.math.{min, max}
 
-case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0) extends MixedAdapterNode(TLImp, AXI4Imp)(
+case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
     p.clients.foreach { c =>
       require (c.sourceId.start % (1 << stripBits) == 0 &&
@@ -53,12 +53,7 @@ class TLToAXI4(val beatBytes: Int, val combinational: Boolean = true, val adapte
   val node = TLToAXI4Node(beatBytes, stripBits)
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val slaves  = edgeOut.slave.slaves
 
       // All pairs of slaves must promise that they will never interleave data

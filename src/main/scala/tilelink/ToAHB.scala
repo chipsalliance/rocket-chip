@@ -11,7 +11,7 @@ import freechips.rocketchip.util._
 import scala.math.{min, max}
 import AHBParameters._
 
-case class TLToAHBNode() extends MixedAdapterNode(TLImp, AHBImp)(
+case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
   dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
     AHBMasterPortParameters(masters)
@@ -53,12 +53,7 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
   val node = TLToAHBNode()
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-      val out = node.bundleOut
-    }
-
-   ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+   (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.slave.beatBytes
       val maxTransfer = edgeOut.slave.maxTransfer
       val lgMax = log2Ceil(maxTransfer)

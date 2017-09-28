@@ -288,14 +288,12 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
   lazy val module = new LazyModuleImp(this) {
 
-    val nComponents = intnode.bundleOut.size
+    val nComponents = intnode.out.size
 
-    val io = new Bundle {
+    val io = IO(new Bundle {
       val ctrl = (new DebugCtrlBundle(nComponents))
-      val tlIn = dmiNode.bundleIn
-      val debugInterrupts = intnode.bundleOut
       val innerCtrl = new DecoupledIO(new DebugInternalBundle())
-    }
+    })
 
     //----DMCONTROL (The whole point of 'Outer' is to maintain this register on dmiClock (e.g. TCK) domain, so that it
     //               can be written even if 'Inner' is not being clocked or is in reset. This allows halting
@@ -355,8 +353,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     debugIntNxt := debugIntRegs
 
+    val (intnode_out, _) = intnode.out.unzip
     for (component <- 0 until nComponents) {
-      io.debugInterrupts(component)(0) := debugIntRegs(component)
+      intnode_out(component)(0) := debugIntRegs(component)
     }
 
     // Halt request registers are set & cleared by writes to DMCONTROL.haltreq
@@ -393,27 +392,22 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmiXbar = LazyModule (new TLXbar())
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
-  val intnode = IntOutputNode()
+  val intnode = dmOuter.intnode
 
-  val dmiInnerNode = TLAsyncOutputNode()
-
-  intnode :*= dmOuter.intnode
+  val dmiInnerNode = TLAsyncCrossingSource()(dmiXbar.node)
 
   dmiXbar.node := dmi2tl.node
   dmOuter.dmiNode := dmiXbar.node
-  dmiInnerNode := TLAsyncCrossingSource()(dmiXbar.node)
   
   lazy val module = new LazyModuleImp(this) {
 
-    val nComponents = intnode.bundleOut.size
+    val nComponents = intnode.out.size
 
-    val io = new Bundle {
+    val io = IO(new Bundle {
       val dmi   = new DMIIO()(p).flip()
-      val dmiInner = dmiInnerNode.bundleOut
       val ctrl = new DebugCtrlBundle(nComponents)
-      val debugInterrupts = intnode.bundleOut
       val innerCtrl = new AsyncBundle(depth=1, new DebugInternalBundle())
-    }
+    })
 
     dmi2tl.module.io.dmi <> io.dmi
 
@@ -447,13 +441,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     val nComponents = getNComponents()
 
-    val io = new Bundle {
-      val hart_in = tlNode.bundleIn
-      val dmi_in = dmiNode.bundleIn
+    val io = IO(new Bundle {
       val dmactive = Bool(INPUT)
       val innerCtrl = (new DecoupledIO(new DebugInternalBundle())).flip
       val debugUnavail = Vec(nComponents, Bool()).asInput
-    }
+    })
 
     //--------------------------------------------------------------
     // Import constants for shorter variable names
@@ -1011,26 +1003,23 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 // Also is the Sink side of hartsel & resumereq fields of DMCONTROL.
 class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implicit p: Parameters) extends LazyModule{
 
-  val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents)(p))
-  val dmiNode = TLAsyncInputNode()
-  val tlNode = TLInputNode()
+  val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents))
+  val dmiXing = LazyModule(new TLAsyncCrossingSink(depth=1))
+  val dmiNode: TLAsyncInwardNode = dmiXing.node
+  val tlNode = dmInner.tlNode
 
-  dmInner.dmiNode := TLAsyncCrossingSink(depth=1)(dmiNode)
-  dmInner.tlNode  := tlNode
+  dmInner.dmiNode := dmiXing.node
 
   lazy val module = new LazyModuleImp(this) {
 
-    val io = new Bundle {
-      // this comes from tlClk domain.
-      val tl_in = tlNode.bundleIn
+    val io = IO(new Bundle {
       // These are all asynchronous and come from Outer
-      val dmi_in = dmiNode.bundleIn
       val dmactive = Bool(INPUT)
       val innerCtrl = new AsyncBundle(1, new DebugInternalBundle()).flip
       // This comes from tlClk domain.
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
       val psd = new PSDTestMode().asInput
-    }
+    })
 
     dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
     dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
@@ -1049,26 +1038,22 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
     override val alwaysExtended = true
   }
 
-  val node = TLInputNode()
-  val intnode = IntOutputNode()
-
   val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
-  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {intnode.bundleOut.size})(p))
+  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {intnode.edges.out.size})(p))
+
+  val node = dmInner.tlNode
+  val intnode = dmOuter.intnode
 
   dmInner.dmiNode := dmOuter.dmiInnerNode
-  dmInner.tlNode := node
-  intnode :*= dmOuter.intnode
 
   lazy val module = new LazyModuleImp(this) {
-    val nComponents = intnode.bundleOut.size
+    val nComponents = intnode.out.size
 
-    val io = new Bundle {
+    val io = IO(new Bundle {
       val ctrl = new DebugCtrlBundle(nComponents)
       val dmi = new ClockedDMIIO().flip
-      val in = node.bundleIn
-      val debugInterrupts = intnode.bundleOut
       val psd = new PSDTestMode().asInput
-    }
+    })
 
     dmOuter.module.io.dmi <> io.dmi.dmi
     dmOuter.module.reset := io.dmi.dmiReset
@@ -1102,16 +1087,14 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
 
-  val node = TLClientNode(TLClientParameters("debug"))
+  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = IO(new Bundle {
       val dmi = new DMIIO()(p).flip()
-      val out = node.bundleOut
-    }
+    })
 
-    val tl = io.out(0)
-    val edge = node.edgesOut(0)
+    val (tl, edge) = node.out(0)
 
     val src  = Wire(init = 0.U)
     val addr = Wire(init = (io.dmi.req.bits.addr << 2))

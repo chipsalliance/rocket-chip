@@ -24,21 +24,18 @@ trait HasPeripheryMaskROMSlave extends HasPeripheryBus {
 
 class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
   val beatBytes = c.width/8
-  val node = TLManagerNode(beatBytes, TLManagerParameters(
-    address            = AddressSet.misaligned(c.address, c.depth*beatBytes),
-    resources          = new SimpleDevice("rom", Seq("sifive,maskrom0")).reg("mem"),
-    regionType         = RegionType.UNCACHED,
-    executable         = true,
-    supportsGet        = TransferSizes(1, beatBytes),
-    fifoId             = Some(0))) // requests are handled in order
+  val node = TLManagerNode(Seq(TLManagerPortParameters(
+    Seq(TLManagerParameters(
+      address            = AddressSet.misaligned(c.address, c.depth*beatBytes),
+      resources          = new SimpleDevice("rom", Seq("sifive,maskrom0")).reg("mem"),
+      regionType         = RegionType.UNCACHED,
+      executable         = true,
+      supportsGet        = TransferSizes(1, beatBytes),
+      fifoId             = Some(0))), // requests are handled in order
+    beatBytes = beatBytes)))
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
-
-    val in = io.in(0)
-    val edge = node.edgesIn(0)
+    val (in, edge)= node.in(0)
 
     val rom = ROMGenerator(ROMConfig(c.name, c.depth, c.width))
     rom.io.clock := clock

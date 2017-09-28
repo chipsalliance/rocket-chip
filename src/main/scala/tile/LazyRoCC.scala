@@ -60,13 +60,11 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
   val module: LazyRoCCModule
 
-  val atlNode: TLMixedNode = TLOutputNode()
-  val tlNode: TLMixedNode = TLOutputNode()
+  val atlNode: TLMixedNode = TLIdentityNode()
+  val tlNode: TLMixedNode = TLIdentityNode()
 }
 
 class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
-  val atl = outer.atlNode.bundleOut
-  val tl = outer.tlNode.bundleOut
   // Should be handled differently, eventually
   val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
@@ -74,7 +72,7 @@ class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
 }
 
 class LazyRoCCModule(outer: LazyRoCC) extends LazyModuleImp(outer) {
-  val io = new RoCCIO(outer)
+  val io = IO(new RoCCIO(outer))
 }
 
 /** Mixins for including RoCC **/
@@ -263,7 +261,7 @@ class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) 
 
 class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
   override lazy val module = new CharacterCountExampleModule(this)
-  override val atlNode = TLClientNode(TLClientParameters("CharacterCountRoCC"))
+  override val atlNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("CharacterCountRoCC")))))
 }
 
 class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
@@ -286,7 +284,7 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   val s_idle :: s_acq :: s_gnt :: s_check :: s_resp :: Nil = Enum(Bits(), 5)
   val state = Reg(init = s_idle)
 
-  val tl_out = io.atl.head
+  val (tl_out, edgesOut) = outer.atlNode.out(0)
   val gnt = tl_out.d.bits
   val recv_data = Reg(UInt(width = cacheDataBits))
   val recv_beat = Reg(UInt(width = log2Up(cacheDataBeats+1)), init = UInt(0))
@@ -309,7 +307,7 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   io.resp.bits.rd := resp_rd
   io.resp.bits.data := count
   tl_out.a.valid := (state === s_acq)
-  tl_out.a.bits := outer.atlNode.edgesOut(0).Get(
+  tl_out.a.bits := edgesOut.Get(
                        fromSource = UInt(0),
                        toAddress = addr_block << blockOffset,
                        lgSize = UInt(lgCacheBlockBytes))._2

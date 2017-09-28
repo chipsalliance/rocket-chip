@@ -29,12 +29,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
     })})
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
-    }
-
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val managers = edgeOut.manager.managers
       val beatBytes = edgeOut.manager.beatBytes
 
@@ -297,7 +292,7 @@ class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule 
   model.node := fuzz.node
   ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(TLAtomicAutomata()(TLDelayer(0.1)(model.node))))
 
-  lazy val module = new LazyModuleImp(this) with HasUnitTestIO {
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
