@@ -7,26 +7,28 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, fuzzHreadyout: Boolean = false, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
+class AHBRAM(
+    address: AddressSet,
+    executable: Boolean = true,
+    beatBytes: Int = 4,
+    fuzzHreadyout: Boolean = false,
+    devName: Option[String] = None,
+    errors: Seq[AddressSet] = Nil)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = AHBSlaveNode(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = List(address) ++ errors,
+      resources     = resources,
       regionType    = RegionType.UNCACHED,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
     beatBytes  = beatBytes)))
 
-  // We require the address range to include an entire beat (for the write mask)
-  require ((address.mask & (beatBytes-1)) == beatBytes-1)
-
   lazy val module = new LazyModuleImp(this) {
-    def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
-      if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
-    val mask = bigBits(address.mask >> log2Ceil(beatBytes))
-
     val (in, _) = node.in(0)
+    val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ
@@ -56,9 +58,6 @@ class AHBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4
     val p_mask      = Reg(a_mask)
     val p_latch_d   = Reg(Bool())
     val p_wdata     = d_wdata holdUnless p_latch_d
-
-    // Use single-ported memory with byte-write enable
-    val mem = SeqMem(1 << mask.filter(b=>b).size, Vec(beatBytes, Bits(width = 8)))
 
     // Decide if the SRAM port is used for reading or (potentially) writing
     val read = a_request && !a_write
