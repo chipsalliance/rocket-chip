@@ -222,7 +222,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   reset_dcsr.xdebugver := 1
   reset_dcsr.prv := PRV.M
   val reg_dcsr = Reg(init=reset_dcsr)
-  val reg_debugint = Reg(Bool())
 
   val (supported_interrupts, delegable_interrupts) = {
     val sup = Wire(new MIP)
@@ -304,13 +303,17 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val hpm_mask = reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren)
 
   val mip = Wire(init=reg_mip)
+  mip.lip := (io.interrupts.lip: Seq[Bool])
+  mip.mtip := io.interrupts.mtip
+  mip.msip := io.interrupts.msip
+  mip.meip := io.interrupts.meip
   // seip is the OR of reg_mip.seip and the actual line from the PLIC
   io.interrupts.seip.foreach { mip.seip := reg_mip.seip || RegNext(_) }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
 
   val pending_interrupts = read_mip & reg_mie
-  val d_interrupts = reg_debugint << CSR.debugIntCause
+  val d_interrupts = io.interrupts.debug << CSR.debugIntCause
   val m_interrupts = Mux(reg_mstatus.prv <= PRV.S || (reg_mstatus.prv === PRV.M && reg_mstatus.mie), pending_interrupts & ~reg_mideleg, UInt(0))
   val s_interrupts = Mux(reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie), pending_interrupts & reg_mideleg, UInt(0))
   val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, d_interrupts))
@@ -506,7 +509,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
-  when (pending_interrupts.orR || exception || reg_debugint) { reg_wfi := false }
+  when (pending_interrupts.orR || exception || io.interrupts.debug) { reg_wfi := false }
   assert(!reg_wfi || io.retire === UInt(0))
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
@@ -718,12 +721,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       }
     }
   }
-
-  reg_mip.lip := (io.interrupts.lip: Seq[Bool])
-  reg_mip.mtip := io.interrupts.mtip
-  reg_mip.msip := io.interrupts.msip
-  reg_mip.meip := io.interrupts.meip
-  reg_debugint := io.interrupts.debug
 
   if (!usingVM) {
     reg_mideleg := 0
