@@ -54,6 +54,7 @@ trait HasCoreParameters extends HasTileParameters {
   val fetchWidth = coreParams.fetchWidth
   val decodeWidth = coreParams.decodeWidth
 
+  val fetchBytes = coreParams.fetchBytes
   val coreInstBits = coreParams.instBits
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen max fLen
