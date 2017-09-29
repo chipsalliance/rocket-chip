@@ -8,11 +8,14 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, name: Option[String] = None, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
+class TLRAM(
+    address: AddressSet,
+    executable: Boolean = true,
+    beatBytes: Int = 4,
+    devName: Option[String] = None,
+    errors: Seq[AddressSet] = Nil)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
-  private val resources =
-    name.map(new SimpleDevice(_, Seq("sifive,sram0")).reg("mem")).getOrElse(new MemoryDevice().reg)
-
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address) ++ errors,
@@ -26,20 +29,13 @@ class TLRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4,
     beatBytes  = beatBytes,
     minLatency = 1))) // no bypass needed for this device
 
-  // We require the address range to include an entire beat (for the write mask)
-  require ((address.mask & (beatBytes-1)) == beatBytes-1)
-
   lazy val module = new LazyModuleImp(this) {
-    def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
-      if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
-    val mask = bigBits(address.mask >> log2Ceil(beatBytes))
-
     val (in, edge) = node.in(0)
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
     val a_legal = address.contains(in.a.bits.address)
     val memAddress = Cat(addrBits.reverse)
-    val mem = SeqMem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8)))
+    val mem = makeSinglePortedByteWriteSeqMem(1 << addrBits.size)
 
     val d_full = RegInit(Bool(false))
     val d_read = Reg(Bool())
