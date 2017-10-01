@@ -24,6 +24,19 @@
   *  
   */
 
+`ifdef RANDOMIZE_GARBAGE_ASSIGN
+`define RANDOMIZE
+`endif
+`ifdef RANDOMIZE_INVALID_ASSIGN
+`define RANDOMIZE
+`endif
+`ifdef RANDOMIZE_REG_INIT
+`define RANDOMIZE
+`endif
+`ifdef RANDOMIZE_MEM_INIT
+`define RANDOMIZE
+`endif
+
 module AsyncResetReg (
                       input      d,
                       output reg q,
@@ -32,8 +45,24 @@ module AsyncResetReg (
                       input      clk,
                       input      rst);
    
+`ifdef RANDOMIZE
+   integer                       initvar;
+   reg [31:0]                    _RAND;
+   initial begin
+`ifndef verilator
+      #0.002 begin end
+`endif
+`ifdef RANDOMIZE_REG_INIT
+      _RAND = {1{$random}};
+      if (~rst) begin
+         q = _RAND[0];
+      end
+`endif
+   end
+`endif //  `ifdef RANDOMIZE
+   
    always @(posedge clk or posedge rst) begin
-
+      
       if (rst) begin
          q <= 1'b0;
       end else if (en) begin
@@ -41,6 +70,5 @@ module AsyncResetReg (
       end
    end
    
-
 endmodule // AsyncResetReg
 

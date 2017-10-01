@@ -1,28 +1,29 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import tile.HasCoreParameters
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.tile.HasCoreParameters
+import freechips.rocketchip.util._
 
 case class BTBParams(
-  nEntries: Int = 40,
-  nRAS: Int = 2,
+  nEntries: Int = 30,
+  nMatchBits: Int = 14,
+  nPages: Int = 6,
+  nRAS: Int = 6,
+  nBHT: Int = 256,
   updatesOutOfOrder: Boolean = false)
 
 trait HasBtbParameters extends HasCoreParameters {
   val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
-  val matchBits = pgIdxBits max log2Ceil(p(coreplex.CacheBlockBytes) * tileParams.icache.get.nSets)
+  val matchBits = btbParams.nMatchBits max log2Ceil(p(CacheBlockBytes) * tileParams.icache.get.nSets)
   val entries = btbParams.nEntries
-  val nRAS = btbParams.nRAS
   val updatesOutOfOrder = btbParams.updatesOutOfOrder
-  val nPages = ((1 max(log2Up(entries)))+1)/2*2 // control logic assumes 2 divides pages
-  val opaqueBits = log2Up(entries)
-  val nBHT = 1 << log2Up(entries*2)
+  val nPages = (btbParams.nPages + 1) / 2 * 2 // control logic assumes 2 divides pages
 }
 
 abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters
@@ -50,8 +51,9 @@ class RAS(nras: Int) {
 }
 
 class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {
-  val history = UInt(width = log2Up(nBHT).max(1))
+  val history = UInt(width = log2Up(btbParams.nBHT).max(1))
   val value = UInt(width = 2)
+  val taken = Bool()
 }
 
 // BHT contains table of 2-bit counters and a global history register.
@@ -65,23 +67,39 @@ class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {
 //      The updating branch must provide its "fetch pc".
 class BHT(nbht: Int)(implicit val p: Parameters) extends HasCoreParameters {
   val nbhtbits = log2Up(nbht)
-  def get(addr: UInt, update: Bool): BHTResp = {
+  def get(addr: UInt): BHTResp = {
     val res = Wire(new BHTResp)
-    val index = addr(nbhtbits+1, log2Up(coreInstBytes)) ^ history
+    val index = addr(nbhtbits+log2Up(coreInstBytes)-1, log2Up(coreInstBytes)) ^ history
     res.value := table(index)
     res.history := history
-    val taken = res.value(0)
-    when (update) { history := Cat(taken, history(nbhtbits-1,1)) }
+    res.taken := res.value(0)
     res
   }
-  def update(addr: UInt, d: BHTResp, taken: Bool, mispredict: Bool): Unit = {
-    val index = addr(nbhtbits+1, log2Up(coreInstBytes)) ^ d.history
+  def updateTable(addr: UInt, d: BHTResp, taken: Bool): Unit = {
+    val index = addr(nbhtbits+log2Up(coreInstBytes)-1, log2Up(coreInstBytes)) ^ d.history
     table(index) := Cat(taken, (d.value(1) & d.value(0)) | ((d.value(1) | d.value(0)) & taken))
-    when (mispredict) { history := Cat(taken, d.history(nbhtbits-1,1)) }
+  }
+  def resetHistory(d: BHTResp): Unit = {
+    history := d.history
+  }
+  def updateHistory(addr: UInt, d: BHTResp, taken: Bool): Unit = {
+    history := Cat(taken, d.history(nbhtbits-1,1))
+  }
+  def advanceHistory(taken: Bool): Unit = {
+    history := Cat(taken, history(nbhtbits-1,1))
   }
 
   private val table = Mem(nbht, UInt(width = 2))
   val history = Reg(UInt(width = nbhtbits))
+}
+
+object CFIType {
+  def SZ = 2
+  def apply() = UInt(width = SZ)
+  def branch = 0.U
+  def jump = 1.U
+  def call = 2.U
+  def ret = 3.U
 }
 
 // BTB update occurs during branch resolution (and only on a mispredict).
@@ -93,9 +111,8 @@ class BTBUpdate(implicit p: Parameters) extends BtbBundle()(p) {
   val target = UInt(width = vaddrBits)
   val taken = Bool()
   val isValid = Bool()
-  val isJump = Bool()
-  val isReturn = Bool()
   val br_pc = UInt(width = vaddrBits)
+  val cfiType = CFIType()
 }
 
 // BHT update occurs during branch resolution on all conditional branches.
@@ -108,8 +125,7 @@ class BHTUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 }
 
 class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
-  val isCall = Bool()
-  val isReturn = Bool()
+  val cfiType = CFIType()
   val returnAddr = UInt(width = vaddrBits)
   val prediction = Valid(new BTBResp)
 }
@@ -119,11 +135,12 @@ class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 //  - "mask" provides a mask of valid instructions (instructions are
 //     masked off by the predicted taken branch from the BTB).
 class BTBResp(implicit p: Parameters) extends BtbBundle()(p) {
+  val cfiType = CFIType()
   val taken = Bool()
   val mask = Bits(width = fetchWidth)
   val bridx = Bits(width = log2Up(fetchWidth))
   val target = UInt(width = vaddrBits)
-  val entry = UInt(width = opaqueBits)
+  val entry = UInt(width = log2Up(entries + 1))
   val bht = new BHTResp
 }
 
@@ -141,7 +158,9 @@ class BTB(implicit p: Parameters) extends BtbModule {
     val resp = Valid(new BTBResp)
     val btb_update = Valid(new BTBUpdate).flip
     val bht_update = Valid(new BHTUpdate).flip
+    val bht_advance = Valid(new BTBResp).flip
     val ras_update = Valid(new RASUpdate).flip
+    val ras_head = Valid(UInt(width = vaddrBits))
   }
 
   val idxs = Reg(Vec(entries, UInt(width=matchBits - log2Up(coreInstBytes))))
@@ -150,12 +169,9 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val tgtPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
   val pages = Reg(Vec(nPages, UInt(width=vaddrBits - matchBits)))
   val pageValid = Reg(init = UInt(0, nPages))
-  val idxPagesOH = idxPages.map(UIntToOH(_)(nPages-1,0))
-  val tgtPagesOH = tgtPages.map(UIntToOH(_)(nPages-1,0))
 
   val isValid = Reg(init = UInt(0, entries))
-  val isReturn = Reg(UInt(width = entries))
-  val isJump = Reg(UInt(width = entries))
+  val cfiType = Reg(Vec(entries, CFIType()))
   val brIdx = Reg(Vec(entries, UInt(width=log2Up(fetchWidth))))
 
   private def page(addr: UInt) = addr >> matchBits
@@ -163,31 +179,29 @@ class BTB(implicit p: Parameters) extends BtbModule {
     val p = page(addr)
     pageValid & pages.map(_ === p).asUInt
   }
-  private def tagMatch(addr: UInt, pgMatch: UInt) = {
-    val idxMatch = idxs.map(_ === addr(matchBits-1, log2Up(coreInstBytes))).asUInt
-    val idxPageMatch = idxPagesOH.map(_ & pgMatch).map(_.orR).asUInt
-    idxMatch & idxPageMatch & isValid
+  private def idxMatch(addr: UInt) = {
+    val idx = addr(matchBits-1, log2Up(coreInstBytes))
+    idxs.map(_ === idx).asUInt & isValid
   }
 
   val r_btb_update = Pipe(io.btb_update)
   val update_target = io.req.bits.addr
 
   val pageHit = pageMatch(io.req.bits.addr)
-  val hitsVec = tagMatch(io.req.bits.addr, pageHit)
-  val hits = hitsVec.asUInt
+  val idxHit = idxMatch(io.req.bits.addr)
+
   val updatePageHit = pageMatch(r_btb_update.bits.pc)
-
-  val updateHits = tagMatch(r_btb_update.bits.pc, updatePageHit)
-  val updateHit = if (updatesOutOfOrder) updateHits.orR else r_btb_update.bits.prediction.valid
-  val updateHitAddr = if (updatesOutOfOrder) OHToUInt(updateHits) else r_btb_update.bits.prediction.bits.entry
-
-  val nextRepl = Counter(r_btb_update.valid && !updateHit, entries)._1
+  val (updateHit, updateHitAddr) =
+    if (updatesOutOfOrder) {
+      val updateHits = (pageHit << 1)(Mux1H(idxMatch(r_btb_update.bits.pc), idxPages))
+      (updateHits.orR, OHToUInt(updateHits))
+    } else (r_btb_update.bits.prediction.valid && r_btb_update.bits.prediction.bits.entry < entries, r_btb_update.bits.prediction.bits.entry)
 
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
   val nextPageRepl = Reg(UInt(width = log2Ceil(nPages)))
-  val idxPageRepl = Mux(usePageHit, Cat(pageHit(nPages-2,0), pageHit(nPages-1)), UIntToOH(nextPageRepl))
+  val idxPageRepl = Cat(pageHit(nPages-2,0), pageHit(nPages-1)) | Mux(usePageHit, UInt(0), UIntToOH(nextPageRepl))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))
@@ -195,7 +209,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val samePage = page(r_btb_update.bits.pc) === page(update_target)
   val doTgtPageRepl = !samePage && !usePageHit
   val tgtPageRepl = Mux(samePage, idxPageUpdateOH, Cat(idxPageUpdateOH(nPages-2,0), idxPageUpdateOH(nPages-1)))
-  val tgtPageUpdate = OHToUInt(Mux(usePageHit, pageHit, tgtPageRepl))
+  val tgtPageUpdate = OHToUInt(pageHit | Mux(usePageHit, UInt(0), tgtPageRepl))
   val tgtPageReplEn = Mux(doTgtPageRepl, tgtPageRepl, UInt(0))
 
   when (r_btb_update.valid && (doIdxPageRepl || doTgtPageRepl)) {
@@ -205,15 +219,15 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   when (r_btb_update.valid) {
+    val nextRepl = Counter(r_btb_update.valid && !updateHit, entries)._1
     val waddr = Mux(updateHit, updateHitAddr, nextRepl)
     val mask = UIntToOH(waddr)
     idxs(waddr) := r_btb_update.bits.pc(matchBits-1, log2Up(coreInstBytes))
     tgts(waddr) := update_target(matchBits-1, log2Up(coreInstBytes))
-    idxPages(waddr) := idxPageUpdate
+    idxPages(waddr) := idxPageUpdate +& 1 // the +1 corresponds to the <<1 on io.resp.valid
     tgtPages(waddr) := tgtPageUpdate
+    cfiType(waddr) := r_btb_update.bits.cfiType
     isValid := Mux(r_btb_update.bits.isValid, isValid | mask, isValid & ~mask)
-    isReturn := Mux(r_btb_update.bits.isReturn, isReturn | mask, isReturn & ~mask)
-    isJump := Mux(r_btb_update.bits.isJump, isJump | mask, isJump & ~mask)
     if (fetchWidth > 1)
       brIdx(waddr) := r_btb_update.bits.br_pc >> log2Up(coreInstBytes)
 
@@ -231,43 +245,54 @@ class BTB(implicit p: Parameters) extends BtbModule {
     pageValid := pageValid | tgtPageReplEn | idxPageReplEn
   }
 
-  io.resp.valid := hits.orR
+  io.resp.valid := (pageHit << 1)(Mux1H(idxHit, idxPages))
   io.resp.bits.taken := true
-  io.resp.bits.target := Cat(Mux1H(Mux1H(hitsVec, tgtPagesOH), pages), Mux1H(hitsVec, tgts) << log2Up(coreInstBytes))
-  io.resp.bits.entry := OHToUInt(hits)
-  io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(hitsVec, brIdx) else UInt(0))
+  io.resp.bits.target := Cat(pages(Mux1H(idxHit, tgtPages)), Mux1H(idxHit, tgts) << log2Up(coreInstBytes))
+  io.resp.bits.entry := OHToUInt(idxHit)
+  io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(idxHit, brIdx) else UInt(0))
   io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
+  io.resp.bits.cfiType := Mux1H(idxHit, cfiType)
 
   // if multiple entries for same PC land in BTB, zap them
-  when (PopCountAtLeast(hits, 2)) {
-    isValid := isValid & ~hits
+  when (PopCountAtLeast(idxHit, 2)) {
+    isValid := isValid & ~idxHit
   }
 
-  if (nBHT > 0) {
-    val bht = new BHT(nBHT)
-    val isBranch = !(hits & isJump).orR
-    val res = bht.get(io.req.bits.addr, io.req.valid && io.resp.valid && isBranch)
-    val update_btb_hit = io.bht_update.bits.prediction.valid
-    when (io.bht_update.valid && update_btb_hit) {
-      bht.update(io.bht_update.bits.pc, io.bht_update.bits.prediction.bits.bht, io.bht_update.bits.taken, io.bht_update.bits.mispredict)
+  if (btbParams.nBHT > 0) {
+    val bht = new BHT(btbParams.nBHT)
+    val isBranch = (idxHit & cfiType.map(_ === CFIType.branch).asUInt).orR
+    val res = bht.get(io.req.bits.addr)
+    when (io.req.valid && io.resp.valid && isBranch) {
+      bht.advanceHistory(res.taken)
     }
-    when (!res.value(0) && isBranch) { io.resp.bits.taken := false }
+    when (io.bht_advance.valid) {
+      bht.advanceHistory(io.bht_advance.bits.bht.taken)
+    }
+    when (io.btb_update.valid) {
+      bht.resetHistory(io.btb_update.bits.prediction.bits.bht)
+    }
+    when (io.bht_update.valid) {
+      bht.updateTable(io.bht_update.bits.pc, io.bht_update.bits.prediction.bits.bht, io.bht_update.bits.taken)
+      when (io.bht_update.bits.mispredict) {
+        bht.updateHistory(io.bht_update.bits.pc, io.bht_update.bits.prediction.bits.bht, io.bht_update.bits.taken)
+      }
+    }
+    when (!res.taken && isBranch) { io.resp.bits.taken := false }
     io.resp.bits.bht := res
   }
 
-  if (nRAS > 0) {
-    val ras = new RAS(nRAS)
-    val doPeek = (hits & isReturn).orR
+  if (btbParams.nRAS > 0) {
+    val ras = new RAS(btbParams.nRAS)
+    val doPeek = (idxHit & cfiType.map(_ === CFIType.ret).asUInt).orR
+    io.ras_head.valid := !ras.isEmpty
+    io.ras_head.bits := ras.peek
     when (!ras.isEmpty && doPeek) {
       io.resp.bits.target := ras.peek
     }
     when (io.ras_update.valid) {
-      when (io.ras_update.bits.isCall) {
+      when (io.ras_update.bits.cfiType === CFIType.call) {
         ras.push(io.ras_update.bits.returnAddr)
-        when (doPeek) {
-          io.resp.bits.target := io.ras_update.bits.returnAddr
-        }
-      }.elsewhen (io.ras_update.bits.isReturn && io.ras_update.bits.prediction.valid) {
+      }.elsewhen (io.ras_update.bits.cfiType === CFIType.ret && io.ras_update.bits.prediction.valid) {
         ras.pop()
       }
     }

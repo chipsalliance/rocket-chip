@@ -1,20 +1,21 @@
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
+import scala.collection.mutable.{ArrayBuffer, Map, Set}
 
 object DecodeLogic
 {
   def term(lit: BitPat) =
     new Term(lit.value, BigInt(2).pow(lit.getWidth)-(lit.mask+1))
-  def logic(addr: UInt, addrWidth: Int, cache: scala.collection.mutable.Map[Term,Bool], terms: Seq[Term]) = {
+  def logic(addr: UInt, addrWidth: Int, cache: Map[Term,Bool], terms: Seq[Term]) = {
     terms.map { t =>
       cache.getOrElseUpdate(t, (if (t.mask == 0) addr else addr & Bits(BigInt(2).pow(addrWidth)-(t.mask+1), addrWidth)) === Bits(t.value, addrWidth))
     }.foldLeft(Bool(false))(_||_)
   }
 	def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt = {
-    val cache = caches.getOrElseUpdate(addr, collection.mutable.Map[Term,Bool]())
+    val cache = caches.getOrElseUpdate(addr, Map[Term,Bool]())
     val dterm = term(default)
     val (keys, values) = mapping.unzip
     val addrWidth = keys.map(_.getWidth).max
@@ -41,7 +42,7 @@ object DecodeLogic
     }).reverse)
   }
   def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])]): Seq[UInt] = {
-    val mapping = collection.mutable.ArrayBuffer.fill(default.size)(collection.mutable.ArrayBuffer[(BitPat, BitPat)]())
+    val mapping = ArrayBuffer.fill(default.size)(ArrayBuffer[(BitPat, BitPat)]())
     for ((key, values) <- mappingIn)
       for ((value, i) <- values zipWithIndex)
         mapping(i) += key -> value
@@ -52,7 +53,7 @@ object DecodeLogic
     apply(addr, default, mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]])
   def apply(addr: UInt, trues: Iterable[UInt], falses: Iterable[UInt]): Bool =
     apply(addr, BitPat.dontCare(1), trues.map(BitPat(_) -> BitPat("b1")) ++ falses.map(BitPat(_) -> BitPat("b0"))).toBool
-  private val caches = collection.mutable.Map[UInt,collection.mutable.Map[Term,Bool]]()
+  private val caches = Map[UInt,Map[Term,Bool]]()
 }
 
 class Term(val value: BigInt, val mask: BigInt = 0)
@@ -87,7 +88,7 @@ object Simplify
     var prime = List[Term]()
     implicants.foreach(_.prime = true)
     val cols = (0 to bits).map(b => implicants.filter(b == _.mask.bitCount))
-    val table = cols.map(c => (0 to bits).map(b => collection.mutable.Set(c.filter(b == _.value.bitCount):_*)))
+    val table = cols.map(c => (0 to bits).map(b => Set(c.filter(b == _.value.bitCount):_*)))
     for (i <- 0 to bits) {
       for (j <- 0 until bits-i)
         table(i)(j).foreach(a => table(i+1)(j) ++= table(i)(j+1).filter(_.similar(a)).map(_.merge(a)))
@@ -127,7 +128,7 @@ object Simplify
   }
   def getCover(implicants: Seq[Term], minterms: Seq[Term], bits: Int) = {
     if (minterms.nonEmpty) {
-      val cover = minterms.map(m => implicants.filter(_.covers(m)).map(i => collection.mutable.Set(i)))
+      val cover = minterms.map(m => implicants.filter(_.covers(m)).map(i => Set(i)))
       val all = cover.reduceLeft((c0, c1) => c0.map(a => c1.map(_ ++ a)).reduceLeft(_++_))
       all.map(_.toList).reduceLeft((a, b) => if (cheaper(a, b, bits)) a else b)
     } else
@@ -164,7 +165,7 @@ object SimplifyDC
     minterms.foreach(_.prime = true)
     var mint = minterms.map(t => new Term(t.value, t.mask))
     val cols = (0 to bits).map(b => mint.filter(b == _.mask.bitCount))
-    val table = cols.map(c => (0 to bits).map(b => collection.mutable.Set(c.filter(b == _.value.bitCount):_*)))
+    val table = cols.map(c => (0 to bits).map(b => Set(c.filter(b == _.value.bitCount):_*)))
 
     for (i <- 0 to bits) {
       for (j <- 0 until bits-i) {

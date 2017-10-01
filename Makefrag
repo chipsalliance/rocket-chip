@@ -4,22 +4,27 @@ $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
 MODEL ?= TestHarness
-PROJECT ?= rocketchip
+PROJECT ?= freechips.rocketchip.system
+#CFG_PROJECT ?= $(PROJECT)
 CFG_PROJECT ?= boom
+#CONFIG ?= DefaultConfig
 CONFIG ?= BOOMConfig
 # TODO: For now must match rocketchip.Generator
 long_name = $(PROJECT).$(CONFIG)
 
+VLSI_MEM_GEN ?= $(base_dir)/scripts/vlsi_mem_gen
+
 CXX ?= g++
 CXXFLAGS := -O1
+JVM_MEMORY ?= 2G
 
 export ROCKETCHIP_ADDONS ?= boom
 
-SBT ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
-FIRRTL ?= java -Xmx2G -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
+FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
 
 # Build firrtl.jar and put it where chisel3 can find it.
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")

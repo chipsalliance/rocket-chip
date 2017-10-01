@@ -42,16 +42,18 @@ module JTAGVPI
 #(	parameter DEBUG_INFO = 0,
 	parameter TP = 1,
 	parameter TCK_HALF_PERIOD = 2,// 50, // Clock half period (Clock period = 100 ns => 10 MHz)
-        parameter  CMD_DELAY = 2 // 1000
+        parameter CMD_DELAY = 2, // 1000
+        parameter INIT_DELAY = 200
 )   
 (
-	output     jtag_TMS,
-	output     jtag_TCK,
-	output     jtag_TDI,
-	input      jtag_TDO,
-        input      jtag_TRST, // unused
-	input      enable,
-	input      init_done);
+	output jtag_TMS,
+	output jtag_TCK,
+	output jtag_TDI,
+	input  jtag_TDO_data,
+        input  jtag_TDO_driven,
+
+	input  enable,
+	input  init_done);
 
    reg                  tms;
    reg                  tck;
@@ -61,9 +63,8 @@ module JTAGVPI
    assign jtag_TMS = tms;
    assign jtag_TCK = tck;
    assign jtag_TDI = tdi;
-   assign tdo = jtag_TDO;
-    
-   
+   assign tdo = jtag_TDO_driven ? jtag_TDO_data : 1'bz;
+      
 integer		cmd;
 integer		length;
 integer		nb_bits;
@@ -87,10 +88,10 @@ begin
 	data_out	<= 32'h0;
 	data_in		<= 32'h0;
 
-	// Insert a #delay here because we need to
-	// wait until the PC isn't pointing to flash anymore
-	// (this is around 20k ns if the flash_crash boot code
-	// is being booted from, else much bigger, around 10mil ns)
+        // Small delay to get past reset instability
+        //  before checking for init_done
+        #INIT_DELAY 
+          
 	wait(init_done)
 		if($test$plusargs("jtag_vpi_enable")) main;
 end

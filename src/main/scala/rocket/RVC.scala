@@ -1,12 +1,12 @@
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import tile._
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.tile._
+import freechips.rocketchip.util._
 
 class ExpandedInstruction extends Bundle {
   val bits = UInt(width = 32)

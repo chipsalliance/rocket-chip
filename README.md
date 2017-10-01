@@ -1,4 +1,4 @@
-Rocket Chip Generator [![Build Status](https://travis-ci.org/ucb-bar/rocket-chip.svg?branch=master)](https://travis-ci.org/ucb-bar/rocket-chip)
+Rocket Chip Generator :rocket: [![Build Status](https://travis-ci.org/freechipsproject/rocket-chip.svg?branch=master)](https://travis-ci.org/freechipsproject/rocket-chip)
 =====================
 
 This repository contains the Rocket chip generator necessary to instantiate
@@ -37,12 +37,20 @@ of riscv-tools:
     $ cd rocket-chip/riscv-tools
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
+    $ export MAKEFLAGS="$MAKEFLAGS -jN" # Assuming you have N cores on your host system
     $ ./build.sh
     $ ./build-rv32ima.sh (if you are using RV32).
-   
+
 For more information (or if you run into any issues), please consult the
 [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
 
+### Install Necessary Dependencies
+
+You may need to install some additional packages to use this repository.
+Rather than list all dependencies here, please see the appropriate section of the READMEs for each of the subprojects:
+
+* [riscv-tools "Ubuntu Packages Needed"](https://github.com/riscv/riscv-tools/blob/priv-1.10/README.md#quickstart)
+* [chisel3 "Installation"](https://github.com/ucb-bar/chisel3#installation)
 
 ### Building The Project
 
@@ -146,21 +154,25 @@ Some of these packages provide Scala utilities for generator configuration,
 while other contain the actual Chisel RTL generators themselves.
 Here is a brief description of what can be found in each package:
 
+* **amba**
+This RTL package uses diplomacy to generate bus implementations of AMBA protocols, including AXI4, AHB-lite, and APB.
 * **config**
 This utility package provides Scala interfaces for configuring a generator via a dynamically-scoped
 parameterization library.
 * **coreplex**
-This RTL package generates a complete coreplex by gluing together a variety of other components,
-including tiled Rocket cores, an L1-to-L2 network, L2 coherence agents, and internal devices
-such as the debug unit and interrupt handlers.
+This RTL package generates a complete coreplex by gluing together a variety of components from other packages,
+including: tiled Rocket cores, a system bus network, coherence agents, debug devices, interrupt handlers, externally-facing peripherals,
+clock-crossers and converters from TileLink to external bus protocols (e.g. AXI or AHB).
+* **devices**
+This RTL package contains implementations for peripheral devices, including the Debug module and various TL slaves.
 * **diplomacy**
 This utility package extends Chisel by allowing for two-phase hardware elaboration, in which certain parameters
 are dynamically negotiated between modules.
 * **groundtest**
 This RTL package generates synthesizeable hardware testers that emit randomized
 memory access streams in order to stress-tests the uncore memory hierarchy.
-* **junctions**
-This RTL package provides definitions for bus interfaces and generates a variety of protocol converters. 
+* **jtag**
+This RTL package provides definitions for generating JTAG bus interfaces. 
 * **regmapper**
 This utility package generates slave devices with a standardized interface for accessing their memory-mapped registers.
 * **rocket**
@@ -168,16 +180,16 @@ This RTL package generates the Rocket in-order pipelined core,
 as well as the L1 instruction and data caches.
 This library is intended to be used by a chip generator that instantiates the
 core within a memory system and connects it to the outside world.
-* **uncore**
-This RTL package generates a variety of uncore logic and devices, such as
-such as the L2 coherence hub and Debug modules, as well as defining their interfaces and protocols.
-Contains implementations of both TileLink and AXI4.
+* **tile**
+This RTL package contains components that can be combined with cores to construct tiles, such as FPUs and accelerators.
+* **tilelink**
+This RTL package uses diplomacy to generate bus implementations of the TileLink protocol. It also contains a variety
+of adapters and protocol converters.
+* **system**
+This top-level utility package invokes Chisel to elaborate a particular configuration of a coreplex,
+along with the appropriate testing collateral.
 * **unittest**
 This utility package contains a framework for generateing synthesizeable hardware testers of individual modules.
-* **rocketchip**
-This top-level RTL package instantiates a coreplex and drops in any additional
-externally-facing peripheral devices. It also includes clock-crossers and converters
-from TileLink to external bus protocols (e.g. AXI or AHB).
 * **util**
 This utility package provides a variety of common Scala and Chisel constructs that are re-used across
 multiple other packages,
@@ -271,26 +283,23 @@ Or call out individual assembly tests or benchmarks:
     $ make output/rv64ui-p-add.vcd
 
 Now take a look in the emulator/generated-src directory. You will find
-Chisel generated C++ code.
+Chisel generated verilog code and its associated C++ code generated by
+verilator.
 
     $ ls $ROCKETCHIP/emulator/generated-src
-    Top.DefaultConfig-0.cpp
-    Top.DefaultConfig-0.o
-    Top.DefaultConfig-1.cpp
-    Top.DefaultConfig-1.o
-    Top.DefaultConfig-2.cpp
-    Top.DefaultConfig-2.o
-    Top.DefaultConfig-3.cpp
-    Top.DefaultConfig-3.o
-    Top.DefaultConfig-4.cpp
-    Top.DefaultConfig-4.o
-    Top.DefaultConfig-5.cpp
-    Top.DefaultConfig-5.o
-    Top.DefaultConfig.cpp
-    Top.DefaultConfig.h
-    emulator.h
-    emulator_api.h
-    emulator_mod.h
+    DefaultConfig.dts
+    DefaultConfig.graphml
+    DefaultConfig.json
+    DefaultConfig.memmap.json
+    freechips.rocketchip.system.DefaultConfig
+    freechips.rocketchip.system.DefaultConfig.d
+    freechips.rocketchip.system.DefaultConfig.fir
+    freechips.rocketchip.system.DefaultConfig.v
+    $ ls $ROCKETCHIP/emulator/generated-src/freechips.rocketchip.system.DefaultConfig
+    VTestHarness__1.cpp
+    VTestHarness__2.cpp
+    VTestHarness__3.cpp
+    ...
 
 Also, output of the executed assembly tests and benchmarks can be found
 at emulator/output/\*.out. Each file has a cycle-by-cycle dump of
@@ -347,16 +356,22 @@ Now take a look at vsim/generated-src, and the contents of the
 Top.DefaultConfig.conf file:
 
     $ cd $ROCKETCHIP/vsim/generated-src
-    Top.DefaultConfig.conf
-    Top.DefaultConfig.prm
-    Top.DefaultConfig.v
-    consts.DefaultConfig.vh
+    DefaultConfig.dts
+    DefaultConfig.graphml
+    DefaultConfig.json
+    DefaultConfig.memmap.json
+    freechips.rocketchip.system.DefaultConfig.behav_srams.v
+    freechips.rocketchip.system.DefaultConfig.conf
+    freechips.rocketchip.system.DefaultConfig.d
+    freechips.rocketchip.system.DefaultConfig.fir
+    freechips.rocketchip.system.DefaultConfig.v
     $ cat $ROCKETCHIP/vsim/generated-src/*.conf
-    name MetadataArray_tag_arr depth 128 width 84 ports mwrite,read mask_gran 21
-    name ICache_tag_array depth 128 width 38 ports mrw mask_gran 19
-    name DataArray_T6 depth 512 width 128 ports mwrite,read mask_gran 64
-    name HellaFlowQueue_ram depth 32 width 133 ports write,read
-    name ICache_T157 depth 512 width 128 ports rw
+    name data_arrays_0_ext depth 512 width 256 ports mrw mask_gran 8
+    name tag_array_ext depth 64 width 88 ports mrw mask_gran 22
+    name tag_array_0_ext depth 64 width 84 ports mrw mask_gran 21
+    name data_arrays_0_1_ext depth 512 width 128 ports mrw mask_gran 32
+    name mem_ext depth 33554432 width 64 ports mwrite,read mask_gran 8
+    name mem_2_ext depth 512 width 64 ports mwrite,read mask_gran 8
 
 The conf file contains information for all SRAMs instantiated in the
 flow. If you take a close look at the $ROCKETCHIP/Makefrag, you will see
@@ -400,20 +415,20 @@ divider, and reduces the number of TLB entries (all defined in SmallConfig).
 This small configuration is used for the Zybo FPGA board, which has the
 smallest ZYNQ part.
 
-Towards the end, you can also find that ExampleSmallConfig inherits all
+Towards the end, you can also find that DefaultSmallConfig inherits all
 parameters from BaseConfig but overrides the same parameters of
-SmallConfig.
+WithNSmallCores.
 
 Now take a look at vsim/Makefile. Search for the CONFIG variable.
 By default, it is set to DefaultConfig.  You can also change the
 CONFIG variable on the make command line:
 
     $ cd $ROCKETCHIP/vsim
-    $ make -jN CONFIG=ExampleSmallConfig run-asm-tests
+    $ make -jN CONFIG=DefaultSmallConfig run-asm-tests
 
 Or, even by defining CONFIG as an environment variable:
 
-    $ export CONFIG=ExampleSmallConfig
+    $ export CONFIG=DefaultSmallConfig
     $ make -jN run-asm-tests
 
 This parameterization is one of the many strengths of processor

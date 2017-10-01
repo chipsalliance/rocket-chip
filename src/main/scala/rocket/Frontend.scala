@@ -1,20 +1,30 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import coreplex._
-import diplomacy._
-import uncore.tilelink2._
-import tile._
-import util._
+import chisel3.core.withReset
+import freechips.rocketchip.config._
+import freechips.rocketchip.coreplex._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.util._
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
   val speculative = Bool()
+}
+
+class FrontendExceptions extends Bundle {
+  val pf = new Bundle {
+    val inst = Bool()
+  }
+  val ae = new Bundle {
+    val inst = Bool()
+  }
 }
 
 class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
@@ -22,124 +32,139 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)  // ID stage PC
   val data = UInt(width = fetchWidth * coreInstBits)
   val mask = Bits(width = fetchWidth)
-  val xcpt_if = Bool()
+  val xcpt = new FrontendExceptions
   val replay = Bool()
 }
 
-class ExtBTBIO(implicit p: Parameters) extends CoreBundle()(p) {
-  val req = Valid(new BTBReq).flip
-  val resp = Valid(new BTBResp)
-  val icmiss = Bool(INPUT)
+class FrontendPerfEvents extends Bundle {
+  val acquire = Bool()
+  val tlbMiss = Bool()
 }
 
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
+  val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
   val flush_icache = Bool(OUTPUT)
-  val flush_tlb = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
-
-  val ext_btb = new ExtBTBIO()
+  val perf = new FrontendPerfEvents().asInput
 }
 
-class Frontend(implicit p: Parameters) extends LazyModule {
+class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
-  val icache = LazyModule(new ICache(latency = 2))
-  val node = TLOutputNode()
+  val icache = LazyModule(new ICache(icacheParams, hartid))
+  val masterNode = TLOutputNode()
+  val slaveNode = TLInputNode()
 
-  node := icache.node
+  masterNode := icache.masterNode
+  // Avoid breaking tile dedup due to address constants in the monitor
+  DisableMonitors { implicit p => icache.slaveNode.map { _ := slaveNode } }
 }
 
-class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p) {
+class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)
+    with HasExternallyDrivenTileConstants {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
-  val mem = outer.node.bundleOut
-  val resetVector = UInt(INPUT, vaddrBitsExtended)
+  val tl_out = outer.masterNode.bundleOut
+  val tl_in = outer.slaveNode.bundleIn
+  val errors = new ICacheErrors
 }
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasCoreParameters
     with HasL1ICacheParameters {
   val io = new FrontendBundle(outer)
-  implicit val edge = outer.node.edgesOut(0)
+  implicit val edge = outer.masterNode.edgesOut.head
   val icache = outer.icache.module
+  require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 
-  val tlb = Module(new TLB(nTLBEntries))
+  val fetchBytes = coreInstBytes * fetchWidth
+  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), nTLBEntries))
+  val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 5, flow = true)) }
 
-  val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
-  val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)
+  val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
+  val s1_valid = RegNext(s0_valid)
+  val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
-  val s1_same_block = Reg(Bool())
-  val s2_valid = Reg(init=Bool(true))
-  val s2_pc = Reg(init=io.resetVector)
-  val s2_btb_resp_valid = Reg(init=Bool(false))
+  val s2_valid = RegInit(false.B)
+  val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io.reset_vector))
+  val s2_btb_resp_valid = if (usingBTB) Reg(Bool()) else false.B
   val s2_btb_resp_bits = Reg(new BTBResp)
-  val s2_xcpt_if = Reg(init=Bool(false))
+  val s2_tlb_resp = Reg(tlb.io.resp)
+  val s2_xcpt = s2_tlb_resp.ae.inst || s2_tlb_resp.pf.inst
   val s2_speculative = Reg(init=Bool(false))
-  val s2_cacheable = Reg(init=Bool(false))
+  val s2_partial_insn_valid = RegInit(false.B)
+  val s2_partial_insn = Reg(UInt(width = coreInstBits))
+  val wrong_path = Reg(Bool())
 
-  val ntpc = ~(~s1_pc | (coreInstBytes*fetchWidth-1)) + UInt(coreInstBytes*fetchWidth)
-  val ntpc_same_block = (ntpc & rowBytes) === (s1_pc & rowBytes)
+  val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
+  val ntpc = s1_base_pc + fetchBytes.U
   val predicted_npc = Wire(init = ntpc)
   val predicted_taken = Wire(init = Bool(false))
-  val icmiss = s2_valid && !icache.io.resp.valid
-  val npc = Mux(icmiss, s2_pc, predicted_npc)
-  val s0_same_block = !predicted_taken && !icmiss && !io.cpu.req.valid && ntpc_same_block
 
-  val stall = io.cpu.resp.valid && !io.cpu.resp.ready
-  when (!stall) {
-    s1_same_block := s0_same_block && !tlb.io.resp.miss
-    s1_pc_ := io.cpu.npc
-    // consider RVC fetches across blocks to be non-speculative if the first
-    // part was non-speculative
-    val s0_speculative =
-      if (usingCompressed) s1_speculative || s2_valid && !s2_speculative || predicted_taken
-      else Bool(true)
-    s1_speculative := Mux(icmiss, s2_speculative, s0_speculative)
-    s2_valid := !icmiss
-    when (!icmiss) {
-      s2_pc := s1_pc
-      s2_speculative := s1_speculative
-      s2_cacheable := tlb.io.resp.cacheable
-      s2_xcpt_if := tlb.io.resp.xcpt_if && !tlb.io.resp.miss
-    }
-  }
-  when (io.cpu.req.valid) {
-    s1_same_block := Bool(false)
-    s1_pc_ := io.cpu.npc
-    s1_speculative := io.cpu.req.bits.speculative
-    s2_valid := Bool(false)
+  val s2_replay = Wire(Bool())
+  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid, true.B)
+  val npc = Mux(s2_replay, s2_pc, predicted_npc)
+
+  s1_pc := io.cpu.npc
+  // consider RVC fetches across blocks to be non-speculative if the first
+  // part was non-speculative
+  val s0_speculative =
+    if (usingCompressed) s1_speculative || s2_valid && !s2_speculative || predicted_taken
+    else Bool(true)
+  s1_speculative := Mux(io.cpu.req.valid, io.cpu.req.bits.speculative, Mux(s2_replay, s2_speculative, s0_speculative))
+
+  val s2_redirect = Wire(init = io.cpu.req.valid)
+  s2_valid := false
+  when (!s2_replay) {
+    s2_valid := !s2_redirect
+    s2_pc := s1_pc
+    s2_speculative := s1_speculative
+    s2_tlb_resp := tlb.io.resp
   }
 
-   // hack: boom will bring in its own BTB
-  if (usingExternalBTB) {
-    println("Frontend: using external BTB")
-    io.cpu.ext_btb.req.valid := false
-    io.cpu.ext_btb.req.bits.addr := io.cpu.npc
-    // need to know miss signal for when frontend replays requests or continues with requests despite stalling.
-    io.cpu.ext_btb.icmiss := icmiss
-    when (!stall && !icmiss) {
-      io.cpu.ext_btb.req.valid := true
-    }
-    when (io.cpu.ext_btb.resp.valid && io.cpu.ext_btb.resp.bits.taken) {
-      predicted_npc := io.cpu.ext_btb.resp.bits.target.sextTo(vaddrBitsExtended)
-      predicted_taken := Bool(true)
-    }
-  } else if (usingBTB) {
-    val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
-//    require (!tileParams.btb.get.updatesOutofOrder)
-    require (!btbParams.updatesOutOfOrder)
+  io.ptw <> tlb.io.ptw
+  tlb.io.req.valid := !s2_replay
+  tlb.io.req.bits.vaddr := s1_pc
+  tlb.io.req.bits.passthrough := Bool(false)
+  tlb.io.req.bits.sfence := io.cpu.sfence
+  tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
+
+  icache.io.hartid := io.hartid
+  icache.io.req.valid := s0_valid
+  icache.io.req.bits.addr := io.cpu.npc
+  icache.io.invalidate := io.cpu.flush_icache
+  icache.io.s1_paddr := tlb.io.resp.paddr
+  icache.io.s2_vaddr := s2_pc
+  icache.io.s1_kill := s2_redirect || tlb.io.resp.miss || s2_replay
+  icache.io.s2_kill := s2_speculative && !s2_tlb_resp.cacheable || s2_xcpt
+  icache.io.s2_prefetch := s2_tlb_resp.prefetchable
+
+  fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
+  fq.io.enq.bits.pc := s2_pc
+  io.cpu.npc := alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
+
+  fq.io.enq.bits.data := icache.io.resp.bits.data
+  fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
+  fq.io.enq.bits.replay := icache.io.resp.bits.replay || icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
+  fq.io.enq.bits.btb.valid := s2_btb_resp_valid
+  fq.io.enq.bits.btb.bits := s2_btb_resp_bits
+  fq.io.enq.bits.xcpt := s2_tlb_resp
+  when (icache.io.resp.valid && icache.io.resp.bits.ae) { fq.io.enq.bits.xcpt.ae.inst := true }
+
+  if (usingBTB) {
     val btb = Module(new BTB)
     btb.io.req.valid := false
-    btb.io.req.bits.addr := s1_pc_
+    btb.io.req.bits.addr := s1_pc
     btb.io.btb_update := io.cpu.btb_update
     btb.io.bht_update := io.cpu.bht_update
-    btb.io.ras_update := io.cpu.ras_update
-    when (!stall && !icmiss) {
-      btb.io.req.valid := true
+    btb.io.ras_update.valid := false
+    btb.io.bht_advance.valid := false
+    when (!s2_replay) {
+      btb.io.req.valid := !s2_redirect
       s2_btb_resp_valid := btb.io.resp.valid
       s2_btb_resp_bits := btb.io.resp.bits
     }
@@ -147,41 +172,132 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       predicted_npc := btb.io.resp.bits.target.sextTo(vaddrBitsExtended)
       predicted_taken := Bool(true)
     }
+
+    if (!coreParams.jumpInFrontend) {
+      // push RAS speculatively
+      btb.io.ras_update.valid := btb.io.req.valid && btb.io.resp.valid && btb.io.resp.bits.cfiType.isOneOf(CFIType.call, CFIType.ret)
+      val returnAddrLSBs = btb.io.resp.bits.bridx +& 1
+      btb.io.ras_update.bits.returnAddr :=
+        Mux(returnAddrLSBs(log2Ceil(fetchWidth)), ntpc, s1_base_pc | ((returnAddrLSBs << log2Ceil(coreInstBytes)) & (fetchBytes - 1)))
+      btb.io.ras_update.bits.cfiType := btb.io.resp.bits.cfiType
+      btb.io.ras_update.bits.prediction.valid := true
+    } else {
+      val s2_btb_hit = s2_btb_resp_valid && s2_btb_resp_bits.taken
+      val s2_base_pc = ~(~s2_pc | (fetchBytes-1))
+      val taken_idx = Wire(UInt())
+      val after_idx = Wire(UInt())
+      val useRAS = Wire(init=false.B)
+
+      def scanInsns(idx: Int, prevValid: Bool, prevBits: UInt, prevTaken: Bool): Bool = {
+        val prevRVI = prevValid && prevBits(1,0) === 3
+        val valid = fq.io.enq.bits.mask(idx) && !prevRVI
+        val bits = fq.io.enq.bits.data(coreInstBits*(idx+1)-1, coreInstBits*idx)
+        val rvc = bits(1,0) =/= 3
+        val rviBits = Cat(bits, prevBits)
+        val rviBranch = rviBits(6,0) === Instructions.BEQ.value.asUInt()(6,0)
+        val rviJump = rviBits(6,0) === Instructions.JAL.value.asUInt()(6,0)
+        val rviJALR = rviBits(6,0) === Instructions.JALR.value.asUInt()(6,0)
+        val rviReturn = rviJALR && !rviBits(7) && BitPat("b00?01") === rviBits(19,15)
+        val rviCall = (rviJALR || rviJump) && rviBits(7)
+        val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
+        val rvcJAL = Bool(xLen == 32) && bits === Instructions.C_JAL
+        val rvcJump = bits === Instructions.C_J || rvcJAL
+        val rvcImm = Mux(bits(14), new RVCDecoder(bits).bImm.asSInt, new RVCDecoder(bits).jImm.asSInt)
+        val rvcJR = bits === Instructions.C_MV && bits(6,2) === 0
+        val rvcReturn = rvcJR && BitPat("b00?01") === bits(11,7)
+        val rvcJALR = bits === Instructions.C_ADD && bits(6,2) === 0
+        val rvcCall = rvcJAL || rvcJALR
+        val rviImm = Mux(rviBits(3), ImmGen(IMM_UJ, rviBits), ImmGen(IMM_SB, rviBits))
+        val taken =
+          prevRVI && (rviJump || rviJALR || rviBranch && s2_btb_resp_bits.bht.taken) ||
+          valid && (rvcJump || rvcJALR || rvcJR || rvcBranch && s2_btb_resp_bits.bht.taken)
+        val predictReturn = btb.io.ras_head.valid && (prevRVI && rviReturn || valid && rvcReturn)
+        val predictBranch =
+          prevRVI && (rviJump || rviBranch && s2_btb_resp_bits.bht.taken) ||
+          valid && (rvcJump || rvcBranch && s2_btb_resp_bits.bht.taken)
+
+        when (!prevTaken) {
+          taken_idx := idx
+          after_idx := idx + 1
+          btb.io.ras_update.valid := fq.io.enq.fire() && !wrong_path && (prevRVI && (rviCall || rviReturn) || valid && (rvcCall || rvcReturn))
+          btb.io.ras_update.bits.prediction.valid := true
+          btb.io.ras_update.bits.cfiType := Mux(Mux(prevRVI, rviReturn, rvcReturn), CFIType.ret, CFIType.call)
+
+          when (!s2_btb_hit) {
+            when (fq.io.enq.fire() && taken && !predictBranch && !predictReturn) {
+              wrong_path := true
+            }
+            when (s2_valid && predictReturn) {
+              useRAS := true
+            }
+            when (s2_valid && predictBranch) {
+              val pc = s2_base_pc | (idx*coreInstBytes)
+              val npc =
+                if (idx == 0) pc.asSInt + Mux(prevRVI, rviImm -& 2.S, rvcImm)
+                else Mux(prevRVI, pc - coreInstBytes, pc).asSInt + Mux(prevRVI, rviImm, rvcImm)
+              predicted_npc := npc.asUInt
+            }
+
+            when (prevRVI && rviBranch || valid && rvcBranch) {
+              btb.io.bht_advance.valid := fq.io.enq.fire() && !wrong_path && !s2_btb_resp_valid
+              btb.io.bht_advance.bits := s2_btb_resp_bits
+            }
+          }
+        }
+
+        if (idx == fetchWidth-1) {
+          when (fq.io.enq.fire()) {
+            s2_partial_insn_valid := false
+            when (valid && !prevTaken && !rvc) {
+              s2_partial_insn_valid := true
+              s2_partial_insn := bits | 0x3
+            }
+          }
+          prevTaken || taken
+        } else {
+          scanInsns(idx + 1, valid, bits, prevTaken || taken)
+        }
+      }
+
+      btb.io.ras_update.bits.returnAddr := s2_base_pc + (after_idx << log2Ceil(coreInstBytes))
+
+      val taken = scanInsns(0, s2_partial_insn_valid, s2_partial_insn, false.B)
+      when (useRAS) {
+        predicted_npc := btb.io.ras_head.bits
+      }
+      when (fq.io.enq.fire() && s2_btb_hit) {
+        s2_partial_insn_valid := false
+      }
+      when (!s2_btb_hit) {
+        fq.io.enq.bits.btb.bits.bridx := taken_idx
+        when (taken) {
+          fq.io.enq.bits.btb.valid := true
+          fq.io.enq.bits.btb.bits.taken := true
+          fq.io.enq.bits.btb.bits.entry := UInt(tileParams.btb.get.nEntries)
+          when (fq.io.enq.fire()) { s2_redirect := true }
+        }
+      }
+    }
+    when (s2_redirect) { s2_partial_insn_valid := false }
+    when (io.cpu.req.valid) { wrong_path := false }
   }
 
-  io.ptw <> tlb.io.ptw
-  tlb.io.req.valid := !stall && !icmiss
-  tlb.io.req.bits.vpn := s1_pc >> pgIdxBits
-  tlb.io.req.bits.passthrough := Bool(false)
-  tlb.io.req.bits.instruction := Bool(true)
-  tlb.io.req.bits.store := Bool(false)
+  io.cpu.resp <> fq.io.deq
 
-  icache.io.req.valid := !stall && !s0_same_block
-  icache.io.req.bits.addr := io.cpu.npc
-  icache.io.invalidate := io.cpu.flush_icache
-  icache.io.s1_ppn := tlb.io.resp.ppn
-  icache.io.s1_kill := io.cpu.req.valid || tlb.io.resp.miss || tlb.io.resp.xcpt_if || icmiss || io.cpu.flush_tlb
-  icache.io.s2_kill := s2_speculative && !s2_cacheable
-  icache.io.resp.ready := !stall && !s1_same_block
+  // performance events
+  io.cpu.perf := icache.io.perf
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  io.errors := icache.io.errors
 
-  io.cpu.resp.valid := s2_valid && (icache.io.resp.valid || icache.io.s2_kill || s2_xcpt_if)
-  io.cpu.resp.bits.pc := s2_pc
-  io.cpu.npc := Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc)
-
-  require(fetchWidth * coreInstBytes <= rowBytes && isPow2(fetchWidth))
-  io.cpu.resp.bits.data := icache.io.resp.bits.datablock >> (s2_pc.extract(log2Ceil(rowBytes)-1,log2Ceil(fetchWidth*coreInstBytes)) << log2Ceil(fetchWidth*coreInstBits))
-  io.cpu.resp.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  io.cpu.resp.bits.xcpt_if := s2_xcpt_if
-  io.cpu.resp.bits.replay := icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt_if
-  io.cpu.resp.bits.btb.valid := s2_btb_resp_valid
-  io.cpu.resp.bits.btb.bits := s2_btb_resp_bits
+  def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend)
-  masterNode := frontend.node
+  val frontend = LazyModule(new Frontend(tileParams.icache.get, hartid: Int))
+  val hartid: Int
+  tileBus.node := frontend.masterNode
   nPTWPorts += 1
 }
 

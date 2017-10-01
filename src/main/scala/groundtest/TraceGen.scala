@@ -17,17 +17,14 @@
 // Mainstream Systems (REMS) project, funded by EPSRC grant
 // EP/K008528/1.
 
-package groundtest
+package freechips.rocketchip.groundtest
  
 import Chisel._
-import uncore.tilelink._
-import uncore.constants._
-import uncore.devices.NTiles
-import rocket._
-import tile._
-import util.{Timer, DynamicTimer}
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tile._
+import freechips.rocketchip.util._
 import scala.util.Random
-import config._
 
 // =======
 // Outline
@@ -59,19 +56,30 @@ import config._
 //     (This is a way to generate a wider range of addresses without having
 //     to repeatedly recompile with a different address bag.)
 
-case object AddressBag extends Field[List[BigInt]]
+case class TraceGenParams(
+    dcache: Option[DCacheParams] = Some(DCacheParams()),
+    wordBits: Int, // p(XLen) 
+    addrBits: Int, // p(PAddrBits)
+    addrBag: List[BigInt], // p(AddressBag)
+    maxRequests: Int,
+    memStart: BigInt, //p(ExtMem).base
+    numGens: Int) extends GroundTestTileParams {
+  def build(i: Int, p: Parameters): GroundTestTile = new TraceGenTile(i, this)(p)
+  val trace = false
+}
 
 trait HasTraceGenParams {
   implicit val p: Parameters
-  val pAddrBits           = p(PAddrBits)
-  val numGens             = p(NTiles)
-  val numBitsInId         = log2Up(numGens)
-  val numReqsPerGen       = p(GeneratorKey).maxRequests
+  val params: TraceGenParams
+  val pAddrBits           = params.addrBits
+  val numGens             = params.numGens
+  val numReqsPerGen       = params.maxRequests
+  val memStart            = params.memStart
   val memRespTimeout      = 8192
-  val numBitsInWord       = p(XLen)
+  val numBitsInWord       = params.wordBits
   val numBytesInWord      = numBitsInWord / 8
   val numBitsInWordOffset = log2Up(numBytesInWord)
-  val addressBag          = p(AddressBag)
+  val addressBag          = params.addrBag
   val addressBagLen       = addressBag.length
   val logAddressBagLen    = log2Up(addressBagLen)
   val genExtraAddrs       = false
@@ -179,14 +187,13 @@ class TagMan(val logNumTags : Int) extends Module {
 // Trace generator
 // ===============
 
-class TraceGenerator(id: Int)
-    (implicit val p: Parameters) extends Module
-                                with HasTraceGenParams
-                                with HasGroundTestParameters {
+class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) extends Module
+    with HasTraceGenParams {
   val io = new Bundle {
     val finished = Bool(OUTPUT)
     val timeout = Bool(OUTPUT)
     val mem = new HellaCacheIO
+    val hartid = UInt(INPUT, log2Up(numGens))
   }
 
   val totalNumAddrs = addressBag.size + numExtraAddrs
@@ -198,8 +205,6 @@ class TraceGenerator(id: Int)
   reqTimer.io.start.bits := io.mem.req.bits.tag
   reqTimer.io.stop.valid := io.mem.resp.valid
   reqTimer.io.stop.bits := io.mem.resp.bits.tag
-
-  assert(!reqTimer.io.timeout.valid, s"TraceGen core ${id}: request timed out")
 
   // Random addresses
   // ----------------
@@ -327,7 +332,7 @@ class TraceGenerator(id: Int)
   // ------------------
 
   // Hardware thread id
-  val tid = UInt(id, numBitsInId)
+  val tid = io.hartid
 
   // Request & response count
   val reqCount  = Reg(init = UInt(0, 32))
@@ -345,7 +350,7 @@ class TraceGenerator(id: Int)
   sendFreshReq := Bool(false)
 
   // Used to generate unique data values
-  val nextData = Reg(init = UInt(1, numBitsInWord-numBitsInId))
+  val nextData = Reg(init = UInt(1, numBitsInWord-tid.getWidth))
 
   // Registers for all the interesting parts of a request
   val reqValid = Reg(init = Bool(false))
@@ -503,6 +508,7 @@ class TraceGenerator(id: Int)
   io.mem.req.bits.typ  := UInt(log2Ceil(numBytesInWord))
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
+  io.mem.invalidate_lr := Bool(false)
 
   // On cycle when request is actually sent, print it
   when (io.mem.req.fire()) {
@@ -569,17 +575,25 @@ class TraceGenerator(id: Int)
 // Trace-generator wrapper
 // =======================
 
-class GroundTestTraceGenerator(implicit p: Parameters)
-    extends GroundTest()(p) with HasTraceGenParams {
+class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params) {
+  override lazy val module = new TraceGenTileModule(this)
+}
 
-  require(io.mem.size <= 1)
-  require(io.cache.size == 1)
+class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer, () => new GroundTestTileBundle(outer)) {
 
-  val traceGen = Module(new TraceGenerator(p(TileId)))
-  io.cache.head <> traceGen.io.mem
+  val tracegen = Module(new TraceGenerator(outer.params))
+  tracegen.io.hartid := io.hartid
 
-  io.status.finished := traceGen.io.finished
-  io.status.timeout.valid := traceGen.io.timeout
+  outer.dcacheOpt foreach { dcache =>
+    val dcacheIF = Module(new SimpleHellaCacheIF())
+    dcacheIF.io.requestor <> tracegen.io.mem
+    dcache.module.io.cpu <> dcacheIF.io.cache
+  }
+
+  io.status.finished := tracegen.io.finished
+  io.status.timeout.valid := tracegen.io.timeout
   io.status.timeout.bits := UInt(0)
   io.status.error.valid := Bool(false)
+
+  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.id}: request timed out")
 }

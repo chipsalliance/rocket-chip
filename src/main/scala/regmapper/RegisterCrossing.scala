@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package regmapper
+package freechips.rocketchip.regmapper
 
 import Chisel._
 import chisel3.util.{Irrevocable}
-import util.{AsyncQueue,AsyncResetRegVec}
+
+import freechips.rocketchip.util.{AsyncQueue,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing extends Module {
@@ -51,6 +52,8 @@ class RegisterCrossingAssertion extends Module {
 class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
   val request  = Decoupled(gen).flip
   val response = Irrevocable(Bool()) // ignore .bits
+
+  override def cloneType = new RegisterWriteIO(gen).asInstanceOf[this.type]
 }
 
 // To turn off=>on a domain:
@@ -125,6 +128,8 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 class RegisterReadIO[T <: Data](gen: T) extends Bundle {
   val request  = Decoupled(Bool()).flip // ignore .bits
   val response = Irrevocable(gen)
+
+  override def cloneType = new RegisterReadIO(gen).asInstanceOf[this.type]
 }
 
 class RegisterReadCrossingIO[T <: Data](gen: T) extends Bundle {

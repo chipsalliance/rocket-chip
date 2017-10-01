@@ -1,8 +1,9 @@
 // See LICENSE.Berkeley for license details.
 
-package util
+package freechips.rocketchip.util
+
 import Chisel._
-import config._
+import freechips.rocketchip.config.Parameters
 
 /** A generalized locking RR arbiter that addresses the limitations of the
  *  version in the Chisel standard library */
@@ -91,5 +92,54 @@ class HellaCountingArbiter[T <: Data](
     when (locked) {
       when (lock_ctr.inc()) { locked := Bool(false) }
     }
+  }
+}
+
+/** This arbiter preserves the order of responses */
+class InOrderArbiter[T <: Data, U <: Data](reqTyp: T, respTyp: U, n: Int)
+    (implicit p: Parameters) extends Module {
+  val io = new Bundle {
+    val in_req = Vec(n, Decoupled(reqTyp)).flip
+    val in_resp = Vec(n, Decoupled(respTyp))
+    val out_req = Decoupled(reqTyp)
+    val out_resp = Decoupled(respTyp).flip
+  }
+
+  if (n > 1) {
+    val route_q = Module(new Queue(UInt(width = log2Up(n)), 2))
+    val req_arb = Module(new RRArbiter(reqTyp, n))
+    req_arb.io.in <> io.in_req
+
+    val req_helper = DecoupledHelper(
+      req_arb.io.out.valid,
+      route_q.io.enq.ready,
+      io.out_req.ready)
+
+    io.out_req.bits := req_arb.io.out.bits
+    io.out_req.valid := req_helper.fire(io.out_req.ready)
+
+    route_q.io.enq.bits := req_arb.io.chosen
+    route_q.io.enq.valid := req_helper.fire(route_q.io.enq.ready)
+
+    req_arb.io.out.ready := req_helper.fire(req_arb.io.out.valid)
+
+    val resp_sel = route_q.io.deq.bits
+    val resp_ready = io.in_resp(resp_sel).ready
+    val resp_helper = DecoupledHelper(
+      resp_ready,
+      route_q.io.deq.valid,
+      io.out_resp.valid)
+
+    val resp_valid = resp_helper.fire(resp_ready)
+    for (i <- 0 until n) {
+      io.in_resp(i).bits := io.out_resp.bits
+      io.in_resp(i).valid := resp_valid && resp_sel === UInt(i)
+    }
+
+    route_q.io.deq.ready := resp_helper.fire(route_q.io.deq.valid)
+    io.out_resp.ready := resp_helper.fire(io.out_resp.valid)
+  } else {
+    io.out_req <> io.in_req.head
+    io.in_resp.head <> io.out_resp
   }
 }

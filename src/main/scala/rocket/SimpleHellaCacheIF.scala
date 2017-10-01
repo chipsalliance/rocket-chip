@@ -1,12 +1,13 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import util._
+
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.util._
 
 /**
  * This module buffers requests made by the SimpleHellaCacheIF in case they
@@ -123,15 +124,13 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   io.cache.invalidate_lr := io.requestor.invalidate_lr
   io.cache.req <> req_arb.io.out
   io.cache.s1_kill := io.cache.s2_nack
-  io.cache.s1_data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
+  io.cache.s1_data.data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
 
   replayq.io.nack.valid := (io.cache.s2_nack || s2_kill) && s2_req_fire
   replayq.io.nack.bits := s2_req_tag
   replayq.io.resp := io.cache.resp
   io.requestor.resp := io.cache.resp
 
-  assert(!Reg(next = io.cache.req.fire()) ||
-         !(io.cache.xcpt.ma.ld || io.cache.xcpt.ma.st ||
-           io.cache.xcpt.pf.ld || io.cache.xcpt.pf.st),
+  assert(!RegNext(RegNext(io.cache.req.fire())) || !io.cache.s2_xcpt.asUInt.orR,
          "SimpleHellaCacheIF exception")
 }

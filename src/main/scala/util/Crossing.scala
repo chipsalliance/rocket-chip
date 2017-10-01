@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
 import chisel3.util.{DecoupledIO, Decoupled, Irrevocable, IrrevocableIO, ReadyValidIO}
@@ -99,7 +99,7 @@ object LevelSyncCrossing {
       val out = Bool(OUTPUT)
     }
 
-    io.out := ShiftRegister(io.in, sync)
+    io.out := SynchronizerShiftReg(io.in, sync)
   }
 
   class SynchronizerFrontend(_clock: Clock) extends Module(Some(_clock)) {

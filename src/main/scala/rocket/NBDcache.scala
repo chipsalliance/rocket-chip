@@ -1,16 +1,14 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package rocket
+package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import config._
-import diplomacy._
-import uncore.constants._
-import uncore.tilelink2._
-import uncore.util._
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 trait HasMissInfo extends HasL1HellaCacheParameters {
   val tag_match = Bool()
@@ -69,20 +67,18 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   }
 
   val req = Reg(new HellaCacheReq)
-  val req_cmd_sc = req.cmd === M_XSC
   val grant_word = Reg(UInt(width = wordBits))
 
   val s_idle :: s_mem_access :: s_mem_ack :: s_resp :: Nil = Enum(Bits(), 4)
   val state = Reg(init = s_idle)
   io.req.ready := (state === s_idle)
 
-  val storegen = new StoreGen(req.typ, req.addr, req.data, wordBytes)
-  val loadgen = new LoadGen(req.typ, mtSigned(req.typ), req.addr, grant_word, req_cmd_sc, wordBytes)
+  val loadgen = new LoadGen(req.typ, mtSigned(req.typ), req.addr, grant_word, false.B, wordBytes)
  
   val a_source = UInt(id)
   val a_address = req.addr
-  val a_size = storegen.size
-  val a_data = Fill(beatWords, storegen.data)
+  val a_size = mtSize(req.typ)
+  val a_data = Fill(beatWords, req.data)
 
   val get     = edge.Get(a_source, a_address, a_size)._2
   val put     = edge.Put(a_source, a_address, a_size, a_data)._2
@@ -99,9 +95,10 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
       M_XA_MAXU -> edge.Arithmetic(a_source, a_address, a_size, a_data, TLAtomics.MAXU)._2))
   } else {
     // If no managers support atomics, assert fail if processor asks for them
-    assert (!isAMO(req.cmd))
+    assert(state === s_idle || !isAMO(req.cmd))
     Wire(new TLBundleA(edge.bundle))
   }
+  assert(state === s_idle || req.cmd =/= M_XSC)
 
   io.mem_access.valid := (state === s_mem_access)
   io.mem_access.bits := Mux(isAMO(req.cmd), atomics, Mux(isRead(req.cmd), get, put))
@@ -110,7 +107,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   io.resp.valid := (state === s_resp)
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
-  io.resp.bits.data := loadgen.data | req_cmd_sc
+  io.resp.bits.data := loadgen.data
   io.resp.bits.store_data := req.data
   io.resp.bits.replay := Bool(true)
 
@@ -246,7 +243,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 
   val grantackq = Module(new Queue(io.mem_finish.bits, 1))
   val can_finish = state.isOneOf(s_invalid, s_refill_req)
-  grantackq.io.enq.valid := refill_done && edge.hasFollowUp(io.mem_grant.bits)
+  grantackq.io.enq.valid := refill_done && edge.isRequest(io.mem_grant.bits)
   grantackq.io.enq.bits := edge.GrantAck(io.mem_grant.bits)
   io.mem_finish.valid := grantackq.io.deq.valid && can_finish
   io.mem_finish.bits := grantackq.io.deq.bits
@@ -661,7 +658,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.write.ready := Bool(true)
 }
 
-class NonBlockingDCache(implicit p: Parameters) extends HellaCache()(p) {
+class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new NonBlockingDCacheModule(this) 
 }
 
@@ -670,6 +667,10 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   require(isPow2(nWays)) // TODO: relax this
   require(dataScratchpadSize == 0)
 
+  // ECC is only supported on the data array
+  require(cacheParams.tagECC.isInstanceOf[IdentityCode])
+  val dECC = cacheParams.dataECC
+
   val wb = Module(new WritebackUnit)
   val prober = Module(new ProbeUnit)
   val mshrs = Module(new MSHRFile)
@@ -677,11 +678,12 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
   val s1_req = Reg(io.cpu.req.bits)
-  val s1_valid_masked = s1_valid && !io.cpu.s1_kill && !io.cpu.xcpt.asUInt.orR
+  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
+  val s1_sfence = s1_req.cmd === M_SFENCE
 
-  val s2_valid = Reg(next=s1_valid_masked, init=Bool(false))
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
   val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_FLUSH_ALL
   val s2_recycle = Wire(Bool())
@@ -695,14 +697,21 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
+  // check for unsupported operations
+  assert(!s1_valid || !s1_req.cmd.isOneOf(M_PWR))
 
-  val dtlb = Module(new TLB(nTLBEntries))
+  val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
-  dtlb.io.req.valid := s1_valid_masked && s1_readwrite
+  dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
+  dtlb.io.req.bits.sfence.valid := s1_sfence
+  dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
+  dtlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
+  dtlb.io.req.bits.sfence.bits.addr := s1_req.addr
+  dtlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
   dtlb.io.req.bits.passthrough := s1_req.phys
-  dtlb.io.req.bits.vpn := s1_req.addr >> pgIdxBits
-  dtlb.io.req.bits.instruction := Bool(false)
-  dtlb.io.req.bits.store := s1_write
+  dtlb.io.req.bits.vaddr := s1_req.addr
+  dtlb.io.req.bits.size := s1_req.typ
+  dtlb.io.req.bits.cmd := s1_req.cmd
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
   
   when (io.cpu.req.valid) {
@@ -722,25 +731,19 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   when (s2_recycle) {
     s1_req := s2_req
   }
-  val s1_addr = Cat(dtlb.io.resp.ppn, s1_req.addr(pgIdxBits-1,0))
+  val s1_addr = dtlb.io.resp.paddr
 
   when (s1_clk_en) {
     s2_req.typ := s1_req.typ
     s2_req.phys := s1_req.phys
     s2_req.addr := s1_addr
     when (s1_write) {
-      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.s1_data)
+      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.s1_data.data)
     }
     when (s1_recycled) { s2_req.data := s1_req.data }
     s2_req.tag := s1_req.tag
     s2_req.cmd := s1_req.cmd
   }
-
-  val misaligned = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).misaligned
-  io.cpu.xcpt.ma.ld := s1_read && misaligned
-  io.cpu.xcpt.ma.st := s1_write && misaligned
-  io.cpu.xcpt.pf.ld := s1_read && dtlb.io.resp.xcpt_ld
-  io.cpu.xcpt.pf.st := s1_write && dtlb.io.resp.xcpt_st
 
   // tags
   def onReset = L1Metadata(UInt(0), ClientMetadata.onReset)
@@ -757,7 +760,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   data.io.write.valid := writeArb.io.out.valid
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
-  val wdata_encoded = (0 until rowWords).map(i => code.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
+  val wdata_encoded = (0 until rowWords).map(i => dECC.encode(writeArb.io.out.bits.data(coreDataBits*(i+1)-1,coreDataBits*i)))
   data.io.write.bits.data := wdata_encoded.asUInt
 
   // tag read for new requests
@@ -792,18 +795,18 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // load-reserved/store-conditional
   val lrsc_count = Reg(init=UInt(0))
-  val lrsc_valid = lrsc_count.orR
+  val lrsc_valid = lrsc_count > lrscBackoff
   val lrsc_addr = Reg(UInt())
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
   val s2_lrsc_addr_match = lrsc_valid && lrsc_addr === (s2_req.addr >> blockOffBits)
   val s2_sc_fail = s2_sc && !s2_lrsc_addr_match
-  when (lrsc_valid) { lrsc_count := lrsc_count - 1 }
+  when (lrsc_count > 0) { lrsc_count := lrsc_count - 1 }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
       lrsc_count := lrscCycles - 1
       lrsc_addr := s2_req.addr >> blockOffBits
     }
-    when (lrsc_valid) {
+    when (lrsc_count > 0) {
       lrsc_count := 0
     }
   }
@@ -820,7 +823,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     s2_data(w) := regs.asUInt
   }
   val s2_data_muxed = Mux1H(s2_tag_match_way, s2_data)
-  val s2_data_decoded = (0 until rowWords).map(i => code.decode(s2_data_muxed(encDataBits*(i+1)-1,encDataBits*i)))
+  val s2_data_decoded = (0 until rowWords).map(i => dECC.decode(s2_data_muxed(encDataBits*(i+1)-1,encDataBits*i)))
   val s2_data_corrected = s2_data_decoded.map(_.corrected).asUInt
   val s2_data_uncorrected = s2_data_decoded.map(_.uncorrected).asUInt
   val s2_word_idx = if(doNarrowRead) UInt(0) else s2_req.addr(log2Up(rowWords*coreDataBytes)-1,log2Up(wordBytes))
@@ -926,10 +929,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_data_word_prebypass = s2_data_uncorrected >> Cat(s2_word_idx, Bits(0,log2Up(coreDataBits)))
   val s2_data_word = Mux(s2_store_bypass, s2_store_bypass_data, s2_data_word_prebypass)
   val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word, s2_sc, wordBytes)
-  
-  amoalu.io.addr := s2_req.addr
+
+  amoalu.io.mask := new StoreGen(s2_req.typ, s2_req.addr, 0.U, xLen/8).mask
   amoalu.io.cmd := s2_req.cmd
-  amoalu.io.typ := s2_req.typ
   amoalu.io.lhs := s2_data_word
   amoalu.io.rhs := s2_req.data
 
@@ -971,6 +973,16 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.s2_nack := s2_valid && s2_nack
   io.cpu.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
+  io.cpu.resp.bits.data_raw := s2_data_word
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+
+  val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack
+  val s1_xcpt = dtlb.io.resp
+  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
+
+  // performance events
+  io.cpu.perf.acquire := edge.done(tl_out.a)
+  io.cpu.perf.release := edge.done(tl_out.c)
+  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 }

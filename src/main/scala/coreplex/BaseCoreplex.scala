@@ -1,82 +1,134 @@
 // See LICENSE.SiFive for license details.
 
-package coreplex
+package freechips.rocketchip.coreplex
 
 import Chisel._
-import config._
-import diplomacy._
-import tile.XLen
-import tile.TileInterrupts
-import uncore.tilelink2._
-import util._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
-/** Widths of various points in the SoC */
-case class TLBusConfig(beatBytes: Int)
-case object CBusConfig extends Field[TLBusConfig]
-case object L1toL2Config extends Field[TLBusConfig]
+/** Enumerates the three types of clock crossing between tiles and system bus */
+sealed trait CoreplexClockCrossing
+case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends CoreplexClockCrossing
+case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
+case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends CoreplexClockCrossing
 
-// These parameters apply to all caches, for now
-case object CacheBlockBytes extends Field[Int]
-
-/** L2 Broadcast Hub configuration */
-case class BroadcastConfig(
-  nTrackers:  Int     = 4,
-  bufferless: Boolean = false)
-case object BroadcastConfig extends Field[BroadcastConfig]
-
-/** L2 memory subsystem configuration */
-case class BankedL2Config(
-  nMemoryChannels:  Int = 1,
-  nBanksPerChannel: Int = 1,
-  coherenceManager: (Parameters, CoreplexNetwork) => (TLInwardNode, TLOutwardNode) = { case (q, _) =>
-    implicit val p = q
-    val BroadcastConfig(nTrackers, bufferless) = p(BroadcastConfig)
-    val bh = LazyModule(new TLBroadcast(p(CacheBlockBytes), nTrackers, bufferless))
-    val ww = LazyModule(new TLWidthWidget(p(L1toL2Config).beatBytes))
-    ww.node :*= bh.node
-    (bh.node, ww.node)
-  }) {
-  val nBanks = nMemoryChannels*nBanksPerChannel
-}
-case object BankedL2Config extends Field[BankedL2Config]
-
-/** The file to read the BootROM contents from */
-case object BootROMFile extends Field[String]
-
-trait HasCoreplexParameters {
-  implicit val p: Parameters
-  lazy val tilesParams = p(RocketTilesKey)
-  lazy val cbusConfig = p(CBusConfig)
-  lazy val l1tol2Config = p(L1toL2Config)
-  lazy val nTiles = tilesParams.size
-  lazy val hasSupervisor = tilesParams.exists(_.core.useVM) // TODO ask andrew about this
-  lazy val l2Config = p(BankedL2Config)
+/** BareCoreplex is the root class for creating a coreplex sub-system */
+abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with BindingScope {
+  lazy val dts = DTS(bindingTree)
+  lazy val dtb = DTB(dts)
+  lazy val json = JSON(bindingTree)
 }
 
-case class CoreplexParameters(implicit val p: Parameters) extends HasCoreplexParameters
-
-abstract class BareCoreplex(implicit p: Parameters) extends LazyModule
-
-abstract class BareCoreplexBundle[+L <: BareCoreplex](_outer: L) extends GenericParameterizedBundle(_outer) {
+abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyMultiIOModuleImp(_outer) {
   val outer = _outer
-  implicit val p = outer.p
+  ElaborationArtefacts.add("graphml", outer.graphML)
+  ElaborationArtefacts.add("dts", outer.dts)
+  ElaborationArtefacts.add("json", outer.json)
+  println(outer.dts)
 }
 
-abstract class BareCoreplexModule[+L <: BareCoreplex, +B <: BareCoreplexBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
-  val outer = _outer
-  val io = _io ()
-}
-
+/** Base Coreplex class with no peripheral devices or ports added */
 abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
-    with CoreplexNetwork
-    with BankedL2CoherenceManagers {
-  override lazy val module = new BaseCoreplexModule(this, () => new BaseCoreplexBundle(this))
+    with HasInterruptBus
+    with HasSystemBus
+    with HasPeripheryBus
+    with HasMemoryBus {
+  override val module: BaseCoreplexModule[BaseCoreplex]
+
+  val root = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      Description("/", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "model"          -> Seq(ResourceString(p(DTSModel))),
+        "compatible"     -> (p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-dev"))))
+    }
+  }
+
+  val soc = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      Description("soc", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "compatible"     -> ((p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-soc")) :+ ResourceString("simple-bus")),
+        "ranges"         -> Nil))
+    }
+  }
+
+  val cpus = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      Description("cpus", Map(
+        "#address-cells"     -> Seq(ResourceInt(1)),
+        "#size-cells"        -> Seq(ResourceInt(0)),
+        "timebase-frequency" -> Seq(ResourceInt(p(DTSTimebase)))))
+    }
+  }
+
+  // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
+  lazy val topManagers = Some(ManagerUnification(sharedMemoryTLEdge.manager.managers))
+  ResourceBinding {
+    val managers = topManagers.get
+    val max = managers.flatMap(_.address).map(_.max).max
+    val width = ResourceInt((log2Ceil(max)+31) / 32)
+    Resource(root, "width").bind(width)
+    Resource(soc,  "width").bind(width)
+    Resource(cpus, "null").bind(ResourceString(""))
+
+    managers.foreach { case manager =>
+      val value = manager.toResource
+      manager.resources.foreach { case resource =>
+        resource.bind(value)
+      }
+    }
+  }
 }
 
-class BaseCoreplexBundle[+L <: BaseCoreplex](_outer: L) extends BareCoreplexBundle(_outer)
-    with CoreplexNetworkBundle
-    with BankedL2CoherenceManagersBundle
+abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCoreplexModule(_outer) {
+  println("Generated Address Map")
+  private val aw = (outer.sharedMemoryTLEdge.bundle.addressBits-1)/4 + 1
+  private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c %s"
 
-class BaseCoreplexModule[+L <: BaseCoreplex, +B <: BaseCoreplexBundle[L]](_outer: L, _io: () => B) extends BareCoreplexModule(_outer, _io)
-    with CoreplexNetworkModule
-    with BankedL2CoherenceManagersModule
+  private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
+    value match {
+      case r: ResourceAddress => List((path(1), r))
+      case b: ResourceMapping => List((path(1), ResourceAddress(b.address, b.permissions)))
+      case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
+      case _ => Nil
+    }
+  }
+  private val ranges = collect(Nil, outer.bindingTree).groupBy(_._2).toList.flatMap { case (key, seq) =>
+    AddressRange.fromSets(key.address).map { r => (r, key.permissions, seq.map(_._1)) }
+  }.sortBy(_._1)
+  private val json = ranges.map { case (range, ResourcePermissions(r, w, x, c), names) =>
+    println(fmt.format(
+      range.base,
+      range.base+range.size,
+      if (r) 'R' else ' ',
+      if (w) 'W' else ' ',
+      if (x) 'X' else ' ',
+      if (c) 'C' else ' ',
+      names.mkString(", ")))
+    s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
+  }
+  println("")
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${json.mkString(",")}]}""")
+
+  // Confirm that all of memory was described by DTS
+  private val dtsRanges = AddressRange.unify(ranges.map(_._1))
+  private val allRanges = AddressRange.unify(outer.topManagers.get.flatMap { m => AddressRange.fromSets(m.address) })
+
+  if (dtsRanges != allRanges) {
+    println("Address map described by DTS differs from physical implementation:")
+    AddressRange.subtract(allRanges, dtsRanges).foreach { case r =>
+      println(s"\texists, but undescribed by DTS: ${r}")
+    }
+    AddressRange.subtract(dtsRanges, allRanges).foreach { case r =>
+      println(s"\tdoes not exist, but described by DTS: ${r}")
+    }
+    println("")
+  }
+}

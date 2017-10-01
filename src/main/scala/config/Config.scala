@@ -1,14 +1,23 @@
 // See LICENSE.SiFive for license details.
 
-package config
+package freechips.rocketchip.config
 
-class Field[T]
+abstract class Field[T] private (val default: Option[T])
+{
+  def this() = this(None)
+  def this(default: T) = this(Some(default))
+}
 
 abstract class View {
   final def apply[T](pname: Field[T]): T = apply(pname, this)
-  final def apply[T](pname: Field[T], site: View): T = find(pname, site).asInstanceOf[T]
+  final def apply[T](pname: Field[T], site: View): T = find(pname, site) match {
+    case Some(x) => x.asInstanceOf[T]
+  }
 
-  protected[config] def find(pname: Any, site: View): Any
+  final def lift[T](pname: Field[T]): Option[T] = lift(pname, this)
+  final def lift[T](pname: Field[T], site: View): Option[T] = find(pname, site).map(_.asInstanceOf[T])
+
+  protected[config] def find[T](pname: Field[T], site: View): Option[T]
 }
 
 abstract class Parameters extends View {
@@ -16,8 +25,8 @@ abstract class Parameters extends View {
   final def alter(f: (View, View, View) => PartialFunction[Any,Any]): Parameters = Parameters(f) ++ this
   final def alterPartial(f: PartialFunction[Any,Any]):                Parameters = Parameters((_,_,_) => f) ++ this
 
-  protected[config] def chain(site: View, tail: View, pname: Any): Any
-  protected[config] def find(pname: Any, site: View) = chain(site, new TerminalView, pname)
+  protected[config] def chain[T](site: View, tail: View, pname: Field[T]): Option[T]
+  protected[config] def find[T](pname: Field[T], site: View) = chain(site, new TerminalView, pname)
 }
 
 object Parameters {
@@ -29,7 +38,7 @@ object Parameters {
 class Config(p: Parameters) extends Parameters {
   def this(f: (View, View, View) => PartialFunction[Any,Any]) = this(Parameters(f))
 
-  protected[config] def chain(site: View, tail: View, pname: Any) = p.chain(site, tail, pname)
+  protected[config] def chain[T](site: View, tail: View, pname: Field[T]) = p.chain(site, tail, pname)
   override def toString = this.getClass.getSimpleName
   def toInstance = this
 }
@@ -37,25 +46,24 @@ class Config(p: Parameters) extends Parameters {
 // Internal implementation:
 
 private class TerminalView extends View {
-  private class Unusable
-  def find(pname: Any, site: View): Any = pname match { case x: Unusable => () }
+  def find[T](pname: Field[T], site: View): Option[T] = pname.default
 }
 
 private class ChainView(head: Parameters, tail: View) extends View {
-  def find(pname: Any, site: View) = head.chain(site, tail, pname)
+  def find[T](pname: Field[T], site: View) = head.chain(site, tail, pname)
 }
 
 private class ChainParameters(x: Parameters, y: Parameters) extends Parameters {
-  def chain(site: View, tail: View, pname: Any) = x.chain(site, new ChainView(y, tail), pname)
+  def chain[T](site: View, tail: View, pname: Field[T]) = x.chain(site, new ChainView(y, tail), pname)
 }
 
 private class EmptyParameters extends Parameters {
-  def chain(site: View, tail: View, pname: Any) = tail.find(pname, site)
+  def chain[T](site: View, tail: View, pname: Field[T]) = tail.find(pname, site)
 }
 
 private class PartialParameters(f: (View, View, View) => PartialFunction[Any,Any]) extends Parameters {
-  protected[config] def chain(site: View, tail: View, pname: Any) = {
+  protected[config] def chain[T](site: View, tail: View, pname: Field[T]) = {
     val g = f(site, this, tail)
-    if (g.isDefinedAt(pname)) g.apply(pname) else tail.find(pname, site)
+    if (g.isDefinedAt(pname)) Some(g.apply(pname).asInstanceOf[T]) else tail.find(pname, site)
   }
 }

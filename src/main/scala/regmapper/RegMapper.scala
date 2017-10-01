@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package regmapper
+package freechips.rocketchip.regmapper
 
 import Chisel._
-import diplomacy._
-import util.{GenericParameterizedBundle}
+
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers}
 
 // A bus agnostic register interface to a register-based device
 
@@ -62,7 +63,7 @@ object RegMapper
     val depth = concurrency
     require (depth >= 0)
     require (!pipelined || depth > 0, "Register-based device with request/response handshaking needs concurrency > 0")
-    val back = if (depth > 0) Queue(front, depth, pipe = depth == 1) else front
+    val back = if (depth > 0) Queue(front, depth) else front
 
     // Convert to and from Bits
     def toBits(x: Int, tail: List[Boolean] = List.empty): List[Boolean] =
@@ -106,18 +107,14 @@ object RegMapper
     // Forward declaration of all flow control signals
     val rivalid = Wire(Vec(flat.size, Bool()))
     val wivalid = Wire(Vec(flat.size, Bool()))
-    val riready = Wire(Vec(flat.size, Bool()))
-    val wiready = Wire(Vec(flat.size, Bool()))
-    val rovalid = Wire(Vec(flat.size, Bool()))
-    val wovalid = Wire(Vec(flat.size, Bool()))
     val roready = Wire(Vec(flat.size, Bool()))
     val woready = Wire(Vec(flat.size, Bool()))
 
     // Per-register list of all control signals needed for data to flow
-    val rifire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
-    val wifire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
-    val rofire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
-    val wofire = Array.tabulate(regSize) { i => Seq(Bool(true)) }
+    val rifire = Array.fill(regSize) { Nil:List[(Bool, Bool)] }
+    val wifire = Array.fill(regSize) { Nil:List[(Bool, Bool)] }
+    val rofire = Array.fill(regSize) { Nil:List[(Bool, Bool)] }
+    val wofire = Array.fill(regSize) { Nil:List[(Bool, Bool)] }
 
     // The output values for each register
     val dataOut = Array.tabulate(regSize) { _ => UInt(0) }
@@ -139,24 +136,35 @@ object RegMapper
       val data = if (field.write.combinational) back.bits.data else front.bits.data
       val (f_riready, f_rovalid, f_data) = field.read.fn(rivalid(i) && rimask, roready(i) && romask)
       val (f_wiready, f_wovalid) = field.write.fn(wivalid(i) && wimask, woready(i) && womask, data(high, low))
-      riready(i) := f_riready || !rimask
-      wiready(i) := f_wiready || !wimask
-      rovalid(i) := f_rovalid || !romask
-      wovalid(i) := f_wovalid || !womask
-      rifire(reg) = riready(i) +: rifire(reg)
-      wifire(reg) = wiready(i) +: wifire(reg)
-      rofire(reg) = rovalid(i) +: rofire(reg)
-      wofire(reg) = wovalid(i) +: wofire(reg)
-      dataOut(reg) = dataOut(reg) | ((f_data  << low) & (~UInt(0, width = high+1)))
+      def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) Bool(true) else x || y
+      // Add this field to the ready-valid signals for the register
+      rifire(reg) = (rivalid(i), litOR(f_riready, !rimask)) +: rifire(reg)
+      wifire(reg) = (wivalid(i), litOR(f_wiready, !wimask)) +: wifire(reg)
+      rofire(reg) = (roready(i), litOR(f_rovalid, !romask)) +: rofire(reg)
+      wofire(reg) = (woready(i), litOR(f_wovalid, !womask)) +: wofire(reg)
+      dataOut(reg) = dataOut(reg) | ((f_data << low) & (~UInt(0, width = high+1)))
     }
 
-    // Is the selected register ready?
-    val rifireMux = Vec(rifire.zipWithIndex.map { case (seq, i) => !iRightReg(i) || seq.reduce(_ && _)})
-    val wifireMux = Vec(wifire.zipWithIndex.map { case (seq, i) => !iRightReg(i) || seq.reduce(_ && _)})
-    val rofireMux = Vec(rofire.zipWithIndex.map { case (seq, i) => !oRightReg(i) || seq.reduce(_ && _)})
-    val wofireMux = Vec(wofire.zipWithIndex.map { case (seq, i) => !oRightReg(i) || seq.reduce(_ && _)})
+    // Which register is touched?
     val iindex = regIndexU(front.bits.index)
     val oindex = regIndexU(back .bits.index)
+    val frontSel = UIntToOH(iindex).toBools
+    val backSel  = UIntToOH(oindex).toBools
+
+    // Compute: is the selected register ready? ... and cross-connect all ready-valids
+    def mux(valid: Bool, select: Seq[Bool], guard: Seq[Bool], flow: Seq[Seq[(Bool, Bool)]]): Vec[Bool] =
+      Vec(((select zip guard) zip flow).map { case ((s, g), f) =>
+        val out = Wire(Bool())
+        ReduceOthers((out, valid && s && g) +: f)
+        out || !g
+      })
+
+    // Include the per-register one-hot selected criteria
+    val rifireMux = mux(in.valid && front.ready &&  front.bits.read, frontSel, iRightReg, rifire)
+    val wifireMux = mux(in.valid && front.ready && !front.bits.read, frontSel, iRightReg, wifire)
+    val rofireMux = mux(back.valid && out.ready &&  back .bits.read, backSel,  oRightReg, rofire)
+    val wofireMux = mux(back.valid && out.ready && !back .bits.read, backSel,  oRightReg, wofire)
+
     val iready = Mux(front.bits.read, rifireMux(iindex), wifireMux(iindex))
     val oready = Mux(back .bits.read, rofireMux(oindex), wofireMux(oindex))
 
@@ -165,27 +173,6 @@ object RegMapper
     front.valid := in.valid    && iready
     back.ready  := out.ready   && oready
     out.valid   := back.valid  && oready
-
-    // Which register is touched?
-    val frontSel = UIntToOH(iindex) & Cat(iRightReg.reverse)
-    val backSel  = UIntToOH(oindex) & Cat(oRightReg.reverse)
-
-    // Include the per-register one-hot selected criteria
-    for (reg <- 0 until regSize) {
-      rifire(reg) = (in.valid && front.ready &&  front.bits.read && frontSel(reg)) +: rifire(reg)
-      wifire(reg) = (in.valid && front.ready && !front.bits.read && frontSel(reg)) +: wifire(reg)
-      rofire(reg) = (back.valid && out.ready &&  back .bits.read && backSel (reg)) +: rofire(reg)
-      wofire(reg) = (back.valid && out.ready && !back .bits.read && backSel (reg)) +: wofire(reg)
-    }
-
-    // Connect the field's ivalid and oready
-    for (i <- 0 until flat.size) {
-      val (reg, _, _ ) = flat(i)
-      rivalid(i) := rifire(reg).filter(_ ne riready(i)).reduce(_ && _)
-      wivalid(i) := wifire(reg).filter(_ ne wiready(i)).reduce(_ && _)
-      roready(i) := rofire(reg).filter(_ ne rovalid(i)).reduce(_ && _)
-      woready(i) := wofire(reg).filter(_ ne wovalid(i)).reduce(_ && _)
-    }
 
     out.bits.read  := back.bits.read
     out.bits.data  := Mux(Vec(oRightReg)(oindex), Vec(dataOut)(oindex), UInt(0))

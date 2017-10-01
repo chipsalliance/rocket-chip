@@ -1,0 +1,138 @@
+#! /usr/bin/env python
+
+# See LICENSE.SiFive for license details.
+
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import doctest
+import sys
+import warnings
+from collections import namedtuple
+
+verilog_template = """
+module {name}(
+  input clock,
+  input oe,
+  input me,
+  input [{address_bits_minus_1}:0] address,
+  output [{output_width_minus_1}:0] q
+);
+  reg [{output_width_minus_1}:0] out;
+  reg [{output_width_minus_1}:0] rom [0:{depth_minus_1}];
+
+
+  // 1024 is the maximum length of $readmemh filename supported by Cadence Incisive
+  reg [1024 * 8 - 1:0] path;
+
+  integer i;
+  initial begin
+`ifdef RANDOMIZE
+  `ifdef RANDOMIZE_MEM_INIT
+    for (i = 0; i < {depth}; i = i + 1) begin
+      rom[i] = {{{num_random_blocks}{{$random}}}};
+    end
+  `endif
+`endif
+    if (!$value$plusargs("maskromhex=%s", path)) begin
+      path = "{rom_hex_file}";
+    end
+    $readmemh(path, rom);
+  end
+
+
+  always @(posedge clock) begin
+    if (me) begin
+      out <= rom[address];
+    end
+  end
+
+  assign q = oe ? out : {output_width}'bZ;
+
+endmodule
+"""
+
+
+def gen_rom(name, width, depth, rom_hex_file):
+    variables = {
+        'name': name,
+        'address_bits_minus_1': (depth - 1).bit_length() - 1,
+        'depth': depth,
+        'depth_minus_1': depth - 1,
+        'output_width': width,
+        'output_width_minus_1': width - 1,
+        # $random in verilog returns 32 bits; compute how many times to repeat
+        # $random in order to fill the width
+        'num_random_blocks': (width - 1) // 32 + 1,
+        'rom_hex_file': rom_hex_file,
+    }
+    return verilog_template.format(**variables)
+
+
+def iterate_by_n(it, n):
+    """Iterate over items in it, yielding n-tuples of successive items.
+
+    >>> list(iterate_by_n([1, 2, 3, 4, 5, 6], n=2))
+    [(1, 2), (3, 4), (5, 6)]
+    >>> list(iterate_by_n([1, 2, 3, 4, 5, 6], n=3))
+    [(1, 2, 3), (4, 5, 6)]
+    >>> list(iterate_by_n([1, 2, 3, 4, 5, 6], n=4))
+    Traceback (most recent call last):
+        ...
+    ValueError: Iterable length not evenly divisible by 4
+    """
+    it = iter(it)
+    while True:
+        batch = ()
+        for i in range(n):
+            try:
+                batch += (next(it),)
+            except StopIteration:
+                if batch:  # If this is not the first iteration
+                    raise ValueError(
+                        'Iterable length not evenly divisible by {}'.format(n)
+                    )
+                else:
+                    raise
+        yield batch
+
+
+def try_cast_int(x):
+    try:
+        return int(x)
+    except ValueError:
+        return x
+
+
+ROMParameters = namedtuple('ROMParameters', ['name', 'depth', 'width'])
+default_rom_parameters = ROMParameters(name='', depth=0, width=0)
+
+
+def parse_line(line):
+    kwargs = {key: try_cast_int(val)
+              for key, val in iterate_by_n(line.split(), 2)}
+    rom_parameters = default_rom_parameters._replace(**kwargs)
+    return rom_parameters._asdict()
+
+
+def main():
+    if '--run-tests' in sys.argv:
+        (failures, total) = doctest.testmod(verbose=True)
+        sys.exit(1 if failures else 0)
+
+    if len(sys.argv) < 2:
+        sys.exit('Please give a .conf file as input')
+
+    print('// This file created by ' + __file__)
+    with open(sys.argv[1]) as fp:
+        lines = fp.readlines()
+        if len(lines) > 1:
+            warnings.warn('vlsi_rom_gen detected multiple ROMs. ROM contents will be duplicated.')
+        for line in lines:
+            verilog = gen_rom(rom_hex_file=sys.argv[2],
+                              **parse_line(line))
+            print(verilog)
+
+if __name__ == '__main__':
+    main()

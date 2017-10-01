@@ -1,8 +1,8 @@
 // See LICENSE.SiFive for license details.
 
-package diplomacy
+package freechips.rocketchip.diplomacy
 
-import Chisel._
+import Chisel.log2Ceil
 import scala.math.{max,min}
 
 object AddressDecoder
@@ -19,33 +19,36 @@ object AddressDecoder
   // Find the minimum subset of bits needed to disambiguate port addresses.
   // ie: inspecting only the bits in the output, you can look at an address
   //     and decide to which port (outer Seq) the address belongs.
-  def apply(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = if (ports.size <= 1) givenBits else {
-    // Every port must have at least one address!
-    ports.foreach { p => require (!p.isEmpty) }
-    // Verify the user did not give us an impossible problem
-    ports.combinations(2).foreach { case Seq(x, y) =>
-      x.foreach { a => y.foreach { b =>
-        require (!a.overlaps(b)) // it must be possible to disambiguate ports!
-      } }
+  def apply(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = {
+    val nonEmptyPorts = ports.filter(_.nonEmpty)
+    if (nonEmptyPorts.size <= 1) {
+      givenBits
+    } else {
+      // Verify the user did not give us an impossible problem
+      nonEmptyPorts.combinations(2).foreach { case Seq(x, y) =>
+        x.foreach { a => y.foreach { b =>
+          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
+        } }
+      }
+
+      val maxBits = log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
+      val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+      val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
+      val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
+      val selected = recurse(givenPartitions, bitsToTry.reverse.toSeq)
+      val output = selected.reduceLeft(_ | _) | givenBits
+
+      // Modify the AddressSets to allow the new wider match functions
+      val widePorts = nonEmptyPorts.map { _.map { _.widen(~output) } }
+      // Verify that it remains possible to disambiguate all ports
+      widePorts.combinations(2).foreach { case Seq(x, y) =>
+        x.foreach { a => y.foreach { b =>
+          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
+        } }
+      }
+
+      output
     }
-
-    val maxBits = log2Ceil(ports.map(_.map(_.base).max).max)
-    val (bitsToTry, bitsToTake) = (0 to maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
-    val partitions = Seq(ports.map(_.sorted).sorted(portOrder))
-    val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
-    val selected = recurse(givenPartitions, bitsToTry.toSeq)
-    val output = selected.reduceLeft(_ | _) | givenBits
-
-    // Modify the AddressSets to allow the new wider match functions
-    val widePorts = ports.map { _.map { _.widen(~output) } }
-    // Verify that it remains possible to disambiguate all ports
-    widePorts.combinations(2).foreach { case Seq(x, y) =>
-      x.foreach { a => y.foreach { b =>
-        require (!a.overlaps(b))
-      } }
-    }
-
-    output
   }
 
   // A simpler version that works for a Seq[Int]
@@ -67,10 +70,10 @@ object AddressDecoder
 
   def bitScore(partitions: Partitions): Seq[Int] = {
     val maxPortsPerPartition = partitions.map(_.size).max
-    val sumPortsPerPartition = partitions.map(_.size).sum
     val maxSetsPerPartition = partitions.map(_.map(_.size).sum).max
-    val sumSetsPerPartition = partitions.map(_.map(_.size).sum).sum
-    Seq(maxPortsPerPartition, sumPortsPerPartition, maxSetsPerPartition, sumSetsPerPartition)
+    val sumSquarePortsPerPartition = partitions.map(p => p.size * p.size).sum
+    val sumSquareSetsPerPartition = partitions.map(_.map(p => p.size * p.size).sum).max
+    Seq(maxPortsPerPartition, maxSetsPerPartition, sumSquarePortsPerPartition, sumSquareSetsPerPartition)
   }
 
   def partitionPort(port: Port, bit: BigInt): (Port, Port) = {
@@ -120,6 +123,8 @@ object AddressDecoder
       val candidates = bits.map { bit =>
         val result = partitionPartitions(partitions, bit)
         val score = bitScore(result)
+        if (debug)
+          println("  For bit %x, %s".format(bit, score.toString))
         (score, bit, result)
       }
       val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Iterable[Int]](_._1.toIterable))

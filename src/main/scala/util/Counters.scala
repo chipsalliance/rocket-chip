@@ -1,10 +1,9 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
-import config._
 import scala.math.max
 
 // Produces 0-width value when counting to 1
@@ -50,7 +49,7 @@ case class WideCounter(width: Int, inc: UInt = UInt(1), reset: Boolean = true)
 
   private val large = if (isWide) {
     val r = if (reset) Reg(init=UInt(0, width - smallWidth)) else Reg(UInt(width = width - smallWidth))
-    when (nextSmall(smallWidth)) { r := r +& UInt(1) }
+    when (nextSmall(smallWidth)) { r := r + UInt(1) }
     r
   } else null
 

@@ -1,10 +1,10 @@
 // See LICENSE.Berkeley for license details.
 // See LICENSE.SiFive for license details.
 
-package util
+package freechips.rocketchip.util
 
 import Chisel._
-import config._
+import freechips.rocketchip.config.Parameters
 import scala.math._
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle {
@@ -19,6 +19,15 @@ class ParameterizedBundle(implicit p: Parameters) extends Bundle {
                        "cloneType() on " + this.getClass, e)
     }
   }
+}
+
+trait Clocked extends Bundle {
+  val clock = Clock()
+  val reset = Bool()  
+}
+
+trait CanHaltAndCatchFire extends Bundle {
+  val halt_and_catch_fire: Option[Bool]
 }
 
 object DecoupledHelper {
@@ -56,6 +65,19 @@ object MuxTLookup {
     for ((k, v) <- mapping.reverse)
       res = MuxT(k === key, v, res)
     res
+  }
+}
+
+object ValidMux {
+  def apply[T <: Data](v1: ValidIO[T], v2: ValidIO[T]*): ValidIO[T] = {
+    apply(v1 +: v2.toSeq)
+  }
+  def apply[T <: Data](valids: Seq[ValidIO[T]]): ValidIO[T] = {
+    val out = Wire(Valid(valids.head.bits))
+    out.valid := valids.map(_.valid).reduce(_ || _)
+    out.bits := MuxCase(valids.head.bits,
+      valids.map(v => (v.valid -> v.bits)))
+    out
   }
 }
 
@@ -159,4 +181,66 @@ object Random
     if (x.toInt.toDouble == x) x.toInt else (x.toInt + 1) & -2
   private def partition(value: UInt, slices: Int) =
     Seq.tabulate(slices)(i => value < UInt(round((i << value.getWidth).toDouble / slices)))
+}
+
+object Majority {
+  def apply(in: Set[Bool]): Bool = {
+    val n = (in.size >> 1) + 1
+    val clauses = in.subsets(n).map(_.reduce(_ && _))
+    clauses.reduce(_ || _)
+  }
+
+  def apply(in: Seq[Bool]): Bool = apply(in.toSet)
+
+  def apply(in: UInt): Bool = apply(in.toBools.toSet)
+}
+
+object PopCountAtLeast {
+  private def two(x: UInt): (Bool, Bool) = x.getWidth match {
+    case 1 => (x.toBool, Bool(false))
+    case n =>
+      val half = x.getWidth / 2
+      val (leftOne, leftTwo) = two(x(half - 1, 0))
+      val (rightOne, rightTwo) = two(x(x.getWidth - 1, half))
+      (leftOne || rightOne, leftTwo || rightTwo || (leftOne && rightOne))
+  }
+  def apply(x: UInt, n: Int): Bool = n match {
+    case 0 => Bool(true)
+    case 1 => x.orR
+    case 2 => two(x)._2
+    case 3 => PopCount(x) >= UInt(n)
+  }
+}
+
+// This gets used everywhere, so make the smallest circuit possible ...
+// Given an address and size, create a mask of beatBytes size
+// eg: (0x3, 0, 4) => 0001, (0x3, 1, 4) => 0011, (0x3, 2, 4) => 1111
+// groupBy applies an interleaved OR reduction; groupBy=2 take 0010 => 01
+object MaskGen {
+  def apply(addr_lo: UInt, lgSize: UInt, beatBytes: Int, groupBy: Int = 1): UInt = {
+    require (groupBy >= 1 && beatBytes >= groupBy)
+    require (isPow2(beatBytes) && isPow2(groupBy))
+    val lgBytes = log2Ceil(beatBytes)
+    val sizeOH = UIntToOH(lgSize, log2Up(beatBytes)) | UInt(groupBy*2 - 1)
+
+    def helper(i: Int): Seq[(Bool, Bool)] = {
+      if (i == 0) {
+        Seq((lgSize >= UInt(lgBytes), Bool(true)))
+      } else {
+        val sub = helper(i-1)
+        val size = sizeOH(lgBytes - i)
+        val bit = addr_lo(lgBytes - i)
+        val nbit = !bit
+        Seq.tabulate (1 << i) { j =>
+          val (sub_acc, sub_eq) = sub(j/2)
+          val eq = sub_eq && (if (j % 2 == 1) bit else nbit)
+          val acc = sub_acc || (size && eq)
+          (acc, eq)
+        }
+      }
+    }
+
+    if (groupBy == beatBytes) UInt(1) else
+      Cat(helper(lgBytes-log2Ceil(groupBy)).map(_._1).reverse)
+  }
 }
