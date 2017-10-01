@@ -33,7 +33,6 @@ trait HasTileParameters {
   def usingDebug: Boolean = tileParams.core.useDebug
   def usingRoCC: Boolean = !tileParams.rocc.isEmpty
   def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
-  def usingExternalBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries == 0 && tileParams.btb.get.updatesOutOfOrder
   def usingPTW: Boolean = usingVM
   def usingDataScratchpad: Boolean = tileParams.dcache.flatMap(_.scratch).isDefined
 
