@@ -49,11 +49,9 @@ class TLFilter(
     })})
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out <> in
     }
-    io.out <> io.in
   }
 }
 

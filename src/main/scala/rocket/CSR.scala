@@ -155,7 +155,8 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val insn = UInt(width = iLen)
   val priv = UInt(width = 3)
   val exception = Bool()
-  val cause = UInt(width = 1 + log2Ceil(xLen))
+  val interrupt = Bool()
+  val cause = UInt(width = log2Ceil(xLen))
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
@@ -526,7 +527,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(!reg_singleStepped || io.retire === UInt(0))
 
   val epc = ~(~io.pc | (coreInstBytes-1))
-  val write_badaddr = cause isOneOf (Causes.illegal_instruction, Causes.breakpoint,
+  val write_badaddr = exception && cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
     Causes.misaligned_load, Causes.misaligned_store,
     Causes.load_access, Causes.store_access, Causes.fetch_access,
     Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
@@ -780,7 +781,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     t.insn := insn
     t.iaddr := io.pc
     t.priv := Cat(reg_debug, reg_mstatus.prv)
-    t.cause := Cat(cause(xLen-1), cause(log2Ceil(xLen)-1, 0))
+    t.cause := cause
+    t.interrupt := cause(xLen-1)
     t.tval := badaddr_value
   }
 

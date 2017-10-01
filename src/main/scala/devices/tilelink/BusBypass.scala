@@ -12,14 +12,15 @@ import scala.math.min
 
 abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
-  protected val nodeIn = TLInputNode()
-  protected val nodeOut = TLOutputNode()
+  protected val nodeIn = TLIdentityNode()
+  protected val nodeOut = TLIdentityNode()
   val node = NodeHandle(nodeIn, nodeOut)
 
   protected val bar = LazyModule(new TLBusBypassBar)
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
   protected val error = LazyModule(new TLError(ErrorParams(everything), beatBytes))
 
+  // order matters
   bar.node := nodeIn
   error.node := bar.node
   nodeOut := bar.node
@@ -28,11 +29,9 @@ abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends L
 class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends TLBusBypassBase(beatBytes)
 {
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = nodeIn.bundleIn
-      val out = nodeOut.bundleOut
+    val io = IO(new Bundle {
       val bypass = Bool(INPUT)
-    }
+    })
     bar.module.io.bypass := io.bypass
   }
 }
@@ -47,17 +46,13 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
     managerFn = { seq => seq(1) })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
+    val io = IO(new Bundle {
       val bypass = Bool(INPUT)
-    }
+    })
 
-    val in   = io.in(0)
-    val out0 = io.out(0)
-    val out1 = io.out(1)
+    val (in, edge) = node.in(0)
+    val Seq((out0,_), (out1,_)) = node.out
 
-    val edge = node.edgesIn(0)
     val bce = edge.manager.anySupportAcquireB && edge.client.anySupportProbe
 
     // We need to be locked to the given bypass direction until all transactions stop

@@ -3,17 +3,28 @@
 package freechips.rocketchip.unittest
 
 import Chisel._
+import chisel3.experimental.MultiIOModule
 import freechips.rocketchip.config._
 import freechips.rocketchip.util.SimpleTimer
 
-trait HasUnitTestIO {
-  val io = new Bundle {
-    val finished = Bool(OUTPUT)
-    val start = Bool(INPUT)
-  }
+trait UnitTestIO {
+  val finished = Bool(OUTPUT)
+  val start = Bool(INPUT)
 }
 
-abstract class UnitTest(val timeout: Int = 4096) extends Module with HasUnitTestIO {
+trait HasUnitTestIO {
+  val io: UnitTestIO
+}
+
+trait UnitTestLegacyModule extends HasUnitTestIO {
+  val io = new Bundle with UnitTestIO
+}
+
+trait UnitTestModule extends MultiIOModule with HasUnitTestIO {
+  val io = IO(new Bundle with UnitTestIO)
+}
+
+abstract class UnitTest(val timeout: Int = 4096) extends Module with UnitTestLegacyModule {
   val testName = this.getClass.getSimpleName
 
   when (io.start) { printf(s"Started UnitTest $testName\n") }

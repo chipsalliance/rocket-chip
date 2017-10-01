@@ -4,13 +4,16 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
 class TLEdge(
   client:  TLClientPortParameters,
-  manager: TLManagerPortParameters)
-  extends TLEdgeParameters(client, manager)
+  manager: TLManagerPortParameters,
+  params:  Parameters,
+  sourceInfo: SourceInfo)
+  extends TLEdgeParameters(client, manager, params, sourceInfo)
 {
   def isAligned(address: UInt, lgSize: UInt): Bool = {
     if (maxLgSize == 0) Bool(true) else {
@@ -262,8 +265,10 @@ class TLEdge(
 
 class TLEdgeOut(
   client:  TLClientPortParameters,
-  manager: TLManagerPortParameters)
-  extends TLEdge(client, manager)
+  manager: TLManagerPortParameters,
+  params:  Parameters,
+  sourceInfo: SourceInfo)
+  extends TLEdge(client, manager, params, sourceInfo)
 {
   // Transfers
   def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
@@ -476,8 +481,10 @@ class TLEdgeOut(
 
 class TLEdgeIn(
   client:  TLClientPortParameters,
-  manager: TLManagerPortParameters)
-  extends TLEdge(client, manager)
+  manager: TLManagerPortParameters,
+  params:  Parameters,
+  sourceInfo: SourceInfo)
+  extends TLEdge(client, manager, params, sourceInfo)
 {
   // Transfers
   def Probe(fromAddress: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {

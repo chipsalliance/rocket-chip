@@ -33,7 +33,7 @@ trait HasMasterAXI4MemPort extends HasMemoryBus {
   private val params = p(ExtMem)
   private val device = new MemoryDevice
 
-  val mem_axi4 = AXI4BlindOutputNode(Seq.tabulate(nMemoryChannels) { channel =>
+  val mem_axi4 = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
     val base = AddressSet(params.base, params.size-1)
     val filter = AddressSet(channel * cacheBlockBytes, ~((nMemoryChannels-1) * cacheBlockBytes))
 
@@ -69,14 +69,18 @@ trait HasMasterAXI4MemPortBundle {
   val mem_axi4: HeterogeneousBag[AXI4Bundle]
   val nMemoryChannels: Int
   def connectSimAXIMem(dummy: Int = 1) = {
-    if (nMemoryChannels > 0) Module(LazyModule(new SimAXIMem(nMemoryChannels)).module).io.axi4 <> mem_axi4
+    if (nMemoryChannels > 0)  {
+      val mem = LazyModule(new SimAXIMem(nMemoryChannels))
+      Module(mem.module).io.axi4 <> mem_axi4
+    }
   }
 }
 
 /** Actually generates the corresponding IO in the concrete Module */
-trait HasMasterAXI4MemPortModuleImp extends LazyMultiIOModuleImp with HasMasterAXI4MemPortBundle {
+trait HasMasterAXI4MemPortModuleImp extends LazyModuleImp with HasMasterAXI4MemPortBundle {
   val outer: HasMasterAXI4MemPort
-  val mem_axi4 = IO(outer.mem_axi4.bundleOut)
+  val mem_axi4 = IO(HeterogeneousBag.fromNode(outer.mem_axi4.in))
+  (mem_axi4 zip outer.mem_axi4.in) foreach { case (i, (o, _)) => i <> o }
   val nMemoryChannels = outer.nMemoryChannels
 }
 
@@ -84,7 +88,7 @@ trait HasMasterAXI4MemPortModuleImp extends LazyMultiIOModuleImp with HasMasterA
 trait HasMasterAXI4MMIOPort extends HasSystemBus {
   private val params = p(ExtBus)
   private val device = new SimpleBus("mmio", Nil)
-  val mmio_axi4 = AXI4BlindOutputNode(Seq(AXI4SlavePortParameters(
+  val mmio_axi4 = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
       address       = List(AddressSet(params.base, params.size-1)),
       resources     = device.ranges,
@@ -107,20 +111,22 @@ trait HasMasterAXI4MMIOPortBundle {
   implicit val p: Parameters
   val mmio_axi4: HeterogeneousBag[AXI4Bundle]
   def connectSimAXIMMIO(dummy: Int = 1) {
-    Module(LazyModule(new SimAXIMem(1, 4096)).module).io.axi4 <> mmio_axi4
+    val mmio_mem = LazyModule(new SimAXIMem(1, 4096))
+    Module(mmio_mem.module).io.axi4 <> mmio_axi4
   }
 }
 
 /** Actually generates the corresponding IO in the concrete Module */
-trait HasMasterAXI4MMIOPortModuleImp extends LazyMultiIOModuleImp with HasMasterAXI4MMIOPortBundle {
+trait HasMasterAXI4MMIOPortModuleImp extends LazyModuleImp with HasMasterAXI4MMIOPortBundle {
   val outer: HasMasterAXI4MMIOPort
-  val mmio_axi4 = IO(outer.mmio_axi4.bundleOut)
+  val mmio_axi4 = IO(HeterogeneousBag.fromNode(outer.mmio_axi4.in))
+  (mmio_axi4 zip outer.mmio_axi4.in) foreach { case (i, (o, _)) => i <> o }
 }
 
 /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
 trait HasSlaveAXI4Port extends HasSystemBus {
   private val params = p(ExtIn)
-  val l2FrontendAXI4Node = AXI4BlindInputNode(Seq(AXI4MasterPortParameters(
+  val l2FrontendAXI4Node = AXI4MasterNode(Seq(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
       name = "AXI4 periphery",
       id   = IdRange(0, 1 << params.idBits))))))
@@ -151,16 +157,17 @@ trait HasSlaveAXI4PortBundle {
 }
 
 /** Actually generates the corresponding IO in the concrete Module */
-trait HasSlaveAXI4PortModuleImp extends LazyMultiIOModuleImp with HasSlaveAXI4PortBundle {
+trait HasSlaveAXI4PortModuleImp extends LazyModuleImp with HasSlaveAXI4PortBundle {
   val outer: HasSlaveAXI4Port
-  val l2_frontend_bus_axi4 = IO(outer.l2FrontendAXI4Node.bundleIn)
+  val l2_frontend_bus_axi4 = IO(HeterogeneousBag.fromNode(outer.l2FrontendAXI4Node.out).flip)
+  (outer.l2FrontendAXI4Node.out zip l2_frontend_bus_axi4) foreach { case ((i, _), o) => i <> o }
 }
 
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
 trait HasMasterTLMMIOPort extends HasSystemBus {
   private val params = p(ExtBus)
   private val device = new SimpleBus("mmio", Nil)
-  val mmio_tl = TLBlindOutputNode(Seq(TLManagerPortParameters(
+  val mmio_tl = TLManagerNode(Seq(TLManagerPortParameters(
     managers = Seq(TLManagerParameters(
       address            = List(AddressSet(params.base, params.size-1)),
       resources          = device.ranges,
@@ -192,9 +199,10 @@ trait HasMasterTLMMIOPortBundle {
 }
 
 /** Actually generates the corresponding IO in the concrete Module */
-trait HasMasterTLMMIOPortModuleImp extends LazyMultiIOModuleImp with HasMasterTLMMIOPortBundle {
+trait HasMasterTLMMIOPortModuleImp extends LazyModuleImp with HasMasterTLMMIOPortBundle {
   val outer: HasMasterTLMMIOPort
-  val mmio_tl = IO(outer.mmio_tl.bundleOut)
+  val mmio_tl = IO(HeterogeneousBag.fromNode(outer.mmio_tl.in))
+  (mmio_tl zip outer.mmio_tl.out) foreach { case (i, (o, _)) => i <> o }
 }
 
 /** Adds an TL port to the system intended to be a slave on an MMIO device bus.
@@ -202,7 +210,7 @@ trait HasMasterTLMMIOPortModuleImp extends LazyMultiIOModuleImp with HasMasterTL
   */
 trait HasSlaveTLPort extends HasSystemBus {
   private val params = p(ExtIn)
-  val l2FrontendTLNode = TLBlindInputNode(Seq(TLClientPortParameters(
+  val l2FrontendTLNode = TLClientNode(Seq(TLClientPortParameters(
     clients = Seq(TLClientParameters(
       name     = "Front Port (TL)",
       sourceId = IdRange(0, 1 << params.idBits))))))
@@ -229,9 +237,10 @@ trait HasSlaveTLPortBundle {
 }
 
 /** Actually generates the corresponding IO in the concrete Module */
-trait HasSlaveTLPortModuleImp extends LazyMultiIOModuleImp with HasSlaveTLPortBundle {
+trait HasSlaveTLPortModuleImp extends LazyModuleImp with HasSlaveTLPortBundle {
   val outer: HasSlaveTLPort
-  val l2_frontend_bus_tl = IO(outer.l2FrontendTLNode.bundleIn)
+  val l2_frontend_bus_tl = IO(HeterogeneousBag.fromNode(outer.l2FrontendTLNode.out).flip)
+  (outer.l2FrontendTLNode.in zip l2_frontend_bus_tl) foreach { case ((i, _), o) => i <> o }
 }
 
 /** Memory with AXI port for use in elaboratable test harnesses. */
@@ -241,7 +250,7 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
   val size = totalSize / channels
   require(totalSize % channels == 0)
 
-  val node = AXI4BlindInputNode(Seq.fill(channels) {
+  val node = AXI4MasterNode(Seq.fill(channels) {
     AXI4MasterPortParameters(Seq(AXI4MasterParameters(
       name = "dut",
       id   = IdRange(0, 1 << config.idBits)
@@ -254,8 +263,9 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
   }
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val axi4 = node.bundleIn
-    }
+    val io = IO(new Bundle {
+      val axi4 = HeterogeneousBag.fromNode(node.out).flip
+    })
+    (node.out zip io.axi4) foreach { case ((i, _), o) => i <> o }
   }
 }

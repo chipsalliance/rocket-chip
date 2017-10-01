@@ -56,28 +56,22 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
 class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
   val icache = LazyModule(new ICache(icacheParams, hartid))
-  val masterNode = TLOutputNode()
-  val slaveNode = TLInputNode()
-
-  masterNode := icache.masterNode
-  // Avoid breaking tile dedup due to address constants in the monitor
-  DisableMonitors { implicit p => icache.slaveNode.map { _ := slaveNode } }
+  val masterNode = icache.masterNode
+  val slaveNode = icache.slaveNode
 }
 
 class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)
     with HasExternallyDrivenTileConstants {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
-  val tl_out = outer.masterNode.bundleOut
-  val tl_in = outer.slaveNode.bundleIn
   val errors = new ICacheErrors
 }
 
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasCoreParameters
     with HasL1ICacheParameters {
-  val io = new FrontendBundle(outer)
-  implicit val edge = outer.masterNode.edgesOut.head
+  val io = IO(new FrontendBundle(outer))
+  implicit val edge = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 

@@ -53,11 +53,9 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
     sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
+    val io = IO(new Bundle {
       val rtcTick = Bool(INPUT)
-      val int = intnode.bundleOut
-      val in = node.bundleIn
-    }
+    })
 
     val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
     when (io.rtcTick) {
@@ -66,11 +64,12 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
         reg := newTime >> i
     }
 
-    val nTiles = intnode.edgesOut.size
+    val nTiles = intnode.out.size
     val timecmp = Seq.fill(nTiles) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
     val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 
-    io.int.zipWithIndex.foreach { case (int, i) =>
+    val (intnode_out, _) = intnode.out.unzip
+    intnode_out.zipWithIndex.foreach { case (int, i) =>
       int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
       int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
     }

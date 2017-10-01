@@ -46,19 +46,19 @@ trait HasRocketTiles extends HasSystemBus
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(tp, i)(pWithExtra))
         sbus.fromSyncTiles(params, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, tp.externalSlaveBuffers)
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, tp.externalSlaveBuffers) }
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(tp, i)(pWithExtra))
         sbus.fromAsyncTiles(depth, sync, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, tp.externalSlaveBuffers)
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, tp.externalSlaveBuffers) }
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(tp, i)(pWithExtra))
         sbus.fromRationalTiles(direction, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
-        wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, tp.externalSlaveBuffers)
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, tp.externalSlaveBuffers) }
         wrapper
       }
     }
@@ -84,7 +84,11 @@ trait HasRocketTiles extends HasSystemBus
     lip.foreach { coreIntXbar.intnode := _ }                // lip
     wrapper.coreIntNode   := coreIntXbar.intnode
 
-    wrapper.intOutputNode.foreach { plic.intnode := _ }
+    wrapper.intOutputNode.foreach { case int =>
+      val rocketIntXing = LazyModule(new IntXing(wrapper.outputInterruptXingLatency))
+      FlipRendering { implicit p => rocketIntXing.intnode := int }
+      plic.intnode := rocketIntXing.intnode
+    }
 
     wrapper
   }
@@ -98,7 +102,7 @@ trait HasRocketTilesBundle {
   val rocket_tile_inputs: Vec[ClockedRocketTileInputs]
 }
 
-trait HasRocketTilesModuleImp extends LazyMultiIOModuleImp
+trait HasRocketTilesModuleImp extends LazyModuleImp
     with HasRocketTilesBundle
     with HasResetVectorWire
     with HasPeripheryDebugModuleImp {

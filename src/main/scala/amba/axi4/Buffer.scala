@@ -26,11 +26,6 @@ class AXI4Buffer(
     slaveFn  = { p => p.copy(minLatency = p.minLatency + min(aw.latency,ar.latency) + min(r.latency,b.latency)) })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = node.bundleIn
-      val out = node.bundleOut
-    }
-
     def buffer[T <: Data](config: BufferParams, data: IrrevocableIO[T]): IrrevocableIO[T] = {
       if (config.isDefined) {
         Queue.irrevocable(data, config.depth, pipe=config.pipe, flow=config.flow)
@@ -39,7 +34,7 @@ class AXI4Buffer(
       }
     }
 
-    ((io.in zip io.out) zip (node.edgesIn zip node.edgesOut)) foreach { case ((in, out), (edgeIn, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.aw <> buffer(aw, in .aw)
       out.w  <> buffer(w,  in .w)
       in .b  <> buffer(b,  out.b)

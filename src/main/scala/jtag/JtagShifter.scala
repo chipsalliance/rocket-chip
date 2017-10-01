@@ -150,7 +150,7 @@ class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V) ex
   io.chainOut.data := regs(0)
 
   val updateBits = Cat(regs.reverse)(updateWidth-1, 0)
-  io.update.bits := io.update.bits.fromBits(updateBits)
+  io.update.bits := updateBits.asTypeOf(io.update.bits)
 
   val captureBits = io.capture.bits.asUInt()
 

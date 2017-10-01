@@ -7,11 +7,18 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
+class AXI4RAM(
+    address: AddressSet,
+    executable: Boolean = true,
+    beatBytes: Int = 4,
+    devName: Option[String] = None,
+    errors: Seq[AddressSet] = Nil)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address       = List(address) ++ errors,
+      resources     = resources,
       regionType    = RegionType.UNCACHED,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes),
@@ -20,20 +27,9 @@ class AXI4RAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 
     beatBytes  = beatBytes,
     minLatency = 1)))
 
-  // We require the address range to include an entire beat (for the write mask)
-  require ((address.mask & (beatBytes-1)) == beatBytes-1)
-
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
-
-    def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
-      if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
-    val mask = bigBits(address.mask >> log2Ceil(beatBytes))
-
-    val in = io.in(0)
-    val mem = SeqMem(1 << mask.filter(b=>b).size, Vec(beatBytes, Bits(width = 8)))
+    val (in, _) = node.in(0)
+    val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
     val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)

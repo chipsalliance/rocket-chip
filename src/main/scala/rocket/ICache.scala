@@ -45,15 +45,15 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 
 class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
-  val masterNode = TLClientNode(TLClientParameters(
+  val masterNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters(
     sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
-    name = s"Core ${hartid} ICache"))
+    name = s"Core ${hartid} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val device = new SimpleDevice("itim", Seq("sifive,itim0"))
-  val slaveNode = icacheParams.itimAddr.map { itimAddr =>
-    val wordBytes = icacheParams.fetchBytes
-    TLManagerNode(Seq(TLManagerPortParameters(
+  private val wordBytes = icacheParams.fetchBytes
+  val slaveNode =
+    TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
@@ -64,8 +64,7 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
         supportsGet     = TransferSizes(1, wordBytes),
         fifoId          = Some(0))), // requests handled in FIFO order
       beatBytes = wordBytes,
-      minLatency = 1)))
-  }
+      minLatency = 1)})
 }
 
 class ICacheResp(outer: ICache) extends Bundle {
@@ -91,8 +90,6 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
 
   val resp = Valid(new ICacheResp(outer))
   val invalidate = Bool(INPUT)
-  val tl_out = outer.masterNode.bundleOut
-  val tl_in = outer.slaveNode.map(_.bundleIn)
 
   val errors = new ICacheErrors
   val perf = new ICachePerfEvents().asOutput
@@ -109,11 +106,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   override val cacheParams = outer.icacheParams // Use the local parameters
 
-  val io = new ICacheBundle(outer)
-  val edge_out = outer.masterNode.edgesOut.head
-  val tl_out = io.tl_out.head
-  val edge_in = outer.slaveNode.map(_.edgesIn.head)
-  val tl_in = io.tl_in.map(_.head)
+  val io = IO(new ICacheBundle(outer))
+  val (tl_out, edge_out) = outer.masterNode.out(0)
+  // Option.unzip does not exist :-(
+  val (tl_in, edge_in) = outer.slaveNode.in.headOption.unzip
 
   val tECC = cacheParams.tagECC
   val dECC = cacheParams.dataECC
@@ -179,15 +175,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
-  val refillError = tl_out.d.bits.error || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
-    val enc_tag = tECC.encode(Cat(refillError, refill_tag))
+    val enc_tag = tECC.encode(Cat(tl_out.d.bits.error, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
-    accruedRefillError := refillError
     // clear bit when refill starts so hit-under-miss doesn't fetch bad data
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), refill_done && !invalidated)
   }

@@ -61,26 +61,13 @@ object IntSinkPortSimple
     Seq.fill(ports)(IntSinkPortParameters(Seq.fill(sinks)(IntSinkParameters())))
 }
 
-case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters)
+case class IntEdge(source: IntSourcePortParameters, sink: IntSinkPortParameters, params: Parameters, sourceInfo: SourceInfo)
 
-object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, IntEdge, Vec[Bool]]
+object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
 {
-  def edgeO(pd: IntSourcePortParameters, pu: IntSinkPortParameters): IntEdge = IntEdge(pd, pu)
-  def edgeI(pd: IntSourcePortParameters, pu: IntSinkPortParameters): IntEdge = IntEdge(pd, pu)
-  def bundleO(eo: IntEdge): Vec[Bool] = Vec(eo.source.num, Bool())
-  def bundleI(ei: IntEdge): Vec[Bool] = Vec(ei.source.num, Bool())
-
-  def colour = "#0000ff" // blue
-  override def reverse = true
-  override def labelI(ei: IntEdge) = ei.source.sources.map(_.range.size).sum.toString
-  override def labelO(eo: IntEdge) = eo.source.sources.map(_.range.size).sum.toString
-
-  def connect(bo: => Vec[Bool], bi: => Vec[Bool], ei: => IntEdge)(implicit p: Parameters, sourceInfo: SourceInfo): (Option[LazyModule], () => Unit) = {
-    (None, () => {
-      // Cannot use bulk connect, because the widths could differ
-      (bo zip bi) foreach { case (o, i) => i := o }
-    })
-  }
+  def edge(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo) = IntEdge(pd, pu, p, sourceInfo)
+  def bundle(e: IntEdge) = Vec(e.source.num, Bool())
+  def render(e: IntEdge) = RenderedEdge(colour = "#0000ff" /* blue */, label = e.source.sources.map(_.range.size).sum.toString, flipped = true)
 
   override def mixO(pd: IntSourcePortParameters, node: OutwardNode[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]): IntSourcePortParameters =
    pd.copy(sources = pd.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })
@@ -88,25 +75,23 @@ object IntImp extends NodeImp[IntSourcePortParameters, IntSinkPortParameters, In
    pu.copy(sinks   = pu.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
 }
 
-case class IntIdentityNode() extends IdentityNode(IntImp)
-case class IntSourceNode(portParams: Seq[IntSourcePortParameters]) extends SourceNode(IntImp)(portParams)
-case class IntSinkNode(portParams: Seq[IntSinkPortParameters]) extends SinkNode(IntImp)(portParams)
+case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends SourceNode(IntImp)(portParams)
+case class IntSinkNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends SinkNode(IntImp)(portParams)
+case class IntAdapterNode(
+  sourceFn: IntSourcePortParameters => IntSourcePortParameters = { s => s },
+  sinkFn:   IntSinkPortParameters   => IntSinkPortParameters   = { s => s },
+  num:      Range.Inclusive = 0 to 999)(
+  implicit valName: ValName)
+  extends AdapterNode(IntImp)(sourceFn, sinkFn, num)
+case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)()
 
 case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
   sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
   numSourcePorts: Range.Inclusive = 0 to 128,
-  numSinkPorts:   Range.Inclusive = 0 to 128)
+  numSinkPorts:   Range.Inclusive = 0 to 128)(
+  implicit valName: ValName)
   extends NexusNode(IntImp)(sourceFn, sinkFn, numSourcePorts, numSinkPorts)
-
-case class IntOutputNode() extends OutputNode(IntImp)
-case class IntInputNode() extends InputNode(IntImp)
-
-case class IntBlindOutputNode(portParams: Seq[IntSinkPortParameters]) extends BlindOutputNode(IntImp)(portParams)
-case class IntBlindInputNode(portParams: Seq[IntSourcePortParameters]) extends BlindInputNode(IntImp)(portParams)
-
-case class IntInternalOutputNode(portParams: Seq[IntSinkPortParameters]) extends InternalOutputNode(IntImp)(portParams)
-case class IntInternalInputNode(portParams: Seq[IntSourcePortParameters]) extends InternalInputNode(IntImp)(portParams)
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {
@@ -119,27 +104,17 @@ class IntXbar()(implicit p: Parameters) extends LazyModule
     })
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in  = intnode.bundleIn
-      val out = intnode.bundleOut
-    }
-
-    val cat = (intnode.edgesIn zip io.in).map{ case (e, i) => i.take(e.source.num) }.flatten
-    io.out.foreach { _ := cat }
+    val cat = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
+    intnode.out.foreach { case (o, _) => o := cat }
   }
 }
 
 class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
-  val intnode = IntIdentityNode()
+  val intnode = IntAdapterNode()
 
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = intnode.bundleIn
-      val out = intnode.bundleOut
-    }
-
-    (io.in zip io.out) foreach { case (in, out) =>
+    (intnode.in zip intnode.out) foreach { case ((in, _), (out, _)) =>
       out := SynchronizerShiftReg(in, sync)
     }
   }

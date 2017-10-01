@@ -47,4 +47,7 @@ package object diplomacy
   def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case MonitorsEnabled => false
   })
+  def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case RenderFlipped => !p(RenderFlipped)
+  })
 }

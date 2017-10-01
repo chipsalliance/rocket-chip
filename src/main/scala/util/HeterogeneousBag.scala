@@ -17,3 +17,8 @@ final case class HeterogeneousBag[T <: Data](elts: Seq[T]) extends Record with c
   override def hashCode: Int = super[Record].hashCode
   override def equals(that: Any): Boolean = super[Record].equals(that)
 }
+
+object HeterogeneousBag
+{
+  def fromNode[D <: Data, E](elts: Seq[(D, E)]) = new HeterogeneousBag(elts.map(_._1.cloneType))
+}

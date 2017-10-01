@@ -7,35 +7,30 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class APBRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
+class APBRAM(
+    address: AddressSet,
+    executable: Boolean = true,
+    beatBytes: Int = 4,
+    devName: Option[String] = None,
+    errors: Seq[AddressSet] = Nil)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = APBSlaveNode(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(
       address       = List(address) ++ errors,
+      resources     = resources,
       regionType    = RegionType.UNCACHED,
       executable    = executable,
       supportsRead  = true,
       supportsWrite = true)),
     beatBytes  = beatBytes)))
 
-  // We require the address range to include an entire beat (for the write mask)
-  require ((address.mask & (beatBytes-1)) == beatBytes-1)
-
   lazy val module = new LazyModuleImp(this) {
-    val io = new Bundle {
-      val in = node.bundleIn
-    }
+    val (in, _) = node.in(0)
+    val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
 
-    val in = io.in(0)
-
-    def bigBits(x: BigInt, tail: List[Boolean] = List.empty[Boolean]): List[Boolean] =
-      if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
-    val mask = bigBits(address.mask >> log2Ceil(beatBytes))
     val paddr = Cat((mask zip (in.paddr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
     val legal = address.contains(in.paddr)
-
-    // Use single-ported memory with byte-write enable
-    val mem = SeqMem(1 << mask.filter(b=>b).size, Vec(beatBytes, Bits(width = 8)))
 
     val read = in.psel && !in.penable && !in.pwrite
     when (in.psel && !in.penable && in.pwrite && legal) {

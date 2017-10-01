@@ -54,9 +54,9 @@ trait HasPeripheryDebugBundle {
     }
     debug.psd.foreach { _ <> psd }
   }
-
 }
-trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryDebugBundle {
+
+trait HasPeripheryDebugModuleImp extends LazyModuleImp with HasPeripheryDebugBundle {
   val outer: HasPeripheryDebug
 
   val debug = IO(new DebugIO)

@@ -22,7 +22,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
   master_splitter.suggestName(s"${busName}_master_TLSplitter")
   inwardNode :=* master_splitter.node
-  def busView = master_splitter.node.edgesIn.head
+  def busView = master_splitter.node.edges.in.head
 
   protected def inwardSplitNode: TLInwardNode = master_splitter.node
   protected def outwardSplitNode: TLOutwardNode = master_splitter.node
@@ -122,7 +122,7 @@ trait HasSystemBus extends HasInterruptBus {
   private val sbusParams = p(SystemBusKey)
   val sbusBeatBytes = sbusParams.beatBytes
 
-  val sbus = new SystemBus(sbusParams)
+  val sbus = LazyModule(new SystemBus(sbusParams))
 
   def sharedMemoryTLEdge: TLEdge = sbus.busView
   def paddrBits: Int = sbus.busView.bundle.addressBits
