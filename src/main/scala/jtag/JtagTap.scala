@@ -4,6 +4,8 @@ package freechips.rocketchip.jtag
 
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.config.Parameters
+
 /** JTAG signals, viewed from the master side
   */
 class JTAGIO(hasTRSTn: Boolean = false) extends Bundle {
@@ -57,7 +59,7 @@ class JtagControllerIO(irLength: Int) extends JtagBlockIO(irLength, false) {
   * Misc notes:
   * - Figure 6-3 and 6-4 provides examples with timing behavior
   */
-class JtagTapController(irLength: Int, initialInstruction: BigInt) extends Module {
+class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val p: Parameters) extends Module {
   require(irLength >= 2)  // 7.1.1a
 
   val io = IO(new JtagControllerIO(irLength))
@@ -160,7 +162,7 @@ object JtagTapGenerator {
     * TODO:
     * - support concatenated scan chains
     */
-  def apply(irLength: Int, instructions: Map[BigInt, Chain], icode: Option[BigInt] = None): JtagBlockIO = {
+  def apply(irLength: Int, instructions: Map[BigInt, Chain], icode: Option[BigInt] = None)(implicit p: Parameters): JtagBlockIO = {
 
     val internalIo = Wire(new JtagBlockIO(irLength, icode.isDefined))
 
