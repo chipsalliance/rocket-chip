@@ -35,6 +35,11 @@ trait DontTouch {
     self.getModulePorts.foreach(dontTouch(_))
     self
   }
+
+  def dontTouchPortsExcept(f: Data => Boolean): this.type = {
+    self.getModulePorts.filterNot(f).foreach(dontTouch(_))
+    self
+  }
 }
 
 trait Clocked extends Bundle {
