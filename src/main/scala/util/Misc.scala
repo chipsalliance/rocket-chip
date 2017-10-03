@@ -4,6 +4,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.experimental.{dontTouch, RawModule}
 import freechips.rocketchip.config.Parameters
 import scala.math._
 
@@ -18,6 +19,21 @@ class ParameterizedBundle(implicit p: Parameters) extends Bundle {
                        "() takes more than one argument.  Consider overriding " +
                        "cloneType() on " + this.getClass, e)
     }
+  }
+}
+
+// TODO: replace this with an implicit class when @chisel unprotects dontTouchPorts
+trait DontTouch {
+  self: RawModule =>
+
+  /** Marks every port as don't touch
+    *
+    * @note This method can only be called after the Module has been fully constructed
+    *   (after Module(...))
+    */
+  def dontTouchPorts(): this.type = {
+    self.getModulePorts.foreach(dontTouch(_))
+    self
   }
 }
 
