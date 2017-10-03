@@ -109,8 +109,12 @@ trait HasRocketTilesModuleImp extends LazyModuleImp
     with HasPeripheryDebugModuleImp {
   val outer: HasRocketTiles
 
-  // TODO make this less gross and/or support tiles with differently sized reset vectors
-  def resetVectorBits: Int = outer.paddrBits
+  def resetVectorBits: Int = {
+    // Consider using the minimum over all widths, rather than enforcing homogeneity
+    val vectors = outer.rocket_tiles.map(_.module.io.reset_vector)
+    require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
+    vectors.head.getWidth
+  }
   val rocket_tile_inputs = dontTouch(Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
     case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
   })))) // dontTouch keeps constant prop from sucking these signals into the tile
