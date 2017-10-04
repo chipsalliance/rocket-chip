@@ -37,14 +37,25 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
 
-    when (bundle.opcode === TLMessages.Acquire) {
-      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries Acquire type unsupported by manager" + extra)
-      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries Acquire from a client which does not support Probe" + extra)
-      assert (source_ok, "'A' channel Acquire carries invalid source ID" + extra)
-      assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel Acquire smaller than a beat" + extra)
-      assert (is_aligned, "'A' channel Acquire address not aligned to size" + extra)
-      assert (TLPermissions.isGrow(bundle.param), "'A' channel Acquire carries invalid grow param" + extra)
-      assert (~bundle.mask === UInt(0), "'A' channel Acquire contains invalid mask" + extra)
+    when (bundle.opcode === TLMessages.AcquireBlock) {
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
+      assert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + extra)
+      assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel AcquireBlock smaller than a beat" + extra)
+      assert (is_aligned, "'A' channel AcquireBlock address not aligned to size" + extra)
+      assert (TLPermissions.isGrow(bundle.param), "'A' channel AcquireBlock carries invalid grow param" + extra)
+      assert (~bundle.mask === UInt(0), "'A' channel AcquireBlock contains invalid mask" + extra)
+    }
+
+    when (bundle.opcode === TLMessages.AcquirePerm) {
+      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type unsupported by manager" + extra)
+      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + extra)
+      assert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + extra)
+      assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'A' channel AcquirePerm smaller than a beat" + extra)
+      assert (is_aligned, "'A' channel AcquirePerm address not aligned to size" + extra)
+      assert (TLPermissions.isGrow(bundle.param), "'A' channel AcquirePerm carries invalid grow param" + extra)
+      assert (bundle.param =/= TLPermissions.NtoB, "'A' channel AcquirePerm requests NtoB" + extra)
+      assert (~bundle.mask === UInt(0), "'A' channel AcquirePerm contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {

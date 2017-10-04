@@ -276,7 +276,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   io.wb_req.bits.voluntary := Bool(true)
 
   io.mem_acquire.valid := state === s_refill_req && grantackq.io.enq.ready
-  io.mem_acquire.bits := edge.Acquire(
+  io.mem_acquire.bits := edge.AcquireBlock(
                                 fromSource = UInt(id),
                                 toAddress = Cat(io.tag, req_idx) << blockOffBits,
                                 lgSize = lgCacheBlockBytes,

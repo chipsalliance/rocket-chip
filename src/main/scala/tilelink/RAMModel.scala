@@ -116,7 +116,7 @@ class TLRAMModel(log: String = "")(implicit p: Parameters) extends LazyModule
 
       when (a_fire) {
         // Record the request so we can handle it's response
-        assert (a.opcode =/= TLMessages.Acquire)
+        assert (a.opcode =/= TLMessages.AcquireBlock && a.opcode =/= TLMessages.AcquirePerm)
 
         // Mark the operation as valid
         valid(a.source) := Bool(true)

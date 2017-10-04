@@ -47,7 +47,8 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       val a_a = Wire(out.a)
       val a_d = Wire(in.d)
       val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
-      val toD = in.a.bits.opcode === Acquire && in.a.bits.param === TLPermissions.BtoT
+      val toD = (in.a.bits.opcode === AcquireBlock && in.a.bits.param === TLPermissions.BtoT) ||
+                (in.a.bits.opcode === AcquirePerm)
       in.a.ready := Mux(toD, a_d.ready, a_a.ready)
 
       a_a.valid := in.a.valid && !toD
@@ -55,7 +56,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       a_a.bits.source := in.a.bits.source << 1 | Mux(isPut, UInt(1), UInt(0))
 
       // Transform Acquire into Get
-      when (in.a.bits.opcode === Acquire) {
+      when (in.a.bits.opcode === AcquireBlock || in.a.bits.opcode === AcquirePerm) {
         a_a.bits.opcode := Get
         a_a.bits.param  := UInt(0)
         a_a.bits.source := in.a.bits.source << 1 | UInt(1)
