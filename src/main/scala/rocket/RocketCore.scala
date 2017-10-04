@@ -23,7 +23,8 @@ case class RocketCoreParams(
   nBreakpoints: Int = 1,
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
-  nCustomMRWCSRs: Int = 0,
+  haveBasicCounters: Boolean = true,
+  misaWritable: Boolean = true,
   nL2TLBEntries: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
   mtvecWritable: Boolean = true,
@@ -46,12 +47,6 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   val fastLoadWord = rocketParams.fastLoadWord
   val fastLoadByte = rocketParams.fastLoadByte
-  val nBreakpoints = rocketParams.nBreakpoints
-  val nPMPs = rocketParams.nPMPs
-  val nPerfCounters = rocketParams.nPerfCounters
-  val nCustomMrwCsrs = rocketParams.nCustomMRWCSRs
-  val mtvecInit = rocketParams.mtvecInit
-  val mtvecWritable = rocketParams.mtvecWritable
 
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
