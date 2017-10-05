@@ -16,6 +16,7 @@ class BaseConfig extends Config(new BaseCoreplexConfig().alter((site,here,up) =>
   case DTSCompat => Nil
   // External port parameters
   case IncludeJtagDTM => false
+  case IncludeAXIDTM => false
   case JtagDTMKey => new JtagDTMKeyDefault()
   case NExtTopInterrupts => 2
   case ExtMem => MasterPortParams(
