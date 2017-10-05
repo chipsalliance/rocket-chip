@@ -176,6 +176,11 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
         t.probe := (if (caches.size == 0) UInt(0) else Mux(a_cache.orR(), UInt(caches.size-1), UInt(caches.size)))
       }
 
+      val acq_perms = MuxLookup(in.a.bits.param, Wire(UInt(width = 2)), Array(
+        TLPermissions.NtoB -> TLPermissions.toB,
+        TLPermissions.NtoT -> TLPermissions.toN,
+        TLPermissions.BtoT -> TLPermissions.toN))
+
       when (in.a.fire() && a_first) {
         probe_todo  := ~a_cache // probe all but the cache who poked us
         probe_line  := in.a.bits.address >> lineShift
@@ -188,10 +193,8 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
           TLMessages.Hint           -> MuxLookup(in.a.bits.param, Wire(UInt(width = 2)), Array(
             TLHints.PREFETCH_READ   -> TLPermissions.toB,
             TLHints.PREFETCH_WRITE  -> TLPermissions.toN)),
-          TLMessages.Acquire        -> MuxLookup(in.a.bits.param, Wire(UInt(width = 2)), Array(
-            TLPermissions.NtoB      -> TLPermissions.toB,
-            TLPermissions.NtoT      -> TLPermissions.toN,
-            TLPermissions.BtoT      -> TLPermissions.toN))))
+          TLMessages.AcquireBlock   -> acq_perms,
+          TLMessages.AcquirePerm    -> acq_perms))
       }
 
       // The outer TL connections may not be cached
@@ -236,7 +239,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   when (io.in_a.fire() && io.in_a_first) {
     assert (idle)
     sent_d  := Bool(false)
-    got_e   := io.in_a.bits.opcode =/= TLMessages.Acquire
+    got_e   := io.in_a.bits.opcode =/= TLMessages.AcquireBlock && io.in_a.bits.opcode =/= TLMessages.AcquirePerm
     opcode  := io.in_a.bits.opcode
     param   := io.in_a.bits.param
     size    := io.in_a.bits.size
@@ -271,7 +274,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   i_data.bits.data := io.in_a.bits.data
 
   val probe_done = count === UInt(0)
-  val acquire = opcode === TLMessages.Acquire
+  val acquire = opcode === TLMessages.AcquireBlock || opcode === TLMessages.AcquirePerm
 
   val transform = MuxLookup(param, Wire(UInt(width = 2)), Array(
     TLPermissions.NtoB -> TRANSFORM_B,

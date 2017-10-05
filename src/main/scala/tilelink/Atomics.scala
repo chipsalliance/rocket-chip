@@ -51,8 +51,8 @@ class Atomics(params: TLBundleParameters) extends Module
     UInt(3),   // LogicalData
     UInt(0),   // Get
     UInt(0),   // Hint
-    UInt(0),   // Acquire
-    UInt(0)))( // Overwrite
+    UInt(0),   // AcquireBlock
+    UInt(0)))( // AcquirePerm
     io.a.opcode))
 
   // Only the masked bytes can be modified

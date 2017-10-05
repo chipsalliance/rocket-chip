@@ -384,7 +384,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val a_size = mtSize(s2_req.typ)
   val a_data = Fill(beatWords, pstore1_data)
   val acquire = if (edge.manager.anySupportAcquireB) {
-    edge.Acquire(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
+    edge.AcquireBlock(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
   }
