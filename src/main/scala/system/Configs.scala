@@ -63,9 +63,6 @@ class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseCo
 class DualCoreConfig extends Config(
   new WithNBigCores(2) ++ new BaseConfig)
 
-class HeterogeneousDualCoreConfig extends Config(
-  new WithNSmallCores(1) ++ new WithNBigCores(1) ++ new BaseConfig)
-
 class TinyConfig extends Config(
   new WithNMemoryChannels(0) ++
   new WithStatelessBridge ++
