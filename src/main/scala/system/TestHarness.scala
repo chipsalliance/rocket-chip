@@ -14,7 +14,6 @@ class TestHarness()(implicit p: Parameters) extends Module {
   val dut = Module(LazyModule(new ExampleRocketSystem).module)
   dut.reset := reset | dut.debug.ndreset
 
-  dut.dontTouchPorts()
   dut.tieOffInterrupts()
   dut.connectSimAXIMem()
   dut.connectSimAXIMMIO()

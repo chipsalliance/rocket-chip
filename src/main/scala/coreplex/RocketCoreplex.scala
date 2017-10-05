@@ -3,7 +3,6 @@
 package freechips.rocketchip.coreplex
 
 import Chisel._
-import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
@@ -115,9 +114,9 @@ trait HasRocketTilesModuleImp extends LazyModuleImp
     require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
     vectors.head.getWidth
   }
-  val rocket_tile_inputs = dontTouch(Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
+  val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
     case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
-  })))) // dontTouch keeps constant prop from sucking these signals into the tile
+  })))
 
   // Unconditionally wire up the non-diplomatic tile inputs
   outer.rocket_tiles.map(_.module).zip(rocket_tile_inputs).foreach { case(tile, wire) =>
@@ -131,7 +130,7 @@ trait HasRocketTilesModuleImp extends LazyModuleImp
   rocket_tile_inputs.zipWithIndex.foreach { case(wire, i) =>
     wire.clock := clock
     wire.reset := reset
-    wire.hartid := i.U
+    wire.hartid := UInt(i)
     wire.reset_vector := global_reset_vector
   }
 }
