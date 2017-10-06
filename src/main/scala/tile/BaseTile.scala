@@ -100,12 +100,13 @@ trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
     with HasTileParameters {
-  override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
+  def module: BaseTileModule[BaseTile, BaseTileBundle[BaseTile]]
 }
 
-class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
+abstract class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
     with HasExternallyDrivenTileConstants
     with CanHaveInstructionTracePort
+    with CanHaltAndCatchFire
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
     with HasTileParameters {

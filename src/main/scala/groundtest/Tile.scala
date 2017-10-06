@@ -37,6 +37,7 @@ abstract class GroundTestTile(params: GroundTestTileParams)(implicit p: Paramete
 
 class GroundTestTileBundle[+L <: GroundTestTile](_outer: L) extends BaseTileBundle(_outer) {
   val status = new GroundTestStatus
+  val halt_and_catch_fire = None
 }
 
 class GroundTestTileModule[+L <: GroundTestTile, +B <: GroundTestTileBundle[L]](_outer: L, _io: () => B) extends BaseTileModule(_outer, _io) {
