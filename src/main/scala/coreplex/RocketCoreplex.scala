@@ -36,7 +36,7 @@ trait HasRocketTiles extends HasSystemBus
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
   val wiringTuple = localIntNodes.zip(tileParams)
-  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case (lip, tp) =>
+  val rocket_tiles: Seq[BaseTile] = wiringTuple.map { case (lip, tp) =>
     val pWithExtra = p.alterPartial {
       case TileKey => tp
       case BuildRoCC => tp.rocc

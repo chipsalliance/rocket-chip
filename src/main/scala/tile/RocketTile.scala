@@ -181,7 +181,12 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   ptw.io.requestor <> ptwPorts
 }
 
-abstract class RocketTileWrapper(rtp: RocketTileParams)(implicit p: Parameters) extends LazyModule {
+class RocketTileWrapperBundle[+L <: RocketTileWrapper](_outer: L) extends BaseTileBundle(_outer)
+    with CanHaltAndCatchFire {
+  val halt_and_catch_fire = _outer.rocket.module.io.halt_and_catch_fire.map(_.cloneType)
+}
+
+abstract class RocketTileWrapper(rtp: RocketTileParams)(implicit p: Parameters) extends BaseTile(rtp) {
   val rocket = LazyModule(new RocketTile(rtp))
   val asyncIntNode   : IntInwardNode
   val periphIntNode  : IntInwardNode
@@ -213,13 +218,7 @@ abstract class RocketTileWrapper(rtp: RocketTileParams)(implicit p: Parameters) 
 
   def outputInterruptXingLatency: Int
 
-  lazy val module = new LazyModuleImp(this) {
-    val io = IO(new CoreBundle
-        with HasExternallyDrivenTileConstants
-        with CanHaveInstructionTracePort
-        with CanHaltAndCatchFire {
-      val halt_and_catch_fire = rocket.module.io.halt_and_catch_fire.map(_.cloneType)
-    })
+  override lazy val module = new BaseTileModule(this, () => new RocketTileWrapperBundle(this)) {
     // signals that do not change based on crossing type:
     rocket.module.io.hartid := io.hartid
     rocket.module.io.reset_vector := io.reset_vector
