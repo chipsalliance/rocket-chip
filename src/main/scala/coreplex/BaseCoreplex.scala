@@ -6,6 +6,9 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.tile.{BaseTile, TileParams}
+import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.util._
 
 /** Enumerates the three types of clock crossing between tiles and system bus */
@@ -27,6 +30,21 @@ abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyMod
   ElaborationArtefacts.add("dts", outer.dts)
   ElaborationArtefacts.add("json", outer.json)
   println(outer.dts)
+}
+
+trait HasTiles extends HasSystemBus {
+  protected def tileParams: Seq[TileParams]
+  def nRocketTiles = tileParams.size
+  def hartIdList = tileParams.map(_.hartid)
+
+  // Handle interrupts to be routed directly into each tile
+  // TODO: figure out how to merge the localIntNodes and coreIntXbar
+  def localIntCounts = tileParams.map(_.core.nLocalInterrupts)
+  def localIntNodes = tileParams map { t =>
+    (t.core.nLocalInterrupts > 0).option(LazyModule(new IntXbar).intnode)
+  }
+
+  val rocket_tiles: Seq[BaseTile]
 }
 
 /** Base Coreplex class with no peripheral devices or ports added */

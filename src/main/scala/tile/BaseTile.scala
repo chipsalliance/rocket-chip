@@ -22,6 +22,7 @@ trait TileParams {
   val rocc: Seq[RoCCParams]
   val btb: Option[BTBParams]
   val trace: Boolean
+  val hartid: Int
 }
 
 trait HasTileParameters {

@@ -14,7 +14,7 @@ import freechips.rocketchip.util._
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossing extends Field[CoreplexClockCrossing](SynchronousCrossing())
 
-trait HasRocketTiles extends HasSystemBus
+trait HasRocketTiles extends HasTiles
     with HasPeripheryBus
     with HasPeripheryPLIC
     with HasPeripheryClint
@@ -22,21 +22,11 @@ trait HasRocketTiles extends HasSystemBus
   val module: HasRocketTilesModuleImp
 
   private val crossing = p(RocketCrossing)
-  private val tileParams = p(RocketTilesKey)
-  val nRocketTiles = tileParams.size
-  val hartIdList = tileParams.map(_.hartid)
-
-  // Handle interrupts to be routed directly into each tile
-  // TODO: figure out how to merge the localIntNodes and coreIntXbar below
-  val localIntCounts = tileParams.map(_.core.nLocalInterrupts)
-  val localIntNodes = tileParams map { t =>
-    (t.core.nLocalInterrupts > 0).option(LazyModule(new IntXbar).intnode)
-  }
+  protected val tileParams = p(RocketTilesKey)
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
-  val wiringTuple = localIntNodes.zip(tileParams)
-  val rocket_tiles: Seq[BaseTile] = wiringTuple.map { case (lip, tp) =>
+  val rocket_tiles: Seq[BaseTile] = localIntNodes.zip(tileParams).map { case (lip, tp) =>
     val pWithExtra = p.alterPartial {
       case TileKey => tp
       case BuildRoCC => tp.rocc
@@ -107,7 +97,7 @@ trait HasRocketTilesModuleImp extends LazyModuleImp
     with HasRocketTilesBundle
     with HasResetVectorWire
     with HasPeripheryDebugModuleImp {
-  val outer: HasRocketTiles
+  val outer: HasTiles with HasPeripheryDebug
 
   def resetVectorBits: Int = {
     // Consider using the minimum over all widths, rather than enforcing homogeneity
