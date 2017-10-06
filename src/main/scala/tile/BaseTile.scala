@@ -99,19 +99,16 @@ trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
 
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with HasTileParameters
-    with HasTileLinkMasterPort {
+    with HasTileParameters {
   override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
 }
 
 class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with HasTileLinkMasterPortBundle
     with HasExternallyDrivenTileConstants
     with CanHaveInstructionTracePort
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
-    with HasTileParameters
-    with HasTileLinkMasterPortModule {
+    with HasTileParameters {
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits)
   require(resetVectorLen <= xLen)

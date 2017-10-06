@@ -31,7 +31,6 @@ case object GroundTestTilesKey extends Field[Seq[GroundTestTileParams]]
 abstract class GroundTestTile(params: GroundTestTileParams)(implicit p: Parameters) extends BaseTile(params)(p) {
   val slave = None
   val dcacheOpt = params.dcache.map { dc => LazyModule(HellaCache(0, dc.nMSHRs == 0)) }
-  dcacheOpt.foreach { tileBus.node := _.node }
 
   override lazy val module = new GroundTestTileModule(this, () => new GroundTestTileBundle(this))
 }
