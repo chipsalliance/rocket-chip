@@ -26,7 +26,7 @@ trait HasRocketTiles extends HasTiles
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
-  val rocket_tiles: Seq[BaseTile] = localIntNodes.zip(tileParams).map { case (lip, tp) =>
+  val tiles: Seq[BaseTile] = localIntNodes.zip(tileParams).map { case (lip, tp) =>
     val pWithExtra = p.alterPartial {
       case TileKey => tp
       case BuildRoCC => tp.rocc
@@ -85,45 +85,9 @@ trait HasRocketTiles extends HasTiles
   }
 }
 
-class ClockedRocketTileInputs(implicit val p: Parameters) extends ParameterizedBundle
-    with HasExternallyDrivenTileConstants
-    with Clocked
-
-trait HasRocketTilesBundle {
-  val rocket_tile_inputs: Vec[ClockedRocketTileInputs]
-}
-
-trait HasRocketTilesModuleImp extends LazyModuleImp
-    with HasRocketTilesBundle
-    with HasResetVectorWire
+trait HasRocketTilesModuleImp extends HasTilesModuleImp
     with HasPeripheryDebugModuleImp {
-  val outer: HasTiles with HasPeripheryDebug
-
-  def resetVectorBits: Int = {
-    // Consider using the minimum over all widths, rather than enforcing homogeneity
-    val vectors = outer.rocket_tiles.map(_.module.io.reset_vector)
-    require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
-    vectors.head.getWidth
-  }
-  val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
-    case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
-  })))
-
-  // Unconditionally wire up the non-diplomatic tile inputs
-  outer.rocket_tiles.map(_.module).zip(rocket_tile_inputs).foreach { case(tile, wire) =>
-    tile.clock := wire.clock
-    tile.reset := wire.reset
-    tile.io.hartid := wire.hartid
-    tile.io.reset_vector := wire.reset_vector
-  }
-
-  // Default values for tile inputs; may be overriden in other traits
-  rocket_tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
-    wire.clock := clock
-    wire.reset := reset
-    wire.hartid := UInt(i)
-    wire.reset_vector := global_reset_vector
-  }
+  val outer: HasRocketTiles
 }
 
 class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
