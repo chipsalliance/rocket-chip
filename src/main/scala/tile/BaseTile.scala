@@ -42,7 +42,14 @@ trait HasTileParameters {
   def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
-  def vaddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
+  def vaddrBits: Int =
+    if (usingVM) {
+      val v = pgIdxBits + pgLevels * pgLevelBits
+      require(v == xLen || xLen > v && v > paddrBits)
+      v
+    } else {
+      paddrBits min xLen
+    }
   def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
   def vpnBits: Int = vaddrBits - pgIdxBits
   def ppnBits: Int = paddrBits - pgIdxBits
@@ -53,7 +60,7 @@ trait HasTileParameters {
   def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
 
   def hartIdLen: Int = p(MaxHartIdBits)
-  def resetVectorLen: Int = paddrBits min vaddrBitsExtended
+  def resetVectorLen: Int = paddrBits
 
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
 }

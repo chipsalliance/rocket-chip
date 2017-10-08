@@ -84,9 +84,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
-  
-  val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
-  val vpn_idx = vpn_idxs(count)
 
   val arb = Module(new RRArbiter(new PTWReq, n))
   arb.io.in <> io.requestor.map(_.req)
@@ -104,7 +101,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     (res, (tmp.ppn >> ppnBits) =/= 0)
   }
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
-  val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+  val pte_addr = if (!usingVM) 0.U else {
+    val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+    val vpn_idx = vpn_idxs(count)
+    Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+  }
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits

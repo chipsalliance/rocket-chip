@@ -97,7 +97,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val vm_enabled = Bool(usingVM) && io.ptw.ptbr.mode(io.ptw.ptbr.mode.getWidth-1) && priv_uses_vm && !io.req.bits.passthrough
 
   // share a single physical memory attribute checker (unshare if critical path)
-  val (vpn, pgOffset) = Split(io.req.bits.vaddr, pgIdxBits)
+  val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
@@ -121,8 +121,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
-  val lookup_tag = Cat(io.ptw.ptbr.asid, vpn(vpnBits-1,0))
-  val hitsVec = (0 until totalEntries).map { i => vm_enabled && {
+  val lookup_tag = Cat(io.ptw.ptbr.asid, vpn)
+  val hitsVec = (0 until totalEntries).map { i => if (!usingVM) false.B else vm_enabled && {
     var tagMatch = valid(i)
     for (j <- 0 until pgLevels) {
       val base = vpnBits - (j + 1) * pgLevelBits
@@ -133,7 +133,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val hits = hitsVec.asUInt
   val level = Mux1H(hitsVec.init, entries.map(_.level))
   val partialPPN = Mux1H(hitsVec.init, entries.map(_.ppn))
-  val ppn = {
+  val ppn = if (!usingVM) vpn else {
     var ppn = Mux(vm_enabled, partialPPN, vpn)(pgLevelBits*pgLevels - 1, pgLevelBits*(pgLevels - 1))
     for (i <- 1 until pgLevels)
       ppn = Cat(ppn, (Mux(level < i, vpn, 0.U) | partialPPN)(vpnBits - i*pgLevelBits - 1, vpnBits - (i + 1)*pgLevelBits))
@@ -187,7 +187,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
   val bad_va = vm_enabled &&
     (if (vpnBits == vpnBitsExtended) Bool(false)
-     else vpn(vpnBits) =/= vpn(vpnBits-1))
+     else (io.req.bits.vaddr.asSInt < 0.S) =/= (vpn.asSInt < 0.S))
 
   val lrscAllowed = Mux(Bool(usingDataScratchpad), 0.U, c_array)
   val ae_array =
@@ -230,7 +230,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   io.resp.cacheable := (c_array & hits).orR
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint)
   io.resp.miss := do_refill || tlb_miss || multipleHits
-  io.resp.paddr := Cat(ppn, pgOffset)
+  io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
 
   io.ptw.req.valid := state === s_request
   io.ptw.req.bits <> io.ptw.status
@@ -256,7 +256,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     }
 
     when (sfence) {
-      assert((io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn(vpnBits-1,0))
+      assert((io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn)
       valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
                Mux(io.req.bits.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }
