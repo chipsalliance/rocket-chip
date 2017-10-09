@@ -14,7 +14,7 @@ import freechips.rocketchip.util._
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossing extends Field[CoreplexClockCrossing](SynchronousCrossing())
 
-trait HasRocketTiles extends HasSystemBus
+trait HasRocketTiles extends HasTiles
     with HasPeripheryBus
     with HasPeripheryPLIC
     with HasPeripheryClint
@@ -22,21 +22,11 @@ trait HasRocketTiles extends HasSystemBus
   val module: HasRocketTilesModuleImp
 
   private val crossing = p(RocketCrossing)
-  private val tileParams = p(RocketTilesKey)
-  val nRocketTiles = tileParams.size
-  val hartIdList = tileParams.map(_.hartid)
-
-  // Handle interrupts to be routed directly into each tile
-  // TODO: figure out how to merge the localIntNodes and coreIntXbar below
-  val localIntCounts = tileParams.map(_.core.nLocalInterrupts)
-  val localIntNodes = tileParams map { t =>
-    (t.core.nLocalInterrupts > 0).option(LazyModule(new IntXbar).intnode)
-  }
+  protected val tileParams = p(RocketTilesKey)
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
-  val wiringTuple = localIntNodes.zip(tileParams)
-  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case (lip, tp) =>
+  val tiles: Seq[BaseTile] = localIntNodes.zip(tileParams).map { case (lip, tp) =>
     val pWithExtra = p.alterPartial {
       case TileKey => tp
       case BuildRoCC => tp.rocc
@@ -95,45 +85,9 @@ trait HasRocketTiles extends HasSystemBus
   }
 }
 
-class ClockedRocketTileInputs(implicit val p: Parameters) extends ParameterizedBundle
-    with HasExternallyDrivenTileConstants
-    with Clocked
-
-trait HasRocketTilesBundle {
-  val rocket_tile_inputs: Vec[ClockedRocketTileInputs]
-}
-
-trait HasRocketTilesModuleImp extends LazyModuleImp
-    with HasRocketTilesBundle
-    with HasResetVectorWire
+trait HasRocketTilesModuleImp extends HasTilesModuleImp
     with HasPeripheryDebugModuleImp {
   val outer: HasRocketTiles
-
-  def resetVectorBits: Int = {
-    // Consider using the minimum over all widths, rather than enforcing homogeneity
-    val vectors = outer.rocket_tiles.map(_.module.io.reset_vector)
-    require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
-    vectors.head.getWidth
-  }
-  val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
-    case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
-  })))
-
-  // Unconditionally wire up the non-diplomatic tile inputs
-  outer.rocket_tiles.map(_.module).zip(rocket_tile_inputs).foreach { case(tile, wire) =>
-    tile.clock := wire.clock
-    tile.reset := wire.reset
-    tile.io.hartid := wire.hartid
-    tile.io.reset_vector := wire.reset_vector
-  }
-
-  // Default values for tile inputs; may be overriden in other traits
-  rocket_tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
-    wire.clock := clock
-    wire.reset := reset
-    wire.hartid := UInt(i)
-    wire.reset_vector := global_reset_vector
-  }
 }
 
 class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex

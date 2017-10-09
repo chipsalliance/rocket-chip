@@ -22,6 +22,7 @@ trait TileParams {
   val rocc: Seq[RoCCParams]
   val btb: Option[BTBParams]
   val trace: Boolean
+  val hartid: Int
 }
 
 trait HasTileParameters {
@@ -41,7 +42,14 @@ trait HasTileParameters {
   def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
-  def vaddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
+  def vaddrBits: Int =
+    if (usingVM) {
+      val v = pgIdxBits + pgLevels * pgLevelBits
+      require(v == xLen || xLen > v && v > paddrBits)
+      v
+    } else {
+      paddrBits min xLen
+    }
   def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
   def vpnBits: Int = vaddrBits - pgIdxBits
   def ppnBits: Int = paddrBits - pgIdxBits
@@ -52,7 +60,7 @@ trait HasTileParameters {
   def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
 
   def hartIdLen: Int = p(MaxHartIdBits)
-  def resetVectorLen: Int = paddrBits min vaddrBitsExtended
+  def resetVectorLen: Int = paddrBits
 
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
 }
@@ -99,19 +107,17 @@ trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
 
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with HasTileParameters
-    with HasTileLinkMasterPort {
-  override lazy val module = new BaseTileModule(this, () => new BaseTileBundle(this))
+    with HasTileParameters {
+  def module: BaseTileModule[BaseTile, BaseTileBundle[BaseTile]]
 }
 
-class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with HasTileLinkMasterPortBundle
+abstract class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
     with HasExternallyDrivenTileConstants
     with CanHaveInstructionTracePort
+    with CanHaltAndCatchFire
 
 class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
-    with HasTileParameters
-    with HasTileLinkMasterPortModule {
+    with HasTileParameters {
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits)
   require(resetVectorLen <= xLen)
