@@ -4,7 +4,9 @@ package freechips.rocketchip.jtag
 
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.util.{AsyncResetRegVec}
+import freechips.rocketchip.util.property._
 
 object JtagState {
   sealed abstract class State(val id: Int) {
@@ -67,7 +69,7 @@ object JtagState {
   *
   *
   */
-class JtagStateMachine extends Module(override_reset=Some(false.B)) {
+class JtagStateMachine(implicit val p: Parameters) extends Module(override_reset=Some(false.B)) {
   class StateMachineIO extends Bundle {
     val tms = Input(Bool())
     val currState = Output(JtagState.State.chiselType())
@@ -140,4 +142,12 @@ class JtagStateMachine extends Module(override_reset=Some(false.B)) {
   }
 
   io.currState := currState
+
+  // Generate Coverate Points
+  JtagState.State.all.foreach { s => 
+    cover (currState === s.U && io.tms === true.B,  s"${s.toString}_tms_1", "JTAG; ${s.toString} with TMS = 1; State Transition from ${s.toString} with TMS = 1")
+    cover (currState === s.U && io.tms === false.B, s"${s.toString}_tms_0", "JTAG; ${s.toString} with TMS = 0; State Transition from ${s.toString} with TMS = 0")
+    cover (currState === s.U && io.jtag_reset === true.B, s"${s.toString}_reset", "JTAG; ${s.toString} with reset; JTAG Reset asserted during ${s.toString")
+  }
+
 }

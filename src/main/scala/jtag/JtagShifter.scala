@@ -7,6 +7,9 @@ import chisel3.core.DataMirror
 import chisel3.internal.firrtl.KnownWidth
 import chisel3.util._
 
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.util.property._
+
 /** Base JTAG shifter IO, viewed from input to shift register chain.
   * Can be chained together.
   */
@@ -51,7 +54,7 @@ trait Chain extends Module {
   *
   * Implements Clause 10.
   */
-class JtagBypassChain extends Chain {
+class JtagBypassChain(implicit val p: Parameters) extends Chain {
   class ModIO extends ChainIO
   val io = IO(new ModIO)
   io.chainOut chainControlFrom io.chainIn
@@ -59,6 +62,8 @@ class JtagBypassChain extends Chain {
   val reg = Reg(Bool())  // 10.1.1a single shift register stage
 
   io.chainOut.data := reg
+
+  cover(io.chainIn.capture, "bypass_chain_capture", "JTAG; bypass_chain_capture; This Bypass Chain captured data")
 
   when (io.chainIn.capture) {
     reg := false.B  // 10.1.1b capture logic 0 on TCK rising
@@ -71,7 +76,7 @@ class JtagBypassChain extends Chain {
 }
 
 object JtagBypassChain {
-  def apply() = new JtagBypassChain
+  def apply()(implicit p: Parameters) = new JtagBypassChain
 }
 
 /** Simple shift register with parallel capture only, for read-only data registers.
@@ -82,7 +87,7 @@ object JtagBypassChain {
   * 7.2.1c shifter shifts on TCK rising edge
   * 4.3.2a TDI captured on TCK rising edge, 6.1.2.1b assumed changes on TCK falling edge
   */
-class CaptureChain[+T <: Data](gen: T) extends Chain {
+class CaptureChain[+T <: Data](gen: T)(implicit val p: Parameters) extends Chain {
   class ModIO extends ChainIO {
     val capture = Capture(gen)
   }
@@ -98,6 +103,8 @@ class CaptureChain[+T <: Data](gen: T) extends Chain {
 
   io.chainOut.data := regs(0)
 
+  cover(io.chainIn.capture, "chain_capture", "JTAG; chain_capture; This Chain captured data")
+  
   when (io.chainIn.capture) {
     (0 until n) map (x => regs(x) := io.capture.bits.asUInt()(x))
     io.capture.capture := true.B
@@ -114,7 +121,7 @@ class CaptureChain[+T <: Data](gen: T) extends Chain {
 }
 
 object CaptureChain {
-  def apply[T <: Data](gen: T) = new CaptureChain(gen)
+  def apply[T <: Data](gen: T)(implicit p: Parameters) = new CaptureChain(gen)
 }
 
 /** Simple shift register with parallel capture and update. Useful for general instruction and data
@@ -127,7 +134,7 @@ object CaptureChain {
   * 7.2.1c shifter shifts on TCK rising edge
   * 4.3.2a TDI captured on TCK rising edge, 6.1.2.1b assumed changes on TCK falling edge
   */
-class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V) extends Chain {
+class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V)(implicit val p: Parameters) extends Chain {
   class ModIO extends ChainIO {
     val capture = Capture(genCapture)
     val update = Valid(genUpdate)  // valid high when in update state (single cycle), contents may change any time after
@@ -154,6 +161,9 @@ class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V) ex
 
   val captureBits = io.capture.bits.asUInt()
 
+  cover(io.chainIn.capture, "chain_capture", "JTAG;chain_capture; This Chain captured data")
+  cover(io.chainIn.capture, "chain_update",  "JTAG;chain_update; This Chain updated data")
+
   when (io.chainIn.capture) {
     (0 until math.min(n, captureWidth)) map (x => regs(x) := captureBits(x))
     (captureWidth until n) map (x => regs(x) := 0.U)
@@ -179,7 +189,7 @@ class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V) ex
 object CaptureUpdateChain {
   /** Capture-update chain with matching capture and update types.
     */
-  def apply[T <: Data](gen: T) = new CaptureUpdateChain(gen, gen)
-  def apply[T <: Data, V <: Data](genCapture: T, genUpdate: V) =
+  def apply[T <: Data](gen: T)(implicit p: Parameters) = new CaptureUpdateChain(gen, gen)
+  def apply[T <: Data, V <: Data](genCapture: T, genUpdate: V)(implicit p: Parameters) =
     new CaptureUpdateChain(genCapture, genUpdate)
 }
