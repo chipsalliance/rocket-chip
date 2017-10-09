@@ -47,7 +47,8 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       val a_a = Wire(out.a)
       val a_d = Wire(in.d)
       val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
-      val toD = in.a.bits.opcode === Acquire && in.a.bits.param === TLPermissions.BtoT
+      val toD = (in.a.bits.opcode === AcquireBlock && in.a.bits.param === TLPermissions.BtoT) ||
+                (in.a.bits.opcode === AcquirePerm)
       in.a.ready := Mux(toD, a_d.ready, a_a.ready)
 
       a_a.valid := in.a.valid && !toD
@@ -55,7 +56,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       a_a.bits.source := in.a.bits.source << 1 | Mux(isPut, UInt(1), UInt(0))
 
       // Transform Acquire into Get
-      when (in.a.bits.opcode === Acquire) {
+      when (in.a.bits.opcode === AcquireBlock || in.a.bits.opcode === AcquirePerm) {
         a_a.bits.opcode := Get
         a_a.bits.param  := UInt(0)
         a_a.bits.source := in.a.bits.source << 1 | UInt(1)
@@ -100,10 +101,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
 
       when (out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {
         d_d.bits.opcode := GrantData
-        // On Grant error, you do NOT get the permissions you asked for.
-        // We only enter this case from NtoT or NtoB, so that means use toN.
-        // (the BtoT case was handled by a_d)
-        d_d.bits.param  := Mux(out.d.bits.error, TLPermissions.toN, TLPermissions.toT)
+        d_d.bits.param := TLPermissions.toT
       }
       when (out.d.bits.opcode === AccessAck && !out.d.bits.source(0)) {
         d_d.bits.opcode := ReleaseAck

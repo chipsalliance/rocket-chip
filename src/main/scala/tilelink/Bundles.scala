@@ -22,7 +22,8 @@ object TLMessages
   def LogicalData    = UInt(3) //     .    .                   => AccessAckData
   def Get            = UInt(4) //     .    .                   => AccessAckData
   def Hint           = UInt(5) //     .    .                   => HintAck
-  def Acquire        = UInt(6) //     .                        => Grant[Data]
+  def AcquireBlock   = UInt(6) //     .                        => Grant[Data]
+  def AcquirePerm    = UInt(7) //     .                        => Grant[Data]
   def Probe          = UInt(6) //          .                   => ProbeAck[Data]
   def AccessAck      = UInt(0) //               .    .
   def AccessAckData  = UInt(1) //               .    .
@@ -36,7 +37,7 @@ object TLMessages
   def ReleaseAck     = UInt(6) //                    .
   def GrantAck       = UInt(0) //                         .
  
-  def isA(x: UInt) = x <= Acquire
+  def isA(x: UInt) = x <= AcquirePerm
   def isB(x: UInt) = x <= Probe
   def isC(x: UInt) = x <= ReleaseData
   def isD(x: UInt) = x <= ReleaseAck

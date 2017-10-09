@@ -125,5 +125,4 @@ trait HasSystemBus extends HasInterruptBus {
   val sbus = LazyModule(new SystemBus(sbusParams))
 
   def sharedMemoryTLEdge: TLEdge = sbus.busView
-  def paddrBits: Int = sbus.busView.bundle.addressBits
 }

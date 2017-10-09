@@ -24,6 +24,7 @@ trait HasRocketTiles extends HasSystemBus
   private val crossing = p(RocketCrossing)
   private val tileParams = p(RocketTilesKey)
   val nRocketTiles = tileParams.size
+  val hartIdList = tileParams.map(_.hartid)
 
   // Handle interrupts to be routed directly into each tile
   // TODO: figure out how to merge the localIntNodes and coreIntXbar below
@@ -34,8 +35,8 @@ trait HasRocketTiles extends HasSystemBus
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
-  val wiringTuple = localIntNodes.zip(tileParams).zipWithIndex
-  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case ((lip, tp), i) =>
+  val wiringTuple = localIntNodes.zip(tileParams)
+  val rocket_tiles: Seq[RocketTileWrapper] = wiringTuple.map { case (lip, tp) =>
     val pWithExtra = p.alterPartial {
       case TileKey => tp
       case BuildRoCC => tp.rocc
@@ -44,19 +45,19 @@ trait HasRocketTiles extends HasSystemBus
 
     val wrapper = crossing match {
       case SynchronousCrossing(params) => {
-        val wrapper = LazyModule(new SyncRocketTile(tp, i)(pWithExtra))
+        val wrapper = LazyModule(new SyncRocketTile(tp)(pWithExtra))
         sbus.fromSyncTiles(params, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
         FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, tp.externalSlaveBuffers) }
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
-        val wrapper = LazyModule(new AsyncRocketTile(tp, i)(pWithExtra))
+        val wrapper = LazyModule(new AsyncRocketTile(tp)(pWithExtra))
         sbus.fromAsyncTiles(depth, sync, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
         FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, tp.externalSlaveBuffers) }
         wrapper
       }
       case RationalCrossing(direction) => {
-        val wrapper = LazyModule(new RationalRocketTile(tp, i)(pWithExtra))
+        val wrapper = LazyModule(new RationalRocketTile(tp)(pWithExtra))
         sbus.fromRationalTiles(direction, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
         FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, tp.externalSlaveBuffers) }
         wrapper
@@ -108,8 +109,12 @@ trait HasRocketTilesModuleImp extends LazyModuleImp
     with HasPeripheryDebugModuleImp {
   val outer: HasRocketTiles
 
-  // TODO make this less gross and/or support tiles with differently sized reset vectors
-  def resetVectorBits: Int = outer.paddrBits
+  def resetVectorBits: Int = {
+    // Consider using the minimum over all widths, rather than enforcing homogeneity
+    val vectors = outer.rocket_tiles.map(_.module.io.reset_vector)
+    require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
+    vectors.head.getWidth
+  }
   val rocket_tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedRocketTileInputs()(p.alterPartial {
     case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
   })))
@@ -123,7 +128,7 @@ trait HasRocketTilesModuleImp extends LazyModuleImp
   }
 
   // Default values for tile inputs; may be overriden in other traits
-  rocket_tile_inputs.zipWithIndex.foreach { case(wire, i) =>
+  rocket_tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
     wire.clock := clock
     wire.reset := reset
     wire.hartid := UInt(i)

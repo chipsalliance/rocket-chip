@@ -59,7 +59,7 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters) e
 
     val a_opcodes = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant)
     da.bits.opcode  := a_opcodes(a.bits.opcode)
-    da.bits.param   := UInt(0)
+    da.bits.param   := UInt(0) // toT, but error grants must be handled transiently (ie: you don't keep permissions)
     da.bits.size    := a.bits.size
     da.bits.source  := a.bits.source
     da.bits.sink    := UInt(0)
@@ -70,7 +70,7 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters) e
     dc.valid := c.valid && c_last
 
     dc.bits.opcode := ReleaseAck
-    dc.bits.param  := Vec(toN, toN, toB)(c.bits.param)
+    dc.bits.param  := Vec(toB, toN, toN)(c.bits.param)
     dc.bits.size   := c.bits.size
     dc.bits.source := c.bits.source
     dc.bits.sink   := UInt(0)
