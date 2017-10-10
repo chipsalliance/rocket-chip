@@ -111,6 +111,7 @@ trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
     with HasTileParameters {
   def module: BaseTileModule[BaseTile, BaseTileBundle[BaseTile]]
+  def hartid: Int
 }
 
 abstract class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)

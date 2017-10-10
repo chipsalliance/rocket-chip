@@ -204,7 +204,7 @@ trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
-  val hartid: Int
+  def hartid: Int
   var nDCachePorts = 0
   val dcache = LazyModule(HellaCache(hartid, tileParams.dcache.get.nMSHRs == 0, findScratchpadFromICache _))
   tileBus.node := dcache.node
