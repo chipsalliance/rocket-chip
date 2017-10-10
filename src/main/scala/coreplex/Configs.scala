@@ -71,31 +71,32 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
   }
 })
 
-class WithNTinyCores(n: Int) extends Config((site, here, up) => {
-    case XLen => 32
-    case RocketTilesKey => {
-      val tiny = RocketTileParams(
-        core = RocketCoreParams(
-          useVM = false,
-          fpu = None,
-          mulDiv = Some(MulDivParams(mulUnroll = 8))),
-        btb = None,
-        dcache = Some(DCacheParams(
-          rowBits = site(SystemBusKey).beatBits,
-          nSets = 256, // 16Kb scratchpad
-          nWays = 1,
-          nTLBEntries = 4,
-          nMSHRs = 0,
-          blockBytes = site(CacheBlockBytes),
-          scratch = Some(0x80000000L))),
-        icache = Some(ICacheParams(
-          rowBits = site(SystemBusKey).beatBits,
-          nSets = 64,
-          nWays = 1,
-          nTLBEntries = 4,
-          blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => tiny.copy(hartid = i))
-  }
+class With1TinyCore extends Config((site, here, up) => {
+  case XLen => 32
+  case RocketTilesKey => List(RocketTileParams(
+      core = RocketCoreParams(
+        useVM = false,
+        fpu = None,
+        mulDiv = Some(MulDivParams(mulUnroll = 8))),
+      btb = None,
+      dcache = Some(DCacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 256, // 16Kb scratchpad
+        nWays = 1,
+        nTLBEntries = 4,
+        nMSHRs = 0,
+        blockBytes = site(CacheBlockBytes),
+        scratch = Some(0x80000000L))),
+      icache = Some(ICacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        blockBytes = site(CacheBlockBytes)))))
+  case RocketCrossingKey => List(RocketCrossingParams(
+    crossingType = SynchronousCrossing(),
+    master = TileMasterPortParams(cork = Some(true))
+  ))
 })
 
 class WithNBanksPerMemChannel(n: Int) extends Config((site, here, up) => {
@@ -153,10 +154,8 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
 class WithStatelessBridge extends Config((site, here, up) => {
   case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { coreplex =>
     implicit val p = coreplex.p
-    val cork = LazyModule(new TLCacheCork(unsafe = true))
     val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes))
-    ww.node :*= cork.node
-    (cork.node, ww.node, () => None)
+    (ww.node, ww.node, () => None)
   })
 })
 

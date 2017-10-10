@@ -17,13 +17,13 @@ case class TLNodeChain(in: TLInwardNode, out: TLOutwardNode)
 case class TileMasterPortParams(
     addBuffers: Int = 0,
     blockerCtrlAddr: Option[BigInt] = None,
-    cork: Boolean = false) {
+    cork: Option[Boolean] = None) {
   def adapterChain(coreplex: HasPeripheryBus)
                   (implicit p: Parameters): () => TLNodeChain = {
 
     val blockerParams = blockerCtrlAddr.map(BusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, 1))
 
-    val tile_master_cork = cork.option(LazyModule(new TLCacheCork))
+    val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
     val tile_master_blocker = blockerParams.map(bp => LazyModule(new BusBlocker(bp)))
     val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
     val tile_master_buffer = LazyModule(new TLBufferChain(addBuffers))
