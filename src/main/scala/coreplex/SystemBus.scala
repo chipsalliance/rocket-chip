@@ -55,30 +55,31 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromFrontBus: TLInwardNode = master_splitter.node
 
-  def fromSyncTiles(params: BufferParams, addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+  def fromSyncTiles(params: BufferParams, port: TilePortParams, name: Option[String] = None): TLInwardNode = {
     val tile_buf = LazyModule(new TLBuffer(params))
     name.foreach { n => tile_buf.suggestName(s"${busName}_${n}_TLBuffer") }
-    val (in, out) = bufferChain(addBuffers, name = name)
+    val (in, out) = bufferChain(port.addBuffers, name = name)
 
     tile_fixer.node :=* out
     in :=* tile_buf.node
     tile_buf.node
   }
 
-  def fromRationalTiles(dir: RationalDirection, addBuffers: Int = 0, name: Option[String] = None): TLRationalInwardNode = {
+  def fromRationalTiles(dir: RationalDirection, port: TilePortParams, name: Option[String] = None): TLRationalInwardNode = {
+    // TODO val tile_blocker = port.blockerCtrlAddr.map(a => LazyModule(new BusBlocker(BusBlockerParams(a, , ))))
     val tile_sink = LazyModule(new TLRationalCrossingSink(direction = dir))
     name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLRationalCrossingSink") }
-    val (in, out) = bufferChain(addBuffers, name = name)
+    val (in, out) = bufferChain(port.addBuffers, name = name)
 
     tile_fixer.node :=* out
     in :=* tile_sink.node
     tile_sink.node
   }
 
-  def fromAsyncTiles(depth: Int, sync: Int, addBuffers: Int = 0, name: Option[String] = None): TLAsyncInwardNode = {
+  def fromAsyncTiles(depth: Int, sync: Int, port: TilePortParams, name: Option[String] = None): TLAsyncInwardNode = {
     val tile_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLAsyncCrossingSink") }
-    val (in, out) = bufferChain(addBuffers, name = name)
+    val (in, out) = bufferChain(port.addBuffers, name = name)
 
     tile_fixer.node :=* out
     in :=* tile_sink.node

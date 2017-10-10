@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.coreplex.{RationalCrossing, RocketCrossing, RocketTilesKey}
+import freechips.rocketchip.coreplex.{RocketTilesKey}
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -62,7 +62,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = new L1Metadata
 }
 
-class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
@@ -89,14 +89,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.out.ready := true
   metaArb.io.out.ready := true
 
-  val rational = p(RocketCrossing) match {
-    case RationalCrossing(_) => true
-    case _ => false
-  }
-
-  val q_depth = if (rational) (2 min maxUncachedInFlight-1) else 0
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true))
+  tl_out.a <> outer.bufferUncachedRequests
+                .map(_ min maxUncachedInFlight-1)
+                .map(Queue(tl_out_a, _, flow = true))
+                .getOrElse(tl_out_a)
+
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
       val q = Module(new Queue(tl_out.c.bits, cacheDataBeats, flow = true))

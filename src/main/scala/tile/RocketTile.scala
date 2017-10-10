@@ -22,9 +22,7 @@ case class RocketTileParams(
     trace: Boolean = false,
     hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
-    hartid: Int = 0,
-    externalMasterBuffers: Int = 0,
-    externalSlaveBuffers: Int = 0) extends TileParams {
+    hartid: Int = 0) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }

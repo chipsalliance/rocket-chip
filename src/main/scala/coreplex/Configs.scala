@@ -242,15 +242,21 @@ class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
-  case RocketCrossing => SynchronousCrossing()
+  case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
+    r.copy(crossingType = SynchronousCrossing())
+  }
 })
 
 class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
-  case RocketCrossing => AsynchronousCrossing(depth, sync)
+  case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
+    r.copy(crossingType = AsynchronousCrossing(depth, sync))
+  }
 })
 
 class WithRationalRocketTiles extends Config((site, here, up) => {
-  case RocketCrossing => RationalCrossing()
+  case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
+    r.copy(crossingType = RationalCrossing())
+  }
 })
 
 class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
