@@ -109,19 +109,19 @@ trait HasRocketTiles extends HasTiles
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(tp)(pWithExtra))
         sbus.fromSyncTiles(params, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
-        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, crossing.slave.addBuffers) }
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(crossing.slave.adapterChain(this), tp.name) }
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(tp)(pWithExtra))
         sbus.fromAsyncTiles(depth, sync, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
-        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, crossing.slave.addBuffers) }
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, crossing.slave.adapterChain(this), tp.name) }
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(tp)(pWithExtra))
         sbus.fromRationalTiles(direction, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
-        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, crossing.slave.addBuffers) }
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(crossing.slave.adapterChain(this), tp.name) }
         wrapper
       }
     }

@@ -31,6 +31,30 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
     TLFragmenter(params.beatBytes, maxXferBytes)(outwardBufNode)
   }
 
+  def toSyncSlaves(adapt: () => TLNodeChain, name: Option[String]): TLOutwardNode = SinkCardinality { implicit p =>
+    val adapters = adapt()
+    adapters.in :=? outwardBufNode
+    adapters.out
+  }
+
+  def toAsyncSlaves(sync: Int, adapt: () => TLNodeChain, name: Option[String]): TLAsyncOutwardNode = SinkCardinality { implicit p =>
+    val adapters = adapt()
+    val source = LazyModule(new TLAsyncCrossingSource(sync))
+    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
+    adapters.in :=? outwardNode
+    source.node :=? adapters.out
+    source.node
+  }
+
+  def toRationalSlaves(adapt: () => TLNodeChain, name: Option[String]): TLRationalOutwardNode = SinkCardinality { implicit p =>
+    val adapters = adapt()
+    val source = LazyModule(new TLRationalCrossingSource())
+    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
+    adapters.in :=? outwardNode
+    source.node :=? adapters.out
+    source.node
+  }
+
   val fromSystemBus: TLInwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(arithmetic = params.arithmetic))
     inwardBufNode := atomics.node
