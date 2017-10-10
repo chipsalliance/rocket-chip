@@ -279,8 +279,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     count := pgLevels-1
   }
 
-  ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
-  ccover(io.mem.resp.valid && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
+  if (usingVM) {
+    ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
+    ccover(state === s_wait2 && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
+  }
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
