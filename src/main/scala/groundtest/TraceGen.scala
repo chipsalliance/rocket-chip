@@ -578,6 +578,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
 class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params) {
   override lazy val module = new TraceGenTileModule(this)
+  def hartid = id
 }
 
 class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer, () => new GroundTestTileBundle(outer)) {

@@ -289,7 +289,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
   val module: HasICacheFrontendModule
   val frontend = LazyModule(new Frontend(tileParams.icache.get, hartid: Int))
-  val hartid: Int
+  def hartid: Int
   tileBus.node := frontend.masterNode
   nPTWPorts += 1
 }

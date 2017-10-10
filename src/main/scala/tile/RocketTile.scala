@@ -40,7 +40,7 @@ class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) ext
   private def ofStr(x: String) = Seq(ResourceString(x))
   private def ofRef(x: Device) = Seq(ResourceReference(x.label))
 
-  val hartid = rocketParams.hartid
+  def hartid = rocketParams.hartid
   val cpuDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
       val block =  p(CacheBlockBytes)
@@ -188,6 +188,7 @@ class RocketTileWrapperBundle[+L <: RocketTileWrapper](_outer: L) extends BaseTi
 
 abstract class RocketTileWrapper(rtp: RocketTileParams)(implicit p: Parameters) extends BaseTile(rtp) {
   val rocket = LazyModule(new RocketTile(rtp))
+  def hartid = rocket.hartid
   val asyncIntNode   : IntInwardNode
   val periphIntNode  : IntInwardNode
   val coreIntNode    : IntInwardNode
