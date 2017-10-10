@@ -11,15 +11,64 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case class TLNodeChain(in: TLInwardNode, out: TLOutwardNode)
+
 // TODO: how specific are these to RocketTiles?
-case class TilePortParams(
-  addBuffers: Int = 0,
-  blockerCtrlAddr: Option[BigInt] = None)
+case class TileMasterPortParams(
+    addBuffers: Int = 0,
+    blockerCtrlAddr: Option[BigInt] = None,
+    cork: Boolean = false) {
+  def adapterChain(coreplex: HasPeripheryBus)
+                  (implicit p: Parameters): () => TLNodeChain = {
+
+    val blockerParams = blockerCtrlAddr.map(BusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, 1))
+
+    val tile_master_cork = cork.option(LazyModule(new TLCacheCork))
+    val tile_master_blocker = blockerParams.map(bp => LazyModule(new BusBlocker(bp)))
+    val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
+    val tile_master_buffer = LazyModule(new TLBufferChain(addBuffers))
+
+    val nodes = List(
+      Some(tile_master_buffer.node),
+      Some(tile_master_fixer.node),
+      tile_master_blocker.map(_.node),
+      tile_master_cork.map(_.node)).flatMap(b=>b)
+
+    nodes.init zip nodes.tail foreach { case(front, back) => front :=* back }
+
+    tile_master_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+
+    () => TLNodeChain(nodes.last, nodes.head)
+  }
+}
+
+case class TileSlavePortParams(
+    addBuffers: Int = 0,
+    blockerCtrlAddr: Option[BigInt] = None) {
+  def adapterChain(coreplex: HasPeripheryBus)
+                  (implicit p: Parameters): () => TLNodeChain = {
+
+    val blockerParams = blockerCtrlAddr.map(BusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, 1))
+
+    val tile_slave_blocker = blockerParams.map(bp => LazyModule(new BusBlocker(bp)))
+    val tile_slave_buffer = LazyModule(new TLBufferChain(addBuffers))
+
+    val nodes = List(
+      Some(tile_slave_buffer.node),
+      tile_slave_blocker.map(_.node)).flatMap(b=>b)
+
+    nodes.init zip nodes.tail foreach { case(front, back) => front :=* back }
+
+    tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+
+    () => TLNodeChain(nodes.last, nodes.head)
+  }
+}
 
 case class RocketCrossingParams(
     crossingType: CoreplexClockCrossing = SynchronousCrossing(),
-    master: TilePortParams = TilePortParams(),
-    slave: TilePortParams = TilePortParams()) {
+    master: TileMasterPortParams = TileMasterPortParams(),
+    slave: TileSlavePortParams = TileSlavePortParams()) {
   def knownRatio: Option[Int] = crossingType match {
     case RationalCrossing(_) => Some(2)
     case _ => None
@@ -59,19 +108,19 @@ trait HasRocketTiles extends HasTiles
     val wrapper = crossing.crossingType match {
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(tp)(pWithExtra))
-        sbus.fromSyncTiles(params, crossing.master, tp.name) :=* wrapper.masterNode
+        sbus.fromSyncTiles(params, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
         FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, crossing.slave.addBuffers) }
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(tp)(pWithExtra))
-        sbus.fromAsyncTiles(depth, sync, crossing.master, tp.name) :=* wrapper.masterNode
+        sbus.fromAsyncTiles(depth, sync, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
         FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, crossing.slave.addBuffers) }
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(tp)(pWithExtra))
-        sbus.fromRationalTiles(direction, crossing.master, tp.name) :=* wrapper.masterNode
+        sbus.fromRationalTiles(direction, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
         FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, crossing.slave.addBuffers) }
         wrapper
       }
