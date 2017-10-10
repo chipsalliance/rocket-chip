@@ -10,6 +10,8 @@ import freechips.rocketchip.coreplex.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -131,6 +133,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
     when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0 }
 
+    for (i <- 0 until pgLevels-1)
+      ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
+
     (hit && count < pgLevels-1, Mux1H(hits, data))
   }
 
@@ -191,6 +196,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     s2_pte := s2_entry
     s2_pte.g := s2_g
     s2_pte.v := true
+
+    ccover(s2_hit, "L2_TLB_HIT", "L2 TLB hit")
 
     (s2_hit, s2_valid && s2_valid_bit, s2_pte, Some(ram))
   }
@@ -271,6 +278,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     r_pte := l2_pte
     count := pgLevels-1
   }
+
+  ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
+  ccover(io.mem.resp.valid && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
 }
 
 /** Mix-ins for constructing tiles that might have a PTW */

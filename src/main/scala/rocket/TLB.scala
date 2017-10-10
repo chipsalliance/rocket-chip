@@ -12,6 +12,8 @@ import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)
@@ -263,5 +265,17 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     when (multipleHits) {
       valid := 0
     }
+
+    ccover(io.ptw.req.fire(), "MISS", "TLB miss")
+    ccover(io.ptw.req.valid && !io.ptw.req.ready, "PTW_STALL", "TLB miss, but PTW busy")
+    ccover(state === s_wait_invalidate, "SFENCE_DURING_REFILL", "flush TLB during TLB refill")
+    ccover(sfence && !io.req.bits.sfence.bits.rs1 && !io.req.bits.sfence.bits.rs2, "SFENCE_ALL", "flush TLB")
+    ccover(sfence && !io.req.bits.sfence.bits.rs1 && io.req.bits.sfence.bits.rs2, "SFENCE_ASID", "flush TLB ASID")
+    ccover(sfence && io.req.bits.sfence.bits.rs1 && !io.req.bits.sfence.bits.rs2, "SFENCE_LINE", "flush TLB line")
+    ccover(sfence && io.req.bits.sfence.bits.rs1 && io.req.bits.sfence.bits.rs2, "SFENCE_LINE_ASID", "flush TLB line/ASID")
+    ccover(multipleHits, "MULTIPLE_HITS", "Two matching translations in TLB")
   }
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"${if (instruction) "I" else "D"}TLB_$label", "MemorySystem;;" + desc)
 }
