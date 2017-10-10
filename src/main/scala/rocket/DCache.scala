@@ -9,6 +9,8 @@ import freechips.rocketchip.coreplex.{RationalCrossing, RocketCrossing, RocketTi
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 import TLMessages._
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
@@ -325,6 +327,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore_drain_structural = pstore1_valid && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
   val pstore_drain_opportunistic = !(io.cpu.req.valid && s0_needsRead)
   val pstore_drain_on_miss = releaseInFlight || (s2_valid && !s2_valid_hit && !s2_valid_uncached_pending)
+  ccover(pstore_drain_structural, "STORE_STRUCTURAL_HAZARD", "D$ read-modify-write structural hazard")
+  ccover(pstore1_valid && pstore_drain_on_miss, "STORE_DRAIN_ON_MISS", "D$ store buffer drain on miss")
+  ccover(s1_valid_not_nacked && s1_waw_hazard, "WAW_HAZARD", "D$ write-after-write hazard")
   val pstore_drain = !pstore1_merge &&
     (Bool(usingRMW) && pstore_drain_structural ||
      (((pstore1_valid && !pstore1_rmw) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss)))
@@ -350,14 +355,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
     mask
   }
-  s2_store_merge := {
+  s2_store_merge := (if (eccBytes == 1) false.B else {
+    ccover(pstore1_merge, "STORE_MERGED", "D$ store merged")
     // only merge stores to ECC granules that are already stored-to, to avoid
     // WAW hazards
     val wordMatch = (eccMask(pstore2_storegen_mask) | ~eccMask(pstore1_mask)).andR
     val idxMatch = s2_req.addr(untagBits-1, log2Ceil(wordBytes)) === pstore2_addr(untagBits-1, log2Ceil(wordBytes))
     val tagMatch = (s2_hit_way & pstore2_way).orR
-    Bool(eccBytes > 1) && pstore2_valid && wordMatch && idxMatch && tagMatch
-  }
+    pstore2_valid && wordMatch && idxMatch && tagMatch
+  })
   dataArb.io.in(0).valid := pstore_drain
   dataArb.io.in(0).bits.write := true
   dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
@@ -374,7 +380,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     (pstore1_valid && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
   val s1_raw_hazard = s1_read && s1_hazard
-  s1_waw_hazard := Bool(eccBytes > 1) && s1_write && (s1_hazard || needsRead(s1_req) && !s1_did_read)
+  s1_waw_hazard := (if (eccBytes == 1) false.B else {
+    ccover(s1_valid_not_nacked && s1_waw_hazard, "WAW_HAZARD", "D$ write-after-write hazard")
+    s1_write && (s1_hazard || needsRead(s1_req) && !s1_did_read)
+  })
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   // Prepare a TileLink request message that initiates a transaction
@@ -384,6 +393,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val a_size = mtSize(s2_req.typ)
   val a_data = Fill(beatWords, pstore1_data)
   val acquire = if (edge.manager.anySupportAcquireB) {
+    ccover(tl_out.b.valid && !tl_out.b.ready, "BLOCK_B", "D$ B-channel blocked")
     edge.AcquireBlock(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
@@ -513,6 +523,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       blockUncachedGrant := !dataArb.io.in(1).ready
     }
   }
+  ccover(tl_out.d.valid && !tl_out.d.ready, "BLOCK_D", "D$ D-channel blocked")
 
   // Handle an incoming TileLink Probe message
   val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid || (s2_valid_hit && s2_lr)
@@ -629,6 +640,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
   val s1_xcpt = tlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
+  ccover(s2_valid_pre_xcpt && s2_tl_error, "D_ERROR_REPORTED", "D$ reported TL error to processor")
   when (s2_valid_pre_xcpt && s2_tl_error) {
     assert(!s2_valid_hit && !s2_uncached)
     when (s2_write) { io.cpu.s2_xcpt.ae.st := true }
@@ -755,6 +767,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
     io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.error
     io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
+
+    ccover(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
+    ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")
   }
 
   def encodeData(x: UInt) = x.grouped(eccBits).map(dECC.encode(_)).asUInt
@@ -766,4 +781,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   def needsRead(req: HellaCacheReq) =
     isRead(req.cmd) ||
     (isWrite(req.cmd) && (req.cmd === M_PWR || mtSize(req.typ) < log2Ceil(eccBytes)))
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)
 }
