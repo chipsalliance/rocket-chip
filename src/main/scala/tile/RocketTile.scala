@@ -28,8 +28,10 @@ case class RocketTileParams(
   require(icache.isDefined)
   require(dcache.isDefined)
 }
-  
-class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends BaseTile(rocketParams)(p)
+
+abstract class HartedTile(tileParams: TileParams, val hartid: Int)(implicit p: Parameters) extends BaseTile(tileParams)(p)
+
+class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends HartedTile(rocketParams, rocketParams.hartid)(p)
     with HasExternalInterrupts
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
@@ -40,7 +42,6 @@ class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) ext
   private def ofStr(x: String) = Seq(ResourceString(x))
   private def ofRef(x: Device) = Seq(ResourceReference(x.label))
 
-  val hartid = rocketParams.hartid
   val cpuDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
       val block =  p(CacheBlockBytes)
