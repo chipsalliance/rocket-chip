@@ -48,7 +48,9 @@ trait HasTileParameters {
       require(v == xLen || xLen > v && v > paddrBits)
       v
     } else {
-      paddrBits min xLen
+      // since virtual addresses sign-extend but physical addresses
+      // zero-extend, make room for a zero sign bit for physical addresses
+      (paddrBits + 1) min xLen
     }
   def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
   def vpnBits: Int = vaddrBits - pgIdxBits
