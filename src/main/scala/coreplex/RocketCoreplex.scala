@@ -21,10 +21,10 @@ case class TileMasterPortParams(
   def adapterChain(coreplex: HasPeripheryBus)
                   (implicit p: Parameters): () => TLNodeChain = {
 
-    val blockerParams = blockerCtrlAddr.map(BusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, 1))
+    val blockerParams = blockerCtrlAddr.map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, deadlock = true))
 
     val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
-    val tile_master_blocker = blockerParams.map(bp => LazyModule(new BusBlocker(bp)))
+    val tile_master_blocker = blockerParams.map(bp => LazyModule(new BasicBusBlocker(bp)))
     val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
     val tile_master_buffer = LazyModule(new TLBufferChain(addBuffers))
 
@@ -49,9 +49,9 @@ case class TileSlavePortParams(
   def adapterChain(coreplex: HasPeripheryBus)
                   (implicit p: Parameters): () => TLNodeChain = {
 
-    val blockerParams = blockerCtrlAddr.map(BusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, 1))
+    val blockerParams = blockerCtrlAddr.map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes))
 
-    val tile_slave_blocker = blockerParams.map(bp => LazyModule(new BusBlocker(bp)))
+    val tile_slave_blocker = blockerParams.map(bp => LazyModule(new BasicBusBlocker(bp)))
     val tile_slave_buffer = LazyModule(new TLBufferChain(addBuffers))
 
     tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
