@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.coreplex._
 import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.util.DontTouch
 
 /** Example Top with periphery devices and ports, and a Rocket coreplex */
 class ExampleRocketSystem(implicit p: Parameters) extends RocketCoreplex
@@ -25,3 +26,4 @@ class ExampleRocketSystemModule[+L <: ExampleRocketSystem](_outer: L) extends Ro
     with HasMasterAXI4MMIOPortModuleImp
     with HasSlaveAXI4PortModuleImp
     with HasPeripheryBootROMModuleImp
+    with DontTouch

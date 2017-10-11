@@ -10,6 +10,8 @@ import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
+import net.jcazevedo.moultingyaml._
+import firrtl.annotations.AnnotationYamlProtocol._
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
@@ -104,6 +106,13 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   /** Output FIRRTL, which an external compiler can turn into Verilog. */
   def generateFirrtl {
     Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
+  }
+
+  def generateAnno {
+    val annotationFile = new File(td, s"$longName.anno")
+    val af = new FileWriter(annotationFile)
+    af.write(circuit.annotations.toArray.toYaml.prettyPrint)
+    af.close()
   }
 
   /** Output software test Makefrags, which provide targets for integration testing. */
