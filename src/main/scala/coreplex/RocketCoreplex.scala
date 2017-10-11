@@ -28,17 +28,18 @@ case class TileMasterPortParams(
     val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
     val tile_master_buffer = LazyModule(new TLBufferChain(addBuffers))
 
+    tile_master_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+
     val nodes = List(
       Some(tile_master_buffer.node),
       Some(tile_master_fixer.node),
       tile_master_blocker.map(_.node),
-      tile_master_cork.map(_.node)).flatMap(b=>b)
+      tile_master_cork.map(_.node)
+    ).flatMap(b=>b)
 
     nodes.init zip nodes.tail foreach { case(front, back) => front :=* back }
 
-    tile_master_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-
-    () => TLNodeChain(nodes.last, nodes.head)
+    () => TLNodeChain(in = nodes.last, out = nodes.head)
   }
 }
 
@@ -53,15 +54,16 @@ case class TileSlavePortParams(
     val tile_slave_blocker = blockerParams.map(bp => LazyModule(new BusBlocker(bp)))
     val tile_slave_buffer = LazyModule(new TLBufferChain(addBuffers))
 
+    tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+
     val nodes = List(
       Some(tile_slave_buffer.node),
-      tile_slave_blocker.map(_.node)).flatMap(b=>b)
+      tile_slave_blocker.map(_.node)
+    ).flatMap(b=>b)
 
     nodes.init zip nodes.tail foreach { case(front, back) => front :=* back }
 
-    tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-
-    () => TLNodeChain(nodes.last, nodes.head)
+    () => TLNodeChain(in = nodes.last, out = nodes.head)
   }
 }
 
