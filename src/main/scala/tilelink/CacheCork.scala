@@ -98,6 +98,7 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       val d_d = Wire(in.d)
       d_d <> out.d
       d_d.bits.source := out.d.bits.source >> 1
+      if (unsafe) { d_d.bits.sink := UInt(0) }
 
       when (out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {
         d_d.bits.opcode := GrantData
