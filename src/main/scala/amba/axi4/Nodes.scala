@@ -28,3 +28,25 @@ case class AXI4AdapterNode(
   implicit valName: ValName)
   extends AdapterNode(AXI4Imp)(masterFn, slaveFn, numPorts)
 case class AXI4IdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4Imp)()
+
+object AXI4AsyncImp extends SimpleNodeImp[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncEdgeParameters, AXI4AsyncBundle]
+{
+  def edge(pd: AXI4AsyncMasterPortParameters, pu: AXI4AsyncSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXI4AsyncEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: AXI4AsyncEdgeParameters) = new AXI4AsyncBundle(e.bundle)
+  def render(e: AXI4AsyncEdgeParameters) = RenderedEdge(colour = "#ff0000" /* red */, label  = e.slave.depth.toString)
+
+  override def mixO(pd: AXI4AsyncMasterPortParameters, node: OutwardNode[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncBundle]): AXI4AsyncMasterPortParameters  =
+   pd.copy(base = pd.base.copy(masters = pd.base.masters.map  { c => c.copy (nodePath = node +: c.nodePath) }))
+  override def mixI(pu: AXI4AsyncSlavePortParameters, node: InwardNode[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncBundle]): AXI4AsyncSlavePortParameters =
+   pu.copy(base = pu.base.copy(slaves  = pu.base.slaves.map { m => m.copy (nodePath = node +: m.nodePath) }))
+}
+
+case class AXI4AsyncSourceNode(sync: Int)(implicit valName: ValName)
+  extends MixedAdapterNode(AXI4Imp, AXI4AsyncImp)(
+    dFn = { p => AXI4AsyncMasterPortParameters(p) },
+    uFn = { p => p.base.copy(minLatency = sync+1) }) // discard cycles in other clock domain
+
+case class AXI4AsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
+  extends MixedAdapterNode(AXI4AsyncImp, AXI4Imp)(
+    dFn = { p => p.base },
+    uFn = { p => AXI4AsyncSlavePortParameters(depth, p) })
