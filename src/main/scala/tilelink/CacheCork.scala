@@ -19,9 +19,9 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
     managerFn = { case mp =>
       mp.copy(
         endSinkId = 1,
-        managers = mp.managers.map { m => m.copy( // Rocket requires m.supportsAcquireT || !m.supportsAcquireB, so, don't cache ROMs
-          supportsAcquireB = if (m.regionType == RegionType.UNCACHED && m.supportsPutFull) m.supportsGet     else m.supportsAcquireB,
-          supportsAcquireT = if (m.regionType == RegionType.UNCACHED)                      m.supportsPutFull else m.supportsAcquireT)})})
+        managers = mp.managers.map { m => m.copy(
+          supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
+          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.supportsAcquireT)})})
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>

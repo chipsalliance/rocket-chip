@@ -381,7 +381,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val access_address = s2_req.addr
   val a_size = mtSize(s2_req.typ)
   val a_data = Fill(beatWords, pstore1_data)
-  val acquire = if (edge.manager.anySupportAcquireB) {
+  val acquire = if (edge.manager.anySupportAcquireT) {
     edge.AcquireBlock(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
@@ -583,7 +583,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (releaseDone) { release_state := s_probe_write_meta }
   }
   when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
-    if (edge.manager.anySupportAcquireB)
+    if (edge.manager.anySupportAcquireT)
       tl_out_c.bits := edge.Release(fromSource = 0.U,
                                     toAddress = 0.U,
                                     lgSize = lgCacheBlockBytes,
@@ -696,7 +696,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.way_en := ~UInt(0, nWays)
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  if (!edge.manager.managers.forall(m => !m.supportsAcquireB || !m.executable || m.regionType >= RegionType.TRACKED)) {
+  if (!edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED)) {
     when (tl_out_a.fire() && !s2_uncached) { flushed := false }
     when (flushing) {
       s1_victim_way := flushCounter >> log2Up(nSets)

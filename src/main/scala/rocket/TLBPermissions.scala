@@ -46,7 +46,6 @@ object TLBPageLookup
       require (!m.supportsAcquireT   || m.supportsAcquireT  .contains(xferSizes), s"MemoryMap region ${m.name} only supports ${m.supportsAcquireT} AcquireT, but must support ${xferSizes}")
       require (!m.supportsLogical    || m.supportsLogical   .contains(amoSizes),  s"MemoryMap region ${m.name} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
       require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes),  s"MemoryMap region ${m.name} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
-      require (m.supportsAcquireT || !m.supportsAcquireB, s"MemoryMap region ${m.name} supports AcquireB (cached read) but not AcquireT (cached write)... and rocket assumes this")
 
       (m.address, TLBFixedPermissions(
         e = Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains m.regionType,
