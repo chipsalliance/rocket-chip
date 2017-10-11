@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends LazyModule
+abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   protected val nodeIn = TLIdentityNode()
   protected val nodeOut = TLIdentityNode()
@@ -18,7 +18,8 @@ abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends L
 
   protected val bar = LazyModule(new TLBusBypassBar)
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
-  protected val error = LazyModule(new TLError(ErrorParams(everything), beatBytes))
+  protected val error = if (deadlock) LazyModule(new DeadlockDevice(ErrorParams(everything), beatBytes))
+                        else LazyModule(new TLError(ErrorParams(everything), beatBytes))
 
   // order matters
   bar.node := nodeIn
