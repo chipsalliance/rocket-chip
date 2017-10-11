@@ -69,6 +69,8 @@ class TinyConfig extends Config(
   new WithNTinyCores(1) ++
   new BaseConfig)
 
-class DefaultFPGAConfig extends Config(new BaseConfig)
 
-class DefaultFPGASmallConfig extends Config(new WithNSmallCores(1) ++ new DefaultFPGAConfig)
+class BaseFPGAConfig extends Config(new BaseConfig)
+
+class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
+class DefaultFPGASmallConfig extends Config(new DefaultFPGAConfig)
