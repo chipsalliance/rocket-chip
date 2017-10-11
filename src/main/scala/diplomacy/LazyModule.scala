@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.{SortedMap,ListMap}
 import scala.util.matching._
 
 abstract class LazyModule()(implicit val p: Parameters)
@@ -156,7 +156,8 @@ sealed trait LazyModuleImpLike extends BaseModule
     }
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     val allDangles = nodeDangles ++ childDangles
-    val done = Set() ++ allDangles.groupBy(_.source).values.filter(_.size == 2).map { case Seq(a, b) =>
+    val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
+    val done = Set() ++ pairing.values.filter(_.size == 2).map { case Seq(a, b) =>
       require (a.flipped != b.flipped)
       if (a.flipped) { a.data <> b.data } else { b.data <> a.data }
       a.source
@@ -210,7 +211,10 @@ object LazyScope
   }
 }
 
-case class HalfEdge(serial: Int, index: Int)
+case class HalfEdge(serial: Int, index: Int) extends Ordered[HalfEdge] {
+  import scala.math.Ordered.orderingToOrdered
+  def compare(that: HalfEdge) = HalfEdge.unapply(this) compare HalfEdge.unapply(that)
+}
 case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, data: Data)
 
 final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
