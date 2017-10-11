@@ -21,7 +21,7 @@ object ClintConsts
   def timecmpBytes = 8
   def size = 0x10000
   def timeWidth = 64
-  def regWidth = 32
+  def ipiWidth = 32
   def ints = 2
 }
 
@@ -57,15 +57,11 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
       val rtcTick = Bool(INPUT)
     })
 
-    val time = Seq.fill(timeWidth/regWidth)(Reg(init=UInt(0, width = regWidth)))
-    when (io.rtcTick) {
-      val newTime = time.asUInt + UInt(1)
-      for ((reg, i) <- time zip (0 until timeWidth by regWidth))
-        reg := newTime >> i
-    }
+    val time = RegInit(UInt(0, width = timeWidth))
+    when (io.rtcTick) { time := time + UInt(1) }
 
     val nTiles = intnode.out.size
-    val timecmp = Seq.fill(nTiles) { Seq.fill(timeWidth/regWidth)(Reg(UInt(width = regWidth))) }
+    val timecmp = Seq.fill(nTiles) { Reg(UInt(width = timeWidth)) }
     val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 
     val (intnode_out, _) = intnode.out.unzip
@@ -84,12 +80,10 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
      * bffc mtime hi
      */
 
-    def makeRegFields(s: Seq[UInt]) = s.map(r => RegField(regWidth, r))
-
     node.regmap(
-      0                -> makeRegFields(ipi),
-      timecmpOffset(0) -> makeRegFields(timecmp.flatten),
-      timeOffset       -> makeRegFields(time))
+      0                -> ipi.map(r => RegField(ipiWidth, r)),
+      timecmpOffset(0) -> timecmp.flatMap(RegField.bytes(_)),
+      timeOffset       -> RegField.bytes(time))
   }
 }
 

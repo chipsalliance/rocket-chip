@@ -122,6 +122,12 @@ object RegField
         when (valid) { bytes(i) := data }
         Bool(true)
       }))}}
+
+  def bytes(reg: UInt): Seq[RegField] = {
+    val width = reg.getWidth
+    require (width % 8 == 0, s"RegField.bytes must be called on byte-sized reg, not ${width} bits")
+    bytes(reg, width/8)
+  }
 }
 
 trait HasRegMap
