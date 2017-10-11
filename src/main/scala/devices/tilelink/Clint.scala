@@ -82,8 +82,8 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
 
     node.regmap(
       0                -> ipi.map(r => RegField(ipiWidth, r)),
-      timecmpOffset(0) -> timecmp.flatMap(r => RegField.bytes(r, timeWidth/8)),
-      timeOffset       -> RegField.bytes(time, timeWidth/8))
+      timecmpOffset(0) -> timecmp.flatMap(RegField.bytes(_)),
+      timeOffset       -> RegField.bytes(time))
   }
 }
 
