@@ -49,6 +49,7 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
       val bypass = Bool(INPUT)
+      val pending = Bool(OUTPUT)
     })
 
     val (in, edge) = node.in(0)
@@ -59,6 +60,8 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
     // We need to be locked to the given bypass direction until all transactions stop
     val flight = RegInit(UInt(0, width = log2Ceil(3*edge.client.endSourceId+1)))
     val bypass = RegInit(io.bypass) // synchronous reset required
+
+    io.pending := (flight > 0.U)
 
     val (a_first, a_last, _) = edge.firstlast(in.a)
     val (b_first, b_last, _) = edge.firstlast(in.b)
