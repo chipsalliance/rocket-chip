@@ -393,7 +393,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val a_size = mtSize(s2_req.typ)
   val a_data = Fill(beatWords, pstore1_data)
   val acquire = if (edge.manager.anySupportAcquireB) {
-    ccover(tl_out.b.valid && !tl_out.b.ready, "BLOCK_B", "D$ B-channel blocked")
     edge.AcquireBlock(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
@@ -655,6 +654,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       io.cpu.s2_xcpt := 0.U.asTypeOf(io.cpu.s2_xcpt)
     }
     assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
+  } else {
+    ccover(tl_out.b.valid && !tl_out.b.ready, "BLOCK_B", "D$ B-channel blocked")
   }
 
   // uncached response
