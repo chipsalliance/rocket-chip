@@ -49,7 +49,7 @@ trait HasMasterAXI4MemPort extends HasMemoryBus {
       beatBytes = params.beatBytes)
   })
 
-  val converter = LazyModule(new TLToAXI4(params.beatBytes))
+  val converter = LazyModule(new TLToAXI4())
   val trim = LazyModule(new AXI4IdIndexer(params.idBits))
   val yank = LazyModule(new AXI4UserYanker)
   val buffer = LazyModule(new AXI4Buffer)
@@ -102,7 +102,7 @@ trait HasMasterAXI4MMIOPort extends HasSystemBus {
     AXI4UserYanker()(
     AXI4Deinterleaver(sbus.blockBytes)(
     AXI4IdIndexer(params.idBits)(
-    TLToAXI4(params.beatBytes)(
+    TLToAXI4()(
     sbus.toFixedWidthPorts)))))
 }
 

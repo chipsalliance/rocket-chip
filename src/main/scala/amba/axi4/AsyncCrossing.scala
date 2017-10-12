@@ -91,7 +91,7 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
   val model = LazyModule(new TLRAMModel("AsyncCrossing"))
   val ram  = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
   val fuzz = LazyModule(new TLFuzzer(txns))
-  val toaxi = LazyModule(new TLToAXI4(beatBytes = 4))
+  val toaxi = LazyModule(new TLToAXI4)
   val cross = LazyModule(new AXI4AsyncCrossing)
 
   model.node := fuzz.node
