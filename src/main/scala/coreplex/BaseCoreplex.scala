@@ -40,8 +40,12 @@ trait HasTiles extends HasSystemBus {
   // Handle interrupts to be routed directly into each tile
   // TODO: figure out how to merge the localIntNodes and coreIntXbar
   def localIntCounts = tileParams.map(_.core.nLocalInterrupts)
-  def localIntNodes = tileParams map { t =>
-    (t.core.nLocalInterrupts > 0).option(LazyModule(new IntXbar).intnode)
+  lazy val localIntNodes = tileParams.zipWithIndex map { case (t, i) => {
+    (t.core.nLocalInterrupts > 0).option({
+      val n = LazyModule(new IntXbar)
+      n.suggestName(s"localIntXbar_${i}")
+      n.intnode})
+  }
   }
 
   val tiles: Seq[BaseTile]

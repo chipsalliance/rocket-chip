@@ -62,16 +62,19 @@ trait HasRocketTiles extends HasTiles
     // so may or may not need to be synchronized depending on the Tile's crossing type.
     // Debug interrupt is definitely asynchronous in all cases.
     val asyncIntXbar  = LazyModule(new IntXbar)
+    asyncIntXbar.suggestName("asyncIntXbar")
     asyncIntXbar.intnode  := debug.intnode                  // debug
     wrapper.asyncIntNode  := asyncIntXbar.intnode
 
     val periphIntXbar = LazyModule(new IntXbar)
+    periphIntXbar.suggestName("periphIntXbar")
     periphIntXbar.intnode := clint.intnode                  // msip+mtip
     periphIntXbar.intnode := plic.intnode                   // meip
     if (tp.core.useVM) periphIntXbar.intnode := plic.intnode // seip
     wrapper.periphIntNode := periphIntXbar.intnode
 
     val coreIntXbar = LazyModule(new IntXbar)
+    coreIntXbar.suggestName("coreIntXbar")
     lip.foreach { coreIntXbar.intnode := _ }                // lip
     wrapper.coreIntNode   := coreIntXbar.intnode
 
