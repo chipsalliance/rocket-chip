@@ -60,7 +60,7 @@ class RVCDecoder(x: UInt)(implicit p: Parameters) {
       if (p(XLen) == 32) inst(Cat(lwImm, rs1p, UInt(2,3), rs2p, UInt(0x07,7)), rs2p, rs1p, rs2p)
       else ld
     }
-    def unimp = inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x2F,7)), rs2p, rs1p, rs2p)
+    def unimp = inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x3F,7)), rs2p, rs1p, rs2p)
     def sd = inst(Cat(ldImm >> 5, rs2p, rs1p, UInt(3,3), ldImm(4,0), UInt(0x23,7)), rs2p, rs1p, rs2p)
     def sw = inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x23,7)), rs2p, rs1p, rs2p)
     def fsd = inst(Cat(ldImm >> 5, rs2p, rs1p, UInt(3,3), ldImm(4,0), UInt(0x27,7)), rs2p, rs1p, rs2p)
