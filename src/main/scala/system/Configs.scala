@@ -66,7 +66,7 @@ class DualCoreConfig extends Config(
 class TinyConfig extends Config(
   new WithNMemoryChannels(0) ++
   new WithStatelessBridge ++
-  new WithNTinyCores(1) ++
+  new With1TinyCore ++
   new BaseConfig)
 
 

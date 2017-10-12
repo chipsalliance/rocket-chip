@@ -11,8 +11,74 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case class TLNodeChain(in: TLInwardNode, out: TLOutwardNode)
+
+// TODO: how specific are these to RocketTiles?
+case class TileMasterPortParams(
+    addBuffers: Int = 0,
+    blockerCtrlAddr: Option[BigInt] = None,
+    cork: Option[Boolean] = None) {
+  def adapterChain(coreplex: HasPeripheryBus)
+                  (implicit p: Parameters): () => TLNodeChain = {
+
+    val blockerParams = blockerCtrlAddr.map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, deadlock = true))
+
+    val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
+    val tile_master_blocker = blockerParams.map(bp => LazyModule(new BasicBusBlocker(bp)))
+    val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
+    val tile_master_buffer = LazyModule(new TLBufferChain(addBuffers))
+
+    tile_master_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+
+    val nodes = List(
+      Some(tile_master_buffer.node),
+      Some(tile_master_fixer.node),
+      tile_master_blocker.map(_.node),
+      tile_master_cork.map(_.node)
+    ).flatMap(b=>b)
+
+    nodes.init zip nodes.tail foreach { case(front, back) => front :=* back }
+
+    () => TLNodeChain(in = nodes.last, out = nodes.head)
+  }
+}
+
+case class TileSlavePortParams(
+    addBuffers: Int = 0,
+    blockerCtrlAddr: Option[BigInt] = None) {
+  def adapterChain(coreplex: HasPeripheryBus)
+                  (implicit p: Parameters): () => TLNodeChain = {
+
+    val blockerParams = blockerCtrlAddr.map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes))
+
+    val tile_slave_blocker = blockerParams.map(bp => LazyModule(new BasicBusBlocker(bp)))
+    val tile_slave_buffer = LazyModule(new TLBufferChain(addBuffers))
+
+    tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+
+    val nodes = List(
+      Some(tile_slave_buffer.node),
+      tile_slave_blocker.map(_.node)
+    ).flatMap(b=>b)
+
+    nodes.init zip nodes.tail foreach { case(front, back) => front :=* back }
+
+    () => TLNodeChain(in = nodes.last, out = nodes.head)
+  }
+}
+
+case class RocketCrossingParams(
+    crossingType: CoreplexClockCrossing = SynchronousCrossing(),
+    master: TileMasterPortParams = TileMasterPortParams(),
+    slave: TileSlavePortParams = TileSlavePortParams()) {
+  def knownRatio: Option[Int] = crossingType match {
+    case RationalCrossing(_) => Some(2)
+    case _ => None
+  }
+}
+
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
-case object RocketCrossing extends Field[CoreplexClockCrossing](SynchronousCrossing())
+case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
 
 trait HasRocketTiles extends HasTiles
     with HasPeripheryBus
@@ -21,35 +87,43 @@ trait HasRocketTiles extends HasTiles
     with HasPeripheryDebug {
   val module: HasRocketTilesModuleImp
 
-  private val crossing = p(RocketCrossing)
   protected val tileParams = p(RocketTilesKey)
+  private val NumRocketTiles = tileParams.size
+  private val crossingParams = p(RocketCrossingKey)
+  private val crossings = crossingParams.size match {
+    case 1 => List.fill(NumRocketTiles) { crossingParams.head }
+    case NumRocketTiles => crossingParams
+    case _ => throw new Exception("RocketCrossingKey.size must == 1 or == RocketTilesKey.size")
+  }
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
-  val tiles: Seq[BaseTile] = localIntNodes.zip(tileParams).map { case (lip, tp) =>
+  private val crossingTuples = localIntNodes.zip(tileParams).zip(crossings)
+  val tiles: Seq[BaseTile] = crossingTuples.map { case ((lip, tp), crossing) =>
     val pWithExtra = p.alterPartial {
       case TileKey => tp
       case BuildRoCC => tp.rocc
       case SharedMemoryTLEdge => sharedMemoryTLEdge
+      case RocketCrossingKey => List(crossing)
     }
 
-    val wrapper = crossing match {
+    val wrapper = crossing.crossingType match {
       case SynchronousCrossing(params) => {
         val wrapper = LazyModule(new SyncRocketTile(tp)(pWithExtra))
-        sbus.fromSyncTiles(params, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
-        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(tp.name, tp.externalSlaveBuffers) }
+        sbus.fromSyncTiles(params, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toSyncSlaves(crossing.slave.adapterChain(this), tp.name) }
         wrapper
       }
       case AsynchronousCrossing(depth, sync) => {
         val wrapper = LazyModule(new AsyncRocketTile(tp)(pWithExtra))
-        sbus.fromAsyncTiles(depth, sync, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
-        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, tp.name, tp.externalSlaveBuffers) }
+        sbus.fromAsyncTiles(depth, sync, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toAsyncSlaves(sync, crossing.slave.adapterChain(this), tp.name) }
         wrapper
       }
       case RationalCrossing(direction) => {
         val wrapper = LazyModule(new RationalRocketTile(tp)(pWithExtra))
-        sbus.fromRationalTiles(direction, tp.externalMasterBuffers, tp.name) :=* wrapper.masterNode
-        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(tp.name, tp.externalSlaveBuffers) }
+        sbus.fromRationalTiles(direction, crossing.master.adapterChain(this), tp.name) :=* wrapper.masterNode
+        FlipRendering { implicit p => wrapper.slaveNode :*= pbus.toRationalSlaves(crossing.slave.adapterChain(this), tp.name) }
         wrapper
       }
     }

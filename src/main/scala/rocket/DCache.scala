@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.coreplex.{RationalCrossing, RocketCrossing, RocketTilesKey}
+import freechips.rocketchip.coreplex.{RocketTilesKey}
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -64,7 +64,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = new L1Metadata
 }
 
-class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
@@ -91,14 +91,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.out.ready := true
   metaArb.io.out.ready := true
 
-  val rational = p(RocketCrossing) match {
-    case RationalCrossing(_) => true
-    case _ => false
-  }
-
-  val q_depth = if (rational) (2 min maxUncachedInFlight-1) else 0
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> (if (q_depth == 0) tl_out_a else Queue(tl_out_a, q_depth, flow = true))
+  tl_out.a <> outer.bufferUncachedRequests
+                .map(_ min maxUncachedInFlight-1)
+                .map(Queue(tl_out_a, _, flow = true))
+                .getOrElse(tl_out_a)
+
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
       val q = Module(new Queue(tl_out.c.bits, cacheDataBeats, flow = true))
@@ -392,7 +390,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val access_address = s2_req.addr
   val a_size = mtSize(s2_req.typ)
   val a_data = Fill(beatWords, pstore1_data)
-  val acquire = if (edge.manager.anySupportAcquireB) {
+  val acquire = if (edge.manager.anySupportAcquireT) {
     edge.AcquireBlock(UInt(0), acquire_address, lgCacheBlockBytes, s2_grow_param)._2 // Cacheability checked by tlb
   } else {
     Wire(new TLBundleA(edge.bundle))
@@ -595,7 +593,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (releaseDone) { release_state := s_probe_write_meta }
   }
   when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
-    if (edge.manager.anySupportAcquireB)
+    if (edge.manager.anySupportAcquireT)
       tl_out_c.bits := edge.Release(fromSource = 0.U,
                                     toAddress = 0.U,
                                     lgSize = lgCacheBlockBytes,
@@ -711,7 +709,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.way_en := ~UInt(0, nWays)
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  if (!edge.manager.managers.forall(m => !m.supportsAcquireB || !m.executable || m.regionType >= RegionType.TRACKED)) {
+  if (!edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED)) {
     when (tl_out_a.fire() && !s2_uncached) { flushed := false }
     when (flushing) {
       s1_victim_way := flushCounter >> log2Up(nSets)
