@@ -27,7 +27,9 @@ case class RocketTileParams(
   require(dcache.isDefined)
 }
 
-abstract class HartedTile(tileParams: TileParams, val hartid: Int)(implicit p: Parameters) extends BaseTile(tileParams)(p)
+abstract class HartedTile(tileParams: TileParams, val hartid: Int)(implicit p: Parameters) extends BaseTile(tileParams)(p) {
+  require (log2Up(hartid) <= p(MaxHartIdBits), s"p(MaxHartIdBits) of ${p(MaxHartIdBits)} is not enough for hartid ${hartid}")
+}
 
 class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) extends HartedTile(rocketParams, rocketParams.hartid)(p)
     with HasExternalInterrupts
