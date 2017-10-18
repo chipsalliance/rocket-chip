@@ -12,8 +12,9 @@ sealed trait ResourceValue
   * @param w            writable.
   * @param x            executable.
   * @param c            cacheable.
+  * @param a            supports all atomic operations.
   */
-case class ResourcePermissions(r: Boolean, w: Boolean, x: Boolean, c: Boolean) // Not part of DTS
+case class ResourcePermissions(r: Boolean, w: Boolean, x: Boolean, c: Boolean, a: Boolean) // Not part of DTS
 
 /** An address space description.
   * @param address      the address space.

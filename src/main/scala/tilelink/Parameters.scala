@@ -64,7 +64,8 @@ case class TLManagerParameters(
       r = supportsAcquireB || supportsGet,
       w = supportsAcquireT || supportsPutFull,
       x = executable,
-      c = regionType >= RegionType.UNCACHED))
+      c = regionType >= RegionType.UNCACHED,
+      a = supportsArithmetic && supportsLogical))
   }
 }
 

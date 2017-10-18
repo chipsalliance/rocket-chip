@@ -26,12 +26,12 @@ object JSON
   }
 
   private def helper(res: ResourceValue)(implicit path: Map[String, String]): Seq[String] = res match {
-    case ResourceAddress(address, ResourcePermissions(r, w, x, c)) =>
+    case ResourceAddress(address, ResourcePermissions(r, w, x, c, a)) =>
       AddressRange.fromSets(address).map { case AddressRange(base, size) =>
-        s"""{"base":${base},"size":${size},"r":${r},"w":${w},"x":${x},"c":${c}}"""}
-    case ResourceMapping(address, offset, ResourcePermissions(r, w, x, c)) =>
+        s"""{"base":${base},"size":${size},"r":${r},"w":${w},"x":${x},"c":${c},"a":${a}}"""}
+    case ResourceMapping(address, offset, ResourcePermissions(r, w, x, c, a)) =>
       AddressRange.fromSets(address).map { case AddressRange(base, size) =>
-        s"""{"base":${base},"size":${size},"offset":${offset},"r":${r},"w":${w},"x":${x},"c":${c}}"""}
+        s"""{"base":${base},"size":${size},"offset":${offset},"r":${r},"w":${w},"x":${x},"c":${c},"a":${a}}"""}
     case ResourceInt(value) => Seq(value.toString)
     case ResourceString(value) => Seq("\"" + value + "\"")
     case ResourceReference(value) => Seq("\"&" + path(value) + "\"")
