@@ -165,7 +165,7 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCor
   private val ranges = collect(Nil, outer.bindingTree).groupBy(_._2).toList.flatMap { case (key, seq) =>
     AddressRange.fromSets(key.address).map { r => (r, key.permissions, seq.map(_._1)) }
   }.sortBy(_._1)
-  private val json = ranges.map { case (range, ResourcePermissions(r, w, x, c), names) =>
+  private val json = ranges.map { case (range, ResourcePermissions(r, w, x, c, a), names) =>
     println(fmt.format(
       range.base,
       range.base+range.size,
@@ -173,8 +173,9 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCor
       if (w) 'W' else ' ',
       if (x) 'X' else ' ',
       if (c) 'C' else ' ',
+      if (a) 'A' else ' ',
       names.mkString(", ")))
-    s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
+    s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"a":[$a],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
   }
   println("")
   ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${json.mkString(",")}]}""")
