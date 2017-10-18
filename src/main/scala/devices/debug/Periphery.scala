@@ -198,6 +198,7 @@ trait HasPeripheryDebugModuleImp extends LazyMultiIOModuleImp with HasPeripheryD
 
   val debug = IO(new DebugIO)
   val debug_axi = IO(outer.axi4InputNode.bundleIn)
+  chisel3.experimental.dontTouch(debug_axi)
 
   debug.clockeddmi.foreach { dbg => outer.debug.module.io.dmi <> dbg }
 
