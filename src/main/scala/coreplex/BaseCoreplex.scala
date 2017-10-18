@@ -169,11 +169,11 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCor
     println(fmt.format(
       range.base,
       range.base+range.size,
+      if (a) 'A' else ' ',
       if (r) 'R' else ' ',
       if (w) 'W' else ' ',
       if (x) 'X' else ' ',
       if (c) 'C' else ' ',
-      if (a) 'A' else ' ',
       names.mkString(", ")))
     s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"a":[$a],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
   }
