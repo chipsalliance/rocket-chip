@@ -92,8 +92,8 @@ trait HasAXIDMIModuleContents extends Module with HasRegMap {
   val io: HasDMIIO
   implicit val p: Parameters
   regmap(
-    0 -> NonBlockingEnqueue(io.dmi.req, 64),
-    8 -> NonBlockingDequeue(io.dmi.resp, 64)
+    0 -> Seq(RegField.w(64, RegWriteFn((valid, data) => { io.dmi.req.valid := valid; io.dmi.req.bits := data.asTypeOf(io.dmi.req.bits); io.dmi.req.ready }))),
+    8 -> Seq(RegField.r(64, RegReadFn((ready => { io.dmi.resp.ready := ready; (io.dmi.resp.valid, io.dmi.resp.bits.asUInt) }))))
   )
 }
 
