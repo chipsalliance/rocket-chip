@@ -152,7 +152,7 @@ trait HasTilesModuleImp extends LazyModuleImp
 abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCoreplexModule(_outer) {
   println("Generated Address Map")
   private val aw = (outer.sharedMemoryTLEdge.bundle.addressBits-1)/4 + 1
-  private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c %s"
+  private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c%c %s"
 
   private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
     value match {
@@ -169,11 +169,11 @@ abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCor
     println(fmt.format(
       range.base,
       range.base+range.size,
+      if (a) 'A' else ' ',
       if (r) 'R' else ' ',
       if (w) 'W' else ' ',
       if (x) 'X' else ' ',
       if (c) 'C' else ' ',
-      if (a) 'A' else ' ',
       names.mkString(", ")))
     s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"a":[$a],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
   }
