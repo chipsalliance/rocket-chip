@@ -11,6 +11,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 
 trait BusErrors extends Bundle {
   def toErrorList: List[Option[Valid[UInt]]]

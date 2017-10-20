@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink.{IntSourceNode, IntSourcePortSimple}
+import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.HeterogeneousBag
 import scala.math.{min,max}
 

@@ -9,6 +9,7 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 /** Constant values used by both Debug Bus Response & Request
