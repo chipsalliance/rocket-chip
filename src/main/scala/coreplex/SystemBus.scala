@@ -52,33 +52,27 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromFrontBus: TLInwardNode = master_splitter.node
 
-  def fromSyncTiles(params: BufferParams, adapt: () => TLNodeChain, name: Option[String] = None): TLInwardNode = {
-    val adapters = adapt() // wanted to be called inside SystemBus scope
+  def fromSyncTiles(params: BufferParams, adapt: TLOutwardNode => TLOutwardNode, name: Option[String] = None): TLInwardNode = {
     val tile_sink = LazyModule(new TLBuffer(params))
     name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLBuffer") }
 
-    adapters.in :=* tile_sink.node
-    master_splitter.node :=* adapters.out
+    master_splitter.node :=* adapt(tile_sink.node)
     tile_sink.node
   }
 
-  def fromRationalTiles(dir: RationalDirection, adapt: () => TLNodeChain, name: Option[String] = None): TLRationalInwardNode = {
-    val adapters = adapt() // wanted to be called inside SystemBus scope
+  def fromRationalTiles(dir: RationalDirection, adapt: TLOutwardNode => TLOutwardNode, name: Option[String] = None): TLRationalInwardNode = {
     val tile_sink = LazyModule(new TLRationalCrossingSink(direction = dir))
     name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLRationalCrossingSink") }
 
-    adapters.in :=* tile_sink.node
-    master_splitter.node :=* adapters.out
+    master_splitter.node :=* adapt(tile_sink.node)
     tile_sink.node
   }
 
-  def fromAsyncTiles(depth: Int, sync: Int, adapt: () => TLNodeChain, name: Option[String] = None): TLAsyncInwardNode = {
-    val adapters = adapt() // wanted to be called inside SystemBus scope
+  def fromAsyncTiles(depth: Int, sync: Int, adapt: TLOutwardNode => TLOutwardNode, name: Option[String] = None): TLAsyncInwardNode = {
     val tile_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLAsyncCrossingSink") }
 
-    adapters.in :=* tile_sink.node
-    master_splitter.node :=* adapters.out
+    master_splitter.node :=* adapt(tile_sink.node)
     tile_sink.node
   }
 

@@ -31,27 +31,19 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
     TLFragmenter(params.beatBytes, maxXferBytes)(outwardBufNode)
   }
 
-  def toSyncSlaves(adapt: () => TLNodeChain, name: Option[String]): TLOutwardNode = SinkCardinality { implicit p =>
-    val adapters = adapt()
-    adapters.in :=? outwardBufNode
-    adapters.out
-  }
+  def toSyncSlaves(adapt: TLOutwardNode => TLOutwardNode, name: Option[String]): TLOutwardNode = adapt(outwardBufNode)
 
-  def toAsyncSlaves(sync: Int, adapt: () => TLNodeChain, name: Option[String]): TLAsyncOutwardNode = SinkCardinality { implicit p =>
-    val adapters = adapt()
+  def toAsyncSlaves(sync: Int, adapt: TLOutwardNode => TLOutwardNode, name: Option[String]): TLAsyncOutwardNode = SinkCardinality { implicit p =>
     val source = LazyModule(new TLAsyncCrossingSource(sync))
     name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
-    adapters.in :=? outwardNode
-    source.node :=? adapters.out
+    source.node :*= adapt(outwardNode)
     source.node
   }
 
-  def toRationalSlaves(adapt: () => TLNodeChain, name: Option[String]): TLRationalOutwardNode = SinkCardinality { implicit p =>
-    val adapters = adapt()
+  def toRationalSlaves(adapt: TLOutwardNode => TLOutwardNode, name: Option[String]): TLRationalOutwardNode = SinkCardinality { implicit p =>
     val source = LazyModule(new TLRationalCrossingSource())
     name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
-    adapters.in :=? outwardNode
-    source.node :=? adapters.out
+    source.node :*= adapt(outwardNode)
     source.node
   }
 
