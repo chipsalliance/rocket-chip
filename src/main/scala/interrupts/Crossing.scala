@@ -18,3 +18,41 @@ class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
     }
   }
 }
+
+object IntSyncCrossingSource
+{
+  def apply(alreadyRegistered: Boolean = false)(implicit p: Parameters) = LazyModule(new IntSyncCrossingSource(alreadyRegistered)).node
+}
+
+
+class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Parameters) extends LazyModule
+{
+  val node = IntSyncSourceNode()
+
+  lazy val module = new LazyModuleImp(this) {
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      if (alreadyRegistered) {
+        out.sync := in
+      } else {
+        out.sync := RegNext(in)
+      }
+    }
+  }
+}
+
+
+class IntSyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyModule
+{
+  val node = IntSyncSinkNode()
+
+  lazy val module = new LazyModuleImp(this) {
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out := SynchronizerShiftReg(in.sync, sync)
+    }
+  }
+}
+
+object IntSyncCrossingSink
+{
+  def apply(sync: Int = 3)(implicit p: Parameters) = LazyModule(new IntSyncCrossingSink(sync)).node
+}
