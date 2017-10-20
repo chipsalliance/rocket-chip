@@ -98,6 +98,8 @@ abstract class BaseNode(implicit val valName: ValName)
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
 
+  def parents: Seq[LazyModule] = lazyModule +: lazyModule.parents
+
   def wirePrefix = {
     val camelCase = "([a-z])([A-Z])".r
     val decamel = camelCase.replaceAllIn(valName.name, _ match { case camelCase(l, h) => l + "_" + h })
@@ -129,6 +131,7 @@ case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
 trait InwardNodeHandle[DI, UI, BI <: Data]
 {
   protected[diplomacy] val inward: InwardNode[DI, UI, BI]
+  def parentsIn: Seq[LazyModule] = inward.parents
   def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=(h)(p, sourceInfo) }
   def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:*=(h)(p, sourceInfo) }
   def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=*(h)(p, sourceInfo) }
@@ -170,6 +173,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
 trait OutwardNodeHandle[DO, UO, BO <: Data]
 {
   protected[diplomacy] val outward: OutwardNode[DO, UO, BO]
+  def parentsOut: Seq[LazyModule] = outward.parents
 }
 
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO, UO, BO]
