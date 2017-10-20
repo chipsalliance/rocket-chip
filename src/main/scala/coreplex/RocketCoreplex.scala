@@ -9,6 +9,7 @@ import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugM
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 case class TLNodeChain(in: TLInwardNode, out: TLOutwardNode)

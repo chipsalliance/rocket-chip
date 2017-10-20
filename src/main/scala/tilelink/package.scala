@@ -15,7 +15,4 @@ package object tilelink
   type TLRationalOutwardNode = OutwardNodeHandle[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalBundle]
   type TLMixedNode = MixedNode[TLClientPortParameters, TLManagerPortParameters, TLEdgeIn, TLBundle,
                                TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLBundle]
-
-  type IntInwardNode = InwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
-  type IntOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
 }

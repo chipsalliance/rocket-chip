@@ -2,7 +2,8 @@
 
 package freechips.rocketchip
 
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.tilelink.TLOutwardNode
+import freechips.rocketchip.interrupts.IntOutwardNode
 
 package object coreplex
 {
