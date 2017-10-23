@@ -31,26 +31,25 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
     TLFragmenter(params.beatBytes, maxXferBytes)(outwardBufNode)
   }
 
-  def toSyncSlaves(adapt: TLOutwardNode => TLOutwardNode, name: Option[String]): TLOutwardNode = adapt(outwardBufNode)
-
-  def toAsyncSlaves(sync: Int, adapt: TLOutwardNode => TLOutwardNode, name: Option[String]): TLAsyncOutwardNode = SinkCardinality { implicit p =>
-    val source = LazyModule(new TLAsyncCrossingSource(sync))
-    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
-    source.node :*= adapt(outwardNode)
-    source.node
-  }
-
-  def toRationalSlaves(adapt: TLOutwardNode => TLOutwardNode, name: Option[String]): TLRationalOutwardNode = SinkCardinality { implicit p =>
-    val source = LazyModule(new TLRationalCrossingSource())
-    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
-    source.node :*= adapt(outwardNode)
-    source.node
-  }
-
   val fromSystemBus: TLInwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(arithmetic = params.arithmetic))
     inwardBufNode := atomics.node
     atomics.node
+  }
+
+  def toTile(
+      adapt: TLOutwardNode => TLOutwardNode,
+      to: TLInwardNode,
+      name: Option[String] = None) {
+    this {
+      LazyScope(s"${busName}ToTile${name.getOrElse("")}") {
+        SinkCardinality { implicit p =>
+          FlipRendering { implicit p =>
+            to :*= adapt(outwardNode)
+          }
+        }
+      }
+    }
   }
 }
 

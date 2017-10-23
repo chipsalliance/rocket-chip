@@ -25,8 +25,13 @@ abstract class LazyModule()(implicit val p: Parameters)
   LazyModule.scope = Some(this)
   parent.foreach(p => p.children = this :: p.children)
 
+  // suggestedName accumulates Some(names), taking the final one. Nones are ignored.
   private var suggestedName: Option[String] = None
-  def suggestName(x: String) = suggestedName = Some(x)
+  def suggestName(x: String): this.type = suggestName(Some(x))
+  def suggestName(x: Option[String]): this.type = {
+    x.foreach { n => suggestedName = Some(n) }
+    this
+  }
 
   private lazy val childNames =
     getClass.getMethods.filter { m =>
