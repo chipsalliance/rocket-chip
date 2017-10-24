@@ -17,6 +17,11 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
 
+  def parents: Seq[LazyModule] = parent match {
+    case None => Nil
+    case Some(x) => x +: x.parents
+  }
+
   LazyModule.scope = Some(this)
   parent.foreach(p => p.children = this :: p.children)
 
