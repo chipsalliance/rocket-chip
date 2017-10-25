@@ -126,15 +126,15 @@ trait NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
   extends InwardNodeHandle[DI, UI, BI] with OutwardNodeHandle[DO, UO, BO]
 {
   // connecting two full nodes => full node
-  override def :=  [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { inward.bind(h, BIND_ONCE);  NodeHandle(h, this) }
-  override def :*= [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { inward.bind(h, BIND_STAR);  NodeHandle(h, this) }
-  override def :=* [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { inward.bind(h, BIND_QUERY); NodeHandle(h, this) }
-  override def :=? [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { inward.bind(h, p(CardinalityInferenceDirectionKey)); NodeHandle(h, this) }
+  override def :=  [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, BIND_ONCE);  NodeHandle(h, this) }
+  override def :*= [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, BIND_STAR);  NodeHandle(h, this) }
+  override def :=* [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, BIND_QUERY); NodeHandle(h, this) }
+  override def :=? [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, p(CardinalityInferenceDirectionKey)); NodeHandle(h, this) }
   // connecting a full node with an output => an output
-  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { inward.bind(h, BIND_ONCE);  this }
-  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { inward.bind(h, BIND_STAR);  this }
-  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { inward.bind(h, BIND_QUERY); this }
-  override def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { inward.bind(h, p(CardinalityInferenceDirectionKey)); this }
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, BIND_ONCE);  this }
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, BIND_STAR);  this }
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, BIND_QUERY); this }
+  override def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, p(CardinalityInferenceDirectionKey)); this }
 }
 
 object NodeHandle
@@ -152,18 +152,20 @@ case class NodeHandlePair[DI, UI, BI <: Data, DO, UO, BO <: Data]
 
 trait InwardNodeHandle[DI, UI, BI <: Data] extends NoHandle
 {
-  protected[diplomacy] val inward: InwardNode[DI, UI, BI]
+  def inward: InwardNode[DI, UI, BI]
   def parentsIn: Seq[LazyModule] = inward.parents
+  def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = inward.bind(h.outward, binding)
+
   // connecting an input node with a full nodes => an input node
-  def :=  [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { inward.bind(h, BIND_ONCE);  h }
-  def :*= [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { inward.bind(h, BIND_STAR);  h }
-  def :=* [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { inward.bind(h, BIND_QUERY); h }
-  def :=? [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { inward.bind(h, p(CardinalityInferenceDirectionKey)); h }
+  def :=  [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, BIND_ONCE);  h }
+  def :*= [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, BIND_STAR);  h }
+  def :=* [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, BIND_QUERY); h }
+  def :=? [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, p(CardinalityInferenceDirectionKey)); h }
   // connecting input node with output node => no node
-  def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { inward.bind(h, BIND_ONCE);  NoHandleObject }
-  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { inward.bind(h, BIND_STAR);  NoHandleObject }
-  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { inward.bind(h, BIND_QUERY); NoHandleObject }
-  def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { inward.bind(h, p(CardinalityInferenceDirectionKey)); NoHandleObject }
+  def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_ONCE);  NoHandleObject }
+  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_STAR);  NoHandleObject }
+  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_QUERY); NoHandleObject }
+  def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, p(CardinalityInferenceDirectionKey)); NoHandleObject }
 }
 
 sealed trait NodeBinding
@@ -182,7 +184,7 @@ object NodeBinding
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, UI, BI]
 {
-  protected[diplomacy] val inward = this
+  val inward = this
 
   protected[diplomacy] val numPI: Range.Inclusive
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
@@ -206,18 +208,18 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val iParams: Seq[UI]
 
-  protected[diplomacy] def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit
 }
 
 trait OutwardNodeHandle[DO, UO, BO <: Data] extends NoHandle
 {
-  protected[diplomacy] val outward: OutwardNode[DO, UO, BO]
+  def outward: OutwardNode[DO, UO, BO]
   def parentsOut: Seq[LazyModule] = outward.parents
 }
 
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO, UO, BO]
 {
-  protected[diplomacy] val outward = this
+  val outward = this
 
   protected[diplomacy] val numPO: Range.Inclusive
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
@@ -380,9 +382,9 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   // connects the outward part of a node with the inward part of this node
-  protected[diplomacy] def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val x = this // x := y
-    val y = h.outward
+    val y = h
     val info = sourceLine(sourceInfo, " at ", "")
     val i = x.iPushed
     val o = y.oPushed
