@@ -200,17 +200,17 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
   val id_csr = Mux(id_csr_ren, CSR.R, id_ctrl.csr)
   val id_sfence = id_ctrl.mem && id_ctrl.mem_cmd === M_SFENCE
-  val id_csr_flush = id_sfence || id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode.write_flush)
+  val id_csr_flush = id_sfence || id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode(0).write_flush)
 
   val id_illegal_insn = !id_ctrl.legal ||
     id_ctrl.div && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
-    id_ctrl.fp && (csr.io.decode.fp_illegal || io.fpu.illegal_rm) ||
+    id_ctrl.fp && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
-    id_ctrl.rocc && csr.io.decode.rocc_illegal ||
-    id_csr_en && (csr.io.decode.read_illegal || !id_csr_ren && csr.io.decode.write_illegal) ||
-    !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode.system_illegal)
+    id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
+    id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
+    !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode(0).system_illegal)
   // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
@@ -508,7 +508,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
 
   // hook up control/status regfile
-  csr.io.decode.csr := id_raw_inst(0)(31,20)
+  csr.io.decode(0).csr := id_raw_inst(0)(31,20)
   csr.io.exception := wb_xcpt
   csr.io.cause := wb_cause
   csr.io.retire := wb_valid

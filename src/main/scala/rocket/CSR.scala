@@ -160,6 +160,16 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
+class CSRDecodeIO extends Bundle {
+  val csr = UInt(INPUT, CSR.ADDRSZ)
+  val fp_illegal = Bool(OUTPUT)
+  val rocc_illegal = Bool(OUTPUT)
+  val read_illegal = Bool(OUTPUT)
+  val write_illegal = Bool(OUTPUT)
+  val write_flush = Bool(OUTPUT)
+  val system_illegal = Bool(OUTPUT)
+}
+
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
   val interrupts = new TileInterrupts().asInput
@@ -171,15 +181,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
     val wdata = Bits(INPUT, xLen)
   }
 
-  val decode = new Bundle {
-    val csr = UInt(INPUT, CSR.ADDRSZ)
-    val fp_illegal = Bool(OUTPUT)
-    val rocc_illegal = Bool(OUTPUT)
-    val read_illegal = Bool(OUTPUT)
-    val write_illegal = Bool(OUTPUT)
-    val write_flush = Bool(OUTPUT)
-    val system_illegal = Bool(OUTPUT)
-  }
+  val decode = Vec(decodeWidth, new CSRDecodeIO)
 
   val csr_stall = Bool(OUTPUT)
   val eret = Bool(OUTPUT)
@@ -453,24 +455,26 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val insn_ret = system_insn && opcode(2)
   val insn_wfi = system_insn && opcode(5)
 
-  private def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io.decode.csr === k }.reduce(_||_)
-  val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
-  val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
-  val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
-  io.decode.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
-  io.decode.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
-  io.decode.read_illegal := reg_mstatus.prv < io.decode.csr(9,8) ||
-    !decodeAny(read_mapping) ||
-    io.decode.csr === CSRs.sptbr && !allow_sfence_vma ||
-    (io.decode.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io.decode.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && reg_mstatus.prv <= PRV.S && hpm_mask(io.decode.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
-    Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
-    Bool(usingFPU) && decodeAny(fp_csrs) && io.decode.fp_illegal
-  io.decode.write_illegal := io.decode.csr(11,10).andR
-  io.decode.write_flush := !(io.decode.csr >= CSRs.mscratch && io.decode.csr <= CSRs.mbadaddr || io.decode.csr >= CSRs.sscratch && io.decode.csr <= CSRs.sbadaddr)
-  io.decode.system_illegal := reg_mstatus.prv < io.decode.csr(9,8) ||
-    !io.decode.csr(5) && io.decode.csr(2) && !allow_wfi ||
-    !io.decode.csr(5) && io.decode.csr(1) && !allow_sret ||
-    io.decode.csr(5) && !allow_sfence_vma
+  for (io_dec <- io.decode) {
+    def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
+    val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
+    val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
+    val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
+    io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
+    io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
+    io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
+      !decodeAny(read_mapping) ||
+      io_dec.csr === CSRs.sptbr && !allow_sfence_vma ||
+      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && reg_mstatus.prv <= PRV.S && hpm_mask(io_dec.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
+      Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
+      Bool(usingFPU) && decodeAny(fp_csrs) && io_dec.fp_illegal
+    io_dec.write_illegal := io_dec.csr(11,10).andR
+    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mbadaddr || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.sbadaddr)
+    io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
+      !io_dec.csr(5) && io_dec.csr(2) && !allow_wfi ||
+      !io_dec.csr(5) && io_dec.csr(1) && !allow_sret ||
+      io_dec.csr(5) && !allow_sfence_vma
+  }
 
   val cause =
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
