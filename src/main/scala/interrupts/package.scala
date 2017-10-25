@@ -9,6 +9,7 @@ package object interrupts
 {
   type IntInwardNode = InwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
   type IntOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
+  type IntNode = NodeHandle[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool], IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]
   type IntSyncInwardNode = InwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, SyncInterrupts]
   type IntSyncOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, SyncInterrupts]
 }

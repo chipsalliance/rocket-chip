@@ -191,7 +191,7 @@ class RocketTileWrapper(
     params: RocketTileParams,
     val crossing: CoreplexClockCrossing,
     val boundaryBuffers: Boolean = false)
-    (implicit p: Parameters) extends BaseTile(params) with HasCrossingHelper {
+    (implicit p: Parameters) extends BaseTile(params) with HasCrossing {
 
   val rocket = LazyModule(new RocketTile(params))
 

@@ -49,7 +49,7 @@ case class TileSlavePortParams(
         .map(bp => LazyModule(new BasicBusBlocker(bp)))
 
     tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-    (TLBuffer.chain(addBuffers) ++ tile_slave_blocker.map(_.node))
+    (Seq() ++ tile_slave_blocker.map(_.node) ++ TLBuffer.chain(addBuffers))
     .foldLeft(slaveNode)(_ :*= _)
   }
 }
@@ -103,10 +103,10 @@ trait HasRocketTiles extends HasTiles
     ).suggestName(tp.name)
 
     // Connect the master ports of the tile to the system bus
-    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(wrapper.cross(wrapper.masterNode)) }
+    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(wrapper.crossTLOut :=* wrapper.masterNode) }
 
     // Connect the slave ports of the tile to the periphery bus
-    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)(wrapper.slaveNode) } // !!! wrapper.cross
+    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)(wrapper.slaveNode :*= wrapper.crossTLIn) }
 
     // Handle all the different types of interrupts crossing to or from the tile:
     // 1. Debug interrupt is definitely asynchronous in all cases.
@@ -120,18 +120,13 @@ trait HasRocketTiles extends HasTiles
 
     val asyncIntXbar  = LazyModule(new IntXbar).suggestName(tp.name.map(_ + "AsyncIntXbar"))
     asyncIntXbar.intnode  := debug.intnode                   // debug
-    wrapper.intXbar.intnode := wrapper.cross(                // 1. always crosses
-      name = tp.name.map(_ + "AsyncIntXbar"),
-      overrideCrossing = Some(AsynchronousCrossing(8,3))
-    )(x = asyncIntXbar.intnode)
+    wrapper.intXbar.intnode := wrapper.crossIntAsyncIn() := asyncIntXbar.intnode // 1. always crosses
 
     val periphIntXbar = LazyModule(new IntXbar).suggestName(tp.name.map(_ + "PeriphIntXbar"))
     periphIntXbar.intnode := clint.intnode                   // msip+mtip
     periphIntXbar.intnode := plic.intnode                    // meip
     if (tp.core.useVM) periphIntXbar.intnode := plic.intnode // seip
-    wrapper.intXbar.intnode := wrapper.cross(                // 2. conditionally crosses
-      name = tp.name.map(_ + "PeriphIntXbar")
-    )(x = periphIntXbar.intnode)
+    wrapper.intXbar.intnode := wrapper.crossIntIn := periphIntXbar.intnode // 2. conditionally crosses
 
     val coreIntXbar = LazyModule(new IntXbar).suggestName(tp.name.map(_ + "CoreIntXbar"))
     lip.foreach { coreIntXbar.intnode := _ }                 // lip
@@ -139,7 +134,7 @@ trait HasRocketTiles extends HasTiles
 
     wrapper.rocket.intOutputNode.foreach { i =>              // 4. conditionally crosses
       plic.intnode := FlipRendering { implicit p =>
-        wrapper.cross(name = tp.name.map(_ + "PeriphIntOutput"))(x = i)
+        wrapper.crossIntIn := i
       }
     }
 
