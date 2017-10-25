@@ -78,21 +78,3 @@ object TLBuffer
     buffers.map(_.node)
   }
 }
-
-class TLBufferChain(depth: Int)(implicit p: Parameters) extends SimpleLazyModule {
-  val buf_chain = List.fill(depth)(LazyModule(new TLBuffer(BufferParams.default)))
-  val node = buf_chain.map(_.node:TLNode).reduceOption(_ :=? _).getOrElse(TLIdentityNode())
-}
-
-object TLBufferChain
-{
-  def apply(depth: Int)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    if (depth > 0) {
-      val buffer = LazyModule(new TLBufferChain(depth))
-      buffer.node :=? x
-      buffer.node
-    } else {
-      x
-    }
-  }
-}
