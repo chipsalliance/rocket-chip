@@ -118,24 +118,21 @@ trait HasRocketTiles extends HasTiles
     // NOTE: The order of calls to := matters! They must match how interrupts
     //       are decoded from rocket.intNode inside the tile.
 
-    val asyncIntXbar  = LazyModule(new IntXbar).suggestName(tp.name.map(_ + "AsyncIntXbar"))
-    asyncIntXbar.intnode  := debug.intnode                   // debug
-    wrapper.intXbar.intnode := wrapper.crossIntAsyncIn() := asyncIntXbar.intnode // 1. always crosses
+    wrapper.intXbar.intnode := wrapper { IntSyncCrossingSink(3) } := debug.intnode // 1. always async crossign
 
-    val periphIntXbar = LazyModule(new IntXbar).suggestName(tp.name.map(_ + "PeriphIntXbar"))
-    periphIntXbar.intnode := clint.intnode                   // msip+mtip
-    periphIntXbar.intnode := plic.intnode                    // meip
-    if (tp.core.useVM) periphIntXbar.intnode := plic.intnode // seip
-    wrapper.intXbar.intnode := wrapper.crossIntIn := periphIntXbar.intnode // 2. conditionally crosses
+    // 2. clint+plic conditionak crossing
+    val periphIntNode = SourceCardinality { implicit p => wrapper.intXbar.intnode :=? wrapper.crossIntIn }
+    periphIntNode := clint.intnode                   // msip+mtip
+    periphIntNode := plic.intnode                    // meip
+    if (tp.core.useVM) periphIntNode := plic.intnode // seip
 
-    val coreIntXbar = LazyModule(new IntXbar).suggestName(tp.name.map(_ + "CoreIntXbar"))
-    lip.foreach { coreIntXbar.intnode := _ }                 // lip
-    wrapper.intXbar.intnode := coreIntXbar.intnode           // 3. never crosses
+    lip.foreach { wrapper.intXbar.intnode := _ } // 3. lip never crosses
 
-    wrapper.rocket.intOutputNode.foreach { i =>              // 4. conditionally crosses
-      plic.intnode := FlipRendering { implicit p =>
-        wrapper.crossIntIn := i
-      }
+    // From core to PLIC
+    wrapper.rocket.intOutputNode.foreach { i =>              // 4. conditional crossing
+      FlipRendering { implicit p => SourceCardinality { implicit p =>
+        plic.intnode :=? wrapper.crossIntOut :=? i
+      } }
     }
 
     wrapper
