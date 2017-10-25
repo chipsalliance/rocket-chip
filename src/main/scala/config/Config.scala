@@ -40,9 +40,8 @@ abstract class Parameters extends View {
 }
 
 object Parameters {
-  def empty:                                                    Parameters = new EmptyParameters
+  def empty: Parameters = new EmptyParameters
   def apply(f: (View, View, View) => PartialFunction[Any,Any]): Parameters = new PartialParameters(f)
-  def root(p: Parameters) = p
 }
 
 class Config(p: Parameters) extends Parameters {

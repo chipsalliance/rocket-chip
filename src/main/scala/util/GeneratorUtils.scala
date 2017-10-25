@@ -43,7 +43,7 @@ trait HasGeneratorUtilities {
 
   def getParameters(names: ParsedInputNames): Parameters = getParameters(getConfig(names))
 
-  def getParameters(config: Config): Parameters = Parameters.root(config.toInstance)
+  def getParameters(config: Config): Parameters = config.toInstance
 
   def elaborate(names: ParsedInputNames, params: Parameters): Circuit = {
     val gen = () =>
@@ -97,8 +97,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   // Canonical ways of building various JVM elaboration-time structures
   lazy val td = names.targetDir
   lazy val config = getConfig(names)
-  lazy val world = config.toInstance
-  lazy val params = Parameters.root(world)
+  lazy val params = config.toInstance
   lazy val circuit = elaborate(names, params)
 
   val longName: String // Exhaustive name used to interface with external build tool targets
