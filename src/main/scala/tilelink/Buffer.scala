@@ -71,6 +71,12 @@ object TLBuffer
     buffer.node :=? x
     buffer.node
   }
+
+  def chain(depth: Int, name: Option[String] = None)(implicit p: Parameters): Seq[TLNode] = {
+    val buffers = Seq.fill(depth) { LazyModule(new TLBuffer()) }
+    name.foreach { n => buffers.zipWithIndex.foreach { case (b, i) => b.suggestName(s"${n}_${i}") } }
+    buffers.map(_.node)
+  }
 }
 
 object TLNodeChain {

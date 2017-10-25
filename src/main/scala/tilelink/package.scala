@@ -9,7 +9,7 @@ package object tilelink
 {
   type TLInwardNode = InwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle]
   type TLOutwardNode = OutwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle]
-  type TLNode = TLInwardNode with TLOutwardNode
+  type TLNode = NodeHandle[TLClientPortParameters, TLManagerPortParameters, TLBundle, TLClientPortParameters, TLManagerPortParameters, TLBundle]
   type TLAsyncInwardNode = InwardNodeHandle[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]
   type TLAsyncOutwardNode = OutwardNodeHandle[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]
   type TLRationalInwardNode = InwardNodeHandle[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalBundle]
