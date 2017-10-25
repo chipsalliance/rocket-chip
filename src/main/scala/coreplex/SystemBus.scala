@@ -52,14 +52,11 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromFrontBus: TLInwardNode = master_splitter.node
 
-  def fromTile(
-      adapt: TLOutwardNode => TLOutwardNode,
-      from: TLOutwardNode,
-      name: Option[String] = None) {
+  def fromTile(name: Option[String])(gen: Parameters => TLOutwardNode) {
     this {
       LazyScope(s"${busName}FromTile${name.getOrElse("")}") {
         SourceCardinality { implicit p =>
-          master_splitter.node :=* adapt(from)
+          master_splitter.node :=* gen(p)
         }
       }
     }

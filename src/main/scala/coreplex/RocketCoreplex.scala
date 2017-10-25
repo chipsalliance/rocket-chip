@@ -28,18 +28,11 @@ case class TileMasterPortParams(
         .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, deadlock = true))
         .map(bp => LazyModule(new BasicBusBlocker(bp)))
     val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
-    val tile_master_buffer = LazyModule(new TLBufferChain(addBuffers))
-
-    val node: Option[TLNode] = TLNodeChain(List(
-      Some(tile_master_buffer.node),
-      Some(tile_master_fixer.node),
-      tile_master_blocker.map(_.node),
-      tile_master_cork.map(_.node)).flatten)
 
     tile_master_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-    node.foreach { _ :=* masterNode }
-
-    node.getOrElse(masterNode)
+    (Seq(tile_master_fixer.node) ++ TLBuffer.chain(addBuffers)
+     ++ tile_master_blocker.map(_.node) ++ tile_master_cork.map(_.node))
+     .foldRight(masterNode)(_ :=* _)
   }
 }
 
@@ -48,22 +41,16 @@ case class TileSlavePortParams(
     blockerCtrlAddr: Option[BigInt] = None) {
 
   def adapt(coreplex: HasPeripheryBus)
-           (masterNode: TLOutwardNode)
-           (implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
+           (slaveNode: TLInwardNode)
+           (implicit p: Parameters, sourceInfo: SourceInfo): TLInwardNode = {
     val tile_slave_blocker =
       blockerCtrlAddr
         .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes))
         .map(bp => LazyModule(new BasicBusBlocker(bp)))
-    val tile_slave_buffer = LazyModule(new TLBufferChain(addBuffers))
-
-    val node: Option[TLNode] = TLNodeChain(List(
-      Some(tile_slave_buffer.node),
-      tile_slave_blocker.map(_.node)).flatten)
 
     tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-    node.foreach { _ :*= masterNode }
-
-    node.getOrElse(masterNode)
+    (TLBuffer.chain(addBuffers) ++ tile_slave_blocker.map(_.node))
+    .foldLeft(slaveNode)(_ :*= _)
   }
 }
 
@@ -116,18 +103,10 @@ trait HasRocketTiles extends HasTiles
     ).suggestName(tp.name)
 
     // Connect the master ports of the tile to the system bus
-    sbus.fromTile(
-      adapt = {x: TLOutwardNode => wrapper.cross(x) } andThen
-        crossing.master.adapt(this) _,
-      from = wrapper.masterNode,
-      name = tp.name)
+    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(wrapper.cross(wrapper.masterNode)) }
 
     // Connect the slave ports of the tile to the periphery bus
-    pbus.toTile(
-      adapt = {x: TLOutwardNode => wrapper.cross(x) } compose
-        crossing.slave.adapt(this) _,
-      to = wrapper.slaveNode,
-      name = tp.name)
+    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)(wrapper.slaveNode) } // !!! wrapper.cross
 
     // Handle all the different types of interrupts crossing to or from the tile:
     // 1. Debug interrupt is definitely asynchronous in all cases.

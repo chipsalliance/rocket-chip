@@ -24,9 +24,7 @@ trait HasCrossingHelper extends LazyScope
     val out = x.node.parentsOut.exists(_ eq this) // is the crossing exiting the wrapper?
     crossing match {
       case SynchronousCrossing(params) => {
-        // !!! Why does star resolution fail for tile with no slave devices?
-        // this { TLBuffer(params)(x.node) }
-        x.node
+        this { TLBuffer(params)(x.node) }
       }
       case RationalCrossing(direction) => {
         def sourceGen = LazyModule(new TLRationalCrossingSource)

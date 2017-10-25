@@ -79,18 +79,9 @@ object TLBuffer
   }
 }
 
-object TLNodeChain {
-  def apply(nodes: Seq[TLNode])(implicit p: Parameters): Option[TLNode] = if(nodes.size > 0) {
-    (nodes.init zip nodes.tail) foreach { case (prev, next) => next :=? prev }
-    Some(NodeHandle(nodes.head, nodes.last))
-  } else {
-    None
-  }
-}
-
 class TLBufferChain(depth: Int)(implicit p: Parameters) extends SimpleLazyModule {
   val buf_chain = List.fill(depth)(LazyModule(new TLBuffer(BufferParams.default)))
-  val node = TLNodeChain(buf_chain.map(_.node)).getOrElse(TLIdentityNode())
+  val node = buf_chain.map(_.node:TLNode).reduceOption(_ :=? _).getOrElse(TLIdentityNode())
 }
 
 object TLBufferChain

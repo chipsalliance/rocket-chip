@@ -37,15 +37,12 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
     atomics.node
   }
 
-  def toTile(
-      adapt: TLOutwardNode => TLOutwardNode,
-      to: TLInwardNode,
-      name: Option[String] = None) {
+  def toTile(name: Option[String] = None)(gen: Parameters => TLInwardNode) {
     this {
       LazyScope(s"${busName}ToTile${name.getOrElse("")}") {
         SinkCardinality { implicit p =>
           FlipRendering { implicit p =>
-            to :*= adapt(outwardNode)
+            gen(p) :*= outwardNode
           }
         }
       }
