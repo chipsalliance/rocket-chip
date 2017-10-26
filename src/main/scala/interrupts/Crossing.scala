@@ -27,7 +27,7 @@ object IntSyncCrossingSource
 
 class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
-  val node = IntSyncSourceNode()
+  val node = IntSyncSourceNode(alreadyRegistered)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -43,7 +43,7 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 
 class IntSyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
-  val node = IntSyncSinkNode()
+  val node = IntSyncSinkNode(sync)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>

@@ -51,12 +51,18 @@ object IntSyncImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortPara
 
 case class IntSyncIdentityNode()(implicit valName: ValName) extends IdentityNode(IntSyncImp)()
 
-case class IntSyncSourceNode()(implicit valName: ValName)
+case class IntSyncSourceNode(alreadyRegistered: Boolean)(implicit valName: ValName)
   extends MixedAdapterNode(IntImp, IntSyncImp)(
     dFn = { p => p },
     uFn = { p => p })
+{
+  override lazy val nodedebugstring = s"alreadyRegistered:${alreadyRegistered}"
+}
 
-case class IntSyncSinkNode()(implicit valName: ValName)
+case class IntSyncSinkNode(sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(IntSyncImp, IntImp)(
     dFn = { p => p },
     uFn = { p => p })
+{
+  override lazy val nodedebugstring = s"sync:${sync}"
+}
