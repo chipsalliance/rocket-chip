@@ -16,14 +16,32 @@ case class SynchronousCrossing(params: BufferParams = BufferParams.default) exte
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
 case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends CoreplexClockCrossing
 
-trait HasCrossingMethods extends LazyScope
+private case class CrossingCheck(out: Boolean, source: BaseNode, sink: BaseNode)
+
+trait HasCrossingMethods extends LazyModule with LazyScope
 {
-  this: LazyModule =>
+  // Detect incorrect crossing connectivity
+
+  private var checks: List[CrossingCheck] = Nil
+  private def inside(node: BaseNode) = node.parents.exists(_ eq this)
+  override def instantiate() {
+    super.instantiate()
+    checks.foreach { case CrossingCheck(out, source, sink) =>
+      source.inputs.foreach { case (syncSource, _) =>
+        require (inside(syncSource) == out, s"${syncSource.name} must ${if(out)""else"not "}be inside ${name} (wrong .cross direction?)")
+      }
+      sink.outputs.foreach { case (syncSink, _) =>
+        require (inside(syncSink) != out, s"${syncSink.name} must ${if(out)"not "else""}be inside ${name} (wrong .cross direction?)")
+      }
+    }
+  }
 
   // TileLink
 
   def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
-    this { LazyModule(new TLBuffer(params)).node }
+    val node = this { LazyModule(new TLBuffer(params)).node }
+    checks = CrossingCheck(out, node, node) :: checks
+    node
   }
 
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
@@ -32,6 +50,7 @@ trait HasCrossingMethods extends LazyScope
     val source = if (out) this { sourceGen } else sourceGen
     val sink = if (out) sinkGen else this { sinkGen }
     sink.node :=? source.node
+    checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
@@ -41,6 +60,7 @@ trait HasCrossingMethods extends LazyScope
     val source = if (out) this { sourceGen } else sourceGen
     val sink = if (out) sinkGen else this { sinkGen }
     sink.node :=? source.node
+    checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
@@ -66,7 +86,9 @@ trait HasCrossingMethods extends LazyScope
   // AXI4
 
   def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
-    this { LazyModule(new AXI4Buffer(params)).node }
+    val node = this { LazyModule(new AXI4Buffer(params)).node }
+    checks = CrossingCheck(out, node, node) :: checks
+    node
   }
 
   def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
@@ -75,6 +97,7 @@ trait HasCrossingMethods extends LazyScope
     val source = if (out) this { sourceGen } else sourceGen
     val sink = if (out) sinkGen else this { sinkGen }
     sink.node :=? source.node
+    checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
@@ -103,6 +126,7 @@ trait HasCrossingMethods extends LazyScope
     val source = if (out) this { sourceGen } else sourceGen
     val sink = if (out) sinkGen else this { sinkGen }
     sink.node :=? source.node
+    checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
@@ -112,6 +136,7 @@ trait HasCrossingMethods extends LazyScope
     val source = if (out) this { sourceGen } else sourceGen
     val sink = if (out) sinkGen else this { sinkGen }
     sink.node :=? source.node
+    checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
@@ -121,6 +146,7 @@ trait HasCrossingMethods extends LazyScope
     val source = if (out) this { sourceGen } else sourceGen
     val sink = if (out) sinkGen else this { sinkGen }
     sink.node :=? source.node
+    checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
