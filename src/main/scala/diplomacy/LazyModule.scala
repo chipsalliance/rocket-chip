@@ -11,17 +11,26 @@ import scala.util.matching._
 
 abstract class LazyModule()(implicit val p: Parameters)
 {
-  protected[diplomacy] var bindings = List[() => Unit]()
   protected[diplomacy] var children = List[LazyModule]()
   protected[diplomacy] var nodes = List[BaseNode]()
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
 
+  def parents: Seq[LazyModule] = parent match {
+    case None => Nil
+    case Some(x) => x +: x.parents
+  }
+
   LazyModule.scope = Some(this)
   parent.foreach(p => p.children = this :: p.children)
 
+  // suggestedName accumulates Some(names), taking the final one. Nones are ignored.
   private var suggestedName: Option[String] = None
-  def suggestName(x: String) = suggestedName = Some(x)
+  def suggestName(x: String): this.type = suggestName(Some(x))
+  def suggestName(x: Option[String]): this.type = {
+    x.foreach { n => suggestedName = Some(n) }
+    this
+  }
 
   private lazy val childNames =
     getClass.getMethods.filter { m =>
@@ -54,6 +63,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   def name = valName.getOrElse(className)
   def line = sourceLine(info)
 
+  def instantiate() { } // a hook for running things in module scope (after children exist, but before dangles+auto exists)
   def module: LazyModuleImpLike
 
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
@@ -154,6 +164,7 @@ sealed trait LazyModuleImpLike extends BaseModule
       implicit val sourceInfo = c.info
       Module(c.module).dangles
     }
+    wrapper.instantiate()
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     val allDangles = nodeDangles ++ childDangles
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
@@ -168,7 +179,6 @@ sealed trait LazyModuleImpLike extends BaseModule
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
     }
-    wrapper.bindings.reverse.foreach { f => f () }
     (auto, dangles)
   }
 }

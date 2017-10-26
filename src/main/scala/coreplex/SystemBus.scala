@@ -39,9 +39,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
 
   def toPeripheryBus(addBuffers: Int = 0): TLOutwardNode = {
-    val (in, out) = bufferChain(addBuffers, name = Some("pbus"))
-    in := pbus_fixer.node
-    out
+    TLBuffer.chain(addBuffers).foldRight(pbus_fixer.node:TLOutwardNode)(_ := _)
   }
 
   val toMemoryBus: TLOutwardNode = outwardNode
@@ -52,34 +50,14 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromFrontBus: TLInwardNode = master_splitter.node
 
-  def fromSyncTiles(params: BufferParams, adapt: () => TLNodeChain, name: Option[String] = None): TLInwardNode = {
-    val adapters = adapt() // wanted to be called inside SystemBus scope
-    val tile_sink = LazyModule(new TLBuffer(params))
-    name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLBuffer") }
-
-    adapters.in :=* tile_sink.node
-    master_splitter.node :=* adapters.out
-    tile_sink.node
-  }
-
-  def fromRationalTiles(dir: RationalDirection, adapt: () => TLNodeChain, name: Option[String] = None): TLRationalInwardNode = {
-    val adapters = adapt() // wanted to be called inside SystemBus scope
-    val tile_sink = LazyModule(new TLRationalCrossingSink(direction = dir))
-    name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLRationalCrossingSink") }
-
-    adapters.in :=* tile_sink.node
-    master_splitter.node :=* adapters.out
-    tile_sink.node
-  }
-
-  def fromAsyncTiles(depth: Int, sync: Int, adapt: () => TLNodeChain, name: Option[String] = None): TLAsyncInwardNode = {
-    val adapters = adapt() // wanted to be called inside SystemBus scope
-    val tile_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    name.foreach { n => tile_sink.suggestName(s"${busName}_${n}_TLAsyncCrossingSink") }
-
-    adapters.in :=* tile_sink.node
-    master_splitter.node :=* adapters.out
-    tile_sink.node
+  def fromTile(name: Option[String])(gen: Parameters => TLOutwardNode) {
+    this {
+      LazyScope(s"${busName}FromTile${name.getOrElse("")}") {
+        SourceCardinality { implicit p =>
+          master_splitter.node :=* gen(p)
+        }
+      }
+    }
   }
 
   def fromSyncPorts(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {

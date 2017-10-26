@@ -97,6 +97,7 @@ object TLRationalCrossingSink
   }
 }
 
+@deprecated("TLRationalCrossing is fragile. Use TLRationalCrossingSource and TLRationalCrossingSink", "rocket-chip 1.2")
 class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: Parameters) extends LazyModule
 {
   val source = LazyModule(new TLRationalCrossingSource)

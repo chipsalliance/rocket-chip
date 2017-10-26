@@ -8,6 +8,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.coreplex.{CrossingWrapper, AsynchronousCrossing}
 
 class AXI4AsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
@@ -61,6 +62,7 @@ object AXI4AsyncCrossingSink
   }
 }
 
+@deprecated("AXI4AsyncCrossing is fragile. Use AXI4AsyncCrossingSource and AXI4AsyncCrossingSink", "rocket-chip 1.2")
 class AXI4AsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val source = LazyModule(new AXI4AsyncCrossingSource(sync))
@@ -89,28 +91,21 @@ import freechips.rocketchip.unittest._
 
 class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
   val model = LazyModule(new TLRAMModel("AsyncCrossing"))
-  val ram  = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
   val fuzz = LazyModule(new TLFuzzer(txns))
   val toaxi = LazyModule(new TLToAXI4)
-  val cross = LazyModule(new AXI4AsyncCrossing)
+  val island = LazyModule(new CrossingWrapper(AsynchronousCrossing(8)))
+  val ram  = island { LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff))) }
 
   model.node := fuzz.node
   toaxi.node := model.node
-  cross.node := toaxi.node
-  ram.node := cross.node
+  ram.node := island.crossAXI4In := toaxi.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain
     val clocks = Module(new Pow2ClockDivider(2))
-    ram.module.clock := clocks.io.clock_out
-
-    // ... and safely cross AXI42 into it
-    cross.module.io.in_clock := clock
-    cross.module.io.in_reset := reset
-    cross.module.io.out_clock := clocks.io.clock_out
-    cross.module.io.out_reset := reset
+    island.module.clock := clocks.io.clock_out
   }
 }
 

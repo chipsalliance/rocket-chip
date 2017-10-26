@@ -71,28 +71,10 @@ object TLBuffer
     buffer.node :=? x
     buffer.node
   }
-}
 
-class TLBufferChain(depth: Int)(implicit p: Parameters) extends LazyModule {
-  val buf_chain = List.fill(depth)(LazyModule(new TLBuffer(BufferParams.default)))
-  val node = if (depth > 0) {
-    (buf_chain.init zip buf_chain.tail) foreach { case (prev, next) => next.node :=? prev.node }
-    NodeHandle(buf_chain.head.node, buf_chain.last.node)
-  } else {
-    TLIdentityNode()
-  }
-  lazy val module = new LazyModuleImp(this) { }
-}
-
-object TLBufferChain
-{
-  def apply(depth: Int)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    if (depth > 0) {
-      val buffer = LazyModule(new TLBufferChain(depth))
-      buffer.node :=? x
-      buffer.node
-    } else {
-      x
-    }
+  def chain(depth: Int, name: Option[String] = None)(implicit p: Parameters): Seq[TLNode] = {
+    val buffers = Seq.fill(depth) { LazyModule(new TLBuffer()) }
+    name.foreach { n => buffers.zipWithIndex.foreach { case (b, i) => b.suggestName(s"${n}_${i}") } }
+    buffers.map(_.node)
   }
 }

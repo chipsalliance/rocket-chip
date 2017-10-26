@@ -5,17 +5,12 @@ package freechips.rocketchip.coreplex
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.tile.{BaseTile, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.util._
-
-/** Enumerates the three types of clock crossing between tiles and system bus */
-sealed trait CoreplexClockCrossing
-case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends CoreplexClockCrossing
-case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
-case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends CoreplexClockCrossing
 
 /** BareCoreplex is the root class for creating a coreplex sub-system */
 abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with BindingScope {

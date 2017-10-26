@@ -9,6 +9,7 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 /** Constant values used by both Debug Bus Response & Request
@@ -392,7 +393,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmiXbar = LazyModule (new TLXbar())
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
-  val intnode = dmOuter.intnode
+  val intnode: IntSyncOutwardNode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
   val dmiInnerNode = TLAsyncCrossingSource()(dmiXbar.node)
 
@@ -401,7 +402,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   
   lazy val module = new LazyModuleImp(this) {
 
-    val nComponents = intnode.out.size
+    val nComponents = dmOuter.intnode.edges.out.size
 
     val io = IO(new Bundle {
       val dmi   = new DMIIO()(p).flip()
@@ -1039,7 +1040,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
   }
 
   val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
-  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {intnode.edges.out.size})(p))
+  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {dmOuter.dmOuter.intnode.edges.out.size})(p))
 
   val node = dmInner.tlNode
   val intnode = dmOuter.intnode
@@ -1047,7 +1048,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
   dmInner.dmiNode := dmOuter.dmiInnerNode
 
   lazy val module = new LazyModuleImp(this) {
-    val nComponents = intnode.out.size
+    val nComponents = dmOuter.dmOuter.intnode.edges.out.size
 
     val io = IO(new Bundle {
       val ctrl = new DebugCtrlBundle(nComponents)

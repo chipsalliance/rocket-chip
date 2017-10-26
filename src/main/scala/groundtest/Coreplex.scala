@@ -25,8 +25,8 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
     })
   )}
 
-  tiles.flatMap(_.dcacheOpt).foreach {
-    sbus.fromSyncTiles(BufferParams.default, TileMasterPortParams().adapterChain(this)) :=* _.node
+  tiles.flatMap(_.dcacheOpt).foreach { dc =>
+    sbus.fromTile(None) { implicit p => TileMasterPortParams(addBuffers = 1).adapt(this)(dc.node) }
   }
 
   val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), true, false, pbus.beatBytes))

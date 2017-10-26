@@ -9,6 +9,7 @@ import freechips.rocketchip.coreplex._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -18,11 +19,12 @@ case class RocketTileParams(
     rocc: Seq[RoCCParams] = Nil,
     btb: Option[BTBParams] = Some(BTBParams()),
     dataScratchpadBytes: Int = 0,
-    boundaryBuffers: Boolean = false,
     trace: Boolean = false,
     hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
-    hartid: Int = 0) extends TileParams {
+    hartid: Int = 0,
+    boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
+    ) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }
@@ -187,37 +189,43 @@ class RocketTileWrapperBundle[+L <: RocketTileWrapper](_outer: L) extends BaseTi
   val halt_and_catch_fire = _outer.rocket.module.io.halt_and_catch_fire.map(_.cloneType)
 }
 
-abstract class RocketTileWrapper(rtp: RocketTileParams)(implicit p: Parameters) extends BaseTile(rtp) {
-  val rocket = LazyModule(new RocketTile(rtp))
-  val asyncIntNode   : IntInwardNode
-  val periphIntNode  : IntInwardNode
-  val coreIntNode    : IntInwardNode
-  val intOutputNode = rocket.intOutputNode
+class RocketTileWrapper(
+    params: RocketTileParams,
+    val crossing: CoreplexClockCrossing)
+    (implicit p: Parameters) extends BaseTile(params) with HasCrossing {
+
+  val rocket = LazyModule(new RocketTile(params))
+
+  // The buffers needed to cut feed-through paths are microarchitecture specific, so belong here
+  val masterBuffer = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1)))
+  val masterNode: TLOutwardNode = crossing match {
+    case _: AsynchronousCrossing => rocket.masterNode
+    case SynchronousCrossing(b) =>
+      require (!params.boundaryBuffers || (b.depth >= 1 && !b.flow && !b.pipe), "Buffer misconfiguration creates feed-through paths")
+      rocket.masterNode
+    case RationalCrossing(dir) =>
+      require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
+      if (params.boundaryBuffers) {
+        masterBuffer.node :=* rocket.masterNode
+      } else {
+        rocket.masterNode
+      }
+  }
+
+  val slaveBuffer  = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
+  val slaveNode: TLInwardNode = crossing match {
+    case _: SynchronousCrossing  => rocket.slaveNode // requirement already checked
+    case _: AsynchronousCrossing => rocket.slaveNode
+    case _: RationalCrossing =>
+      if (params.boundaryBuffers) {
+        DisableMonitors { implicit p => rocket.slaveNode :*= slaveBuffer.node }
+      } else {
+        rocket.slaveNode
+      }
+  }
+
   val intXbar = LazyModule(new IntXbar)
-
   rocket.intNode := intXbar.intnode
-
-  def optionalMasterBuffer(in: TLOutwardNode): TLOutwardNode = {
-    if (rtp.boundaryBuffers) {
-      val mbuf = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1)))
-      mbuf.node :=* in
-      mbuf.node
-    } else {
-      in
-    }
-  }
-
-  def optionalSlaveBuffer(out: TLInwardNode): TLInwardNode = {
-    if (rtp.boundaryBuffers) {
-      val sbuf = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
-      DisableMonitors { implicit p => out :*= sbuf.node }
-      sbuf.node
-    } else {
-      out
-    }
-  }
-
-  def outputInterruptXingLatency: Int
 
   override lazy val module = new BaseTileModule(this, () => new RocketTileWrapperBundle(this)) {
     // signals that do not change based on crossing type:
@@ -226,77 +234,4 @@ abstract class RocketTileWrapper(rtp: RocketTileParams)(implicit p: Parameters) 
     io.trace.foreach { _ := rocket.module.io.trace.get }
     io.halt_and_catch_fire.foreach { _ := rocket.module.io.halt_and_catch_fire.get }
   }
-}
-
-class SyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends RocketTileWrapper(rtp) {
-  val masterNode = optionalMasterBuffer(rocket.masterNode)
-  val slaveNode = optionalSlaveBuffer(rocket.slaveNode)
-
-  // Fully async interrupts need synchronizers.
-  // Others need no synchronization.
-  val xing = LazyModule(new IntXing(3))
-  val asyncIntNode = xing.intnode
-
-  val periphIntNode = IntIdentityNode()
-  val coreIntNode = IntIdentityNode()
-
-  // order here matters
-  intXbar.intnode := xing.intnode
-  intXbar.intnode := periphIntNode
-  intXbar.intnode := coreIntNode
-
-  def outputInterruptXingLatency = 0
-}
-
-class AsyncRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends RocketTileWrapper(rtp) {
-  val source = LazyModule(new TLAsyncCrossingSource)
-  source.node :=* rocket.masterNode
-  val masterNode = source.node
-
-  val sink = LazyModule(new TLAsyncCrossingSink)
-  DisableMonitors { implicit p => rocket.slaveNode :*= sink.node }
-  val slaveNode = sink.node
-
-  // Fully async interrupts need synchronizers,
-  // as do those coming from the periphery clock.
-  // Others need no synchronization.
-  val asyncXing = LazyModule(new IntXing(3))
-  val periphXing = LazyModule(new IntXing(3))
-  val asyncIntNode = asyncXing.intnode
-  val periphIntNode = periphXing.intnode
-  val coreIntNode = IntIdentityNode()
-
-  // order here matters
-  intXbar.intnode := asyncXing.intnode
-  intXbar.intnode := periphXing.intnode
-  intXbar.intnode := coreIntNode
-
-  def outputInterruptXingLatency = 3
-}
-
-class RationalRocketTile(rtp: RocketTileParams)(implicit p: Parameters) extends RocketTileWrapper(rtp) {
-  val source = LazyModule(new TLRationalCrossingSource)
-  source.node :=* optionalMasterBuffer(rocket.masterNode)
-  val masterNode = source.node
-
-  val sink = LazyModule(new TLRationalCrossingSink(SlowToFast))
-  DisableMonitors { implicit p => optionalSlaveBuffer(rocket.slaveNode) :*= sink.node }
-  val slaveNode = sink.node
-
-  // Fully async interrupts need synchronizers.
-  // Those coming from periphery clock need a
-  // rational synchronizer.
-  // Others need no synchronization.
-  val asyncXing    = LazyModule(new IntXing(3))
-  val periphXing = LazyModule(new IntXing(1))
-  val asyncIntNode = asyncXing.intnode
-  val periphIntNode = periphXing.intnode
-  val coreIntNode = IntIdentityNode()
-
-  // order here matters
-  intXbar.intnode := asyncXing.intnode
-  intXbar.intnode := periphXing.intnode
-  intXbar.intnode := coreIntNode
-
-  def outputInterruptXingLatency = 1
 }
