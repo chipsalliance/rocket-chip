@@ -13,8 +13,7 @@ class Tristate extends Bundle {
   val driven = Bool()  // active high, pin is hi-Z when driven is low
 }
 
-class NegativeEdgeLatch[T <: Data](clock: Clock, dataType: T)
-    extends Module(override_clock=Some(clock)) {
+class NegativeEdgeLatch[T <: Data](dataType: T) extends Module {
   class IoClass extends Bundle {
     val next = Input(dataType)
     val enable = Input(Bool())
@@ -34,11 +33,13 @@ class NegativeEdgeLatch[T <: Data](clock: Clock, dataType: T)
 object NegativeEdgeLatch {
   def apply[T <: Data](clock: Clock, next: T, enable: Bool=true.B, name: Option[String] = None): T = {
     // TODO better init passing once in-module multiclock support improves
-    val latch_module = Module(new NegativeEdgeLatch((!clock.asUInt).asClock, next.cloneType))
-    name.foreach(latch_module.suggestName(_))
-    latch_module.io.next := next
-    latch_module.io.enable := enable
-    latch_module.io.output
+    withClock(clock) {
+     val latch_module = Module(new NegativeEdgeLatch((!clock.asUInt).asClock, next.cloneType))
+     name.foreach(latch_module.suggestName(_))
+     latch_module.io.next := next
+     latch_module.io.enable := enable
+     latch_module.io.output
+    }
   }
 }
 
