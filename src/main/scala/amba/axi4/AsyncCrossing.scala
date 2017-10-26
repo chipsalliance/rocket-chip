@@ -62,6 +62,7 @@ object AXI4AsyncCrossingSink
   }
 }
 
+@deprecated("AXI4AsyncCrossing is fragile. Use AXI4AsyncCrossingSource and AXI4AsyncCrossingSink", "rocket-chip 1.2")
 class AXI4AsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val source = LazyModule(new AXI4AsyncCrossingSource(sync))

@@ -86,6 +86,7 @@ object TLAsyncCrossingSink
   }
 }
 
+@deprecated("TLAsyncCrossing is fragile. Use TLAsyncCrossingSource and TLAsyncCrossingSink", "rocket-chip 1.2")
 class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val source = LazyModule(new TLAsyncCrossingSource(sync))
