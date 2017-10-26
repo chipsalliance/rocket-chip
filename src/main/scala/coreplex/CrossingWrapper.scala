@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
@@ -60,6 +61,38 @@ trait HasCrossingMethods extends LazyScope
     case x: SynchronousCrossing  => crossTLSyncOut(x.params)
     case x: AsynchronousCrossing => crossTLAsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalOut(x.direction)
+  }
+
+  // AXI4
+
+  def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
+    this { LazyModule(new AXI4Buffer(params)).node }
+  }
+
+  def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
+    def sourceGen = LazyModule(new AXI4AsyncCrossingSource(sync))
+    def sinkGen = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
+    val source = if (out) this { sourceGen } else sourceGen
+    val sink = if (out) sinkGen else this { sinkGen }
+    sink.node :=? source.node
+    NodeHandle(source.node, sink.node)
+  }
+
+  def crossAXI4SyncIn (params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = crossAXI4SyncInOut(false)(params)
+  def crossAXI4SyncOut(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = crossAXI4SyncInOut(true )(params)
+  def crossAXI4AsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(false)(depth, sync)
+  def crossAXI4AsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(true )(depth, sync)
+
+  def crossAXI4In(arg: CoreplexClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+    case x: SynchronousCrossing  => crossAXI4SyncIn(x.params)
+    case x: AsynchronousCrossing => crossAXI4AsyncIn(x.depth, x.sync)
+    case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
+  }
+
+  def crossAXI4Out(arg: CoreplexClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+    case x: SynchronousCrossing  => crossAXI4SyncOut(x.params)
+    case x: AsynchronousCrossing => crossAXI4AsyncOut(x.depth, x.sync)
+    case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
   }
 
   // Interrupts
@@ -119,10 +152,13 @@ trait HasCrossing extends HasCrossingMethods
   this: LazyModule =>
   val crossing: CoreplexClockCrossing
 
-  def crossTLIn  (implicit p: Parameters): TLNode  = crossTLIn  (crossing)
-  def crossTLOut (implicit p: Parameters): TLNode  = crossTLOut (crossing)
-  def crossIntIn (implicit p: Parameters): IntNode = crossIntIn (crossing)
-  def crossIntOut(implicit p: Parameters): IntNode = crossIntOut(crossing)
+  def crossTLIn   (implicit p: Parameters): TLNode  = crossTLIn   (crossing)
+  def crossTLOut  (implicit p: Parameters): TLNode  = crossTLOut  (crossing)
+  def crossAXI4In (implicit p: Parameters): AXI4Node= crossAXI4In (crossing)
+  def crossAXI4Out(implicit p: Parameters): AXI4Node= crossAXI4Out(crossing)
+  def crossIntIn  (implicit p: Parameters): IntNode = crossIntIn  (crossing)
+  def crossIntOut (implicit p: Parameters): IntNode = crossIntOut (crossing)
+
   def crossIntIn (alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = crossIntIn (crossing, alreadyRegistered)
   def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = crossIntOut(crossing, alreadyRegistered)
 }
