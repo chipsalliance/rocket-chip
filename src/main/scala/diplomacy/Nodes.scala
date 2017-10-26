@@ -110,8 +110,8 @@ abstract class BaseNode(implicit val valName: ValName)
 
   protected[diplomacy] def gci: Option[BaseNode] // greatest common inner
   protected[diplomacy] def gco: Option[BaseNode] // greatest common outer
-  protected[diplomacy] def inputs:  Seq[(BaseNode, RenderedEdge)]
-  protected[diplomacy] def outputs: Seq[(BaseNode, RenderedEdge)]
+  def inputs:  Seq[(BaseNode, RenderedEdge)]
+  def outputs: Seq[(BaseNode, RenderedEdge)]
 }
 
 object BaseNode
@@ -396,11 +396,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   // meta-data for printing the node graph
-  protected[diplomacy] def inputs = (iPorts zip edgesIn) map { case ((_, n, p, _), e) =>
+  def inputs = (iPorts zip edgesIn) map { case ((_, n, p, _), e) =>
     val re = inner.render(e)
     (n, re.copy(flipped = re.flipped != p(RenderFlipped)))
   }
-  protected[diplomacy] def outputs = oPorts map { case (i, n, _, _) => (n, n.inputs(i)._2) }
+  def outputs = oPorts map { case (i, n, _, _) => (n, n.inputs(i)._2) }
 }
 
 abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
