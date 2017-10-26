@@ -63,6 +63,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   def name = valName.getOrElse(className)
   def line = sourceLine(info)
 
+  def instantiate() { } // a hook for running things in module scope (after children exist, but before dangles+auto exists)
   def module: LazyModuleImpLike
 
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
@@ -163,6 +164,7 @@ sealed trait LazyModuleImpLike extends BaseModule
       implicit val sourceInfo = c.info
       Module(c.module).dangles
     }
+    wrapper.instantiate()
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     val allDangles = nodeDangles ++ childDangles
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
