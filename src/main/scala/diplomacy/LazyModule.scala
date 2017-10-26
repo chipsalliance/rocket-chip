@@ -11,7 +11,6 @@ import scala.util.matching._
 
 abstract class LazyModule()(implicit val p: Parameters)
 {
-  protected[diplomacy] var bindings = List[() => Unit]()
   protected[diplomacy] var children = List[LazyModule]()
   protected[diplomacy] var nodes = List[BaseNode]()
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
@@ -178,7 +177,6 @@ sealed trait LazyModuleImpLike extends BaseModule
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
     }
-    wrapper.bindings.reverse.foreach { f => f () }
     (auto, dangles)
   }
 }
