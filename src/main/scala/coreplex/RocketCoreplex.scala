@@ -57,8 +57,7 @@ case class TileSlavePortParams(
 case class RocketCrossingParams(
     crossingType: CoreplexClockCrossing = SynchronousCrossing(),
     master: TileMasterPortParams = TileMasterPortParams(),
-    slave: TileSlavePortParams = TileSlavePortParams(),
-    boundaryBuffers: Boolean = false) {
+    slave: TileSlavePortParams = TileSlavePortParams()) {
   def knownRatio: Option[Int] = crossingType match {
     case RationalCrossing(_) => Some(2)
     case _ => None
@@ -92,8 +91,7 @@ trait HasRocketTiles extends HasTiles
     // in the global Parameters about the specific tile being built now
     val wrapper = LazyModule(new RocketTileWrapper(
       params = tp,
-      crossing = crossing.crossingType,
-      boundaryBuffers = crossing.boundaryBuffers
+      crossing = crossing.crossingType
       )(p.alterPartial {
         case TileKey => tp
         case BuildRoCC => tp.rocc

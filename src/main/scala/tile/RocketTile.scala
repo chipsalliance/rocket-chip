@@ -22,7 +22,9 @@ case class RocketTileParams(
     trace: Boolean = false,
     hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
-    hartid: Int = 0) extends TileParams {
+    hartid: Int = 0,
+    boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
+    ) extends TileParams {
   require(icache.isDefined)
   require(dcache.isDefined)
 }
@@ -189,23 +191,38 @@ class RocketTileWrapperBundle[+L <: RocketTileWrapper](_outer: L) extends BaseTi
 
 class RocketTileWrapper(
     params: RocketTileParams,
-    val crossing: CoreplexClockCrossing,
-    val boundaryBuffers: Boolean = false)
+    val crossing: CoreplexClockCrossing)
     (implicit p: Parameters) extends BaseTile(params) with HasCrossing {
 
   val rocket = LazyModule(new RocketTile(params))
 
+  // The buffers needed to cut feed-through paths are microarchitecture specific, so belong here
   val masterBuffer = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1)))
-  val masterNode: TLOutwardNode = if (boundaryBuffers) {
-    masterBuffer.node :=* rocket.masterNode
-    masterBuffer.node
-  } else { rocket.masterNode }
+  val masterNode: TLOutwardNode = crossing match {
+    case _: AsynchronousCrossing => rocket.masterNode
+    case SynchronousCrossing(b) =>
+      require (!params.boundaryBuffers || (b.depth >= 1 && !b.flow && !b.pipe), "Buffer misconfiguration creates feed-through paths")
+      rocket.masterNode
+    case RationalCrossing(dir) =>
+      require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
+      if (params.boundaryBuffers) {
+        masterBuffer.node :=* rocket.masterNode
+      } else {
+        rocket.masterNode
+      }
+  }
 
   val slaveBuffer  = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
-  val slaveNode: TLInwardNode = DisableMonitors { implicit p => if (boundaryBuffers) {
-    rocket.slaveNode :*= slaveBuffer.node
-    slaveBuffer.node
-  } else { rocket.slaveNode } }
+  val slaveNode: TLInwardNode = crossing match {
+    case _: SynchronousCrossing  => rocket.slaveNode // requirement already checked
+    case _: AsynchronousCrossing => rocket.slaveNode
+    case _: RationalCrossing =>
+      if (params.boundaryBuffers) {
+        DisableMonitors { implicit p => rocket.slaveNode :*= slaveBuffer.node }
+      } else {
+        rocket.slaveNode
+      }
+  }
 
   val intXbar = LazyModule(new IntXbar)
   rocket.intNode := intXbar.intnode
