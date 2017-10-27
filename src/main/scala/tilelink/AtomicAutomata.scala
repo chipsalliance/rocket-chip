@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -257,12 +256,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
 object TLAtomicAutomata
 {
-  // applied to the TL source node; y.node := TLAtomicAutomata(x.node)
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
-    atomics.node :=? x
-    atomics.node
-  }
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+    LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough)).node
 
   case class CAMParams(a: TLBundleParameters, domainsNeedingHelp: Int)
 

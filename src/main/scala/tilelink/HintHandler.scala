@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.min
@@ -92,12 +91,8 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 
 object TLHintHandler
 {
-  // applied to the TL source node; y.node := TLHintHandler(x.node)
-  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
-    hints.node :=? x
-    hints.node
-  }
+  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+    LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough)).node
 }
 
 /** Synthesizeable unit tests */

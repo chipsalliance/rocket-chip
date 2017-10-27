@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.{min,max}
@@ -92,9 +91,5 @@ object TLFilter
   def apply(
     Mfilter: TLManagerParameters => Option[TLManagerParameters] = TLFilter.Midentity,
     Cfilter: TLClientParameters  => Option[TLClientParameters]  = TLFilter.Cidentity
-    )(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val filter = LazyModule(new TLFilter(Mfilter, Cfilter))
-    filter.node := x
-    filter.node
-  }
+    )(implicit p: Parameters): TLNode = LazyModule(new TLFilter(Mfilter, Cfilter)).node
 }

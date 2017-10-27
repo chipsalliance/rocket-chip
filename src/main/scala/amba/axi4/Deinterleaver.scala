@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -100,10 +99,5 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
 object AXI4Deinterleaver
 {
-  // applied to the AXI4 source node; y.node := AXI4Deinterleaver()(x.node)
-  def apply(maxReadBytes: Int)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val deinterleaver = LazyModule(new AXI4Deinterleaver(maxReadBytes))
-    deinterleaver.node :=? x
-    deinterleaver.node
-  }
+  def apply(maxReadBytes: Int)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Deinterleaver(maxReadBytes)).node
 }

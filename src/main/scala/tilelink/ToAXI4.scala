@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -215,12 +214,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
 object TLToAXI4
 {
-  // applied to the TL source node; y.node := TLToAXI4()(x.node)
-  def apply(combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val axi4 = LazyModule(new TLToAXI4(combinational, adapterName, stripBits))
-    axi4.node :=? x
-    axi4.node
-  }
+  def apply(combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(implicit p: Parameters) =
+    LazyModule(new TLToAXI4(combinational, adapterName, stripBits)).node
 
   def sortByType(a: TLClientParameters, b: TLClientParameters): Boolean = {
     if ( a.supportsProbe && !b.supportsProbe) return false

@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.ahb
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -132,9 +131,5 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
 
 object AHBToTL
 {
-  def apply()(x: AHBOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val tl = LazyModule(new AHBToTL)
-    tl.node :=? x
-    tl.node
-  }
+  def apply()(implicit p: Parameters) = LazyModule(new AHBToTL).node
 }

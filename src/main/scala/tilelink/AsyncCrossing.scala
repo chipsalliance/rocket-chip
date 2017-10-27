@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -68,22 +67,12 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
 
 object TLAsyncCrossingSource
 {
-  // applied to the TL source node; y.node := TLAsyncCrossingSource()(x.node)
-  def apply(sync: Int = 3)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLAsyncOutwardNode = {
-    val source = LazyModule(new TLAsyncCrossingSource(sync))
-    source.node :=? x
-    source.node
-  }
+  def apply(sync: Int = 3)(implicit p: Parameters) = LazyModule(new TLAsyncCrossingSource(sync)).node
 }
 
 object TLAsyncCrossingSink
 {
-  // applied to the TL source node; y.node := TLAsyncCrossingSink()(x.node)
-  def apply(depth: Int = 8, sync: Int = 3)(x: TLAsyncOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    sink.node :=? x
-    sink.node
-  }
+  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) = LazyModule(new TLAsyncCrossingSink(depth, sync)).node
 }
 
 @deprecated("TLAsyncCrossing is fragile. Use TLAsyncCrossingSource and TLAsyncCrossingSink", "rocket-chip 1.2")

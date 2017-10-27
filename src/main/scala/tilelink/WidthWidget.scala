@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -192,12 +191,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
 
 object TLWidthWidget
 {
-  // applied to the TL source node; y.node := WidthWidget(x.node, 16)
-  def apply(innerBeatBytes: Int)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
-    widget.node :=? x
-    widget.node
-  }
+  def apply(innerBeatBytes: Int)(implicit p: Parameters): TLNode = LazyModule(new TLWidthWidget(innerBeatBytes)).node
 }
 
 /** Synthesizeable unit tests */

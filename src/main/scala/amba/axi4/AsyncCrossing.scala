@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -44,22 +43,12 @@ class AXI4AsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameter
 
 object AXI4AsyncCrossingSource
 {
-  // applied to the AXI4 source node; y.node := AXI4AsyncCrossingSource()(x.node)
-  def apply(sync: Int = 3)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4AsyncOutwardNode = {
-    val source = LazyModule(new AXI4AsyncCrossingSource(sync))
-    source.node :=? x
-    source.node
-  }
+  def apply(sync: Int = 3)(implicit p: Parameters) = LazyModule(new AXI4AsyncCrossingSource(sync)).node
 }
 
 object AXI4AsyncCrossingSink
 {
-  // applied to the AXI4 source node; y.node := AXI4AsyncCrossingSink()(x.node)
-  def apply(depth: Int = 8, sync: Int = 3)(x: AXI4AsyncOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val sink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
-    sink.node :=? x
-    sink.node
-  }
+  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) = LazyModule(new AXI4AsyncCrossingSink(depth, sync)).node
 }
 
 @deprecated("AXI4AsyncCrossing is fragile. Use AXI4AsyncCrossingSource and AXI4AsyncCrossingSink", "rocket-chip 1.2")

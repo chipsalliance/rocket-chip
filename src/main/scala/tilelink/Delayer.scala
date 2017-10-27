@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -73,10 +72,5 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
 
 object TLDelayer
 {
-  // applied to the TL source node; y.node := TLDelayer(0.01)(x.node)
-  def apply(q: Double)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val delayer = LazyModule(new TLDelayer(q))
-    delayer.node :=? x
-    delayer.node
-  }
+  def apply(q: Double)(implicit p: Parameters): TLNode = LazyModule(new TLDelayer(q)).node
 }

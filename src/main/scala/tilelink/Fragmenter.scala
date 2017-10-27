@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -283,12 +282,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
 object TLFragmenter
 {
-  // applied to the TL source node; y.node := TLFragmenter(x.node, 256, 4)
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: Boolean = false)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck))
-    fragmenter.node :=? x
-    fragmenter.node
-  }
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: Boolean = false)(implicit p: Parameters): TLNode =
+    LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck)).node
 }
 
 /** Synthesizeable unit tests */
