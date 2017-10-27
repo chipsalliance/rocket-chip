@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.jtag
 
-import scala.collection.immutable.ListMap
+import scala.collection.SortedMap
 
 import chisel3._
 import chisel3.util._
@@ -164,7 +164,7 @@ object JtagTapGenerator {
     * TODO:
     * - support concatenated scan chains
     */
-  def apply(irLength: Int, instructions: ListMap[BigInt, Chain], icode: Option[BigInt] = None)(implicit p: Parameters): JtagBlockIO = {
+  def apply(irLength: Int, instructions: Map[BigInt, Chain], icode: Option[BigInt] = None)(implicit p: Parameters): JtagBlockIO = {
 
     val internalIo = Wire(new JtagBlockIO(irLength, icode.isDefined))
 
@@ -206,12 +206,12 @@ object JtagTapGenerator {
     require(allInstructions.size > 0, "Seriously? JTAG TAP with no instructions?")
 
     // Need to ensure that this mapping is ordered to produce deterministic verilog,
-    // and the groupBy does not order the groups deterministically (order *within* each group *is* preserved).
-    // Therefore, we sort by the first (not necessarily lowest) IDCODE in each group.
-    val chainToIcode = (allInstructions.groupBy { case (icode, chain) => chain } map {
+    // and neither Map nor groupBy are deterministic.
+    // Therefore, we first sort by IDCODE, then sort the groups by the first IDCODE in each group.
+    val chainToIcode = (SortedMap(allInstructions.toList:_*).groupBy { case (icode, chain) => chain } map {
       case (chain, icodeToChain) => chain -> icodeToChain.keys
     }).toList.sortBy(_._2.head)
-
+    
     val chainToSelect = chainToIcode map {
       case (chain, icodes) => {
         assume(icodes.size > 0)

@@ -4,8 +4,6 @@ package freechips.rocketchip.devices.debug
 
 import Chisel._
 
-import scala.collection.immutable.ListMap
-
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
@@ -245,8 +243,9 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   idcode.mfrId      := io.jtag_mfr_id
 
   val tapIO = JtagTapGenerator(irLength = 5,
-    instructions = ListMap(dtmJTAGAddrs.DMI_ACCESS -> dmiAccessChain,
-                           dtmJTAGAddrs.DTM_INFO   -> dtmInfoChain),
+    instructions = Map(
+      dtmJTAGAddrs.DMI_ACCESS -> dmiAccessChain,
+      dtmJTAGAddrs.DTM_INFO   -> dtmInfoChain),
     icode = Some(dtmJTAGAddrs.IDCODE)
   )
 
