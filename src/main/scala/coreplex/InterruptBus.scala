@@ -81,5 +81,5 @@ trait HasExtInterruptsModuleImp extends LazyModuleImp with HasExtInterruptsBundl
   val outer: HasExtInterrupts
   val interrupts = IO(UInt(INPUT, width = outer.nExtInterrupts))
 
-  outer.extInterrupts.in.map(_._1).flatten.zipWithIndex.foreach { case(o, i) => o := interrupts(i) }
+  outer.extInterrupts.out.map(_._1).flatten.zipWithIndex.foreach { case(o, i) => o := interrupts(i) }
 }
