@@ -76,49 +76,9 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
     TLBuffer.chain(addBuffers).foldRight(outwardBufNode)(_ :=? _)
   }
 
-  def toAsyncSlaves(sync: Int = 3, name: Option[String] = None, addBuffers: Int = 0): TLAsyncOutwardNode = SinkCardinality { implicit p =>
-    val source = LazyModule(new TLAsyncCrossingSource(sync))
-    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLAsyncCrossingSource")}
-    source.node :=? TLBuffer.chain(addBuffers).foldRight(outwardNode)(_ :=? _)
-  }
-
-  def toRationalSlaves(name: Option[String] = None, addBuffers: Int = 0): TLRationalOutwardNode = SinkCardinality { implicit p =>
-    val source = LazyModule(new TLRationalCrossingSource())
-    name.foreach{ n => source.suggestName(s"${busName}_${n}_TLRationalCrossingSource")}
-    source.node :=? TLBuffer.chain(addBuffers).foldRight(outwardNode)(_ :=? _)
-  }
-
   def toVariableWidthSlaves: TLOutwardNode = outwardFragNode
 
-  def toAsyncVariableWidthSlaves(sync: Int = 3, name: Option[String] = None): TLAsyncOutwardNode = {
-    val source = LazyModule(new TLAsyncCrossingSource(sync))
-    name.foreach {n =>  source.suggestName(s"${busName}_${name}_TLAsyncCrossingSource")}
-    source.node :*= outwardFragNode
-    source.node
-  }
-
-  def toRationalVariableWidthSlaves(name: Option[String] = None): TLRationalOutwardNode = {
-    val source = LazyModule(new TLRationalCrossingSource())
-    name.foreach {n =>  source.suggestName(s"${busName}_${name}_TLRationalCrossingSource")}
-    source.node :*= outwardFragNode
-    source.node
-  }
-
   def toFixedWidthSlaves: TLOutwardNode = outwardWWNode
-
-  def toAsyncFixedWidthSlaves(sync: Int = 3, name: Option[String] = None): TLAsyncOutwardNode = {
-    val source = LazyModule(new TLAsyncCrossingSource(sync))
-    name.foreach { n => source.suggestName(s"${busName}_${name}_TLAsyncCrossingSource")}
-    source.node := outwardWWNode
-    source.node
-  }
-
-  def toRationalFixedWidthSlaves(name: Option[String] = None): TLRationalOutwardNode = {
-    val source = LazyModule(new TLRationalCrossingSource())
-    name.foreach {n => source.suggestName(s"${busName}_${name}_TLRationalCrossingSource")}
-    source.node :*= outwardWWNode
-    source.node
-  }
 
   def toFixedWidthPorts: TLOutwardNode = outwardWWNode // TODO, do/don't buffer here; knowing we will after the necessary port conversions
 
