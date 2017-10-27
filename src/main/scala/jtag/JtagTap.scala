@@ -203,7 +203,7 @@ object JtagTapGenerator {
     bypassChain.io.chainIn := controllerInternal.io.dataChainOut  // for simplicity, doesn't visibly affect anything else
     require(allInstructions.size > 0, "Seriously? JTAG TAP with no instructions?")
 
-    val chainToIcode = SortedMap() ++ allInstructions.groupBy { case (icode, chain) => chain } map {
+    val chainToIcode = (SortedMap() ++ allInstructions.groupBy { case (icode, chain) => chain } ) map {
       case (chain, icodeToChain) => chain -> icodeToChain.keys
     }
 
