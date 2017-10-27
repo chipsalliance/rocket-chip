@@ -60,8 +60,8 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
   val module: LazyRoCCModule
 
-  val atlNode: TLMixedNode = TLIdentityNode()
-  val tlNode: TLMixedNode = TLIdentityNode()
+  val atlNode: TLNode = TLIdentityNode()
+  val tlNode: TLNode = TLIdentityNode()
 }
 
 class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {

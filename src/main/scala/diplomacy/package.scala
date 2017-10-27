@@ -7,6 +7,8 @@ import freechips.rocketchip.config.Parameters
 
 package object diplomacy
 {
+  type SimpleNodeHandle[D, U, B <: Chisel.Data] = NodeHandle[D, U, B, D, U, B]
+
   def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
     case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
     case _ => ""
