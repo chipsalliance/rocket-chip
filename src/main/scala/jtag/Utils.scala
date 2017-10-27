@@ -32,7 +32,7 @@ object NegativeEdgeLatch {
 /** A module that counts transitions on the input clock line, used as a basic sanity check and
   * debug indicator clock-crossing designs.
   */
-class ClockedCounter(counts: BigInt, init: Option[BigInt]) {
+class ClockedCounter(counts: BigInt, init: Option[BigInt]) extends Module {
   require(counts > 0, "really?")
 
   val width = log2Ceil(counts)
