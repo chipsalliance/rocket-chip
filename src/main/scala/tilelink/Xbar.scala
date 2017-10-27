@@ -256,11 +256,10 @@ class TLRAMXbar(nManagers: Int, txns: Int)(implicit p: Parameters) extends LazyM
   val model = LazyModule(new TLRAMModel("Xbar"))
   val xbar = LazyModule(new TLXbar)
 
-  model.node := fuzz.node
-  xbar.node := TLDelayer(0.1)(model.node)
+  xbar.node := TLDelayer(0.1) := model.node := fuzz.node
   (0 until nManagers) foreach { n =>
     val ram  = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
-    ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(xbar.node))
+    ram.node := TLFragmenter(4, 256) := TLDelayer(0.1) := xbar.node
   }
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
@@ -277,13 +276,13 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int, txns: Int)(implicit p: Pa
 
   val fuzzers = (0 until nClients) map { n =>
     val fuzz = LazyModule(new TLFuzzer(txns))
-    xbar.node := TLDelayer(0.1)(fuzz.node)
+    xbar.node := TLDelayer(0.1) := fuzz.node
     fuzz
   }
 
   (0 until nManagers) foreach { n =>
-    val ram  = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
-    ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(xbar.node))
+    val ram = LazyModule(new TLRAM(AddressSet(0x0+0x400*n, 0x3ff)))
+    ram.node := TLFragmenter(4, 256) := TLDelayer(0.1) := xbar.node
   }
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {

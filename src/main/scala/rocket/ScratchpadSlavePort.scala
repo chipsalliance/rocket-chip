@@ -122,7 +122,9 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
       val xbar = LazyModule(new TLXbar)
       xbar.node := slaveNode
       xbarPorts.foreach { case (port, bytes) =>
-        port := TLFragmenter(bytes, cacheBlockBytes, earlyAck=true)(if (bytes == xBytes) xbar.node else TLWidthWidget(xBytes)(xbar.node))
+        (Seq(port, TLFragmenter(bytes, cacheBlockBytes, earlyAck=true))
+          ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
+          .foldRight(xbar.node:TLOutwardNode)(_ := _)
       }
     }
   }

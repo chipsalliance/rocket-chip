@@ -108,8 +108,7 @@ class TLRAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
   val island = LazyModule(new CrossingWrapper(AsynchronousCrossing(8)))
   val ram  = island { LazyModule(new TLRAM(AddressSet(0x0, 0x3ff))) }
 
-  model.node := fuzz.node
-  ram.node := island.crossTLIn := TLFragmenter(4, 256)(TLDelayer(0.1)(model.node))
+  ram.node := island.crossTLIn := TLFragmenter(4, 256) := TLDelayer(0.1) := model.node := fuzz.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

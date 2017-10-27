@@ -202,12 +202,14 @@ class TLRAMWidthWidget(first: Int, second: Int, txns: Int)(implicit p: Parameter
   val model = LazyModule(new TLRAMModel("WidthWidget"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
-  model.node := fuzz.node
-  ram.node := TLDelayer(0.1)(TLFragmenter(4, 256)(
-                if (first == second ) { TLWidthWidget(first)(TLDelayer(0.1)(model.node)) }
-                else {
-                  TLWidthWidget(second)(
-                    TLWidthWidget(first)(TLDelayer(0.1)(model.node)))}))
+  (ram.node
+    := TLDelayer(0.1)
+    := TLFragmenter(4, 256)
+    := TLWidthWidget(second)
+    := TLWidthWidget(first)
+    := TLDelayer(0.1)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

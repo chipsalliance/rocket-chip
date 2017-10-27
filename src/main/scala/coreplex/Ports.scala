@@ -55,11 +55,7 @@ trait HasMasterAXI4MemPort extends HasMemoryBus {
   val buffer = LazyModule(new AXI4Buffer)
 
   memBuses.map(_.toDRAMController).foreach { case node =>
-    converter.node := node
-    trim.node := converter.node
-    yank.node := trim.node
-    buffer.node := yank.node
-    mem_axi4 := buffer.node
+    mem_axi4 := buffer.node := yank.node := trim.node := converter.node := node
   }
 }
 
@@ -97,13 +93,13 @@ trait HasMasterAXI4MMIOPort extends HasSystemBus {
       supportsRead  = TransferSizes(1, params.maxXferBytes))),
     beatBytes = params.beatBytes)))
 
-  mmio_axi4 :=
-    AXI4Buffer()(
-    AXI4UserYanker()(
-    AXI4Deinterleaver(sbus.blockBytes)(
-    AXI4IdIndexer(params.idBits)(
-    TLToAXI4()(
-    sbus.toFixedWidthPorts)))))
+  (mmio_axi4
+    := AXI4Buffer()
+    := AXI4UserYanker()
+    := AXI4Deinterleaver(sbus.blockBytes)
+    := AXI4IdIndexer(params.idBits)
+    := TLToAXI4()
+    := sbus.toFixedWidthPorts)
 }
 
 /** Common io name and methods for propagating or tying off the port bundle */
@@ -132,13 +128,13 @@ trait HasSlaveAXI4Port extends HasSystemBus {
       id   = IdRange(0, 1 << params.idBits))))))
 
   private val fifoBits = 1
-  sbus.fromSyncPorts() :=
-    TLWidthWidget(params.beatBytes)(
-    AXI4ToTL()(
-    AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))(
-    AXI4Fragmenter()(
-    AXI4IdIndexer(fifoBits)(
-    l2FrontendAXI4Node)))))
+  (sbus.fromSyncPorts()
+    := TLWidthWidget(params.beatBytes)
+    := AXI4ToTL()
+    := AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))
+    := AXI4Fragmenter()
+    := AXI4IdIndexer(fifoBits)
+    := l2FrontendAXI4Node)
 }
 
 /** Common io name and methods for propagating or tying off the port bundle */
@@ -177,10 +173,7 @@ trait HasMasterTLMMIOPort extends HasSystemBus {
       supportsPutPartial = TransferSizes(1, sbus.blockBytes))),
     beatBytes = params.beatBytes)))
 
-  mmio_tl :=
-    TLBuffer()(
-    TLSourceShrinker(1 << params.idBits)(
-    sbus.toFixedWidthPorts))
+  mmio_tl := TLBuffer() := TLSourceShrinker(1 << params.idBits) := sbus.toFixedWidthPorts
 }
 
 /** Common io name and methods for propagating or tying off the port bundle */
@@ -215,10 +208,7 @@ trait HasSlaveTLPort extends HasSystemBus {
       name     = "Front Port (TL)",
       sourceId = IdRange(0, 1 << params.idBits))))))
 
-  sbus.fromSyncPorts() :=
-    TLSourceShrinker(1 << params.sourceBits)(
-    TLWidthWidget(params.beatBytes)(
-    l2FrontendTLNode))
+  sbus.fromSyncPorts() := TLSourceShrinker(1 << params.sourceBits) := TLWidthWidget(params.beatBytes) := l2FrontendTLNode
 }
 
 /** Common io name and methods for propagating or tying off the port bundle */
@@ -259,7 +249,7 @@ class SimAXIMem(channels: Int, forceSize: BigInt = 0)(implicit p: Parameters) ex
 
   for (i <- 0 until channels) {
     val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = config.beatBytes))
-    sram.node := AXI4Buffer()(AXI4Fragmenter()(node))
+    sram.node := AXI4Buffer() := AXI4Fragmenter() := node
   }
 
   lazy val module = new LazyModuleImp(this) {

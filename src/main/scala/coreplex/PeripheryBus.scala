@@ -24,17 +24,16 @@ case object PeripheryBusKey extends Field[PeripheryBusParams]
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "PeripheryBus") {
 
   def toFixedWidthSingleBeatSlave(widthBytes: Int) = {
-    TLFragmenter(widthBytes, params.blockBytes)(outwardWWNode)
+    TLFragmenter(widthBytes, params.blockBytes) := outwardWWNode
   }
 
   def toLargeBurstSlave(maxXferBytes: Int) = {
-    TLFragmenter(params.beatBytes, maxXferBytes)(outwardBufNode)
+    TLFragmenter(params.beatBytes, maxXferBytes) := outwardBufNode
   }
 
   val fromSystemBus: TLInwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(arithmetic = params.arithmetic))
     inwardBufNode := atomics.node
-    atomics.node
   }
 
   def toTile(name: Option[String] = None)(gen: Parameters => TLInwardNode) {

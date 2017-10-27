@@ -118,8 +118,11 @@ class TLRAMRationalCrossingSource(name: String, txns: Int)(implicit p: Parameter
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel(name))
 
-  model.node := fuzz.node
-  node := TLRationalCrossingSource()(TLDelayer(0.25)(model.node))
+  (node
+    := TLRationalCrossingSource()
+    := TLDelayer(0.25)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -133,7 +136,11 @@ class TLRAMRationalCrossingSink(direction: RationalDirection)(implicit p: Parame
   val node = TLRationalIdentityNode()
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
-  ram.node := TLFragmenter(4, 256)(TLDelayer(0.25)(TLRationalCrossingSink(direction)(node)))
+  (ram.node
+    := TLFragmenter(4, 256)
+    := TLDelayer(0.25)
+    := TLRationalCrossingSink(direction)
+    := node)
 
   lazy val module = new LazyModuleImp(this) { }
 }
