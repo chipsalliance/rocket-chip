@@ -211,7 +211,7 @@ object JtagTapGenerator {
     val chainToIcode = (SortedMap(allInstructions.toList:_*).groupBy { case (icode, chain) => chain } map {
       case (chain, icodeToChain) => chain -> icodeToChain.keys
     }).toList.sortBy(_._2.head)
-    
+
     val chainToSelect = chainToIcode map {
       case (chain, icodes) => {
         assume(icodes.size > 0)
