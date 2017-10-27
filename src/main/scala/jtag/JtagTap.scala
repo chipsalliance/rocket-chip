@@ -9,6 +9,8 @@ import scala.collection.SortedMap
 import Chisel._
 import chisel3.core.{Input, Output}
 import chisel3.util._
+import chisel3.experimental.withReset
+
 import freechips.rocketchip.config.Parameters
 
 /** JTAG signals, viewed from the master side
@@ -77,16 +79,20 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   //
   // JTAG state machine
   //
-  val stateMachine = Module(new JtagStateMachine)
-  stateMachine.io.tms := io.jtag.TMS
-  val currState = stateMachine.io.currState
-  io.output.state := stateMachine.io.currState
+
+  val currState = Wire(JtagState.State.chiselType)
 
   // At this point, the TRSTn should already have been
   // combined with any POR, and it should also be
   // synchronized to TCK.
   require(!io.jtag.TRSTn.isDefined, "TRSTn should be absorbed into jtckPOReset outside of JtagTapController.")
-  stateMachine.io.jtag_reset := io.control.jtag_reset
+  withReset(io.control.jtag_reset) {
+    val stateMachine = Module(new JtagStateMachine)
+    stateMachine.suggestName("stateMachine")
+    stateMachine.io.tms := io.jtag.TMS
+    currState := stateMachine.io.currState
+    io.output.state := stateMachine.io.currState
+  }
 
   //
   // Instruction Register
