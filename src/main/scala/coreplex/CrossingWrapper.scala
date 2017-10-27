@@ -12,6 +12,12 @@ import freechips.rocketchip.util._
 
 /** Enumerates the three types of clock crossing between tiles and system bus */
 sealed trait CoreplexClockCrossing
+{
+  def sameClock = this match {
+    case _: SynchronousCrossing => true
+    case _ => false
+  }
+}
 case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends CoreplexClockCrossing
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
 case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends CoreplexClockCrossing
