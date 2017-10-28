@@ -98,6 +98,8 @@ abstract class BaseNode(implicit val valName: ValName)
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
 
+  def parents: Seq[LazyModule] = lazyModule +: lazyModule.parents
+
   def wirePrefix = {
     val camelCase = "([a-z])([A-Z])".r
     val decamel = camelCase.replaceAllIn(valName.name, _ match { case camelCase(l, h) => l + "_" + h })
@@ -108,8 +110,8 @@ abstract class BaseNode(implicit val valName: ValName)
 
   protected[diplomacy] def gci: Option[BaseNode] // greatest common inner
   protected[diplomacy] def gco: Option[BaseNode] // greatest common outer
-  protected[diplomacy] def inputs:  Seq[(BaseNode, RenderedEdge)]
-  protected[diplomacy] def outputs: Seq[(BaseNode, RenderedEdge)]
+  def inputs:  Seq[(BaseNode, RenderedEdge)]
+  def outputs: Seq[(BaseNode, RenderedEdge)]
 }
 
 object BaseNode
@@ -117,22 +119,53 @@ object BaseNode
   protected[diplomacy] var serial = 0
 }
 
-// !!! rename the nodes we bind?
-case class NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
+trait NoHandle
+case object NoHandleObject extends NoHandle
+
+trait NodeHandle[DI, UI, BI <: Data, DO, UO, BO <: Data]
+  extends InwardNodeHandle[DI, UI, BI] with OutwardNodeHandle[DO, UO, BO]
+{
+  // connecting two full nodes => full node
+  override def :=  [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, BIND_ONCE);  NodeHandle(h, this) }
+  override def :*= [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, BIND_STAR);  NodeHandle(h, this) }
+  override def :=* [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, BIND_QUERY); NodeHandle(h, this) }
+  override def :=? [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, BX, DO, UO, BO] = { bind(h, p(CardinalityInferenceDirectionKey)); NodeHandle(h, this) }
+  // connecting a full node with an output => an output
+  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, BIND_ONCE);  this }
+  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, BIND_STAR);  this }
+  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, BIND_QUERY); this }
+  override def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, BO] = { bind(h, p(CardinalityInferenceDirectionKey)); this }
+}
+
+object NodeHandle
+{
+  def apply[DI, UI, BI <: Data, DO, UO, BO <: Data](i: InwardNodeHandle[DI, UI, BI], o: OutwardNodeHandle[DO, UO, BO]) = NodeHandlePair(i, o)
+}
+
+case class NodeHandlePair[DI, UI, BI <: Data, DO, UO, BO <: Data]
   (inwardHandle: InwardNodeHandle[DI, UI, BI], outwardHandle: OutwardNodeHandle[DO, UO, BO])
-  extends Object with InwardNodeHandle[DI, UI, BI] with OutwardNodeHandle[DO, UO, BO]
+  extends NodeHandle[DI, UI, BI, DO, UO, BO]
 {
   val inward = inwardHandle.inward
   val outward = outwardHandle.outward
 }
 
-trait InwardNodeHandle[DI, UI, BI <: Data]
+trait InwardNodeHandle[DI, UI, BI <: Data] extends NoHandle
 {
-  protected[diplomacy] val inward: InwardNode[DI, UI, BI]
-  def := (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=(h)(p, sourceInfo) }
-  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:*=(h)(p, sourceInfo) }
-  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=*(h)(p, sourceInfo) }
-  def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) { inward.:=?(h)(p, sourceInfo) }
+  def inward: InwardNode[DI, UI, BI]
+  def parentsIn: Seq[LazyModule] = inward.parents
+  def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = inward.bind(h.outward, binding)
+
+  // connecting an input node with a full nodes => an input node
+  def :=  [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, BIND_ONCE);  h }
+  def :*= [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, BIND_STAR);  h }
+  def :=* [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, BIND_QUERY); h }
+  def :=? [DX, UX, BX <: Data](h: NodeHandle[DX, UX, BX, DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, BX] = { bind(h, p(CardinalityInferenceDirectionKey)); h }
+  // connecting input node with output node => no node
+  def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_ONCE);  NoHandleObject }
+  def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_STAR);  NoHandleObject }
+  def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_QUERY); NoHandleObject }
+  def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, p(CardinalityInferenceDirectionKey)); NoHandleObject }
 }
 
 sealed trait NodeBinding
@@ -140,9 +173,18 @@ case object BIND_ONCE  extends NodeBinding
 case object BIND_QUERY extends NodeBinding
 case object BIND_STAR  extends NodeBinding
 
+object NodeBinding
+{
+  implicit def apply(card: CardinalityInferenceDirection.T): NodeBinding = card match {
+    case CardinalityInferenceDirection.SOURCE_TO_SINK => BIND_QUERY
+    case CardinalityInferenceDirection.SINK_TO_SOURCE => BIND_STAR
+    case CardinalityInferenceDirection.NO_INFERENCE   => BIND_ONCE
+  }
+}
+
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, UI, BI]
 {
-  protected[diplomacy] val inward = this
+  val inward = this
 
   protected[diplomacy] val numPI: Range.Inclusive
   require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
@@ -165,16 +207,19 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode with InwardNodeHandle[DI, 
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] val iParams: Seq[UI]
+
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit
 }
 
-trait OutwardNodeHandle[DO, UO, BO <: Data]
+trait OutwardNodeHandle[DO, UO, BO <: Data] extends NoHandle
 {
-  protected[diplomacy] val outward: OutwardNode[DO, UO, BO]
+  def outward: OutwardNode[DO, UO, BO]
+  def parentsOut: Seq[LazyModule] = outward.parents
 }
 
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode with OutwardNodeHandle[DO, UO, BO]
 {
-  protected[diplomacy] val outward = this
+  val outward = this
 
   protected[diplomacy] val numPO: Range.Inclusive
   require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
@@ -211,7 +256,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] val numPO: Range.Inclusive,
   protected[diplomacy] val numPI: Range.Inclusive)(
   implicit valName: ValName)
-  extends BaseNode with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
+  extends BaseNode with NodeHandle[DI, UI, BI, DO, UO, BO] with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
@@ -337,9 +382,9 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   // connects the outward part of a node with the inward part of this node
-  private def bind(h: OutwardNodeHandle[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val x = this // x := y
-    val y = h.outward
+    val y = h
     val info = sourceLine(sourceInfo, " at ", "")
     val i = x.iPushed
     val o = y.oPushed
@@ -350,23 +395,12 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     x.iPush(o, y, binding)
   }
 
-  override def :=  (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = bind(h, BIND_ONCE)
-  override def :*= (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = bind(h, BIND_STAR)
-  override def :=* (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = bind(h, BIND_QUERY)
-  override def :=? (h: OutwardNodeHandle[DI, UI, BI])(implicit p: Parameters, sourceInfo: SourceInfo) = {
-    p(CardinalityInferenceDirectionKey) match {
-      case CardinalityInferenceDirection.SOURCE_TO_SINK => this :=* h
-      case CardinalityInferenceDirection.SINK_TO_SOURCE => this :*= h
-      case CardinalityInferenceDirection.NO_INFERENCE   => this :=  h
-    }
-  }
-
   // meta-data for printing the node graph
-  protected[diplomacy] def inputs = (iPorts zip edgesIn) map { case ((_, n, p, _), e) =>
+  def inputs = (iPorts zip edgesIn) map { case ((_, n, p, _), e) =>
     val re = inner.render(e)
     (n, re.copy(flipped = re.flipped != p(RenderFlipped)))
   }
-  protected[diplomacy] def outputs = oPorts map { case (i, n, _, _) => (n, n.inputs(i)._2) }
+  def outputs = oPorts map { case (i, n, _, _) => (n, n.inputs(i)._2) }
 }
 
 abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](

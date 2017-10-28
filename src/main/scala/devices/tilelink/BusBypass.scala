@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends LazyModule
+abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   protected val nodeIn = TLIdentityNode()
   protected val nodeOut = TLIdentityNode()
@@ -18,7 +18,8 @@ abstract class TLBusBypassBase(beatBytes: Int)(implicit p: Parameters) extends L
 
   protected val bar = LazyModule(new TLBusBypassBar)
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
-  protected val error = LazyModule(new TLError(ErrorParams(everything), beatBytes))
+  protected val error = if (deadlock) LazyModule(new DeadlockDevice(ErrorParams(everything), beatBytes))
+                        else LazyModule(new TLError(ErrorParams(everything), beatBytes))
 
   // order matters
   bar.node := nodeIn
@@ -48,6 +49,7 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
       val bypass = Bool(INPUT)
+      val pending = Bool(OUTPUT)
     })
 
     val (in, edge) = node.in(0)
@@ -58,6 +60,8 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
     // We need to be locked to the given bypass direction until all transactions stop
     val flight = RegInit(UInt(0, width = log2Ceil(3*edge.client.endSourceId+1)))
     val bypass = RegInit(io.bypass) // synchronous reset required
+
+    io.pending := (flight > 0.U)
 
     val (a_first, a_last, _) = edge.firstlast(in.a)
     val (b_first, b_last, _) = edge.firstlast(in.b)

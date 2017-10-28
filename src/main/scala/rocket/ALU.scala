@@ -38,7 +38,7 @@ object ALU
 
   def isMulFN(fn: UInt, cmp: UInt) = fn(1,0) === cmp(1,0)
   def isSub(cmd: UInt) = cmd(3)
-  def isCmp(cmd: UInt) = cmd === FN_SEQ || cmd === FN_SNE || cmd >= FN_SLT
+  def isCmp(cmd: UInt) = cmd >= FN_SLT
   def cmpUnsigned(cmd: UInt) = cmd(1)
   def cmpInverted(cmd: UInt) = cmd(0)
   def cmpEq(cmd: UInt) = !cmd(3)
@@ -64,10 +64,10 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   io.adder_out := io.in1 + in2_inv + isSub(io.fn)
 
   // SLT, SLTU
-  io.cmp_out := cmpInverted(io.fn) ^
-    Mux(cmpEq(io.fn), in1_xor_in2 === UInt(0),
+  val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), io.adder_out(xLen-1),
-    Mux(cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1))))
+    Mux(cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1)))
+  io.cmp_out := cmpInverted(io.fn) ^ Mux(cmpEq(io.fn), in1_xor_in2 === UInt(0), slt)
 
   // SLL, SRL, SRA
   val (shamt, shin_r) =
@@ -88,7 +88,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   // AND, OR, XOR
   val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
               Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & io.in2, UInt(0))
-  val shift_logic = (isCmp(io.fn) && io.cmp_out) | logic | shout
+  val shift_logic = (isCmp(io.fn) && slt) | logic | shout
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
   io.out := out

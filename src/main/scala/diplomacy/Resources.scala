@@ -6,11 +6,34 @@ import Chisel.log2Ceil
 import scala.collection.immutable.{ListMap,SortedMap}
 
 sealed trait ResourceValue
-case class ResourcePermissions(r: Boolean, w: Boolean, x: Boolean, c: Boolean) // Not part of DTS
+
+/** Permission of an address space.
+  * @param r            readable.
+  * @param w            writable.
+  * @param x            executable.
+  * @param c            cacheable.
+  * @param a            supports all atomic operations.
+  */
+case class ResourcePermissions(r: Boolean, w: Boolean, x: Boolean, c: Boolean, a: Boolean) // Not part of DTS
+
+/** An address space description.
+  * @param address      the address space.
+  * @param permissions  the permission attributes of this space. See [[freechips.rocketchip.diplomacy.ResourcePermissions]].
+  */
 final case class ResourceAddress(address: Seq[AddressSet], permissions: ResourcePermissions) extends ResourceValue
+
+/** A mapped address space (eg: when map a device to a bus).
+  * @param address      the address space.
+  * @param offset       the address offset of the mapped device (eg: base address of the bus).
+  * @param permissions  the permission attributes of this space. See [[freechips.rocketchip.diplomacy.ResourcePermissions]].
+  */
 final case class ResourceMapping(address: Seq[AddressSet], offset: BigInt, permissions: ResourcePermissions) extends ResourceValue
 final case class ResourceInt(value: BigInt) extends ResourceValue
 final case class ResourceString(value: String) extends ResourceValue
+
+/** A reference pointing to another device in DTS (eg: interrupt to interrupt controller).
+  * @param value        the label (String) of the device.
+  */
 final case class ResourceReference(value: String) extends ResourceValue
 final case class ResourceMap(value: Map[String, Seq[ResourceValue]], labels: Seq[String] = Nil) extends ResourceValue
 
@@ -21,12 +44,17 @@ case class ResourceBindings(map: Map[String, Seq[Binding]])
   def apply(key: String): Seq[Binding] = map.getOrElse(key, Nil)
 }
 
+/** A serializable description of a device.
+  * @param name         the resolved name of this device. See [[freechips.rocketchip.diplomacy.DeviceRegName]].
+  * @param mapping      the property map of this device.
+  */
 case class Description(name: String, mapping: Map[String, Seq[ResourceValue]])
 
 abstract class Device
 {
   def describe(resources: ResourceBindings): Description
 
+  /** make sure all derived devices have an unique label */
   val label = "L" + Device.index.toString
   Device.index = Device.index + 1
 }
@@ -36,9 +64,12 @@ object Device
   private var index: Int = 0
 }
 
+/** A trait for devices that generate interrupts. */
 trait DeviceInterrupts
 {
   this: Device =>
+
+  /** Whether to always use the expanded interrupt description in DTS: "interrupts-extended" */
   val alwaysExtended = false
   def describeInterrupts(resources: ResourceBindings): Map[String, Seq[ResourceValue]] = {
     val int = resources("int")
@@ -64,6 +95,7 @@ trait DeviceInterrupts
   def int = Seq(Resource(this, "int"))
 }
 
+/** A trait for resolving the name of a device. */
 trait DeviceRegName
 {
   this: Device =>
@@ -94,14 +126,18 @@ trait DeviceRegName
   }
 }
 
+/** A simple device descriptor for devices that may support interrupts and address spaces.
+  * @param devname      the base device named used in device name generation.
+  * @param devcompat    a list of compatible devices. See device tree property "compatible".
+  */
 class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with DeviceInterrupts with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
-    val name = describeName(devname, resources)
-    val int = describeInterrupts(resources)
+    val name = describeName(devname, resources)  // the generated device name in device tree
+    val int = describeInterrupts(resources)      // interrupt description
 
     def optDef(x: String, seq: Seq[ResourceValue]) = if (seq.isEmpty) None else Some(x -> seq)
-    val compat = optDef("compatible", devcompat.map(ResourceString(_)))
+    val compat = optDef("compatible", devcompat.map(ResourceString(_))) // describe the list of compatiable devices
 
     val reg = resources.map.filterKeys(regFilter)
     val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
@@ -114,13 +150,18 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with 
         require (false, s"DTS device $name has $k = $seq, must be a single ResourceAddress!")
     }
 
-    val names = optDef("reg-names", named.map(x => ResourceString(regName(x._1).get)).toList)
-    val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList)
+    val names = optDef("reg-names", named.map(x => ResourceString(regName(x._1).get)).toList) // names of the named address space
+    val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
 
     Description(name, ListMap() ++ compat ++ int ++ names ++ regs)
   }
 }
 
+/** A simple bus
+  * @param devname      the base device named used in device name generation.
+  * @param devcompat    a list of compatible devices. See device tree property "compatible".
+  * @param offset       the base address of this bus.
+  */
 class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) extends SimpleDevice(devname, devcompat ++ Seq("simple-bus"))
 {
   override def describe(resources: ResourceBindings): Description = {
@@ -147,6 +188,7 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
   def ranges = Seq(Resource(this, "ranges"))
 }
 
+/** A generic memory block. */
 class MemoryDevice extends Device with DeviceRegName
 {
   override val prefix = ""
@@ -169,12 +211,13 @@ case class Resource(owner: Device, key: String)
   }
 }
 
+/** The resource binding scope for a LazyModule that generates a device tree (currently Coreplex only). */
 trait BindingScope
 {
   this: LazyModule =>
 
   private val parentScope = BindingScope.find(parent)
-  protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil
+  protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
   protected[diplomacy] var resourceBindings: Seq[(Resource, Option[Device], ResourceValue)] = Nil
 
   private case class ExpandedValue(path: Seq[String], labels: Seq[String], value: Seq[ResourceValue])
@@ -208,6 +251,7 @@ trait BindingScope
     }
   }
 
+  /** Generate the device tree. */
   def bindingTree: ResourceMap = {
     eval
     val map: Map[Device, ResourceBindings] =
@@ -232,6 +276,9 @@ object BindingScope
 
 object ResourceBinding
 {
+  /** Add a resource callback function to the callback list BindingScope.resourceBindingFns.
+    * @param block      the callback function to be added.
+    */
   def apply(block: => Unit) {
     val scope = BindingScope.find()
     require (scope.isDefined, "ResourceBinding must be called from within a BindingScope")

@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.coreplex._
-import freechips.rocketchip.rocket.{HellaCache, RocketCoreParams}
+import freechips.rocketchip.rocket.{DCache, RocketCoreParams}
 import freechips.rocketchip.tile._
 import scala.collection.mutable.ListBuffer
 
@@ -30,14 +30,14 @@ case object GroundTestTilesKey extends Field[Seq[GroundTestTileParams]]
 
 abstract class GroundTestTile(params: GroundTestTileParams)(implicit p: Parameters) extends BaseTile(params)(p) {
   val slave = None
-  val dcacheOpt = params.dcache.map { dc => LazyModule(HellaCache(0, dc.nMSHRs == 0)) }
-  dcacheOpt.foreach { tileBus.node := _.node }
+  val dcacheOpt = params.dcache.map { dc => LazyModule(new DCache(0)) }
 
   override lazy val module = new GroundTestTileModule(this, () => new GroundTestTileBundle(this))
 }
 
 class GroundTestTileBundle[+L <: GroundTestTile](_outer: L) extends BaseTileBundle(_outer) {
   val status = new GroundTestStatus
+  val halt_and_catch_fire = None
 }
 
 class GroundTestTileModule[+L <: GroundTestTile, +B <: GroundTestTileBundle[L]](_outer: L, _io: () => B) extends BaseTileModule(_outer, _io) {

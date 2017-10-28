@@ -5,7 +5,7 @@ package freechips.rocketchip.tile
 import Chisel._
 
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tilelink.{IntSinkNode, IntSinkPortSimple}
+import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
 import freechips.rocketchip.util._
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {

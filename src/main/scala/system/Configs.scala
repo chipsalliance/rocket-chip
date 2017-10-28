@@ -63,15 +63,14 @@ class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseCo
 class DualCoreConfig extends Config(
   new WithNBigCores(2) ++ new BaseConfig)
 
-class HeterogeneousDualCoreConfig extends Config(
-  new WithNSmallCores(1) ++ new WithNBigCores(1) ++ new BaseConfig)
-
 class TinyConfig extends Config(
   new WithNMemoryChannels(0) ++
   new WithStatelessBridge ++
-  new WithNTinyCores(1) ++
+  new With1TinyCore ++
   new BaseConfig)
 
-class DefaultFPGAConfig extends Config(new BaseConfig)
 
-class DefaultFPGASmallConfig extends Config(new WithNSmallCores(1) ++ new DefaultFPGAConfig)
+class BaseFPGAConfig extends Config(new BaseConfig)
+
+class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
+class DefaultFPGASmallConfig extends Config(new DefaultFPGAConfig)

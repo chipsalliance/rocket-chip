@@ -10,6 +10,7 @@ import freechips.rocketchip.coreplex.CacheBlockBytes
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
@@ -18,7 +19,7 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     Seq(TLManagerParameters(
       address            = List(address),
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHED,
+      regionType         = RegionType.UNCACHEABLE,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
       supportsLogical    = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
@@ -119,9 +120,9 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
 
     if (xbarPorts.nonEmpty) {
       val xbar = LazyModule(new TLXbar)
-      xbar.node := TLFIFOFixer()(TLFragmenter(xBytes, cacheBlockBytes, earlyAck=true)(slaveNode))
+      xbar.node := slaveNode
       xbarPorts.foreach { case (port, bytes) =>
-        port := (if (bytes == xBytes) xbar.node else TLFragmenter(bytes, xBytes, earlyAck=true)(TLWidthWidget(xBytes)(xbar.node)))
+        port := TLFragmenter(bytes, cacheBlockBytes, earlyAck=true)(if (bytes == xBytes) xbar.node else TLWidthWidget(xBytes)(xbar.node))
       }
     }
   }

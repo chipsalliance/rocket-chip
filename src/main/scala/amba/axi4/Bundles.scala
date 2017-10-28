@@ -4,7 +4,7 @@ package freechips.rocketchip.amba.axi4
 
 import Chisel._
 import chisel3.util.Irrevocable
-import freechips.rocketchip.util.GenericParameterizedBundle
+import freechips.rocketchip.util._
 
 abstract class AXI4BundleBase(params: AXI4BundleParameters) extends GenericParameterizedBundle(params)
 
@@ -75,4 +75,15 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 object AXI4Bundle
 {
   def apply(params: AXI4BundleParameters) = new AXI4Bundle(params)
+}
+
+class AXI4AsyncBundleBase(params: AXI4AsyncBundleParameters) extends GenericParameterizedBundle(params)
+
+class AXI4AsyncBundle(params: AXI4AsyncBundleParameters) extends AXI4AsyncBundleBase(params)
+{
+  val aw = new AsyncBundle(params.depth, new AXI4BundleAW(params.base))
+  val w  = new AsyncBundle(params.depth, new AXI4BundleW (params.base))
+  val b  = new AsyncBundle(params.depth, new AXI4BundleB (params.base)).flip
+  val ar = new AsyncBundle(params.depth, new AXI4BundleAR(params.base))
+  val r  = new AsyncBundle(params.depth, new AXI4BundleR (params.base)).flip
 }

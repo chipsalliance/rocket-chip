@@ -5,7 +5,7 @@ package freechips.rocketchip.coreplex
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 
 /** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
 class InterruptBusWrapper(implicit p: Parameters) {
@@ -81,5 +81,5 @@ trait HasExtInterruptsModuleImp extends LazyModuleImp with HasExtInterruptsBundl
   val outer: HasExtInterrupts
   val interrupts = IO(UInt(INPUT, width = outer.nExtInterrupts))
 
-  outer.extInterrupts.in.map(_._1).flatten.zipWithIndex.foreach { case(o, i) => o := interrupts(i) }
+  outer.extInterrupts.out.map(_._1).flatten.zipWithIndex.foreach { case(o, i) => o := interrupts(i) }
 }

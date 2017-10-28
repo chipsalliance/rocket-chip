@@ -9,23 +9,6 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class BusBlockerParams(
-  controlAddress:   BigInt,
-  controlBeatBytes: Int,
-  deviceBeatBytes:  Int,
-  pmpRegisters:     Int)
-{
-  val page = 4096
-  val pageBits = log2Ceil(page)
-  val size = (((pmpRegisters * 8) + page - 1) / page) * page
-
-  require (pmpRegisters > 0)
-  require (controlAddress > 0)
-  require (controlAddress % size == 0)
-  require (controlBeatBytes > 0 && isPow2(controlBeatBytes))
-  require (deviceBeatBytes  > 0 && isPow2(deviceBeatBytes))
-}
-
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
 class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(params)
 {
@@ -71,6 +54,28 @@ object DevicePMP
   }
 }
 
+/** BusBlocker uses a set of DevicePMP registers to control whether
+  * accesses of certain types are allowed to proceed or bypassed to
+  * a /dev/null device.
+  */
+
+case class BusBlockerParams(
+  controlAddress:   BigInt,
+  controlBeatBytes: Int,
+  deviceBeatBytes:  Int,
+  pmpRegisters:     Int)
+{
+  val page = 4096
+  val pageBits = log2Ceil(page)
+  val size = (((pmpRegisters * 8) + page - 1) / page) * page
+
+  require (pmpRegisters > 0)
+  require (controlAddress > 0)
+  require (controlAddress % size == 0)
+  require (controlBeatBytes > 0 && isPow2(controlBeatBytes))
+  require (deviceBeatBytes  > 0 && isPow2(deviceBeatBytes))
+}
+
 class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBusBypassBase(params.deviceBeatBytes)
 {
   val device = new SimpleDevice("bus-blocker", Seq("sifive,bus-blocker0"))
@@ -96,6 +101,40 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
     val sel = (pmps.map(_.a) zip (lt.init zip lt.tail)) map { case (a, (l, r)) => a(0) && !l && r }
     val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
     val allow = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // no match => deny
+
+    bar.module.io.bypass := !allow
+  }
+}
+
+/** BasicBusBlocker uses a single bit register to control whether
+  * accesses of all types are allowed to proceed or bypassed to
+  * a /dev/null device. It has a second bit register to report
+  * whether any requests are pending on either path.
+  */
+
+case class BasicBusBlockerParams(
+  controlAddress:   BigInt,
+  controlBeatBytes: Int,
+  deviceBeatBytes:  Int,
+  deadlock: Boolean = false)
+
+class BasicBusBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
+    extends TLBusBypassBase(params.deviceBeatBytes, params.deadlock)
+{
+  val device = new SimpleDevice("basic-bus-blocker", Seq("sifive,basic-bus-blocker0"))
+
+  val controlNode = TLRegisterNode(
+    address   = Seq(AddressSet(params.controlAddress, 0xFFF)),
+    device    = device,
+    beatBytes = params.controlBeatBytes)
+
+  lazy val module = new LazyModuleImp(this) {
+    val allow = RegInit(true.B)
+    val pending = RegNext(bar.module.io.pending)
+
+    controlNode.regmap(
+      0 -> Seq(RegField  (32, allow)),
+      4 -> Seq(RegField.r(32, pending)))
 
     bar.module.io.bypass := !allow
   }

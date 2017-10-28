@@ -36,6 +36,18 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
     inwardBufNode := atomics.node
     atomics.node
   }
+
+  def toTile(name: Option[String] = None)(gen: Parameters => TLInwardNode) {
+    this {
+      LazyScope(s"${busName}ToTile${name.getOrElse("")}") {
+        SinkCardinality { implicit p =>
+          FlipRendering { implicit p =>
+            gen(p) :*= outwardNode
+          }
+        }
+      }
+    }
+  }
 }
 
 /** Provides buses that serve as attachment points,

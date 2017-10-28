@@ -10,6 +10,7 @@ import freechips.rocketchip.util._
 
 class TLRAM(
     address: AddressSet,
+    cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -20,7 +21,7 @@ class TLRAM(
     Seq(TLManagerParameters(
       address            = List(address) ++ errors,
       resources          = resources,
-      regionType         = RegionType.UNCACHED,
+      regionType         = if (cacheable) RegionType.UNCACHED else RegionType.UNCACHEABLE,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),
       supportsPutPartial = TransferSizes(1, beatBytes),

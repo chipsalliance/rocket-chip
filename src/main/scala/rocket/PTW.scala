@@ -10,6 +10,8 @@ import freechips.rocketchip.coreplex.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -24,7 +26,7 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val req = Decoupled(new PTWReq)
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
@@ -37,7 +39,7 @@ class PTWPerfEvents extends Bundle {
 }
 
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
-    with HasRocketCoreParameters {
+    with HasCoreParameters {
   val ptbr = new PTBR().asInput
   val sfence = Valid(new SFenceReq).flip
   val status = new MStatus().asInput
@@ -85,9 +87,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
-  
-  val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
-  val vpn_idx = vpn_idxs(count)
 
   val arb = Module(new RRArbiter(new PTWReq, n))
   arb.io.in <> io.requestor.map(_.req)
@@ -105,7 +104,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     (res, (tmp.ppn >> ppnBits) =/= 0)
   }
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
-  val pte_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+  val pte_addr = if (!usingVM) 0.U else {
+    val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+    val vpn_idx = vpn_idxs(count)
+    Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+  }
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
@@ -130,6 +133,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
     when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0 }
+
+    for (i <- 0 until pgLevels-1)
+      ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
 
     (hit && count < pgLevels-1, Mux1H(hits, data))
   }
@@ -191,6 +197,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     s2_pte := s2_entry
     s2_pte.g := s2_g
     s2_pte.v := true
+
+    ccover(s2_hit, "L2_TLB_HIT", "L2 TLB hit")
 
     (s2_hit, s2_valid && s2_valid_bit, s2_pte, Some(ram))
   }
@@ -271,6 +279,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     r_pte := l2_pte
     count := pgLevels-1
   }
+
+  if (usingVM) {
+    ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
+    ccover(state === s_wait2 && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
+  }
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
 }
 
 /** Mix-ins for constructing tiles that might have a PTW */

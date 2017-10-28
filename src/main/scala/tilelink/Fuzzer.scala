@@ -233,28 +233,16 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val xbar = LazyModule(new TLXbar)
   val xbar2= LazyModule(new TLXbar)
   val fuzz = LazyModule(new TLFuzzer(txns))
-  val cross = LazyModule(new TLAsyncCrossing)
 
   model.node := fuzz.node
   xbar2.node := TLAtomicAutomata()(model.node)
   ram2.node := TLFragmenter(16, 256)(xbar2.node)
   xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
-  cross.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  ram.node := cross.node
+  ram.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
   gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
-
-    // Shove the RAM into another clock domain
-    val clocks = Module(new Pow2ClockDivider(2))
-    ram.module.clock := clocks.io.clock_out
-
-    // ... and safely cross TL2 into it
-    cross.module.io.in_clock := clock
-    cross.module.io.in_reset := reset
-    cross.module.io.out_clock := clocks.io.clock_out
-    cross.module.io.out_reset := reset
   }
 }
 

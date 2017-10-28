@@ -24,7 +24,8 @@ case class RocketCoreParams(
   nBreakpoints: Int = 1,
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
-  nCustomMRWCSRs: Int = 0,
+  haveBasicCounters: Boolean = true,
+  misaWritable: Boolean = true,
   nL2TLBEntries: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
   mtvecWritable: Boolean = true,
@@ -47,12 +48,6 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   val fastLoadWord = rocketParams.fastLoadWord
   val fastLoadByte = rocketParams.fastLoadByte
-  val nBreakpoints = rocketParams.nBreakpoints
-  val nPMPs = rocketParams.nPMPs
-  val nPerfCounters = rocketParams.nPerfCounters
-  val nCustomMrwCsrs = rocketParams.nCustomMRWCSRs
-  val mtvecInit = rocketParams.mtvecInit
-  val mtvecWritable = rocketParams.mtvecWritable
 
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
@@ -158,6 +153,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_reg_raw_inst = Reg(UInt())
   val mem_reg_wdata = Reg(Bits())
   val mem_reg_rs2 = Reg(Bits())
+  val mem_br_taken = Reg(Bool())
   val take_pc_mem = Wire(Bool())
 
   val wb_reg_valid           = Reg(Bool())
@@ -367,7 +363,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   // memory stage
   val mem_pc_valid = mem_reg_valid || mem_reg_replay || mem_reg_xcpt_interrupt
-  val mem_br_taken = mem_reg_wdata(0)
   val mem_br_target = mem_reg_pc.asSInt +
     Mux(mem_ctrl.branch && mem_br_taken, ImmGen(IMM_SB, mem_reg_inst),
     Mux(mem_ctrl.jal, ImmGen(IMM_UJ, mem_reg_inst),
@@ -409,6 +404,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_raw_inst := ex_reg_raw_inst
     mem_reg_pc := ex_reg_pc
     mem_reg_wdata := alu.io.out
+    mem_br_taken := alu.io.cmp_out
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
       val typ = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_ctrl.mem_type)

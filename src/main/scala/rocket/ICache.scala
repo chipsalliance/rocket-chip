@@ -11,6 +11,8 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -57,7 +59,7 @@ class ICache(val icacheParams: ICacheParams, val hartid: Int)(implicit p: Parame
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
-        regionType      = RegionType.UNCACHED,
+        regionType      = RegionType.UNCACHEABLE,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
         supportsPutPartial = TransferSizes(1, wordBytes),
@@ -326,6 +328,11 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         tl.b.valid := false
         tl.c.ready := true
         tl.e.ready := true
+
+        ccover(s0_valid && s1_slaveValid, "CONCURRENT_ITIM_ACCESS_1", "ITIM accessed, then I$ accessed next cycle")
+        ccover(s0_valid && s2_slaveValid, "CONCURRENT_ITIM_ACCESS_2", "ITIM accessed, then I$ accessed two cycles later")
+        ccover(tl.d.valid && !tl.d.ready, "ITIM_D_STALL", "ITIM response blocked by D-channel")
+        ccover(tl_out.d.valid && !tl_out.d.ready, "ITIM_BLOCK_D", "D-channel blocked by ITIM access")
       }
   }
 
@@ -358,6 +365,11 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
                         lgSize = lgCacheBlockBytes,
                         param = TLHints.PREFETCH_READ)._2
     }
+
+    ccover(send_hint && !tl_out.a.ready, "PREFETCH_A_STALL", "I$ prefetch blocked by A-channel")
+    ccover(refill_valid && (tl_out.d.fire() && !refill_one_beat), "PREFETCH_D_BEFORE_MISS_D", "I$ prefetch resolves before miss")
+    ccover(!refill_valid && (tl_out.d.fire() && !refill_one_beat), "PREFETCH_D_AFTER_MISS_D", "I$ prefetch resolves after miss")
+    ccover(tl_out.a.fire() && hint_outstanding, "PREFETCH_D_AFTER_MISS_A", "I$ prefetch resolves after second miss")
   }
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)
@@ -369,4 +381,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   when (refill_done) { refill_valid := false.B}
 
   io.perf.acquire := refill_fire
+
+  ccover(!send_hint && (tl_out.a.valid && !tl_out.a.ready), "MISS_A_STALL", "I$ miss blocked by A-channel")
+  ccover(invalidate && refill_valid, "FLUSH_DURING_MISS", "I$ flushed during miss")
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"ICACHE_$label", "MemorySystem;;" + desc)
 }

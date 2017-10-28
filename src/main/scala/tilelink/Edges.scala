@@ -271,11 +271,25 @@ class TLEdgeOut(
   extends TLEdge(client, manager, params, sourceInfo)
 {
   // Transfers
-  def Acquire(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
+  def AcquireBlock(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
     require (manager.anySupportAcquireB)
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
-    a.opcode  := TLMessages.Acquire
+    a.opcode  := TLMessages.AcquireBlock
+    a.param   := growPermissions
+    a.size    := lgSize
+    a.source  := fromSource
+    a.address := toAddress
+    a.mask    := mask(toAddress, lgSize)
+    a.data    := UInt(0)
+    (legal, a)
+  }
+
+  def AcquirePerm(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
+    require (manager.anySupportAcquireB)
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
+    val a = Wire(new TLBundleA(bundle))
+    a.opcode  := TLMessages.AcquirePerm
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource

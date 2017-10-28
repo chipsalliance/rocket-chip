@@ -10,7 +10,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import scala.math.{min, max}
 
-case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
+case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
     p.clients.foreach { c =>
       require (c.sourceId.start % (1 << stripBits) == 0 &&
@@ -30,7 +30,7 @@ case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0)(implicit valName: Va
     }
     AXI4MasterPortParameters(
       masters  = masters,
-      userBits = log2Ceil(p.endSourceId) + 4 + log2Ceil(beatBytes))
+      userBits = log2Ceil(p.endSourceId) + 4)
   },
   uFn = { p => TLManagerPortParameters(
     managers = p.slaves.map { case s =>
@@ -48,9 +48,9 @@ case class TLToAXI4Node(beatBytes: Int, stripBits: Int = 0)(implicit valName: Va
       minLatency = p.minLatency)
   })
 
-class TLToAXI4(val beatBytes: Int, val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
+class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLToAXI4Node(beatBytes, stripBits)
+  val node = TLToAXI4Node(stripBits)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -215,9 +215,9 @@ class TLToAXI4(val beatBytes: Int, val combinational: Boolean = true, val adapte
 
 object TLToAXI4
 {
-  // applied to the TL source node; y.node := TLToAXI4(beatBytes)(x.node)
-  def apply(beatBytes: Int, combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val axi4 = LazyModule(new TLToAXI4(beatBytes, combinational, adapterName, stripBits))
+  // applied to the TL source node; y.node := TLToAXI4()(x.node)
+  def apply(combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
+    val axi4 = LazyModule(new TLToAXI4(combinational, adapterName, stripBits))
     axi4.node :=? x
     axi4.node
   }
