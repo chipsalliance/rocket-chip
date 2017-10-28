@@ -234,12 +234,11 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val xbar2= LazyModule(new TLXbar)
   val fuzz = LazyModule(new TLFuzzer(txns))
 
-  model.node := fuzz.node
-  xbar2.node := TLAtomicAutomata()(model.node)
-  ram2.node := TLFragmenter(16, 256)(xbar2.node)
-  xbar.node := TLWidthWidget(16)(TLHintHandler()(xbar2.node))
-  ram.node := TLFragmenter(4, 256)(TLBuffer()(xbar.node))
-  gpio.node := TLFragmenter(4, 32)(TLBuffer()(xbar.node))
+  xbar2.node := TLAtomicAutomata() := model.node := fuzz.node
+  ram2.node := TLFragmenter(16, 256) := xbar2.node
+  xbar.node := TLWidthWidget(16) := TLHintHandler() := xbar2.node
+  ram.node := TLFragmenter(4, 256) := TLBuffer() := xbar.node
+  gpio.node := TLFragmenter(4, 32) := TLBuffer() := xbar.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

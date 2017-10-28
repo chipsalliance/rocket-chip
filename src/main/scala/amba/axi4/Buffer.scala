@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -46,18 +45,13 @@ class AXI4Buffer(
 
 object AXI4Buffer
 {
-  // applied to the AXI4 source node; y.node := AXI4Buffer(x.node)
-  def apply()                                  (x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(BufferParams.default)(x)
-  def apply(z: BufferParams)                   (x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(z, z)(x)
-  def apply(aw: BufferParams, br: BufferParams)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = apply(aw, aw, br, aw, br)(x)
+  def apply()                                  (implicit p: Parameters): AXI4Node = apply(BufferParams.default)
+  def apply(z: BufferParams)                   (implicit p: Parameters): AXI4Node = apply(z, z)
+  def apply(aw: BufferParams, br: BufferParams)(implicit p: Parameters): AXI4Node = apply(aw, aw, br, aw, br)
   def apply(
     aw: BufferParams,
     w:  BufferParams,
     b:  BufferParams,
     ar: BufferParams,
-    r:  BufferParams)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val buffer = LazyModule(new AXI4Buffer(aw, w, b, ar, r))
-    buffer.node :=? x
-    buffer.node
-  }
+    r:  BufferParams)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Buffer(aw, w, b, ar, r)).node
 }

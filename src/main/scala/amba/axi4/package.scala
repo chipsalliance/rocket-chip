@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy._
 
 package object axi4
 {
+  type AXI4Node = SimpleNodeHandle[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]
   type AXI4OutwardNode = OutwardNodeHandle[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]
-  type AXI4AsyncOutwardNode = OutwardNodeHandle[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncBundle]
-  type AXI4Node = NodeHandle[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle, AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]
+  type AXI4InwardNode = InwardNodeHandle[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]
 }

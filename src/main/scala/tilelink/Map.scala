@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.{min,max}
@@ -39,10 +38,5 @@ class TLMap(fn: AddressSet => BigInt)(implicit p: Parameters) extends LazyModule
 
 object TLMap
 {
-  // applied to the TL source node; y.node := TLMap(fn)(x.node)
-  def apply(fn: AddressSet => BigInt)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val map = LazyModule(new TLMap(fn))
-    map.node :=? x
-    map.node
-  }
+  def apply(fn: AddressSet => BigInt)(implicit p: Parameters): TLNode = LazyModule(new TLMap(fn)).node
 }

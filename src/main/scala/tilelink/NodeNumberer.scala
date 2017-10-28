@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -56,10 +55,5 @@ class TLNodeNumberer(nodeAddressOffset: Option[Int] = None)(implicit p: Paramete
 
 object TLNodeNumberer
 {
-  // applied to the TL source node; y.node := TLBuffer(x.node)
-  def apply(nodeAddressOffset: Option[Int] = None)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val numberer = LazyModule(new TLNodeNumberer(nodeAddressOffset))
-    numberer.node :=? x
-    numberer.node
-  }
+  def apply(nodeAddressOffset: Option[Int] = None)(implicit p: Parameters): TLNode = LazyModule(new TLNodeNumberer(nodeAddressOffset)).node
 }

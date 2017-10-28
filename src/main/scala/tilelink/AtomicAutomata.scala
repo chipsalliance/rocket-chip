@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -257,12 +256,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
 object TLAtomicAutomata
 {
-  // applied to the TL source node; y.node := TLAtomicAutomata(x.node)
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
-    atomics.node :=? x
-    atomics.node
-  }
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+    LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough)).node
 
   case class CAMParams(a: TLBundleParameters, domainsNeedingHelp: Int)
 
@@ -289,8 +284,13 @@ class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule 
   val model = LazyModule(new TLRAMModel("AtomicAutomata"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
-  model.node := fuzz.node
-  ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(TLAtomicAutomata()(TLDelayer(0.1)(model.node))))
+  (ram.node
+    := TLFragmenter(4, 256)
+    := TLDelayer(0.1)
+    := TLAtomicAutomata()
+    := TLDelayer(0.1)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

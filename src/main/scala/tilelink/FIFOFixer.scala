@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.max
@@ -114,10 +113,5 @@ object TLFIFOFixer
   val allFIFO:        Policy = m => m.fifoId.isDefined
   val allUncacheable: Policy = m => m.regionType <= UNCACHEABLE
 
-  // applied to the TL source node; y.node := TLFIFOFixer()(x.node)
-  def apply(policy: Policy = all)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val fixer = LazyModule(new TLFIFOFixer(policy))
-    fixer.node :=? x
-    fixer.node
-  }
+  def apply(policy: Policy = all)(implicit p: Parameters): TLNode = LazyModule(new TLFIFOFixer(policy)).node
 }

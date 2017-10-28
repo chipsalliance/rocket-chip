@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -200,10 +199,5 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
 object AXI4Fragmenter
 {
-  // applied to the AXI4 source node; y.node := AXI4Fragmenter()(x.node)
-  def apply()(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val fragmenter = LazyModule(new AXI4Fragmenter)
-    fragmenter.node :=? x
-    fragmenter.node
-  }
+  def apply()(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Fragmenter).node
 }

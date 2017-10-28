@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.amba.ahb._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -187,10 +186,5 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
 object TLToAHB
 {
-  // applied to the TL source node; y.node := TLToAHB()(x.node)
-  def apply(aFlow: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AHBOutwardNode = {
-    val ahb = LazyModule(new TLToAHB(aFlow))
-    ahb.node :=? x
-    ahb.node
-  }
+  def apply(aFlow: Boolean = true)(implicit p: Parameters) = LazyModule(new TLToAHB(aFlow)).node
 }

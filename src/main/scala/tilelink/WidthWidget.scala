@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -192,12 +191,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
 
 object TLWidthWidget
 {
-  // applied to the TL source node; y.node := WidthWidget(x.node, 16)
-  def apply(innerBeatBytes: Int)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
-    widget.node :=? x
-    widget.node
-  }
+  def apply(innerBeatBytes: Int)(implicit p: Parameters): TLNode = LazyModule(new TLWidthWidget(innerBeatBytes)).node
 }
 
 /** Synthesizeable unit tests */
@@ -208,12 +202,14 @@ class TLRAMWidthWidget(first: Int, second: Int, txns: Int)(implicit p: Parameter
   val model = LazyModule(new TLRAMModel("WidthWidget"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
-  model.node := fuzz.node
-  ram.node := TLDelayer(0.1)(TLFragmenter(4, 256)(
-                if (first == second ) { TLWidthWidget(first)(TLDelayer(0.1)(model.node)) }
-                else {
-                  TLWidthWidget(second)(
-                    TLWidthWidget(first)(TLDelayer(0.1)(model.node)))}))
+  (ram.node
+    := TLDelayer(0.1)
+    := TLFragmenter(4, 256)
+    := TLWidthWidget(second)
+    := TLWidthWidget(first)
+    := TLDelayer(0.1)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

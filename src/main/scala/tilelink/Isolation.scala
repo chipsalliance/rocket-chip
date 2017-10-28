@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.AsyncBundle
@@ -65,19 +64,5 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
         ABz(out.e, in .e)
       }
     }
-  }
-}
-
-object TLIsolation
-{
-  // applied to the TL source node; y.node := TLIsolation(fOut, fIn)(x.node)
-  // f* should insert an isolation gate between the input UInt and its result
-  // fOut is applied to data flowing from client to manager
-  // fIn  is applied to data flowing from manager to client
-  // **** WARNING: the isolation functions must bring the values to 0 ****
-  def apply(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(x: TLAsyncOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): (TLAsyncOutwardNode, () => (Bool, Bool)) = {
-    val iso = LazyModule(new TLIsolation(fOut, fIn))
-    iso.node :=? x
-    (iso.node, () => (iso.module.io.iso_out, iso.module.io.iso_in))
   }
 }

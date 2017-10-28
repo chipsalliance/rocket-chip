@@ -25,8 +25,7 @@ class AHBFuzzNative(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   val ram   = LazyModule(new AHBRAM(AddressSet(0x0, 0xff)))
   val gpio  = LazyModule(new RRTest0(0x100))
 
-  model.node := fuzz.node
-  xbar.node := TLToAHB(aFlow)(TLDelayer(0.1)(model.node))
+  xbar.node := TLToAHB(aFlow) := TLDelayer(0.1) := model.node := fuzz.node
   ram.node  := xbar.node
   gpio.node := xbar.node
 
@@ -46,13 +45,13 @@ class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AHBFuzzMaster"))
 
-  model.node := fuzz.node
-  node :=
-    TLToAHB(aFlow)(
-    TLDelayer(0.2)(
-    TLBuffer(BufferParams.flow)(
-    TLDelayer(0.2)(
-    model.node))))
+  (node
+     := TLToAHB(aFlow)
+     := TLDelayer(0.2)
+     := TLBuffer(BufferParams.flow)
+     := TLDelayer(0.2)
+     := model.node
+     := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -68,13 +67,13 @@ class AHBFuzzSlave()(implicit p: Parameters) extends LazyModule
   val node = AHBIdentityNode()
   val ram  = LazyModule(new TLTestRAM(AddressSet(0x0, 0xfff)))
 
-  ram.node :=
-    TLFragmenter(4, 16)(
-    TLDelayer(0.2)(
-    TLBuffer(BufferParams.flow)(
-    TLDelayer(0.2)(
-    AHBToTL()(
-    node)))))
+  (ram.node
+    := TLFragmenter(4, 16)
+    := TLDelayer(0.2)
+    := TLBuffer(BufferParams.flow)
+    := TLDelayer(0.2)
+    := AHBToTL()
+    := node)
 
   lazy val module = new LazyModuleImp(this) { }
 }

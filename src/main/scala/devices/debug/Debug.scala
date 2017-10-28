@@ -393,9 +393,9 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmiXbar = LazyModule (new TLXbar())
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
-  val intnode: IntSyncOutwardNode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
+  val intnode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
-  val dmiInnerNode = TLAsyncCrossingSource()(dmiXbar.node)
+  val dmiInnerNode = TLAsyncCrossingSource() := dmiXbar.node
 
   dmiXbar.node := dmi2tl.node
   dmOuter.dmiNode := dmiXbar.node
@@ -1006,7 +1006,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
 
   val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents))
   val dmiXing = LazyModule(new TLAsyncCrossingSink(depth=1))
-  val dmiNode: TLAsyncInwardNode = dmiXing.node
+  val dmiNode = dmiXing.node
   val tlNode = dmInner.tlNode
 
   dmInner.dmiNode := dmiXing.node

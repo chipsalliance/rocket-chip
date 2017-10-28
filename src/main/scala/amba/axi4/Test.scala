@@ -25,10 +25,9 @@ class AXI4LiteFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val gpio  = LazyModule(new RRTest1(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
-  model.node := fuzz.node
-  xbar.node  := TLDelayer(0.1)(TLBuffer(BufferParams.flow)(TLDelayer(0.2)(model.node)))
-  ram.node   := AXI4UserYanker()(AXI4IdIndexer(0)(TLToAXI4(true )(TLFragmenter(4, 16)(xbar.node))))
-  gpio.node  := AXI4UserYanker()(AXI4IdIndexer(0)(TLToAXI4(false)(TLFragmenter(4, 16)(xbar.node))))
+  xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node
+  ram.node  := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(true ) := TLFragmenter(4, 16) := xbar.node
+  gpio.node := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(false) := TLFragmenter(4, 16) := xbar.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
@@ -48,10 +47,9 @@ class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val gpio  = LazyModule(new RRTest0(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
-  model.node := fuzz.node
-  xbar.node  := TLDelayer(0.1)(TLBuffer(BufferParams.flow)(TLDelayer(0.2)(model.node)))
-  ram.node   := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(false)(xbar.node)))
-  gpio.node  := AXI4Fragmenter()(AXI4Deinterleaver(16)(TLToAXI4(true )(xbar.node)))
+  xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node
+  ram.node  := AXI4Fragmenter() := AXI4Deinterleaver(16) := TLToAXI4(false) := xbar.node
+  gpio.node := AXI4Fragmenter() := AXI4Deinterleaver(16) := TLToAXI4(true ) := xbar.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
@@ -73,15 +71,15 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
   val fuzz  = LazyModule(new TLFuzzer(txns, overrideAddress = Some(fuzzAddr)))
   val model = LazyModule(new TLRAMModel("AXI4FuzzMaster"))
 
-  model.node := fuzz.node
-  node :=
-    AXI4UserYanker()(
-    AXI4Deinterleaver(64)(
-    TLToAXI4()(
-    TLDelayer(0.1)(
-    TLBuffer(BufferParams.flow)(
-    TLDelayer(0.1)(
-    model.node))))))
+  (node
+    := AXI4UserYanker()
+    := AXI4Deinterleaver(64)
+    := TLToAXI4()
+    := TLDelayer(0.1)
+    := TLBuffer(BufferParams.flow)
+    := TLDelayer(0.1)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -99,19 +97,19 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTar
   val ram  = LazyModule(new TLRAM(fuzzAddr))
   val error= LazyModule(new TLError(ErrorParams(Seq(AddressSet(0x1800, 0xff)), maxTransfer = 256)))
 
-  ram.node   := TLFragmenter(4, 16)(xbar.node)
+  ram.node   := TLFragmenter(4, 16) := xbar.node
   error.node := xbar.node
 
-  xbar.node :=
-    TLFIFOFixer()(
-    TLDelayer(0.1)(
-    TLBuffer(BufferParams.flow)(
-    TLDelayer(0.1)(
-    AXI4ToTL()(
-    AXI4UserYanker(Some(4))(
-    AXI4Fragmenter()(
-    AXI4IdIndexer(2)(
-    node))))))))
+  (xbar.node
+    := TLFIFOFixer()
+    := TLDelayer(0.1)
+    := TLBuffer(BufferParams.flow)
+    := TLDelayer(0.1)
+    := AXI4ToTL()
+    := AXI4UserYanker(Some(4))
+    := AXI4Fragmenter()
+    := AXI4IdIndexer(2)
+    := node)
 
   lazy val module = new LazyModuleImp(this) { }
 }

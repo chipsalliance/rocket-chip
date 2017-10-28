@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.min
@@ -92,12 +91,8 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 
 object TLHintHandler
 {
-  // applied to the TL source node; y.node := TLHintHandler(x.node)
-  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
-    hints.node :=? x
-    hints.node
-  }
+  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+    LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough)).node
 }
 
 /** Synthesizeable unit tests */
@@ -110,8 +105,13 @@ class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
   val model = LazyModule(new TLRAMModel("HintHandler"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
-  model.node := fuzz.node
-  ram.node := TLFragmenter(4, 256)(TLDelayer(0.1)(TLHintHandler()(TLDelayer(0.1)(model.node))))
+  (ram.node
+    := TLFragmenter(4, 256)
+    := TLDelayer(0.1)
+    := TLHintHandler()
+    := TLDelayer(0.1)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

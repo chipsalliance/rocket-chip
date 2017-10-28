@@ -260,7 +260,7 @@ class FuzzRRTest0(txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val rrtr = LazyModule(new RRTest0(0x400))
 
-  rrtr.node := TLFragmenter(4, 32)(TLDelayer(0.1)(fuzz.node))
+  rrtr.node := TLFragmenter(4, 32) := TLDelayer(0.1) := fuzz.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
@@ -275,7 +275,7 @@ class FuzzRRTest1(txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val rrtr = LazyModule(new RRTest1(0x400))
 
-  rrtr.node := TLFragmenter(4, 32)(TLDelayer(0.1)(fuzz.node))
+  rrtr.node := TLFragmenter(4, 32) := TLDelayer(0.1) := fuzz.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

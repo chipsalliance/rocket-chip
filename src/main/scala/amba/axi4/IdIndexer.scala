@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.{min,max}
@@ -76,10 +75,5 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 
 object AXI4IdIndexer
 {
-  // applied to the AXI4 source node; y.node := AXI4IdIndexer(idBits)(x.node)
-  def apply(idBits: Int)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val indexer = LazyModule(new AXI4IdIndexer(idBits))
-    indexer.node :=? x
-    indexer.node
-  }
+  def apply(idBits: Int)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4IdIndexer(idBits)).node
 }

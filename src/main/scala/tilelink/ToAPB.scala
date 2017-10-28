@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
@@ -86,10 +85,5 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
 
 object TLToAPB
 {
-  // applied to the TL source node; y.node := TLToAPB()(x.node)
-  def apply(aFlow: Boolean = true)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): APBOutwardNode = {
-    val apb = LazyModule(new TLToAPB(aFlow))
-    apb.node :=? x
-    apb.node
-  }
+  def apply(aFlow: Boolean = true)(implicit p: Parameters) = LazyModule(new TLToAPB(aFlow)).node
 }

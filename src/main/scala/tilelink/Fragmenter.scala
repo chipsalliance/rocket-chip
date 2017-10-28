@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -283,12 +282,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
 object TLFragmenter
 {
-  // applied to the TL source node; y.node := TLFragmenter(x.node, 256, 4)
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: Boolean = false)(x: TLOutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck))
-    fragmenter.node :=? x
-    fragmenter.node
-  }
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: Boolean = false)(implicit p: Parameters): TLNode =
+    LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck)).node
 }
 
 /** Synthesizeable unit tests */
@@ -299,18 +294,18 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit p: Pa
   val model = LazyModule(new TLRAMModel("Fragmenter"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes))
 
-  model.node := fuzz.node
-  ram.node :=
-    TLDelayer(0.1)(
-    TLBuffer(BufferParams.flow)(
-    TLDelayer(0.1)(
-    TLFragmenter(ramBeatBytes, maxSize, earlyAck = true)(
-    TLDelayer(0.1)(
-    TLBuffer(BufferParams.flow)(
-    TLFragmenter(ramBeatBytes, maxSize/2)(
-    TLDelayer(0.1)(
-    TLBuffer(BufferParams.flow)(
-    model.node)))))))))
+  (ram.node
+    := TLDelayer(0.1)
+    := TLBuffer(BufferParams.flow)
+    := TLDelayer(0.1)
+    := TLFragmenter(ramBeatBytes, maxSize, earlyAck = true)
+    := TLDelayer(0.1)
+    := TLBuffer(BufferParams.flow)
+    := TLFragmenter(ramBeatBytes, maxSize/2)
+    := TLDelayer(0.1)
+    := TLBuffer(BufferParams.flow)
+    := model.node
+    := fuzz.node)
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

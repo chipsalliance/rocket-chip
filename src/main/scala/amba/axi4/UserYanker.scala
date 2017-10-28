@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.UIntToOH1
@@ -92,10 +91,5 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
 
 object AXI4UserYanker
 {
-  // applied to the AXI4 source node; y.node := AXI4UserYanker(idBits, maxFlight)(x.node)
-  def apply(capMaxFlight: Option[Int] = None)(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): AXI4OutwardNode = {
-    val yanker = LazyModule(new AXI4UserYanker(capMaxFlight))
-    yanker.node :=? x
-    yanker.node
-  }
+  def apply(capMaxFlight: Option[Int] = None)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4UserYanker(capMaxFlight)).node
 }

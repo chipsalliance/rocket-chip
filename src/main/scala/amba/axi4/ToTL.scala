@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -161,9 +160,5 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply()(x: AXI4OutwardNode)(implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val tl = LazyModule(new AXI4ToTL)
-    tl.node :=? x
-    tl.node
-  }
+  def apply()(implicit p: Parameters) = LazyModule(new AXI4ToTL).node
 }
