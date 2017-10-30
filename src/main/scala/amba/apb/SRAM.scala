@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class APBRAM(
     address: AddressSet,
@@ -39,8 +40,8 @@ class APBRAM(
       mem.write(paddr, Vec.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.toBools)
     }
 
-    in.pready  := Bool(!fuzzReady) || LFSR16(!in.penable)(0)
-    in.pslverr := RegEnable(!legal, !in.penable) || (Bool(fuzzError) && LFSR16(Bool(true))(0))
+    in.pready  := Bool(!fuzzReady) || LFSRNoiseMaker(1)(0)
+    in.pslverr := RegEnable(!legal, !in.penable) || (Bool(fuzzError) && LFSRNoiseMaker(1)(0))
     in.prdata  := mem.readAndHold(paddr, read).asUInt
   }
 }
