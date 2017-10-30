@@ -176,7 +176,10 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
       val b_error = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
 
-      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), r_error)
+      val reg_error = RegInit(Bool(false))
+      when (out.r.fire()) { reg_error := !out.r.bits.last && (reg_error || r_error) }
+
+      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), reg_error || r_error)
       val b_d = edgeIn.AccessAck(b_source, b_size, b_error)
 
       in.d.bits := Mux(r_wins, r_d, b_d)
