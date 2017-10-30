@@ -12,7 +12,9 @@ class APBRAM(
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil)
+    errors: Seq[AddressSet] = Nil,
+    fuzzReady: Boolean = false,
+    fuzzError: Boolean = false)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = APBSlaveNode(Seq(APBSlavePortParameters(
@@ -37,8 +39,8 @@ class APBRAM(
       mem.write(paddr, Vec.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.toBools)
     }
 
-    in.pready  := Bool(true)
-    in.pslverr := RegNext(!legal)
+    in.pready  := Bool(!fuzzReady) || LFSR16(!in.penable)(0)
+    in.pslverr := RegEnable(!legal, !in.penable) || (Bool(fuzzError) && LFSR16(Bool(true))(0))
     in.prdata  := mem.readAndHold(paddr, read).asUInt
   }
 }

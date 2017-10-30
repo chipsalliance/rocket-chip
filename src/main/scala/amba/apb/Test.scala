@@ -21,7 +21,7 @@ class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("APBFuzzMaster"))
   val xbar  = LazyModule(new APBFanout)
-  val ram   = LazyModule(new APBRAM(AddressSet(0x0, 0xff)))
+  val ram   = LazyModule(new APBRAM(AddressSet(0x0, 0xff), fuzzReady = true, fuzzError = true))
   val gpio  = LazyModule(new RRTest0(0x100))
 
   ram.node  := xbar.node
@@ -31,6 +31,7 @@ class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
     := TLDelayer(0.2)
     := TLBuffer(BufferParams.flow)
     := TLDelayer(0.2)
+    := TLFragmenter(4, 8)
     := model.node
     := fuzz.node)
 
