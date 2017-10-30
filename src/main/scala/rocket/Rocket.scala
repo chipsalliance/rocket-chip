@@ -564,15 +564,22 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   if (enableCommitLog) {
     val pc = Wire(SInt(width=xLen))
-    pc := wb_reg_pc
+    pc := wb_reg_pc.asSInt
     val inst = wb_reg_inst
     val rd = RegNext(RegNext(RegNext(id_waddr)))
     val wfd = wb_ctrl.wfd
     val wxd = wb_ctrl.wxd
     val has_data = wb_wen && !wb_set_sboard
     val priv = csr.io.status.prv
+    val addr = Mux(wfd, wb_waddr, Mux(rf_wen, rf_waddr, UInt(0)))
+
+    when (csr.io.exception && csr.io.interrupt) {
+      printf("interrupt cause: %d\n", csr.io.interrupt_cause(xLen-2, 0))
+    }
 
     when (wb_valid) {
+      printf("0x%x 0x%x (0x%x) %d %d %d %d\n", rf_wdata, pc, inst, addr, wfd, priv, wb_set_sboard)
+      /*
       when (wfd) {
         printf ("%d 0x%x (0x%x) f%d p%d 0xXXXXXXXXXXXXXXXX\n", priv, pc, inst, rd, rd+UInt(32))
       }
@@ -585,10 +592,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       .otherwise {
         printf ("%d 0x%x (0x%x)\n", priv, pc, inst)
       }
+      */
     }
 
     when (ll_wen && rf_waddr =/= UInt(0)) {
-      printf ("x%d p%d 0x%x\n", rf_waddr, rf_waddr, rf_wdata)
+      printf ("0x%x p%d\n", rf_wdata, rf_waddr)
+      // printf ("x%d p%d 0x%x\n", rf_waddr, rf_waddr, rf_wdata)
     }
   }
   else {

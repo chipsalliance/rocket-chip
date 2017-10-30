@@ -241,7 +241,7 @@ class CSRFile(implicit p: Parameters) extends CoreModule()(p)
   val reg_frm = Reg(UInt(width = 3))
 
   val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
+  val reg_cycle = /* if (enableCommitLog) reg_instret else */ WideCounter(64)
   val reg_hpmevent = Seq.fill(nPerfCounters)(if (nPerfEvents > 1) Reg(UInt(width = log2Ceil(nPerfEvents))) else UInt(0))
   val reg_hpmcounter = reg_hpmevent.map(e => WideCounter(64, ((UInt(0) +: io.events): Seq[UInt])(e)))
 

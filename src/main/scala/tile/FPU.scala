@@ -548,8 +548,8 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val regfile = Mem(32, Bits(width = fLen+1))
   when (load_wb) {
     regfile(load_wb_tag) := load_wb_data_recoded
-    if (enableCommitLog)
-      printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, Mux(load_wb_single, load_wb_data(31,0), load_wb_data))
+    // if (enableCommitLog)
+    //  printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, Mux(load_wb_single, load_wb_data(31,0), load_wb_data))
   }
 
   val ex_ra1::ex_ra2::ex_ra3::Nil = List.fill(3)(Reg(UInt()))
@@ -684,7 +684,8 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
           val wdata_unrec_d = hardfloat.fNFromRecFN(dExpWidth, dSigWidth, wdata)
           Mux(wsingle, wdata_unrec_s, wdata_unrec_d)
       }
-      printf("f%d p%d 0x%x\n", waddr, waddr + 32, unrec)
+      // printf("f%d p%d 0x%x\n", waddr, waddr + 32, unrec)
+      // printf("0x%x p%d\n", unrec, waddr + 32) // TODO
     }
   }
   when (wbInfo(0).cp && wen(0)) {
