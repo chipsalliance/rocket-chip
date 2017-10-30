@@ -49,13 +49,6 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         Cat(mdata.reverse)
       }
 
-      def reduce(i: Bool): Bool = {
-        val state = Reg(Bool())
-        val next = i || (!first && state)
-        when (in.fire()) { state := next }
-        next
-      }
-
       in.ready := out.ready || !last
       out.valid := in.valid && last
       out.bits := in.bits
@@ -66,8 +59,8 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       (out.bits, in.bits) match {
         case (o: TLBundleA, i: TLBundleA) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
         case (o: TLBundleB, i: TLBundleB) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
-        case (o: TLBundleC, i: TLBundleC) => o.error := reduce(i.error)
-        case (o: TLBundleD, i: TLBundleD) => o.error := reduce(i.error)
+        case (o: TLBundleC, i: TLBundleC) => () // monotone errors: last beat's error taken combinationally is ok
+        case (o: TLBundleD, i: TLBundleD) => ()
         case _ => require(false, "Impossible bundle combination in WidthWidget")
       }
     }
@@ -119,8 +112,8 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       (out.bits, in.bits) match {
         case (o: TLBundleA, i: TLBundleA) => o.mask := helper(i.mask, 1)
         case (o: TLBundleB, i: TLBundleB) => o.mask := helper(i.mask, 1)
-        case (o: TLBundleC, i: TLBundleC) => () // error handled by bulk connect
-        case (o: TLBundleD, i: TLBundleD) => () // error handled by bulk connect
+        case (o: TLBundleC, i: TLBundleC) => () // monotone errors: replicating error to all beats is ok
+        case (o: TLBundleD, i: TLBundleD) => ()
         case _ => require(false, "Impossbile bundle combination in WidthWidget")
       }
 
