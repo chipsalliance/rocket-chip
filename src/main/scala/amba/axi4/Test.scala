@@ -63,6 +63,8 @@ class AXI4FullFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: P
 
 trait HasFuzzTarget {
   val fuzzAddr = AddressSet(0x0, 0xfff)
+  val pattern = Seq(AddressSet(0x8,   ~0x808), // ie: 0x8-0xf, 0x18-0x1f, ... 0x7f8-0x7ff
+                    AddressSet(0x900, ~0x900)) // ie: 0x900-0x9ff, 0xb00-0xbff, ... 0xf00-0xfff
 }
 
 class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
@@ -78,6 +80,7 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
     := TLDelayer(0.1)
     := TLBuffer(BufferParams.flow)
     := TLDelayer(0.1)
+    := TLErrorEvaluator(pattern, testOn=true, testOff=true)
     := model.node
     := fuzz.node)
 
@@ -90,14 +93,14 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
   }
 }
 
-class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTarget
+class AXI4FuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasFuzzTarget
 {
   val node = AXI4IdentityNode()
   val xbar = LazyModule(new TLXbar)
   val ram  = LazyModule(new TLRAM(fuzzAddr))
   val error= LazyModule(new TLError(ErrorParams(Seq(AddressSet(0x1800, 0xff)), maxTransfer = 256)))
 
-  ram.node   := TLFragmenter(4, 16) := xbar.node
+  ram.node   := TLErrorEvaluator(pattern) := TLFragmenter(4, 16) := xbar.node
   error.node := xbar.node
 
   (xbar.node
@@ -110,8 +113,6 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends LazyModule with HasFuzzTar
     := AXI4Fragmenter()
     := AXI4IdIndexer(2)
     := node)
-
-  lazy val module = new LazyModuleImp(this) { }
 }
 
 class AXI4FuzzBridge(txns: Int)(implicit p: Parameters) extends LazyModule

@@ -39,17 +39,24 @@ class AHBNativeTest(aFlow: Boolean, txns: Int = 5000, timeout: Int = 500000)(imp
   io.finished := dut.io.finished
 }
 
-class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule
+trait HasFuzzTarget {
+  val fuzzAddr = AddressSet(0x0, 0xfff)
+  val pattern = Seq(AddressSet(0x8,   ~0x808), // ie: 0x8-0xf, 0x18-0x1f, ... 0x7f8-0x7ff
+                    AddressSet(0x900, ~0x900)) // ie: 0x900-0x9ff, 0xb00-0xbff, ... 0xf00-0xfff
+}
+
+class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node  = AHBIdentityNode()
-  val fuzz  = LazyModule(new TLFuzzer(txns))
-  val model = LazyModule(new TLRAMModel("AHBFuzzMaster"))
+  val fuzz  = LazyModule(new TLFuzzer(txns, overrideAddress = Some(fuzzAddr)))
+  val model = LazyModule(new TLRAMModel("AHBFuzzMaster", ignoreErrorData=true))
 
   (node
      := TLToAHB(aFlow)
      := TLDelayer(0.2)
      := TLBuffer(BufferParams.flow)
      := TLDelayer(0.2)
+     := TLErrorEvaluator(pattern, testOn=true, testOff=true)
      := model.node
      := fuzz.node)
 
@@ -62,20 +69,19 @@ class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   }
 }
 
-class AHBFuzzSlave()(implicit p: Parameters) extends LazyModule
+class AHBFuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasFuzzTarget
 {
   val node = AHBIdentityNode()
-  val ram  = LazyModule(new TLTestRAM(AddressSet(0x0, 0xfff)))
+  val ram  = LazyModule(new TLTestRAM(fuzzAddr))
 
   (ram.node
+    := TLErrorEvaluator(pattern)
     := TLFragmenter(4, 16)
     := TLDelayer(0.2)
     := TLBuffer(BufferParams.flow)
     := TLDelayer(0.2)
     := AHBToTL()
     := node)
-
-  lazy val module = new LazyModuleImp(this) { }
 }
 
 class AHBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule

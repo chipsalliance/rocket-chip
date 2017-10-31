@@ -186,17 +186,18 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       in.d.bits.source := out.d.bits.source >> addedBits
       in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
+      // The specification requires that error transition LOW=>HIGH only once per burst.
+      // Since we fragmented a big burst into mulitple little bursts, we need to OR them.
+      val r_error = RegInit(Bool(false))
+      val d_error = r_error || out.d.bits.error
+      when (out.d.fire()) { r_error := !dLast && d_error }
+      in.d.bits.error := d_error
+
       if (earlyAck) {
         // If you do early Ack, errors may not be dropped
-        // ... which roughly means: Puts may not fail
-        assert (!out.d.valid || !out.d.bits.error || !drop)
-        in.d.bits.error := out.d.bits.error
-      } else {
-        // Combine the error flag
-        val r_error = RegInit(Bool(false))
-        val d_error = r_error | out.d.bits.error
-        when (out.d.fire()) { r_error := Mux(drop, d_error, UInt(0)) }
-        in.d.bits.error := d_error
+        // ... which roughly means: Puts must error on the first burst
+        // (dPut && !dFirst) => d.error === r_error
+        assert (!out.d.valid || !dHasData || dFirst || out.d.bits.error === r_error, "Slave device error behaviour unsuitable for earlyAck")
       }
 
       // What maximum transfer sizes do downstream devices support?

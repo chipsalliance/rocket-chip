@@ -168,7 +168,7 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
       when (out.hreadyout) {
         d_valid := send.send && (send.last || !send.write)
-        when (out.hresp)  { d_error := d_write }
+        when (out.hresp)  { d_error := Bool(true) }
         when (send.first) { d_error := Bool(false) }
       }
 

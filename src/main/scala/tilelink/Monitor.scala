@@ -364,12 +364,14 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val address = Reg(UInt())
+    val error   = RegEnable(c.bits.error, c.fire())
     when (c.valid && !c_first) {
       assert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
       assert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
       assert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
       assert (c.bits.source === source, "'C' channel source changed within multibeat operation" + extra)
       assert (c.bits.address=== address,"'C' channel address changed with multibeat operation" + extra)
+      assert (c.bits.error || !error,   "'C' channel burst lowered error" + extra)
     }
     when (c.fire() && c_first) {
       opcode  := c.bits.opcode
@@ -387,12 +389,14 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val size    = Reg(UInt())
     val source  = Reg(UInt())
     val sink    = Reg(UInt())
+    val error   = RegEnable(d.bits.error, d.fire())
     when (d.valid && !d_first) {
       assert (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
       assert (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
       assert (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
       assert (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
       assert (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
+      assert (d.bits.error || !error,   "'D' channel burst lowered error" + extra)
     }
     when (d.fire() && d_first) {
       opcode  := d.bits.opcode

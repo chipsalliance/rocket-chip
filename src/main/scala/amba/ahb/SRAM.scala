@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class AHBRAM(
     address: AddressSet,
@@ -92,7 +93,7 @@ class AHBRAM(
     when (a_request)  { d_request := Bool(true) }
 
     // Finally, the outputs
-    in.hreadyout := (if(fuzzHreadyout) { !d_request || LFSR16(Bool(true))(0) } else { Bool(true) })
+    in.hreadyout := (if(fuzzHreadyout) { !d_request || LFSRNoiseMaker(1)(0) } else { Bool(true) })
     in.hresp     := Mux(d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
