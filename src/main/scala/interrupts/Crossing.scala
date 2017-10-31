@@ -4,7 +4,7 @@ package freechips.rocketchip.interrupts
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.util.SynchronizerShiftReg
+import freechips.rocketchip.util.{SynchronizerShiftReg, AsyncResetReg}
 import freechips.rocketchip.diplomacy._
 
 @deprecated("IntXing does not ensure interrupt source is glitch free. Use IntSyncSource and IntSyncSink", "rocket-chip 1.2")
@@ -34,7 +34,7 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
       if (alreadyRegistered) {
         out.sync := in
       } else {
-        out.sync := RegNext(in)
+        out.sync := AsyncResetReg(Cat(in.reverse)).toBools
       }
     }
   }
