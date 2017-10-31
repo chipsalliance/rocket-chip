@@ -243,7 +243,8 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   idcode.mfrId      := io.jtag_mfr_id
 
   val tapIO = JtagTapGenerator(irLength = 5,
-    instructions = Map(dtmJTAGAddrs.DMI_ACCESS -> dmiAccessChain,
+    instructions = Map(
+      dtmJTAGAddrs.DMI_ACCESS -> dmiAccessChain,
       dtmJTAGAddrs.DTM_INFO   -> dtmInfoChain),
     icode = Some(dtmJTAGAddrs.IDCODE)
   )
