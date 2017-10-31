@@ -156,7 +156,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val dToggle = RegInit(Bool(false))
       val dFragnum = out.d.bits.source(fragmentBits-1, 0)
       val dFirst = acknum === UInt(0)
-      val dLast = dFragnum === UInt(0)
+      val dLast = dFragnum === UInt(0) // only for AccessAck (!Data)
       val dsizeOH  = UIntToOH (out.d.bits.size, log2Ceil(maxDownSize)+1)
       val dsizeOH1 = UIntToOH1(out.d.bits.size, log2Up(maxDownSize))
       val dHasData = edgeOut.hasData(out.d.bits)
@@ -188,9 +188,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
       // The specification requires that error transition LOW=>HIGH only once per burst.
       // Since we fragmented a big burst into mulitple little bursts, we need to OR them.
-      val r_error = RegInit(Bool(false))
-      val d_error = r_error || out.d.bits.error
-      when (out.d.fire()) { r_error := !dLast && d_error }
+      val r_error = Reg(Bool())
+      val d_error = (!dFirst && r_error) || out.d.bits.error
+      when (out.d.fire()) { r_error := d_error }
       in.d.bits.error := d_error
 
       if (earlyAck) {
