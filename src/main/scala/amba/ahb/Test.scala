@@ -49,7 +49,7 @@ class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
 {
   val node  = AHBIdentityNode()
   val fuzz  = LazyModule(new TLFuzzer(txns, overrideAddress = Some(fuzzAddr)))
-  val model = LazyModule(new TLRAMModel("AHBFuzzMaster"))
+  val model = LazyModule(new TLRAMModel("AHBFuzzMaster", ignoreErrorData=true))
 
   (node
      := TLToAHB(aFlow)
