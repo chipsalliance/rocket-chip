@@ -15,7 +15,7 @@ class Tristate extends Bundle {
 
 /** Generates a register that updates on the falling edge of the input clock signal.
   */
-object NegativeEdgeLatch {
+object NegEdgeReg {
   def apply[T <: Data](clock: Clock, next: T, enable: Bool=true.B, name: Option[String] = None): T = {
     // TODO pass in initial value as well
     withClock((!clock.asUInt).asClock) {
