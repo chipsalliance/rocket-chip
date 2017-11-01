@@ -155,7 +155,9 @@ class WithStatelessBridge extends Config((site, here, up) => {
   case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { coreplex =>
     implicit val p = coreplex.p
     val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes))
-    (ww.node, ww.node, () => None)
+    val cc = LazyModule(new TLCacheCork(unsafe = true))
+    cc.node :*= ww.node
+    (ww.node, cc.node, () => None)
   })
 })
 
