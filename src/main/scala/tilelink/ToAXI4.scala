@@ -14,7 +14,7 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
     p.clients.foreach { c =>
       require (c.sourceId.start % (1 << stripBits) == 0 &&
                c.sourceId.end   % (1 << stripBits) == 0,
-               "Cannot strip bits of aligned client ${c.name}: ${c.sourceId}")
+               s"Cannot strip bits of aligned client ${c.name}: ${c.sourceId}")
     }
     val clients = p.clients.sortWith(TLToAXI4.sortByType _)
     val idSize = clients.map { c => if (c.requestFifo) 1 else (c.sourceId.size >> stripBits) }
