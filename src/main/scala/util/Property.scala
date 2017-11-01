@@ -4,6 +4,7 @@ package freechips.rocketchip.util.property
 
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.util.{ReadyValidIO}
 import freechips.rocketchip.config.{Field, Parameters}
 
 case object PropertyLibrary extends Field[BasePropertyLibrary](new DefaultPropertyLibrary)
@@ -54,5 +55,10 @@ object cover {
   def apply(cond: Bool, label: String, message: String)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
     p(PropertyLibrary).generateProperty(CoverPropertyParameters(cond, label, message))
   }
+  def apply[T <: Data](rv: ReadyValidIO[T], label: String, message: String)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
+    apply( rv.valid &&  rv.ready, label + "_FIRE",  message + ": valid and ready")
+    apply( rv.valid && !rv.ready, label + "_STALL", message + ": valid and not ready")
+    apply(!rv.valid &&  rv.ready, label + "_IDLE",  message + ": not valid and ready")
+    apply(!rv.valid && !rv.ready, label + "_FULL",  message + ": not valid and not ready")
+  }
 }
-
