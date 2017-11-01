@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 import freechips.rocketchip.coreplex.{CrossingWrapper, AsynchronousCrossing}
 
 class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
@@ -20,11 +21,16 @@ class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyM
 
       out.a <> ToAsyncBundle(in.a, depth, sync)
       in.d <> FromAsyncBundle(out.d, sync)
+      cover(in.a, "TL_ASYNC_CROSSING_SOURCE_A", "MemorySystem;;TLAsyncCrossingSource Channel A")
+      cover(in.d, "TL_ASYNC_CROSSING_SOURCE_D", "MemorySystem;;TLAsyncCrossingSource Channel D")
 
       if (bce) {
         in.b <> FromAsyncBundle(out.b, sync)
         out.c <> ToAsyncBundle(in.c, depth, sync)
         out.e <> ToAsyncBundle(in.e, depth, sync)
+        cover(in.b, "TL_ASYNC_CROSSING_SOURCE_B", "MemorySystem;;TLAsyncCrossingSource Channel B")
+        cover(in.c, "TL_ASYNC_CROSSING_SOURCE_C", "MemorySystem;;TLAsyncCrossingSource Channel C")
+        cover(in.e, "TL_ASYNC_CROSSING_SOURCE_E", "MemorySystem;;TLAsyncCrossingSource Channel E")
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
@@ -48,11 +54,16 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
 
       out.a <> FromAsyncBundle(in.a, sync)
       in.d <> ToAsyncBundle(out.d, depth, sync)
+      cover(out.a, "TL_ASYNC_CROSSING_SINK_A", "MemorySystem;;TLAsyncCrossingSink Channel A")
+      cover(out.d, "TL_ASYNC_CROSSING_SINK_D", "MemorySystem;;TLAsyncCrossingSink Channel D")
 
       if (bce) {
         in.b <> ToAsyncBundle(out.b, depth, sync)
         out.c <> FromAsyncBundle(in.c, sync)
         out.e <> FromAsyncBundle(in.e, sync)
+        cover(out.b, "TL_ASYNC_CROSSING_SINK_B", "MemorySystem;;TLAsyncCrossingSinkChannel B")
+        cover(out.c, "TL_ASYNC_CROSSING_SINK_C", "MemorySystem;;TLAsyncCrossingSink Channel C")
+        cover(out.e, "TL_ASYNC_CROSSING_SINK_E", "MemorySystem;;TLAsyncCrossingSink Channel E")
       } else {
         in.b.widx := UInt(0)
         in.c.ridx := UInt(0)
