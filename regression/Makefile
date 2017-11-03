@@ -228,7 +228,7 @@ stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(VSIM_JTAG_VCDPLUS_32)" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
-	$(abspath $(TOP))/scripts/FreedomSim.py \
+	$(abspath $(TOP))/scripts/RocketSim.py \
 	$(JTAG_DTM_TEST)
 	date > $@
 
@@ -237,7 +237,7 @@ stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 	--sim_cmdrun "$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(VSIM_JTAG_VCDPLUS_64)" \
 	--server_cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
-	$(abspath $(TOP))/scripts/FreedomSim.py \
+	$(abspath $(TOP))/scripts/RocketSim.py \
 	$(JTAG_DTM_TEST)
 	date > $@
 
@@ -246,7 +246,7 @@ stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 	--sim_cmd "$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(EMULATOR_JTAG_VCDPLUS_32) dummybin | tee emulator.log" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
-	$(abspath $(TOP))/scripts/FreedomSim.py \
+	$(abspath $(TOP))/scripts/RocketSim.py \
 	$(JTAG_DTM_TEST)
 	date > $@
 
@@ -255,7 +255,7 @@ stamps/%/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 	--sim_cmd "$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(EMULATOR_JTAG_VCDPLUS_64) dummybin | tee emulator.log" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
-	$(abspath $(TOP))/scripts/FreedomSim.py \
+	$(abspath $(TOP))/scripts/RocketSim.py \
 	$(JTAG_DTM_TEST)
 	date > $@
 
