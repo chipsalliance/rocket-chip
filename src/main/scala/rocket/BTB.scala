@@ -11,7 +11,7 @@ import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._
 
 case class BTBParams(
-  nEntries: Int = 30,
+  nEntries: Int = 28,
   nMatchBits: Int = 14,
   nPages: Int = 6,
   nRAS: Int = 6,
@@ -218,9 +218,14 @@ class BTB(implicit p: Parameters) extends BtbModule {
     nextPageRepl := Mux(next >= nPages, next(0), next)
   }
 
+  val repl = new PseudoLRU(entries)
+  val waddr = Mux(updateHit, updateHitAddr, repl.replace)
+  val r_resp = Pipe(io.req.valid && io.resp.valid, io.resp.bits)
+  when (r_resp.valid && r_resp.bits.taken || r_btb_update.valid) {
+    repl.access(Mux(r_btb_update.valid, waddr, r_resp.bits.entry))
+  }
+
   when (r_btb_update.valid) {
-    val nextRepl = Counter(r_btb_update.valid && !updateHit, entries)._1
-    val waddr = Mux(updateHit, updateHitAddr, nextRepl)
     val mask = UIntToOH(waddr)
     idxs(waddr) := r_btb_update.bits.pc(matchBits-1, log2Up(coreInstBytes))
     tgts(waddr) := update_target(matchBits-1, log2Up(coreInstBytes))
