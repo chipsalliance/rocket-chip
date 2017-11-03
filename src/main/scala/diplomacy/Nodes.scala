@@ -207,7 +207,8 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
-  protected[diplomacy] val iParams: Seq[UI]
+  protected[diplomacy] val diParams: Seq[DI] // from connected nodes
+  protected[diplomacy] val uiParams: Seq[UI] // from this node
 
   protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit
 }
@@ -240,7 +241,8 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
-  protected[diplomacy] val oParams: Seq[DO]
+  protected[diplomacy] val uoParams: Seq[UO] // from connected nodes
+  protected[diplomacy] val doParams: Seq[DO] // from this node
 }
 
 abstract class CycleException(kind: String, loop: Seq[String]) extends Exception(s"Diplomatic ${kind} cycle detected involving ${loop}")
@@ -307,11 +309,12 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   private var oParamsCycleGuard = false
-  protected[diplomacy] lazy val oParams: Seq[DO] = {
+  protected[diplomacy] lazy val diParams: Seq[DI] = iPorts.map { case (i, n, _, _) => n.doParams(i) }
+  protected[diplomacy] lazy val doParams: Seq[DO] = {
     try {
       if (oParamsCycleGuard) throw DownwardCycleException()
       oParamsCycleGuard = true
-      val o = mapParamsD(oPorts.size, iPorts.map { case (i, n, _, _) => n.oParams(i) })
+      val o = mapParamsD(oPorts.size, diParams)
       require (o.size == oPorts.size, s"Bug in diplomacy; ${name} has ${o.size} != ${oPorts.size} down/up outer parameters${lazyModule.line}")
       o.map(outer.mixO(_, this))
     } catch {
@@ -320,11 +323,12 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   private var iParamsCycleGuard = false
-  protected[diplomacy] lazy val iParams: Seq[UI] = {
+  protected[diplomacy] lazy val uoParams: Seq[UO] = oPorts.map { case (o, n, _, _) => n.uiParams(o) }
+  protected[diplomacy] lazy val uiParams: Seq[UI] = {
     try {
       if (iParamsCycleGuard) throw UpwardCycleException()
       iParamsCycleGuard = true
-      val i = mapParamsU(iPorts.size, oPorts.map { case (o, n, _, _) => n.iParams(o) })
+      val i = mapParamsU(iPorts.size, uoParams)
       require (i.size == iPorts.size, s"Bug in diplomacy; ${name} has ${i.size} != ${iPorts.size} up/down inner parameters${lazyModule.line}")
       i.map(inner.mixI(_, this))
     } catch {
@@ -332,11 +336,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     }
   }
 
-  protected[diplomacy] def gco = if (iParams.size != 1) None else inner.getO(iParams(0))
-  protected[diplomacy] def gci = if (oParams.size != 1) None else outer.getI(oParams(0))
+  protected[diplomacy] def gco = if (uiParams.size != 1) None else inner.getO(uiParams(0))
+  protected[diplomacy] def gci = if (doParams.size != 1) None else outer.getI(doParams(0))
 
-  protected[diplomacy] lazy val edgesOut = (oPorts zip oParams).map { case ((i, n, p, s), o) => outer.edgeO(o, n.iParams(i), p, s) }
-  protected[diplomacy] lazy val edgesIn  = (iPorts zip iParams).map { case ((o, n, p, s), i) => inner.edgeI(n.oParams(o), i, p, s) }
+  protected[diplomacy] lazy val edgesOut = (oPorts zip doParams).map { case ((i, n, p, s), o) => outer.edgeO(o, n.uiParams(i), p, s) }
+  protected[diplomacy] lazy val edgesIn  = (iPorts zip uiParams).map { case ((o, n, p, s), i) => inner.edgeI(n.doParams(o), i, p, s) }
 
   // If you need access to the edges of a foreign Node, use this method (in/out create bundles)
   lazy val edges = Edges(edgesIn, edgesOut)
