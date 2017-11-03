@@ -434,7 +434,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // grant
   val (d_first, d_last, d_done, d_address_inc) = edge.addr_inc(tl_out.d)
-  val grantIsCached = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+  val grantIsCached = {
+    val res = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+    if (usingDataScratchpad) {
+      assert(!(tl_out.d.valid && res))
+      false.B
+    } else {
+      res
+    }
+  }
   val grantIsUncached = tl_out.d.bits.opcode.isOneOf(AccessAck, AccessAckData, HintAck)
   val grantIsUncachedData = tl_out.d.bits.opcode === AccessAckData
   val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
