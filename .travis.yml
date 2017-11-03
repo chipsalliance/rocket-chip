@@ -70,5 +70,5 @@ jobs:
     - &test
       stage: Test
       script:
-        -travis_wait 80 make emulator-jtag-dtm-regression -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+        - travis_wait 80 make emulator-jtag-dtm-regression -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
  
