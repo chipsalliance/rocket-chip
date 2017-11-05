@@ -70,7 +70,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edgesOut(0)
   val icache = outer.icache.module
 
-  val tlb = Module(new TLB(nTLBEntries))
+  val tlb = Module(new TLB(nTLBEntries, true))
 
   val s1_pc_ = Reg(UInt(width=vaddrBitsExtended))
   val s1_pc = ~(~s1_pc_ | (coreInstBytes-1)) // discard PC LSBS (this propagates down the pipeline)

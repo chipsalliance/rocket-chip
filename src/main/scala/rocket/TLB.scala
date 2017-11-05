@@ -33,7 +33,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val cacheable = Bool(OUTPUT)
 }
 
-class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
+class TLB(entries: Int, frontend: Boolean=false)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new TLBReq).flip
     val resp = new TLBResp
@@ -114,6 +114,8 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
     xr_array := Mux(pte.sx() && prot_r, xr_array | mask, xr_array & ~mask)
     cash_array := Mux(cacheable, cash_array | mask, cash_array & ~mask)
     dirty_array := Mux(pte.d, dirty_array | mask, dirty_array & ~mask)
+
+    if (frontend) printf("pte: %x, sx_aray: %x\n", pte.asUInt, Mux(pte.sx() && prot_x, sx_array | mask, sx_array & ~mask))
   }
  
   val plru = new PseudoLRU(entries)
