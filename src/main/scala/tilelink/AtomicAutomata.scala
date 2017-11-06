@@ -281,18 +281,28 @@ object TLAtomicAutomata
 /** Synthesizeable unit tests */
 import freechips.rocketchip.unittest._
 
-//TODO ensure handler will pass through operations to clients that can handle them themselves
-
 class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AtomicAutomata"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
+  // Confirm that the AtomicAutomata combines read + write errors
+  import TLMessages._
+  val test = new RequestPattern({a: TLBundleA =>
+    val doesA = a.opcode === ArithmeticData || a.opcode === LogicalData
+    val doesR = a.opcode === Get || doesA
+    val doesW = a.opcode === PutFullData || a.opcode === PutPartialData || doesA
+    (doesR && RequestPattern.overlaps(Seq(AddressSet(0x08, ~0x08)))(a)) ||
+    (doesW && RequestPattern.overlaps(Seq(AddressSet(0x10, ~0x10)))(a))
+  })
+
   (ram.node
+    := TLErrorEvaluator(test)
     := TLFragmenter(4, 256)
     := TLDelayer(0.1)
     := TLAtomicAutomata()
     := TLDelayer(0.1)
+    := TLErrorEvaluator(test, testOn=true, testOff=true)
     := model.node
     := fuzz.node)
 
