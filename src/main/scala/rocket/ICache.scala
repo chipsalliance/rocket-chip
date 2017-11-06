@@ -312,6 +312,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         }
 
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
+        val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable, s2_slaveValid)
         when (s2_slaveValid) {
           when (edge_in.get.hasData(s1_a) || s2_data_decoded.correctable) { s3_slaveValid := true }
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
@@ -323,6 +324,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           edge_in.get.AccessAck(s1_a),
           edge_in.get.AccessAck(s1_a, UInt(0)))
         tl.d.bits.data := s1s3_slaveData
+        tl.d.bits.error := respError
 
         // Tie off unused channels
         tl.b.valid := false
