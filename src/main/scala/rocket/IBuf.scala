@@ -60,9 +60,9 @@ class IBuf(implicit p: Parameters) extends CoreModule {
         buf := io.imem.bits
         buf.data := shiftInsnRight(io.imem.bits.data, shamt)(n*coreInstBits-1,0)
         buf.pc := io.imem.bits.pc & ~pcWordMask | (io.imem.bits.pc + (nICReady << log2Ceil(coreInstBytes))) & pcWordMask
-        ibufBTBHit := io.imem.bits.btb.valid
+        ibufBTBHit := io.imem.bits.btb.valid && io.imem.bits.btb.bits.bridx >= shamt
         ibufBTBResp := io.imem.bits.btb.bits
-        ibufBTBResp.bridx := io.imem.bits.btb.bits.bridx + nICReady
+        ibufBTBResp.bridx := io.imem.bits.btb.bits.bridx - shamt
       }
     }
     when (io.kill) {
