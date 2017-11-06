@@ -273,12 +273,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       val s1_scratchpad_hit = Mux(s1_slaveValid, lineInScratchpad(scratchpadLine(s1s3_slaveAddr)), addrInScratchpad(io.s1_paddr))
       val s2_scratchpad_hit = RegEnable(s1_scratchpad_hit, s1_clk_en)
       io.errors.correctable.foreach { c =>
-        c.valid := s2_valid && Mux(s2_scratchpad_hit, s2_data_decoded.correctable, s2_disparity)
-        c.bits := 0.U
+        c.valid := ((s2_valid || s2_slaveValid) && (s2_scratchpad_hit && s2_data_decoded.correctable)) || (s2_valid && !s2_scratchpad_hit && s2_disparity)
+        c.bits := Mux(s2_scratchpad_hit, scratchpadBase.get + s2_scratchpad_word_addr, 0.U)
       }
       io.errors.uncorrectable.foreach { u =>
-        u.valid := s2_valid && s2_scratchpad_hit && s2_data_decoded.uncorrectable
-        u.bits := scratchpadBase.get + s2_scratchpad_word_addr
+        u.valid := (s2_valid || s2_slaveValid) && (s2_scratchpad_hit && s2_data_decoded.uncorrectable)
+        // the Mux is not necessary, but saves HW in BusErrorUnit because it matches c.bits above
+        u.bits := Mux(s2_scratchpad_hit, scratchpadBase.get + s2_scratchpad_word_addr, 0.U)
       }
 
       tl_in.map { tl =>
@@ -312,6 +313,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         }
 
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
+        val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable, s2_slaveValid)
         when (s2_slaveValid) {
           when (edge_in.get.hasData(s1_a) || s2_data_decoded.correctable) { s3_slaveValid := true }
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
@@ -323,6 +325,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           edge_in.get.AccessAck(s1_a),
           edge_in.get.AccessAck(s1_a, UInt(0)))
         tl.d.bits.data := s1s3_slaveData
+        tl.d.bits.error := respError
 
         // Tie off unused channels
         tl.b.valid := false
