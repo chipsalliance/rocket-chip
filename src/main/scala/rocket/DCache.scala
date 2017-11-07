@@ -434,7 +434,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // grant
   val (d_first, d_last, d_done, d_address_inc) = edge.addr_inc(tl_out.d)
-  val grantIsCached = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+  val grantIsCached = {
+    val res = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+    if (usingDataScratchpad) {
+      assert(!(tl_out.d.valid && res))
+      false.B
+    } else {
+      res
+    }
+  }
   val grantIsUncached = tl_out.d.bits.opcode.isOneOf(AccessAck, AccessAckData, HintAck)
   val grantIsUncachedData = tl_out.d.bits.opcode === AccessAckData
   val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
@@ -637,7 +645,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
   val s1_xcpt = tlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
-  ccover(s2_valid_pre_xcpt && s2_tl_error, "D_ERROR_REPORTED", "D$ reported TL error to processor")
+  ccoverNotScratchpad(s2_valid_pre_xcpt && s2_tl_error, "D_ERROR_REPORTED", "D$ reported TL error to processor")
   when (s2_valid_pre_xcpt && s2_tl_error) {
     assert(!s2_valid_hit && !s2_uncached)
     when (s2_write) { io.cpu.s2_xcpt.ae.st := true }
@@ -767,7 +775,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.error
     io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
 
-    ccover(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
+    ccoverNotScratchpad(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
     ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")
   }
 
@@ -783,4 +791,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)
+  def ccoverNotScratchpad(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    if (!usingDataScratchpad) ccover(cond, label, desc)
 }
