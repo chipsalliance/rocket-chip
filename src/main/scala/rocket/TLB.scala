@@ -115,7 +115,20 @@ class TLB(entries: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreMod
     cash_array := Mux(cacheable, cash_array | mask, cash_array & ~mask)
     dirty_array := Mux(pte.d, dirty_array | mask, dirty_array & ~mask)
   }
- 
+
+  when (do_refill || io.ptw.invalidate) {
+    val pte = io.ptw.resp.bits.pte
+    printf("[TLB] ppn: %x, flush: %x, u: %x, d: %x, sw: %x, sx: %x, sr: %x, xr: %x, empty: %x, addr: %x\n",
+      pte.ppn | UInt(0, 40),
+      io.ptw.invalidate, pte.u, pte.d,
+      pte.sw() && prot_w,
+      pte.sx() && prot_x,
+      pte.sr() && prot_r,
+      pte.sx() && prot_r,
+      UInt(0, 1),
+      r_refill_waddr)
+  }
+
   val plru = new PseudoLRU(entries)
   val repl_waddr = Mux(!valid.andR, PriorityEncoder(~valid), plru.replace)
 

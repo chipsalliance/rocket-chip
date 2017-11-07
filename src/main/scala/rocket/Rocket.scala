@@ -575,7 +575,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
                Mux(rf_wen, rf_waddr, UInt(0))))
 
     when (csr.io.exception && csr.io.interrupt) {
-      printf("interrupt cause: %d\n", csr.io.interrupt_cause(xLen-2, 0))
+      printf("interrupt cause: %d\n", csr.io.interrupt_cause(7, 0))
     }
 
     when (wb_valid) {
