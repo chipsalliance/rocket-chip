@@ -482,7 +482,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val cause =
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, io.cause))
-  val cause_lsbs = cause(log2Up(xLen)-1,0)
+  val cause_lsbs = cause(io.trace.head.cause.getWidth-1, 0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
@@ -495,7 +495,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
     val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
     val interruptVec = Cat(base >> (mtvecInterruptAlign + mtvecBaseAlign), interruptOffset)
-    Mux(base(0) && cause(cause.getWidth-1), interruptVec, base)
+    val doVector = base(0) && cause(cause.getWidth-1) && (cause_lsbs >> mtvecInterruptAlign) === 0
+    Mux(doVector, interruptVec, base)
   }
   val tvec = Mux(trapToDebug, debugTVec, notDebugTVec)
   io.evec := tvec
