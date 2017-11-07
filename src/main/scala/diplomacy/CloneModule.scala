@@ -13,16 +13,18 @@ import chisel3.internal.firrtl.{Command, DefInstance}
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
-class CloneModule private (model: RawModule) extends BlackBox
+class ClonePorts protected[shim](elts: Data*) extends Record
+{
+  val elements = ListMap(elts.map(d => d.instanceName -> d.chiselCloneType): _*)
+  def apply(field: String) = elements(field)
+  override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
+}
+
+private class CloneModule private (model: RawModule) extends BlackBox
 {
   import CloneModule._
   override def desiredName = model.name
   val io = IO(new ClonePorts(model.getPorts.map(_.id): _*))
-}
-
-class HackDefInstance(imp: DefInstance, _name: => String) extends DefInstance(imp.sourceInfo, imp.id, imp.ports)
-{
-  override def name = _name
 }
 
 object CloneModule
@@ -40,7 +42,9 @@ object CloneModule
       case _ => false
     }
     val victim = commands(victimIdx).asInstanceOf[DefInstance]
-    val standin = new HackDefInstance(victim.copy(id = model), victim.name)
+    val standin = new DefInstance(victim.sourceInfo, model, victim.ports) {
+      override def name = victim.name
+    }
     commands.update(victimIdx, standin)
     // Wire it up
     model match {
@@ -51,11 +55,4 @@ object CloneModule
     }
     mod.io
   }
-}
-
-class ClonePorts(elts: Data*) extends Record
-{
-  val elements = ListMap(elts.map(d => d.instanceName -> d.chiselCloneType): _*)
-  def apply(field: String) = elements(field)
-  override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
 }
