@@ -121,6 +121,7 @@ object CSR
   def R = UInt(5,SZ)
 
   val ADDRSZ = 12
+  def busErrorIntCause = 128
   def debugIntCause = 14 // keep in sync with MIP.debug
   def debugTriggerCause = {
     val res = debugIntCause
@@ -156,7 +157,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val priv = UInt(width = 3)
   val exception = Bool()
   val interrupt = Bool()
-  val cause = UInt(width = log2Ceil(xLen))
+  val cause = UInt(width = log2Ceil(1 + CSR.busErrorIntCause))
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
@@ -172,7 +173,7 @@ class CSRDecodeIO extends Bundle {
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
-  val interrupts = new TileInterrupts().asInput
+  val interrupts = new CoreInterrupts().asInput
   val hartid = UInt(INPUT, hartIdLen)
   val rw = new Bundle {
     val addr = UInt(INPUT, CSR.ADDRSZ)
@@ -244,13 +245,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     sup.debug := false
     sup.zero2 := false
     sup.lip foreach { _ := true }
+    val supported_high_interrupts = if (io.interrupts.buserror.nonEmpty) UInt(BigInt(1) << CSR.busErrorIntCause) else 0.U
 
     val del = Wire(init=sup)
     del.msip := false
     del.mtip := false
     del.meip := false
 
-    (sup.asUInt, del.asUInt)
+    (sup.asUInt | supported_high_interrupts, del.asUInt)
   }
   val delegable_exceptions = UInt(Seq(
     Causes.misaligned_fetch,
@@ -313,10 +315,11 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.interrupts.seip.foreach { mip.seip := reg_mip.seip || RegNext(_) }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
+  val high_interrupts = io.interrupts.buserror.map(_ << CSR.busErrorIntCause).getOrElse(0.U)
 
-  val pending_interrupts = read_mip & reg_mie
+  val pending_interrupts = high_interrupts | (read_mip & reg_mie)
   val d_interrupts = io.interrupts.debug << CSR.debugIntCause
-  val m_interrupts = Mux(reg_mstatus.prv <= PRV.S || (reg_mstatus.prv === PRV.M && reg_mstatus.mie), pending_interrupts & ~reg_mideleg, UInt(0))
+  val m_interrupts = Mux(reg_mstatus.prv <= PRV.S || reg_mstatus.mie, ~(~pending_interrupts | reg_mideleg), UInt(0))
   val s_interrupts = Mux(reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie), pending_interrupts & reg_mideleg, UInt(0))
   val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, d_interrupts))
   val interruptMSB = BigInt(1) << (xLen-1)
@@ -633,7 +636,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     if (mtvecWritable)
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
-    when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
+    when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
     when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
 
     for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
@@ -778,14 +781,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     t.tval := badaddr_value
   }
 
-  def chooseInterrupt(masks: Seq[UInt]): (Bool, UInt) = {
+  def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {
     val nonstandard = supported_interrupts.getWidth-1 to 12 by -1
     // MEI, MSI, MTI, SEI, SSI, STI, UEI, USI, UTI
     val standard = Seq(11, 3, 7, 9, 1, 5, 8, 0, 4)
     val priority = nonstandard ++ standard
-    val paddedMasks = masks.reverse.map(_.padTo(xLen))
-    val any = paddedMasks.flatMap(m => priority.map(i => m(i))).reduce(_||_)
-    val which = PriorityMux(paddedMasks.flatMap(m => priority.map(i => (m(i), i.U))))
+    val masks = masksIn.reverse
+    val any = masks.flatMap(m => priority.filter(_ < m.getWidth).map(i => m(i))).reduce(_||_)
+    val which = PriorityMux(masks.flatMap(m => priority.filter(_ < m.getWidth).map(i => (m(i), i.U))))
     (any, which)
   }
 
