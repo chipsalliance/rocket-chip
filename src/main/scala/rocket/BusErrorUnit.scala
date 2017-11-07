@@ -40,37 +40,50 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
       val errors = t.flip
+      val interrupt = Bool().asOutput
     })
 
     val sources = io.errors.toErrorList
-    val mask = sources.map(_.nonEmpty.B).asUInt
     val cause = Reg(init = UInt(0, log2Ceil(sources.lastIndexWhere(_.nonEmpty) + 1)))
     val value = Reg(UInt(width = sources.flatten.map(_.bits.getWidth).max))
     require(value.getWidth <= regWidth)
-    val enable = Reg(init = mask)
-    val interrupt = Reg(init = UInt(0, sources.size))
-    val accrued = Reg(init = UInt(0, sources.size))
+    val enable = Reg(init = Vec(sources.map(_.nonEmpty.B)))
+    val global_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
+    val accrued = Reg(init = Vec.fill(sources.size)(false.B))
+    val local_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
 
-    accrued := accrued | sources.map(_.map(_.valid).getOrElse(false.B)).asUInt
-
-    for ((s, i) <- sources.zipWithIndex; if s.nonEmpty) {
-      when (s.get.valid && enable(i) && cause === 0) {
-        cause := i
-        value := s.get.bits
+    for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
+      when (s.get.valid) {
+        acc := true
+        when (en && cause === 0) {
+          cause := i
+          value := s.get.bits
+        }
       }
     }
 
     val (int_out, _) = intNode.out(0)
-    int_out(0) := (accrued & interrupt).orR
+    io.interrupt := (accrued.asUInt & local_interrupt.asUInt).orR
+    int_out(0) := (accrued.asUInt & global_interrupt.asUInt).orR
 
-    def reg(r: UInt) = RegField(regWidth, r)
-    def maskedReg(r: UInt, m: UInt) = RegField(regWidth, r, RegWriteFn((v, d) => { when (v) { r := d & m }; true }))
+    def reg(r: UInt) = RegField.bytes(r, (r.getWidth + 7)/8)
+    def reg(v: Vec[Bool]) = v.map(r => RegField(1, r))
+    def numberRegs(x: Seq[Seq[RegField]]) = x.zipWithIndex.map { case (f, i) => (i * regWidth / 8) -> f }
 
-    node.regmap(
-      0 -> Seq(reg(cause),
-               reg(value),
-               maskedReg(enable, mask),
-               maskedReg(interrupt, mask),
-               maskedReg(accrued, mask)))
+    node.regmap(numberRegs(Seq(
+      reg(cause),
+      reg(value),
+      reg(enable),
+      reg(global_interrupt),
+      reg(accrued),
+      reg(local_interrupt))):_*)
+
+    // hardwire mask bits for unsupported sources to 0
+    for ((s, i) <- sources.zipWithIndex; if s.isEmpty) {
+      enable(i) := false
+      global_interrupt(i) := false
+      accrued(i) := false
+      local_interrupt(i) := false
+    }
   }
 }

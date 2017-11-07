@@ -81,10 +81,14 @@ abstract class CoreModule(implicit val p: Parameters) extends Module
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
+class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
+  val buserror = coreParams.tileControlAddr.map(a => Bool())
+}
+
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
   val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
-    val interrupts = new TileInterrupts().asInput
+    val interrupts = new CoreInterrupts().asInput
     val imem  = new FrontendIO
     val dmem = new HellaCacheIO
     val ptw = new DatapathPTWIO().flip
