@@ -48,8 +48,9 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     val value = Reg(UInt(width = sources.flatten.map(_.bits.getWidth).max))
     require(value.getWidth <= regWidth)
     val enable = Reg(init = Vec(sources.map(_.nonEmpty.B)))
-    val interrupt = Reg(init = Vec.fill(sources.size)(false.B))
+    val global_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
     val accrued = Reg(init = Vec.fill(sources.size)(false.B))
+    val local_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
 
     for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
       when (s.get.valid) {
@@ -62,8 +63,8 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     }
 
     val (int_out, _) = intNode.out(0)
-    io.interrupt := (accrued.asUInt & interrupt.asUInt).orR
-    int_out(0) := io.interrupt
+    io.interrupt := (accrued.asUInt & local_interrupt.asUInt).orR
+    int_out(0) := (accrued.asUInt & global_interrupt.asUInt).orR
 
     def reg(r: UInt) = RegField.bytes(r, (r.getWidth + 7)/8)
     def reg(v: Vec[Bool]) = v.map(r => RegField(1, r))
@@ -73,14 +74,16 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
       reg(cause),
       reg(value),
       reg(enable),
-      reg(interrupt),
-      reg(accrued))):_*)
+      reg(global_interrupt),
+      reg(accrued),
+      reg(local_interrupt))):_*)
 
     // hardwire mask bits for unsupported sources to 0
     for ((s, i) <- sources.zipWithIndex; if s.isEmpty) {
       enable(i) := false
-      interrupt(i) := false
+      global_interrupt(i) := false
       accrued(i) := false
+      local_interrupt(i) := false
     }
   }
 }
