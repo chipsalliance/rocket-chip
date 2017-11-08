@@ -197,7 +197,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         // If you do early Ack, errors may not be dropped
         // ... which roughly means: Puts must error on the first burst
         // (dPut && !dFirst) => d.error === r_error
-        assert (!out.d.valid || !dHasData || dFirst || out.d.bits.error === r_error, "Slave device error behaviour unsuitable for earlyAck")
+        assert (!out.d.valid || dHasData || dFirst || out.d.bits.error === r_error, "Slave device error behaviour unsuitable for earlyAck")
       }
 
       // What maximum transfer sizes do downstream devices support?
