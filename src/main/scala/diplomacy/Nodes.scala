@@ -93,6 +93,7 @@ abstract class BaseNode(implicit val valName: ValName)
   val serial = BaseNode.serial
   BaseNode.serial = BaseNode.serial + 1
   protected[diplomacy] def instantiate(): Seq[Dangle]
+  protected[diplomacy] def finishInstantiate(): Unit
 
   def name = lazyModule.name + "." + valName.name
   def omitGraphML = outputs.isEmpty && inputs.isEmpty
@@ -385,6 +386,10 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
     } }
     danglesOut ++ danglesIn
+  }
+
+  protected[diplomacy] def finishInstantiate() = {
+    bundlesSafeNow = false
   }
 
   // connects the outward part of a node with the inward part of this node

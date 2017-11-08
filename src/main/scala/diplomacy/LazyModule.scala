@@ -165,7 +165,9 @@ sealed trait LazyModuleImpLike extends BaseModule
   protected[diplomacy] def instantiate() = {
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo = c.info
-      Module(c.module).dangles
+      val mod = Module(c.module)
+      mod.finishInstantiate()
+      mod.dangles
     }
     wrapper.instantiate()
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
@@ -183,6 +185,10 @@ sealed trait LazyModuleImpLike extends BaseModule
       d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
     }
     (auto, dangles)
+  }
+
+  protected[diplomacy] def finishInstantiate() {
+    wrapper.nodes.reverse.foreach { _.finishInstantiate() }
   }
 }
 
