@@ -8,21 +8,29 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.{min,max}
 
+object EarlyAck {
+  sealed trait T
+  case object AllPuts extends T
+  case object PutFulls extends T
+  case object None extends T
+}
+
 // minSize: minimum size of transfers supported by all outward managers
 // maxSize: maximum size of transfers supported after the Fragmenter is applied
 // alwaysMin: fragment all requests down to minSize (else fragment to maximum supported by manager)
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
-class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: Boolean = false)(implicit p: Parameters) extends LazyModule
+class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None)(implicit p: Parameters) extends LazyModule
 {
   require (isPow2 (maxSize))
   require (isPow2 (minSize))
   require (minSize < maxSize)
 
   val fragmentBits = log2Ceil(maxSize / minSize)
+  val fullBits = if (earlyAck == EarlyAck.PutFulls) 1 else 0
   val toggleBits = 1
-  val addedBits = fragmentBits + toggleBits
+  val addedBits = fragmentBits + toggleBits + fullBits
 
   def expandTransfer(x: TransferSizes) = if (!x) x else {
     // validate that we can apply the fragmenter correctly
@@ -179,7 +187,12 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       }
 
       // Swallow up non-data ack fragments
-      val drop = !dHasData && !(if (earlyAck) dFirst else dLast)
+      val doEarlyAck = earlyAck match {
+        case EarlyAck.AllPuts  => Bool(true)
+        case EarlyAck.PutFulls => out.d.bits.source(fragmentBits+1)
+        case EarlyAck.None     => Bool(false)
+      }
+      val drop = !dHasData && !Mux(doEarlyAck, dFirst, dLast)
       out.d.ready := in.d.ready || drop
       in.d.valid  := out.d.valid && !drop
       in.d.bits   := out.d.bits // pass most stuff unchanged
@@ -193,12 +206,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       when (out.d.fire()) { r_error := d_error }
       in.d.bits.error := d_error
 
-      if (earlyAck) {
-        // If you do early Ack, errors may not be dropped
-        // ... which roughly means: Puts must error on the first burst
-        // (dPut && !dFirst) => d.error === r_error
-        assert (!out.d.valid || dHasData || dFirst || out.d.bits.error === r_error, "Slave device error behaviour unsuitable for earlyAck")
-      }
+      // If you do early Ack, errors may not be dropped
+      assert (!out.d.valid || !doEarlyAck || !drop || out.d.bits.error === r_error, "Slave device error behaviour unsuitable for earlyAck setting")
 
       // What maximum transfer sizes do downstream devices support?
       val maxArithmetics = managers.map(_.supportsArithmetic.max)
@@ -254,13 +263,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val aFragnum = ~(~(old_gennum1 >> log2Ceil(minSize/beatBytes)) | (aFragOH1 >> log2Ceil(minSize)))
       val aLast = aFragnum === UInt(0)
       val aToggle = !Mux(aFirst, dToggle, RegEnable(dToggle, aFirst))
+      val aFull = if (earlyAck == EarlyAck.PutFulls) Some(in_a.bits.opcode === TLMessages.PutFullData) else None
 
       when (out.a.fire()) { gennum := new_gennum }
 
       repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
       out.a <> in_a
       out.a.bits.address := in_a.bits.address | ~(old_gennum1 << log2Ceil(beatBytes) | ~aOrigOH1 | aFragOH1 | UInt(minSize-1))
-      out.a.bits.source := Cat(Seq(in_a.bits.source) ++ Seq(aToggle.asUInt, aFragnum))
+      out.a.bits.source := Cat(Seq(in_a.bits.source) ++ aFull ++ Seq(aToggle.asUInt, aFragnum))
       out.a.bits.size := aFrag
 
       // Optimize away some of the Repeater's registers
@@ -283,7 +293,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
 object TLFragmenter
 {
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: Boolean = false)(implicit p: Parameters): TLNode =
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None)(implicit p: Parameters): TLNode =
     LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck)).node
 }
 
@@ -299,7 +309,7 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit p: Pa
     := TLDelayer(0.1)
     := TLBuffer(BufferParams.flow)
     := TLDelayer(0.1)
-    := TLFragmenter(ramBeatBytes, maxSize, earlyAck = true)
+    := TLFragmenter(ramBeatBytes, maxSize, earlyAck = EarlyAck.AllPuts)
     := TLDelayer(0.1)
     := TLBuffer(BufferParams.flow)
     := TLFragmenter(ramBeatBytes, maxSize/2)
