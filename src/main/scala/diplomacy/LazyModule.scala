@@ -36,7 +36,8 @@ abstract class LazyModule()(implicit val p: Parameters)
     getClass.getMethods.filter { m =>
       m.getParameterTypes.isEmpty &&
       !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-      m.getName != "children"
+      m.getName != "children" &&
+      m.getName != "getChildren"
     }.flatMap { m =>
       if (classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
         val obj = m.invoke(this)
@@ -126,6 +127,8 @@ abstract class LazyModule()(implicit val p: Parameters)
     iterfunc(this)
     children.foreach( _.nodeIterator(iterfunc) )
   }
+
+  def getChildren = children
 }
 
 object LazyModule
