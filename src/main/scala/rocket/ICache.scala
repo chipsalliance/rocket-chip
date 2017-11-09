@@ -313,7 +313,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         }
 
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
-        val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable, s2_slaveValid)
+        val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable && !(edge_in.get.hasData(s1_a) && s1_a.mask.andR), s2_slaveValid)
         when (s2_slaveValid) {
           when (edge_in.get.hasData(s1_a) || s2_data_decoded.correctable) { s3_slaveValid := true }
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
