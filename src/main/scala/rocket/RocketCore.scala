@@ -30,7 +30,6 @@ case class RocketCoreParams(
   mtvecWritable: Boolean = true,
   fastLoadWord: Boolean = true,
   fastLoadByte: Boolean = false,
-  jumpInFrontend: Boolean = true,
   tileControlAddr: Option[BigInt] = None,
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
@@ -123,7 +122,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ex_reg_xcpt_interrupt  = Reg(Bool())
   val ex_reg_valid           = Reg(Bool())
   val ex_reg_rvc             = Reg(Bool())
-  val ex_reg_btb_hit         = Reg(Bool())
   val ex_reg_btb_resp        = Reg(new BTBResp)
   val ex_reg_xcpt            = Reg(Bool())
   val ex_reg_flush_pipe      = Reg(Bool())
@@ -137,7 +135,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_reg_xcpt_interrupt  = Reg(Bool())
   val mem_reg_valid           = Reg(Bool())
   val mem_reg_rvc             = Reg(Bool())
-  val mem_reg_btb_hit         = Reg(Bool())
   val mem_reg_btb_resp        = Reg(new BTBResp)
   val mem_reg_xcpt            = Reg(Bool())
   val mem_reg_replay          = Reg(Bool())
@@ -292,7 +289,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   ex_reg_replay := !take_pc && ibuf.io.inst(0).valid && ibuf.io.inst(0).bits.replay
   ex_reg_xcpt := !ctrl_killd && id_xcpt
   ex_reg_xcpt_interrupt := !take_pc && ibuf.io.inst(0).valid && csr.io.interrupt
-  ex_reg_btb_hit := ibuf.io.inst(0).bits.btb_hit
 
   when (!ctrl_killd) {
     ex_ctrl := id_ctrl
@@ -374,7 +370,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_int_wdata = Mux(!mem_reg_xcpt && (mem_ctrl.jalr ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
   val mem_cfi = mem_ctrl.branch || mem_ctrl.jalr || mem_ctrl.jal
   val mem_cfi_taken = (mem_ctrl.branch && mem_br_taken) || mem_ctrl.jalr || mem_ctrl.jal
-  val mem_direction_misprediction = (Bool(coreParams.jumpInFrontend) || mem_reg_btb_hit) && mem_ctrl.branch && mem_br_taken =/= mem_reg_btb_resp.taken
+  val mem_direction_misprediction = mem_ctrl.branch && mem_br_taken =/= (usingBTB && mem_reg_btb_resp.taken)
   val mem_misprediction = if (usingBTB) mem_wrong_npc else mem_cfi_taken
   take_pc_mem := mem_reg_valid && (mem_misprediction || mem_reg_sfence)
 
@@ -393,7 +389,6 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_load := ex_ctrl.mem && isRead(ex_ctrl.mem_cmd)
     mem_reg_store := ex_ctrl.mem && isWrite(ex_ctrl.mem_cmd)
     mem_reg_sfence := ex_sfence
-    mem_reg_btb_hit := ex_reg_btb_hit
     mem_reg_btb_resp := ex_reg_btb_resp
     mem_reg_flush_pipe := ex_reg_flush_pipe
     mem_reg_slow_bypass := ex_slow_bypass
@@ -608,8 +603,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   ibuf.io.inst(0).ready := !ctrl_stalld
 
-  io.imem.btb_update.valid := (mem_reg_replay && mem_reg_btb_hit) || (mem_reg_valid && !take_pc_wb && mem_wrong_npc && (!mem_cfi || mem_cfi_taken))
-  io.imem.btb_update.bits.isValid := !mem_reg_replay && mem_cfi
+  io.imem.btb_update.valid := mem_reg_valid && !take_pc_wb && mem_wrong_npc && (!mem_cfi || mem_cfi_taken)
+  io.imem.btb_update.bits.isValid := mem_cfi
   io.imem.btb_update.bits.cfiType :=
     Mux((mem_ctrl.jal || mem_ctrl.jalr) && mem_waddr(0), CFIType.call,
     Mux(mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00?01"), CFIType.ret,
@@ -618,14 +613,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
   io.imem.btb_update.bits.br_pc := (if (usingCompressed) mem_reg_pc + Mux(mem_reg_rvc, UInt(0), UInt(2)) else mem_reg_pc)
   io.imem.btb_update.bits.pc := ~(~io.imem.btb_update.bits.br_pc | (coreInstBytes*fetchWidth-1))
-  io.imem.btb_update.bits.prediction.valid := mem_reg_btb_hit
-  io.imem.btb_update.bits.prediction.bits := mem_reg_btb_resp
+  io.imem.btb_update.bits.prediction := mem_reg_btb_resp
 
-  io.imem.bht_update.valid := mem_reg_valid && !take_pc_wb && mem_ctrl.branch
+  io.imem.bht_update.valid := mem_reg_valid && !take_pc_wb
   io.imem.bht_update.bits.pc := io.imem.btb_update.bits.pc
   io.imem.bht_update.bits.taken := mem_br_taken
   io.imem.bht_update.bits.mispredict := mem_wrong_npc
-  io.imem.bht_update.bits.prediction := io.imem.btb_update.bits.prediction
+  io.imem.bht_update.bits.branch := mem_ctrl.branch
+  io.imem.bht_update.bits.prediction := mem_reg_btb_resp.bht
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
