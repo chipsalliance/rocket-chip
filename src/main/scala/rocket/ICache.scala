@@ -302,7 +302,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
         assert(!s2_valid || RegNext(RegNext(s0_vaddr)) === io.s2_vaddr)
         when (!(tl.a.valid || s1_slaveValid || s2_slaveValid || respValid)
-              && s2_valid && s2_data_decoded.correctable && !s2_tag_disparity) {
+              && s2_valid && s2_data_decoded.error && !s2_tag_disparity) {
           // handle correctable errors on CPU accesses to the scratchpad.
           // if there is an in-flight slave-port access to the scratchpad,
           // report the a miss but don't correct the error (as there is
@@ -315,7 +315,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
         val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable && !(edge_in.get.hasData(s1_a) && s1_a.mask.andR), s2_slaveValid)
         when (s2_slaveValid) {
-          when (edge_in.get.hasData(s1_a) || s2_data_decoded.correctable) { s3_slaveValid := true }
+          when (edge_in.get.hasData(s1_a) || s2_data_decoded.error) { s3_slaveValid := true }
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
           s1s3_slaveData := (0 until wordBits/8).map(i => Mux(byteEn(i), s2_data_decoded.corrected, s1s3_slaveData)(8*(i+1)-1, 8*i)).asUInt
         }
