@@ -18,6 +18,7 @@ case class RocketCoreParams(
   useUser: Boolean = false,
   useDebug: Boolean = true,
   useAtomics: Boolean = true,
+  useAtomicsOnlyForIO: Boolean = false,
   useCompressed: Boolean = true,
   nLocalInterrupts: Int = 0,
   nBreakpoints: Int = 1,

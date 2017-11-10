@@ -76,7 +76,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val eccBits = eccBytes * 8
   require(isPow2(eccBytes) && eccBytes <= wordBytes)
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
-  val usingRMW = eccBytes > 1 || usingAtomics
+  val usingRMW = eccBytes > 1 || usingAtomicsInCache
 
   // tags
   val replacer = cacheParams.replacement
@@ -688,11 +688,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   if (usingRMW) {
     val amoalu = Module(new AMOALU(xLen))
     amoalu.io.mask := pstore1_mask
-    amoalu.io.cmd := (if (usingAtomics) pstore1_cmd else M_XWR)
+    amoalu.io.cmd := (if (usingAtomicsInCache) pstore1_cmd else M_XWR)
     amoalu.io.lhs := s2_data_word
     amoalu.io.rhs := pstore1_data
     pstore1_storegen_data := amoalu.io.out
-  } else {
+  } else if (!usingAtomics) {
     assert(!(s1_valid_masked && s1_read && s1_write), "unsupported D$ operation")
   }
   when (s2_correct) { pstore1_storegen_data := s2_data_word_corrected }

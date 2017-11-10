@@ -117,8 +117,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
   val prot_r = fastCheck(_.supportsGet) && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
-  val prot_al = fastCheck(_.supportsLogical) || cacheable
-  val prot_aa = fastCheck(_.supportsArithmetic) || cacheable
+  val prot_al = fastCheck(_.supportsLogical) || (cacheable && usingAtomicsInCache)
+  val prot_aa = fastCheck(_.supportsArithmetic) || (cacheable && usingAtomicsInCache)
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
@@ -190,7 +190,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     (if (vpnBits == vpnBitsExtended) Bool(false)
      else (io.req.bits.vaddr.asSInt < 0.S) =/= (vpn.asSInt < 0.S))
 
-  val lrscAllowed = Mux(Bool(usingDataScratchpad), 0.U, c_array)
+  val lrscAllowed = Mux(Bool(usingDataScratchpad || usingAtomicsOnlyForIO), 0.U, c_array)
   val ae_array =
     Mux(misaligned, eff_array, 0.U) |
     Mux(Bool(usingAtomics) && io.req.bits.cmd.isOneOf(M_XLR, M_XSC), ~lrscAllowed, 0.U)
