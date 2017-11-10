@@ -248,7 +248,7 @@ class WithSynchronousRocketTiles extends Config((site, here, up) => {
   }
 })
 
-class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
+class WithAsynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(crossingType = AsynchronousCrossing(depth, sync))
   }
