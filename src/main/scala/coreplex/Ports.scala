@@ -86,7 +86,7 @@ trait HasMasterAXI4MMIOPort extends HasSystemBus {
   private val device = new SimpleBus("mmio", Nil)
   val mmio_axi4 = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
-      address       = List(AddressSet(params.base, params.size-1)),
+      address       = AddressSet.misaligned(params.base, params.size),
       resources     = device.ranges,
       executable    = params.executable,
       supportsWrite = TransferSizes(1, params.maxXferBytes),
@@ -165,7 +165,7 @@ trait HasMasterTLMMIOPort extends HasSystemBus {
   private val device = new SimpleBus("mmio", Nil)
   val mmio_tl = TLManagerNode(Seq(TLManagerPortParameters(
     managers = Seq(TLManagerParameters(
-      address            = List(AddressSet(params.base, params.size-1)),
+      address            = AddressSet.misaligned(params.base, params.size),
       resources          = device.ranges,
       executable         = params.executable,
       supportsGet        = TransferSizes(1, sbus.blockBytes),
