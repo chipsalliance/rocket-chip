@@ -33,7 +33,6 @@ trait CoreParams {
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
-  val jumpInFrontend: Boolean
   val tileControlAddr: Option[BigInt]
 
   def instBytes: Int = instBits / 8
