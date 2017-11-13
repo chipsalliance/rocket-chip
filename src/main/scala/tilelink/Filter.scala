@@ -42,7 +42,7 @@ class TLFilter(
         require (m.supportsPutFull.contains(o.supportsPutFull))
         require (m.supportsPutPartial.contains(o.supportsPutPartial))
         require (m.supportsHint.contains(o.supportsHint))
-        require (m.fifoId == o.fifoId) // could relax this, but hard to validate
+        require (!o.fifoId.isDefined || m.fifoId == o.fifoId)
       }
       out
     })})
