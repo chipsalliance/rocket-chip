@@ -32,17 +32,18 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
-  def napot = cfg.a(1)
-  def torNotNAPOT = cfg.a(0)
+  def napot = cfg.a(1) // please, comment
+  def torNotNapot = cfg.a(0) // please, comment
   def cfgLocked = cfg.l
-  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.cfg.a(1)
+  def addrLocked(next: PMPReg) = cfgLocked || (next.cfgLocked && next.napot)
 }
 
 class PMP(implicit p: Parameters) extends PMPReg {
   val mask = UInt(width = paddrBits)
 
   import PMP._
-  def computeMask = Cat(Cat(addr, cfg.a(0)) & ~(Cat(addr, cfg.a(0)) + 1), UInt((BigInt(1) << lgAlign) - 1, lgAlign))
+  private def addrTorNotNapot = Cat(addr, cfg.a(0))
+  def computeMask = Cat(addrTorNotNapot & ~(addrTorNotNapot + 1), UIntToOH1(lgAlign, lgAlign))
   private def comparand = addr << lgAlign
 
   private def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
@@ -101,7 +102,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
 
   // returns whether this PMP completely contains, or contains none of, a page
   def homogeneous(x: UInt, pgLevel: UInt, prev: PMP): Bool =
-    Mux(napot, pow2Homogeneous(x, pgLevel), !torNotNAPOT || rangeHomogeneous(x, pgLevel, prev))
+    Mux(napot, pow2Homogeneous(x, pgLevel), !torNotNapot || rangeHomogeneous(x, pgLevel, prev))
 
   // returns whether this matching PMP fully contains the access
   def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= lgAlign) true.B else {
@@ -115,7 +116,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
 
   // returns whether this PMP matches at least one byte of the access
   def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool =
-    Mux(napot, pow2Match(x, lgSize, lgMaxSize), torNotNAPOT && rangeMatch(x, lgSize, lgMaxSize, prev))
+    Mux(napot, pow2Match(x, lgSize, lgMaxSize), torNotNapot && rangeMatch(x, lgSize, lgMaxSize, prev))
 }
 
 class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {
