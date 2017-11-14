@@ -191,7 +191,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
       // If FIFO was requested, ensure that R+W ordering is preserved
-      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n.map(_ > 1).getOrElse(false) } foreach { case (((as, ds), s), n) =>
+      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n.isDefined } foreach { case (((as, ds), s), n) =>
         // AXI does not guarantee read vs. write ordering. In particular, if we
         // are in the middle of receiving a read burst and then issue a write,
         // the write might affect the read burst. This violates FIFO behaviour.
