@@ -100,7 +100,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
 // get a tile-specific property without breaking deduplication
 object GetPropertyByHartId {
   def apply[T <: Data](tiles: Seq[RocketTileParams], f: RocketTileParams => Option[T], hartId: UInt): T = {
-    PriorityMux(tiles.zipWithIndex.collect { case (t, i) if f(t).nonEmpty => (hartId === i) -> f(t).get })
+    PriorityMux(tiles.collect { case t if f(t).isDefined => (t.hartid === hartId) -> f(t).get })
   }
 }
 
