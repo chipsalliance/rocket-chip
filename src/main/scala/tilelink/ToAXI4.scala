@@ -191,8 +191,15 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
       // If FIFO was requested, ensure that R+W ordering is preserved
-      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n.map(_ > 1).getOrElse(false) } foreach { case (((as, ds), s), n) =>
-        val count = RegInit(UInt(0, width = log2Ceil(n.get + 1)))
+      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n.isDefined } foreach { case (((as, ds), s), n) =>
+        // AXI does not guarantee read vs. write ordering. In particular, if we
+        // are in the middle of receiving a read burst and then issue a write,
+        // the write might affect the read burst. This violates FIFO behaviour.
+        // To solve this, we must wait until the last beat of a burst, but this
+        // means that there can be idCount+1 operations counted due to a TileLink
+        // master which performs early source reuse.
+        val maxCount = n.get + 1
+        val count = RegInit(UInt(0, width = log2Ceil(maxCount + 1)))
         val write = Reg(Bool())
         val idle = count === UInt(0)
 
@@ -200,8 +207,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         val dec = ds && d_last && in.d.fire()
         count := count + inc.asUInt - dec.asUInt
 
-        assert (!dec || count =/= UInt(0))     // underflow
-        assert (!inc || count =/= UInt(n.get)) // overflow
+        assert (!dec || count =/= UInt(0))        // underflow
+        assert (!inc || count =/= UInt(maxCount)) // overflow
 
         when (inc) { write := arw.wen }
         s := !idle && write =/= arw.wen
