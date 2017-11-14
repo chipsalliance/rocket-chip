@@ -96,15 +96,8 @@ class AXI4Xbar(
 
         for (master <- edgesIn(i).master.masters) {
           def idTracker(port: UInt, req_fire: Bool, resp_fire: Bool) = {
-            if (master.maxFlight == Some(1)) {
-              // No need to worry about response order if at most 1 request possible
+            if (master.maxFlight == Some(0)) {
               Bool(true)
-            } else if (maxFlightPerId == 1) {
-              // No need to track where it went if we cap it at 1 request
-              val allow = RegInit(Bool(true))
-              when (req_fire) { allow := Bool(false) }
-              when (resp_fire) { allow := Bool(true) }
-              allow
             } else {
               val legalFlight = master.maxFlight.getOrElse(maxFlightPerId+1)
               val flight = legalFlight min maxFlightPerId
@@ -115,7 +108,9 @@ class AXI4Xbar(
               assert (!resp_fire || count =/= UInt(0))
               assert (!req_fire  || count =/= UInt(flight))
               when (req_fire) { last := port }
-              (count === UInt(0) || last === port) && (Bool(!canOverflow) || count =/= UInt(flight))
+              // No need to track where it went if we cap it at 1 request
+              val portMatch = if (flight == 1) { Bool(true) } else { last === port }
+              (count === UInt(0) || portMatch) && (Bool(!canOverflow) || count =/= UInt(flight))
             }
           }
 
