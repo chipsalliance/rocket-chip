@@ -196,7 +196,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         // are in the middle of receiving a read burst and then issue a write,
         // the write might affect the read burst. This violates FIFO behaviour.
         // To solve this, we must wait until the last beat of a burst, but this
-        // means that can be idCount+1 operations counted due to a TileLink
+        // means that there can be idCount+1 operations counted due to a TileLink
         // master which performs early source reuse.
         val maxCount = n.get + 1
         val count = RegInit(UInt(0, width = log2Ceil(maxCount + 1)))
