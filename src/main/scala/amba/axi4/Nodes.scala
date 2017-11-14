@@ -22,8 +22,8 @@ object AXI4Imp extends SimpleNodeImp[AXI4MasterPortParameters, AXI4SlavePortPara
 case class AXI4MasterNode(portParams: Seq[AXI4MasterPortParameters])(implicit valName: ValName) extends SourceNode(AXI4Imp)(portParams)
 case class AXI4SlaveNode(portParams: Seq[AXI4SlavePortParameters])(implicit valName: ValName) extends SinkNode(AXI4Imp)(portParams)
 case class AXI4AdapterNode(
-  masterFn:  AXI4MasterPortParameters => AXI4MasterPortParameters,
-  slaveFn:   AXI4SlavePortParameters  => AXI4SlavePortParameters,
+  masterFn:  AXI4MasterPortParameters => AXI4MasterPortParameters = { m => m },
+  slaveFn:   AXI4SlavePortParameters  => AXI4SlavePortParameters  = { s => s },
   numPorts:  Range.Inclusive = 0 to 999)(
   implicit valName: ValName)
   extends AdapterNode(AXI4Imp)(masterFn, slaveFn, numPorts)
