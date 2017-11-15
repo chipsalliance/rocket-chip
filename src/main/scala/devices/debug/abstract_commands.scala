@@ -1,8 +1,8 @@
-package uncore.devices
+package freechips.rocketchip.devices.debug
 
 import Chisel._
 
-// This file was auto-generated from the repository at https://github.com/sifive/riscv-debug-spec.git,
+// This file was auto-generated from the repository at https://github.com/riscv/riscv-debug-spec.git,
 // 'make chisel'
 
 object AC_RegAddrs {
