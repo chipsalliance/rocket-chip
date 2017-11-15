@@ -11,7 +11,7 @@ import scala.math.{min, max}
 import AHBParameters._
 
 case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
-  dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
+  dFn = { case TLClientPortParameters(clients, minLatency) =>
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
     AHBMasterPortParameters(masters)
   },

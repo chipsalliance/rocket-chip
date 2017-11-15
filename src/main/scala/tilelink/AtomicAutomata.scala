@@ -15,7 +15,6 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
   require (concurrency >= 1)
 
   val node = TLAdapterNode(
-    clientFn  = { case cp => require (!cp.unsafeAtomics); cp.copy(unsafeAtomics = true) },
     managerFn = { case mp => mp.copy(managers = mp.managers.map { m =>
       val ourSupport = TransferSizes(1, mp.beatBytes)
       def widen(x: TransferSizes) = if (passthrough && x.min <= 2*mp.beatBytes) TransferSizes(1, max(mp.beatBytes, x.max)) else ourSupport
@@ -31,6 +30,13 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val managers = edgeOut.manager.managers
       val beatBytes = edgeOut.manager.beatBytes
+
+      // This is necessary (though not sufficient) for correctness:
+      edgeOut.manager.findTreeViolation() match {
+        case None => ()
+        case Some(node) => require(edgeOut.manager.isTree, s"AtomicAutomata can only be placed infront of a tree of diplomatic nodes (${node.name} has parents ${node.inputs.map(_._1.name)})")
+      }
+      // You also need to know that the slaves don't have an internal masters that can get between the read and write
 
       // To which managers are we adding atomic support?
       val ourSupport = TransferSizes(1, edgeOut.manager.beatBytes)
