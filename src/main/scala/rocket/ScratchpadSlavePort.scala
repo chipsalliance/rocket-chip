@@ -100,7 +100,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val cacheBlockBytes = p(CacheBlockBytes)
 
   val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics)))
+    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
   }
 
   val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntIdentityNode())
@@ -122,7 +122,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
       val xbar = LazyModule(new TLXbar)
       xbar.node := slaveNode
       xbarPorts.foreach { case (port, bytes) =>
-        (Seq(port, TLFragmenter(bytes, cacheBlockBytes, earlyAck=true))
+        (Seq(port, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
           ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
           .foldRight(xbar.node:TLOutwardNode)(_ := _)
       }

@@ -67,6 +67,13 @@ case class TLManagerParameters(
       c = regionType >= RegionType.UNCACHED,
       a = supportsArithmetic && supportsLogical))
   }
+
+  def findTreeViolation() = nodePath.find {
+    case _: MixedAdapterNode[_, _, _, _, _, _, _, _] => false
+    case _: SinkNode[_, _, _, _, _] => false
+    case node => node.inputs.size != 1
+  }
+  def isTree = findTreeViolation() == None
 }
 
 case class TLManagerPortParameters(
@@ -170,6 +177,9 @@ case class TLManagerPortParameters(
   def supportsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutFull,    address, lgSize, range)
   def supportsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutPartial, address, lgSize, range)
   def supportsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsHint,       address, lgSize, range)
+
+  def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
+  def isTree = !managers.exists(!_.isTree)
 }
 
 case class TLClientParameters(
@@ -208,7 +218,6 @@ case class TLClientParameters(
 
 case class TLClientPortParameters(
   clients:       Seq[TLClientParameters],
-  unsafeAtomics: Boolean = false,
   minLatency:    Int = 0) // Only applies to B=>C
 {
   require (!clients.isEmpty)

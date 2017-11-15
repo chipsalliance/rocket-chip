@@ -31,6 +31,7 @@ class WithAMBAUnitTests extends Config((site, here, up) => {
       Module(new AXI4LiteFuzzRAMTest(txns=6*txns, timeout=timeout)),
       Module(new AXI4FullFuzzRAMTest(txns=3*txns, timeout=timeout)),
       Module(new AXI4BridgeTest(     txns=3*txns, timeout=timeout)),
+      Module(new AXI4XbarTest(       txns=1*txns, timeout=timeout)),
       Module(new AXI4RAMAsyncCrossingTest(txns=3*txns, timeout=timeout))) }
 })
 

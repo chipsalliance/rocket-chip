@@ -150,6 +150,7 @@ class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => ne
   val uncorrectable = RegInit(Bool(false))
 
   decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
+  outer.busErrorUnit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
   core.io.hartid := io.hartid // Pass through the hartid
   io.trace.foreach { _ := core.io.trace }
   io.halt_and_catch_fire.foreach { _ := uncorrectable }

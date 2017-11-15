@@ -151,13 +151,13 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  * system depends on coherence between channels in any way,
  * DO NOT use this configuration.
  */
-class WithStatelessBridge extends Config((site, here, up) => {
+class WithIncoherentTiles extends Config((site, here, up) => {
+  case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
+    r.copy(master = r.master.copy(cork = Some(true)))
+  }
   case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { coreplex =>
-    implicit val p = coreplex.p
-    val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes))
-    val cc = LazyModule(new TLCacheCork(unsafe = true))
-    cc.node :*= ww.node
-    (ww.node, cc.node, () => None)
+    val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes)(coreplex.p))
+    (ww.node, ww.node, () => None)
   })
 })
 
@@ -248,7 +248,7 @@ class WithSynchronousRocketTiles extends Config((site, here, up) => {
   }
 })
 
-class WithAynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
+class WithAsynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(crossingType = AsynchronousCrossing(depth, sync))
   }

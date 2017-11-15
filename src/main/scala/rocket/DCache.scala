@@ -76,7 +76,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val eccBits = eccBytes * 8
   require(isPow2(eccBytes) && eccBytes <= wordBytes)
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
-  val usingRMW = eccBytes > 1 || usingAtomics
+  val usingRMW = eccBytes > 1 || usingAtomicsInCache
 
   // tags
   val replacer = cacheParams.replacement
@@ -99,7 +99,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
-      val q = Module(new Queue(tl_out.c.bits, cacheDataBeats, flow = true))
+      val q = Module(new Queue(tl_out.c.bits.cloneType, cacheDataBeats, flow = true))
       tl_out.c <> q.io.deq
       (q.io.enq, q.io.count === 0)
     } else {
@@ -305,6 +305,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
   when ((s2_valid_masked && lrscCount > 0) || io.cpu.invalidate_lr) { lrscCount := 0 }
+  when (s2_valid_masked || io.cpu.invalidate_lr) { tl_error_valid := false }
 
   // don't perform data correction if it might clobber a recent store
   val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
@@ -434,7 +435,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // grant
   val (d_first, d_last, d_done, d_address_inc) = edge.addr_inc(tl_out.d)
-  val grantIsCached = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+  val grantIsCached = {
+    val res = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+    if (usingDataScratchpad) {
+      assert(!(tl_out.d.valid && res))
+      false.B
+    } else {
+      res
+    }
+  }
   val grantIsUncached = tl_out.d.bits.opcode.isOneOf(AccessAck, AccessAckData, HintAck)
   val grantIsUncachedData = tl_out.d.bits.opcode === AccessAckData
   val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
@@ -637,7 +646,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
   val s1_xcpt = tlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
-  ccover(s2_valid_pre_xcpt && s2_tl_error, "D_ERROR_REPORTED", "D$ reported TL error to processor")
+  ccoverNotScratchpad(s2_valid_pre_xcpt && s2_tl_error, "D_ERROR_REPORTED", "D$ reported TL error to processor")
   when (s2_valid_pre_xcpt && s2_tl_error) {
     assert(!s2_valid_hit && !s2_uncached)
     when (s2_write) { io.cpu.s2_xcpt.ae.st := true }
@@ -679,11 +688,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   if (usingRMW) {
     val amoalu = Module(new AMOALU(xLen))
     amoalu.io.mask := pstore1_mask
-    amoalu.io.cmd := (if (usingAtomics) pstore1_cmd else M_XWR)
+    amoalu.io.cmd := (if (usingAtomicsInCache) pstore1_cmd else M_XWR)
     amoalu.io.lhs := s2_data_word
     amoalu.io.rhs := pstore1_data
     pstore1_storegen_data := amoalu.io.out
-  } else {
+  } else if (!usingAtomics) {
     assert(!(s1_valid_masked && s1_read && s1_write), "unsupported D$ operation")
   }
   when (s2_correct) { pstore1_storegen_data := s2_data_word_corrected }
@@ -767,7 +776,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.error
     io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
 
-    ccover(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
+    ccoverNotScratchpad(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
     ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")
   }
 
@@ -783,4 +792,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)
+  def ccoverNotScratchpad(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    if (!usingDataScratchpad) ccover(cond, label, desc)
 }

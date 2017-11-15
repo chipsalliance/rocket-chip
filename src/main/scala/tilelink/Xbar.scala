@@ -34,8 +34,6 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     numClientPorts  = 1 to 999,
     numManagerPorts = 1 to 999,
     clientFn  = { seq =>
-      require (!seq.exists(_.unsafeAtomics) || seq.size == 1,
-        "An unsafe atomic port can not be combined with any other!")
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
         clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
