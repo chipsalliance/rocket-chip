@@ -100,7 +100,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val a_source  = in.a.bits.source
       val a_size    = edgeIn.size(in.a.bits)
       val a_isPut   = edgeIn.hasData(in.a.bits)
-      val a_last    = edgeIn.last(in.a)
+      val (a_first, a_last, _) = edgeIn.firstlast(in.a)
 
       // Make sure the fields are within the bounds we assumed
       assert (a_source  < UInt(BigInt(1) << sourceBits))
@@ -154,7 +154,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.qos   := UInt(0) // no QoS
       arw.user.foreach { _ := a_state }
 
-      val stall = sourceStall(in.a.bits.source)
+      val stall = sourceStall(in.a.bits.source) && a_first
       in.a.ready := !stall && Mux(a_isPut, (doneAW || out_arw.ready) && out_w.ready, out_arw.ready)
       out_arw.valid := !stall && in.a.valid && Mux(a_isPut, !doneAW && out_w.ready, Bool(true))
 
@@ -191,14 +191,14 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
       // If FIFO was requested, ensure that R+W ordering is preserved
-      (a_sel zip d_sel zip idStall zip idCount) filter { case (_, n) => n.isDefined } foreach { case (((as, ds), s), n) =>
+      (a_sel zip d_sel zip idStall zip idCount) foreach { case (((as, ds), s), n) =>
         // AXI does not guarantee read vs. write ordering. In particular, if we
         // are in the middle of receiving a read burst and then issue a write,
         // the write might affect the read burst. This violates FIFO behaviour.
         // To solve this, we must wait until the last beat of a burst, but this
-        // means that there can be idCount+1 operations counted due to a TileLink
-        // master which performs early source reuse.
-        val maxCount = n.get + 1
+        // means that a TileLink master which performs early source reuse can
+        // have one more transaction inflight than we promised AXI; stall it too.
+        val maxCount = n.getOrElse(1)
         val count = RegInit(UInt(0, width = log2Ceil(maxCount + 1)))
         val write = Reg(Bool())
         val idle = count === UInt(0)
@@ -211,7 +211,9 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         assert (!inc || count =/= UInt(maxCount)) // overflow
 
         when (inc) { write := arw.wen }
-        s := !idle && write =/= arw.wen
+        // If only one transaction can be inflight, it can't mismatch
+        val mismatch = if (maxCount > 1) { write =/= arw.wen } else { Bool(false) }
+        s := (!idle && mismatch) || (count === UInt(maxCount))
       }
 
       // Tie off unused channels
