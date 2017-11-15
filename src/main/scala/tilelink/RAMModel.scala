@@ -333,6 +333,9 @@ class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p:
 
 object TLRAMModel
 {
+  def apply(log: String = "", ignoreErrorData: Boolean = false)(implicit p: Parameters) =
+    LazyModule(new TLRAMModel(log, ignoreErrorData)).node
+
   case class MonitorParameters(addressBits: Int, sizeBits: Int)
 
   class ByteMonitor(params: MonitorParameters) extends GenericParameterizedBundle(params) {

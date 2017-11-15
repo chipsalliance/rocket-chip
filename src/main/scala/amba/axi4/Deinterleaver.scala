@@ -40,9 +40,9 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
         val qs = Seq.tabulate(endId) { i =>
           val depth = edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
           if (depth > 0) {
-            Module(new Queue(out.r.bits, beats)).io
+            Module(new Queue(out.r.bits.cloneType, beats)).io
           } else {
-            Wire(new QueueIO(out.r.bits, beats))
+            Wire(new QueueIO(out.r.bits.cloneType, beats))
           }
         }
 

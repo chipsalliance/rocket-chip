@@ -99,7 +99,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
-      val q = Module(new Queue(tl_out.c.bits, cacheDataBeats, flow = true))
+      val q = Module(new Queue(tl_out.c.bits.cloneType, cacheDataBeats, flow = true))
       tl_out.c <> q.io.deq
       (q.io.enq, q.io.count === 0)
     } else {
