@@ -63,6 +63,8 @@ object DsbRegAddrs{
   // We want DATA to immediately follow PROGBUF so that we can
   // use them interchangeably.
   def PROGBUF(cfg:DebugModuleParams) = {DATA - (cfg.nProgramBufferWords * 4)}
+  // This is unused if hasImpEbreak is false, and just points to the end of the PROGBUF.
+  def IMPEBREAK(cfg: DebugModuleParams) = {PROGBUF(cfg) + (cfg.nProgramBufferWords*4)}
 
   // We want abstract to be immediately before PROGBUF
   // because we auto-generate 2 instructions.
@@ -129,7 +131,8 @@ case class DebugModuleParams (
   supportQuickAccess : Boolean = false,
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
-  hartSelToHartId : (UInt) => UInt = (x:UInt) => x
+  hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
+  hasImplicitEbreak : Boolean = false
 ) {
 
   if (hasBusMaster == false){
@@ -540,6 +543,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //TODO
     DMSTATUSRdData.devtreevalid := false.B
 
+    DMSTATUSRdData.impebreak := (cfg.hasImplicitEbreak).B
+
     //----HARTINFO
 
     val HARTINFORdData = Wire (init = (new HARTINFOFields()).fromBits(0.U))
@@ -876,10 +881,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       PROGBUF(cfg)-> programBufferMem.map(x => RegField(8, x)),
 
       // These sections are read-only.
-      WHERETO      -> Seq(RegField.r(32, jalAbstract.asUInt)),
-      ABSTRACT(cfg)-> abstractGeneratedMem.map{x => RegField.r(32, x)},
-      FLAGS        -> flags.map{x => RegField.r(8, x.asUInt())},
-      ROMBASE      -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
+      IMPEBREAK(cfg)-> {if (cfg.hasImplicitEbreak) Seq(RegField.r(32,  Instructions.EBREAK.value.U)) else Nil},
+      WHERETO       -> Seq(RegField.r(32, jalAbstract.asUInt)),
+      ABSTRACT(cfg) -> abstractGeneratedMem.map{x => RegField.r(32, x)},
+      FLAGS         -> flags.map{x => RegField.r(8, x.asUInt())},
+      ROMBASE       -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
 
     )
 
