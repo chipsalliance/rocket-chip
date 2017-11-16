@@ -44,8 +44,6 @@ object DsbBusConsts {
 
 object DsbRegAddrs{
 
-  // These may need to move around to be used by the serial interface.
-
   // These are used by the ROM.
   def HALTED       = 0x100
   def GOING        = 0x104
@@ -61,10 +59,14 @@ object DsbRegAddrs{
   def DATA         = 0x380
 
   // We want DATA to immediately follow PROGBUF so that we can
-  // use them interchangeably.
-  def PROGBUF(cfg:DebugModuleParams) = {DATA - (cfg.nProgramBufferWords * 4)}
+  // use them interchangeably. Leave another slot if there is an
+  // implicit ebreak.
+  def PROGBUF(cfg:DebugModuleParams) = {
+    val tmp = DATA - (cfg.nProgramBufferWords * 4)
+    if (cfg.hasImplicitEbreak) (tmp - 4) else tmp
+  }
   // This is unused if hasImpEbreak is false, and just points to the end of the PROGBUF.
-  def IMPEBREAK(cfg: DebugModuleParams) = {PROGBUF(cfg) + (cfg.nProgramBufferWords*4)}
+  def IMPEBREAK(cfg: DebugModuleParams) = { DATA - 4 }
 
   // We want abstract to be immediately before PROGBUF
   // because we auto-generate 2 instructions.
@@ -110,9 +112,11 @@ import DebugAbstractCommandType._
   *  nProgamBufferWords: Number of 32-bit words for Program Buffer
   *  hasBusMaster: Whethr or not a bus master should be included
   *    The size of the accesses supported by the Bus Master. 
-  *  nSerialPorts : Number of serial ports to instantiate
   *  supportQuickAccess : Whether or not to support the quick access command.
   *  supportHartArray : Whether or not to implement the hart array register.
+  *  hartIdToHartSel: For systems where hart ids are not 1:1 with hartsel, provide the mapping.
+  *  hartSelToHartId: Provide inverse mapping of the above
+  *  hasImplicitEbreak: There is an additional RO program buffer word containing an ebreak
   **/
 
 case class DebugModuleParams (
@@ -127,28 +131,28 @@ case class DebugModuleParams (
   hasAccess32  : Boolean = false,
   hasAccess16  : Boolean = false,
   hasAccess8   : Boolean = false,
-  nSerialPorts : Int = 0,
   supportQuickAccess : Boolean = false,
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
   hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
-  hasImplicitEbreak : Boolean = false
+  hasImplicitEbreak : Boolean = true
 ) {
 
   if (hasBusMaster == false){
-    require (hasAccess128 == false)
-    require (hasAccess64  == false)
-    require (hasAccess32  == false)
-    require (hasAccess16  == false)
-    require (hasAccess8   == false)
+    require (hasAccess128 == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess64  == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess32  == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess16  == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess8   == false, "No Bus mastering support in Debug Module yet")
   }
 
-  require (nSerialPorts <= 8)
+  require ((nDMIAddrSize >= 7) && (nDMIAddrSize <= 32), s"Legal DMIAddrSize is 7-32, not ${nDMIAddrSize}")
 
-  require ((nDMIAddrSize >= 7) && (nDMIAddrSize <= 32))
-
-  require ((nAbstractDataWords  > 0)  && (nAbstractDataWords  <= 16))
-  require ((nProgramBufferWords >= 0) && (nProgramBufferWords <= 16))
+  require ((nAbstractDataWords  > 0)  && (nAbstractDataWords  <= 16), s"Legal nAbstractDataWords is 0-16, not ${nAbstractDataWords}")
+  require ((nProgramBufferWords >= 0) && (nProgramBufferWords <= 16), s"Legal nProgramBufferWords is 0-16, not ${nProgramBufferWords}")
+  if (hasImplicitEbreak){
+    require(nProgramBufferWords < 16, s"When using implicit ebreak, must have < 16 nProgramBufferWords, not ${nProgramBufferWords}")
+  }
 
   if (supportQuickAccess) {
     // TODO: Check that quick access requirements are met.
@@ -464,10 +468,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // Sanity Check Configuration For this implementation.
     //--------------------------------------------------------------
 
-    require (cfg.nSerialPorts == 0)
-    require (cfg.hasBusMaster == false)
-    require (cfg.supportQuickAccess == false)
-    require (cfg.supportHartArray == false)
+    require (cfg.hasBusMaster == false, "No Bus Mastering support yet")
+    require (cfg.supportQuickAccess == false, "No Quick Access support yet")
+    require (cfg.supportHartArray == false, "No Hart Array support yet")
 
     //--------------------------------------------------------------
     // Register & Wire Declarations (which need to be pre-declared)
