@@ -150,9 +150,6 @@ case class DebugModuleParams (
 
   require ((nAbstractDataWords  > 0)  && (nAbstractDataWords  <= 16), s"Legal nAbstractDataWords is 0-16, not ${nAbstractDataWords}")
   require ((nProgramBufferWords >= 0) && (nProgramBufferWords <= 16), s"Legal nProgramBufferWords is 0-16, not ${nProgramBufferWords}")
-  if (hasImplicitEbreak){
-    require(nProgramBufferWords < 16, s"When using implicit ebreak, must have < 16 nProgramBufferWords, not ${nProgramBufferWords}")
-  }
 
   if (supportQuickAccess) {
     // TODO: Check that quick access requirements are met.
