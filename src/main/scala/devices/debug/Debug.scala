@@ -208,8 +208,9 @@ class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
  */
 
 class DebugInternalBundle ()(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val resumereq = Bool()
-  val hartsel = UInt(10.W)
+  val resumereq    = Bool()
+  val hartsel      = UInt(10.W)
+  val ackhavereset = Bool()
 }
 
 /* structure for top-level Debug Module signals which aren't the bus interfaces.
@@ -331,10 +332,11 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       DMCONTROLNxt := DMCONTROLReset
     } .otherwise {
       when (DMCONTROLWrEn) {
-        DMCONTROLNxt.ndmreset  := DMCONTROLWrData.ndmreset
-        DMCONTROLNxt.hartsel   := DMCONTROLWrData.hartsel
-        DMCONTROLNxt.haltreq   := DMCONTROLWrData.haltreq
-        DMCONTROLNxt.resumereq := DMCONTROLWrData.resumereq
+        DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset
+        DMCONTROLNxt.hartsel      := DMCONTROLWrData.hartsel
+        DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq
+        DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
+        DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
       }
     }
 
@@ -385,8 +387,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     }
 
     io.innerCtrl.valid := DMCONTROLWrEn
-    io.innerCtrl.bits.hartsel   := DMCONTROLWrData.hartsel
-    io.innerCtrl.bits.resumereq := DMCONTROLWrData.resumereq
+    io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsel
+    io.innerCtrl.bits.resumereq    := DMCONTROLWrData.resumereq
+    io.innerCtrl.bits.ackhavereset := DMCONTROLWrData.ackhavereset 
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
     io.ctrl.dmactive := DMCONTROLReg.dmactive
@@ -476,8 +479,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // Register & Wire Declarations (which need to be pre-declared)
     //--------------------------------------------------------------
 
-    val haltedBitRegs  = RegInit(Vec.fill(nComponents){false.B})
-    val resumeReqRegs  = RegInit(Vec.fill(nComponents){false.B})
+    val haltedBitRegs    = RegInit(Vec.fill(nComponents){false.B})
+    val resumeReqRegs    = RegInit(Vec.fill(nComponents){false.B})
+    val haveResetBitRegs = RegInit(Vec.fill(nComponents){true.B})
 
     // --- regmapper outputs
 
@@ -537,8 +541,16 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       DMSTATUSRdData.allrunning := true.B
       DMSTATUSRdData.anyrunning := true.B
     }
+    DMSTATUSRdData.allhavereset := haveResetBitRegs(selectedHartReg)
+    DMSTATUSRdData.anyhavereset := haveResetBitRegs(selectedHartReg)
 
     val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
+
+    when (io.innerCtrl.fire()){
+      when (io.innerCtrl.bits.ackhavereset) {
+        haveResetBitRegs(io.innerCtrl.bits.hartsel) := false.B
+      }
+    }
  
     DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
     DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
