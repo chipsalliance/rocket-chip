@@ -135,7 +135,7 @@ case class DebugModuleParams (
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
   hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
-  hasImplicitEbreak : Boolean = true
+  hasImplicitEbreak : Boolean = false
 ) {
 
   if (hasBusMaster == false){
