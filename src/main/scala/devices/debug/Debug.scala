@@ -512,7 +512,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     val DMSTATUSRdData = Wire(init = (new DMSTATUSFields()).fromBits(0.U))
     DMSTATUSRdData.authenticated := true.B // Not implemented
-    DMSTATUSRdData.versionlo       := "b10".U
+    DMSTATUSRdData.version       := 2.U    // Version 0.13
 
     // Chisel3 Issue #527 , have to do intermediate assignment.
     val unavailVec = Wire(init = Vec.fill(nComponents){false.B})
@@ -538,7 +538,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
 
     //TODO
-    DMSTATUSRdData.cfgstrvalid := false.B
+    DMSTATUSRdData.devtreevalid := false.B
 
     //----HARTINFO
 
@@ -562,8 +562,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //----ABSTRACTCS
 
     val ABSTRACTCSReset = Wire(init = (new ABSTRACTCSFields()).fromBits(0.U))
-    ABSTRACTCSReset.datacount := cfg.nAbstractDataWords.U
-    ABSTRACTCSReset.progsize := cfg.nProgramBufferWords.U
+    ABSTRACTCSReset.datacount   := cfg.nAbstractDataWords.U
+    ABSTRACTCSReset.progbufsize := cfg.nProgramBufferWords.U
 
     val ABSTRACTCSReg       = Reg(new ABSTRACTCSFields())
     val ABSTRACTCSWrDataVal = Wire(init = 0.U(32.W))
