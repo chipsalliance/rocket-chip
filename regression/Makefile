@@ -228,7 +228,7 @@ stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 stamps/riscv-tests.stamp:
 	git -C $(abspath $(TOP)) submodule update --init riscv-tools
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-tests
-	pip install -r $(abspath $(TOP)/riscv-tools/riscv-tests/debug/requirements.txt
+	pip install -r $(abspath $(TOP))/riscv-tools/riscv-tests/debug/requirements.txt
 	date > $@
 
 stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
