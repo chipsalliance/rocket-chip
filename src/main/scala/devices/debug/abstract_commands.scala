@@ -2,7 +2,7 @@ package freechips.rocketchip.devices.debug
 
 import Chisel._
 
-// This file was auto-generated from the repository at https://github.com/sifive/riscv-debug-spec.git,
+// This file was auto-generated from the repository at https://github.com/riscv/riscv-debug-spec.git,
 // 'make chisel'
 
 object AC_RegAddrs {
@@ -29,7 +29,7 @@ class ACCESS_REGISTERFields extends Bundle {
   val size = UInt(3.W)
 
   val reserved1 = UInt(1.W)
-  
+
   /* When 1, execute the program in the Program Buffer exactly once
             after performing the transfer, if any.
   */
@@ -38,6 +38,9 @@ class ACCESS_REGISTERFields extends Bundle {
   /* 0: Don't do the operation specified by \Fwrite.
 
             1: Do the operation specified by \Fwrite.
+
+            This bit can be used to just execute the Program Buffer without
+            having to worry about placing valid values into \Fsize or \Fregno.
   */
   val transfer = Bool()
 
@@ -50,7 +53,10 @@ class ACCESS_REGISTERFields extends Bundle {
   */
   val write = Bool()
 
-  /* Number of the register to access, as described in Table~\ref{tab:regno}.
+  /* Number of the register to access, as described in
+          Table~\ref{tab:regno}.
+          \Rdpc may be used as an alias for PC if this command is
+          supported on a non-halted hart.
   */
   val regno = UInt(16.W)
 
