@@ -44,8 +44,6 @@ object DsbBusConsts {
 
 object DsbRegAddrs{
 
-  // These may need to move around to be used by the serial interface.
-
   // These are used by the ROM.
   def HALTED       = 0x100
   def GOING        = 0x104
@@ -61,8 +59,14 @@ object DsbRegAddrs{
   def DATA         = 0x380
 
   // We want DATA to immediately follow PROGBUF so that we can
-  // use them interchangeably.
-  def PROGBUF(cfg:DebugModuleParams) = {DATA - (cfg.nProgramBufferWords * 4)}
+  // use them interchangeably. Leave another slot if there is an
+  // implicit ebreak.
+  def PROGBUF(cfg:DebugModuleParams) = {
+    val tmp = DATA - (cfg.nProgramBufferWords * 4)
+    if (cfg.hasImplicitEbreak) (tmp - 4) else tmp
+  }
+  // This is unused if hasImpEbreak is false, and just points to the end of the PROGBUF.
+  def IMPEBREAK(cfg: DebugModuleParams) = { DATA - 4 }
 
   // We want abstract to be immediately before PROGBUF
   // because we auto-generate 2 instructions.
@@ -108,9 +112,11 @@ import DebugAbstractCommandType._
   *  nProgamBufferWords: Number of 32-bit words for Program Buffer
   *  hasBusMaster: Whethr or not a bus master should be included
   *    The size of the accesses supported by the Bus Master. 
-  *  nSerialPorts : Number of serial ports to instantiate
   *  supportQuickAccess : Whether or not to support the quick access command.
   *  supportHartArray : Whether or not to implement the hart array register.
+  *  hartIdToHartSel: For systems where hart ids are not 1:1 with hartsel, provide the mapping.
+  *  hartSelToHartId: Provide inverse mapping of the above
+  *  hasImplicitEbreak: There is an additional RO program buffer word containing an ebreak
   **/
 
 case class DebugModuleParams (
@@ -125,27 +131,25 @@ case class DebugModuleParams (
   hasAccess32  : Boolean = false,
   hasAccess16  : Boolean = false,
   hasAccess8   : Boolean = false,
-  nSerialPorts : Int = 0,
   supportQuickAccess : Boolean = false,
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
-  hartSelToHartId : (UInt) => UInt = (x:UInt) => x
+  hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
+  hasImplicitEbreak : Boolean = false
 ) {
 
   if (hasBusMaster == false){
-    require (hasAccess128 == false)
-    require (hasAccess64  == false)
-    require (hasAccess32  == false)
-    require (hasAccess16  == false)
-    require (hasAccess8   == false)
+    require (hasAccess128 == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess64  == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess32  == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess16  == false, "No Bus mastering support in Debug Module yet")
+    require (hasAccess8   == false, "No Bus mastering support in Debug Module yet")
   }
 
-  require (nSerialPorts <= 8)
+  require ((nDMIAddrSize >= 7) && (nDMIAddrSize <= 32), s"Legal DMIAddrSize is 7-32, not ${nDMIAddrSize}")
 
-  require ((nDMIAddrSize >= 7) && (nDMIAddrSize <= 32))
-
-  require ((nAbstractDataWords  > 0)  && (nAbstractDataWords  <= 16))
-  require ((nProgramBufferWords >= 0) && (nProgramBufferWords <= 16))
+  require ((nAbstractDataWords  > 0)  && (nAbstractDataWords  <= 16), s"Legal nAbstractDataWords is 0-16, not ${nAbstractDataWords}")
+  require ((nProgramBufferWords >= 0) && (nProgramBufferWords <= 16), s"Legal nProgramBufferWords is 0-16, not ${nProgramBufferWords}")
 
   if (supportQuickAccess) {
     // TODO: Check that quick access requirements are met.
@@ -201,8 +205,9 @@ class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
  */
 
 class DebugInternalBundle ()(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val resumereq = Bool()
-  val hartsel = UInt(10.W)
+  val resumereq    = Bool()
+  val hartsel      = UInt(10.W)
+  val ackhavereset = Bool()
 }
 
 /* structure for top-level Debug Module signals which aren't the bus interfaces.
@@ -324,10 +329,11 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       DMCONTROLNxt := DMCONTROLReset
     } .otherwise {
       when (DMCONTROLWrEn) {
-        DMCONTROLNxt.ndmreset  := DMCONTROLWrData.ndmreset
-        DMCONTROLNxt.hartsel   := DMCONTROLWrData.hartsel
-        DMCONTROLNxt.haltreq   := DMCONTROLWrData.haltreq
-        DMCONTROLNxt.resumereq := DMCONTROLWrData.resumereq
+        DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset
+        DMCONTROLNxt.hartsel      := DMCONTROLWrData.hartsel
+        DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq
+        DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
+        DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
       }
     }
 
@@ -378,8 +384,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     }
 
     io.innerCtrl.valid := DMCONTROLWrEn
-    io.innerCtrl.bits.hartsel   := DMCONTROLWrData.hartsel
-    io.innerCtrl.bits.resumereq := DMCONTROLWrData.resumereq
+    io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsel
+    io.innerCtrl.bits.resumereq    := DMCONTROLWrData.resumereq
+    io.innerCtrl.bits.ackhavereset := DMCONTROLWrData.ackhavereset 
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
     io.ctrl.dmactive := DMCONTROLReg.dmactive
@@ -461,17 +468,17 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     // Sanity Check Configuration For this implementation.
     //--------------------------------------------------------------
 
-    require (cfg.nSerialPorts == 0)
-    require (cfg.hasBusMaster == false)
-    require (cfg.supportQuickAccess == false)
-    require (cfg.supportHartArray == false)
+    require (cfg.hasBusMaster == false, "No Bus Mastering support yet")
+    require (cfg.supportQuickAccess == false, "No Quick Access support yet")
+    require (cfg.supportHartArray == false, "No Hart Array support yet")
 
     //--------------------------------------------------------------
     // Register & Wire Declarations (which need to be pre-declared)
     //--------------------------------------------------------------
 
-    val haltedBitRegs  = RegInit(Vec.fill(nComponents){false.B})
-    val resumeReqRegs  = RegInit(Vec.fill(nComponents){false.B})
+    val haltedBitRegs    = RegInit(Vec.fill(nComponents){false.B})
+    val resumeReqRegs    = RegInit(Vec.fill(nComponents){false.B})
+    val haveResetBitRegs = RegInit(Vec.fill(nComponents){true.B})
 
     // --- regmapper outputs
 
@@ -512,7 +519,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     val DMSTATUSRdData = Wire(init = (new DMSTATUSFields()).fromBits(0.U))
     DMSTATUSRdData.authenticated := true.B // Not implemented
-    DMSTATUSRdData.versionlo       := "b10".U
+    DMSTATUSRdData.version       := 2.U    // Version 0.13
 
     // Chisel3 Issue #527 , have to do intermediate assignment.
     val unavailVec = Wire(init = Vec.fill(nComponents){false.B})
@@ -531,14 +538,24 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       DMSTATUSRdData.allrunning := true.B
       DMSTATUSRdData.anyrunning := true.B
     }
+    DMSTATUSRdData.allhavereset := haveResetBitRegs(selectedHartReg)
+    DMSTATUSRdData.anyhavereset := haveResetBitRegs(selectedHartReg)
 
     val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
+
+    when (io.innerCtrl.fire()){
+      when (io.innerCtrl.bits.ackhavereset) {
+        haveResetBitRegs(io.innerCtrl.bits.hartsel) := false.B
+      }
+    }
  
     DMSTATUSRdData.allresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
     DMSTATUSRdData.anyresumeack := ~resumeReqRegs(selectedHartReg) && ~resumereq
 
     //TODO
-    DMSTATUSRdData.cfgstrvalid := false.B
+    DMSTATUSRdData.devtreevalid := false.B
+
+    DMSTATUSRdData.impebreak := (cfg.hasImplicitEbreak).B
 
     //----HARTINFO
 
@@ -562,8 +579,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //----ABSTRACTCS
 
     val ABSTRACTCSReset = Wire(init = (new ABSTRACTCSFields()).fromBits(0.U))
-    ABSTRACTCSReset.datacount := cfg.nAbstractDataWords.U
-    ABSTRACTCSReset.progsize := cfg.nProgramBufferWords.U
+    ABSTRACTCSReset.datacount   := cfg.nAbstractDataWords.U
+    ABSTRACTCSReset.progbufsize := cfg.nProgramBufferWords.U
 
     val ABSTRACTCSReg       = Reg(new ABSTRACTCSFields())
     val ABSTRACTCSWrDataVal = Wire(init = 0.U(32.W))
@@ -876,10 +893,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       PROGBUF(cfg)-> programBufferMem.map(x => RegField(8, x)),
 
       // These sections are read-only.
-      WHERETO      -> Seq(RegField.r(32, jalAbstract.asUInt)),
-      ABSTRACT(cfg)-> abstractGeneratedMem.map{x => RegField.r(32, x)},
-      FLAGS        -> flags.map{x => RegField.r(8, x.asUInt())},
-      ROMBASE      -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
+      IMPEBREAK(cfg)-> {if (cfg.hasImplicitEbreak) Seq(RegField.r(32,  Instructions.EBREAK.value.U)) else Nil},
+      WHERETO       -> Seq(RegField.r(32, jalAbstract.asUInt)),
+      ABSTRACT(cfg) -> abstractGeneratedMem.map{x => RegField.r(32, x)},
+      FLAGS         -> flags.map{x => RegField.r(8, x.asUInt())},
+      ROMBASE       -> DebugRomContents().map(x => RegField.r(8, (x & 0xFF).U(8.W)))
 
     )
 
