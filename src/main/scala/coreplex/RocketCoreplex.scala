@@ -38,7 +38,7 @@ case class TileSlavePortParams(
            (implicit p: Parameters, sourceInfo: SourceInfo): TLInwardNode = {
     val tile_slave_blocker =
       blockerCtrlAddr
-        .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes))
+        .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes))
         .map(bp => LazyModule(new BasicBusBlocker(bp)))
 
     tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }

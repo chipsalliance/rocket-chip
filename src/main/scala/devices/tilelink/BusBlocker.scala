@@ -115,7 +115,7 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
 case class BasicBusBlockerParams(
   controlAddress:   BigInt,
   controlBeatBytes: Int,
-  deviceBeatBytes:  Int = 1, // TODO: this is ignored by the BusBypassBar
+  deviceBeatBytes:  Int,
   deadlock: Boolean = false)
 
 class BasicBusBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
