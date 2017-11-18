@@ -6,7 +6,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.coreplex.{CacheBlockBytes, SystemBusKey}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
@@ -99,6 +99,7 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
 trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
   val module: CanHaveScratchpadModule
   val cacheBlockBytes = p(CacheBlockBytes)
+  val masterPortBeatBytes = p(SystemBusKey).beatBytes
 
   val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
@@ -113,7 +114,7 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
 
   val tile_master_blocker =
     tileParams.blockerCtrlAddr
-      .map(BasicBusBlockerParams(_, xBytes, deadlock = true))
+      .map(BasicBusBlockerParams(_, xBytes, masterPortBeatBytes, deadlock = true))
       .map(bp => LazyModule(new BasicBusBlocker(bp)))
 
   masterNode := tile_master_blocker.map { _.node := tileBus.node } getOrElse { tileBus.node }
