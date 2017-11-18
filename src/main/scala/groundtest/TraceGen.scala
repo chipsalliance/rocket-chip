@@ -67,6 +67,7 @@ case class TraceGenParams(
   def build(i: Int, p: Parameters): GroundTestTile = new TraceGenTile(i, this)(p)
   val hartid = 0
   val trace = false
+  val blockerCtrlAddr = None
 }
 
 trait HasTraceGenParams {

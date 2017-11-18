@@ -7,6 +7,7 @@ import Chisel.ImplicitConversions._
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -110,13 +111,21 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
     beu
   }
 
+  val tile_master_blocker =
+    tileParams.blockerCtrlAddr
+      .map(BasicBusBlockerParams(_, xBytes, deadlock = true))
+      .map(bp => LazyModule(new BasicBusBlocker(bp)))
+
+  masterNode := tile_master_blocker.map { _.node := tileBus.node } getOrElse { tileBus.node }
+
   // connect any combination of ITIM, DTIM, and BusErrorUnit
   val slaveNode = TLIdentityNode()
   DisableMonitors { implicit p =>
     val xbarPorts =
       scratch.map(lm => (lm.node, xBytes)) ++
       busErrorUnit.map(lm => (lm.node, xBytes)) ++
-      tileParams.icache.flatMap(icache => icache.itimAddr.map(a => (frontend.slaveNode, tileParams.core.fetchBytes)))
+      tileParams.icache.flatMap(icache => icache.itimAddr.map(a => (frontend.slaveNode, tileParams.core.fetchBytes))) ++
+      tile_master_blocker.map( lm => (lm.controlNode, xBytes))
 
     if (xbarPorts.nonEmpty) {
       val xbar = LazyModule(new TLXbar)

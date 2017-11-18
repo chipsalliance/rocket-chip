@@ -62,8 +62,8 @@ object DevicePMP
 case class BusBlockerParams(
   controlAddress:   BigInt,
   controlBeatBytes: Int,
-  deviceBeatBytes:  Int,
-  pmpRegisters:     Int)
+  deviceBeatBytes:  Int = 1, // TODO: This is ignored by the BusBypassBar
+  pmpRegisters:     Int = 1)
 {
   val page = 4096
   val pageBits = log2Ceil(page)
@@ -115,7 +115,7 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
 case class BasicBusBlockerParams(
   controlAddress:   BigInt,
   controlBeatBytes: Int,
-  deviceBeatBytes:  Int,
+  deviceBeatBytes:  Int = 1, // TODO: this is ignored by the BusBypassBar
   deadlock: Boolean = false)
 
 class BasicBusBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
