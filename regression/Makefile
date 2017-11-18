@@ -236,6 +236,7 @@ stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
 	--32 \
+	--print-failures \
 	$(abspath $(TOP))/scripts/RocketSim32.py \
 	$(JTAG_DTM_TEST)
 	date > $@
@@ -246,6 +247,7 @@ stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 	--server_cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
 	--64 \
+	--print-failtures \
 	$(abspath $(TOP))/scripts/RocketSim64.py \
 	$(JTAG_DTM_TEST)
 	date > $@
@@ -256,6 +258,7 @@ stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
 	--32 \
+	--print-failures \
 	$(abspath $(TOP))/scripts/RocketSim32.py \
 	$(JTAG_DTM_TEST)
 	date > $@
@@ -266,6 +269,7 @@ stamps/%/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
 	--64 \
+	--print-failures \
 	$(abspath $(TOP))/scripts/RocketSim64.py \
 	$(JTAG_DTM_TEST)
 	date > $@
