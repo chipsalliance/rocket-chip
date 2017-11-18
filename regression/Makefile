@@ -211,6 +211,9 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 
 # If this is defined empty, then all tests would run.
 JTAG_DTM_TEST ?= MemTest64
+GDBSERVER = $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+	    --print-failures \
+	    --print-log-names
 
 ifdef DEBUG
 JTAG_STAMP_SUFFIX=-debug
@@ -237,7 +240,7 @@ stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 	RISCV=$(RISCV) $(GDBSERVER) \
 	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(VSIM_JTAG_VCDPLUS_32)" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
-	--s $(RISCV)/share/openocd/scripts" \
+	-s $(RISCV)/share/openocd/scripts" \
 	--32 \
 	$(abspath $(TOP))/scripts/RocketSim32.py \
 	$(JTAG_DTM_TEST)
@@ -247,7 +250,7 @@ stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 	RISCV=$(RISCV) $(GDBSERVER) \
 	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(VSIM_JTAG_VCDPLUS_64)" \
 	--server_cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
-	--s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
+	-s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
 	--64 \
 	$(abspath $(TOP))/scripts/RocketSim64.py \
 	$(JTAG_DTM_TEST)
@@ -257,7 +260,7 @@ stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 	RISCV=$(RISCV) $(GDBSERVER) \
 	--sim_cmd="$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(EMULATOR_JTAG_VCDPLUS_32) dummybin" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
-	--s $(RISCV)/share/openocd/scripts" \
+	-s $(RISCV)/share/openocd/scripts" \
 	--32 \
 	$(abspath $(TOP))/scripts/RocketSim32.py \
 	$(JTAG_DTM_TEST)
@@ -267,7 +270,7 @@ stamps/%/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 	RISCV=$(RISCV) $(GDBSERVER) \
 	--sim_cmd="$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(EMULATOR_JTAG_VCDPLUS_64) dummybin" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
-	--s $(RISCV)/share/openocd/scripts" \
+	-s $(RISCV)/share/openocd/scripts" \
 	--64 \
 	$(abspath $(TOP))/scripts/RocketSim64.py \
 	$(JTAG_DTM_TEST)
