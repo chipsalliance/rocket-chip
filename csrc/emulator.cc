@@ -47,29 +47,40 @@ Run a BINARY on the Rocket Chip emulator.\n\
 Mandatory arguments to long options are mandatory for short options too.\n\
 \n\
 EMULATOR OPTIONS\n\
-  -c, --cycle-count          Print the cycle count before exiting\n\
+  -c, --cycle-count        Print the cycle count before exiting\n\
        +cycle-count\n\
-  -h, --help                 Display this help and exit\n\
-  -m, --max-cycles=[CYCLES]  Kill the emulation after CYCLES\n\
-       +max-cycles=[CYCLES]\n\
-  -s, --seed=[SEED]          Use random number seed SEED\n\
-  -V, --verbose              Enable all Chisel printfs\n\
+  -h, --help               Display this help and exit\n\
+  -m, --max-cycles=CYCLES  Kill the emulation after CYCLES\n\
+       +max-cycles=CYCLES\n\
+  -s, --seed=SEED          Use random number seed SEED\n\
+  -V, --verbose            Enable all Chisel printfs (cycle-by-cycle info)\n\
        +verbose\n\
 ", stdout);
-#if VM_TRACE
+#if VM_TRACE == 0
   fputs("\
-  -v, --vcd=[FILE],          write vcd trace to FILE (or '-' for stdout)\n\
-  -x, --dump-start=[CYCLE]   start VCD tracing at CYCLE\n\
-      +dump-start\n\
 \n\
-EMULATOR OPTIONS (unsupported in non-debug build -- try `make debug`)\n\
-", stdout);
+EMULATOR OPTIONS (only supported in debug build -- try `make debug`)\n",
+        stdout);
 #endif
   fputs("\
-VCD options (e.g., -v, +dump-start) require a debug-enabled emulator.\n\
-Try `make debug`.\n\
+  -v, --vcd=FILE,          Write vcd trace to FILE (or '-' for stdout)\n\
+  -x, --dump-start=CYCLE   Start VCD tracing at CYCLE\n\
+       +dump-start\n\
 ", stdout);
-  fputs(HTIF_USAGE_OPTIONS, stdout);
+  fputs("\n" HTIF_USAGE_OPTIONS, stdout);
+  printf("\n"
+"EXAMPLES\n"
+"  - run a bare metal test:\n"
+"    %s rv64ui-p-add\n"
+"  - run a bare metal test showing cycle-by-cycle information:\n"
+"    %s +verbose rv64ui-p-add 2>&1 | spike-dasm\n"
+#if VM_TRACE
+"  - run a bare metal test to generate a VCD waveform:\n"
+"    %s -v rv64ui-p-add.vcd rv64ui-p-add\n"
+#endif
+"  - run a hello-world test using the proxy kernel:\n"
+"    %s pk hello\n",
+         program_name, program_name, program_name, program_name);
 }
 
 int main(int argc, char** argv)
@@ -139,7 +150,7 @@ int main(int argc, char** argv)
           optarg = optarg+12;
         }
 #if VM_TRACE
-        else if (arg.substr(0, 12) == "+dump-start=")
+        else if (arg.substr(0, 12) == "+dump-start=") {
           c = 'x';
           optarg = optarg+12;
         }
@@ -148,7 +159,7 @@ int main(int argc, char** argv)
           c = 'c';
         // If we don't find a legacy '+' argument, it still could be
         // an HTIF (HOST) argument and not an error. If this is the
-        // case, then we're doing processing EMULATOR arguments.
+        // case, then we're done processing EMULATOR arguments.
         else {
           static struct option htif_long_options [] = { HTIF_LONG_OPTIONS };
           struct option * htif_option = &htif_long_options[0];
