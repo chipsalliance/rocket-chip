@@ -294,7 +294,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
             val enable = scratchpadWayValid(scratchpadWay(a.address))
             when (!lineInScratchpad(scratchpadLine(a.address))) {
               scratchpadMax.get := scratchpadLine(a.address)
-              when (enable) { invalidate := true }
+              invalidate := true
             }
             scratchpadOn := enable
           }
