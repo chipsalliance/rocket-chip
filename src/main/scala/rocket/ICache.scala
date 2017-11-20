@@ -225,7 +225,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))
-    val wen = (refill_one_beat && !invalidated) || (s3_slaveValid && wordMatch(s1s3_slaveAddr) && lineInScratchpad(scratchpadLine(s1s3_slaveAddr)))
+    val wen = (refill_one_beat && !invalidated) || (s3_slaveValid && wordMatch(s1s3_slaveAddr))
     val mem_idx = Mux(refill_one_beat, (refill_idx << log2Ceil(refillCycles)) | refill_cnt,
                   Mux(s3_slaveValid, row(s1s3_slaveAddr),
                   Mux(s0_slaveValid, row(s0_slaveAddr),
