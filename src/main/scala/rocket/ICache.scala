@@ -297,6 +297,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
               invalidate := true
             }
             scratchpadOn := enable
+
+            val itim_allocated = !scratchpadOn && enable
+            val itim_deallocated = scratchpadOn && !enable
+            val itim_increase = scratchpadOn && enable && scratchpadLine(a.address) > scratchpadMax.get
+            val refilling = refill_valid && refill_cnt > 0
+            ccover(itim_allocated, "ITIM_ALLOCATE", "ITIM allocated")
+            ccover(itim_allocated && refilling, "ITIM_ALLOCATE_WHILE_REFILL", "ITIM allocated while I$ refill")
+            ccover(itim_deallocated, "ITIM_DEALLOCATE", "ITIM deallocated")
+            ccover(itim_deallocated && refilling, "ITIM_DEALLOCATE_WHILE_REFILL", "ITIM deallocated while I$ refill")
+            ccover(itim_increase, "ITIM_SIZE_INCREASE", "ITIM size increased")
+            ccover(itim_increase && refilling, "ITIM_SIZE_INCREASE_WHILE_REFILL", "ITIM size increased while I$ refill")
           }
         }
 
