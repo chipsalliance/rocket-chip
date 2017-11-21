@@ -66,6 +66,9 @@ class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) ext
       val itim = if (frontend.icache.slaveNode.edges.in.isEmpty) Map() else Map(
         "sifive,itim"          -> ofRef(frontend.icache.device))
 
+      val incoherent = if (!rocketParams.core.useAtomicsOnlyForIO) Map() else Map(
+        "sifive,d-cache-incoherent" -> Nil)
+
       val icache = rocketParams.icache.map(i => Map(
         "i-cache-block-size"   -> ofInt(block),
         "i-cache-sets"         -> ofInt(i.nSets),
@@ -104,8 +107,8 @@ class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) ext
         "compatible"           -> Seq(ResourceString("sifive,rocket0"), ResourceString("riscv")),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
-        "riscv,isa"            -> ofStr(isa))
-        ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb ++ dtim ++itim)
+        "riscv,isa"            -> ofStr(isa),
+        "timebase-frequency"   -> Seq(ResourceInt(p(DTSTimebase)))) ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb ++ dtim ++ itim ++ incoherent)
     }
   }
   val intcDevice = new Device {

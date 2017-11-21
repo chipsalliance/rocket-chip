@@ -256,7 +256,7 @@ trait BindingScope
     eval
     val map: Map[Device, ResourceBindings] =
       resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
-        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)))))
+        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct)))
     val tree = makeTree(map.toList.flatMap { case (d, m) =>
       val Description(name, mapping) = d.describe(m)
       val tokens = name.split("/").toList
@@ -269,7 +269,7 @@ object BindingScope
 {
   protected[diplomacy] var active: Option[BindingScope] = None
   protected[diplomacy] def find(m: Option[LazyModule] = LazyModule.scope): Option[BindingScope] = m.flatMap {
-    case s: BindingScope => Some(s)
+    case x: BindingScope => find(x.parent).orElse(Some(x))
     case x => find(x.parent)
   }
 }
@@ -283,5 +283,42 @@ object ResourceBinding
     val scope = BindingScope.find()
     require (scope.isDefined, "ResourceBinding must be called from within a BindingScope")
     scope.get.resourceBindingFns = { () => block } +: scope.get.resourceBindingFns
+  }
+}
+
+object ResourceAnchors
+{
+  val root = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      val model = resources("model").map(_.value)
+      val compat = resources("compat").map(_.value)
+      Description("/", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "model"          -> model,
+        "compatible"     -> compat))
+    }
+  }
+
+  val soc = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      val compat = resources("compat").map(_.value) :+ ResourceString("simple-bus")
+      Description("soc", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "compatible"     -> compat,
+        "ranges"         -> Nil))
+    }
+  }
+
+  val cpus = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      Description("cpus", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> Seq(ResourceInt(0))))
+    }
   }
 }
