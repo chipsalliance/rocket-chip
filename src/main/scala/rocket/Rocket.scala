@@ -574,8 +574,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
                Mux(ll_wen, UInt(0),
                Mux(rf_wen, rf_waddr, UInt(0))))
 
-    when (csr.io.exception && csr.io.interrupt) {
-      printf("interrupt cause: %d\n", csr.io.interrupt_cause(7, 0))
+    val xcpt = RegNext(Mux(wb_valid, Bool(false), wb_xcpt))
+    when (csr.io.exception && csr.io.interrupt && csr.io.cause(xLen-1)) {
+      printf("interrupt cause: %d, %d\n", csr.io.interrupt_cause(6, 0), xcpt)
     }
 
     when (wb_valid) {
