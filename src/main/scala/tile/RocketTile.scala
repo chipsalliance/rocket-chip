@@ -107,8 +107,8 @@ class RocketTile(val rocketParams: RocketTileParams)(implicit p: Parameters) ext
         "compatible"           -> Seq(ResourceString("sifive,rocket0"), ResourceString("riscv")),
         "status"               -> ofStr("okay"),
         "clock-frequency"      -> Seq(ResourceInt(rocketParams.core.bootFreqHz)),
-        "riscv,isa"            -> ofStr(isa))
-        ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb ++ dtim ++ itim ++ incoherent)
+        "riscv,isa"            -> ofStr(isa),
+        "timebase-frequency"   -> Seq(ResourceInt(p(DTSTimebase)))) ++ dcache ++ icache ++ nextlevel ++ mmu ++ itlb ++ dtlb ++ dtim ++ itim ++ incoherent)
     }
   }
   val intcDevice = new Device {

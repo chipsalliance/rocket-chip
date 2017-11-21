@@ -285,3 +285,40 @@ object ResourceBinding
     scope.get.resourceBindingFns = { () => block } +: scope.get.resourceBindingFns
   }
 }
+
+object ResourceAnchors
+{
+  val root = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      val model = resources("model").map(_.value)
+      val compat = resources("compat").map(_.value)
+      Description("/", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "model"          -> model,
+        "compatible"     -> compat))
+    }
+  }
+
+  val soc = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      val compat = resources("compat").map(_.value) :+ ResourceString("simple-bus")
+      Description("soc", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> width,
+        "compatible"     -> compat,
+        "ranges"         -> Nil))
+    }
+  }
+
+  val cpus = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      val width = resources("width").map(_.value)
+      Description("cpus", Map(
+        "#address-cells" -> width,
+        "#size-cells"    -> Seq(ResourceInt(0))))
+    }
+  }
+}
