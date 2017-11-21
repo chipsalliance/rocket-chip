@@ -269,7 +269,7 @@ object BindingScope
 {
   protected[diplomacy] var active: Option[BindingScope] = None
   protected[diplomacy] def find(m: Option[LazyModule] = LazyModule.scope): Option[BindingScope] = m.flatMap {
-    case s: BindingScope => Some(s)
+    case x: BindingScope => find(x.parent).orElse(Some(x))
     case x => find(x.parent)
   }
 }
