@@ -76,20 +76,23 @@ void remote_bitbang_t::accept()
 {
 
   fprintf(stderr,"Attempting to accept client socket\n");
-  
-  client_fd = ::accept(socket_fd, NULL, NULL);
-  if (client_fd == -1) {
-    if (errno == EAGAIN) {
-      // No client waiting to connect right now.
-      fprintf(stderr, "Not Accepted: Received EAGAIN error\n");
+  int again = 1;
+  while (again != 0) {
+    client_fd = ::accept(socket_fd, NULL, NULL);
+    if (client_fd == -1) {
+      if (errno == EAGAIN) {
+        // No client waiting to connect right now.
+      } else {
+        fprintf(stderr, "failed to accept on socket: %s (%d)\n", strerror(errno),
+                errno);
+        again = 0;
+        abort();
+      }
     } else {
-      fprintf(stderr, "failed to accept on socket: %s (%d)\n", strerror(errno),
-              errno);
-      abort();
+      fcntl(client_fd, F_SETFL, O_NONBLOCK);
+      fprintf(stderr, "Accepted successfully.");
+      again = 0;
     }
-  } else {
-    fcntl(client_fd, F_SETFL, O_NONBLOCK);
-    fprintf(stderr, "Accepted successfully.");
   }
 }
 
@@ -128,23 +131,25 @@ void remote_bitbang_t::set_pins(char _tck, char _tms, char _tdi){
 void remote_bitbang_t::execute_command()
 {
   char command;
-
-  ssize_t num_read = read(client_fd, &command, sizeof(command));
-  if (num_read == -1) {
-    if (errno == EAGAIN) {
-      // We'll try again the next call.
-      fprintf(stderr, "Received no command. Will try again on the next call\n");
-      return;
+  int again = 1;
+  while (again) {
+    ssize_t num_read = read(client_fd, &command, sizeof(command));
+    if (num_read == -1) {
+      if (errno == EAGAIN) {
+        // We'll try again the next call.
+        fprintf(stderr, "Received no command. Will try again on the next call\n");
+      } else {
+        fprintf(stderr, "remote_bitbang failed to read on socket: %s (%d)\n",
+                strerror(errno), errno);
+        again = 0;
+        abort();
+      }
+    } else if (num_read == 0) {
+      fprintf(stderr, "No Command Received.\n");
+      again = 1;
     } else {
-      fprintf(stderr, "remote_bitbang failed to read on socket: %s (%d)\n",
-              strerror(errno), errno);
-      abort();
+      again = 0;
     }
-  }
-
-  if (num_read == 0) {
-    fprintf(stderr, "No Command Received.\n");
-    return;
   }
   
   fprintf(stderr, "Received a command %c\n", command);
