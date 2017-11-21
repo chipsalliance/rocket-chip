@@ -256,7 +256,7 @@ trait BindingScope
     eval
     val map: Map[Device, ResourceBindings] =
       resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
-        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)))))
+        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct)))
     val tree = makeTree(map.toList.flatMap { case (d, m) =>
       val Description(name, mapping) = d.describe(m)
       val tokens = name.split("/").toList
