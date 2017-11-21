@@ -47,7 +47,6 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val resp = Decoupled(new FrontendResp).flip
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
-  val ras_update = Valid(new RASUpdate)
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
   val perf = new FrontendPerfEvents().asInput
