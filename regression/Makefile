@@ -210,7 +210,7 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 # Targets for JTAG DTM full-chain simulation
 
 # If this is defined empty, then all tests would run.
-JTAG_DTM_TEST ?= MemTest64
+JTAG_DTM_TEST ?= ExamineTarget
 
 ifdef DEBUG
 JTAG_STAMP_SUFFIX=-debug
@@ -254,7 +254,7 @@ stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 
 stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
-	--sim_cmd "$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(EMULATOR_JTAG_VCDPLUS_32) dummybin | tee emulator.log" \
+	--sim_cmd "$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(EMULATOR_JTAG_VCDPLUS_32) dummybin" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
 	--32 \
@@ -265,7 +265,7 @@ stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 
 stamps/%/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	export RISCV=$(RISCV) && $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
-	--sim_cmd "$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(EMULATOR_JTAG_VCDPLUS_64) dummybin | tee emulator.log" \
+	--sim_cmd "$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(EMULATOR_JTAG_VCDPLUS_64) dummybin" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	--s $(RISCV)/share/openocd/scripts" \
 	--64 \
