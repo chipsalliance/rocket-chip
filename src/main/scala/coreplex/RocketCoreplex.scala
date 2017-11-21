@@ -16,23 +16,16 @@ import freechips.rocketchip.util._
 // TODO: how specific are these to RocketTiles?
 case class TileMasterPortParams(
     addBuffers: Int = 0,
-    blockerCtrlAddr: Option[BigInt] = None,
     cork: Option[Boolean] = None) {
 
   def adapt(coreplex: HasPeripheryBus)
            (masterNode: TLOutwardNode)
            (implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
-    val tile_master_blocker =
-      blockerCtrlAddr
-        .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes, deadlock = true))
-        .map(bp => LazyModule(new BasicBusBlocker(bp)))
     val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
 
-    tile_master_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-    (Seq(tile_master_fixer.node) ++ TLBuffer.chain(addBuffers)
-     ++ tile_master_blocker.map(_.node) ++ tile_master_cork.map(_.node))
-     .foldRight(masterNode)(_ :=* _)
+    (Seq(tile_master_fixer.node) ++ TLBuffer.chain(addBuffers) ++ tile_master_cork.map(_.node))
+      .foldRight(masterNode)(_ :=* _)
   }
 }
 

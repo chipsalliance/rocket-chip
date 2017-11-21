@@ -54,46 +54,22 @@ abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
     with HasMemoryBus {
   override val module: BaseCoreplexModule[BaseCoreplex]
 
-  val root = new Device {
-    def describe(resources: ResourceBindings): Description = {
-      val width = resources("width").map(_.value)
-      Description("/", Map(
-        "#address-cells" -> width,
-        "#size-cells"    -> width,
-        "model"          -> Seq(ResourceString(p(DTSModel))),
-        "compatible"     -> (p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-dev"))))
-    }
-  }
-
-  val soc = new Device {
-    def describe(resources: ResourceBindings): Description = {
-      val width = resources("width").map(_.value)
-      Description("soc", Map(
-        "#address-cells" -> width,
-        "#size-cells"    -> width,
-        "compatible"     -> ((p(DTSModel) +: p(DTSCompat)).map(s => ResourceString(s + "-soc")) :+ ResourceString("simple-bus")),
-        "ranges"         -> Nil))
-    }
-  }
-
-  val cpus = new Device {
-    def describe(resources: ResourceBindings): Description = {
-      Description("cpus", Map(
-        "#address-cells"     -> Seq(ResourceInt(1)),
-        "#size-cells"        -> Seq(ResourceInt(0)),
-        "timebase-frequency" -> Seq(ResourceInt(p(DTSTimebase)))))
-    }
-  }
-
   // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
   lazy val topManagers = Some(ManagerUnification(sharedMemoryTLEdge.manager.managers))
   ResourceBinding {
     val managers = topManagers.get
     val max = managers.flatMap(_.address).map(_.max).max
     val width = ResourceInt((log2Ceil(max)+31) / 32)
-    Resource(root, "width").bind(width)
-    Resource(soc,  "width").bind(width)
-    Resource(cpus, "null").bind(ResourceString(""))
+    val model = p(DTSModel)
+    val compat = p(DTSCompat)
+    val devCompat = (model +: compat).map(s => ResourceString(s + "-dev"))
+    val socCompat = (model +: compat).map(s => ResourceString(s + "-soc"))
+    devCompat.foreach { Resource(ResourceAnchors.root, "compat").bind(_) }
+    socCompat.foreach { Resource(ResourceAnchors.soc,  "compat").bind(_) }
+    Resource(ResourceAnchors.root, "model").bind(ResourceString(model))
+    Resource(ResourceAnchors.root, "width").bind(width)
+    Resource(ResourceAnchors.soc,  "width").bind(width)
+    Resource(ResourceAnchors.cpus, "width").bind(ResourceInt(1))
 
     managers.foreach { case manager =>
       val value = manager.toResource
