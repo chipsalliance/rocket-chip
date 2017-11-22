@@ -210,7 +210,7 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 # Targets for JTAG DTM full-chain simulation
 
 # If this is defined empty, then all tests would run.
-JTAG_DTM_TEST ?= ExamineTarget
+JTAG_DTM_TEST ?= MemTest64
 
 ifdef DEBUG
 JTAG_STAMP_SUFFIX=-debug
