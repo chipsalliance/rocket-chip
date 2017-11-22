@@ -135,8 +135,14 @@ case class DebugModuleParams (
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
   hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
-  hasImplicitEbreak : Boolean = false
-) {
+  hasImplicitEbreak : Boolean = false,
+  authenticationFunction : (Bool) => (RegReadFn, RegWriteFn, Bool, Bool) = (dmactive: Bool) => {
+    val authDataReadFn  = RegReadFn(())
+    val authDataWriteFn = RegWriteFn(())
+    val authBusy = false.B
+    val authValid = true.B
+    (authDataReadFn, authDataWriteFn, authBusy, authValid)
+  }) {
 
   if (hasBusMaster == false){
     require (hasAccess128 == false, "No Bus mastering support in Debug Module yet")
@@ -299,6 +305,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val io = IO(new Bundle {
       val ctrl = (new DebugCtrlBundle(nComponents))
       val innerCtrl = new DecoupledIO(new DebugInternalBundle())
+      val authValid = Bool(INPUT)
     })
 
     //----DMCONTROL (The whole point of 'Outer' is to maintain this register on dmiClock (e.g. TCK) domain, so that it
@@ -325,7 +332,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val dmactive = DMCONTROLReg.dmactive
 
     DMCONTROLNxt := DMCONTROLReg
-    when (~dmactive) {
+    when (~dmactive | ~io.authValid) {
       DMCONTROLNxt := DMCONTROLReset
     } .otherwise {
       when (DMCONTROLWrEn) {
@@ -374,7 +381,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     // which occur 'too fast' will be dropped.
 
     for (component <- 0 until nComponents) {
-      when (~dmactive) {
+      when (~dmactive | ~io.authValid ) {
         debugIntNxt(component) := false.B
       }. otherwise {
         when (DMCONTROLWrEn && DMCONTROLWrData.hartsel === component.U) {
@@ -415,6 +422,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val dmi   = new DMIIO()(p).flip()
       val ctrl = new DebugCtrlBundle(nComponents)
       val innerCtrl = new AsyncBundle(depth=1, new DebugInternalBundle())
+      val authValid = Bool(INPUT)
     })
 
     dmi2tl.module.io.dmi <> io.dmi
@@ -422,6 +430,12 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     io.ctrl <> dmOuter.module.io.ctrl
     io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, depth=1)
 
+    dmOuter.module.io.authValid := AsyncResetSynchronizerShiftReg(
+      in = io.authValid,
+      depth = 3,
+      init = false.B,
+      name = Some("authValidSync")
+    )
   }
 }
 
@@ -451,6 +465,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     val io = IO(new Bundle {
       val dmactive = Bool(INPUT)
+      val authValid = Bool(OUTPUT)
       val innerCtrl = (new DecoupledIO(new DebugInternalBundle())).flip
       val debugUnavail = Vec(nComponents, Bool()).asInput
     })
@@ -518,7 +533,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //----DMSTATUS
 
     val DMSTATUSRdData = Wire(init = (new DMSTATUSFields()).fromBits(0.U))
-    DMSTATUSRdData.authenticated := true.B // Not implemented
+
+    // --- Authentication
+    val (authRd, authWr, authBusy, authValid) = cfg.authenticationFunction(io.dmactive) 
+
+    DMSTATUSRdData.authenticated := authValid
+    io.authValid := authValid
+    DMSTATUSRdData.authenticated := authBusy
     DMSTATUSRdData.version       := 2.U    // Version 0.13
 
     // Chisel3 Issue #527 , have to do intermediate assignment.
@@ -598,7 +619,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val errorUnsupported = Wire(init = false.B)
     val errorHaltResume  = Wire(init = false.B)
 
-    when(~io.dmactive){
+    when(~io.dmactive | ~authValid){
       ABSTRACTCSReg := ABSTRACTCSReset
     }.otherwise {
       when (errorBusy){
@@ -634,7 +655,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val ABSTRACTAUTOWrEnLegal = Wire(init = false.B)
     val ABSTRACTAUTOWrEn      = ABSTRACTAUTOWrEnMaybe && ABSTRACTAUTOWrEnLegal
 
-    when (~io.dmactive) {
+    when (~io.dmactive | ~authValid) {
       ABSTRACTAUTOReg := ABSTRACTAUTOReset
     }.elsewhen (ABSTRACTAUTOWrEn) {
       ABSTRACTAUTOReg.autoexecprogbuf := ABSTRACTAUTOWrData.autoexecprogbuf & ( (1 << cfg.nProgramBufferWords) - 1).U
@@ -672,7 +693,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val COMMANDWrEn = COMMANDWrEnMaybe && COMMANDWrEnLegal
     val COMMANDRdData = COMMANDReg
 
-    when (~io.dmactive) {
+    when (~io.dmactive | ~authValid) {
       COMMANDReg := COMMANDReset
     }.otherwise {
       when (COMMANDWrEn) {
@@ -697,7 +718,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     //--------------------------------------------------------------
 
     for (component <- 0 until nComponents) {
-      when (~io.dmactive) {
+      when (~io.dmactive | ~authValid) {
         haltedBitRegs(component) := false.B
         resumeReqRegs(component) := false.B
       }.otherwise {
@@ -744,6 +765,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       (DMI_PROGBUF0    << 2) -> programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, programBufferNxt(i),
         dmiProgramBufferRdEn(i),
         dmiProgramBufferWrEnMaybe(i))},
+      (DMI_AUTHDATA    << 2) -> Seq(RegField(32, authRd, authWr)),
       (DMIConsts.dmi_haltStatusAddr << 2) -> haltedStatus.map(x => RegField.r(32, x))
     )
 
@@ -768,7 +790,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     val jalAbstract  = Wire(init = (new GeneratedUJ()).fromBits(Instructions.JAL.value.U))
     jalAbstract.setImm(ABSTRACT(cfg) - WHERETO)
 
-    when (~io.dmactive){
+    when (~io.dmactive | ~authValid){
       goReg := false.B
     }.otherwise {
       when (goAbstract) {
@@ -902,7 +924,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     )
 
     // Override System Bus accesses with dmactive reset.
-    when (~io.dmactive){
+    when (~io.dmactive | ~authValid){
       abstractDataMem.foreach  {x => x := 0.U}
       programBufferMem.foreach {x => x := 0.U}
     }
@@ -1007,7 +1029,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
       }
     }
 
-    when (~io.dmactive) {
+    when (~io.dmactive | ~authValid) {
       ctrlStateReg := CtrlState(Waiting)
     }.otherwise {
       ctrlStateReg := ctrlStateNxt
@@ -1038,11 +1060,13 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
       // This comes from tlClk domain.
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
       val psd = new PSDTestMode().asInput
+      val authValid = Bool(OUTPUT)
     })
 
     dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
     dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
     dmInner.module.io.debugUnavail := io.debugUnavail
+    io.authValid := dmInner.module.io.authValid
   }
 }
 
@@ -1081,6 +1105,7 @@ class TLDebugModule(implicit p: Parameters) extends LazyModule {
     dmInner.module.io.innerCtrl    := dmOuter.module.io.innerCtrl
     dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
     dmInner.module.io.debugUnavail := io.ctrl.debugUnavail
+    dmOuter.module.io.authValid    := dmInner.module.io.authValid
 
     dmInner.module.io.psd <> io.psd
 
