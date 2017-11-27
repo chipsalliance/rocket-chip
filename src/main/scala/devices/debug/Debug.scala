@@ -521,14 +521,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
     DMSTATUSRdData.authenticated := true.B // Not implemented
     DMSTATUSRdData.version       := 2.U    // Version 0.13
 
-    // Chisel3 Issue #527 , have to do intermediate assignment.
-    val unavailVec = Wire(init = Vec.fill(nComponents){false.B})
-    unavailVec := io.debugUnavail
-
     when (selectedHartReg >= nComponents.U) {
       DMSTATUSRdData.allnonexistent := true.B
       DMSTATUSRdData.anynonexistent := true.B
-    }.elsewhen (unavailVec(selectedHartReg)) {
+    }.elsewhen (io.debugUnavail(selectedHartReg)) {
       DMSTATUSRdData.allunavail := true.B
       DMSTATUSRdData.anyunavail := true.B
     }.elsewhen (haltedBitRegs(selectedHartReg)) {
