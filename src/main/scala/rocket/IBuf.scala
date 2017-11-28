@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
-import Chisel.ImplicitConversions._
+import chisel3._
+import chisel3.util.ImplicitConversions._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -14,38 +15,38 @@ class Instruction(implicit val p: Parameters) extends ParameterizedBundle with H
   val replay = Bool()
   val rvc = Bool()
   val inst = new ExpandedInstruction
-  val raw = UInt(width = 32)
+  val raw = UInt(32.W)
   require(coreInstBits == (if (usingCompressed) 16 else 32))
 }
 
 class IBuf(implicit p: Parameters) extends CoreModule {
-  val io = new Bundle {
-    val imem = Decoupled(new FrontendResp).flip
-    val kill = Bool(INPUT)
-    val pc = UInt(OUTPUT, vaddrBitsExtended)
-    val btb_resp = new BTBResp().asOutput
+  val io = IO(new Bundle {
+    val imem = Flipped(Decoupled(new FrontendResp))
+    val kill = Input(Bool())
+    val pc = Output(UInt(vaddrBitsExtended.W))
+    val btb_resp = Output(new BTBResp())
     val inst = Vec(retireWidth, Decoupled(new Instruction))
-  }
+  })
 
   // This module is meant to be more general, but it's not there yet
   require(decodeWidth == 1)
 
   val n = fetchWidth - 1
-  val nBufValid = if (n == 0) UInt(0) else Reg(init=UInt(0, log2Ceil(fetchWidth)))
-  val buf = Reg(io.imem.bits)
+  val nBufValid = if (n == 0) 0.U else RegInit(0.U(log2Ceil(fetchWidth).W))
+  val buf = Reg(chiselTypeOf(io.imem.bits))
   val ibufBTBResp = Reg(new BTBResp)
-  val pcWordMask = UInt(coreInstBytes*fetchWidth-1, vaddrBitsExtended)
+  val pcWordMask = (coreInstBytes*fetchWidth-1).U(vaddrBitsExtended.W)
 
   val pcWordBits = io.imem.bits.pc.extract(log2Ceil(fetchWidth*coreInstBytes)-1, log2Ceil(coreInstBytes))
-  val nReady = Wire(init = UInt(0, log2Ceil(fetchWidth+1)))
-  val nIC = Mux(io.imem.bits.btb.taken, io.imem.bits.btb.bridx +& 1, UInt(fetchWidth)) - pcWordBits
+  val nReady = WireInit(0.U(log2Ceil(fetchWidth+1).W))
+  val nIC = Mux(io.imem.bits.btb.taken, io.imem.bits.btb.bridx +& 1, fetchWidth.U) - pcWordBits
   val nICReady = nReady - nBufValid
-  val nValid = Mux(io.imem.valid, nIC, UInt(0)) + nBufValid
+  val nValid = Mux(io.imem.valid, nIC, 0.U) + nBufValid
   io.imem.ready := io.inst(0).ready && nReady >= nBufValid && (nICReady >= nIC || n >= nIC - nICReady)
 
   if (n > 0) {
     when (io.inst(0).ready) {
-      nBufValid := Mux(nReady >= nBufValid, UInt(0), nBufValid - nReady)
+      nBufValid := Mux(nReady >= nBufValid, 0.U, nBufValid - nReady)
       if (n > 1) when (nReady > 0 && nReady < nBufValid) {
         val shiftedBuf = shiftInsnRight(buf.data(n*coreInstBits-1, coreInstBits), (nReady-1)(log2Ceil(n-1)-1,0))
         buf.data := Cat(buf.data(n*coreInstBits-1, (n-1)*coreInstBits), shiftedBuf((n-1)*coreInstBits-1, 0))
@@ -68,14 +69,14 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val icShiftAmt = (fetchWidth + nBufValid - pcWordBits)(log2Ceil(fetchWidth), 0)
   val icData = shiftInsnLeft(Cat(io.imem.bits.data, Fill(fetchWidth, io.imem.bits.data(coreInstBits-1, 0))), icShiftAmt)
     .extract(3*fetchWidth*coreInstBits-1, 2*fetchWidth*coreInstBits)
-  val icMask = (~UInt(0, fetchWidth*coreInstBits) << (nBufValid << log2Ceil(coreInstBits)))(fetchWidth*coreInstBits-1,0)
+  val icMask = (~0.U((fetchWidth*coreInstBits).W) << (nBufValid << log2Ceil(coreInstBits)))(fetchWidth*coreInstBits-1,0)
   val inst = icData & icMask | buf.data & ~icMask
 
   val valid = (UIntToOH(nValid) - 1)(fetchWidth-1, 0)
   val bufMask = UIntToOH(nBufValid) - 1
   val xcpt = (0 until bufMask.getWidth).map(i => Mux(bufMask(i), buf.xcpt, io.imem.bits.xcpt))
-  val buf_replay = Mux(buf.replay, bufMask, UInt(0))
-  val ic_replay = buf_replay | Mux(io.imem.bits.replay, valid & ~bufMask, UInt(0))
+  val buf_replay = Mux(buf.replay, bufMask, 0.U)
+  val ic_replay = buf_replay | Mux(io.imem.bits.replay, valid & ~bufMask, 0.U)
   assert(!io.imem.valid || !io.imem.bits.btb.taken || io.imem.bits.btb.bridx >= pcWordBits)
 
   io.btb_resp := io.imem.bits.btb
