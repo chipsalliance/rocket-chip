@@ -242,8 +242,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   val s2_probe_way = RegEnable(s1_hit_way, s1_probe)
   val s2_probe_state = RegEnable(s1_hit_state, s1_probe)
-  val s2_hit_way = RegEnable(s1_hit_way, s1_valid_not_nacked)
-  val s2_hit_state = RegEnable(s1_hit_state, s1_valid_not_nacked)
+  val s2_hit_way = RegEnable(s1_hit_way, s1_valid_not_nacked || s1_flush_valid)
+  val s2_hit_state = RegEnable(s1_hit_state, s1_valid_not_nacked || s1_flush_valid)
   val s2_waw_hazard = RegEnable(s1_waw_hazard, s1_valid_not_nacked)
   val s2_store_merge = Wire(Bool())
   val s2_hit_valid = s2_hit_state.isValid()
