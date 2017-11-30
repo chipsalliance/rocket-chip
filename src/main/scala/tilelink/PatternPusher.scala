@@ -84,3 +84,9 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
     tl_out.e.valid := Bool(false)
   }
 }
+
+object TLPatternPusher
+{
+  def apply(name: String, pattern: Seq[Pattern])(implicit p: Parameters): TLOutwardNode =
+    LazyModule(new TLPatternPusher(name, pattern)).node
+}

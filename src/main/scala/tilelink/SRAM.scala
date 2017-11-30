@@ -81,6 +81,18 @@ class TLRAM(
   }
 }
 
+object TLRAM
+{
+  def apply(
+    address: AddressSet,
+    cacheable: Boolean = true,
+    executable: Boolean = true,
+    beatBytes: Int = 4,
+    devName: Option[String] = None,
+    errors: Seq[AddressSet] = Nil)(implicit p: Parameters): TLInwardNode =
+    LazyModule(new TLRAM(address, cacheable, executable, beatBytes, devName, errors)).node
+}
+
 /** Synthesizeable unit testing */
 import freechips.rocketchip.unittest._
 

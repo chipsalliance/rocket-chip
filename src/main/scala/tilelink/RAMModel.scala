@@ -333,7 +333,7 @@ class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p:
 
 object TLRAMModel
 {
-  def apply(log: String = "", ignoreErrorData: Boolean = false)(implicit p: Parameters) =
+  def apply(log: String = "", ignoreErrorData: Boolean = false)(implicit p: Parameters): TLNode =
     LazyModule(new TLRAMModel(log, ignoreErrorData)).node
 
   case class MonitorParameters(addressBits: Int, sizeBits: Int)
