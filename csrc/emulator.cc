@@ -71,14 +71,14 @@ EMULATOR OPTIONS (only supported in debug build -- try `make debug`)\n",
   printf("\n"
 "EXAMPLES\n"
 "  - run a bare metal test:\n"
-"    %s rv64ui-p-add\n"
+"    %s $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
 "  - run a bare metal test showing cycle-by-cycle information:\n"
-"    %s +verbose rv64ui-p-add 2>&1 | spike-dasm\n"
+"    %s +verbose $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add 2>&1 | spike-dasm\n"
 #if VM_TRACE
 "  - run a bare metal test to generate a VCD waveform:\n"
-"    %s -v rv64ui-p-add.vcd rv64ui-p-add\n"
+"    %s -v rv64ui-p-add.vcd $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
 #endif
-"  - run a hello-world test using the proxy kernel:\n"
+"  - run an ELF (you wrote, called 'hello') using the proxy kernel:\n"
 "    %s pk hello\n",
          program_name, program_name, program_name, program_name);
 }
