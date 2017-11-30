@@ -31,8 +31,6 @@ private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false,
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
   val node = TLNexusNode(
-    numClientPorts  = 1 to 999,
-    numManagerPorts = 1 to 999,
     clientFn  = { seq =>
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
@@ -159,20 +157,20 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     val addressA = (in zip edgesIn) map { case (i, e) => e.address(i.a.bits) }
     val addressC = (in zip edgesIn) map { case (i, e) => e.address(i.c.bits) }
 
-    val requestAIO = Vec(addressA.map { i => Vec(outputPorts.map { o => o(i) }) })
-    val requestCIO = Vec(addressC.map { i => Vec(outputPorts.map { o => o(i) }) })
-    val requestBOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.b.bits.source) }) })
-    val requestDOI = Vec(out.map { o => Vec(inputIdRanges.map  { i => i.contains(o.d.bits.source) }) })
-    val requestEIO = Vec(in.map  { i => Vec(outputIdRanges.map { o => o.map(_.contains(i.e.bits.sink)).getOrElse(Bool(false)) }) })
+    val requestAIO = addressA.map { i => outputPorts.map { o => o(i) } }
+    val requestCIO = addressC.map { i => outputPorts.map { o => o(i) } }
+    val requestBOI = out.map { o => inputIdRanges.map  { i => i.contains(o.b.bits.source) } }
+    val requestDOI = out.map { o => inputIdRanges.map  { i => i.contains(o.d.bits.source) } }
+    val requestEIO = in.map  { i => outputIdRanges.map { o => o.map(_.contains(i.e.bits.sink)).getOrElse(Bool(false)) } }
 
-    val beatsAI = Vec((in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) })
-    val beatsBO = Vec((out zip edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) })
-    val beatsCI = Vec((in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.c.bits) })
-    val beatsDO = Vec((out zip edgesOut) map { case (o, e) => e.numBeats1(o.d.bits) })
-    val beatsEI = Vec((in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) })
+    val beatsAI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) }
+    val beatsBO = (out zip edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) }
+    val beatsCI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.c.bits) }
+    val beatsDO = (out zip edgesOut) map { case (o, e) => e.numBeats1(o.d.bits) }
+    val beatsEI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) }
 
     // Which pairs support support transfers
-    def transpose[T](x: Seq[Seq[T]]) = Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
+    def transpose[T](x: Seq[Seq[T]]) = if (x.isEmpty) Nil else Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
     def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
 
     // Fanout the input sources to the output sinks

@@ -18,8 +18,6 @@ class AXI4Xbar(
   require (awQueueDepth >= 1)
 
   val node = AXI4NexusNode(
-    numMasterPorts = 1 to 999,
-    numSlavePorts  = 1 to 999,
     masterFn  = { seq =>
       seq(0).copy(
         userBits = seq.map(_.userBits).max,
@@ -56,14 +54,14 @@ class AXI4Xbar(
     val awIn  = Seq.fill(io_in .size) { Module(new Queue(UInt(width = io_out.size), awQueueDepth, flow = true)) }
     val awOut = Seq.fill(io_out.size) { Module(new Queue(UInt(width = io_in .size), awQueueDepth, flow = true)) }
 
-    val requestARIO = Vec(io_in.map  { i => Vec(outputPorts.map   { o => o(i.ar.bits.addr) }) })
-    val requestAWIO = Vec(io_in.map  { i => Vec(outputPorts.map   { o => o(i.aw.bits.addr) }) })
-    val requestROI  = Vec(io_out.map { o => Vec(inputIdRanges.map { i => i.contains(o.r.bits.id) }) })
-    val requestBOI  = Vec(io_out.map { o => Vec(inputIdRanges.map { i => i.contains(o.b.bits.id) }) })
+    val requestARIO = io_in.map  { i => Vec(outputPorts.map   { o => o(i.ar.bits.addr) }) }
+    val requestAWIO = io_in.map  { i => Vec(outputPorts.map   { o => o(i.aw.bits.addr) }) }
+    val requestROI  = io_out.map { o => inputIdRanges.map { i => i.contains(o.r.bits.id) } }
+    val requestBOI  = io_out.map { o => inputIdRanges.map { i => i.contains(o.b.bits.id) } }
 
     // W follows the path dictated by the AW Q
     for (i <- 0 until io_in.size) { awIn(i).io.enq.bits := requestAWIO(i).asUInt }
-    val requestWIO = Vec(awIn.map { q => if (io_out.size > 1) Vec(q.io.deq.bits.toBools) else Vec.fill(1){Bool(true)} })
+    val requestWIO = awIn.map { q => if (io_out.size > 1) q.io.deq.bits.toBools else Seq(Bool(true)) }
 
     // We need an intermediate size of bundle with the widest possible identifiers
     val wide_bundle = AXI4BundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))

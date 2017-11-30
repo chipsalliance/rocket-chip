@@ -188,18 +188,12 @@ object NodeBinding
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 {
-  protected[diplomacy] val numPI: Range.Inclusive
-  require (!numPI.isEmpty, s"No number of inputs would be acceptable to ${name}${lazyModule.line}")
-  require (numPI.start >= 0, s"${name} accepts a negative number of inputs${lazyModule.line}")
-
   private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding, Parameters, SourceInfo)]()
   private var iRealized = false
 
   protected[diplomacy] def iPushed = accPI.size
   protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
-    val noIs = numPI.size == 1 && numPI.contains(0)
-    require (!noIs, s"${name}${lazyModule.line} was incorrectly connected as a sink" + info)
     require (!iRealized, s"${name}${lazyModule.line} was incorrectly connected as a sink after its .module was used" + info)
     accPI += ((index, node, binding, p, sourceInfo))
   }
@@ -222,18 +216,12 @@ trait OutwardNodeHandle[DO, UO, EO, BO <: Data] extends NoHandle
 
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 {
-  protected[diplomacy] val numPO: Range.Inclusive
-  require (!numPO.isEmpty, s"No number of outputs would be acceptable to ${name}${lazyModule.line}")
-  require (numPO.start >= 0, s"${name} accepts a negative number of outputs${lazyModule.line}")
-
   private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding, Parameters, SourceInfo)]()
   private var oRealized = false
 
   protected[diplomacy] def oPushed = accPO.size
   protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
-    val noOs = numPO.size == 1 && numPO.contains(0)
-    require (!noOs, s"${name}${lazyModule.line} was incorrectly connected as a source" + info)
     require (!oRealized, s"${name}${lazyModule.line} was incorrectly connected as a source after its .module was used" + info)
     accPO += ((index, node, binding, p, sourceInfo))
   }
@@ -255,8 +243,6 @@ case class Edges[EI, EO](in: EI, out: EO)
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
   val outer: OutwardNodeImp[DO, UO, EO, BO])(
-  protected[diplomacy] val numPO: Range.Inclusive,
-  protected[diplomacy] val numPI: Range.Inclusive)(
   implicit valName: ValName)
   extends BaseNode with NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO] with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
@@ -292,8 +278,6 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
       val oTotal = oSum.lastOption.getOrElse(0)
       val iTotal = iSum.lastOption.getOrElse(0)
-      require(numPO.contains(oTotal), s"${name} has ${oTotal} outputs, expected ${numPO}${lazyModule.line}")
-      require(numPI.contains(iTotal), s"${name} has ${iTotal} inputs, expected ${numPI}${lazyModule.line}")
       (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
     } catch {
       case c: StarCycleException => throw c.copy(loop = s"${name}${lazyModule.line}" +: c.loop)
@@ -417,10 +401,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
-  numPO: Range.Inclusive,
-  numPI: Range.Inclusive)(
   implicit valName: ValName)
-  extends MixedNode(inner, outer)(numPO, numPI)
+  extends MixedNode(inner, outer)
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int)
   def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
@@ -428,28 +410,28 @@ abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 }
 
 abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
-  numPO: Range.Inclusive,
-  numPI: Range.Inclusive)(
   implicit valName: ValName)
-  extends MixedCustomNode(imp, imp)(numPO, numPI)
+  extends MixedCustomNode(imp, imp)
 
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
   dFn: DI => DO,
-  uFn: UO => UI,
-  num: Range.Inclusive = 0 to 999)(
+  uFn: UO => UI)(
   implicit valName: ValName)
-  extends MixedNode(inner, outer)(num, num)
+  extends MixedNode(inner, outer)
 {
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"${name} (an adapter) appears left of a :*= ${iStars} times and right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     if (oStars > 0) {
       require (iKnown >= oKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${iKnown-oKnown} edges to resolve :=*${lazyModule.line}")
       (0, iKnown - oKnown)
-    } else {
+    } else if (iStars > 0) {
       require (oKnown >= iKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; cannot assign ${oKnown-iKnown} edges to resolve :*=${lazyModule.line}")
       (oKnown - iKnown, 0)
+    } else {
+      require (oKnown == iKnown, s"${name} (an adapter) has ${oKnown} outputs and ${iKnown} inputs; these do not match")
+      (0, 0)
     }
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
@@ -464,10 +446,9 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
 class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: D => D,
-  uFn: U => U,
-  num: Range.Inclusive = 0 to 999)(
+  uFn: U => U)(
   implicit valName: ValName)
-    extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, num)
+    extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
 
 // IdentityNodes automatically connect their inputs to outputs
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
@@ -486,39 +467,39 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   outer: OutwardNodeImp[DO, UO, EO, BO])(
   dFn: Seq[DI] => DO,
   uFn: Seq[UO] => UI,
-  numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)(
+  // no inputs and no outputs is always allowed
+  inputRequiresOutput: Boolean = true,
+  outputRequiresInput: Boolean = true)(
   implicit valName: ValName)
-  extends MixedNode(inner, outer)(numPO, numPI)
+  extends MixedNode(inner, outer)
 {
-//  require (numPO.end >= 1, s"${name} does not accept outputs${lazyModule.line}")
-//  require (numPI.end >= 1, s"${name} does not accept inputs${lazyModule.line}")
-
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iStars == 0, s"${name} (a nexus) appears left of :*= (perhaps you should flip the '*' to :=*?)${lazyModule.line}")
-    require (oStars == 0, s"${name} (a nexus) appears right of a :=* (perhaps you should flip the '*' to :*=?)${lazyModule.line}")
-    (0, 0)
+    // a nexus treats :=* as a weak pointer
+    require (!outputRequiresInput || oKnown == 0 || iStars + iKnown != 0, s"${name} (a nexus) has ${oKnown} required outputs and no possible inputs")
+    require (!inputRequiresOutput || iKnown == 0 || oStars + oKnown != 0, s"${name} (a nexus) has ${iKnown} required inputs and no possible outputs")
+    if (iKnown == 0 && oKnown == 0) (0, 0) else (1, 1)
   }
-  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = { val a = dFn(p); Seq.fill(n)(a) }
-  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = { val a = uFn(p); Seq.fill(n)(a) }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = { if (n > 0) { val a = dFn(p); Seq.fill(n)(a) } else Nil }
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = { if (n > 0) { val a = uFn(p); Seq.fill(n)(a) } else Nil }
 }
 
 class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: Seq[D] => D,
   uFn: Seq[U] => U,
-  numPO: Range.Inclusive = 1 to 999,
-  numPI: Range.Inclusive = 1 to 999)(
+  inputRequiresOutput: Boolean = true,
+  outputRequiresInput: Boolean = true)(
   implicit valName: ValName)
-    extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, numPO, numPI)
+    extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, inputRequiresOutput, outputRequiresInput)
 
 // There are no Mixed SourceNodes
 class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
-  extends MixedNode(imp, imp)(po.size to po.size, 0 to 0)
+  extends MixedNode(imp, imp)
 {
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars <= 1, s"${name} (a source) appears right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     require (iStars == 0, s"${name} (a source) cannot appear left of a :*=${lazyModule.line}")
     require (iKnown == 0, s"${name} (a source) cannot appear left of a :=${lazyModule.line}")
+    require (po.size == oKnown || oStars == 1, s"${name} (a source) has only ${oKnown} outputs connected out of ${po.size}")
     require (po.size >= oKnown, s"${name} (a source) has ${oKnown} outputs out of ${po.size}; cannot assign ${po.size - oKnown} edges to resolve :=*${lazyModule.line}")
     (0, po.size - oKnown)
   }
@@ -528,12 +509,13 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
 
 // There are no Mixed SinkNodes
 class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
-  extends MixedNode(imp, imp)(0 to 0, pi.size to pi.size)
+  extends MixedNode(imp, imp)
 {
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (iStars <= 1, s"${name} (a sink) appears left of a :*= ${iStars} times; at most once is allowed${lazyModule.line}")
     require (oStars == 0, s"${name} (a sink) cannot appear right of a :=*${lazyModule.line}")
     require (oKnown == 0, s"${name} (a sink) cannot appear right of a :=${lazyModule.line}")
+    require (pi.size == iKnown || iStars == 1, s"${name} (a sink) has only ${iKnown} inputs connected out of ${pi.size}")
     require (pi.size >= iKnown, s"${name} (a sink) has ${iKnown} inputs out of ${pi.size}; cannot assign ${pi.size - iKnown} edges to resolve :*=${lazyModule.line}")
     (pi.size - iKnown, 0)
   }
@@ -544,9 +526,7 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
 class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[diplomacy](
   node: NodeHandle [DI, UI, EI, BI, DO, UO, EO, BO], clone: CloneLazyModule)(
   implicit valName: ValName)
-  extends MixedNode(node.inner, node.outer)(
-    numPI = node.inward .uiParams.size to node.inward .uiParams.size,
-    numPO = node.outward.doParams.size to node.outward.doParams.size)
+  extends MixedNode(node.inner, node.outer)
 {
   // The devices connected to this test node must recreate these parameters:
   def iParams: Seq[DI] = node.inward .diParams
@@ -555,6 +535,8 @@ class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[di
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars <= 1, s"${name} (a test node) appears right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")
     require (iStars <= 1, s"${name} (a test node) appears left of a :*= ${iStars} times; at most once is allowed${lazyModule.line}")
+    require (node.inward .uiParams.size == iKnown || iStars == 1, s"${name} (a test node) has only ${iKnown} inputs connected out of ${node.inward.uiParams.size}")
+    require (node.outward.doParams.size == oKnown || oStars == 1, s"${name} (a test node) has only ${oKnown} outputs connected out of ${node.outward.doParams.size}")
     (node.inward.uiParams.size - iKnown, node.outward.doParams.size - oKnown)
   }
 

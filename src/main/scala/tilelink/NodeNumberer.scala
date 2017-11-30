@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-case class TLNodeNumbererNode(nodeAddressOffset: Option[Int] = None)(implicit valName: ValName) extends TLCustomNode(0 to 999, 0 to 999)
+case class TLNodeNumbererNode(nodeAddressOffset: Option[Int] = None)(implicit valName: ValName) extends TLCustomNode
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"${name} (a custom adapter) appears left of a :*= ${iStars} times and right of a :=* ${oStars} times; at most once is allowed${lazyModule.line}")

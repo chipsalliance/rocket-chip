@@ -23,19 +23,18 @@ case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valN
 case class IntSinkNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends SinkNode(IntImp)(portParams)
 case class IntAdapterNode(
   sourceFn: IntSourcePortParameters => IntSourcePortParameters = { s => s },
-  sinkFn:   IntSinkPortParameters   => IntSinkPortParameters   = { s => s },
-  num:      Range.Inclusive = 0 to 999)(
+  sinkFn:   IntSinkPortParameters   => IntSinkPortParameters   = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(IntImp)(sourceFn, sinkFn, num)
+  extends AdapterNode(IntImp)(sourceFn, sinkFn)
 case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)()
 
 case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
   sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
-  numSourcePorts: Range.Inclusive = 0 to 128,
-  numSinkPorts:   Range.Inclusive = 0 to 128)(
+  inputRequiresOutput: Boolean = true,
+  outputRequiresInput: Boolean = true)(
   implicit valName: ValName)
-  extends NexusNode(IntImp)(sourceFn, sinkFn, numSourcePorts, numSinkPorts)
+  extends NexusNode(IntImp)(sourceFn, sinkFn, inputRequiresOutput, outputRequiresInput)
 
 object IntSyncImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, SyncInterrupts]
 {

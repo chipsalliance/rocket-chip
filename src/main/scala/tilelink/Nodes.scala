@@ -49,26 +49,20 @@ case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valN
 
 case class TLAdapterNode(
   clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
-  managerFn: TLManagerPortParameters => TLManagerPortParameters = { s => s },
-  num:       Range.Inclusive = 0 to 999)(
+  managerFn: TLManagerPortParameters => TLManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLImp)(clientFn, managerFn, num)
+  extends AdapterNode(TLImp)(clientFn, managerFn)
 
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)()
 
 case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
-  managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters,
-  numClientPorts:  Range.Inclusive = 1 to 999,
-  numManagerPorts: Range.Inclusive = 1 to 999)(
+  managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters)(
   implicit valName: ValName)
-  extends NexusNode(TLImp)(clientFn, managerFn, numClientPorts, numManagerPorts)
+  extends NexusNode(TLImp)(clientFn, managerFn)
 
-abstract class TLCustomNode(
-  numClientPorts:  Range.Inclusive,
-  numManagerPorts: Range.Inclusive)(
-  implicit valName: ValName)
-  extends CustomNode(TLImp)(numClientPorts, numManagerPorts)
+abstract class TLCustomNode(implicit valName: ValName)
+  extends CustomNode(TLImp)
 
 // Asynchronous crossings
 
@@ -86,10 +80,9 @@ object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncMana
 
 case class TLAsyncAdapterNode(
   clientFn:  TLAsyncClientPortParameters  => TLAsyncClientPortParameters  = { s => s },
-  managerFn: TLAsyncManagerPortParameters => TLAsyncManagerPortParameters = { s => s },
-  num:       Range.Inclusive = 0 to 999)(
+  managerFn: TLAsyncManagerPortParameters => TLAsyncManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLAsyncImp)(clientFn, managerFn, num)
+  extends AdapterNode(TLAsyncImp)(clientFn, managerFn)
 
 case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)()
 
@@ -119,10 +112,9 @@ object TLRationalImp extends SimpleNodeImp[TLRationalClientPortParameters, TLRat
 
 case class TLRationalAdapterNode(
   clientFn:  TLRationalClientPortParameters  => TLRationalClientPortParameters  = { s => s },
-  managerFn: TLRationalManagerPortParameters => TLRationalManagerPortParameters = { s => s },
-  num:       Range.Inclusive = 0 to 999)(
+  managerFn: TLRationalManagerPortParameters => TLRationalManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLRationalImp)(clientFn, managerFn, num)
+  extends AdapterNode(TLRationalImp)(clientFn, managerFn)
 
 case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)()
 
