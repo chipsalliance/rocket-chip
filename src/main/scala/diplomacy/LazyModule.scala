@@ -59,7 +59,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     buf ++= "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:y=\"http://www.yworks.com/xml/graphml\">\n"
     buf ++= "  <key for=\"node\" id=\"n\" yfiles.type=\"nodegraphics\"/>\n"
     buf ++= "  <key for=\"edge\" id=\"e\" yfiles.type=\"edgegraphics\"/>\n"
-    buf ++= "  <key for=\"node\" id=\"d\" attr.name=\"NodeDebugString\" attr.type=\"string\"/>\n"
+    buf ++= "  <key for=\"node\" id=\"d\" attr.name=\"Description\" attr.type=\"string\"/>\n"
     buf ++= "  <graph id=\"G\" edgedefault=\"directed\">\n"
     nodesGraphML(buf, "    ")
     edgesGraphML(buf, "    ")
@@ -72,11 +72,13 @@ abstract class LazyModule()(implicit val p: Parameters)
 
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
-    buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${module.instanceName}</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${instanceName}</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""${pad}  <data key=\"d\">${moduleName} (${pathName})</data>\n"""
     buf ++= s"""${pad}  <graph id=\"${index}::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""${pad}    <node id=\"${index}::${n.index}\">\n"""
-      buf ++= s"""${pad}      <data key=\"d\"><y:ShapeNode><y:Shape type="ellipse"/></y:ShapeNode>${n.nodedebugstring}</data>\n"""
+      buf ++= s"""${pad}      <data key=\"e\"><y:ShapeNode><y:Shape type="Ellipse"/></y:ShapeNode></data>\n"""
+      buf ++= s"""${pad}      <data key=\"d\">${n.nodedebugstring}</data>\n"""
       buf ++= s"""${pad}    </node>\n"""
     }
     children.filter(!_.omitGraphML).foreach { _.nodesGraphML(buf, pad + "    ") }
