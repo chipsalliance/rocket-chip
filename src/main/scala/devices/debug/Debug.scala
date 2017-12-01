@@ -249,11 +249,11 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
   */
 
 // Local reg mapper function : Notify when written, but give the value as well.  
-object WNotify {
+object WNotifyWire {
   def apply(n: Int, value: UInt, set: Bool) : RegField = {
-    RegField(n, value, RegWriteFn((valid, data) => {
+    RegField(n, UInt(0), RegWriteFn((valid, data) => {
       set := valid
-      when(valid) {value := data}
+      value := data
       Bool(true)
     }))
   }
@@ -881,10 +881,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     tlNode.regmap(
       // This memory is writable.
-      HALTED      -> Seq(WNotify(sbIdWidth, hartHaltedId, hartHaltedWrEn)),
-      GOING       -> Seq(WNotify(sbIdWidth, hartGoingId,  hartGoingWrEn)),
-      RESUMING    -> Seq(WNotify(sbIdWidth, hartResumingId,  hartResumingWrEn)),
-      EXCEPTION   -> Seq(WNotify(sbIdWidth, hartExceptionId,  hartExceptionWrEn)),
+      HALTED      -> Seq(WNotifyWire(sbIdWidth, hartHaltedId, hartHaltedWrEn)),
+      GOING       -> Seq(WNotifyWire(sbIdWidth, hartGoingId,  hartGoingWrEn)),
+      RESUMING    -> Seq(WNotifyWire(sbIdWidth, hartResumingId,  hartResumingWrEn)),
+      EXCEPTION   -> Seq(WNotifyWire(sbIdWidth, hartExceptionId,  hartExceptionWrEn)),
       DATA        -> abstractDataMem.map(x => RegField(8, x)),
       PROGBUF(cfg)-> programBufferMem.map(x => RegField(8, x)),
 
