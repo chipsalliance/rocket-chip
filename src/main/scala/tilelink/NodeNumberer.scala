@@ -55,5 +55,9 @@ class TLNodeNumberer(nodeAddressOffset: Option[Int] = None)(implicit p: Paramete
 
 object TLNodeNumberer
 {
-  def apply(nodeAddressOffset: Option[Int] = None)(implicit p: Parameters): TLNode = LazyModule(new TLNodeNumberer(nodeAddressOffset)).node
+  def apply(nodeAddressOffset: Option[Int] = None)(implicit p: Parameters): TLNode =
+  {
+    val numberer = LazyModule(new TLNodeNumberer(nodeAddressOffset))
+    numberer.node
+  }
 }

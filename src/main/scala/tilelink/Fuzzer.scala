@@ -233,7 +233,10 @@ object TLFuzzer
     noModify: Boolean = false,
     overrideAddress: Option[AddressSet] = None,
     nOrdered: Option[Int] = None)(implicit p: Parameters): TLOutwardNode =
-    LazyModule(new TLFuzzer(nOperations, inFlight, noiseMaker, noModify, overrideAddress, nOrdered)).node
+  {
+    val fuzzer = LazyModule(new TLFuzzer(nOperations, inFlight, noiseMaker, noModify, overrideAddress, nOrdered))
+    fuzzer.node
+  }
 }
 
 /** Synthesizeable integration test */

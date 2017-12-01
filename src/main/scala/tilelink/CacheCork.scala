@@ -121,5 +121,9 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
 
 object TLCacheCork
 {
-  def apply(unsafe: Boolean = false)(implicit p: Parameters): TLNode = LazyModule(new TLCacheCork(unsafe)).node
+  def apply(unsafe: Boolean = false)(implicit p: Parameters): TLNode =
+  {
+    val cork = LazyModule(new TLCacheCork(unsafe))
+    cork.node
+  }
 }

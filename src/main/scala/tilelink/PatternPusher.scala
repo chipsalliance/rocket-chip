@@ -88,5 +88,8 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
 object TLPatternPusher
 {
   def apply(name: String, pattern: Seq[Pattern])(implicit p: Parameters): TLOutwardNode =
-    LazyModule(new TLPatternPusher(name, pattern)).node
+  {
+    val pusher = LazyModule(new TLPatternPusher(name, pattern))
+    pusher.node
+  }
 }

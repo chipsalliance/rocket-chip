@@ -266,7 +266,10 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 object TLAtomicAutomata
 {
   def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
-    LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough)).node
+  {
+    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
+    atomics.node
+  }
 
   case class CAMParams(a: TLBundleParameters, domainsNeedingHelp: Int)
 
@@ -318,5 +321,6 @@ class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule 
 }
 
 class TLRAMAtomicAutomataTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMAtomicAutomata(txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMAtomicAutomata(txns)).module)
+  io.finished := dut.io.finished
 }

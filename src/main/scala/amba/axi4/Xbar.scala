@@ -205,7 +205,11 @@ object AXI4Xbar
   def apply(
     arbitrationPolicy: TLArbiter.Policy = TLArbiter.roundRobin,
     maxFlightPerId:    Int = 7,
-    awQueueDepth:      Int = 2)(implicit p: Parameters) = LazyModule(new AXI4Xbar(arbitrationPolicy, maxFlightPerId, awQueueDepth)).node
+    awQueueDepth:      Int = 2)(implicit p: Parameters) =
+  {
+    val axi4xbar = LazyModule(new AXI4Xbar(arbitrationPolicy, maxFlightPerId, awQueueDepth))
+    axi4xbar.node
+  }
 
   def mapInputIds(ports: Seq[AXI4MasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endId)).map(_.get)
 

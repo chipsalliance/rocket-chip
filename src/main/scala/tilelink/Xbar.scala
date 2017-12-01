@@ -205,7 +205,10 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 object TLXbar
 {
   def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode =
-    LazyModule(new TLXbar(policy)).node
+  {
+    val xbar = LazyModule(new TLXbar(policy))
+    xbar.node
+  }
 
   def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId)).map(_.get)
   def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
@@ -267,7 +270,8 @@ class TLRAMXbar(nManagers: Int, txns: Int)(implicit p: Parameters) extends LazyM
 }
 
 class TLRAMXbarTest(nManagers: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMXbar(nManagers,txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMXbar(nManagers,txns)).module)
+  io.finished := dut.io.finished
 }
 
 class TLMulticlientXbar(nManagers: Int, nClients: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
@@ -290,5 +294,6 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int, txns: Int)(implicit p: Pa
 }
 
 class TLMulticlientXbarTest(nManagers: Int, nClients: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLMulticlientXbar(nManagers, nClients, txns)).module).io.finished
+  val dut = Module(LazyModule(new TLMulticlientXbar(nManagers, nClients, txns)).module)
+  io.finished := dut.io.finished
 }

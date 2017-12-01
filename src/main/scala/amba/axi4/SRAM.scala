@@ -99,5 +99,9 @@ object AXI4RAM
     beatBytes: Int = 4,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil)
-  (implicit p: Parameters) = LazyModule(new AXI4RAM(address, executable, beatBytes, devName, errors)).node
+  (implicit p: Parameters) =
+  {
+    val axi4ram = LazyModule(new AXI4RAM(address, executable, beatBytes, devName, errors))
+    axi4ram.node
+  }
 }

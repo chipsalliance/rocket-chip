@@ -184,7 +184,11 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
 
 object TLWidthWidget
 {
-  def apply(innerBeatBytes: Int)(implicit p: Parameters): TLNode = LazyModule(new TLWidthWidget(innerBeatBytes)).node
+  def apply(innerBeatBytes: Int)(implicit p: Parameters): TLNode =
+  {
+    val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
+    widget.node
+  }
 }
 
 /** Synthesizeable unit tests */
@@ -210,5 +214,6 @@ class TLRAMWidthWidget(first: Int, second: Int, txns: Int)(implicit p: Parameter
 }
 
 class TLRAMWidthWidgetTest(little: Int, big: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMWidthWidget(little,big,txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMWidthWidget(little,big,txns)).module)
+  io.finished := dut.io.finished
 }
