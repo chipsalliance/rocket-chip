@@ -22,9 +22,6 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
   private val master_buffer = LazyModule(new TLBuffer(params.masterBuffering))
   private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
 
-  master_buffer.suggestName(s"${busName}_master_TLBuffer")
-  master_fixer.suggestName(s"${busName}_master_TLFIFOFixer")
-
   master_fixer.node :=* master_buffer.node
   inwardNode :=* master_fixer.node
 
