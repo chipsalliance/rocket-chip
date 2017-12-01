@@ -51,20 +51,20 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   }
 
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
-    def sourceGen = LazyModule(new TLAsyncCrossingSource(sync))
-    def sinkGen = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    val source = if (out) this { sourceGen } else sourceGen
-    val sink = if (out) sinkGen else this { sinkGen }
+    lazy val asource = LazyModule(new TLAsyncCrossingSource(sync))
+    lazy val asink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+    val source = if (out) this { asource } else asource
+    val sink = if (out) asink else this { asink }
     sink.node :=? source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
   def crossTLRationalInOut(out: Boolean)(direction: RationalDirection)(implicit p: Parameters): TLNode = {
-    def sourceGen = LazyModule(new TLRationalCrossingSource)
-    def sinkGen = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
-    val source = if (out) this { sourceGen } else sourceGen
-    val sink = if (out) sinkGen else this { sinkGen }
+    lazy val rsource = LazyModule(new TLRationalCrossingSource)
+    lazy val rsink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
+    val source = if (out) this { rsource } else rsource
+    val sink = if (out) rsink else this { rsink }
     sink.node :=? source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
@@ -98,10 +98,10 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   }
 
   def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
-    def sourceGen = LazyModule(new AXI4AsyncCrossingSource(sync))
-    def sinkGen = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
-    val source = if (out) this { sourceGen } else sourceGen
-    val sink = if (out) sinkGen else this { sinkGen }
+    lazy val axi4asource = LazyModule(new AXI4AsyncCrossingSource(sync))
+    lazy val axi4asink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
+    val source = if (out) this { axi4asource } else axi4asource
+    val sink = if (out) axi4asink else this { axi4asink }
     sink.node :=? source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
@@ -127,30 +127,30 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   // Interrupts
 
   def crossIntSyncInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
-    def sourceGen = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
-    def sinkGen = LazyModule(new IntSyncCrossingSink(0))
-    val source = if (out) this { sourceGen } else sourceGen
-    val sink = if (out) sinkGen else this { sinkGen }
+    lazy val intssource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    lazy val intssink = LazyModule(new IntSyncCrossingSink(0))
+    val source = if (out) this { intssource } else intssource
+    val sink = if (out) intssink else this { intssink }
     sink.node :=? source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
   def crossIntAsyncInOut(out: Boolean)(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
-    def sourceGen = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
-    def sinkGen = LazyModule(new IntSyncCrossingSink(sync))
-    val source = if (out) this { sourceGen } else sourceGen
-    val sink = if (out) sinkGen else this { sinkGen }
+    lazy val intasource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    lazy val intasink = LazyModule(new IntSyncCrossingSink(sync))
+    val source = if (out) this { intasource } else intasource
+    val sink = if (out) intasink else this { intasink }
     sink.node :=? source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
   def crossIntRationalInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
-    def sourceGen = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
-    def sinkGen = LazyModule(new IntSyncCrossingSink(1))
-    val source = if (out) this { sourceGen } else sourceGen
-    val sink = if (out) sinkGen else this { sinkGen }
+    lazy val intrsource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    lazy val intrsink = LazyModule(new IntSyncCrossingSink(1))
+    val source = if (out) this { intrsource } else intrsource
+    val sink = if (out) intrsink else this { intrsink }
     sink.node :=? source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)

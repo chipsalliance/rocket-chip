@@ -33,7 +33,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends T
 
   val fromSystemBus: TLInwardNode = {
     val atomics = LazyModule(new TLAtomicAutomata(arithmetic = params.arithmetic))
-    inwardBufNode := atomics.node
+    xbar.node :*= TLBuffer(params.masterBuffering) :*= atomics.node
   }
 
   def toTile(name: Option[String] = None)(gen: Parameters => TLInwardNode) {
@@ -59,5 +59,5 @@ trait HasPeripheryBus extends HasSystemBus {
   val pbus = LazyModule(new PeripheryBus(pbusParams))
 
   // The peripheryBus hangs off of systemBus; here we convert TL-UH -> TL-UL
-  pbus.fromSystemBus := sbus.toPeripheryBus()
+  pbus.fromSystemBus :*= sbus.toPeripheryBus()
 }

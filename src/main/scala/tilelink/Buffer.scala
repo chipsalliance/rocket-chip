@@ -64,7 +64,11 @@ object TLBuffer
       b: BufferParams,
       c: BufferParams,
       d: BufferParams,
-      e: BufferParams)(implicit p: Parameters): TLNode = LazyModule(new TLBuffer(a, b, c, d, e)).node
+      e: BufferParams)(implicit p: Parameters): TLNode =
+  {
+    val buffer = LazyModule(new TLBuffer(a, b, c, d, e))
+    buffer.node
+  }
 
   def chain(depth: Int, name: Option[String] = None)(implicit p: Parameters): Seq[TLNode] = {
     val buffers = Seq.fill(depth) { LazyModule(new TLBuffer()) }

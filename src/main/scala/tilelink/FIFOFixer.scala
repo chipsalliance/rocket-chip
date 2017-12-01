@@ -113,5 +113,9 @@ object TLFIFOFixer
   val allFIFO:        Policy = m => m.fifoId.isDefined
   val allUncacheable: Policy = m => m.regionType <= UNCACHEABLE
 
-  def apply(policy: Policy = all)(implicit p: Parameters): TLNode = LazyModule(new TLFIFOFixer(policy)).node
+  def apply(policy: Policy = all)(implicit p: Parameters): TLNode =
+  {
+    val fixer = LazyModule(new TLFIFOFixer(policy))
+    fixer.node
+  }
 }

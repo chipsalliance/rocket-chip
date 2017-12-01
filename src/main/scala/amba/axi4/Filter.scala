@@ -58,5 +58,9 @@ object AXI4Filter
   def apply(
     Sfilter: AXI4SlaveParameters  => Option[AXI4SlaveParameters]   = AXI4Filter.Sidentity,
     Mfilter: AXI4MasterParameters => Option[AXI4MasterParameters]  = AXI4Filter.Midentity
-    )(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Filter(Sfilter, Mfilter)).node
+    )(implicit p: Parameters): AXI4Node =
+  {
+    val axi4filt = LazyModule(new AXI4Filter(Sfilter, Mfilter))
+    axi4filt.node
+  }
 }

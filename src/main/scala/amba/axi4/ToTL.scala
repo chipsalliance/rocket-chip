@@ -160,5 +160,9 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply()(implicit p: Parameters) = LazyModule(new AXI4ToTL).node
+  def apply()(implicit p: Parameters) =
+  {
+    val axi42tl = LazyModule(new AXI4ToTL)
+    axi42tl.node
+  }
 }

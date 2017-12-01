@@ -38,7 +38,7 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
 
   def fromCoherentChip: TLInwardNode = inwardNode
 
-  def toSystemBus : TLOutwardNode = outwardBufNode
+  def toSystemBus : TLOutwardNode = TLBuffer(params.slaveBuffering) :=* xbar.node
 
 }
 
@@ -51,5 +51,5 @@ trait HasFrontBus extends HasSystemBus {
 
   val fbus = LazyModule(new FrontBus(frontbusParams))
 
-  FlipRendering { implicit p => sbus.fromFrontBus := fbus.toSystemBus }
+  FlipRendering { implicit p => sbus.fromFrontBus :=* fbus.toSystemBus }
 }

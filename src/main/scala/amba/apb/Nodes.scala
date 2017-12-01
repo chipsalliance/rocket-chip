@@ -23,10 +23,8 @@ case class APBMasterNode(portParams: Seq[APBMasterPortParameters])(implicit valN
 case class APBSlaveNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends SinkNode(APBImp)(portParams)
 case class APBNexusNode(
   masterFn:       Seq[APBMasterPortParameters] => APBMasterPortParameters,
-  slaveFn:        Seq[APBSlavePortParameters]  => APBSlavePortParameters,
-  numMasterPorts: Range.Inclusive = 1 to 1,
-  numSlavePorts:  Range.Inclusive = 1 to 1)(
+  slaveFn:        Seq[APBSlavePortParameters]  => APBSlavePortParameters)(
   implicit valName: ValName)
-  extends NexusNode(APBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
+  extends NexusNode(APBImp)(masterFn, slaveFn)
 
 case class APBIdentityNode()(implicit valName: ValName) extends IdentityNode(APBImp)()

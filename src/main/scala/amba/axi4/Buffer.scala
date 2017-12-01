@@ -53,5 +53,9 @@ object AXI4Buffer
     w:  BufferParams,
     b:  BufferParams,
     ar: BufferParams,
-    r:  BufferParams)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Buffer(aw, w, b, ar, r)).node
+    r:  BufferParams)(implicit p: Parameters): AXI4Node =
+  {
+    val axi4buf = LazyModule(new AXI4Buffer(aw, w, b, ar, r))
+    axi4buf.node
+  }
 }

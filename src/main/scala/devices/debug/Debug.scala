@@ -279,11 +279,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   import DMI_RegAddrs._
 
   val intnode = IntNexusNode(
-    numSourcePorts = 1 to 1024,
-    numSinkPorts   = 0 to 0,
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
-    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) }
-  )
+    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false)
 
   val dmiNode = TLRegisterNode (
     address = AddressSet.misaligned(DMI_DMCONTROL << 2, 4),
@@ -293,6 +291,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   )
 
   lazy val module = new LazyModuleImp(this) {
+    require (intnode.edges.in.size == 0, "Debug Module does not accept interrupts")
 
     val nComponents = intnode.out.size
 

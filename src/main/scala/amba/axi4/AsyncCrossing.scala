@@ -43,12 +43,18 @@ class AXI4AsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameter
 
 object AXI4AsyncCrossingSource
 {
-  def apply(sync: Int = 3)(implicit p: Parameters) = LazyModule(new AXI4AsyncCrossingSource(sync)).node
+  def apply(sync: Int = 3)(implicit p: Parameters) = {
+    val axi4asource = LazyModule(new AXI4AsyncCrossingSource(sync))
+    axi4asource.node
+  }
 }
 
 object AXI4AsyncCrossingSink
 {
-  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) = LazyModule(new AXI4AsyncCrossingSink(depth, sync)).node
+  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) = {
+    val axi4asink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
+    axi4asink.node
+  }
 }
 
 @deprecated("AXI4AsyncCrossing is fragile. Use AXI4AsyncCrossingSource and AXI4AsyncCrossingSink", "rocket-chip 1.2")
@@ -99,5 +105,6 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
 }
 
 class AXI4RAMAsyncCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new AXI4RAMAsyncCrossing(txns)).module).io.finished
+  val dut = Module(LazyModule(new AXI4RAMAsyncCrossing(txns)).module)
+  io.finished := dut.io.finished
 }

@@ -37,14 +37,21 @@ class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends TLBusBypassBas
   }
 }
 
+class TLBypassNode(implicit valName: ValName) extends TLCustomNode
+{
+  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iStars == 0 && oStars == 0, "TLBypass node does not support :=* or :*=")
+    require (iKnown == 1, "TLBypass node expects exactly one input")
+    require (oKnown == 2, "TLBypass node expects exactly one output")
+    (0, 0)
+  }
+  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { p ++ p }
+  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { p.tail }
+}
+
 class TLBusBypassBar(implicit p: Parameters) extends LazyModule
 {
-  // The client only sees the second slave port
-  val node = TLNexusNode(
-    numClientPorts  = 2 to 2 ,
-    numManagerPorts = 1 to 1,
-    clientFn = { seq => seq(0) },
-    managerFn = { seq => seq(1) })
+  val node = new TLBypassNode()
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
