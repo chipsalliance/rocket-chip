@@ -55,7 +55,7 @@ trait HasCrossingMethods extends LazyModule with LazyScope
     lazy val asink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     val source = if (out) this { asource } else asource
     val sink = if (out) asink else this { asink }
-    sink.node :=? source.node
+    sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
@@ -65,7 +65,7 @@ trait HasCrossingMethods extends LazyModule with LazyScope
     lazy val rsink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
     val source = if (out) this { rsource } else rsource
     val sink = if (out) rsink else this { rsink }
-    sink.node :=? source.node
+    sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
@@ -102,7 +102,7 @@ trait HasCrossingMethods extends LazyModule with LazyScope
     lazy val axi4asink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
     val source = if (out) this { axi4asource } else axi4asource
     val sink = if (out) axi4asink else this { axi4asink }
-    sink.node :=? source.node
+    sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
@@ -131,7 +131,7 @@ trait HasCrossingMethods extends LazyModule with LazyScope
     lazy val intssink = LazyModule(new IntSyncCrossingSink(0))
     val source = if (out) this { intssource } else intssource
     val sink = if (out) intssink else this { intssink }
-    sink.node :=? source.node
+    sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
@@ -141,7 +141,7 @@ trait HasCrossingMethods extends LazyModule with LazyScope
     lazy val intasink = LazyModule(new IntSyncCrossingSink(sync))
     val source = if (out) this { intasource } else intasource
     val sink = if (out) intasink else this { intasink }
-    sink.node :=? source.node
+    sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
@@ -151,7 +151,7 @@ trait HasCrossingMethods extends LazyModule with LazyScope
     lazy val intrsink = LazyModule(new IntSyncCrossingSink(1))
     val source = if (out) this { intrsource } else intrsource
     val sink = if (out) intrsink else this { intrsink }
-    sink.node :=? source.node
+    sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }

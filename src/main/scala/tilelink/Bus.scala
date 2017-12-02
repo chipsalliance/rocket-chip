@@ -72,8 +72,8 @@ abstract class TLBusWrapper(params: TLBusParams, val busName: String)(implicit p
 
   def bufferToSlaves: TLOutwardNode = outwardBufNode 
 
-  def toSyncSlaves(name: Option[String] = None, addBuffers: Int = 0): TLOutwardNode = SinkCardinality { implicit p =>
-    TLBuffer.chain(addBuffers).foldRight(outwardBufNode)(_ :=? _)
+  def toSyncSlaves(name: Option[String] = None, addBuffers: Int = 0): TLOutwardNode = {
+    TLBuffer.chain(addBuffers).foldRight(outwardBufNode)(_ :*= _)
   }
 
   def toVariableWidthSlaves: TLOutwardNode = outwardFragNode

@@ -28,12 +28,12 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrap
   master_fixer.node :=* master_buffer.node
   inwardNode :=* master_fixer.node
 
-  def fromSyncPorts(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = SourceCardinality { implicit p =>
-    TLBuffer.chain(addBuffers).foldLeft(master_buffer.node:TLInwardNode)(_ :=? _)
+  def fromSyncPorts(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+    TLBuffer.chain(addBuffers).foldLeft(master_buffer.node:TLInwardNode)(_ :=* _)
   }
 
-  def fromSyncMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = SourceCardinality { implicit p =>
-    TLBuffer.chain(addBuffers).foldLeft(master_buffer.node:TLInwardNode)(_ :=? _)
+  def fromSyncMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
+    TLBuffer.chain(addBuffers).foldLeft(master_buffer.node:TLInwardNode)(_ :=* _)
   }
 
   def fromCoherentChip: TLInwardNode = inwardNode

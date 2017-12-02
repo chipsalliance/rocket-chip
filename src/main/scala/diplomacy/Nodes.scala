@@ -9,24 +9,6 @@ import freechips.rocketchip.util.HeterogeneousBag
 import scala.collection.mutable.ListBuffer
 import scala.util.matching._
 
-object CardinalityInferenceDirection {
-  val cases = Seq(SOURCE_TO_SINK, SINK_TO_SOURCE, NO_INFERENCE)
-  sealed trait T {
-    def flip = this match {
-      case SOURCE_TO_SINK => SINK_TO_SOURCE
-      case SINK_TO_SOURCE => SOURCE_TO_SINK
-      case NO_INFERENCE   => NO_INFERENCE
-    }
-  }
-
-  case object SOURCE_TO_SINK extends T
-  case object SINK_TO_SOURCE extends T
-  case object NO_INFERENCE   extends T
-}
-
-private case object CardinalityInferenceDirectionKey extends
-  Field[CardinalityInferenceDirection.T](CardinalityInferenceDirection.NO_INFERENCE)
-
 case object MonitorsEnabled extends Field[Boolean](true)
 case object RenderFlipped extends Field[Boolean](false)
 
@@ -113,6 +95,9 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] def gco: Option[BaseNode] // greatest common outer
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
+
+  protected[diplomacy] val sinkCard: Int
+  protected[diplomacy] val sourceCard: Int
 }
 
 object BaseNode
@@ -130,12 +115,12 @@ trait NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   override def :=  [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_ONCE);  NodeHandle(h, this) }
   override def :*= [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_STAR);  NodeHandle(h, this) }
   override def :=* [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_QUERY); NodeHandle(h, this) }
-  override def :=? [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, p(CardinalityInferenceDirectionKey)); NodeHandle(h, this) }
+  override def :*=*[DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_FLEX);  NodeHandle(h, this) }
   // connecting a full node with an output => an output
   override def :=  [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_ONCE);  this }
   override def :*= [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_STAR);  this }
   override def :=* [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_QUERY); this }
-  override def :=? [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, p(CardinalityInferenceDirectionKey)); this }
+  override def :*=*[EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_FLEX);  this }
 }
 
 object NodeHandle
@@ -164,27 +149,19 @@ trait InwardNodeHandle[DI, UI, EI, BI <: Data] extends NoHandle
   def :=  [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_ONCE);  h }
   def :*= [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_STAR);  h }
   def :=* [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_QUERY); h }
-  def :=? [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, p(CardinalityInferenceDirectionKey)); h }
+  def :*=*[DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_FLEX);  h }
   // connecting input node with output node => no node
   def :=  [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_ONCE);  NoHandleObject }
   def :*= [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_STAR);  NoHandleObject }
   def :=* [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_QUERY); NoHandleObject }
-  def :=? [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, p(CardinalityInferenceDirectionKey)); NoHandleObject }
+  def :*=*[EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_FLEX);  NoHandleObject }
 }
 
 sealed trait NodeBinding
 case object BIND_ONCE  extends NodeBinding
 case object BIND_QUERY extends NodeBinding
 case object BIND_STAR  extends NodeBinding
-
-object NodeBinding
-{
-  implicit def apply(card: CardinalityInferenceDirection.T): NodeBinding = card match {
-    case CardinalityInferenceDirection.SOURCE_TO_SINK => BIND_QUERY
-    case CardinalityInferenceDirection.SINK_TO_SOURCE => BIND_STAR
-    case CardinalityInferenceDirection.NO_INFERENCE   => BIND_ONCE
-  }
-}
+case object BIND_FLEX  extends NodeBinding
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 {
@@ -253,27 +230,51 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 
+  protected[diplomacy] lazy val sinkCard   = oBindings.count(_._3 == BIND_QUERY) + iBindings.count(_._3 == BIND_STAR)
+  protected[diplomacy] lazy val sourceCard = iBindings.count(_._3 == BIND_QUERY) + oBindings.count(_._3 == BIND_STAR)
+  protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
+    def DFS(v: BaseNode, visited: Set[BaseNode]): Set[BaseNode] = {
+      if (visited.contains(v)) {
+        visited
+      } else {
+        val flexes = oBindings.filter(_._3 == BIND_FLEX).map(_._2) ++ iBindings.filter(_._3 == BIND_FLEX).map(_._2)
+        flexes.foldLeft(visited + v)((sum, n) => DFS(n, sum))
+      }
+    }
+    val flexSet = DFS(this, Set())
+    val allSink   = flexSet.map(_.sinkCard).sum
+    val allSource = flexSet.map(_.sourceCard).sum
+    require (flexSet.size == 1 || allSink == 0 || allSource == 0,
+      s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have ${allSink} :*= operators and ${allSource} :=* operators connected to them, making it impossible to determine cardinality inference direction.")
+    allSink - allSource
+  }
+
   private var starCycleGuard = false
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
     try {
       if (starCycleGuard) throw StarCycleException()
-      val oStars = oBindings.filter { case (_,_,b,_,_) => b == BIND_STAR }.size
-      val iStars = iBindings.filter { case (_,_,b,_,_) => b == BIND_STAR }.size
+      starCycleGuard = true
+      val oStars = oBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset <  0) }
+      val iStars = iBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset >= 0) }
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
+        case BIND_FLEX  => { if (flexOffset < 0) 0 else n.iStar }
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
+        case BIND_FLEX  => { if (flexOffset >= 0) 0 else n.oStar }
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
+        case BIND_FLEX  => { if (flexOffset < 0) oStar else n.iStar }
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
+        case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
       val oTotal = oSum.lastOption.getOrElse(0)
@@ -385,6 +386,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     val o = y.oPushed
     y.oPush(i, x, binding match {
       case BIND_ONCE  => BIND_ONCE
+      case BIND_FLEX  => BIND_FLEX
       case BIND_STAR  => BIND_QUERY
       case BIND_QUERY => BIND_STAR })
     x.iPush(o, y, binding)
