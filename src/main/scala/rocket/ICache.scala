@@ -100,7 +100,7 @@ class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
 // get a tile-specific property without breaking deduplication
 object GetPropertyByHartId {
   def apply[T <: Data](tiles: Seq[RocketTileParams], f: RocketTileParams => Option[T], hartId: UInt): T = {
-    PriorityMux(tiles.zipWithIndex.collect { case (t, i) if f(t).nonEmpty => (hartId === i) -> f(t).get })
+    PriorityMux(tiles.collect { case t if f(t).isDefined => (t.hartid === hartId) -> f(t).get })
   }
 }
 
@@ -225,7 +225,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))
-    val wen = (refill_one_beat && !invalidated) || (s3_slaveValid && wordMatch(s1s3_slaveAddr) && lineInScratchpad(scratchpadLine(s1s3_slaveAddr)))
+    val wen = (refill_one_beat && !invalidated) || (s3_slaveValid && wordMatch(s1s3_slaveAddr))
     val mem_idx = Mux(refill_one_beat, (refill_idx << log2Ceil(refillCycles)) | refill_cnt,
                   Mux(s3_slaveValid, row(s1s3_slaveAddr),
                   Mux(s0_slaveValid, row(s0_slaveAddr),
@@ -294,9 +294,20 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
             val enable = scratchpadWayValid(scratchpadWay(a.address))
             when (!lineInScratchpad(scratchpadLine(a.address))) {
               scratchpadMax.get := scratchpadLine(a.address)
-              when (enable) { invalidate := true }
+              invalidate := true
             }
             scratchpadOn := enable
+
+            val itim_allocated = !scratchpadOn && enable
+            val itim_deallocated = scratchpadOn && !enable
+            val itim_increase = scratchpadOn && enable && scratchpadLine(a.address) > scratchpadMax.get
+            val refilling = refill_valid && refill_cnt > 0
+            ccover(itim_allocated, "ITIM_ALLOCATE", "ITIM allocated")
+            ccover(itim_allocated && refilling, "ITIM_ALLOCATE_WHILE_REFILL", "ITIM allocated while I$ refill")
+            ccover(itim_deallocated, "ITIM_DEALLOCATE", "ITIM deallocated")
+            ccover(itim_deallocated && refilling, "ITIM_DEALLOCATE_WHILE_REFILL", "ITIM deallocated while I$ refill")
+            ccover(itim_increase, "ITIM_SIZE_INCREASE", "ITIM size increased")
+            ccover(itim_increase && refilling, "ITIM_SIZE_INCREASE_WHILE_REFILL", "ITIM size increased while I$ refill")
           }
         }
 

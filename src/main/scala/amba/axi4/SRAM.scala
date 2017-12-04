@@ -90,3 +90,18 @@ class AXI4RAM(
     in.r.bits.last := Bool(true)
   }
 }
+
+object AXI4RAM
+{
+  def apply(
+    address: AddressSet,
+    executable: Boolean = true,
+    beatBytes: Int = 4,
+    devName: Option[String] = None,
+    errors: Seq[AddressSet] = Nil)
+  (implicit p: Parameters) =
+  {
+    val axi4ram = LazyModule(new AXI4RAM(address, executable, beatBytes, devName, errors))
+    axi4ram.node
+  }
+}

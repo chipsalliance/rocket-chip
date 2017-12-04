@@ -10,7 +10,7 @@ import scala.math.{min, max}
 import APBParameters._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
-  dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
+  dFn = { case TLClientPortParameters(clients, minLatency) =>
     val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath) }
     APBMasterPortParameters(masters)
   },
@@ -85,5 +85,9 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
 
 object TLToAPB
 {
-  def apply(aFlow: Boolean = true)(implicit p: Parameters) = LazyModule(new TLToAPB(aFlow)).node
+  def apply(aFlow: Boolean = true)(implicit p: Parameters) =
+  {
+    val tl2apb = LazyModule(new TLToAPB(aFlow))
+    tl2apb.node
+  }
 }

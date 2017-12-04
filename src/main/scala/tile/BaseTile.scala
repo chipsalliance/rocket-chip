@@ -23,6 +23,7 @@ trait TileParams {
   val btb: Option[BTBParams]
   val trace: Boolean
   val hartid: Int
+  val blockerCtrlAddr: Option[BigInt]
 }
 
 trait HasTileParameters {
@@ -85,7 +86,6 @@ trait HasTileLinkMasterPort {
   val module: HasTileLinkMasterPortModule
   val masterNode = TLIdentityNode()
   val tileBus = LazyModule(new TLXbar) // TileBus xbar for cache backends to connect to
-  masterNode := tileBus.node
 }
 
 trait HasTileLinkMasterPortBundle {

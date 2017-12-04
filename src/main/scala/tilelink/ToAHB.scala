@@ -11,7 +11,7 @@ import scala.math.{min, max}
 import AHBParameters._
 
 case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
-  dFn = { case TLClientPortParameters(clients, unsafeAtomics, minLatency) =>
+  dFn = { case TLClientPortParameters(clients, minLatency) =>
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
     AHBMasterPortParameters(masters)
   },
@@ -186,5 +186,9 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
 object TLToAHB
 {
-  def apply(aFlow: Boolean = true)(implicit p: Parameters) = LazyModule(new TLToAHB(aFlow)).node
+  def apply(aFlow: Boolean = true)(implicit p: Parameters) =
+  {
+    val tl2ahb = LazyModule(new TLToAHB(aFlow))
+    tl2ahb.node
+  }
 }

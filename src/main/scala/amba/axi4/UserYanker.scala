@@ -91,5 +91,9 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
 
 object AXI4UserYanker
 {
-  def apply(capMaxFlight: Option[Int] = None)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4UserYanker(capMaxFlight)).node
+  def apply(capMaxFlight: Option[Int] = None)(implicit p: Parameters): AXI4Node =
+  {
+    val axi4yank = LazyModule(new AXI4UserYanker(capMaxFlight))
+    axi4yank.node
+  }
 }

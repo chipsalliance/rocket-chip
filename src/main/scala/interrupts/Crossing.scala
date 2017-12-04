@@ -21,7 +21,11 @@ class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 
 object IntSyncCrossingSource
 {
-  def apply(alreadyRegistered: Boolean = false)(implicit p: Parameters) = LazyModule(new IntSyncCrossingSource(alreadyRegistered)).node
+  def apply(alreadyRegistered: Boolean = false)(implicit p: Parameters) =
+  {
+    val intsource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    intsource.node
+  }
 }
 
 
@@ -54,5 +58,9 @@ class IntSyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyMod
 
 object IntSyncCrossingSink
 {
-  def apply(sync: Int = 3)(implicit p: Parameters) = LazyModule(new IntSyncCrossingSink(sync)).node
+  def apply(sync: Int = 3)(implicit p: Parameters) =
+  {
+    val intsink = LazyModule(new IntSyncCrossingSink(sync))
+    intsink.node
+  }
 }

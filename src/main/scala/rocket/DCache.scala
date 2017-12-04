@@ -99,7 +99,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
-      val q = Module(new Queue(tl_out.c.bits, cacheDataBeats, flow = true))
+      val q = Module(new Queue(tl_out.c.bits.cloneType, cacheDataBeats, flow = true))
       tl_out.c <> q.io.deq
       (q.io.enq, q.io.count === 0)
     } else {
@@ -196,7 +196,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       val s1_tag = s1_paddr >> untagBits
       val s1_meta_hit_way = s1_meta_uncorrected.map(r => r.coh.isValid() && r.tag === s1_tag).asUInt
       val s1_meta_hit_state = ClientMetadata.onReset.fromBits(
-        s1_meta_uncorrected.map(r => Mux(r.tag === s1_tag, r.coh.asUInt, UInt(0)))
+        s1_meta_uncorrected.map(r => Mux(r.tag === s1_tag && !s1_flush_valid, r.coh.asUInt, UInt(0)))
         .reduce (_|_))
       (s1_meta_hit_way, s1_meta_hit_state, s1_meta, s1_meta_uncorrected(s1_victim_way))
     }
@@ -243,7 +243,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_probe_way = RegEnable(s1_hit_way, s1_probe)
   val s2_probe_state = RegEnable(s1_hit_state, s1_probe)
   val s2_hit_way = RegEnable(s1_hit_way, s1_valid_not_nacked)
-  val s2_hit_state = RegEnable(s1_hit_state, s1_valid_not_nacked)
+  val s2_hit_state = RegEnable(s1_hit_state, s1_valid_not_nacked || s1_flush_valid)
   val s2_waw_hazard = RegEnable(s1_waw_hazard, s1_valid_not_nacked)
   val s2_store_merge = Wire(Bool())
   val s2_hit_valid = s2_hit_state.isValid()
@@ -262,9 +262,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   val s2_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
-  val s2_victim_way = Mux(s2_hit_valid && !s2_flush_valid_pre_tag_ecc, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
+  val s2_victim_way = Mux(s2_hit_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
   val s2_victim_tag = Mux(s2_valid_data_error, s2_req.addr >> untagBits, RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
-  val s2_victim_state = Mux(s2_hit_valid && !s2_flush_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
+  val s2_victim_state = Mux(s2_hit_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
 
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
@@ -558,68 +558,69 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val newCoh = Wire(init = probeNewCoh)
   releaseWay := s2_probe_way
 
-  when (s2_victimize && s2_victim_dirty) {
-    assert(!(s2_valid && s2_hit_valid && !s2_data_error))
-    release_state := s_voluntary_writeback
-    probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << idxLSB
-  }
-  when (s2_probe) {
-    val probeNack = Wire(init = true.B)
-    when (s2_meta_error) {
-      release_state := s_probe_retry
-    }.elsewhen (s2_prb_ack_data) {
-      release_state := s_probe_rep_dirty
-    }.elsewhen (s2_probe_state.isValid()) {
+  if (!usingDataScratchpad) {
+    when (s2_victimize && s2_victim_dirty) {
+      assert(!(s2_valid && s2_hit_valid && !s2_data_error))
+      release_state := s_voluntary_writeback
+      probe_bits.address := Cat(s2_victim_tag, s2_req.addr(idxMSB, idxLSB)) << idxLSB
+    }
+    when (s2_probe) {
+      val probeNack = Wire(init = true.B)
+      when (s2_meta_error) {
+        release_state := s_probe_retry
+      }.elsewhen (s2_prb_ack_data) {
+        release_state := s_probe_rep_dirty
+      }.elsewhen (s2_probe_state.isValid()) {
+        tl_out_c.valid := true
+        tl_out_c.bits := cleanReleaseMessage
+        release_state := Mux(releaseDone, s_probe_write_meta, s_probe_rep_clean)
+      }.otherwise {
+        tl_out_c.valid := true
+        probeNack := !releaseDone
+        release_state := Mux(releaseDone, s_ready, s_probe_rep_miss)
+      }
+      when (probeNack) { s1_nack := true }
+    }
+    when (release_state === s_probe_retry) {
+      metaArb.io.in(6).valid := true
+      metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, probe_bits.address)
+      when (metaArb.io.in(6).ready) {
+        release_state := s_ready
+        s1_probe := true
+      }
+    }
+    when (release_state === s_probe_rep_miss) {
+      tl_out_c.valid := true
+      when (releaseDone) { release_state := s_ready }
+    }
+    when (release_state === s_probe_rep_clean) {
       tl_out_c.valid := true
       tl_out_c.bits := cleanReleaseMessage
-      release_state := Mux(releaseDone, s_probe_write_meta, s_probe_rep_clean)
-    }.otherwise {
-      tl_out_c.valid := true
-      probeNack := !releaseDone
-      release_state := Mux(releaseDone, s_ready, s_probe_rep_miss)
+      when (releaseDone) { release_state := s_probe_write_meta }
     }
-    when (probeNack) { s1_nack := true }
-  }
-  when (release_state === s_probe_retry) {
-    metaArb.io.in(6).valid := true
-    metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, probe_bits.address)
-    when (metaArb.io.in(6).ready) {
-      release_state := s_ready
-      s1_probe := true
+    when (release_state === s_probe_rep_dirty) {
+      tl_out_c.bits := dirtyReleaseMessage
+      when (releaseDone) { release_state := s_probe_write_meta }
     }
-  }
-  when (release_state === s_probe_rep_miss) {
-    tl_out_c.valid := true
-    when (releaseDone) { release_state := s_ready }
-  }
-  when (release_state === s_probe_rep_clean) {
-    tl_out_c.valid := true
-    tl_out_c.bits := cleanReleaseMessage
-    when (releaseDone) { release_state := s_probe_write_meta }
-  }
-  when (release_state === s_probe_rep_dirty) {
-    tl_out_c.bits := dirtyReleaseMessage
-    when (releaseDone) { release_state := s_probe_write_meta }
-  }
-  when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
-    if (edge.manager.anySupportAcquireT)
+    when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
       tl_out_c.bits := edge.Release(fromSource = 0.U,
                                     toAddress = 0.U,
                                     lgSize = lgCacheBlockBytes,
                                     shrinkPermissions = s2_shrink_param,
                                     data = 0.U)._2
-    newCoh := voluntaryNewCoh
-    releaseWay := s2_victim_way
-    when (releaseDone) { release_state := s_voluntary_write_meta }
-    when (tl_out_c.fire() && c_first) { release_ack_wait := true }
-  }
-  tl_out_c.bits.address := probe_bits.address
-  tl_out_c.bits.data := s2_data_corrected
-  tl_out_c.bits.error := inWriteback && {
-    val accrued = Reg(Bool())
-    val next = writeback_data_uncorrectable || (accrued && !c_first)
-    when (tl_out_c.fire()) { accrued := next }
-    next
+      newCoh := voluntaryNewCoh
+      releaseWay := s2_victim_way
+      when (releaseDone) { release_state := s_voluntary_write_meta }
+      when (tl_out_c.fire() && c_first) { release_ack_wait := true }
+    }
+    tl_out_c.bits.address := probe_bits.address
+    tl_out_c.bits.data := s2_data_corrected
+    tl_out_c.bits.error := inWriteback && {
+      val accrued = Reg(Bool())
+      val next = writeback_data_uncorrectable || (accrued && !c_first)
+      when (tl_out_c.fire()) { accrued := next }
+      next
+    }
   }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
@@ -711,6 +712,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       flushing := !release_ack_wait && !uncachedInFlight.asUInt.orR
     }
   }
+  ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
+  ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_data_error, "DATA_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in data array during cache flush")
   s1_flush_valid := metaArb.io.in(5).fire() && !s1_flush_valid && !s2_flush_valid_pre_tag_ecc && release_state === s_ready && !release_ack_wait
   metaArb.io.in(5).valid := flushing
   metaArb.io.in(5).bits.write := false

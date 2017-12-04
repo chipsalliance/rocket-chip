@@ -62,5 +62,8 @@ class TLErrorEvaluator(test: RequestPattern, testOn: Boolean, testOff: Boolean)(
 object TLErrorEvaluator
 {
   def apply(test: RequestPattern, testOn: Boolean = false, testOff: Boolean = false)(implicit p: Parameters): TLNode =
-    LazyModule(new TLErrorEvaluator(test, testOn, testOff)).node
+  {
+    val errors = LazyModule(new TLErrorEvaluator(test, testOn, testOff))
+    errors.node
+  }
 }

@@ -24,10 +24,8 @@ case class AHBMasterNode(portParams: Seq[AHBMasterPortParameters])(implicit valN
 case class AHBSlaveNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImp)(portParams)
 case class AHBNexusNode(
   masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
-  slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters,
-  numMasterPorts: Range.Inclusive = 1 to 999,
-  numSlavePorts:  Range.Inclusive = 1 to 999)(
+  slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(
   implicit valName: ValName)
-  extends NexusNode(AHBImp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
+  extends NexusNode(AHBImp)(masterFn, slaveFn)
 
 case class AHBIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImp)()

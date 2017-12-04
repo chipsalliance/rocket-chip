@@ -42,7 +42,7 @@ class TLFilter(
         require (m.supportsPutFull.contains(o.supportsPutFull))
         require (m.supportsPutPartial.contains(o.supportsPutPartial))
         require (m.supportsHint.contains(o.supportsHint))
-        require (m.fifoId == o.fifoId) // could relax this, but hard to validate
+        require (!o.fifoId.isDefined || m.fifoId == o.fifoId)
       }
       out
     })})
@@ -91,5 +91,9 @@ object TLFilter
   def apply(
     Mfilter: TLManagerParameters => Option[TLManagerParameters] = TLFilter.Midentity,
     Cfilter: TLClientParameters  => Option[TLClientParameters]  = TLFilter.Cidentity
-    )(implicit p: Parameters): TLNode = LazyModule(new TLFilter(Mfilter, Cfilter)).node
+    )(implicit p: Parameters): TLNode =
+  {
+    val filter = LazyModule(new TLFilter(Mfilter, Cfilter))
+    filter.node
+  }
 }

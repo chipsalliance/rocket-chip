@@ -75,5 +75,9 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 
 object AXI4IdIndexer
 {
-  def apply(idBits: Int)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4IdIndexer(idBits)).node
+  def apply(idBits: Int)(implicit p: Parameters): AXI4Node =
+  {
+    val axi4index = LazyModule(new AXI4IdIndexer(idBits))
+    axi4index.node
+  }
 }
