@@ -221,6 +221,24 @@ class TLFuzzer(
   }
 }
 
+object TLFuzzer
+{
+  def apply(
+    nOperations: Int,
+    inFlight: Int = 32,
+    noiseMaker: (Int, Bool, Int) => UInt = {
+      (wide: Int, increment: Bool, abs_values: Int) =>
+      LFSRNoiseMaker(wide=wide, increment=increment)
+    },
+    noModify: Boolean = false,
+    overrideAddress: Option[AddressSet] = None,
+    nOrdered: Option[Int] = None)(implicit p: Parameters): TLOutwardNode =
+  {
+    val fuzzer = LazyModule(new TLFuzzer(nOperations, inFlight, noiseMaker, noModify, overrideAddress, nOrdered))
+    fuzzer.node
+  }
+}
+
 /** Synthesizeable integration test */
 import freechips.rocketchip.unittest._
 

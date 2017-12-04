@@ -186,5 +186,9 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
 object TLToAHB
 {
-  def apply(aFlow: Boolean = true)(implicit p: Parameters) = LazyModule(new TLToAHB(aFlow)).node
+  def apply(aFlow: Boolean = true)(implicit p: Parameters) =
+  {
+    val tl2ahb = LazyModule(new TLToAHB(aFlow))
+    tl2ahb.node
+  }
 }

@@ -23,17 +23,14 @@ case class AXI4MasterNode(portParams: Seq[AXI4MasterPortParameters])(implicit va
 case class AXI4SlaveNode(portParams: Seq[AXI4SlavePortParameters])(implicit valName: ValName) extends SinkNode(AXI4Imp)(portParams)
 case class AXI4NexusNode(
   masterFn:       Seq[AXI4MasterPortParameters] => AXI4MasterPortParameters,
-  slaveFn:        Seq[AXI4SlavePortParameters]  => AXI4SlavePortParameters,
-  numMasterPorts: Range.Inclusive = 1 to 999,
-  numSlavePorts:  Range.Inclusive = 1 to 999)(
+  slaveFn:        Seq[AXI4SlavePortParameters]  => AXI4SlavePortParameters)(
   implicit valName: ValName)
-  extends NexusNode(AXI4Imp)(masterFn, slaveFn, numMasterPorts, numSlavePorts)
+  extends NexusNode(AXI4Imp)(masterFn, slaveFn)
 case class AXI4AdapterNode(
   masterFn:  AXI4MasterPortParameters => AXI4MasterPortParameters = { m => m },
-  slaveFn:   AXI4SlavePortParameters  => AXI4SlavePortParameters  = { s => s },
-  numPorts:  Range.Inclusive = 0 to 999)(
+  slaveFn:   AXI4SlavePortParameters  => AXI4SlavePortParameters  = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(AXI4Imp)(masterFn, slaveFn, numPorts)
+  extends AdapterNode(AXI4Imp)(masterFn, slaveFn)
 case class AXI4IdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4Imp)()
 
 object AXI4AsyncImp extends SimpleNodeImp[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncEdgeParameters, AXI4AsyncBundle]

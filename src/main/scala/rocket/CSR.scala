@@ -8,6 +8,7 @@ import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 import scala.collection.mutable.LinkedHashMap
 import Instructions._
 
@@ -532,6 +533,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
   val badaddr_value = Mux(write_badaddr, io.badaddr, 0.U)
 
+  val noCause :: mCause :: hCause :: sCause :: uCause :: Nil = Enum(5)
+  val xcause_dest = Wire(init = noCause)
+
   when (exception) {
     when (trapToDebug) {
       when (!reg_debug) {
@@ -544,6 +548,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }.elsewhen (delegate) {
       reg_sepc := formEPC(epc)
       reg_scause := cause
+      xcause_dest := sCause
       reg_sbadaddr := badaddr_value
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
@@ -552,12 +557,29 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }.otherwise {
       reg_mepc := formEPC(epc)
       reg_mcause := cause
+      xcause_dest := mCause
       reg_mbadaddr := badaddr_value
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
       new_prv := PRV.M
     }
+  }
+
+  for (
+    (cover_reg, cover_reg_label) <- List(
+      (mCause, "MCAUSE"),
+      (sCause, "SCAUSE")
+    );
+    (cover_cause_code, cover_cause_label) <- List(
+      (Causes.user_ecall, "ECALL_USER"),
+      (Causes.supervisor_ecall, "ECALL_SUPERVISOR"),
+      (Causes.hypervisor_ecall, "ECALL_HYPERVISOR"),
+      (Causes.machine_ecall, "ECALL_MACHINE")
+    )
+  ) {
+    cover((xcause_dest === cover_reg) && (cause === UInt(cover_cause_code)),
+          s"${cover_reg_label}_${cover_cause_label}")
   }
 
   when (insn_ret) {

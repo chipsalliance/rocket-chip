@@ -199,5 +199,9 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
 object AXI4Fragmenter
 {
-  def apply()(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Fragmenter).node
+  def apply()(implicit p: Parameters): AXI4Node =
+  {
+    val axi4frag = LazyModule(new AXI4Fragmenter)
+    axi4frag.node
+  }
 }

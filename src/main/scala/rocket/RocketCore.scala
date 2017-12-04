@@ -9,6 +9,7 @@ import chisel3.core.withReset
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
@@ -239,6 +240,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     (id_xcpt1.ae.inst, UInt(Causes.fetch_access)),
     (id_illegal_insn,  UInt(Causes.illegal_instruction))))
 
+  val idCoverCauses = List(
+    (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
+    (Causes.breakpoint, "BREAKPOINT"),
+    (Causes.fetch_page_fault, "FETCH_PAGE_FAULT"),
+    (Causes.fetch_access, "FETCH_ACCESS"),
+    (Causes.illegal_instruction, "ILLEGAL_INSTRUCTION")
+  )
+  coverExceptions(id_xcpt, id_cause, "DECODE", idCoverCauses)
+
   val dcache_bypass_data =
     if (fastLoadByte) io.dmem.resp.bits.data
     else if (fastLoadWord) io.dmem.resp.bits.data_word_bypass
@@ -357,6 +367,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val (ex_xcpt, ex_cause) = checkExceptions(List(
     (ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause)))
 
+  val exCoverCauses = idCoverCauses
+  coverExceptions(ex_xcpt, ex_cause, "EXECUTE", exCoverCauses)
+
   // memory stage
   val mem_pc_valid = mem_reg_valid || mem_reg_replay || mem_reg_xcpt_interrupt
   val mem_br_target = mem_reg_pc.asSInt +
@@ -423,6 +436,13 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
     (mem_reg_valid && mem_new_xcpt,          mem_new_cause)))
 
+  val memCoverCauses = (exCoverCauses ++ List(
+    (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
+    (Causes.breakpoint, "BREKPOINT"),
+    (Causes.misaligned_fetch, "MISALIGNED_FETCH")
+  )).distinct
+  coverExceptions(mem_xcpt, mem_cause, "MEMORY", memCoverCauses)
+
   val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
@@ -457,6 +477,16 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.st, UInt(Causes.store_access)),
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.ld, UInt(Causes.load_access))
   ))
+
+  val wbCoverCauses = List(
+    (Causes.misaligned_store, "MISALIGNED_STORE"),
+    (Causes.misaligned_load, "MISALIGNED_LOAD"),
+    (Causes.store_page_fault, "STORE_PAGE_FAULT"),
+    (Causes.load_page_fault, "LOAD_PAGE_FAULT"),
+    (Causes.store_access, "STORE_ACCESS"),
+    (Causes.load_access, "LOAD_ACCESS")
+  )
+  coverExceptions(wb_xcpt, wb_cause, "WRITEBACK", wbCoverCauses)
 
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
@@ -701,6 +731,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
+
+  def coverExceptions(exceptionValid: Bool, cause: UInt, labelPrefix: String, coverCausesLabels: Seq[(Int, String)]): Unit = {
+    for ((coverCause, label) <- coverCausesLabels) {
+      cover(exceptionValid && (cause === UInt(coverCause)), s"${labelPrefix}_${label}")
+    }
+  }
 
   def checkHazards(targets: Seq[(Bool, UInt)], cond: UInt => Bool) =
     targets.map(h => h._1 && cond(h._2)).reduce(_||_)

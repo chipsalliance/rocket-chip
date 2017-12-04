@@ -38,5 +38,9 @@ class TLMap(fn: AddressSet => BigInt)(implicit p: Parameters) extends LazyModule
 
 object TLMap
 {
-  def apply(fn: AddressSet => BigInt)(implicit p: Parameters): TLNode = LazyModule(new TLMap(fn)).node
+  def apply(fn: AddressSet => BigInt)(implicit p: Parameters): TLNode =
+  {
+    val map = LazyModule(new TLMap(fn))
+    map.node
+  }
 }

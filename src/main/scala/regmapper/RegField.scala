@@ -113,13 +113,15 @@ object RegField
   // than the intended bus width of the device (atomic updates are impossible).
   def bytes(reg: UInt, numBytes: Int): Seq[RegField] = {
     val pad = reg | UInt(0, width = 8*numBytes)
-    val bytes = Wire(init = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) })
+    val oldBytes = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
+    val newBytes = Wire(init = oldBytes)
     val valids = Wire(init = Vec.fill(numBytes) { Bool(false) })
-    when (valids.reduce(_ || _)) { reg := bytes.asUInt }
-    bytes.zipWithIndex.map { case (b, i) => RegField(8, b,
-      RegWriteFn((valid, data) => {
+    when (valids.reduce(_ || _)) { reg := newBytes.asUInt }
+    Seq.tabulate(numBytes) { i =>
+      RegField(8, oldBytes(i),
+        RegWriteFn((valid, data) => {
         valids(i) := valid
-        when (valid) { bytes(i) := data }
+        when (valid) { newBytes(i) := data }
         Bool(true)
       }))}}
 

@@ -294,7 +294,10 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 object TLFragmenter
 {
   def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None)(implicit p: Parameters): TLNode =
-    LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck)).node
+  {
+    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck))
+    fragmenter.node
+  }
 }
 
 /** Synthesizeable unit tests */
@@ -324,5 +327,6 @@ class TLRAMFragmenter(ramBeatBytes: Int, maxSize: Int, txns: Int)(implicit p: Pa
 }
 
 class TLRAMFragmenterTest(ramBeatBytes: Int, maxSize: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize,txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMFragmenter(ramBeatBytes,maxSize,txns)).module)
+  io.finished := dut.io.finished
 }
