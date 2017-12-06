@@ -74,5 +74,9 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
 
 object TLSourceShrinker
 {
-  def apply(maxInFlight: Int)(implicit p: Parameters): TLNode = LazyModule(new TLSourceShrinker(maxInFlight)).node
+  def apply(maxInFlight: Int)(implicit p: Parameters): TLNode =
+  {
+    val shrinker = LazyModule(new TLSourceShrinker(maxInFlight))
+    shrinker.node
+  }
 }

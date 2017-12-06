@@ -78,12 +78,20 @@ class TLRationalCrossingSink(direction: RationalDirection = Symmetric)(implicit 
 
 object TLRationalCrossingSource
 {
-  def apply()(implicit p: Parameters) = LazyModule(new TLRationalCrossingSource).node
+  def apply()(implicit p: Parameters) =
+  {
+    val rsource = LazyModule(new TLRationalCrossingSource)
+    rsource.node
+  }
 }
 
 object TLRationalCrossingSink
 {
-  def apply(direction: RationalDirection = Symmetric)(implicit p: Parameters) = LazyModule(new TLRationalCrossingSink(direction)).node
+  def apply(direction: RationalDirection = Symmetric)(implicit p: Parameters) =
+  {
+    val rsink = LazyModule(new TLRationalCrossingSink(direction))
+    rsink.node
+  }
 }
 
 @deprecated("TLRationalCrossing is fragile. Use TLRationalCrossingSource and TLRationalCrossingSink", "rocket-chip 1.2")
@@ -189,5 +197,6 @@ class TLRAMRationalCrossing(txns: Int)(implicit p: Parameters) extends LazyModul
 }
 
 class TLRAMRationalCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMRationalCrossing(txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMRationalCrossing(txns)).module)
+  io.finished := dut.io.finished
 }

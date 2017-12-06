@@ -92,7 +92,10 @@ class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = f
 object TLHintHandler
 {
   def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
-    LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough)).node
+  {
+    val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
+    hints.node
+  }
 }
 
 /** Synthesizeable unit tests */
@@ -119,5 +122,6 @@ class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
 }
 
 class TLRAMHintHandlerTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMHintHandler(txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMHintHandler(txns)).module)
+  io.finished := dut.io.finished
 }

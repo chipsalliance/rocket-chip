@@ -249,11 +249,11 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
   */
 
 // Local reg mapper function : Notify when written, but give the value as well.  
-object WNotify {
+object WNotifyWire {
   def apply(n: Int, value: UInt, set: Bool) : RegField = {
-    RegField(n, value, RegWriteFn((valid, data) => {
+    RegField(n, UInt(0), RegWriteFn((valid, data) => {
       set := valid
-      when(valid) {value := data}
+      value := data
       Bool(true)
     }))
   }
@@ -279,11 +279,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   import DMI_RegAddrs._
 
   val intnode = IntNexusNode(
-    numSourcePorts = 1 to 1024,
-    numSinkPorts   = 0 to 0,
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
-    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) }
-  )
+    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false)
 
   val dmiNode = TLRegisterNode (
     address = AddressSet.misaligned(DMI_DMCONTROL << 2, 4),
@@ -293,6 +291,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   )
 
   lazy val module = new LazyModuleImp(this) {
+    require (intnode.edges.in.size == 0, "Debug Module does not accept interrupts")
 
     val nComponents = intnode.out.size
 
@@ -881,10 +880,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 
     tlNode.regmap(
       // This memory is writable.
-      HALTED      -> Seq(WNotify(sbIdWidth, hartHaltedId, hartHaltedWrEn)),
-      GOING       -> Seq(WNotify(sbIdWidth, hartGoingId,  hartGoingWrEn)),
-      RESUMING    -> Seq(WNotify(sbIdWidth, hartResumingId,  hartResumingWrEn)),
-      EXCEPTION   -> Seq(WNotify(sbIdWidth, hartExceptionId,  hartExceptionWrEn)),
+      HALTED      -> Seq(WNotifyWire(sbIdWidth, hartHaltedId, hartHaltedWrEn)),
+      GOING       -> Seq(WNotifyWire(sbIdWidth, hartGoingId,  hartGoingWrEn)),
+      RESUMING    -> Seq(WNotifyWire(sbIdWidth, hartResumingId,  hartResumingWrEn)),
+      EXCEPTION   -> Seq(WNotifyWire(sbIdWidth, hartExceptionId,  hartExceptionWrEn)),
       DATA        -> abstractDataMem.map(x => RegField(8, x)),
       PROGBUF(cfg)-> programBufferMem.map(x => RegField(8, x)),
 

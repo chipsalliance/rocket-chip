@@ -99,5 +99,9 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
 object AXI4Deinterleaver
 {
-  def apply(maxReadBytes: Int)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Deinterleaver(maxReadBytes)).node
+  def apply(maxReadBytes: Int)(implicit p: Parameters): AXI4Node =
+  {
+    val axi4deint = LazyModule(new AXI4Deinterleaver(maxReadBytes))
+    axi4deint.node
+  }
 }

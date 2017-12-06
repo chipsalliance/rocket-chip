@@ -75,5 +75,6 @@ class TLRAMZeroDelay(ramBeatBytes: Int, txns: Int)(implicit p: Parameters) exten
 }
 
 class TLRAMZeroDelayTest(ramBeatBytes: Int, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMZeroDelay(ramBeatBytes, txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMZeroDelay(ramBeatBytes, txns)).module)
+  io.finished := dut.io.finished
 }

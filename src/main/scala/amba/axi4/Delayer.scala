@@ -79,5 +79,9 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
 
 object AXI4Delayer
 {
-  def apply(q: Double)(implicit p: Parameters): AXI4Node = LazyModule(new AXI4Delayer(q)).node
+  def apply(q: Double)(implicit p: Parameters): AXI4Node =
+  {
+    val axi4delay = LazyModule(new AXI4Delayer(q))
+    axi4delay.node
+  }
 }

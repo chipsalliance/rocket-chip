@@ -91,5 +91,9 @@ object TLFilter
   def apply(
     Mfilter: TLManagerParameters => Option[TLManagerParameters] = TLFilter.Midentity,
     Cfilter: TLClientParameters  => Option[TLClientParameters]  = TLFilter.Cidentity
-    )(implicit p: Parameters): TLNode = LazyModule(new TLFilter(Mfilter, Cfilter)).node
+    )(implicit p: Parameters): TLNode =
+  {
+    val filter = LazyModule(new TLFilter(Mfilter, Cfilter))
+    filter.node
+  }
 }

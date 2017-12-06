@@ -227,7 +227,10 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 object TLToAXI4
 {
   def apply(combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(implicit p: Parameters) =
-    LazyModule(new TLToAXI4(combinational, adapterName, stripBits)).node
+  {
+    val tl2axi4 = LazyModule(new TLToAXI4(combinational, adapterName, stripBits))
+    tl2axi4.node
+  }
 
   def sortByType(a: TLClientParameters, b: TLClientParameters): Boolean = {
     if ( a.supportsProbe && !b.supportsProbe) return false

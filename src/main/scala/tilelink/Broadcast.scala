@@ -205,6 +205,15 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
   }
 }
 
+object TLBroadcast
+{
+  def apply(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false)(implicit p: Parameters): TLNode =
+  {
+    val broadcast = LazyModule(new TLBroadcast(lineBytes, numTrackers, bufferless))
+    broadcast.node
+  }
+}
+
 class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferless: Boolean, edgeIn: TLEdgeIn, edgeOut: TLEdgeOut) extends Module
 {
   val io = new Bundle {

@@ -9,11 +9,9 @@ import freechips.rocketchip.diplomacy._
 case class SplitterArg[T](newSize: Int, ports: Seq[T])
 case class TLSplitterNode(
   clientFn:        SplitterArg[TLClientPortParameters]  => Seq[TLClientPortParameters],
-  managerFn:       SplitterArg[TLManagerPortParameters] => Seq[TLManagerPortParameters],
-  numClientPorts:  Range.Inclusive = 0 to 999,
-  numManagerPorts: Range.Inclusive = 0 to 999)(
+  managerFn:       SplitterArg[TLManagerPortParameters] => Seq[TLManagerPortParameters])(
   implicit valName: ValName)
-  extends TLCustomNode(numClientPorts, numManagerPorts)
+  extends TLCustomNode
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oKnown == 0, s"${name} (a splitter) appears right of a := or :*=; use a :=* instead${lazyModule.line}")
