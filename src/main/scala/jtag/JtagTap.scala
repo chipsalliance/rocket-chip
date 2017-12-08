@@ -111,6 +111,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     nextActiveInstruction := irChain.io.update.bits
     updateInstruction := true.B
   } .otherwise {
+    nextActiveInstruction := DontCare
     updateInstruction := false.B
   }
   io.output.instruction := activeInstruction
@@ -135,6 +136,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     tdo := irChain.io.chainOut.data
     tdo_driven := true.B
   } .otherwise {
+    tdo := DontCare
     tdo_driven := false.B
   }
 }
