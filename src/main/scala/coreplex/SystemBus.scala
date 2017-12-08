@@ -20,7 +20,6 @@ case object SystemBusKey extends Field[SystemBusParams]
 class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus") {
 
   private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
-  master_splitter.suggestName(s"${busName}_master_TLSplitter")
   inwardNode :=* master_splitter.node
   def busView = master_splitter.node.edges.in.head
 
@@ -29,11 +28,9 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
 
   private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  port_fixer.suggestName(s"${busName}_port_TLFIFOFixer")
   master_splitter.node :=* port_fixer.node
 
   private val pbus_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  pbus_fixer.suggestName(s"${busName}_pbus_TLFIFOFixer")
   pbus_fixer.node :*= outwardWWNode
 
   def toSplitSlaves: TLOutwardNode = outwardSplitNode
@@ -60,7 +57,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def fromSyncPorts(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
     val buffer = LazyModule(new TLBuffer(params))
-    name.foreach { n => buffer.suggestName(s"${busName}_${n}_TLBuffer") }
     port_fixer.node :=* buffer.node
     buffer.node
   }
