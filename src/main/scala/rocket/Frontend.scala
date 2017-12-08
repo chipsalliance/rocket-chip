@@ -207,6 +207,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         // a branch! Flush the BTB and the pipeline.
         btb.io.flush := true
         fq.io.enq.bits.replay := true
+        wrong_path := true
       }
 
       when (!prevTaken) {
