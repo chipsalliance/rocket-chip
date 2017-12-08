@@ -22,6 +22,7 @@ abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
       address            = params.address,
       resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHED,
+      executable         = true,
       supportsAcquireT   = xfer,
       supportsAcquireB   = xfer,
       supportsGet        = xfer,
