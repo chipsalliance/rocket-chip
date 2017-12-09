@@ -55,7 +55,12 @@ abstract class LazyModule()(implicit val p: Parameters)
   private def findValName =
     parent.flatMap(_.childNames.find(_._2 eq this)).map(_._1)
 
-  lazy val className = getClass.getName.split('.').last
+  private def findClassName(c: Class[_]): String = {
+    val n = c.getName.split('.').last
+    if (n.contains('$')) findClassName(c.getSuperclass) else n
+  }
+
+  lazy val className = findClassName(getClass)
   lazy val valName = suggestedName.orElse(findValName)
   lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
