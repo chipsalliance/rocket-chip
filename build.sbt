@@ -2,7 +2,10 @@
 
 import sbt.complete._
 import sbt.complete.DefaultParsers._
-import xerial.sbt.Pack._
+import xerial.sbt.pack._
+import sys.process._
+
+enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
   organization := "berkeley",
@@ -26,7 +29,7 @@ lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
 val setMake = NotSpace ~ ( Space ~> NotSpace )
 
-val chipSettings = packAutoSettings ++ Seq(
+val chipSettings = Seq(
   addons := {
     val a = sys.env.getOrElse("ROCKETCHIP_ADDONS", "")
     println(s"Using addons: $a")
@@ -38,6 +41,6 @@ val chipSettings = packAutoSettings ++ Seq(
     val jobs = java.lang.Runtime.getRuntime.availableProcessors
     val (makeDir, target) = setMake.parsed
     (run in Compile).evaluated
-    s"make -C $makeDir  -j $jobs $target" !
+    s"make -C $makeDir  -j $jobs $target".!
   }
 )
