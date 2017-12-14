@@ -230,6 +230,7 @@ class RocketTileWrapper(
   }
 
   val intXbar = LazyModule(new IntXbar)
+  val localIntNode = Some(intXbar.intnode)
   rocket.intNode := intXbar.intnode
 
   override lazy val module = new BaseTileModule(this, () => new RocketTileWrapperBundle(this)) {

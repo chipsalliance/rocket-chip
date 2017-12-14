@@ -5,7 +5,7 @@ package freechips.rocketchip.tile
 import Chisel._
 
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
@@ -23,6 +23,7 @@ trait HasExternalInterrupts extends HasTileParameters {
   val module: HasExternalInterruptsModule
 
   val intNode = IntSinkNode(IntSinkPortSimple())
+  val localIntNode: Option[IntInwardNode] = None
 
   // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the

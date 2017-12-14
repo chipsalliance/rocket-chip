@@ -6,6 +6,7 @@ import Chisel._
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -111,6 +112,7 @@ trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
 abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
     with HasTileParameters {
   def module: BaseTileModule[BaseTile, BaseTileBundle[BaseTile]]
+  val localIntNode: Option[IntInwardNode]
 }
 
 abstract class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)

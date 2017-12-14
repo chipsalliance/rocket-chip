@@ -5,11 +5,8 @@ package freechips.rocketchip.coreplex
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.tile.{BaseTile, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
-import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.util._
 
 /** BareCoreplex is the root class for creating a coreplex sub-system */
@@ -25,25 +22,6 @@ abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyMod
   ElaborationArtefacts.add("dts", outer.dts)
   ElaborationArtefacts.add("json", outer.json)
   println(outer.dts)
-}
-
-trait HasTiles extends HasSystemBus {
-  protected def tileParams: Seq[TileParams]
-  def nRocketTiles = tileParams.size
-  def hartIdList = tileParams.map(_.hartid)
-
-  // Handle interrupts to be routed directly into each tile
-  // TODO: figure out how to merge the localIntNodes and coreIntXbar
-  def localIntCounts = tileParams.map(_.core.nLocalInterrupts)
-  lazy val localIntNodes = tileParams.zipWithIndex map { case (t, i) => {
-    (t.core.nLocalInterrupts > 0).option({
-      val n = LazyModule(new IntXbar)
-      n.suggestName(s"localIntXbar_${i}")
-      n.intnode})
-  }
-  }
-
-  val tiles: Seq[BaseTile]
 }
 
 /** Base Coreplex class with no peripheral devices or ports added */
@@ -77,46 +55,6 @@ abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
         resource.bind(value)
       }
     }
-  }
-}
-
-class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
-    with HasExternallyDrivenTileConstants
-    with Clocked
-
-trait HasTilesBundle {
-  val tile_inputs: Vec[ClockedTileInputs]
-}
-
-trait HasTilesModuleImp extends LazyModuleImp
-    with HasTilesBundle
-    with HasResetVectorWire {
-  val outer: HasTiles
-
-  def resetVectorBits: Int = {
-    // Consider using the minimum over all widths, rather than enforcing homogeneity
-    val vectors = outer.tiles.map(_.module.io.reset_vector)
-    require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
-    vectors.head.getWidth
-  }
-  val tile_inputs = Wire(Vec(outer.nRocketTiles, new ClockedTileInputs()(p.alterPartial {
-    case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
-  })))
-
-  // Unconditionally wire up the non-diplomatic tile inputs
-  outer.tiles.map(_.module).zip(tile_inputs).foreach { case(tile, wire) =>
-    tile.clock := wire.clock
-    tile.reset := wire.reset
-    tile.io.hartid := wire.hartid
-    tile.io.reset_vector := wire.reset_vector
-  }
-
-  // Default values for tile inputs; may be overriden in other traits
-  tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
-    wire.clock := clock
-    wire.reset := reset
-    wire.hartid := UInt(i)
-    wire.reset_vector := global_reset_vector
   }
 }
 

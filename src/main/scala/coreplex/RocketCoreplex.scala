@@ -67,19 +67,19 @@ trait HasRocketTiles extends HasTiles
     with HasPeripheryDebug {
   val module: HasRocketTilesModuleImp
 
-  protected val tileParams = p(RocketTilesKey)
-  private val NumRocketTiles = tileParams.size
+  protected val rocketTileParams = p(RocketTilesKey)
+  private val NumRocketTiles = rocketTileParams.size
   private val crossingParams = p(RocketCrossingKey)
   private val crossings = crossingParams.size match {
     case 1 => List.fill(NumRocketTiles) { crossingParams.head }
     case NumRocketTiles => crossingParams
     case _ => throw new Exception("RocketCrossingKey.size must == 1 or == RocketTilesKey.size")
   }
-  private val crossingTuples = localIntNodes.zip(tileParams).zip(crossings)
+  private val crossingTuples = rocketTileParams.zip(crossings)
 
   // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
   // according to the specified type of clock crossing.
-  val tiles: Seq[BaseTile] = crossingTuples.map { case ((lip, tp), crossing) =>
+  val rocketTiles = crossingTuples.map { case (tp, crossing) =>
     // For legacy reasons, it is convenient to store some state
     // in the global Parameters about the specific tile being built now
     val wrapper = LazyModule(new RocketTileWrapper(
@@ -109,18 +109,20 @@ trait HasRocketTiles extends HasTiles
     // NOTE: The order of calls to := matters! They must match how interrupts
     //       are decoded from rocket.intNode inside the tile.
 
-    wrapper.intXbar.intnode := wrapper { IntSyncCrossingSink(3) } := debug.intnode // 1. always async crossign
+    // 1. always async crossing for debug
+    wrapper.intXbar.intnode := wrapper { IntSyncCrossingSink(3) } := debug.intnode
 
-    // 2. clint+plic conditionak crossing
+    // 2. clint+plic conditionally crossing
     val periphIntNode = wrapper.intXbar.intnode :=* wrapper.crossIntIn
     periphIntNode := clint.intnode                   // msip+mtip
     periphIntNode := plic.intnode                    // meip
     if (tp.core.useVM) periphIntNode := plic.intnode // seip
 
-    lip.foreach { wrapper.intXbar.intnode := _ } // 3. lip never crosses
+    // 3. local interrupts  never cross 
+    // this.localIntNode is wired up externally      // lip
 
-    // From core to PLIC
-    wrapper.rocket.intOutputNode.foreach { i =>              // 4. conditional crossing
+    // 4. conditional crossing from core to PLIC
+    wrapper.rocket.intOutputNode.foreach { i =>
       FlipRendering { implicit p =>
         plic.intnode :=* wrapper.crossIntOut :=* i
       }
@@ -137,8 +139,17 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
 
 class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
     with HasRocketTiles {
+  val tiles = rocketTiles
+  def tileParams = rocketTiles.map(_.tileParams)
   override lazy val module = new RocketCoreplexModule(this)
 }
 
 class RocketCoreplexModule[+L <: RocketCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
-    with HasRocketTilesModuleImp
+    with HasRocketTilesModuleImp {
+  tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
+    wire.clock := clock
+    wire.reset := reset
+    wire.hartid := UInt(i)
+    wire.reset_vector := global_reset_vector
+  }
+}
