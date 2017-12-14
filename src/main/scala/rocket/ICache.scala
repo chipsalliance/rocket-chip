@@ -180,6 +180,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   when (refill_done) {
     val enc_tag = tECC.encode(Cat(tl_out.d.bits.error, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
+
+    ccover(tl_out.d.bits.error, "D_ERROR", "I$ D-channel error")
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
