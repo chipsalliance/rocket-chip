@@ -180,6 +180,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   when (refill_done) {
     val enc_tag = tECC.encode(Cat(tl_out.d.bits.error, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
+
+    ccover(tl_out.d.bits.error, "D_ERROR", "I$ D-channel error")
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
@@ -411,8 +413,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val mem_active_valid = Seq(CoverBoolean(s2_valid, Seq("mem_active")))
   val data_error = Seq(
     CoverBoolean(!s2_data_decoded.correctable && !s2_data_decoded.uncorrectable, Seq("no_data_error")),
-    CoverBoolean(s2_data_decoded.correctable, Seq("correctable_bit_error")),
-    CoverBoolean(s2_data_decoded.uncorrectable, Seq("uncorrectable_bit_error")))
+    CoverBoolean(s2_data_decoded.correctable, Seq("data_correctable_error")),
+    CoverBoolean(s2_data_decoded.uncorrectable, Seq("data_uncorrectable_error")))
   val request_source = Seq(
     CoverBoolean(!s2_slaveValid, Seq("from_CPU")),
     CoverBoolean(s2_slaveValid, Seq("from_TL"))
@@ -431,8 +433,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     Seq(
       // tag error cannot occur in ITIM mode
       Seq("tag_error", "ITIM_mode"),
-      // tag is only parity check
-      Seq("tag_error", "uncorrectable_bit_error"),
       // Can only respond to TL in ITIM mode
       Seq("from_TL", "cache_mode")
     ),

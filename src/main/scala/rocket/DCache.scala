@@ -803,8 +803,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   if (usingDataScratchpad) {
     val data_error_cover = Seq(
       CoverBoolean(!data_error, Seq("no_data_error")),
-      CoverBoolean(data_error && !data_error_uncorrectable, Seq("correctable_data_error")),
-      CoverBoolean(data_error && data_error_uncorrectable, Seq("uncorrectable_data_error")))
+      CoverBoolean(data_error && !data_error_uncorrectable, Seq("data_correctable_error")),
+      CoverBoolean(data_error && data_error_uncorrectable, Seq("data_uncorrectable_error")))
     val request_source = Seq(
       CoverBoolean(s2_isSlavePortAccess, Seq("from_TL")),
       CoverBoolean(!s2_isSlavePortAccess, Seq("from_CPU")))
@@ -815,11 +815,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       "MemorySystem;;Scratchpad Memory Bit Flip Cross Covers"))
   } else {
 
-    val data_error_cover = Seq(CoverBoolean(s2_valid_data_error, Seq("data_error")))
-
     val data_error_type = Seq(
-      CoverBoolean(!s2_data_error_uncorrectable, Seq("correctable")),
-      CoverBoolean(s2_data_error_uncorrectable, Seq("uncorrectable")))
+      CoverBoolean(!s2_valid_data_error, Seq("no_data_error")),
+      CoverBoolean(s2_valid_data_error && !s2_data_error_uncorrectable, Seq("data_correctable_error")),
+      CoverBoolean(s2_valid_data_error && s2_data_error_uncorrectable, Seq("data_uncorrectable_error")))
     val data_error_dirty = Seq(
       CoverBoolean(!s2_victim_dirty, Seq("data_clean")),
       CoverBoolean(s2_victim_dirty, Seq("data_dirty")))
@@ -832,10 +831,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       }
     val tag_error_cover = Seq(
       CoverBoolean( !metaArb.io.in(1).valid, Seq("no_tag_error")),
-      CoverBoolean( metaArb.io.in(1).valid && !s2_meta_error_uncorrectable, Seq("correctable_tag_error")),
-      CoverBoolean( metaArb.io.in(1).valid && s2_meta_error_uncorrectable, Seq("uncorrectable_tag_error")))
+      CoverBoolean( metaArb.io.in(1).valid && !s2_meta_error_uncorrectable, Seq("tag_correctable_error")),
+      CoverBoolean( metaArb.io.in(1).valid && s2_meta_error_uncorrectable, Seq("tag_uncorrectable_error")))
     cover(new CrossProperty(
-      Seq(data_error_cover, data_error_type, data_error_dirty, request_source, tag_error_cover),
+      Seq(data_error_type, data_error_dirty, request_source, tag_error_cover),
       Seq(),
       "MemorySystem;;Cache Memory Bit Flip Cross Covers"))
   }
