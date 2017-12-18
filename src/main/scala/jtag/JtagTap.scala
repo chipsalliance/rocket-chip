@@ -4,7 +4,10 @@ package freechips.rocketchip.jtag
 
 import scala.collection.SortedMap
 
-import chisel3._
+// !!! See Issue #1160.
+// import chisel3._
+import Chisel._
+import chisel3.core.{Input, Output}
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
 
@@ -111,7 +114,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     nextActiveInstruction := irChain.io.update.bits
     updateInstruction := true.B
   } .otherwise {
-    nextActiveInstruction := DontCare
+    //!!! Needed when using chisel3._ (See #1160)
+    // nextActiveInstruction := DontCare
     updateInstruction := false.B
   }
   io.output.instruction := activeInstruction
@@ -136,7 +140,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     tdo := irChain.io.chainOut.data
     tdo_driven := true.B
   } .otherwise {
-    tdo := DontCare
+    //!!! Needed when using chisel3._ (See #1160)
+    //tdo := DontCare
     tdo_driven := false.B
   }
 }
@@ -247,8 +252,8 @@ object JtagTapGenerator {
     chainToSelect.map(mapInSelect)
 
     controllerInternal.io.jtag <> internalIo.jtag
-    controllerInternal.io.control <> internalIo.control
-    controllerInternal.io.output <> internalIo.output
+    internalIo.control <> controllerInternal.io.control
+    internalIo.output <> controllerInternal.io.output
 
     internalIo
   }
