@@ -149,7 +149,6 @@ object LazyModule
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
     scope = bc.parent
     bc.info = sourceInfo
-    if (!bc.suggestedName.isDefined) bc.suggestName(valName.name)
     bc
   }
 }
