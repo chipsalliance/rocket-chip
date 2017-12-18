@@ -140,7 +140,6 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
 class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
     with HasRocketTiles {
   val tiles = rocketTiles
-  def tileParams = rocketTiles.map(_.tileParams)
   override lazy val module = new RocketCoreplexModule(this)
 }
 

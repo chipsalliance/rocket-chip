@@ -15,7 +15,7 @@ class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
 
 trait HasTiles extends HasSystemBus {
   val tiles: Seq[BaseTile]
-  protected def tileParams: Seq[TileParams]
+  protected def tileParams: Seq[TileParams] = tiles.map(_.tileParams)
   def nTiles: Int = tileParams.size
   def hartIdList: Seq[Int] = tileParams.map(_.hartid)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
