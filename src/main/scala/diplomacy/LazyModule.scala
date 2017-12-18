@@ -141,7 +141,7 @@ object LazyModule
   protected[diplomacy] var scope: Option[LazyModule] = None
   private var index = 0
 
-  def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
+  def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
@@ -149,6 +149,7 @@ object LazyModule
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
     scope = bc.parent
     bc.info = sourceInfo
+    if (!bc.suggestedName.isDefined) bc.suggestName(valName.name)
     bc
   }
 }
