@@ -177,11 +177,12 @@ done_processing:
     tfp->open("");
   }
 #endif
+  dtm = new dtm_t(to_dtm);
+
   if (jtag_vpi_enable) {
     jtag = new remote_bitbang_t(0);
-  } else {
-    dtm = new dtm_t(to_dtm);
   }
+
   signal(SIGTERM, handle_sigterm);
 
   bool dump;
@@ -194,19 +195,19 @@ done_processing:
     dump = tfp && trace_count >= start;
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
-#endif    
+#endif
     tile->clock = 1;
     tile->eval();
 #if VM_TRACE
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
-#endif   
+#endif
     trace_count ++;
   }
   tile->reset = 0;
   done_reset = true;
 
-  while ((dtm && !dtm->done()) && (jtag || !jtag->done()) &&
+  while (!dtm->done() && (jtag || !jtag->done()) &&
          !tile->io_success && trace_count < max_cycles) {
     tile->clock = 0;
     tile->eval();
@@ -232,7 +233,7 @@ done_processing:
     fclose(vcdfile);
 #endif
 
-  if (dtm && dtm->exit_code())
+  if (dtm->exit_code())
   {
     fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
     ret = dtm->exit_code();

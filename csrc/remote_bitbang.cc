@@ -28,7 +28,7 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
             strerror(errno), errno);
     abort();
   }
-  
+
   fcntl(socket_fd, F_SETFL, O_NONBLOCK);
   int reuseaddr = 1;
   if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
@@ -37,25 +37,25 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
             strerror(errno), errno);
     abort();
   }
-  
+
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(port);
-  
+
   if (bind(socket_fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
     fprintf(stderr, "remote_bitbang failed to bind socket: %s (%d)\n",
             strerror(errno), errno);
     abort();
   }
-  
+
   if (listen(socket_fd, 1) == -1) {
     fprintf(stderr, "remote_bitbang failed to listen on socket: %s (%d)\n",
             strerror(errno), errno);
     abort();
   }
-  
+
   socklen_t addrlen = sizeof(addr);
   if (getsockname(socket_fd, (struct sockaddr *) &addr, &addrlen) == -1) {
     fprintf(stderr, "remote_bitbang getsockname failed: %s (%d)\n",
@@ -68,7 +68,7 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
   tdi = 1;
   trstn = 1;
   quit = 0;
-  
+
   printf("Listening on port %d\n",
          ntohs(addr.sin_port));
   fflush(stdout);
@@ -112,11 +112,11 @@ void remote_bitbang_t::tick(
   } else {
     this->accept();
   }
-  
+
   * jtag_tck = tck;
   * jtag_tms = tms;
   * jtag_tdi = tdi;
-  * jtag_trstn = trstn;  
+  * jtag_trstn = trstn;
 
 }
 
@@ -153,13 +153,13 @@ void remote_bitbang_t::execute_command()
       again = 0;
     }
   }
-  
+
   fprintf(stderr, "Received a command %c\n", command);
-  
+
   int dosend = 0;
-  
+
   char tosend = '?';
-  
+
   switch (command) {
   case 'B': /* fprintf(stderr, "*BLINK*\n"); */ break;
   case 'b': /* fprintf(stderr, "_______\n"); */ break;
@@ -191,7 +191,7 @@ void remote_bitbang_t::execute_command()
       }
     }
   }
-  
+
   if (quit) {
     // The remote disconnected.
     fprintf(stderr, "Remote end disconnected\n");

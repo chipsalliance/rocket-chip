@@ -24,9 +24,9 @@ extern "C" int jtag_tick
     // TODO: Pass in real port number
     jtag = new remote_bitbang_t(0);
   }
-  
+
   jtag->tick(jtag_TCK, jtag_TMS, jtag_TDI, jtag_TRSTn, jtag_TDO);
-  
+
   return jtag->done() ? (jtag->exit_code() << 1 | 1) : 0;
 
 }
