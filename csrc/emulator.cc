@@ -220,6 +220,9 @@ done_processing:
   jtag = new remote_bitbang_t(0);
   dtm = new dtm_t(htif_argc, htif_argv);
 
+  jtag = new remote_bitbang_t(0);
+  dtm = new dtm_t(to_dtm);
+
   signal(SIGTERM, handle_sigterm);
 
   bool dump;
@@ -232,13 +235,13 @@ done_processing:
     dump = tfp && trace_count >= start;
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
-#endif    
+#endif
     tile->clock = 1;
     tile->eval();
 #if VM_TRACE
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
-#endif   
+#endif
     trace_count ++;
   }
   tile->reset = 0;
