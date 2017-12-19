@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
