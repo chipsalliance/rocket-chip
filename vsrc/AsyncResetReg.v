@@ -44,26 +44,30 @@ module AsyncResetReg (
 
                       input      clk,
                       input      rst);
-
-
-`ifdef RANDOMIZE
-   integer                       initvar;
-   reg [31:0]                    _RAND;
+   
    initial begin
-`ifndef verilator
-      #0.002 begin end
+`ifdef RANDOMIZE
+      integer                       initvar;
+      reg [31:0]                    _RAND;
 `endif
-`ifdef RANDOMIZE_REG_INIT
-      _RAND = {1{$random}};
       if (rst) begin
-         q = 1'b0;
+`ifdef verilator
+      q = 1'b0;
+`endif
+      end 
+`ifdef RANDOMIZE
+ `ifndef verilator
+ `endif
+ `ifdef RANDOMIZE_REG_INIT
+      _RAND = {1{$random}};
       else begin
+         #0.002 begin end
          q = _RAND[0];
       end
-`endif
+ `endif
+`endif //  `ifdef RANDOMIZE   
    end
-`endif //  `ifdef RANDOMIZE
-
+   
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
