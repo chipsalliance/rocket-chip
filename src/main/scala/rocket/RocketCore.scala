@@ -438,7 +438,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val memCoverCauses = (exCoverCauses ++ List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
-    (Causes.breakpoint, "BREKPOINT"),
+    (Causes.breakpoint, "BREAKPOINT"),
     (Causes.misaligned_fetch, "MISALIGNED_FETCH")
   )).distinct
   coverExceptions(mem_xcpt, mem_cause, "MEMORY", memCoverCauses)

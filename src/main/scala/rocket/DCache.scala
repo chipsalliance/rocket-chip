@@ -654,9 +654,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (s2_read) { io.cpu.s2_xcpt.ae.ld := true }
   }
 
+  val s2_isSlavePortAccess = s2_req.phys
   if (usingDataScratchpad) {
     require(!usingVM) // therefore, req.phys means this is a slave-port access
-    val s2_isSlavePortAccess = s2_req.phys
     when (s2_isSlavePortAccess) {
       assert(!s2_valid || s2_hit_valid)
       io.cpu.s2_xcpt := 0.U.asTypeOf(io.cpu.s2_xcpt)
@@ -699,7 +699,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s2_correct) { pstore1_storegen_data := s2_data_word_corrected }
 
   // flushes
-  val resetting = Reg(init=Bool(true))
+  val resetting = Reg(init=Bool(!usingDataScratchpad))
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
@@ -720,8 +720,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, flushCounter(idxBits-1, 0) << blockOffBits)
   metaArb.io.in(5).bits.way_en := ~UInt(0, nWays)
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
+
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  if (!edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED)) {
+  val supports_flush = !edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED)
+  if (supports_flush) {
     when (tl_out_a.fire() && !s2_uncached) { flushed := false }
     when (flushing) {
       s1_victim_way := flushCounter >> log2Up(nSets)
@@ -757,13 +759,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
 
   // report errors
+  val (data_error, data_error_uncorrectable, data_error_addr) =
+    if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
+      (tl_out_c.fire() && inWriteback && writeback_data_error,
+        writeback_data_uncorrectable,
+        tl_out_c.bits.address)
+    }
   {
-    val (data_error, data_error_uncorrectable, data_error_addr) =
-      if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
-        (tl_out_c.fire() && inWriteback && writeback_data_error,
-         writeback_data_uncorrectable,
-         tl_out_c.bits.address)
-      }
     val error_addr =
       Mux(metaArb.io.in(1).valid, Cat(metaArb.io.in(1).bits.data.tag, metaArb.io.in(1).bits.addr(untagBits-1, idxLSB)),
           data_error_addr >> idxLSB) << idxLSB
@@ -797,4 +799,43 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)
   def ccoverNotScratchpad(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     if (!usingDataScratchpad) ccover(cond, label, desc)
+
+  if (usingDataScratchpad) {
+    val data_error_cover = Seq(
+      CoverBoolean(!data_error, Seq("no_data_error")),
+      CoverBoolean(data_error && !data_error_uncorrectable, Seq("data_correctable_error")),
+      CoverBoolean(data_error && data_error_uncorrectable, Seq("data_uncorrectable_error")))
+    val request_source = Seq(
+      CoverBoolean(s2_isSlavePortAccess, Seq("from_TL")),
+      CoverBoolean(!s2_isSlavePortAccess, Seq("from_CPU")))
+
+    cover(new CrossProperty(
+      Seq(data_error_cover, request_source),
+      Seq(),
+      "MemorySystem;;Scratchpad Memory Bit Flip Cross Covers"))
+  } else {
+
+    val data_error_type = Seq(
+      CoverBoolean(!s2_valid_data_error, Seq("no_data_error")),
+      CoverBoolean(s2_valid_data_error && !s2_data_error_uncorrectable, Seq("data_correctable_error")),
+      CoverBoolean(s2_valid_data_error && s2_data_error_uncorrectable, Seq("data_uncorrectable_error")))
+    val data_error_dirty = Seq(
+      CoverBoolean(!s2_victim_dirty, Seq("data_clean")),
+      CoverBoolean(s2_victim_dirty, Seq("data_dirty")))
+    val request_source = if (supports_flush) {
+        Seq(
+          CoverBoolean(!flushing, Seq("access")),
+          CoverBoolean(flushing, Seq("during_flush")))
+      } else {
+        Seq(CoverBoolean(true.B, Seq("never_flush")))
+      }
+    val tag_error_cover = Seq(
+      CoverBoolean( !metaArb.io.in(1).valid, Seq("no_tag_error")),
+      CoverBoolean( metaArb.io.in(1).valid && !s2_meta_error_uncorrectable, Seq("tag_correctable_error")),
+      CoverBoolean( metaArb.io.in(1).valid && s2_meta_error_uncorrectable, Seq("tag_uncorrectable_error")))
+    cover(new CrossProperty(
+      Seq(data_error_type, data_error_dirty, request_source, tag_error_cover),
+      Seq(),
+      "MemorySystem;;Cache Memory Bit Flip Cross Covers"))
+  }
 }
