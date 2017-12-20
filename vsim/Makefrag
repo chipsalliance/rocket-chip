@@ -7,6 +7,7 @@
 bb_vsrcs = \
 	$(base_dir)/vsrc/jtag_vpi.v \
 	$(base_dir)/vsrc/plusarg_reader.v \
+	$(base_dir)/vsrc/test_plusarg_reader.v \
 	$(base_dir)/vsrc/ClockDivider2.v \
 	$(base_dir)/vsrc/ClockDivider3.v \
 	$(base_dir)/vsrc/AsyncResetReg.v \
