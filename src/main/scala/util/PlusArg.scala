@@ -23,24 +23,3 @@ object PlusArg
   def apply(name: String, default: Int = 0, docstring: String = ""): UInt =
     Module(new plusarg_reader(name + "=%d", default, docstring)).io.out
 }
-
-
-
-class test_plusarg_reader(val format: String, val docstring: String) extends BlackBox(Map(
-    "FORMAT"  -> chisel3.core.StringParam(format))) {
-  val io = new Bundle {
-    val out = Bool(OUTPUT)
-  }
-}
-
-object TestPlusArg
-{
-  // TestPlusArg("foo") will return true if the simulation is run with +foo.
-  // Do not use this as an initial register value. The value is set in an
-  // initial block and thus accessing it from another initial is racey.
-  // Add a docstring to document the arg, which can be dumped in an elaboration
-  // pass.
-
-  def apply(name: String, docstring: String = ""): Bool =
-    Module(new test_plusarg_reader(name, docstring)).io.out
-}
