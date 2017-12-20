@@ -21,7 +21,6 @@ extern remote_bitbang_t * jtag;
 static uint64_t trace_count = 0;
 bool verbose;
 bool done_reset;
-bool jtag_vpi_enable;
 
 void handle_sigterm(int sig)
 {
@@ -52,8 +51,6 @@ Mandatory arguments to long options are mandatory for short options too.\n\
   -s, --seed=SEED            use random number seed SEED\n\
   -V, --verbose              enable all Chisel printfs\n\
        +verbose\n\
-  -J, --jtag_vpi_enable     enable JTAG VPI (via remote bitbang)\n\
-       +jtag_vpi_enable\n\
 ", stdout);
 #if VM_TRACE
   fputs("\
@@ -88,7 +85,6 @@ int main(int argc, char** argv)
       {"max-cycles",  required_argument, 0, 'm' },
       {"seed",        required_argument, 0, 's' },
       {"verbose",     no_argument,       0, 'V' },
-      {"jtag_vpi_enable", no_argument,   0, 'J' },
 #if VM_TRACE
       {"vcd",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
@@ -110,7 +106,6 @@ int main(int argc, char** argv)
       case 'm': max_cycles = atoll(optarg); break;
       case 's': random_seed = atoi(optarg); break;
       case 'V': verbose = true;             break;
-      case 'J': jtag_vpi_enable = true;     break;
 #if VM_TRACE
       case 'v': {
         vcdfile = strcmp(optarg, "-") == 0 ? stdout : fopen(optarg, "w");
@@ -129,8 +124,6 @@ int main(int argc, char** argv)
         std::string arg = optarg;
         if (arg == "+verbose")
           verbose = true;
-        else if (arg == "+jtag_vpi_enable")
-          jtag_vpi_enable = true;
         else if (arg.substr(0, 12) == "+max-cycles=")
           max_cycles = atoll(optarg+12);
 #if VM_TRACE
@@ -179,10 +172,8 @@ done_processing:
 #endif
   dtm = new dtm_t(to_dtm);
 
-  if (jtag_vpi_enable) {
-    jtag = new remote_bitbang_t(0);
-  }
-
+  jtag = new remote_bitbang_t(0);
+  
   signal(SIGTERM, handle_sigterm);
 
   bool dump;
@@ -207,7 +198,7 @@ done_processing:
   tile->reset = 0;
   done_reset = true;
 
-  while (!dtm->done() && (jtag || !jtag->done()) &&
+  while (!dtm->done() && (!jtag->done()) &&
          !tile->io_success && trace_count < max_cycles) {
     tile->clock = 0;
     tile->eval();
@@ -238,7 +229,7 @@ done_processing:
     fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
     ret = dtm->exit_code();
   }
-  else if (jtag && jtag->exit_code())
+  else if (jtag->exit_code())
   {
     fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", jtag->exit_code(), random_seed, trace_count);
     ret = jtag->exit_code();

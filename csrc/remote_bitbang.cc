@@ -16,7 +16,7 @@
 
 /////////// remote_bitbang_t
 
-remote_bitbang_t::remote_bitbang_t(uint16_t port) :
+remote_bitbang_t::remote_bitbang_t(bool enable, uint16_t port) :
   socket_fd(0),
   client_fd(0),
   recv_start(0),

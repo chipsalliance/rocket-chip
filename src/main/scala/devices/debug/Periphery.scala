@@ -130,7 +130,8 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     io.clock := tbclock
     io.reset := tbreset
 
-    io.enable    := ~tbreset
+    val jtag_enable = TestPlusArg("jtag_vpi_enable", "Enable SimJTAG for JTAG Connections. Simulation will pause until connection is made.")
+    io.enable    := jtag_enable.io.out(0)
     io.init_done := ~tbreset
 
     // Success is determined by the gdbserver
