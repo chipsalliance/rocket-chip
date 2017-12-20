@@ -231,6 +231,8 @@ ifdef SEED
 SEED_ARG = --seed $(SEED)
 endif
 
+JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
+
 stamps/riscv-tests.stamp:
 	git -C $(abspath $(TOP)) submodule update --init riscv-tools
 	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-tests
@@ -238,7 +240,7 @@ stamps/riscv-tests.stamp:
 
 stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) $(GDBSERVER) \
-	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(VSIM_JTAG_VCDPLUS_32)" \
+	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) $(JTAG_DTM_SIM_ARGS) $(VSIM_JTAG_VCDPLUS_32)" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	-s $(RISCV)/share/openocd/scripts" \
 	--32 \
@@ -248,7 +250,7 @@ stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 
 stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) $(GDBSERVER) \
-	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(VSIM_JTAG_VCDPLUS_64)" \
+	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) $(JTAG_DTM_SIM_ARGS) $(VSIM_JTAG_VCDPLUS_64)" \
 	--server_cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
 	-s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
 	--64 \
@@ -258,7 +260,7 @@ stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 
 stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) $(GDBSERVER) \
-	--sim_cmd="$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(EMULATOR_JTAG_VCDPLUS_32) dummybin" \
+	--sim_cmd="$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) $(JTAG_DTM_SIM_ARGS) $(EMULATOR_JTAG_VCDPLUS_32) dummybin" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	-s $(RISCV)/share/openocd/scripts" \
 	--32 \
@@ -268,7 +270,7 @@ stamps/%/emulator-jtag-dtm-32-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_S
 
 stamps/%/emulator-jtag-dtm-64-$(JTAG_DTM_TEST).stamp:  stamps/%/emulator$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) $(GDBSERVER) \
-	--sim_cmd="$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) +verbose $(SEED_ARG) $(EMULATOR_JTAG_VCDPLUS_64) dummybin" \
+	--sim_cmd="$(abspath $(TOP))/emulator/emulator-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) $(JTAG_DTM_SIM_ARGS) $(EMULATOR_JTAG_VCDPLUS_64) dummybin" \
 	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
 	-s $(RISCV)/share/openocd/scripts" \
 	--64 \

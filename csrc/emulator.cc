@@ -220,9 +220,6 @@ done_processing:
   jtag = new remote_bitbang_t(0);
   dtm = new dtm_t(htif_argc, htif_argv);
 
-  jtag = new remote_bitbang_t(0);
-  dtm = new dtm_t(to_dtm);
-
   signal(SIGTERM, handle_sigterm);
 
   bool dump;
