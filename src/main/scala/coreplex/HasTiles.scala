@@ -17,7 +17,7 @@ trait HasTiles extends HasSystemBus {
   val tiles: Seq[BaseTile]
   protected def tileParams: Seq[TileParams] = tiles.map(_.tileParams)
   def nTiles: Int = tileParams.size
-  def hartIdList: Seq[Int] = tileParams.map(_.hartid)
+  def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
 }
 

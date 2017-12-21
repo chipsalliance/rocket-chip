@@ -23,6 +23,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.util.Random
 
@@ -65,7 +66,7 @@ case class TraceGenParams(
     memStart: BigInt, //p(ExtMem).base
     numGens: Int) extends GroundTestTileParams {
   def build(i: Int, p: Parameters): GroundTestTile = new TraceGenTile(i, this)(p)
-  val hartid = 0
+  val hartId = 0
   val trace = false
   val blockerCtrlAddr = None
 }
@@ -578,6 +579,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 // =======================
 
 class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params) {
+  val masterNode: TLOutwardNode = dcacheOpt.map(_.node).getOrElse(TLIdentityNode())
   override lazy val module = new TraceGenTileModule(this)
 }
 

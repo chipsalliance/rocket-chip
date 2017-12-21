@@ -110,22 +110,20 @@ trait HasRocketTiles extends HasTiles
     //       are decoded from rocket.intNode inside the tile.
 
     // 1. always async crossing for debug
-    wrapper.intXbar.intnode := wrapper { IntSyncCrossingSink(3) } := debug.intnode
+    wrapper.intInwardNode := wrapper { IntSyncCrossingSink(3) } := debug.intnode
 
     // 2. clint+plic conditionally crossing
-    val periphIntNode = wrapper.intXbar.intnode :=* wrapper.crossIntIn
+    val periphIntNode = wrapper.intInwardNode :=* wrapper.crossIntIn
     periphIntNode := clint.intnode                   // msip+mtip
     periphIntNode := plic.intnode                    // meip
     if (tp.core.useVM) periphIntNode := plic.intnode // seip
 
     // 3. local interrupts  never cross 
-    // this.localIntNode is wired up externally      // lip
+    // this.intInwardNode is wired up externally     // lip
 
     // 4. conditional crossing from core to PLIC
-    wrapper.rocket.intOutputNode.foreach { i =>
-      FlipRendering { implicit p =>
-        plic.intnode :=* wrapper.crossIntOut :=* i
-      }
+    FlipRendering { implicit p =>
+      plic.intnode :=* wrapper.crossIntOut :=* wrapper.intOutwardNode
     }
 
     wrapper

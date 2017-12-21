@@ -13,6 +13,7 @@ case object XLen extends Field[Int]
 
 // These parameters can be varied per-core
 trait CoreParams {
+  val bootFreqHz: BigInt
   val useVM: Boolean
   val useUser: Boolean
   val useDebug: Boolean

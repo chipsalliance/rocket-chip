@@ -20,7 +20,7 @@ class TLRAM(
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address) ++ errors,
-      resources          = resources,
+      resources          = device.reg("mem"),
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.UNCACHEABLE,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),

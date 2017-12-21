@@ -7,8 +7,10 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.coreplex._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{DCache, RocketCoreParams}
 import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
 import scala.collection.mutable.ListBuffer
 
 trait GroundTestTileParams extends TileParams {
@@ -29,8 +31,10 @@ trait GroundTestTileParams extends TileParams {
 case object GroundTestTilesKey extends Field[Seq[GroundTestTileParams]]
 
 abstract class GroundTestTile(params: GroundTestTileParams)(implicit p: Parameters) extends BaseTile(params)(p) {
-  val slave = None
-  val localIntNode = None
+  val intInwardNode: IntInwardNode = IntIdentityNode()
+  val intOutwardNode: IntOutwardNode = IntIdentityNode()
+  val slaveNode: TLInwardNode = TLIdentityNode()
+
   val dcacheOpt = params.dcache.map { dc => LazyModule(new DCache(0)) }
 
   override lazy val module = new GroundTestTileModule(this, () => new GroundTestTileBundle(this))

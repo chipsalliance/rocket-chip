@@ -45,7 +45,7 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => big.copy(hartid = i))
+    List.tabulate(n)(i => big.copy(hartId = i))
   }
 })
 
@@ -67,7 +67,7 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => small.copy(hartid = i))
+    List.tabulate(n)(i => small.copy(hartId = i))
   }
 })
 

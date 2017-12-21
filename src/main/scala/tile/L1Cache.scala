@@ -14,16 +14,13 @@ trait L1CacheParams {
   def nWays:         Int
   def rowBits:       Int
   def nTLBEntries:   Int
-  def blockBytes:    Int
+  def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
-trait HasL1CacheParameters {
-  implicit val p: Parameters
+trait HasL1CacheParameters extends HasTileParameters {
   val cacheParams: L1CacheParams
   private val bundleParams = p(SharedMemoryTLEdge).bundle
 
-  def cacheBlockBytes = cacheParams.blockBytes
-  def lgCacheBlockBytes = log2Up(cacheBlockBytes)
   def nSets = cacheParams.nSets
   def blockOffBits = lgCacheBlockBytes
   def idxBits = log2Up(cacheParams.nSets)
