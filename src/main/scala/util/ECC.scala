@@ -19,7 +19,12 @@ abstract class Code
   def canCorrect: Boolean
 
   def width(w0: Int): Int
-  def encode(x: UInt): UInt
+
+  /** Encode x to a codeword suitable for decode.
+   *  If poison is true, the decoded value will report uncorrectable
+   *  error despite decoding to the supplied value 'x'.
+   */
+  def encode(x: UInt, poison: Bool = Bool(false)): UInt
   def decode(x: UInt): Decoding
 
   /** Copy the bits in x to the right bit positions in an encoded word,
@@ -36,7 +41,10 @@ class IdentityCode extends Code
   def canCorrect = false
 
   def width(w0: Int) = w0
-  def encode(x: UInt) = x
+  def encode(x: UInt, poison: Bool = Bool(false)) = {
+    require (poison.isLit && poison.litValue == 0, "IdentityCode can not be poisoned")
+    x
+  }
   def swizzle(x: UInt) = x
   def decode(y: UInt) = new Decoding {
     def uncorrected = y
@@ -52,7 +60,7 @@ class ParityCode extends Code
   def canCorrect = false
 
   def width(w0: Int) = w0+1
-  def encode(x: UInt) = Cat(x.xorR, x)
+  def encode(x: UInt, poison: Bool = Bool(false)) = Cat(x.xorR ^ poison, x)
   def swizzle(x: UInt) = Cat(false.B, x)
   def decode(y: UInt) = new Decoding {
     val uncorrected = y(y.getWidth-2,0)
@@ -67,20 +75,26 @@ class SECCode extends Code
   def canDetect = true
   def canCorrect = true
 
+  // SEC codes may or may not be poisonous depending on the length
+  // If the code is perfect, every non-codeword is correctable
+  def poisonous(n: Int) = !isPow2(n+1)
+
   def width(k: Int) = {
     val m = log2Floor(k) + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
   }
-  def encode(x: UInt) = {
+  def encode(x: UInt, poison: Bool = Bool(false)) = {
     val k = x.getWidth
     require(k > 0)
     val n = width(k)
+
+    require ((poison.isLit && poison.litValue == 0) || poisonous(n), s"SEC code of length ${n} cannot be poisoned")
 
     val y = for (i <- 1 to n) yield {
       if (isPow2(i)) {
         val r = for (j <- 1 to n; if j != i && (j & i) != 0)
           yield x(mapping(j))
-        r reduce (_^_)
+        r.reduce(_^_) ^ poison
       } else
         x(mapping(i))
     }
@@ -106,7 +120,7 @@ class SECCode extends Code
     val uncorrected = swizzle(y)
     val corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
     val correctable = syndrome.orR
-    val uncorrectable = syndrome > UInt(n)
+    val uncorrectable = if (poisonous(n)) { syndrome > UInt(n) } else { Bool(false) }
   }
   private def mapping(i: Int) = i-1-log2Up(i)
 }
@@ -120,7 +134,12 @@ class SECDEDCode extends Code
   private val par = new ParityCode
 
   def width(k: Int) = sec.width(k)+1
-  def encode(x: UInt) = par.encode(sec.encode(x))
+  def encode(x: UInt, poison: Bool = Bool(false)) = {
+    // toggling two bits ensures the error is uncorrectable
+    val toggle_lo = poison.asUInt // a non-data bit in SEC
+    val toggle_hi = toggle_lo << sec.width(x.getWidth) // the parity bit
+    par.encode(sec.encode(x)) ^ toggle_lo ^ toggle_hi
+  }
   def swizzle(x: UInt) = par.swizzle(sec.swizzle(x))
   def decode(x: UInt) = new Decoding {
     val secdec = sec.decode(x(x.getWidth-2,0))
