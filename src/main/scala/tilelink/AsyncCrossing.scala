@@ -78,12 +78,20 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
 
 object TLAsyncCrossingSource
 {
-  def apply(sync: Int = 3)(implicit p: Parameters) = LazyModule(new TLAsyncCrossingSource(sync)).node
+  def apply(sync: Int = 3)(implicit p: Parameters) =
+  {
+    val asource = LazyModule(new TLAsyncCrossingSource(sync))
+    asource.node
+  }
 }
 
 object TLAsyncCrossingSink
 {
-  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) = LazyModule(new TLAsyncCrossingSink(depth, sync)).node
+  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) =
+  {
+    val asink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+    asink.node
+  }
 }
 
 @deprecated("TLAsyncCrossing is fragile. Use TLAsyncCrossingSource and TLAsyncCrossingSink", "rocket-chip 1.2")
@@ -131,5 +139,6 @@ class TLRAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
 }
 
 class TLRAMAsyncCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  io.finished := Module(LazyModule(new TLRAMAsyncCrossing(txns)).module).io.finished
+  val dut = Module(LazyModule(new TLRAMAsyncCrossing(txns)).module)
+  io.finished := dut.io.finished
 }

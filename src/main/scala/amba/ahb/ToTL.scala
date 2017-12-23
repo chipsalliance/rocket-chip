@@ -138,5 +138,9 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
 
 object AHBToTL
 {
-  def apply()(implicit p: Parameters) = LazyModule(new AHBToTL).node
+  def apply()(implicit p: Parameters) =
+  {
+    val ahb2tl = LazyModule(new AHBToTL)
+    ahb2tl.node
+  }
 }

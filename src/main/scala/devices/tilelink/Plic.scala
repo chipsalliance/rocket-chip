@@ -86,10 +86,10 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
   val intnode = IntNexusNode(
-    numSourcePorts = 0 to 1024,
-    numSinkPorts   = 0 to 1024,
-    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
-    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
+    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false,
+    inputRequiresOutput = false)
 
   /* Negotiated sizes */
   def nDevices: Int = intnode.edges.in.map(_.source.num).sum

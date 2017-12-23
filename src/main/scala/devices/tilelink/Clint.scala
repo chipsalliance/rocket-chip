@@ -48,12 +48,13 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
     beatBytes = p(XLen)/8)
 
   val intnode = IntNexusNode(
-    numSourcePorts = 0 to 1024,
-    numSinkPorts   = 0 to 0,
-    sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
-    sinkFn         = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) })
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
+    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false)
 
   lazy val module = new LazyModuleImp(this) {
+    require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
+
     val io = IO(new Bundle {
       val rtcTick = Bool(INPUT)
     })

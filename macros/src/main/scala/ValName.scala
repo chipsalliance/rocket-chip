@@ -15,7 +15,7 @@ object ValNameImpl
     def allOwners(s: c.Symbol): Seq[c.Symbol] =
       if (s == `NoSymbol`) Nil else s +: allOwners(s.owner)
     val terms = allOwners(c.internal.enclosingOwner).filter(_.isTerm).map(_.asTerm)
-    terms.filter(_.isVal).map(_.name.toString).find(_(0) != '$').map { s =>
+    terms.filter(t => t.isVal || t.isLazy).map(_.name.toString).find(_(0) != '$').map { s =>
       val trim = s.replaceAll("\\s", "")
       c.Expr[ValNameImpl] { q"_root_.freechips.rocketchip.macros.ValNameImpl(${trim})" }
     }.getOrElse(c.abort(c.enclosingPosition, "Not a valid application."))

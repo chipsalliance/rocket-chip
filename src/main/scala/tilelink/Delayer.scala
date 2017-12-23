@@ -72,5 +72,9 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
 
 object TLDelayer
 {
-  def apply(q: Double)(implicit p: Parameters): TLNode = LazyModule(new TLDelayer(q)).node
+  def apply(q: Double)(implicit p: Parameters): TLNode =
+  {
+    val delayer = LazyModule(new TLDelayer(q))
+    delayer.node
+  }
 }

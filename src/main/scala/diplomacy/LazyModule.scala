@@ -36,7 +36,8 @@ abstract class LazyModule()(implicit val p: Parameters)
     getClass.getMethods.filter { m =>
       m.getParameterTypes.isEmpty &&
       !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-      m.getName != "children"
+      m.getName != "children" &&
+      m.getName != "getChildren"
     }.flatMap { m =>
       if (classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
         val obj = m.invoke(this)
@@ -54,7 +55,12 @@ abstract class LazyModule()(implicit val p: Parameters)
   private def findValName =
     parent.flatMap(_.childNames.find(_._2 eq this)).map(_._1)
 
-  lazy val className = getClass.getName.split('.').last
+  private def findClassName(c: Class[_]): String = {
+    val n = c.getName.split('.').last
+    if (n.contains('$')) findClassName(c.getSuperclass) else n
+  }
+
+  lazy val className = findClassName(getClass)
   lazy val valName = suggestedName.orElse(findValName)
   lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
@@ -126,6 +132,8 @@ abstract class LazyModule()(implicit val p: Parameters)
     iterfunc(this)
     children.foreach( _.nodeIterator(iterfunc) )
   }
+
+  def getChildren = children
 }
 
 object LazyModule
@@ -133,7 +141,7 @@ object LazyModule
   protected[diplomacy] var scope: Option[LazyModule] = None
   private var index = 0
 
-  def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
+  def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
@@ -162,7 +170,9 @@ sealed trait LazyModuleImpLike extends BaseModule
   protected[diplomacy] def instantiate() = {
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo = c.info
-      Module(c.module).dangles
+      val mod = Module(c.module)
+      mod.finishInstantiate()
+      mod.dangles
     }
     wrapper.instantiate()
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
@@ -180,6 +190,10 @@ sealed trait LazyModuleImpLike extends BaseModule
       d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
     }
     (auto, dangles)
+  }
+
+  protected[diplomacy] def finishInstantiate() {
+    wrapper.nodes.reverse.foreach { _.finishInstantiate() }
   }
 }
 

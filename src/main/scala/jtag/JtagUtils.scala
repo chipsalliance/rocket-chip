@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.jtag
 
-import chisel3._
+import Chisel._
+//import chisel3._
 import chisel3.util._
 
 class JTAGIdcodeBundle extends Bundle {

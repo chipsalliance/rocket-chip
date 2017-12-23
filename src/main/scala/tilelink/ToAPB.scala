@@ -85,5 +85,9 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
 
 object TLToAPB
 {
-  def apply(aFlow: Boolean = true)(implicit p: Parameters) = LazyModule(new TLToAPB(aFlow)).node
+  def apply(aFlow: Boolean = true)(implicit p: Parameters) =
+  {
+    val tl2apb = LazyModule(new TLToAPB(aFlow))
+    tl2apb.node
+  }
 }
