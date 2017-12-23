@@ -1,3 +1,5 @@
+// See LICENSE.Berkeley for license details.
+
 #ifndef REMOTE_BITBANG_H
 #define REMOTE_BITBANG_H
 
