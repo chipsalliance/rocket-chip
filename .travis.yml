@@ -1,8 +1,7 @@
 git:
   submodules: false
 language: scala
-# run on new infrastructure
-sudo: false
+sudo: required
 cache:
   apt: true
   directories:
