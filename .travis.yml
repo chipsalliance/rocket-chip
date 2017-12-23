@@ -1,8 +1,10 @@
 git:
   submodules: false
 language: scala
-# run on new infrastructure
-sudo: false
+# run on old infrastructure
+sudo: required
+dist: trusty
+group: deprecated-2017Q4
 cache:
   apt: true
   directories:
