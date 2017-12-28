@@ -5,7 +5,7 @@ package freechips.rocketchip.tile
 import Chisel._
 
 import freechips.rocketchip.config._
-import freechips.rocketchip.coreplex.{CacheBlockBytes, SystemBusKey}
+import freechips.rocketchip.coreplex._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket._
@@ -144,8 +144,11 @@ trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
 }
 
 /** Base class for all Tiles that use TileLink */
-abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends BareTile
-    with HasTileParameters {
+abstract class BaseTile(
+  tileParams: TileParams,
+  val crossing: CoreplexClockCrossing)(implicit p: Parameters) extends BareTile
+    with HasTileParameters
+    with HasCrossing {
   def module: BaseTileModule[BaseTile, BaseTileBundle[BaseTile]]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
@@ -156,6 +159,7 @@ abstract class BaseTile(tileParams: TileParams)(implicit p: Parameters) extends 
   protected val tlMasterXbar = LazyModule(new TLXbar)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
+  protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
 
   def connectTLSlave(node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>

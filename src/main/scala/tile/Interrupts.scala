@@ -19,11 +19,10 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 // Use diplomatic interrupts to external interrupts from the coreplex into the tile
-trait HasExternalInterrupts extends HasTileParameters {
-  implicit val p: Parameters
-  val module: HasExternalInterruptsModule
+trait HasExternalInterrupts { this: BaseTile =>
 
-  val intInwardNode = IntSinkNode(IntSinkPortSimple())
+  val intInwardNode = intXbar.intnode
+  intSinkNode := intXbar.intnode
 
   val intcDevice = new Device {
     def describe(resources: ResourceBindings): Description = {
@@ -37,7 +36,7 @@ trait HasExternalInterrupts extends HasTileParameters {
   ResourceBinding {
     Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartId)))
 
-    intInwardNode.edges.in.flatMap(_.source.sources).map { case s =>
+    intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
        csrIntMap.lift(i).foreach { j =>
           s.resources.foreach { r =>
@@ -59,15 +58,6 @@ trait HasExternalInterrupts extends HasTileParameters {
     List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
   }
 
-}
-
-trait HasExternalInterruptsBundle {
-  val outer: HasExternalInterrupts
-}
-
-trait HasExternalInterruptsModule {
-  val outer: HasExternalInterrupts
-
   // go from flat diplomatic Interrupts to bundled TileInterrupts
   def decodeCoreInterrupts(core: TileInterrupts) {
     val async_ips = Seq(core.debug)
@@ -80,7 +70,7 @@ trait HasExternalInterruptsModule {
 
     val core_ips = core.lip
 
-    val (interrupts, _) = outer.intInwardNode.in(0)
+    val (interrupts, _) = intSinkNode.in(0)
     (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
   }
 }

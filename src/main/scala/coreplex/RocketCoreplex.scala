@@ -77,27 +77,59 @@ trait HasRocketTiles extends HasTiles
   }
   private val crossingTuples = rocketTileParams.zip(crossings)
 
-  // Make a wrapper for each tile that will wire it to coreplex devices and crossbars,
+  // Make a tile and wire its nodes into the system,
   // according to the specified type of clock crossing.
+  // Note that we also inject new nodes into the tile itself,
+  // also based on the crossing type.
   val rocketTiles = crossingTuples.map { case (tp, crossing) =>
     // For legacy reasons, it is convenient to store some state
     // in the global Parameters about the specific tile being built now
-    val wrapper = LazyModule(new RocketTileWrapper(
-      params = tp,
-      crossing = crossing.crossingType
-      )(p.alterPartial {
+    val rocket = LazyModule(new RocketTile(tp, crossing.crossingType)(p.alterPartial {
         case TileKey => tp
         case BuildRoCC => tp.rocc
         case SharedMemoryTLEdge => sharedMemoryTLEdge
-        case RocketCrossingKey => List(crossing)
       })
     ).suggestName(tp.name)
 
     // Connect the master ports of the tile to the system bus
-    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(wrapper.crossTLOut :=* wrapper.masterNode) }
+
+    def tileMasterBuffering: TLOutwardNode = rocket {
+      // The buffers needed to cut feed-through paths are microarchitecture specific, so belong here
+      val masterBuffer = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1)))
+      crossing.crossingType match {
+        case _: AsynchronousCrossing => rocket.masterNode
+        case SynchronousCrossing(b) =>
+          require (!tp.boundaryBuffers || (b.depth >= 1 && !b.flow && !b.pipe), "Buffer misconfiguration creates feed-through paths")
+          rocket.masterNode
+        case RationalCrossing(dir) =>
+          require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
+          if (tp.boundaryBuffers) {
+            masterBuffer.node :=* rocket.masterNode
+          } else {
+            rocket.masterNode
+          }
+      }
+    }
+
+    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(rocket.crossTLOut :=* tileMasterBuffering) }
 
     // Connect the slave ports of the tile to the periphery bus
-    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)(wrapper.slaveNode :*= wrapper.crossTLIn) }
+
+    def tileSlaveBuffering: TLInwardNode = rocket {
+      val slaveBuffer  = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
+      crossing.crossingType match {
+        case _: SynchronousCrossing  => rocket.slaveNode // requirement already checked
+        case _: AsynchronousCrossing => rocket.slaveNode
+        case _: RationalCrossing =>
+          if (tp.boundaryBuffers) {
+            DisableMonitors { implicit p => rocket.slaveNode :*= slaveBuffer.node }
+          } else {
+            rocket.slaveNode
+          }
+      }
+    }
+
+    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)(tileSlaveBuffering :*= rocket.crossTLIn) }
 
     // Handle all the different types of interrupts crossing to or from the tile:
     // 1. Debug interrupt is definitely asynchronous in all cases.
@@ -110,10 +142,10 @@ trait HasRocketTiles extends HasTiles
     //       are decoded from rocket.intNode inside the tile.
 
     // 1. always async crossing for debug
-    wrapper.intInwardNode := wrapper { IntSyncCrossingSink(3) } := debug.intnode
+    rocket.intInwardNode := rocket { IntSyncCrossingSink(3) } := debug.intnode
 
     // 2. clint+plic conditionally crossing
-    val periphIntNode = wrapper.intInwardNode :=* wrapper.crossIntIn
+    val periphIntNode = rocket.intInwardNode :=* rocket.crossIntIn
     periphIntNode := clint.intnode                   // msip+mtip
     periphIntNode := plic.intnode                    // meip
     if (tp.core.useVM) periphIntNode := plic.intnode // seip
@@ -123,10 +155,10 @@ trait HasRocketTiles extends HasTiles
 
     // 4. conditional crossing from core to PLIC
     FlipRendering { implicit p =>
-      plic.intnode :=* wrapper.crossIntOut :=* wrapper.intOutwardNode
+      plic.intnode :=* rocket.crossIntOut :=* rocket.intOutwardNode
     }
 
-    wrapper
+    rocket
   }
 }
 
