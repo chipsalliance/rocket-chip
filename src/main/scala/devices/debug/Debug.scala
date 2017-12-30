@@ -11,6 +11,7 @@ import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
+import freechips.rocketchip.config.Parameters
 
 /** Constant values used by both Debug Bus Response & Request
   */
@@ -250,7 +251,7 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
 
 // Local reg mapper function : Notify when written, but give the value as well.  
 object WNotifyWire {
-  def apply(n: Int, value: UInt, set: Bool) : RegField = {
+  def apply(n: Int, value: UInt, set: Bool)(implicit p: Parameters) : RegField = {
     RegField(n, UInt(0), RegWriteFn((valid, data) => {
       set := valid
       value := data
@@ -261,7 +262,7 @@ object WNotifyWire {
 
 // Local reg mapper function : Notify when accessed either as read or write.
 object RWNotify {
-    def apply (n: Int, rVal: UInt, wVal: UInt, rNotify: Bool, wNotify: Bool) : RegField = {
+    def apply (n: Int, rVal: UInt, wVal: UInt, rNotify: Bool, wNotify: Bool)(implicit p: Parameters) : RegField = {
       RegField(n,
         RegReadFn ((ready)       => {rNotify := ready ; (Bool(true), rVal)}),
         RegWriteFn((valid, data) => {

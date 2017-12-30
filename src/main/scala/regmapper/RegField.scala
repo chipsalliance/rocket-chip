@@ -6,18 +6,30 @@ import Chisel._
 import chisel3.util.{ReadyValidIO}
 
 import freechips.rocketchip.util.{SimpleRegIO}
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import freechips.rocketchip.config.Parameters
 
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn
 {
+  def coverread(fn: (Bool, Bool) => (Bool, Bool, UInt))(implicit sourceInfo: SourceInfo, p: Parameters): (Bool, Bool) => (Bool, Bool, UInt) = {
+    case (ivalid: Bool, oready: Bool) => {
+      val (iready, ovalid, data) = fn(ivalid, oready)
+      cover(iready && ivalid, "regread_in", "RegField Read Request Initiate")
+      cover(oready && ovalid, "regread_out", "RegField Read Request Complete")
+      (iready, ovalid, data)
+    }
+  }
+
   // (ivalid: Bool, oready: Bool) => (iready: Bool, ovalid: Bool, data: UInt)
   // iready may combinationally depend on oready
   // all other combinational dependencies forbidden (e.g. ovalid <= ivalid)
   // effects must become visible on the cycle after ovalid && oready
   // data is only inspected when ovalid && oready
-  implicit def apply(x: (Bool, Bool) => (Bool, Bool, UInt)) =
-    new RegReadFn(false, x)
-  implicit def apply(x: RegisterReadIO[UInt]): RegReadFn =
+  implicit def apply(x: (Bool, Bool) => (Bool, Bool, UInt))(implicit sourceInfo: SourceInfo, p: Parameters) =
+    new RegReadFn(false, coverread(x))
+  implicit def apply(x: RegisterReadIO[UInt])(implicit sourceInfo: SourceInfo, p: Parameters): RegReadFn =
     RegReadFn((ivalid, oready) => {
       x.request.valid := ivalid
       x.response.ready := oready
@@ -26,17 +38,17 @@ object RegReadFn
   // (ready: Bool) => (valid: Bool, data: UInt)
   // valid must not combinationally depend on ready
   // effects must become visible on the cycle after valid && ready
-  implicit def apply(x: Bool => (Bool, UInt)) =
-    new RegReadFn(true, { case (_, oready) =>
+  implicit def apply(x: Bool => (Bool, UInt))(implicit sourceInfo: SourceInfo, p: Parameters) =
+    new RegReadFn(true, coverread( { case (_, oready) =>
       val (ovalid, data) = x(oready)
       (Bool(true), ovalid, data)
-    })
+    }) )
   // read from a ReadyValidIO (only safe if there is a consistent source of data)
-  implicit def apply(x: ReadyValidIO[UInt]):RegReadFn = RegReadFn(ready => { x.ready := ready; (x.valid, x.bits) })
+  implicit def apply(x: ReadyValidIO[UInt])(implicit sourceInfo: SourceInfo, p: Parameters):RegReadFn = RegReadFn(ready => { x.ready := ready; (x.valid, x.bits) })
   // read from a register
-  implicit def apply(x: UInt):RegReadFn = RegReadFn(ready => (Bool(true), x))
+  implicit def apply(x: UInt)(implicit sourceInfo: SourceInfo, p: Parameters):RegReadFn = RegReadFn(ready => (Bool(true), x))
   // noop
-  implicit def apply(x: Unit):RegReadFn = RegReadFn(UInt(0))
+  implicit def apply(x: Unit)(implicit sourceInfo: SourceInfo, p: Parameters):RegReadFn = RegReadFn(UInt(0))
 }
 
 case class RegWriteFn private(combinational: Boolean, fn: (Bool, Bool, UInt) => (Bool, Bool))
@@ -85,22 +97,22 @@ object RegField
   // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
 
-  def apply(n: Int)                                                         : RegField = apply(n, (), (), "", "")
-  def apply(n: Int, r: RegReadFn, w: RegWriteFn)                            : RegField = apply(n, r, w,   "", "")
-  def apply(n: Int, rw: UInt)                                               : RegField = apply(n, rw, rw, "", "")
-  def apply(n: Int, rw: UInt, name: String, description: String)            : RegField = apply(n, rw, rw, name, description)
-  def r(n: Int, r: RegReadFn,  name: String = "", description: String = "") : RegField = apply(n, r,  (), name, description)
-  def w(n: Int, w: RegWriteFn, name: String = "", description: String = "") : RegField = apply(n, (), w,  name, description)
+  def apply(n: Int)(implicit sourceInfo: SourceInfo, p: Parameters) : RegField = apply(n, (), (), "", "")
+  def apply(n: Int, r: RegReadFn, w: RegWriteFn)(implicit sourceInfo: SourceInfo, p: Parameters) : RegField = apply(n, r, w,   "", "")
+  def apply(n: Int, rw: UInt)(implicit sourceInfo: SourceInfo, p: Parameters) : RegField = apply(n, rw, rw, "", "")
+  def apply(n: Int, rw: UInt, name: String, description: String)(implicit sourceInfo: SourceInfo, p: Parameters) : RegField = apply(n, rw, rw, name, description)
+  def r(n: Int, r: RegReadFn,  name: String = "", description: String = "")(implicit sourceInfo: SourceInfo, p: Parameters) : RegField = apply(n, r,  (), name, description)
+  def w(n: Int, w: RegWriteFn, name: String = "", description: String = "")(implicit sourceInfo: SourceInfo, p: Parameters) : RegField = apply(n, (), w,  name, description)
 
   // This RegField allows 'set' to set bits in 'reg'.
   // and to clear bits when the bus writes bits of value 1.
   // Setting takes priority over clearing.
-  def w1ToClear(n: Int, reg: UInt, set: UInt): RegField =
+  def w1ToClear(n: Int, reg: UInt, set: UInt)(implicit sourceInfo: SourceInfo, p: Parameters): RegField =
     RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }))
 
   // This RegField wraps an explicit register
   // (e.g. Black-Boxed Register) to create a R/W register.
-  def rwReg(n: Int, bb: SimpleRegIO) : RegField =
+  def rwReg(n: Int, bb: SimpleRegIO)(implicit sourceInfo: SourceInfo, p: Parameters) : RegField =
     RegField(n, bb.q, RegWriteFn((valid, data) => {
       bb.en := valid
       bb.d := data
@@ -111,7 +123,7 @@ object RegField
   // It is updated when any of the bytes are written. Because the RegFields
   // are all byte-sized, this is also suitable when a register is larger
   // than the intended bus width of the device (atomic updates are impossible).
-  def bytes(reg: UInt, numBytes: Int): Seq[RegField] = {
+  def bytes(reg: UInt, numBytes: Int)(implicit sourceInfo: SourceInfo, p: Parameters): Seq[RegField] = {
     val pad = reg | UInt(0, width = 8*numBytes)
     val oldBytes = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
     val newBytes = Wire(init = oldBytes)
@@ -125,7 +137,7 @@ object RegField
         Bool(true)
       }))}}
 
-  def bytes(reg: UInt): Seq[RegField] = {
+  def bytes(reg: UInt)(implicit sourceInfo: SourceInfo, p: Parameters): Seq[RegField] = {
     val width = reg.getWidth
     require (width % 8 == 0, s"RegField.bytes must be called on byte-sized reg, not ${width} bits")
     bytes(reg, width/8)
@@ -134,6 +146,8 @@ object RegField
 
 trait HasRegMap
 {
+  protected[this] implicit def p: Parameters
+
   def regmap(mapping: RegField.Map*): Unit
   val interrupts: Vec[Bool]
 }

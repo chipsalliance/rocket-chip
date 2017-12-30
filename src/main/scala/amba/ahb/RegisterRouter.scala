@@ -85,7 +85,7 @@ class AHBRegBundleBase(arg: AHBRegBundleArg) extends Bundle
 
 class AHBRegBundle[P](val params: P, arg: AHBRegBundleArg) extends AHBRegBundleBase(arg)
 
-class AHBRegModule[P, B <: AHBRegBundleBase](val params: P, bundleBuilder: => B, router: AHBRegisterRouterBase)
+class AHBRegModule[P, B <: AHBRegBundleBase](val params: P, bundleBuilder: => B, router: AHBRegisterRouterBase)(implicit p: Parameters)
   extends LazyModuleImp(router) with HasRegMap
 {
   val io = IO(bundleBuilder)

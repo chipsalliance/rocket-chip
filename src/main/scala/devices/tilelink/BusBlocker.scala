@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
-class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(params)
+class DevicePMP(params: DevicePMPParams)(implicit p: Parameters) extends GenericParameterizedBundle(params)
 {
   require (params.addressBits > params.pageBits)
 
@@ -44,7 +44,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
 
 object DevicePMP
 {
-  def apply(addressBits: Int, pageBits: Int) = {
+  def apply(addressBits: Int, pageBits: Int)(implicit p: Parameters) = {
     val out = Wire(new DevicePMP(DevicePMPParams(addressBits, pageBits)))
     out.l := UInt(0)
     out.a := UInt(0)
