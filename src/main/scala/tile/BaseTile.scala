@@ -121,35 +121,11 @@ trait HasTileParameters {
 
 }
 
-abstract class BareTile(implicit p: Parameters) extends LazyModule
-
-abstract class BareTileBundle[+L <: BareTile](_outer: L) extends GenericParameterizedBundle(_outer) {
-  val outer = _outer
-  implicit val p = outer.p
-}
-
-abstract class BareTileModule[+L <: BareTile, +B <: BareTileBundle[L]](_outer: L, _io: () => B) extends LazyModuleImp(_outer) {
-  val outer = _outer
-  val io = IO(_io ())
-}
-
-/** Some other standard inputs */
-trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
-  val hartid = UInt(INPUT, hartIdLen)
-  val reset_vector = UInt(INPUT, resetVectorLen)
-}
-
-trait CanHaveInstructionTracePort extends Bundle with HasTileParameters {
-  val trace = tileParams.trace.option(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput)
-}
-
 /** Base class for all Tiles that use TileLink */
-abstract class BaseTile(
-  tileParams: TileParams,
-  val crossing: CoreplexClockCrossing)(implicit p: Parameters) extends BareTile
-    with HasTileParameters
-    with HasCrossing {
-  def module: BaseTileModule[BaseTile, BaseTileBundle[BaseTile]]
+abstract class BaseTile(tileParams: TileParams, val crossing: CoreplexClockCrossing)
+                       (implicit p: Parameters) extends LazyModule with HasTileParameters with HasCrossing
+{
+  def module: BaseTileModule[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
   def intInwardNode: IntInwardNode
@@ -195,16 +171,22 @@ abstract class BaseTile(
   }
 }
 
-abstract class BaseTileBundle[+L <: BaseTile](_outer: L) extends BareTileBundle(_outer)
-    with HasExternallyDrivenTileConstants
-    with CanHaveInstructionTracePort
-    with CanHaltAndCatchFire
+class BaseTileModule[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
 
-class BaseTileModule[+L <: BaseTile, +B <: BaseTileBundle[L]](_outer: L, _io: () => B) extends BareTileModule(_outer, _io)
-    with HasTileParameters {
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits)
   require(resetVectorLen <= xLen)
   require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
+
+  val trace = tileParams.trace.option(IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput))
+  val constants = IO(new TileInputConstants)
 }
+
+/** Some other non-tilelink but still standard inputs */
+trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
+  val hartid = UInt(INPUT, hartIdLen)
+  val reset_vector = UInt(INPUT, resetVectorLen)
+}
+
+class TileInputConstants(implicit val p: Parameters) extends ParameterizedBundle with HasExternallyDrivenTileConstants

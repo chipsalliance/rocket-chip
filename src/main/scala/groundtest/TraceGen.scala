@@ -583,10 +583,10 @@ class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Paramete
   override lazy val module = new TraceGenTileModule(this)
 }
 
-class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer, () => new GroundTestTileBundle(outer)) {
+class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer) {
 
   val tracegen = Module(new TraceGenerator(outer.params))
-  tracegen.io.hartid := io.hartid
+  tracegen.io.hartid := constants.hartid
 
   outer.dcacheOpt foreach { dcache =>
     val dcacheIF = Module(new SimpleHellaCacheIF())
@@ -594,10 +594,10 @@ class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer
     dcache.module.io.cpu <> dcacheIF.io.cache
   }
 
-  io.status.finished := tracegen.io.finished
-  io.status.timeout.valid := tracegen.io.timeout
-  io.status.timeout.bits := UInt(0)
-  io.status.error.valid := Bool(false)
+  status.finished := tracegen.io.finished
+  status.timeout.valid := tracegen.io.timeout
+  status.timeout.bits := UInt(0)
+  status.error.valid := Bool(false)
 
   assert(!tracegen.io.timeout, s"TraceGen tile ${outer.id}: request timed out")
 }

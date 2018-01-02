@@ -315,10 +315,6 @@ trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   nPTWPorts += 1
 }
 
-trait HasICacheFrontendBundle {
-  val outer: HasICacheFrontend
-}
-
 trait HasICacheFrontendModule extends CanHavePTWModule {
   val outer: HasICacheFrontend
   ptwPorts += outer.frontend.module.io.ptw

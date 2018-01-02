@@ -287,8 +287,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 }
 
 /** Mix-ins for constructing tiles that might have a PTW */
-trait CanHavePTW extends HasHellaCache { this: BaseTile =>
-  implicit val p: Parameters
+trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
   var nPTWPorts = 1
   nDCachePorts += usingPTW.toInt

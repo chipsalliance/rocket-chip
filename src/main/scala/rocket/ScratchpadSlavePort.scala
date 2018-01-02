@@ -137,10 +137,6 @@ trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend { this: Bas
   nDCachePorts += (scratch.isDefined).toInt
 }
 
-trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
-  val outer: CanHaveScratchpad
-}
-
 trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontendModule {
   val outer: CanHaveScratchpad
 

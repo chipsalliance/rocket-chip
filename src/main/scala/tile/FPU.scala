@@ -875,11 +875,8 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
 }
 
-/** Mix-ins for constructing tiles that may have an FPU external to the core pipeline */
-trait CanHaveSharedFPU extends HasTileParameters
-
-trait CanHaveSharedFPUModule {
-  val outer: CanHaveSharedFPU
+/** Mix-in for constructing tiles that may have an FPU external to the core pipeline */
+trait CanHaveSharedFPUModule[+L <: BaseTile] { this: BaseTileModule[L] =>
   val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
   // TODO fpArb could go here instead of inside LegacyRoccComplex
 }

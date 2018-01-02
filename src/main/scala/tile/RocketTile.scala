@@ -56,27 +56,24 @@ class RocketTile(
   override lazy val module = new RocketTileModule(this)
 }
 
-class RocketTileBundle(outer: RocketTile) extends BaseTileBundle(outer)
-    with CanHaltAndCatchFire {
-  val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(Bool(OUTPUT))
-}
-
-class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer, () => new RocketTileBundle(outer))
-    with HasLazyRoCCModule
+class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer)
+    with HasLazyRoCCModule[RocketTile]
     with CanHaveScratchpadModule {
 
   val core = Module(p(BuildCore)(outer.p))
+
   val uncorrectable = RegInit(Bool(false))
+  val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
   outer.busErrorUnit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
-  core.io.hartid := io.hartid // Pass through the hartid
-  io.trace.foreach { _ := core.io.trace }
-  io.halt_and_catch_fire.foreach { _ := uncorrectable }
+  core.io.hartid := constants.hartid // Pass through the hartid
+  trace.foreach { _ := core.io.trace }
+  halt_and_catch_fire.foreach { _ := uncorrectable }
   outer.frontend.module.io.cpu <> core.io.imem
-  outer.frontend.module.io.reset_vector := io.reset_vector
-  outer.frontend.module.io.hartid := io.hartid
-  outer.dcache.module.io.hartid := io.hartid
+  outer.frontend.module.io.reset_vector := constants.reset_vector
+  outer.frontend.module.io.hartid := constants.hartid
+  outer.dcache.module.io.hartid := constants.hartid
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
   core.io.ptw <> ptw.io.dpath

@@ -32,7 +32,7 @@ trait HasTilesModuleImp extends LazyModuleImp
 
   def resetVectorBits: Int = {
     // Consider using the minimum over all widths, rather than enforcing homogeneity
-    val vectors = outer.tiles.map(_.module.io.reset_vector)
+    val vectors = outer.tiles.map(_.module.constants.reset_vector)
     require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
     vectors.head.getWidth
   }
@@ -45,8 +45,8 @@ trait HasTilesModuleImp extends LazyModuleImp
   outer.tiles.map(_.module).zip(tile_inputs).foreach { case(tile, wire) =>
     tile.clock := wire.clock
     tile.reset := wire.reset
-    tile.io.hartid := wire.hartid
-    tile.io.reset_vector := wire.reset_vector
+    tile.constants.hartid := wire.hartid
+    tile.constants.reset_vector := wire.reset_vector
   }
 }
 

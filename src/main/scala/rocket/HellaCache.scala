@@ -194,7 +194,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 
 /** Mix-ins for constructing tiles that have a HellaCache */
 
-trait HasHellaCache extends HasTileParameters { this: BaseTile =>
+trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
@@ -207,13 +207,8 @@ trait HasHellaCache extends HasTileParameters { this: BaseTile =>
   tlMasterXbar.node := dcache.node
 }
 
-trait HasHellaCacheBundle {
-  val outer: HasHellaCache
-}
-
 trait HasHellaCacheModule {
   val outer: HasHellaCache
-  //val io: HasHellaCacheBundle
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
