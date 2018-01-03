@@ -6,14 +6,12 @@ import Chisel._
 import Chisel.ImplicitConversions._
 
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.coreplex.{CacheBlockBytes, SystemBusKey}
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
+/* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
 class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
   val node = TLManagerNode(Seq(TLManagerPortParameters(
@@ -92,74 +90,5 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     tl_in.b.valid := Bool(false)
     tl_in.c.ready := Bool(true)
     tl_in.e.ready := Bool(true)
-  }
-}
-
-/** Mix-ins for constructing tiles that have optional scratchpads */
-trait CanHaveScratchpad extends HasHellaCache with HasICacheFrontend {
-  val module: CanHaveScratchpadModule
-  val cacheBlockBytes = p(CacheBlockBytes)
-  val masterPortBeatBytes = p(SystemBusKey).beatBytes
-
-  val scratch = tileParams.dcache.flatMap { d => d.scratch.map(s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
-  }
-
-  val intOutputNode = tileParams.core.tileControlAddr.map(dummy => IntIdentityNode())
-  val busErrorUnit = tileParams.core.tileControlAddr map { a =>
-    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
-    intOutputNode.get := beu.intNode
-    beu
-  }
-
-  val tile_master_blocker =
-    tileParams.blockerCtrlAddr
-      .map(BasicBusBlockerParams(_, xBytes, masterPortBeatBytes, deadlock = true))
-      .map(bp => LazyModule(new BasicBusBlocker(bp)))
-
-  masterNode := tile_master_blocker.map { _.node := tileBus.node } getOrElse { tileBus.node }
-
-  // connect any combination of ITIM, DTIM, and BusErrorUnit
-  val slaveNode = TLIdentityNode()
-  DisableMonitors { implicit p =>
-    val xbarPorts =
-      scratch.map(lm => (lm.node, xBytes)) ++
-      busErrorUnit.map(lm => (lm.node, xBytes)) ++
-      tileParams.icache.flatMap(icache => icache.itimAddr.map(a => (frontend.slaveNode, tileParams.core.fetchBytes))) ++
-      tile_master_blocker.map( lm => (lm.controlNode, xBytes))
-
-    if (xbarPorts.nonEmpty) {
-      val xbar = LazyModule(new TLXbar)
-      xbar.node := slaveNode
-      xbarPorts.foreach { case (port, bytes) =>
-        (Seq(port, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
-          ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
-          .foldRight(xbar.node:TLOutwardNode)(_ := _)
-      }
-    }
-  }
-
-  def findScratchpadFromICache: Option[AddressSet] = scratch.map { s =>
-    val finalNode = frontend.masterNode.edges.out.head.manager.managers.find(_.nodePath.last == s.node)
-    require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
-    require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
-    finalNode.get.address(0)
-  }
-
-  nDCachePorts += (scratch.isDefined).toInt
-}
-
-trait CanHaveScratchpadBundle extends HasHellaCacheBundle with HasICacheFrontendBundle {
-  val outer: CanHaveScratchpad
-}
-
-trait CanHaveScratchpadModule extends HasHellaCacheModule with HasICacheFrontendModule {
-  val outer: CanHaveScratchpad
-  val io: CanHaveScratchpadBundle
-
-  outer.scratch.foreach { lm => dcachePorts += lm.module.io.dmem }
-  outer.busErrorUnit.foreach { lm =>
-    lm.module.io.errors.dcache := outer.dcache.module.io.errors
-    lm.module.io.errors.icache := outer.frontend.module.io.errors
   }
 }

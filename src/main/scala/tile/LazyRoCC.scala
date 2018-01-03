@@ -77,27 +77,22 @@ class LazyRoCCModule(outer: LazyRoCC) extends LazyModuleImp(outer) {
 
 /** Mixins for including RoCC **/
 
-trait HasLazyRoCC extends CanHaveSharedFPU with CanHavePTW with HasTileLinkMasterPort {
-  implicit val p: Parameters
-  val module: HasLazyRoCCModule
-
+trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
   val roccs = p(BuildRoCC).zipWithIndex.map { case (accelParams, i) =>
     accelParams.generator(p.alterPartial({
       case RoccNPTWPorts => accelParams.nPTWPorts
   }))}
 
-  roccs.map(_.atlNode).foreach { atl => tileBus.node :=* atl }
-  roccs.map(_.tlNode).foreach { tl => masterNode :=* tl }
+  roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
+  roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
 
   nPTWPorts += p(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
   nDCachePorts += roccs.size
 }
 
-trait HasLazyRoCCModule extends CanHaveSharedFPUModule
-  with CanHavePTWModule
-  with HasCoreParameters
-  with HasTileLinkMasterPortModule {
-  val outer: HasLazyRoCC
+trait HasLazyRoCCModule[+L <: BaseTile with HasLazyRoCC] extends CanHavePTWModule
+    with HasCoreParameters { this: BaseTileModuleImp[L] =>
+
   val roccCore = Wire(new RoCCCoreIO()(outer.p))
 
   val buildRocc = outer.p(BuildRoCC)
