@@ -92,10 +92,10 @@ class RocketTile(
     Resource(cpuDevice, "reg").bind(ResourceInt(BigInt(hartId)))
   }
 
-  override lazy val module = new RocketTileModule(this)
+  override lazy val module = new RocketTileModuleImp(this)
 }
 
-class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer)
+class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasLazyRoCCModule[RocketTile]
     with HasHellaCacheModule
     with HasICacheFrontendModule {

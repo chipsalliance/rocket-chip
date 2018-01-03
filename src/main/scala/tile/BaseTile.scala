@@ -125,7 +125,7 @@ trait HasTileParameters {
 abstract class BaseTile(tileParams: TileParams, val crossing: CoreplexClockCrossing)
                        (implicit p: Parameters) extends LazyModule with HasTileParameters with HasCrossing
 {
-  def module: BaseTileModule[BaseTile]
+  def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
   def intInwardNode: IntInwardNode
@@ -171,7 +171,7 @@ abstract class BaseTile(tileParams: TileParams, val crossing: CoreplexClockCross
   }
 }
 
-class BaseTileModule[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
+class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
 
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits)

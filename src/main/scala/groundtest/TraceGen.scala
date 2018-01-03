@@ -580,10 +580,10 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
 class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params) {
   val masterNode: TLOutwardNode = dcacheOpt.map(_.node).getOrElse(TLIdentityNode())
-  override lazy val module = new TraceGenTileModule(this)
+  override lazy val module = new TraceGenTileModuleImp(this)
 }
 
-class TraceGenTileModule(outer: TraceGenTile) extends GroundTestTileModule(outer) {
+class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp(outer) {
 
   val tracegen = Module(new TraceGenerator(outer.params))
   tracegen.io.hartid := constants.hartid

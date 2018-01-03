@@ -39,10 +39,10 @@ abstract class GroundTestTile(params: GroundTestTileParams)
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(new DCache(0)) }
 
-  override lazy val module = new GroundTestTileModule(this)
+  override lazy val module = new GroundTestTileModuleImp(this)
 }
 
-class GroundTestTileModule(outer: GroundTestTile) extends BaseTileModule(outer) {
+class GroundTestTileModuleImp(outer: GroundTestTile) extends BaseTileModuleImp(outer) {
   val status = IO(new GroundTestStatus)
   val halt_and_catch_fire = None
 
