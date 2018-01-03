@@ -98,12 +98,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val vm_enabled = Bool(usingVM) && io.ptw.ptbr.mode(io.ptw.ptbr.mode.getWidth-1) && priv_uses_vm && !io.req.bits.passthrough
 
   // share a single physical memory attribute checker (unshare if critical path)
-  val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
   val mpu_ppn = Mux(do_refill, refill_ppn,
-                Mux(vm_enabled, entries.last.ppn, vpn))
+                Mux(vm_enabled, entries.last.ppn, io.req.bits.vaddr >> pgIdxBits))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
@@ -122,6 +121,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
+  val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
   val lookup_tag = Cat(io.ptw.ptbr.asid, vpn)
   val hitsVec = (0 until totalEntries).map { i => if (!usingVM) false.B else vm_enabled && {
     var tagMatch = valid(i)
