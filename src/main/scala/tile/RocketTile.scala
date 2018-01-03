@@ -6,7 +6,10 @@ package freechips.rocketchip.tile
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.coreplex.CoreplexClockCrossing
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.interrupts._
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
@@ -34,11 +37,47 @@ class RocketTile(
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
-    with CanHaveScratchpad { // implies CanHavePTW with HasHellaCache with HasICacheFrontend
+    with HasHellaCache
+    with HasICacheFrontend {
 
-  nDCachePorts += 1 // core TODO dcachePorts += () => module.core.io.dmem ??
+  val intOutwardNode = IntIdentityNode()
+  val slaveNode = TLIdentityNode()
+  val masterNode = TLIdentityNode()
 
-  val dtimProperty = scratch.map(d => Map(
+  val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map(s =>
+    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
+  }
+  dtim_adapter.foreach(lm => connectTLSlave(lm.node, xBytes))
+
+  val bus_error_unit = tileParams.core.tileControlAddr map { a =>
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
+    intOutwardNode := beu.intNode
+    connectTLSlave(beu.node, xBytes)
+    beu
+  }
+
+  val tile_master_blocker =
+    tileParams.blockerCtrlAddr
+      .map(BasicBusBlockerParams(_, xBytes, masterPortBeatBytes, deadlock = true))
+      .map(bp => LazyModule(new BasicBusBlocker(bp)))
+
+  tile_master_blocker.foreach(lm => connectTLSlave(lm.controlNode, xBytes))
+
+  // TODO: this doesn't block other masters, e.g. RoCCs
+  tlOtherMastersNode := tile_master_blocker.map { _.node := tlMasterXbar.node } getOrElse { tlMasterXbar.node }
+  masterNode :=* tlOtherMastersNode
+  tlSlaveXbar.node :*= slaveNode
+
+  def findScratchpadFromICache: Option[AddressSet] = dtim_adapter.map { s =>
+    val finalNode = frontend.masterNode.edges.out.head.manager.managers.find(_.nodePath.last == s.node)
+    require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
+    require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
+    finalNode.get.address(0)
+  }
+
+  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
+
+  val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
 
   val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
@@ -58,15 +97,23 @@ class RocketTile(
 
 class RocketTileModule(outer: RocketTile) extends BaseTileModule(outer)
     with HasLazyRoCCModule[RocketTile]
-    with CanHaveScratchpadModule {
+    with HasHellaCacheModule
+    with HasICacheFrontendModule {
 
   val core = Module(p(BuildCore)(outer.p))
 
   val uncorrectable = RegInit(Bool(false))
   val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))
 
+  outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
+
+  outer.bus_error_unit.foreach { lm =>
+    lm.module.io.errors.dcache := outer.dcache.module.io.errors
+    lm.module.io.errors.icache := outer.frontend.module.io.errors
+  }
+
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
-  outer.busErrorUnit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
+  outer.bus_error_unit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
   core.io.hartid := constants.hartid // Pass through the hartid
   trace.foreach { _ := core.io.trace }
   halt_and_catch_fire.foreach { _ := uncorrectable }

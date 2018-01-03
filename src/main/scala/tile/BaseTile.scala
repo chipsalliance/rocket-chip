@@ -181,6 +181,8 @@ class BaseTileModule[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) 
 
   val trace = tileParams.trace.option(IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput))
   val constants = IO(new TileInputConstants)
+
+  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
 }
 
 /** Some other non-tilelink but still standard inputs */
