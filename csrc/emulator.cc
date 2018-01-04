@@ -15,6 +15,13 @@
 #include <unistd.h>
 #include <getopt.h>
 
+//TODO: GENERATE THESE AUTOMATICALLY!
+static const char * verilog_plusargs [] = { "max-core-cycles",
+                                            "jtag_rbb_enable",
+                                            "tilelink_timeout",
+                                            0};
+
+
 extern dtm_t* dtm;
 extern remote_bitbang_t * jtag;
 
@@ -39,7 +46,7 @@ extern "C" int vpi_get_vlog_info(void* arg)
 
 static void usage(const char * program_name)
 {
-  printf("Usage: %s [EMULATOR OPTION]... [HOST OPTION]... BINARY [TARGET OPTION]...\n",
+  printf("Usage: %s [EMULATOR OPTION]... [VERILOG PLUSARG]... [HOST OPTION]... BINARY [TARGET OPTION]...\n",
          program_name);
   fputs("\
 Run a BINARY on the Rocket Chip emulator.\n\
@@ -67,6 +74,14 @@ EMULATOR OPTIONS (only supported in debug build -- try `make debug`)\n",
   -x, --dump-start=CYCLE   Start VCD tracing at CYCLE\n\
        +dump-start\n\
 ", stdout);
+  fputs("\
+\n\
+VERILOG PLUSARGS (accepted by the Verilog itself):\n" , stdout);
+  const char ** vpa = &verilog_plusargs[0];
+  while (*vpa) {
+    fprintf(stdout, "  +%s=...\n", *vpa);
+    vpa ++;
+  }
   fputs("\n" HTIF_USAGE_OPTIONS, stdout);
   printf("\n"
 "EXAMPLES\n"
@@ -94,7 +109,8 @@ int main(int argc, char** argv)
   uint64_t start = 0;
 #endif
   char ** htif_argv = NULL;
-
+  int verilog_plusargs_legal = 1;
+  
   while (1) {
     static struct option long_options[] = {
       {"cycle-count", no_argument,       0, 'c' },
@@ -157,9 +173,27 @@ int main(int argc, char** argv)
 #endif
         else if (arg.substr(0, 12) == "+cycle-count")
           c = 'c';
-        // If we don't find a legacy '+' argument, it still could be
-        // an HTIF (HOST) argument and not an error. If this is the
-        // case, then we're done processing EMULATOR arguments.
+        // If we don't find a legacy '+' EMULATOR argument, it still could be
+        // a VERILOG_PLUSARG and not an error. 
+        else if (verilog_plusargs_legal) {
+          const char ** plusarg = &verilog_plusargs[0];
+          int legal_verilog_plusarg = 0;
+          while (*plusarg && (legal_verilog_plusarg == 0)){
+            if (arg.substr(1, strlen(*plusarg)) == *plusarg) {
+              legal_verilog_plusarg = 1;
+            }
+            plusarg ++;
+          }
+          if (!legal_verilog_plusarg) {
+            verilog_plusargs_legal = 0;
+          } else {
+            c = 'P';
+          }
+          goto retry;
+        }
+        // If we STILL don't find a legacy '+' argument, it still could be
+        // an HTIF (HOST) argument and not an error. If this is the case, then
+        // we're done processing EMULATOR and VERILOG arguments.
         else {
           static struct option htif_long_options [] = { HTIF_LONG_OPTIONS };
           struct option * htif_option = &htif_long_options[0];
@@ -175,6 +209,7 @@ int main(int argc, char** argv)
         }
         goto retry;
       }
+      case 'P': break; // Nothing to do here, Verilog PlusArg
       // Realize that we've hit HTIF (HOST) arguments or error out
       default:
         if (c >= HTIF_LONG_OPTIONS_OPTIND) {
