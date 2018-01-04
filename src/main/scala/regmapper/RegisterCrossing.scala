@@ -4,6 +4,7 @@ package freechips.rocketchip.regmapper
 
 import Chisel._
 import chisel3.util.{Irrevocable}
+import freechips.rocketchip.config.Parameters
 
 import freechips.rocketchip.util.{AsyncQueue,AsyncResetRegVec}
 
@@ -198,7 +199,7 @@ object AsyncRWSlaveRegField {
     init: Int,
     name: Option[String] = None,
     master_bypass: Bool = Bool(true)
-  ): (UInt, RegField) = {
+  )(implicit p: Parameters): (UInt, RegField) = {
 
     val async_slave_reg = Module(new AsyncResetRegVec(width, init))
     name.foreach(async_slave_reg.suggestName(_))

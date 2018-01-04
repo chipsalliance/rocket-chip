@@ -5,6 +5,7 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.regmapper._
+import freechips.rocketchip.config.Parameters
 
 case class ExampleParams(num: Int, address: BigInt)
 
@@ -16,6 +17,8 @@ trait ExampleBundle
 
 trait ExampleModule extends HasRegMap
 {
+  protected[this] implicit def p: Parameters
+
   val params: ExampleParams
   val io: ExampleBundle
   val interrupts: Vec[Bool]

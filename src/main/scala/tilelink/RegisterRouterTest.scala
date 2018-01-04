@@ -9,6 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.util.{Pow2ClockDivider}
+import freechips.rocketchip.config.Parameters
 
 object LFSR16Seed
 {
@@ -61,7 +62,7 @@ object RRTestCombinational
     valid
   }
 
-  def combo(bits: Int, rvalid: Bool => Bool, wready: Bool => Bool): RegField = {
+  def combo(bits: Int, rvalid: Bool => Bool, wready: Bool => Bool)(implicit p: Parameters): RegField = {
     val combo = Module(new RRTestCombinational(bits, rvalid, wready))
     RegField(bits,
       RegReadFn { ready => combo.io.rready := ready; (combo.io.rvalid, combo.io.rdata) },
@@ -144,7 +145,7 @@ object RRTestRequest
 
   def request(bits: Int,
     rflow: (Bool, Bool, UInt) => (Bool, Bool, UInt),
-    wflow: (Bool, Bool, UInt) => (Bool, Bool, UInt)): RegField = {
+    wflow: (Bool, Bool, UInt) => (Bool, Bool, UInt))(implicit p: Parameters): RegField = {
     val request = Module(new RRTestRequest(bits, rflow, wflow))
     RegField(bits,
       RegReadFn { (rivalid, roready) => 
@@ -163,25 +164,25 @@ object RRTest0Map
 {
   import RRTestCombinational._
 
-  def aa(bits: Int) = combo(bits, always, always)
-  def ar(bits: Int) = combo(bits, always, random)
-  def ad(bits: Int) = combo(bits, always, delay(11))
-  def ae(bits: Int) = combo(bits, always, delay(5))
-  def ra(bits: Int) = combo(bits, random, always)
-  def rr(bits: Int) = combo(bits, random, random)
-  def rd(bits: Int) = combo(bits, random, delay(11))
-  def re(bits: Int) = combo(bits, random, delay(5))
-  def da(bits: Int) = combo(bits, delay(5), always)
-  def dr(bits: Int) = combo(bits, delay(5), random)
-  def dd(bits: Int) = combo(bits, delay(5), delay(5))
-  def de(bits: Int) = combo(bits, delay(5), delay(11))
-  def ea(bits: Int) = combo(bits, delay(11), always)
-  def er(bits: Int) = combo(bits, delay(11), random)
-  def ed(bits: Int) = combo(bits, delay(11), delay(5))
-  def ee(bits: Int) = combo(bits, delay(11), delay(11))
+  def aa(bits: Int)(implicit p: Parameters) = combo(bits, always, always)
+  def ar(bits: Int)(implicit p: Parameters) = combo(bits, always, random)
+  def ad(bits: Int)(implicit p: Parameters) = combo(bits, always, delay(11))
+  def ae(bits: Int)(implicit p: Parameters) = combo(bits, always, delay(5))
+  def ra(bits: Int)(implicit p: Parameters) = combo(bits, random, always)
+  def rr(bits: Int)(implicit p: Parameters) = combo(bits, random, random)
+  def rd(bits: Int)(implicit p: Parameters) = combo(bits, random, delay(11))
+  def re(bits: Int)(implicit p: Parameters) = combo(bits, random, delay(5))
+  def da(bits: Int)(implicit p: Parameters) = combo(bits, delay(5), always)
+  def dr(bits: Int)(implicit p: Parameters) = combo(bits, delay(5), random)
+  def dd(bits: Int)(implicit p: Parameters) = combo(bits, delay(5), delay(5))
+  def de(bits: Int)(implicit p: Parameters) = combo(bits, delay(5), delay(11))
+  def ea(bits: Int)(implicit p: Parameters) = combo(bits, delay(11), always)
+  def er(bits: Int)(implicit p: Parameters) = combo(bits, delay(11), random)
+  def ed(bits: Int)(implicit p: Parameters) = combo(bits, delay(11), delay(5))
+  def ee(bits: Int)(implicit p: Parameters) = combo(bits, delay(11), delay(11))
 
   // All fields must respect byte alignment, or else it won't behave like an SRAM
-  def map = Seq(
+  def map(implicit p: Parameters) = Seq(
     0  -> Seq(aa(8), ar(8), ad(8), ae(8)),
     4  -> Seq(ra(8), rr(8), rd(8), re(8)),
     8  -> Seq(da(8), dr(8), dd(8), de(8)),
@@ -196,12 +197,12 @@ object RRTest1Map
 {
   import RRTestRequest._
 
-  def pp(bits: Int) = request(bits, pipe(3), pipe(3))
-  def pb(bits: Int) = request(bits, pipe(3), busy)
-  def bp(bits: Int) = request(bits, busy, pipe(3))
-  def bb(bits: Int) = request(bits, busy, busy)
+  def pp(bits: Int)(implicit p: Parameters) = request(bits, pipe(3), pipe(3))
+  def pb(bits: Int)(implicit p: Parameters) = request(bits, pipe(3), busy)
+  def bp(bits: Int)(implicit p: Parameters) = request(bits, busy, pipe(3))
+  def bb(bits: Int)(implicit p: Parameters) = request(bits, busy, busy)
 
-  def map = RRTest0Map.map.take(6) ++ Seq(
+  def map(implicit p: Parameters) = RRTest0Map.map.take(6) ++ Seq(
     24 -> Seq(pp(8), pb(8), bp(8), bb(8)),
     28 -> Seq(pp(3), pb(5), bp(1), bb(7), pb(5), bp(3), pp(4), bb(4)))
 }
@@ -212,6 +213,8 @@ trait RRTest0Bundle
 
 trait RRTest0Module extends HasRegMap
 {
+  protected[this] implicit def p: Parameters
+
   regmap(RRTest0Map.map:_*)
 }
 
@@ -225,6 +228,8 @@ trait RRTest1Bundle
 
 trait RRTest1Module extends MultiIOModule with HasRegMap
 {
+  protected[this] implicit def p: Parameters
+
   val clocks = Module(new Pow2ClockDivider(2))
 
   def x(bits: Int) = {
