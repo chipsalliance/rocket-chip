@@ -7,8 +7,10 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.coreplex._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{DCache, RocketCoreParams}
 import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
 import scala.collection.mutable.ListBuffer
 
 trait GroundTestTileParams extends TileParams {
@@ -28,19 +30,21 @@ trait GroundTestTileParams extends TileParams {
 
 case object GroundTestTilesKey extends Field[Seq[GroundTestTileParams]]
 
-abstract class GroundTestTile(params: GroundTestTileParams)(implicit p: Parameters) extends BaseTile(params)(p) {
-  val slave = None
+abstract class GroundTestTile(params: GroundTestTileParams)
+                             (implicit p: Parameters)
+    extends BaseTile(params, crossing = SynchronousCrossing())(p) {
+  val intInwardNode: IntInwardNode = IntIdentityNode()
+  val intOutwardNode: IntOutwardNode = IntIdentityNode()
+  val slaveNode: TLInwardNode = TLIdentityNode()
+
   val dcacheOpt = params.dcache.map { dc => LazyModule(new DCache(0)) }
 
-  override lazy val module = new GroundTestTileModule(this, () => new GroundTestTileBundle(this))
+  override lazy val module = new GroundTestTileModuleImp(this)
 }
 
-class GroundTestTileBundle[+L <: GroundTestTile](_outer: L) extends BaseTileBundle(_outer) {
-  val status = new GroundTestStatus
+class GroundTestTileModuleImp(outer: GroundTestTile) extends BaseTileModuleImp(outer) {
+  val status = IO(new GroundTestStatus)
   val halt_and_catch_fire = None
-}
-
-class GroundTestTileModule[+L <: GroundTestTile, +B <: GroundTestTileBundle[L]](_outer: L, _io: () => B) extends BaseTileModule(_outer, _io) {
 
   outer.dcacheOpt foreach { dcache =>
     val ptw = Module(new DummyPTW(1))

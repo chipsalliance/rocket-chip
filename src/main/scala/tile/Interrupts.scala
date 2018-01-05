@@ -5,7 +5,8 @@ package freechips.rocketchip.tile
 import Chisel._
 
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
@@ -18,11 +19,33 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 // Use diplomatic interrupts to external interrupts from the coreplex into the tile
-trait HasExternalInterrupts extends HasTileParameters {
-  implicit val p: Parameters
-  val module: HasExternalInterruptsModule
+trait HasExternalInterrupts { this: BaseTile =>
 
-  val intNode = IntSinkNode(IntSinkPortSimple())
+  val intInwardNode = intXbar.intnode
+  intSinkNode := intXbar.intnode
+
+  val intcDevice = new Device {
+    def describe(resources: ResourceBindings): Description = {
+      Description(s"cpus/cpu@$hartId/interrupt-controller", Map(
+        "compatible"           -> "riscv,cpu-intc".asProperty,
+        "interrupt-controller" -> Nil,
+        "#interrupt-cells"     -> 1.asProperty))
+    }
+  }
+
+  ResourceBinding {
+    Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartId)))
+
+    intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
+      for (i <- s.range.start until s.range.end) {
+       csrIntMap.lift(i).foreach { j =>
+          s.resources.foreach { r =>
+            r.bind(intcDevice, ResourceInt(j))
+          }
+        }
+      }
+    }
+  }
 
   // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the
@@ -34,15 +57,6 @@ trait HasExternalInterrupts extends HasTileParameters {
     val seip = if (usingVM) Seq(9) else Nil
     List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
   }
-}
-
-trait HasExternalInterruptsBundle {
-  val outer: HasExternalInterrupts
-}
-
-trait HasExternalInterruptsModule {
-  val outer: HasExternalInterrupts
-  val io: HasExternalInterruptsBundle
 
   // go from flat diplomatic Interrupts to bundled TileInterrupts
   def decodeCoreInterrupts(core: TileInterrupts) {
@@ -56,7 +70,7 @@ trait HasExternalInterruptsModule {
 
     val core_ips = core.lip
 
-    val (interrupts, _) = outer.intNode.in(0)
+    val (interrupts, _) = intSinkNode.in(0)
     (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
   }
 }
