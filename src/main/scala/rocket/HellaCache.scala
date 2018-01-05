@@ -4,6 +4,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
+import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.coreplex._
 import freechips.rocketchip.diplomacy._
@@ -184,6 +185,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
+  dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
 
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
   fifoManagers.foreach { m =>
