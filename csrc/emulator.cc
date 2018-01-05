@@ -6,6 +6,7 @@
 #include "verilated_vcd_c.h"
 #endif
 #include <fesvr/dtm.h>
+#include "remote_bitbang.h"
 #include <iostream>
 #include <fcntl.h>
 #include <signal.h>
@@ -14,7 +15,16 @@
 #include <unistd.h>
 #include <getopt.h>
 
+//TODO: GENERATE THESE AUTOMATICALLY!
+static const char * verilog_plusargs [] = { "max-core-cycles",
+                                            "jtag_rbb_enable",
+                                            "tilelink_timeout",
+                                            0};
+
+
 extern dtm_t* dtm;
+extern remote_bitbang_t * jtag;
+
 static uint64_t trace_count = 0;
 bool verbose;
 bool done_reset;
@@ -34,33 +44,58 @@ extern "C" int vpi_get_vlog_info(void* arg)
   return 0;
 }
 
-static void usage(const char * program_name) {
-  printf("Usage: %s [OPTION]... BINARY [BINARY ARGS]\n", program_name);
+static void usage(const char * program_name)
+{
+  printf("Usage: %s [EMULATOR OPTION]... [VERILOG PLUSARG]... [HOST OPTION]... BINARY [TARGET OPTION]...\n",
+         program_name);
   fputs("\
 Run a BINARY on the Rocket Chip emulator.\n\
 \n\
 Mandatory arguments to long options are mandatory for short options too.\n\
-  -c, --cycle-count          print the cycle count before exiting\n\
+\n\
+EMULATOR OPTIONS\n\
+  -c, --cycle-count        Print the cycle count before exiting\n\
        +cycle-count\n\
-  -h, --help                 display this help and exit\n\
-  -m, --max-cycles=CYCLES    kill the emulation after CYCLES\n\
+  -h, --help               Display this help and exit\n\
+  -m, --max-cycles=CYCLES  Kill the emulation after CYCLES\n\
        +max-cycles=CYCLES\n\
-  -s, --seed=SEED            use random number seed SEED\n\
-  -V, --verbose              enable all Chisel printfs\n\
+  -s, --seed=SEED          Use random number seed SEED\n\
+  -V, --verbose            Enable all Chisel printfs (cycle-by-cycle info)\n\
        +verbose\n\
 ", stdout);
-#if VM_TRACE
+#if VM_TRACE == 0
   fputs("\
-  -v, --vcd=FILE,            write vcd trace to FILE (or '-' for stdout)\n\
-  -x, --dump-start=CYCLE     start VCD tracing at CYCLE\n\
-      +dump-start\n\
-", stdout);
-#else
-  fputs("\
-VCD options (e.g., -v, +dump-start) require a debug-enabled emulator.\n\
-Try `make debug`.\n\
-", stdout);
+\n\
+EMULATOR OPTIONS (only supported in debug build -- try `make debug`)\n",
+        stdout);
 #endif
+  fputs("\
+  -v, --vcd=FILE,          Write vcd trace to FILE (or '-' for stdout)\n\
+  -x, --dump-start=CYCLE   Start VCD tracing at CYCLE\n\
+       +dump-start\n\
+", stdout);
+  fputs("\
+\n\
+VERILOG PLUSARGS (accepted by the Verilog itself):\n" , stdout);
+  const char ** vpa = &verilog_plusargs[0];
+  while (*vpa) {
+    fprintf(stdout, "  +%s=...\n", *vpa);
+    vpa ++;
+  }
+  fputs("\n" HTIF_USAGE_OPTIONS, stdout);
+  printf("\n"
+"EXAMPLES\n"
+"  - run a bare metal test:\n"
+"    %s $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
+"  - run a bare metal test showing cycle-by-cycle information:\n"
+"    %s +verbose $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add 2>&1 | spike-dasm\n"
+#if VM_TRACE
+"  - run a bare metal test to generate a VCD waveform:\n"
+"    %s -v rv64ui-p-add.vcd $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
+#endif
+"  - run an ELF (you wrote, called 'hello') using the proxy kernel:\n"
+"    %s pk hello\n",
+         program_name, program_name, program_name, program_name);
 }
 
 int main(int argc, char** argv)
@@ -73,8 +108,9 @@ int main(int argc, char** argv)
   FILE * vcdfile = NULL;
   uint64_t start = 0;
 #endif
-
-  std::vector<std::string> to_dtm;
+  char ** htif_argv = NULL;
+  int verilog_plusargs_legal = 1;
+  
   while (1) {
     static struct option long_options[] = {
       {"cycle-count", no_argument,       0, 'c' },
@@ -86,7 +122,7 @@ int main(int argc, char** argv)
       {"vcd",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
 #endif
-      {0, 0, 0, 0}
+      HTIF_LONG_OPTIONS
     };
     int option_index = 0;
 #if VM_TRACE
@@ -95,8 +131,9 @@ int main(int argc, char** argv)
     int c = getopt_long(argc, argv, "-chm:s:V", long_options, &option_index);
 #endif
     if (c == -1) break;
+ retry:
     switch (c) {
-      // Process "normal" options with '--' long options or '-' short options
+      // Process long and short EMULATOR options
       case '?': usage(argv[0]);             return 1;
       case 'c': print_cycles = true;        break;
       case 'h': usage(argv[0]);             return 0;
@@ -114,39 +151,86 @@ int main(int argc, char** argv)
       }
       case 'x': start = atoll(optarg);      break;
 #endif
-      // Processing of legacy '+' options and recognition of when
-      // we've hit the binary. The binary is expected to be a
-      // non-option and not start with '-' or '+'.
+      // Process legacy '+' EMULATOR arguments by replacing them with
+      // their getopt equivalents
       case 1: {
         std::string arg = optarg;
-        if (arg == "+verbose")
-          verbose = true;
-        else if (arg.substr(0, 12) == "+max-cycles=")
-          max_cycles = atoll(optarg+12);
-#if VM_TRACE
-        else if (arg.substr(0, 12) == "+dump-start=")
-          start = atoll(optarg+12);
-#endif
-        else if (arg.substr(0, 12) == "+cycle-count")
-          print_cycles = true;
-        else {
-          to_dtm.push_back(optarg);
+        if (arg.substr(0, 1) != "+") {
+          optind--;
           goto done_processing;
         }
-        break;
+        if (arg == "+verbose")
+          c = 'V';
+        else if (arg.substr(0, 12) == "+max-cycles=") {
+          c = 'm';
+          optarg = optarg+12;
+        }
+#if VM_TRACE
+        else if (arg.substr(0, 12) == "+dump-start=") {
+          c = 'x';
+          optarg = optarg+12;
+        }
+#endif
+        else if (arg.substr(0, 12) == "+cycle-count")
+          c = 'c';
+        // If we don't find a legacy '+' EMULATOR argument, it still could be
+        // a VERILOG_PLUSARG and not an error. 
+        else if (verilog_plusargs_legal) {
+          const char ** plusarg = &verilog_plusargs[0];
+          int legal_verilog_plusarg = 0;
+          while (*plusarg && (legal_verilog_plusarg == 0)){
+            if (arg.substr(1, strlen(*plusarg)) == *plusarg) {
+              legal_verilog_plusarg = 1;
+            }
+            plusarg ++;
+          }
+          if (!legal_verilog_plusarg) {
+            verilog_plusargs_legal = 0;
+          } else {
+            c = 'P';
+          }
+          goto retry;
+        }
+        // If we STILL don't find a legacy '+' argument, it still could be
+        // an HTIF (HOST) argument and not an error. If this is the case, then
+        // we're done processing EMULATOR and VERILOG arguments.
+        else {
+          static struct option htif_long_options [] = { HTIF_LONG_OPTIONS };
+          struct option * htif_option = &htif_long_options[0];
+          while (htif_option->name) {
+            if (arg.substr(1, strlen(htif_option->name)) == htif_option->name) {
+              optind--;
+              goto done_processing;
+            }
+            htif_option++;
+          }
+          std::cerr << argv[0] << ": invalid HTIF legacy plus-arg \"" << arg << "\"\n";
+          c = '?';
+        }
+        goto retry;
       }
+      case 'P': break; // Nothing to do here, Verilog PlusArg
+      // Realize that we've hit HTIF (HOST) arguments or error out
+      default:
+        if (c >= HTIF_LONG_OPTIONS_OPTIND) {
+          optind--;
+          goto done_processing;
+        }
+        c = '?';
+        goto retry;
     }
   }
 
 done_processing:
-  if (optind < argc)
-    while (optind < argc)
-      to_dtm.push_back(argv[optind++]);
-  if (!to_dtm.size()) {
+  if (optind == argc) {
     std::cerr << "No binary specified for emulator\n";
     usage(argv[0]);
     return 1;
   }
+  int htif_argc = 1 + argc - optind;
+  htif_argv = (char **) malloc((htif_argc) * sizeof (char *));
+  htif_argv[0] = argv[0];
+  for (int i = 1; optind < argc;) htif_argv[i++] = argv[optind++];
 
   if (verbose)
     fprintf(stderr, "using random seed %u\n", random_seed);
@@ -168,26 +252,40 @@ done_processing:
   }
 #endif
 
-  dtm = new dtm_t(to_dtm);
+  dtm = new dtm_t(htif_argc, htif_argv);
 
+  jtag = new remote_bitbang_t(0);
+  
   signal(SIGTERM, handle_sigterm);
 
+  bool dump;
   // reset for several cycles to handle pipelined reset
   for (int i = 0; i < 10; i++) {
     tile->reset = 1;
     tile->clock = 0;
     tile->eval();
+#if VM_TRACE
+    dump = tfp && trace_count >= start;
+    if (dump)
+      tfp->dump(static_cast<vluint64_t>(trace_count * 2));
+#endif
     tile->clock = 1;
     tile->eval();
-    tile->reset = 0;
+#if VM_TRACE
+    if (dump)
+      tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
+#endif
+    trace_count ++;
   }
+  tile->reset = 0;
   done_reset = true;
 
-  while (!dtm->done() && !tile->io_success && trace_count < max_cycles) {
+  while (!dtm->done() && (!jtag->done()) &&
+         !tile->io_success && trace_count < max_cycles) {
     tile->clock = 0;
     tile->eval();
 #if VM_TRACE
-    bool dump = tfp && trace_count >= start;
+    dump = tfp && trace_count >= start;
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
@@ -213,6 +311,11 @@ done_processing:
     fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
     ret = dtm->exit_code();
   }
+  else if (jtag->exit_code())
+  {
+    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", jtag->exit_code(), random_seed, trace_count);
+    ret = jtag->exit_code();
+  }
   else if (trace_count == max_cycles)
   {
     fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
@@ -224,6 +327,8 @@ done_processing:
   }
 
   if (dtm) delete dtm;
+  if (jtag) delete jtag;
   if (tile) delete tile;
+  if (htif_argv) free(htif_argv);
   return ret;
 }

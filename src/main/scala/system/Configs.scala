@@ -9,6 +9,8 @@ import freechips.rocketchip.coreplex._
 import freechips.rocketchip.devices.debug.{IncludeJtagDTM, JtagDTMKey}
 import freechips.rocketchip.diplomacy._
 
+class WithJtagDTMSystem extends freechips.rocketchip.coreplex.WithJtagDTM
+
 class BaseConfig extends Config(new BaseCoreplexConfig().alter((site,here,up) => {
   // DTS descriptive parameters
   case DTSModel => "freechips,rocketchip-unknown"
