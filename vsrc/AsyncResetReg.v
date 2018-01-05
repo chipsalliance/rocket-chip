@@ -49,6 +49,7 @@ module AsyncResetReg (
 `ifdef RANDOMIZE
       integer                       initvar;
       reg [31:0]                    _RAND;
+      _RAND = {1{$random}};
 `endif
       if (rst) begin
 `ifdef verilator
@@ -59,7 +60,6 @@ module AsyncResetReg (
  `ifndef verilator
  `endif
  `ifdef RANDOMIZE_REG_INIT
-      _RAND = {1{$random}};
       else begin
          #0.002 begin end
          q = _RAND[0];
