@@ -195,7 +195,7 @@ trait HasMasterTLMMIOPortBundle {
 trait HasMasterTLMMIOPortModuleImp extends LazyModuleImp with HasMasterTLMMIOPortBundle {
   val outer: HasMasterTLMMIOPort
   val mmio_tl = IO(HeterogeneousBag.fromNode(outer.mmio_tl.in))
-  (mmio_tl zip outer.mmio_tl.out) foreach { case (i, (o, _)) => i <> o }
+  (mmio_tl zip outer.mmio_tl.in) foreach { case (i, (o, _)) => i <> o }
 }
 
 /** Adds an TL port to the system intended to be a slave on an MMIO device bus.
