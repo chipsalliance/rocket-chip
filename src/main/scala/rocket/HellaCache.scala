@@ -257,11 +257,12 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
 
   val metabits = rstVal.getWidth
   val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
-  when (rst || io.write.valid) {
+  val wen = rst || io.write.valid
+  when (wen) {
     tag_array.write(waddr, Vec.fill(nWays)(wdata), wmask)
   }
-  io.resp := tag_array.read(io.read.bits.idx, io.read.valid).map(rstVal.fromBits(_))
+  io.resp := tag_array.read(io.read.bits.idx, io.read.fire()).map(rstVal.fromBits(_))
 
-  io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
+  io.read.ready := !wen // so really this could be a 6T RAM
   io.write.ready := !rst
 }
