@@ -722,7 +722,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
 
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  val supports_flush = !edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED)
+  val supports_flush = !edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.UNCACHEABLE)
   if (supports_flush) {
     when (tl_out_a.fire() && !s2_uncached) { flushed := false }
     when (flushing) {

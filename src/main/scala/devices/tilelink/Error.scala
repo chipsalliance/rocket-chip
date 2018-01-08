@@ -26,7 +26,7 @@ abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
     Seq(TLManagerParameters(
       address            = params.address,
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHED,
+      regionType         = RegionType.UNCACHEABLE,
       executable         = true,
       supportsAcquireT   = xfer,
       supportsAcquireB   = xfer,
