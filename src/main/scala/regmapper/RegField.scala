@@ -100,12 +100,12 @@ object RegField
 
   // This RegField wraps an explicit register
   // (e.g. Black-Boxed Register) to create a R/W register.
-  def rwReg(n: Int, bb: SimpleRegIO) : RegField =
+  def rwReg(n: Int, bb: SimpleRegIO, name: String = "", description: String = "") : RegField =
     RegField(n, bb.q, RegWriteFn((valid, data) => {
       bb.en := valid
       bb.d := data
       Bool(true)
-    }))
+    }), name, description)
 
   // Create byte-sized read-write RegFields out of a large UInt register.
   // It is updated when any of the bytes are written. Because the RegFields
