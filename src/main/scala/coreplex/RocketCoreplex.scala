@@ -118,18 +118,14 @@ trait HasRocketTiles extends HasTiles
     def tileSlaveBuffering: TLInwardNode = rocket {
       val slaveBuffer  = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
       crossing.crossingType match {
-        case _: SynchronousCrossing  => rocket.slaveNode // requirement already checked
-        case _: AsynchronousCrossing => rocket.slaveNode
-        case _: RationalCrossing =>
-          if (tp.boundaryBuffers) {
-            DisableMonitors { implicit p => rocket.slaveNode :*= slaveBuffer.node }
-          } else {
-            rocket.slaveNode
-          }
+        case RationalCrossing(_) if (tp.boundaryBuffers) => rocket.slaveNode :*= slaveBuffer.node
+        case _ => rocket.slaveNode
       }
     }
 
-    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)(tileSlaveBuffering :*= rocket.crossTLIn) }
+    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)( DisableMonitors { implicit p =>
+      tileSlaveBuffering :*= rocket.crossTLIn
+    })}
 
     // Handle all the different types of interrupts crossing to or from the tile:
     // 1. Debug interrupt is definitely asynchronous in all cases.
@@ -151,7 +147,7 @@ trait HasRocketTiles extends HasTiles
     if (tp.core.useVM) periphIntNode := plic.intnode // seip
 
     // 3. local interrupts  never cross 
-    // this.intInwardNode is wired up externally     // lip
+    // rocket.intInwardNode is wired up externally     // lip
 
     // 4. conditional crossing from core to PLIC
     FlipRendering { implicit p =>
