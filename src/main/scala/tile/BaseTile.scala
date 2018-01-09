@@ -135,7 +135,6 @@ abstract class BaseTile(tileParams: TileParams, val crossing: CoreplexClockCross
   protected val tlMasterXbar = LazyModule(new TLXbar)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
-  protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
 
   def connectTLSlave(node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
