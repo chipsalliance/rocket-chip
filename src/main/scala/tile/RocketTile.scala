@@ -66,7 +66,7 @@ class RocketTile(
   // TODO: this doesn't block other masters, e.g. RoCCs
   tlOtherMastersNode := tile_master_blocker.map { _.node := tlMasterXbar.node } getOrElse { tlMasterXbar.node }
   masterNode :=* tlOtherMastersNode
-  tlSlaveXbar.node :*= slaveNode
+  DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
 
   def findScratchpadFromICache: Option[AddressSet] = dtim_adapter.map { s =>
     val finalNode = frontend.masterNode.edges.out.head.manager.managers.find(_.nodePath.last == s.node)
