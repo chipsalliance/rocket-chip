@@ -26,12 +26,12 @@ the RISC-V Rocket Core. For more information on Rocket Chip, please consult our 
 ### Setting up the RISCV environment variable
 
 To build the rocket-chip repository, you must point the RISCV
-environment variable to your riscv-tools installation directory. 
+environment variable to your riscv-tools installation directory.
 
     $ export RISCV=/path/to/riscv/toolchain/installation
-    
-The riscv-tools repository is already included in 
-rocket-chip as a git submodule. You **must** build this version 
+
+The riscv-tools repository is already included in
+rocket-chip as a Git submodule. You **must** build this version
 of riscv-tools:
 
     $ cd rocket-chip/riscv-tools
@@ -80,7 +80,7 @@ And to run the assembly tests on the C simulator and generate waveforms:
     $ make -jN run-asm-tests-debug
     $ make -jN run-bmark-tests-debug
 
-To generate FPGA- or VLSI-synthesizable verilog (output will be in `vsim/generated-src`):
+To generate FPGA- or VLSI-synthesizable Verilog (output will be in `vsim/generated-src`):
 
     $ cd vsim
     $ make verilog
@@ -88,7 +88,7 @@ To generate FPGA- or VLSI-synthesizable verilog (output will be in `vsim/generat
 
 ### Keeping Your Repo Up-to-Date
 
-If you are trying to keep your repo up to date with this github repo,
+If you are trying to keep your repo up to date with this GitHub repo,
 you also need to keep the submodules and tools up to date.
 
     $ # Get the newest versions of the files in this repo
@@ -105,7 +105,7 @@ If riscv-tools version changes, you should recompile and install riscv-tools acc
 ## <a name="what"></a> What's in the Rocket chip generator repository?
 
 The rocket-chip repository is a meta-repository that points to several
-sub-repositories using [Git submodules](http://git-scm.com/book/en/Git-Tools-Submodules). 
+sub-repositories using [Git submodules](http://git-scm.com/book/en/Git-Tools-Submodules).
 Those repositories contain tools needed to generate and test SoC designs.
 This respository also contains code that is used to generate RTL.
 Hardware generation is done using [Chisel](http://chisel.eecs.berkeley.edu),
@@ -142,12 +142,12 @@ floating-point conversions with different precision.
 We tag a version of the RISC-V software ecosystem that works with the RTL committed in this repository.
 * **torture**
 ([https://github.com/ucb-bar/riscv-torture](https://github.com/ucb-bar/riscv-torture)):
-This module is used to generate and execture constrained random instruction streams that can
+This module is used to generate and execute constrained random instruction streams that can
 be used to stress-test both the core and uncore portions of the design.
 
 ### <a name="what_packages"></a>Scala Packages
 
-In addition to submodules that track independent git repositories,
+In addition to submodules that track independent Git repositories,
 the rocket-chip code base is itself factored into a number of Scala packages.
 These packages are all found within the src/main/scala directory.
 Some of these packages provide Scala utilities for generator configuration,
@@ -169,10 +169,10 @@ This RTL package contains implementations for peripheral devices, including the 
 This utility package extends Chisel by allowing for two-phase hardware elaboration, in which certain parameters
 are dynamically negotiated between modules. For more information about diplomacy, see [this paper](https://carrv.github.io/papers/cook-diplomacy-carrv2017.pdf).
 * **groundtest**
-This RTL package generates synthesizeable hardware testers that emit randomized
+This RTL package generates synthesizable hardware testers that emit randomized
 memory access streams in order to stress-tests the uncore memory hierarchy.
 * **jtag**
-This RTL package provides definitions for generating JTAG bus interfaces. 
+This RTL package provides definitions for generating JTAG bus interfaces.
 * **regmapper**
 This utility package generates slave devices with a standardized interface for accessing their memory-mapped registers.
 * **rocket**
@@ -189,7 +189,7 @@ of adapters and protocol converters.
 This top-level utility package invokes Chisel to elaborate a particular configuration of a coreplex,
 along with the appropriate testing collateral.
 * **unittest**
-This utility package contains a framework for generateing synthesizeable hardware testers of individual modules.
+This utility package contains a framework for generateing synthesizable hardware testers of individual modules.
 * **util**
 This utility package provides a variety of common Scala and Chisel constructs that are re-used across
 multiple other packages,
@@ -263,7 +263,7 @@ cores on your host system, do the following:
 By doing so, the build system will generate C++ code for the
 cycle-accurate emulator, compile the emulator, compile all RISC-V
 assembly tests and benchmarks, and run both tests and benchmarks on the
-emulator. If make finished without any errors, it means that the
+emulator. If Make finished without any errors, it means that the
 generated Rocket chip has passed all assembly tests and benchmarks!
 
 You can also run assembly tests and benchmarks separately:
@@ -283,8 +283,8 @@ Or call out individual assembly tests or benchmarks:
     $ make output/rv64ui-p-add.vcd
 
 Now take a look in the emulator/generated-src directory. You will find
-Chisel generated verilog code and its associated C++ code generated by
-verilator.
+Chisel generated Verilog code and its associated C++ code generated by
+Verilator.
 
     $ ls $ROCKETCHIP/emulator/generated-src
     DefaultConfig.dts
@@ -389,7 +389,7 @@ on your host machine):
 
     $ cd $ROCKETCHIP/vsim
     $ make -jN run
- 
+
 The generated output looks similar to those generated from the emulator.
 Look into vsim/output/\*.out for the output of the executed assembly
 tests and benchmarks.
