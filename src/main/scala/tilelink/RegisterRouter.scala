@@ -92,12 +92,12 @@ case class TLRegisterNode(
         ("addressOffset"  -> s"0x${offset.toHexString}") ~
           ("fields" -> seq.zipWithIndex.map { case (f, i) => {
             val tmp = (f.description.map{ _.displayName }.getOrElse(s"unnamedRegField${i}") -> (
-              ("description" -> f.description.map{_.description}.getOrElse("No Description Provided")) ~
                 ("bitOffset"   -> currentBitOffset) ~
                 ("bitWidth"    -> f.width) ~
-                ("resetMask"   -> f.description.map { d => if (d.resetType != RegFieldResetType.N) "all" else "none"}.getOrElse("none")) ~
-                ("resetValue"  -> f.description.map { _.resetValue}.getOrElse(0)) ~
-                ("headerName"  -> f.description.map { _.headerName}.getOrElse(""))))
+                ("description" -> f.description.map{ _.description}) ~
+                ("resetMask"   -> f.description.map { d => if (d.resetType != RegFieldResetType.N) "all" else "none"}) ~
+                ("resetValue"  -> f.description.map { _.resetValue})
+                ("headerName"  -> f.description.map { _.headerName}))
             currentBitOffset = currentBitOffset + f.width
             tmp
           }}))}
