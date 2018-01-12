@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.coreplex.{HasPeripheryBus}
+import freechips.rocketchip.subsystem.{HasPeripheryBus}
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._

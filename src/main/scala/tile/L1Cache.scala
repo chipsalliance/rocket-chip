@@ -5,7 +5,7 @@ package freechips.rocketchip.tile
 import Chisel._
 
 import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tilelink.ClientMetadata
 import freechips.rocketchip.util._
 

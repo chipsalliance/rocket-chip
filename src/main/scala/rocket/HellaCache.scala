@@ -6,7 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._

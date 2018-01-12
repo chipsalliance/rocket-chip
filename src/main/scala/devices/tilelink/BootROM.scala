@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -58,7 +58,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
   }
 }
 
-/** Adds a boot ROM that contains the DTB describing the system's coreplex. */
+/** Adds a boot ROM that contains the DTB describing the system's subsystem. */
 trait HasPeripheryBootROM extends HasPeripheryBus {
   val dtb: DTB
   private val params = p(BootROMParams)
@@ -74,7 +74,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
   bootrom.node := pbus.toVariableWidthSlaves
 }
 
-/** Coreplex will power-on running at 0x10040 (BootROM) */
+/** Subsystem will power-on running at 0x10040 (BootROM) */
 trait HasPeripheryBootROMModuleImp extends LazyModuleImp
     with HasResetVectorWire {
   val outer: HasPeripheryBootROM

@@ -7,7 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.coreplex.{CrossingWrapper, AsynchronousCrossing}
+import freechips.rocketchip.subsystem.{CrossingWrapper, AsynchronousCrossing}
 
 class AXI4AsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {

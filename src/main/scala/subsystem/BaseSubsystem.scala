@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
@@ -9,14 +9,14 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util._
 
-/** BareCoreplex is the root class for creating a coreplex sub-system */
-abstract class BareCoreplex(implicit p: Parameters) extends LazyModule with BindingScope {
+/** BareSubsystem is the root class for creating a subsystem */
+abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
 }
 
-abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyModuleImp(_outer) {
+abstract class BareSubsystemModule[+L <: BareSubsystem](_outer: L) extends LazyModuleImp(_outer) {
   val outer = _outer
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)
@@ -25,13 +25,13 @@ abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyMod
   println(outer.dts)
 }
 
-/** Base Coreplex class with no peripheral devices or ports added */
-abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
+/** Base Subsystem class with no peripheral devices or ports added */
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
     with HasInterruptBus
     with HasSystemBus
     with HasPeripheryBus
     with HasMemoryBus {
-  override val module: BaseCoreplexModule[BaseCoreplex]
+  override val module: BaseSubsystemModule[BaseSubsystem]
 
   // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
   lazy val topManagers = Some(ManagerUnification(sharedMemoryTLEdge.manager.managers))
@@ -59,7 +59,7 @@ abstract class BaseCoreplex(implicit p: Parameters) extends BareCoreplex
   }
 }
 
-abstract class BaseCoreplexModule[+L <: BaseCoreplex](_outer: L) extends BareCoreplexModule(_outer) {
+abstract class BaseSubsystemModule[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModule(_outer) {
   println("Generated Address Map")
   private val aw = (outer.sharedMemoryTLEdge.bundle.addressBits-1)/4 + 1
   private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c%c %s"

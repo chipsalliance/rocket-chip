@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasMemoryBus
+import freechips.rocketchip.subsystem.HasMemoryBus
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 

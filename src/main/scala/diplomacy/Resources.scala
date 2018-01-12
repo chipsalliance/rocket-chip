@@ -211,7 +211,7 @@ case class Resource(owner: Device, key: String)
   }
 }
 
-/** The resource binding scope for a LazyModule that generates a device tree (currently Coreplex only). */
+/** The resource binding scope for a LazyModule that generates a device tree (currently Subsystem only). */
 trait BindingScope
 {
   this: LazyModule =>

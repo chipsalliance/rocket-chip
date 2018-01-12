@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config._
@@ -11,16 +11,16 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 /** Enumerates the three types of clock crossing between tiles and system bus */
-sealed trait CoreplexClockCrossing
+sealed trait SubsystemClockCrossing
 {
   def sameClock = this match {
     case _: SynchronousCrossing => true
     case _ => false
   }
 }
-case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends CoreplexClockCrossing
-case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
-case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends CoreplexClockCrossing
+case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends SubsystemClockCrossing
+case class RationalCrossing(direction: RationalDirection = FastToSlow) extends SubsystemClockCrossing
+case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends SubsystemClockCrossing
 
 private case class CrossingCheck(out: Boolean, source: BaseNode, sink: BaseNode)
 
@@ -77,13 +77,13 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   def crossTLRationalIn (direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(false)(direction)
   def crossTLRationalOut(direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(true )(direction)
 
-  def crossTLIn(arg: CoreplexClockCrossing)(implicit p: Parameters): TLNode = arg match {
+  def crossTLIn(arg: SubsystemClockCrossing)(implicit p: Parameters): TLNode = arg match {
     case x: SynchronousCrossing  => crossTLSyncIn(x.params)
     case x: AsynchronousCrossing => crossTLAsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalIn(x.direction)
   }
 
-  def crossTLOut(arg: CoreplexClockCrossing)(implicit p: Parameters): TLNode = arg match {
+  def crossTLOut(arg: SubsystemClockCrossing)(implicit p: Parameters): TLNode = arg match {
     case x: SynchronousCrossing  => crossTLSyncOut(x.params)
     case x: AsynchronousCrossing => crossTLAsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalOut(x.direction)
@@ -112,13 +112,13 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   def crossAXI4AsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(false)(depth, sync)
   def crossAXI4AsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(true )(depth, sync)
 
-  def crossAXI4In(arg: CoreplexClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+  def crossAXI4In(arg: SubsystemClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
     case x: SynchronousCrossing  => crossAXI4SyncIn(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
   }
 
-  def crossAXI4Out(arg: CoreplexClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+  def crossAXI4Out(arg: SubsystemClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
     case x: SynchronousCrossing  => crossAXI4SyncOut(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
@@ -163,26 +163,26 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   def crossIntRationalIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(false)(alreadyRegistered)
   def crossIntRationalOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(true )(alreadyRegistered)
 
-  def crossIntIn(arg: CoreplexClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
+  def crossIntIn(arg: SubsystemClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
     case x: SynchronousCrossing  => crossIntSyncIn(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncIn(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalIn(alreadyRegistered)
   }
 
-  def crossIntOut(arg: CoreplexClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
+  def crossIntOut(arg: SubsystemClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
     case x: SynchronousCrossing  => crossIntSyncOut(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncOut(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalOut(alreadyRegistered)
   }
 
-  def crossIntIn (arg: CoreplexClockCrossing)(implicit p: Parameters): IntNode = crossIntIn (arg, false)
-  def crossIntOut(arg: CoreplexClockCrossing)(implicit p: Parameters): IntNode = crossIntOut(arg, false)
+  def crossIntIn (arg: SubsystemClockCrossing)(implicit p: Parameters): IntNode = crossIntIn (arg, false)
+  def crossIntOut(arg: SubsystemClockCrossing)(implicit p: Parameters): IntNode = crossIntOut(arg, false)
 }
 
 trait HasCrossing extends HasCrossingMethods
 {
   this: LazyModule =>
-  val crossing: CoreplexClockCrossing
+  val crossing: SubsystemClockCrossing
 
   def crossTLIn   (implicit p: Parameters): TLNode  = crossTLIn   (crossing)
   def crossTLOut  (implicit p: Parameters): TLNode  = crossTLOut  (crossing)
@@ -195,4 +195,4 @@ trait HasCrossing extends HasCrossingMethods
   def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = crossIntOut(crossing, alreadyRegistered)
 }
 
-class CrossingWrapper(val crossing: CoreplexClockCrossing)(implicit p: Parameters) extends SimpleLazyModule with HasCrossing
+class CrossingWrapper(val crossing: SubsystemClockCrossing)(implicit p: Parameters) extends SimpleLazyModule with HasCrossing

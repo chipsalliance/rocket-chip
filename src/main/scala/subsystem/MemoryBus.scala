@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config._
@@ -22,11 +22,11 @@ case object BroadcastKey extends Field(BroadcastParams())
 case class BankedL2Params(
   nMemoryChannels:  Int = 1,
   nBanksPerChannel: Int = 1,
-  coherenceManager: HasMemoryBus => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { coreplex =>
-    implicit val p = coreplex.p
+  coherenceManager: HasMemoryBus => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { subsystem =>
+    implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
-    val bh = LazyModule(new TLBroadcast(coreplex.memBusBlockBytes, nTrackers, bufferless))
-    val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes))
+    val bh = LazyModule(new TLBroadcast(subsystem.memBusBlockBytes, nTrackers, bufferless))
+    val ww = LazyModule(new TLWidthWidget(subsystem.sbusBeatBytes))
     ww.node :*= bh.node
     (bh.node, ww.node, () => None)
   }) {

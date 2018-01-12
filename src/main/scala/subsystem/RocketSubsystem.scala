@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
@@ -18,7 +18,7 @@ case class TileMasterPortParams(
     addBuffers: Int = 0,
     cork: Option[Boolean] = None) {
 
-  def adapt(coreplex: HasPeripheryBus)
+  def adapt(subsystem: HasPeripheryBus)
            (masterNode: TLOutwardNode)
            (implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
     val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
@@ -33,22 +33,22 @@ case class TileSlavePortParams(
     addBuffers: Int = 0,
     blockerCtrlAddr: Option[BigInt] = None) {
 
-  def adapt(coreplex: HasPeripheryBus)
+  def adapt(subsystem: HasPeripheryBus)
            (slaveNode: TLInwardNode)
            (implicit p: Parameters, sourceInfo: SourceInfo): TLInwardNode = {
     val tile_slave_blocker =
       blockerCtrlAddr
-        .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes))
+        .map(BasicBusBlockerParams(_, subsystem.pbus.beatBytes, subsystem.sbus.beatBytes))
         .map(bp => LazyModule(new BasicBusBlocker(bp)))
 
-    tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
+    tile_slave_blocker.foreach { _.controlNode := subsystem.pbus.toVariableWidthSlaves }
     (Seq() ++ tile_slave_blocker.map(_.node) ++ TLBuffer.chain(addBuffers))
     .foldLeft(slaveNode)(_ :*= _)
   }
 }
 
 case class RocketCrossingParams(
-    crossingType: CoreplexClockCrossing = SynchronousCrossing(),
+    crossingType: SubsystemClockCrossing = SynchronousCrossing(),
     master: TileMasterPortParams = TileMasterPortParams(),
     slave: TileSlavePortParams = TileSlavePortParams()) {
   def knownRatio: Option[Int] = crossingType match {
@@ -63,7 +63,7 @@ case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(Rock
 trait HasRocketTiles extends HasTiles
     with HasPeripheryBus
     with HasPeripheryPLIC
-    with HasPeripheryClint
+    with HasPeripheryCLINT
     with HasPeripheryDebug {
   val module: HasRocketTilesModuleImp
 
@@ -163,13 +163,13 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
   val outer: HasRocketTiles
 }
 
-class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
+class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
-  override lazy val module = new RocketCoreplexModule(this)
+  override lazy val module = new RocketSubsystemModule(this)
 }
 
-class RocketCoreplexModule[+L <: RocketCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
+class RocketSubsystemModule[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModule(_outer)
     with HasRocketTilesModuleImp {
   tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
     wire.clock := clock

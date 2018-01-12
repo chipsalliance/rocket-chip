@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config._
@@ -13,7 +13,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class BaseCoreplexConfig extends Config ((site, here, up) => {
+class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
@@ -155,8 +155,8 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(master = r.master.copy(cork = Some(true)))
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { coreplex =>
-    val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes)(coreplex.p))
+  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
+    val ww = LazyModule(new TLWidthWidget(subsystem.sbusBeatBytes)(subsystem.p))
     (ww.node, ww.node, () => None)
   })
 })

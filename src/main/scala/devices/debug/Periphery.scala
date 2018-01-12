@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.debug
 import Chisel._
 import chisel3.core.{IntParam, Input, Output}
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasPeripheryBus
+import freechips.rocketchip.subsystem.HasPeripheryBus
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.jtag._

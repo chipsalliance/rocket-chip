@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 
@@ -15,7 +15,7 @@ import scala.math.max
 
 case object TileId extends Field[Int]
 
-class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
+class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasMasterAXI4MemPort
     with HasPeripheryTestRAMSlave
     with HasInterruptBus {
@@ -37,10 +37,10 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
   val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), true, false, pbus.beatBytes))
   pbusRAM.node := pbus.toVariableWidthSlaves
 
-  override lazy val module = new GroundTestCoreplexModule(this)
+  override lazy val module = new GroundTestSubsystemModule(this)
 }
 
-class GroundTestCoreplexModule[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
+class GroundTestSubsystemModule[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModule(_outer)
     with HasMasterAXI4MemPortModuleImp {
   val success = IO(Bool(OUTPUT))
 

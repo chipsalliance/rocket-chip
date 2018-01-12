@@ -5,13 +5,13 @@ package freechips.rocketchip.system
 
 import Chisel._
 import freechips.rocketchip.config.Config
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.debug.{IncludeJtagDTM, JtagDTMKey}
 import freechips.rocketchip.diplomacy._
 
-class WithJtagDTMSystem extends freechips.rocketchip.coreplex.WithJtagDTM
+class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 
-class BaseConfig extends Config(new BaseCoreplexConfig().alter((site,here,up) => {
+class BaseConfig extends Config(new BaseSubsystemConfig().alter((site,here,up) => {
   // DTS descriptive parameters
   case DTSModel => "freechips,rocketchip-unknown"
   case DTSCompat => Nil
