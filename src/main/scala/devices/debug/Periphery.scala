@@ -49,7 +49,8 @@ trait HasPeripheryDebugBundle {
       val dtm = Module(new SimDTM).connect(c, r, d, out)
     }
     debug.systemjtag.foreach { sj =>
-      val jtag = Module(new JTAGVPI(tckHalfPeriod = tckHalfPeriod, cmdDelay = cmdDelay)).connect(sj.jtag, sj.reset, r, out)
+      //val jtag = Module(new JTAGVPI(tckHalfPeriod = tckHalfPeriod, cmdDelay = cmdDelay)).connect(sj.jtag, sj.reset, r, out)
+      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, sj.reset, c, r, out)
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
     }
     debug.psd.foreach { _ <> psd }
@@ -104,6 +105,36 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
     dutio.dmiClock := tbclk
     dutio.dmiReset := tbreset
 
+    tbsuccess := io.exit === UInt(1)
+    when (io.exit >= UInt(2)) {
+      printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
+      stop(1)
+    }
+  }
+}
+
+class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay))) {
+  val io = new Bundle {
+    val clock = Clock(INPUT)
+    val reset = Bool(INPUT)
+    val jtag = new JTAGIO(hasTRSTn = true)
+    val enable = Bool(INPUT)
+    val init_done = Bool(INPUT)
+    val exit = UInt(OUTPUT, 32)
+  }
+
+  def connect(dutio: JTAGIO, jtag_reset: Bool, tbclock: Clock, tbreset: Bool, tbsuccess: Bool) = {
+    dutio <> io.jtag
+    jtag_reset := tbreset
+
+    io.clock := tbclock
+    io.reset := tbreset
+
+    io.enable    := PlusArg("jtag_rbb_enable", 0, "Enable SimJTAG for JTAG Connections. Simulation will pause until connection is made.")
+    io.init_done := ~tbreset
+
+    // Success is determined by the gdbserver
+    // which is controlling this simulation.
     tbsuccess := io.exit === UInt(1)
     when (io.exit >= UInt(2)) {
       printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
