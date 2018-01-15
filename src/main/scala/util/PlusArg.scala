@@ -36,7 +36,7 @@ object PlusArgArtefacts {
     artefacts = artefacts ++ Map(name -> PlusArgInfo(default, docstring))
 
   /* From plus args, generate help text */
-  private def serializeHelp(tab: String = ""): String = artefacts
+  private def serializeHelp_cHeader(tab: String = ""): String = artefacts
     .map{ case(arg, PlusArgInfo(default, docstring)) =>
       s"""|$tab+$arg=INT\\n\\
           |$tab${" "*20}$docstring\\n\\
@@ -44,7 +44,7 @@ object PlusArgArtefacts {
     .mkString("\\n\\\n") ++ "\""
 
   /* From plus args, generate a char array of their names */
-  private def serializeArray(tab: String = ""): String = {
+  private def serializeArray_cHeader(tab: String = ""): String = {
     val prettyTab = tab + " " * 44 // Length of 'static const ...'
     s"${tab}static const char * verilog_plusargs [] = {\\\n" ++
       artefacts
@@ -55,9 +55,9 @@ object PlusArgArtefacts {
 
   /* Generate C code to be included in emulator.cc that helps with
    * argument parsing based on available Verilog PlusArgs */
-  def serialize(): String =
+  def serialize_cHeader(): String =
     s"""|#define PLUSARG_USAGE_OPTIONS \"EMULATOR VERILOG PLUSARGS\\n\\
-        |${serializeHelp(" "*7)}
-        |${serializeArray()}
+        |${serializeHelp_cHeader(" "*7)}
+        |${serializeArray_cHeader()}
         |""".stripMargin
 }
