@@ -71,7 +71,7 @@ trait HasGeneratorUtilities {
   }
 
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
-    val f = new File(targetDir, fname) 
+    val f = new File(targetDir, fname)
     val fw = new FileWriter(f)
     fw.write(contents)
     fw.close
@@ -83,7 +83,7 @@ trait HasGeneratorUtilities {
 /** Standardized command line interface for Scala entry point */
 trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val names: ParsedInputNames = {
-    require(args.size == 5, "Usage: sbt> " + 
+    require(args.size == 5, "Usage: sbt> " +
       "run TargetDir TopModuleProjectName TopModuleName " +
       "ConfigProjectName ConfigNameString")
     ParsedInputNames(
@@ -125,7 +125,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.groundtest64("p"))
     TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
-  } 
+  }
 
   def generateROMs {
     writeOutputFile(td, s"$longName.rom.conf", enumerateROMs(circuit))
@@ -134,7 +134,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   /** Output files created as a side-effect of elaboration */
   def generateArtefacts {
     ElaborationArtefacts.files.foreach { case (extension, contents) =>
-      writeOutputFile(td, s"${names.configs}.${extension}", contents ())
+      writeOutputFile(td, s"$longName.$extension", contents ())
     }
   }
 }
