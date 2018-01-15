@@ -15,12 +15,20 @@
 #include <unistd.h>
 #include <getopt.h>
 
-//TODO: GENERATE THESE AUTOMATICALLY!
-static const char * verilog_plusargs [] = { "max-core-cycles",
-                                            "jtag_rbb_enable",
-                                            "tilelink_timeout",
-                                            0};
-
+// For option parsing, which is split across this file, Verilog, and
+// FESVR's HTIF, a few external files must be pulled in. The list of
+// files and what they provide is enumerated:
+//
+// $RISCV/include/fesvr/htif.h:
+//   defines:
+//     - HTIF_USAGE_OPTIONS
+//     - HTIF_LONG_OPTIONS_OPTIND
+//     - HTIF_LONG_OPTIONS
+// $(ROCKETCHIP_DIR)/generated-src(-debug)?/$(CONFIG).plusArgs:
+//   defines:
+//     - PLUSARG_USAGE_OPTIONS
+//   variables:
+//     - static const char * verilog_plusargs
 
 extern dtm_t* dtm;
 extern remote_bitbang_t * jtag;
@@ -66,7 +74,7 @@ EMULATOR OPTIONS\n\
 #if VM_TRACE == 0
   fputs("\
 \n\
-EMULATOR OPTIONS (only supported in debug build -- try `make debug`)\n",
+EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
         stdout);
 #endif
   fputs("\
@@ -74,14 +82,7 @@ EMULATOR OPTIONS (only supported in debug build -- try `make debug`)\n",
   -x, --dump-start=CYCLE   Start VCD tracing at CYCLE\n\
        +dump-start\n\
 ", stdout);
-  fputs("\
-\n\
-VERILOG PLUSARGS (accepted by the Verilog itself):\n" , stdout);
-  const char ** vpa = &verilog_plusargs[0];
-  while (*vpa) {
-    fprintf(stdout, "  +%s=...\n", *vpa);
-    vpa ++;
-  }
+  fputs("\n" PLUSARG_USAGE_OPTIONS, stdout);
   fputs("\n" HTIF_USAGE_OPTIONS, stdout);
   printf("\n"
 "EXAMPLES\n"
@@ -95,7 +96,11 @@ VERILOG PLUSARGS (accepted by the Verilog itself):\n" , stdout);
 #endif
 "  - run an ELF (you wrote, called 'hello') using the proxy kernel:\n"
 "    %s pk hello\n",
-         program_name, program_name, program_name, program_name);
+         program_name, program_name, program_name
+#if VM_TRACE
+         , program_name
+#endif
+         );
 }
 
 int main(int argc, char** argv)
@@ -110,7 +115,7 @@ int main(int argc, char** argv)
 #endif
   char ** htif_argv = NULL;
   int verilog_plusargs_legal = 1;
-  
+
   while (1) {
     static struct option long_options[] = {
       {"cycle-count", no_argument,       0, 'c' },
@@ -174,7 +179,7 @@ int main(int argc, char** argv)
         else if (arg.substr(0, 12) == "+cycle-count")
           c = 'c';
         // If we don't find a legacy '+' EMULATOR argument, it still could be
-        // a VERILOG_PLUSARG and not an error. 
+        // a VERILOG_PLUSARG and not an error.
         else if (verilog_plusargs_legal) {
           const char ** plusarg = &verilog_plusargs[0];
           int legal_verilog_plusarg = 0;
@@ -204,7 +209,8 @@ int main(int argc, char** argv)
             }
             htif_option++;
           }
-          std::cerr << argv[0] << ": invalid HTIF legacy plus-arg \"" << arg << "\"\n";
+          std::cerr << argv[0] << ": invalid plus-arg (Verilog or HTIF) \""
+                    << arg << "\"\n";
           c = '?';
         }
         goto retry;

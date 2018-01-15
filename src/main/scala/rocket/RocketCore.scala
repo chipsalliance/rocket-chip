@@ -286,7 +286,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
   alu.io.in1 := ex_op1.asUInt
-  
+
   // multiplier and divider
   val div = Module(new MulDiv(mulDivParams, width = xLen))
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
@@ -525,7 +525,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val wb_valid = wb_reg_valid && !replay_wb && !wb_xcpt
   val wb_wen = wb_valid && wb_ctrl.wxd
-  val rf_wen = wb_wen || ll_wen 
+  val rf_wen = wb_wen || ll_wen
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
   val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data,
                  Mux(ll_wen, ll_wdata,
@@ -724,7 +724,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val max_core_cycles = PlusArg("max-core-cycles",
     default = 0,
-    docstring = "Maximum Core Clock cycles simulation may run before timeout. Ignored if 0 (Default).")
+    docstring = "Kill the emulation after INT rdtime cycles. Off if 0.")
   when (max_core_cycles > UInt(0)) {
     assert (csr.io.time < max_core_cycles, "Maximum Core Cycles reached.")
   }
