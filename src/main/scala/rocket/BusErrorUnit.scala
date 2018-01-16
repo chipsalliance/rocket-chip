@@ -12,6 +12,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
+import freechips.rocketchip.util.property._
 
 trait BusErrors extends Bundle {
   def toErrorList: List[Option[Valid[UInt]]]
@@ -59,6 +60,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
           cause := i
           value := s.get.bits
         }
+        cover(en, s"BusErrorCause_$i", s"Core;;BusErrorCause $i covered")
       }
     }
 
