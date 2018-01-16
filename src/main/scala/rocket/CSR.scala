@@ -566,20 +566,22 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
 
-  for (
-    (cover_reg, cover_reg_label) <- List(
-      (mCause, "MCAUSE"),
-      (sCause, "SCAUSE")
-    );
-    (cover_cause_code, cover_cause_label) <- List(
-      (Causes.user_ecall, "ECALL_USER"),
-      (Causes.supervisor_ecall, "ECALL_SUPERVISOR"),
-      (Causes.hypervisor_ecall, "ECALL_HYPERVISOR"),
-      (Causes.machine_ecall, "ECALL_MACHINE")
-    )
-  ) {
-    cover((xcause_dest === cover_reg) && (cause === UInt(cover_cause_code)),
-          s"${cover_reg_label}_${cover_cause_label}")
+  for (i <- 0 until supported_interrupts.getWidth) {
+    val en = exception && (supported_interrupts & (BigInt(1) << i).U) =/= 0 && cause === (BigInt(1) << (xLen - 1)).U + i
+    val delegable = (delegable_interrupts & (BigInt(1) << i).U) =/= 0
+    cover(en, s"INTERRUPT_M_$i")
+    cover(en && delegable && delegate, s"INTERRUPT_S_$i")
+  }
+  for (i <- 0 until xLen) {
+    val supported_exceptions = 0x87e |
+      (if (usingCompressed && !coreParams.misaWritable) 0 else 1) |
+      (if (usingUser) 0x100 else 0) |
+      (if (usingVM) 0xb200 else 0)
+    if (((supported_exceptions >> i) & 1) != 0) {
+      val en = exception && cause === i
+      cover(en, s"EXCEPTION_M_$i")
+      cover(en && delegate, s"EXCEPTION_S_$i")
+    }
   }
 
   when (insn_ret) {
