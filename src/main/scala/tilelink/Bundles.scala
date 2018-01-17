@@ -76,7 +76,7 @@ object TLPermissions
   def BtoN = UInt(2, cWidth)
   def isShrink(x: UInt) = x <= BtoN
 
-  // Report types (ProbeAck)
+  // Report types (ProbeAck, Release)
   def TtoT = UInt(3, cWidth)
   def BtoB = UInt(4, cWidth)
   def NtoN = UInt(5, cWidth)
