@@ -5,10 +5,6 @@ package freechips.rocketchip.util.property
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import chisel3.util.{ReadyValidIO}
-import freechips.rocketchip.config.{Field, Parameters}
-
-case object PropertyLibrary extends Field[BasePropertyLibrary](new DefaultPropertyLibrary)
-
 
 sealed abstract class PropertyType(name: String) {
   override def toString: String = name
@@ -20,7 +16,7 @@ object PropertyType {
   object Cover extends PropertyType("Cover")
 }
 
-trait BasePropertyParameters { 
+trait BasePropertyParameters {
   val pType: PropertyType
   val cond: Bool
   val label: String
@@ -133,24 +129,30 @@ class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], mes
 
 }
 
+// The implementation using a setable global is bad, but removes dependence on Parameters
+// This change was made in anticipation of a proper cover library
 object cover {
-  def apply(cond: Bool)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
-    p(PropertyLibrary).generateProperty(CoverPropertyParameters(cond))
+  private var propLib: BasePropertyLibrary = new DefaultPropertyLibrary
+  def setPropLib(lib: BasePropertyLibrary): Unit = this.synchronized {
+    propLib = lib
   }
-  def apply(cond: Bool, label: String)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
-    p(PropertyLibrary).generateProperty(CoverPropertyParameters(cond, label))
+  def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit = {
+    propLib.generateProperty(CoverPropertyParameters(cond))
   }
-  def apply(cond: Bool, label: String, message: String)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
-    p(PropertyLibrary).generateProperty(CoverPropertyParameters(cond, label, message))
+  def apply(cond: Bool, label: String)(implicit sourceInfo: SourceInfo): Unit = {
+    propLib.generateProperty(CoverPropertyParameters(cond, label))
   }
-  def apply(prop: BaseProperty)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
+  def apply(cond: Bool, label: String, message: String)(implicit sourceInfo: SourceInfo): Unit = {
+    propLib.generateProperty(CoverPropertyParameters(cond, label, message))
+  }
+  def apply(prop: BaseProperty)(implicit sourceInfo: SourceInfo): Unit = {
     prop.generateProperties().foreach( (pp: BasePropertyParameters) => {
       if (pp.pType == PropertyType.Cover) {
-        p(PropertyLibrary).generateProperty(CoverPropertyParameters(pp.cond, pp.label, pp.message))
+        propLib.generateProperty(CoverPropertyParameters(pp.cond, pp.label, pp.message))
       }
     })
   }
-  def apply[T <: Data](rv: ReadyValidIO[T], label: String, message: String)(implicit sourceInfo: SourceInfo, p: Parameters): Unit = {
+  def apply[T <: Data](rv: ReadyValidIO[T], label: String, message: String)(implicit sourceInfo: SourceInfo): Unit = {
     apply( rv.valid &&  rv.ready, label + "_FIRE",  message + ": valid and ready")
     apply( rv.valid && !rv.ready, label + "_STALL", message + ": valid and not ready")
     apply(!rv.valid &&  rv.ready, label + "_IDLE",  message + ": not valid and ready")
