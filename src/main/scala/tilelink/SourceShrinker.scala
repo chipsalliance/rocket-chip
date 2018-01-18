@@ -18,8 +18,8 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
     sourceId = IdRange(0, maxInFlight))
   val node = TLAdapterNode(
     // We erase all client information since we crush the source Ids
-    clientFn  = { _ => TLClientPortParameters(clients = Seq(client)) },
-    managerFn = { mp => mp.copy(managers = mp.managers.map(_.copy(fifoId = None)))  })
+    clientFn  = { cp => TLClientPortParameters(clients = Seq(client.copy(requestFifo = cp.clients.exists(_.requestFifo)))) },
+    managerFn = { mp => mp.copy(managers = mp.managers.map(m => m.copy(fifoId = if (maxInFlight==1) Some(0) else m.fifoId)))  })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
