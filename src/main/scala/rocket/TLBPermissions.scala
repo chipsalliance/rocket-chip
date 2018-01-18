@@ -40,12 +40,12 @@ object TLBPageLookup
     val amoSizes = TransferSizes(4, xLen/8)
 
     val permissions = managers.map { m =>
-      require (!m.supportsGet        || m.supportsGet       .contains(allSizes),  s"MemoryMap region ${m.name} only supports ${m.supportsGet} Get, but must support ${allSizes}")
-      require (!m.supportsPutFull    || m.supportsPutFull   .contains(allSizes),  s"MemoryMap region ${m.name} only supports ${m.supportsPutFull} PutFull, but must support ${allSizes}")
-      require (!m.supportsAcquireB   || m.supportsAcquireB  .contains(xferSizes), s"MemoryMap region ${m.name} only supports ${m.supportsAcquireB} AcquireB, but must support ${xferSizes}")
-      require (!m.supportsAcquireT   || m.supportsAcquireT  .contains(xferSizes), s"MemoryMap region ${m.name} only supports ${m.supportsAcquireT} AcquireT, but must support ${xferSizes}")
-      require (!m.supportsLogical    || m.supportsLogical   .contains(amoSizes),  s"MemoryMap region ${m.name} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
-      require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes),  s"MemoryMap region ${m.name} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
+      require (!m.supportsGet        || m.supportsGet       .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsGet} Get, but must support ${allSizes}")
+      require (!m.supportsPutFull    || m.supportsPutFull   .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsPutFull} PutFull, but must support ${allSizes}")
+      require (!m.supportsAcquireB   || m.supportsAcquireB  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireB} AcquireB, but must support ${xferSizes}")
+      require (!m.supportsAcquireT   || m.supportsAcquireT  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireT} AcquireT, but must support ${xferSizes}")
+      require (!m.supportsLogical    || m.supportsLogical   .contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
+      require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
 
       (m.address, TLBFixedPermissions(
         e = Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains m.regionType,
