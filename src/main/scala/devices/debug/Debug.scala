@@ -121,7 +121,7 @@ import DebugAbstractCommandType._
 
 case class DebugModuleParams (
   nDMIAddrSize  : Int = 7,
-  nProgramBufferWords: Int = 16,
+  nProgramBufferWords: Int = 2,
   nAbstractDataWords : Int = 4,
   nScratch : Int = 1,
   //TODO: Use diplomacy to decide if you want this.
@@ -135,7 +135,7 @@ case class DebugModuleParams (
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
   hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
-  hasImplicitEbreak : Boolean = false
+  hasImplicitEbreak : Boolean = true
 ) {
 
   if (hasBusMaster == false){
