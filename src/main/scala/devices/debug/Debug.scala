@@ -121,7 +121,7 @@ import DebugAbstractCommandType._
 
 case class DebugModuleParams (
   nDMIAddrSize  : Int = 7,
-  nProgramBufferWords: Int = 2,
+  nProgramBufferWords: Int = 4,
   nAbstractDataWords : Int = 4,
   nScratch : Int = 1,
   //TODO: Use diplomacy to decide if you want this.
