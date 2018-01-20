@@ -3,6 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.experimental.{withClockAndReset}
 
 /** Reset: asynchronous assert,
   *  synchronous de-assert
@@ -28,12 +29,12 @@ object ResetCatchAndSync {
   def apply(clk: Clock, rst: Bool, sync: Int = 3, name: Option[String] = None,
     psd: Option[PSDTestMode] = None): Bool = {
 
-    val catcher = Module (new ResetCatchAndSync(sync))
-    if (name.isDefined) {catcher.suggestName(name.get)}
-    catcher.clock := clk
-    catcher.reset := rst
-    catcher.io.psd <> psd.getOrElse(Wire(new PSDTestMode()).fromBits(UInt(0)))
-    catcher.io.sync_reset
+    withClockAndReset(clk, rst) {
+      val catcher = Module (new ResetCatchAndSync(sync))
+      if (name.isDefined) {catcher.suggestName(name.get)}
+      catcher.io.psd <> psd.getOrElse(Wire(new PSDTestMode()).fromBits(UInt(0)))
+      catcher.io.sync_reset
+    }
   }
 
   def apply(clk: Clock, rst: Bool, sync: Int, name: String): Bool = apply(clk, rst, sync, Some(name))
