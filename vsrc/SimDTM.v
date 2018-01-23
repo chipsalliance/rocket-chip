@@ -1,4 +1,5 @@
 // See LICENSE.SiFive for license details.
+//VCS coverage exclude_file
 
 import "DPI-C" function int debug_tick
 (
