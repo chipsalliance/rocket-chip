@@ -6,8 +6,32 @@ import Chisel._
 import chisel3.util.{ReadyValidIO}
 
 import freechips.rocketchip.util.{SimpleRegIO}
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 
-case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
+abstract class RegReadFnBase protected(val combinational: Boolean, val fn: (Bool, Bool) => (Bool, Bool, UInt))
+
+case class RegReadFn private(override val combinational: Boolean, override val fn: (Bool, Bool) => (Bool, Bool, UInt)) extends RegReadFnBase(combinational, fn)
+case class RegReadFnCover private(override val combinational: Boolean, override val fn: (Bool, Bool) => (Bool, Bool, UInt)) extends RegReadFnBase(combinational, fn)
+
+object RegReadFnCover {
+  def coverread(name: String, desc: String)(fn: (Bool, Bool) => (Bool, Bool, UInt))(implicit sourceInfo: SourceInfo): (Bool, Bool) => (Bool, Bool, UInt) = {
+    case (ivalid: Bool, oready: Bool) => {
+      val (iready, ovalid, data) = fn(ivalid, oready)
+      cover(iready && ivalid, name+"_CSR_regread_start", desc+" RegField Read Request Initiate")
+      cover(oready && ovalid, name+"_CSR_regread_out", desc+" RegField Read Request Complete")
+      (iready, ovalid, data)
+    }
+  }
+
+  def apply(name: String, desc: String)(regread: RegReadFn)(implicit sourceInfo: SourceInfo): RegReadFnCover = {
+    new RegReadFnCover(
+      combinational = regread.combinational,
+      fn = coverread(name, desc)(regread.fn)
+    )
+  }
+}
+
 object RegReadFn
 {
   // (ivalid: Bool, oready: Bool) => (iready: Bool, ovalid: Bool, data: UInt)
@@ -39,7 +63,28 @@ object RegReadFn
   implicit def apply(x: Unit):RegReadFn = RegReadFn(UInt(0))
 }
 
-case class RegWriteFn private(combinational: Boolean, fn: (Bool, Bool, UInt) => (Bool, Bool))
+abstract class RegWriteFnBase protected(val combinational: Boolean, val fn: (Bool, Bool, UInt) => (Bool, Bool))
+case class RegWriteFn private(override val combinational: Boolean, override val fn: (Bool, Bool, UInt) => (Bool, Bool)) extends RegWriteFnBase(combinational, fn)
+case class RegWriteFnCover private(override val combinational: Boolean, override val fn: (Bool, Bool, UInt) => (Bool, Bool)) extends RegWriteFnBase(combinational, fn)
+
+object RegWriteFnCover {
+  def coverwrite(name: String, desc: String)(fn: (Bool, Bool, UInt) => (Bool, Bool))(implicit sourceInfo: SourceInfo): (Bool, Bool, UInt) => (Bool, Bool) = {
+    case (ivalid: Bool, oready: Bool, data: UInt) => {
+      val (iready, ovalid) = fn(ivalid, oready, data)
+      cover(iready && ivalid, name+"_CSR_regwrite_start", desc+" RegField Write Request Initiate")
+      cover(oready && ovalid, name+"_CSR_regwrite_out", desc+" RegField Write Request Complete")
+      (iready, ovalid)
+    }
+  }
+
+  def apply(name: String, desc: String)(regwrite: RegWriteFn)(implicit sourceInfo: SourceInfo): RegWriteFnCover = {
+    new RegWriteFnCover(
+      combinational = regwrite.combinational,
+      fn = coverwrite(name, desc)(regwrite.fn)
+    )
+  }
+}
+
 object RegWriteFn
 {
   // (ivalid: Bool, oready: Bool, data: UInt) => (iready: Bool, ovalid: Bool)
@@ -73,11 +118,11 @@ object RegWriteFn
   implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { Bool(true) })
 }
 
-case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, name: String, description: String)
+case class RegField(width: Int, read: RegReadFnBase, write: RegWriteFnBase, name: String, description: String)
 {
   require (width > 0, s"RegField width must be > 0, not $width")
   def pipelined = !read.combinational || !write.combinational
-  def readOnly = this.copy(write = ())
+  def readOnly = this.copy(write = RegWriteFn(():Unit))
 }
 
 object RegField
@@ -85,23 +130,24 @@ object RegField
   // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
 
-  def apply(n: Int)                                                         : RegField = apply(n, (), (), "", "")
-  def apply(n: Int, r: RegReadFn, w: RegWriteFn)                            : RegField = apply(n, r, w,   "", "")
-  def apply(n: Int, rw: UInt)                                               : RegField = apply(n, rw, rw, "", "")
-  def apply(n: Int, rw: UInt, name: String, description: String)            : RegField = apply(n, rw, rw, name, description)
-  def r(n: Int, r: RegReadFn,  name: String = "", description: String = "") : RegField = apply(n, r,  (), name, description)
-  def w(n: Int, w: RegWriteFn, name: String = "", description: String = "") : RegField = apply(n, (), w,  name, description)
+  def apply(n: Int)(implicit sourceInfo: SourceInfo)                                                         : RegField = apply(n, RegReadFn((): Unit), RegWriteFn((): Unit), "", "")
+  def apply(n: Int, r: RegReadFn, w: RegWriteFn)(implicit sourceInfo: SourceInfo)                            : RegField = apply(n, RegReadFnCover("", "")(r), RegWriteFnCover("", "")(w),   "", "")
+  def apply(n: Int, rw: UInt)(implicit sourceInfo: SourceInfo)                                               : RegField = apply(n, RegReadFnCover("", "")(rw), RegWriteFnCover("", "")(rw), "", "")
+  def apply(n: Int, rw: UInt, name: String, description: String)(implicit sourceInfo: SourceInfo)            : RegField = apply(n, RegReadFnCover(name, description)(rw), RegWriteFnCover(name, description)(rw), name, description)
+  def apply(n: Int, r: RegReadFn, w: RegWriteFn, name: String, description: String)(implicit sourceInfo: SourceInfo) : RegField = apply(n, RegReadFnCover(name, description)(r), RegWriteFnCover(name, description)(w), name, description)
+  def r(n: Int, r: RegReadFn,  name: String = "", description: String = "")(implicit sourceInfo: SourceInfo) : RegField = apply(n, RegReadFnCover(name, description)(r),  RegWriteFn(():Unit), name, description)
+  def w(n: Int, w: RegWriteFn, name: String = "", description: String = "")(implicit sourceInfo: SourceInfo) : RegField = apply(n, RegReadFn((): Unit), RegWriteFnCover(name, description)(w),  name, description)
 
   // This RegField allows 'set' to set bits in 'reg'.
   // and to clear bits when the bus writes bits of value 1.
   // Setting takes priority over clearing.
-  def w1ToClear(n: Int, reg: UInt, set: UInt): RegField =
-    RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }))
+  def w1ToClear(n: Int, reg: UInt, set: UInt)(implicit sourceInfo: SourceInfo): RegField =
+    RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }), "w1ToClear", "")
 
   // This RegField wraps an explicit register
   // (e.g. Black-Boxed Register) to create a R/W register.
-  def rwReg(n: Int, bb: SimpleRegIO, name: String = "", description: String = "") : RegField =
-    RegField(n, bb.q, RegWriteFn((valid, data) => {
+  def rwReg(n: Int, bb: SimpleRegIO, name: String = "", description: String = "")(implicit sourceInfo: SourceInfo) : RegField =
+    RegField(n, RegReadFn(bb.q), RegWriteFn((valid, data) => {
       bb.en := valid
       bb.d := data
       Bool(true)
@@ -111,7 +157,7 @@ object RegField
   // It is updated when any of the bytes are written. Because the RegFields
   // are all byte-sized, this is also suitable when a register is larger
   // than the intended bus width of the device (atomic updates are impossible).
-  def bytes(reg: UInt, numBytes: Int): Seq[RegField] = {
+  def bytes(reg: UInt, numBytes: Int)(implicit sourceInfo: SourceInfo): Seq[RegField] = {
     val pad = reg | UInt(0, width = 8*numBytes)
     val oldBytes = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
     val newBytes = Wire(init = oldBytes)
@@ -123,9 +169,11 @@ object RegField
         valids(i) := valid
         when (valid) { newBytes(i) := data }
         Bool(true)
-      }))}}
+        }),
+      "bytes", "")
+    }}
 
-  def bytes(reg: UInt): Seq[RegField] = {
+  def bytes(reg: UInt)(implicit sourceInfo: SourceInfo): Seq[RegField] = {
     val width = reg.getWidth
     require (width % 8 == 0, s"RegField.bytes must be called on byte-sized reg, not ${width} bits")
     bytes(reg, width/8)
