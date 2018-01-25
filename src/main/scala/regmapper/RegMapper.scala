@@ -6,6 +6,8 @@ import Chisel._
 
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers}
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 
 // A bus agnostic register interface to a register-based device
 
@@ -30,7 +32,7 @@ class RegMapperOutput(params: RegMapperParams) extends GenericParameterizedBundl
 object RegMapper
 {
   // Create a generic register-based device
-  def apply(bytes: Int, concurrency: Int, undefZero: Boolean, in: DecoupledIO[RegMapperInput], mapping: RegField.Map*) = {
+  def apply(bytes: Int, concurrency: Int, undefZero: Boolean, in: DecoupledIO[RegMapperInput], mapping: RegField.Map*)(implicit sourceInfo: SourceInfo) = {
     val bytemap = mapping.toList
     // Negative addresses are bad
     bytemap.foreach { byte => require (byte._1 >= 0) }
@@ -134,8 +136,19 @@ object RegMapper
       val romask = backMask(high, low).orR()
       val womask = backMask(high, low).andR()
       val data = if (field.write.combinational) back.bits.data else front.bits.data
-      val (f_riready, f_rovalid, f_data) = field.read.fn(rivalid(i) && rimask, roready(i) && romask)
-      val (f_wiready, f_wovalid) = field.write.fn(wivalid(i) && wimask, woready(i) && womask, data(high, low))
+      val f_rivalid = rivalid(i) && rimask
+      val f_roready = roready(i) && romask
+      val f_wivalid = wivalid(i) && wimask
+      val f_woready = woready(i) && womask
+      val (f_riready, f_rovalid, f_data) = field.read.fn(f_rivalid, f_roready)
+      val (f_wiready, f_wovalid) = field.write.fn(f_wivalid, f_woready, data(high, low))
+
+      // cover reads and writes to register
+      cover(f_rivalid && f_riready, field.name + "_Reg_read_start", field.description + " RegField Read Request Initiate")
+      cover(f_rovalid && f_roready, field.name + "_Reg_read_out", field.description + " RegField Read Request Complete")
+      cover(f_wivalid && f_wiready, field.name + "_Reg_write_start", field.description + " RegField Write Request Initiate")
+      cover(f_wovalid && f_woready, field.name + "_Reg_write_out", field.description + " RegField Write Request Complete")
+
       def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) Bool(true) else x || y
       // Add this field to the ready-valid signals for the register
       rifire(reg) = (rivalid(i), litOR(f_riready, !rimask)) +: rifire(reg)
