@@ -364,7 +364,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val debug_csrs = LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
-    CSRs.dpc -> reg_dpc.asUInt,
+    CSRs.dpc -> reg_dpc.sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
   val fp_csrs = LinkedHashMap[Int,Bits](
@@ -526,7 +526,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(!io.singleStep || io.retire <= UInt(1))
   assert(!reg_singleStepped || io.retire === UInt(0))
 
-  val epc = ~(~io.pc | (coreInstBytes-1))
+  val epc = formEPC(io.pc)
   val write_badaddr = exception && cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
     Causes.misaligned_load, Causes.misaligned_store,
     Causes.load_access, Causes.store_access, Causes.fetch_access,
@@ -546,7 +546,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         new_prv := PRV.M
       }
     }.elsewhen (delegate) {
-      reg_sepc := formEPC(epc)
+      reg_sepc := epc
       reg_scause := cause
       xcause_dest := sCause
       reg_sbadaddr := badaddr_value
@@ -555,7 +555,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_mstatus.sie := false
       new_prv := PRV.S
     }.otherwise {
-      reg_mepc := formEPC(epc)
+      reg_mepc := epc
       reg_mcause := cause
       xcause_dest := mCause
       reg_mbadaddr := badaddr_value
@@ -687,7 +687,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
         if (usingUser) reg_dcsr.prv := trimPrivilege(new_dcsr.prv)
       }
-      when (decoded_addr(CSRs.dpc))      { reg_dpc := ~(~wdata | (coreInstBytes-1)) }
+      when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
     }
     if (usingVM) {
