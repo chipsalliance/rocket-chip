@@ -609,6 +609,11 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
+  // cover access to register
+  read_mapping.foreach( {case (k, v) => {
+    cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
+  }})
+
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
     reg_fflags := reg_fflags | io.fcsr_flags.bits
