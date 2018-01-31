@@ -186,6 +186,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
+  dontTouch(io.cpu.s1_data)
 
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
   fifoManagers.foreach { m =>
