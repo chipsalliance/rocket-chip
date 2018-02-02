@@ -20,7 +20,7 @@ class ClonePorts protected[shim](elts: Data*) extends Record
   override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
 }
 
-private class CloneModule private (model: RawModule) extends BlackBox
+class CloneModule private (model: RawModule) extends BlackBox
 {
   import CloneModule._
   override def desiredName = model.name

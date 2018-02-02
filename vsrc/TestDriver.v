@@ -1,5 +1,5 @@
 // See LICENSE.SiFive for license details.
-
+//VCS coverage exclude_file
 `ifndef RESET_DELAY
  `define RESET_DELAY 777.7
 `endif

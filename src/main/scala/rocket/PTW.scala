@@ -279,6 +279,15 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     count := pgLevels-1
   }
 
+  for (i <- 0 until pgLevels) {
+    val leaf = io.mem.resp.valid && !traverse && count === i
+    ccover(leaf && pte.v && !invalid_paddr, s"L$i", s"successful page-table access, level $i")
+    ccover(leaf && pte.v && invalid_paddr, s"L${i}_BAD_PPN_MSB", s"PPN too large, level $i")
+    ccover(leaf && !io.mem.resp.bits.data(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
+    if (i != pgLevels-1)
+      ccover(leaf && !pte.v && io.mem.resp.bits.data(0), s"L${i}_BAD_PPN_LSB", s"PPN LSBs not zero, level $i")
+  }
+  ccover(io.mem.resp.valid && count === pgLevels-1 && pte.table(), s"TOO_DEEP", s"page table too deep")
   ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
   ccover(state === s_wait2 && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
 
@@ -287,8 +296,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 }
 
 /** Mix-ins for constructing tiles that might have a PTW */
-trait CanHavePTW extends HasHellaCache {
-  implicit val p: Parameters
+trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
   var nPTWPorts = 1
   nDCachePorts += usingPTW.toInt

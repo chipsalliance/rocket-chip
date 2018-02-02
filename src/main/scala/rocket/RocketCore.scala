@@ -438,7 +438,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val memCoverCauses = (exCoverCauses ++ List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
-    (Causes.breakpoint, "BREKPOINT"),
+    (Causes.breakpoint, "BREAKPOINT"),
     (Causes.misaligned_fetch, "MISALIGNED_FETCH")
   )).distinct
   coverExceptions(mem_xcpt, mem_cause, "MEMORY", memCoverCauses)
@@ -744,11 +744,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   def encodeVirtualAddress(a0: UInt, ea: UInt) = if (vaddrBitsExtended == vaddrBits) ea else {
     // efficient means to compress 64-bit VA into vaddrBits+1 bits
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
-    val a = a0 >> vaddrBits-1
-    val e = ea(vaddrBits,vaddrBits-1).asSInt
-    val msb =
-      Mux(a === UInt(0) || a === UInt(1), e =/= SInt(0),
-      Mux(a.asSInt === SInt(-1) || a.asSInt === SInt(-2), e === SInt(-1), e(0)))
+    val a = a0.asSInt >> vaddrBits
+    val msb = Mux(a === 0.S || a === -1.S, ea(vaddrBits), !ea(vaddrBits-1))
     Cat(msb, ea(vaddrBits-1,0))
   }
 

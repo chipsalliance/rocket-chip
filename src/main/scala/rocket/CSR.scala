@@ -364,7 +364,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val debug_csrs = LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
-    CSRs.dpc -> reg_dpc.asUInt,
+    CSRs.dpc -> reg_dpc.sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
   val fp_csrs = LinkedHashMap[Int,Bits](
@@ -526,7 +526,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(!io.singleStep || io.retire <= UInt(1))
   assert(!reg_singleStepped || io.retire === UInt(0))
 
-  val epc = ~(~io.pc | (coreInstBytes-1))
+  val epc = formEPC(io.pc)
   val write_badaddr = exception && cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
     Causes.misaligned_load, Causes.misaligned_store,
     Causes.load_access, Causes.store_access, Causes.fetch_access,
@@ -546,7 +546,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         new_prv := PRV.M
       }
     }.elsewhen (delegate) {
-      reg_sepc := formEPC(epc)
+      reg_sepc := epc
       reg_scause := cause
       xcause_dest := sCause
       reg_sbadaddr := badaddr_value
@@ -555,7 +555,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_mstatus.sie := false
       new_prv := PRV.S
     }.otherwise {
-      reg_mepc := formEPC(epc)
+      reg_mepc := epc
       reg_mcause := cause
       xcause_dest := mCause
       reg_mbadaddr := badaddr_value
@@ -566,20 +566,22 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
 
-  for (
-    (cover_reg, cover_reg_label) <- List(
-      (mCause, "MCAUSE"),
-      (sCause, "SCAUSE")
-    );
-    (cover_cause_code, cover_cause_label) <- List(
-      (Causes.user_ecall, "ECALL_USER"),
-      (Causes.supervisor_ecall, "ECALL_SUPERVISOR"),
-      (Causes.hypervisor_ecall, "ECALL_HYPERVISOR"),
-      (Causes.machine_ecall, "ECALL_MACHINE")
-    )
-  ) {
-    cover((xcause_dest === cover_reg) && (cause === UInt(cover_cause_code)),
-          s"${cover_reg_label}_${cover_cause_label}")
+  for (i <- 0 until supported_interrupts.getWidth) {
+    val en = exception && (supported_interrupts & (BigInt(1) << i).U) =/= 0 && cause === (BigInt(1) << (xLen - 1)).U + i
+    val delegable = (delegable_interrupts & (BigInt(1) << i).U) =/= 0
+    cover(en, s"INTERRUPT_M_$i")
+    cover(en && delegable && delegate, s"INTERRUPT_S_$i")
+  }
+  for (i <- 0 until xLen) {
+    val supported_exceptions = 0x87e |
+      (if (usingCompressed && !coreParams.misaWritable) 0 else 1) |
+      (if (usingUser) 0x100 else 0) |
+      (if (usingVM) 0xb200 else 0)
+    if (((supported_exceptions >> i) & 1) != 0) {
+      val en = exception && cause === i
+      cover(en, s"EXCEPTION_M_$i")
+      cover(en && delegate, s"EXCEPTION_S_$i")
+    }
   }
 
   when (insn_ret) {
@@ -606,6 +608,11 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   io.csr_stall := reg_wfi
 
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
+
+  // cover access to register
+  read_mapping.foreach( {case (k, v) => {
+    cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
+  }})
 
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
@@ -685,7 +692,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
         if (usingUser) reg_dcsr.prv := trimPrivilege(new_dcsr.prv)
       }
-      when (decoded_addr(CSRs.dpc))      { reg_dpc := ~(~wdata | (coreInstBytes-1)) }
+      when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
     }
     if (usingVM) {

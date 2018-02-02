@@ -12,6 +12,8 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -207,6 +209,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         // a branch! Flush the BTB and the pipeline.
         btb.io.flush := true
         fq.io.enq.bits.replay := true
+        wrong_path := true
+        ccover(wrong_path, "BTB_NON_CFI_ON_WRONG_PATH", "BTB predicted a non-branch was taken while on the wrong path")
       }
 
       when (!prevTaken) {
@@ -297,22 +301,21 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.errors := icache.io.errors
 
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"FRONTEND_$label", "Rocket;;" + desc)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
-trait HasICacheFrontend extends CanHavePTW with HasTileLinkMasterPort {
+trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend(tileParams.icache.get, hartid: Int))
-  val hartid: Int
-  tileBus.node := frontend.masterNode
+  val frontend = LazyModule(new Frontend(tileParams.icache.get, hartId))
+  tlMasterXbar.node := frontend.masterNode
+  connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
   nPTWPorts += 1
 }
 
-trait HasICacheFrontendBundle extends HasTileLinkMasterPortBundle {
-  val outer: HasICacheFrontend
-}
-
-trait HasICacheFrontendModule extends CanHavePTWModule with HasTileLinkMasterPortModule {
+trait HasICacheFrontendModule extends CanHavePTWModule {
   val outer: HasICacheFrontend
   ptwPorts += outer.frontend.module.io.ptw
 }

@@ -10,25 +10,31 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-case class ErrorParams(address: Seq[AddressSet], maxTransfer: Int = 4096)
+case class ErrorParams(address: Seq[AddressSet], maxAtomic: Int, maxTransfer: Int)
+{
+  require (1 <= maxAtomic && maxAtomic <= maxTransfer && maxTransfer <= 4096)
+}
+
 case object ErrorParams extends Field[ErrorParams]
 
 abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
                             (device: SimpleDevice)
                             (implicit p: Parameters) extends LazyModule {
   val xfer = TransferSizes(1, params.maxTransfer)
+  val atom = TransferSizes(1, params.maxAtomic)
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = params.address,
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHED,
+      regionType         = RegionType.UNCACHEABLE,
+      executable         = true,
       supportsAcquireT   = xfer,
       supportsAcquireB   = xfer,
       supportsGet        = xfer,
       supportsPutPartial = xfer,
       supportsPutFull    = xfer,
-      supportsArithmetic = xfer,
-      supportsLogical    = xfer,
+      supportsArithmetic = atom,
+      supportsLogical    = atom,
       supportsHint       = xfer,
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,

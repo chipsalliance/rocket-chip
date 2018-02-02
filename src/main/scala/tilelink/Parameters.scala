@@ -40,7 +40,7 @@ case class TLManagerParameters(
   require (supportsAcquireB.contains(supportsAcquireT),  s"AcquireB($supportsAcquireB) < AcquireT($supportsAcquireT)")
 
   // Make sure that the regionType agrees with the capabilities
-  require (!supportsAcquireB || regionType >= RegionType.UNCACHED) // acquire -> uncached, tracked, cached
+  require (!supportsAcquireB || regionType >= RegionType.UNCACHEABLE) // acquire -> uncached, tracked, cached
   require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
   require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 

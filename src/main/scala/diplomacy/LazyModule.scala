@@ -55,7 +55,12 @@ abstract class LazyModule()(implicit val p: Parameters)
   private def findValName =
     parent.flatMap(_.childNames.find(_._2 eq this)).map(_._1)
 
-  lazy val className = getClass.getName.split('.').last
+  private def findClassName(c: Class[_]): String = {
+    val n = c.getName.split('.').last
+    if (n.contains('$')) findClassName(c.getSuperclass) else n
+  }
+
+  lazy val className = findClassName(getClass)
   lazy val valName = suggestedName.orElse(findValName)
   lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
@@ -136,7 +141,7 @@ object LazyModule
   protected[diplomacy] var scope: Option[LazyModule] = None
   private var index = 0
 
-  def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
+  def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
@@ -169,7 +174,6 @@ sealed trait LazyModuleImpLike extends BaseModule
       mod.finishInstantiate()
       mod.dangles
     }
-    wrapper.instantiate()
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     val allDangles = nodeDangles ++ childDangles
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
@@ -184,6 +188,7 @@ sealed trait LazyModuleImpLike extends BaseModule
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
     }
+    wrapper.instantiate()
     (auto, dangles)
   }
 

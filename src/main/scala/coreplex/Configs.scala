@@ -24,7 +24,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case PeripheryBusKey => PeripheryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case MemoryBusKey => MemoryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
-  case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)))
+  case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
   case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
 })
@@ -45,7 +45,7 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => big.copy(hartid = i))
+    List.tabulate(n)(i => big.copy(hartId = i))
   }
 })
 
@@ -67,7 +67,7 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => small.copy(hartid = i))
+    List.tabulate(n)(i => small.copy(hartId = i))
   }
 })
 

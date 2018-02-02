@@ -1,8 +1,7 @@
 git:
   submodules: false
 language: scala
-# run on new infrastructure
-sudo: false
+sudo: required
 cache:
   apt: true
   directories:
@@ -32,6 +31,7 @@ addons:
       - texinfo
       - device-tree-compiler
       - libusb-1.0-0-dev
+      - python-pexpect
 
 
 # blacklist private branches
@@ -69,6 +69,11 @@ jobs:
         - export CXX=g++-4.8 CC=gcc-4.8    
     - &test
       stage: Test
+      script:
+        - travis_wait 80 make emulator-ndebug -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+        - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+        - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+    - <<: *test
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G

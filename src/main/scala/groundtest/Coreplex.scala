@@ -44,9 +44,9 @@ class GroundTestCoreplexModule[+L <: GroundTestCoreplex](_outer: L) extends Base
     with HasMasterAXI4MemPortModuleImp {
   val success = IO(Bool(OUTPUT))
 
-  outer.tiles.zipWithIndex.map { case(t, i) => t.module.io.hartid := UInt(i) }
+  outer.tiles.zipWithIndex.map { case(t, i) => t.module.constants.hartid := UInt(i) }
 
-  val status = DebugCombiner(outer.tiles.map(_.module.io.status))
+  val status = DebugCombiner(outer.tiles.map(_.module.status))
   success := status.finished
 }
 

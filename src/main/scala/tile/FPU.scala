@@ -10,6 +10,8 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 
 case class FPUParams(
   divSqrt: Boolean = true,
@@ -768,6 +770,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wbInfo = Reg(Vec(maxLatency-1, new WBInfo))
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, req_valid)
+  ccover(mem_reg_valid && write_port_busy, "WB_STRUCTURAL", "structural hazard on writeback")
 
   for (i <- 0 until maxLatency-2) {
     when (wen(i+1)) { wbInfo(i) := wbInfo(i+1) }
@@ -825,6 +828,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   if (cfg.divSqrt) {
     val divSqrt_killed = Reg(Bool())
+    ccover(divSqrt_inFlight && divSqrt_killed, "DIV_KILLED", "divide killed after issued to divider")
+    ccover(divSqrt_inFlight && mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt), "DIV_BUSY", "divider structural hazard")
+    ccover(mem_reg_valid && divSqrt_write_port_busy, "DIV_WB_STRUCTURAL", "structural hazard on division writeback")
 
     for (t <- floatTypes) {
       val tag = !mem_ctrl.singleOut // TODO typeTag
@@ -873,13 +879,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     }
     req
   }
-}
 
-/** Mix-ins for constructing tiles that may have an FPU external to the core pipeline */
-trait CanHaveSharedFPU extends HasTileParameters
-
-trait CanHaveSharedFPUModule {
-  val outer: CanHaveSharedFPU
-  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
-  // TODO fpArb could go here instead of inside LegacyRoccComplex
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"FPU_$label", "Core;;" + desc)
 }

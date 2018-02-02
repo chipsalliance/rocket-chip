@@ -4,6 +4,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
+import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.coreplex._
 import freechips.rocketchip.diplomacy._
@@ -184,6 +185,8 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
+  dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
+  dontTouch(io.cpu.s1_data)
 
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
   fifoManagers.foreach { m =>
@@ -194,27 +197,21 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 
 /** Mix-ins for constructing tiles that have a HellaCache */
 
-trait HasHellaCache extends HasTileLinkMasterPort with HasTileParameters {
+trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
-  val hartid: Int
   var nDCachePorts = 0
   val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
-      new DCache(hartid, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
-    } else { new NonBlockingDCache(hartid) })
+      new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
+    } else { new NonBlockingDCache(hartId) })
 
-  tileBus.node := dcache.node
+  tlMasterXbar.node := dcache.node
 }
 
-trait HasHellaCacheBundle extends HasTileLinkMasterPortBundle {
+trait HasHellaCacheModule {
   val outer: HasHellaCache
-}
-
-trait HasHellaCacheModule extends HasTileLinkMasterPortModule {
-  val outer: HasHellaCache
-  //val io: HasHellaCacheBundle
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
@@ -263,11 +260,12 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
 
   val metabits = rstVal.getWidth
   val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
-  when (rst || io.write.valid) {
+  val wen = rst || io.write.valid
+  when (wen) {
     tag_array.write(waddr, Vec.fill(nWays)(wdata), wmask)
   }
-  io.resp := tag_array.read(io.read.bits.idx, io.read.valid).map(rstVal.fromBits(_))
+  io.resp := tag_array.read(io.read.bits.idx, io.read.fire()).map(rstVal.fromBits(_))
 
-  io.read.ready := !rst && !io.write.valid // so really this could be a 6T RAM
+  io.read.ready := !wen // so really this could be a 6T RAM
   io.write.ready := !rst
 }
