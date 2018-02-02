@@ -30,7 +30,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 
     for (i <- n-1 to 0 by -1) {
       val req = io.requestor(i).req
-      def connect_s0():Unit = {
+      def connect_s0(): Unit = {
         io.mem.req.bits.cmd := req.bits.cmd
         io.mem.req.bits.typ := req.bits.typ
         io.mem.req.bits.addr := req.bits.addr
@@ -38,7 +38,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
         io.mem.req.bits.tag := Cat(req.bits.tag, i.U(log2Ceil(n).W))
         s1_id := i.U
       }
-      def connect_s1():Unit = {
+      def connect_s1(): Unit = {
         io.mem.s1_kill := io.requestor(i).s1_kill
         io.mem.s1_data := io.requestor(i).s1_data
       }
