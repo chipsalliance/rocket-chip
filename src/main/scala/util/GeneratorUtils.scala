@@ -11,7 +11,9 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
 import net.jcazevedo.moultingyaml._
+import firrtl.annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.transforms.{BlackBoxSourceAnnotation, BlackBoxTargetDir}
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
@@ -101,7 +103,10 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   def generateAnno {
     val annotationFile = new File(td, s"$longName.anno")
     val af = new FileWriter(annotationFile)
-    af.write(circuit.annotations.toArray.toYaml.prettyPrint)
+    val moduleName  = ModuleName(circuit.name, CircuitName(circuit.name))
+    val bboxTargetDir = BlackBoxSourceAnnotation(moduleName, BlackBoxTargetDir(s"$td/").serialize)
+    val annotationsWithBBoxTargetDir = bboxTargetDir +: circuit.annotations
+    af.write(annotationsWithBBoxTargetDir.toArray.toYaml.prettyPrint)
     af.close()
   }
 

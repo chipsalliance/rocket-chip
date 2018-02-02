@@ -3,6 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.util.HasBlackBoxResource
 
 /** This black-boxes an Async Reset
   *  (or Set)
@@ -30,7 +31,7 @@ import Chisel._
   *  
   */
 
-class AsyncResetReg extends BlackBox {
+class AsyncResetReg extends BlackBox with HasBlackBoxResource {
   val io = new Bundle {
     val d = Bool(INPUT)
     val q = Bool(OUTPUT)
@@ -39,6 +40,8 @@ class AsyncResetReg extends BlackBox {
     val clk = Clock(INPUT)
     val rst = Bool(INPUT)
   }
+
+  setResource("/AsyncResetReg.v")
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{

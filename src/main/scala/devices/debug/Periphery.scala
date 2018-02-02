@@ -4,6 +4,7 @@ package freechips.rocketchip.devices.debug
 
 import Chisel._
 import chisel3.core.{IntParam, Input, Output}
+import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.devices.tilelink._
@@ -90,7 +91,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp with HasPeripheryDebugBun
   outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 }
 
-class SimDTM(implicit p: Parameters) extends BlackBox {
+class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   val io = new Bundle {
     val clk = Clock(INPUT)
     val reset = Bool(INPUT)
@@ -111,6 +112,9 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
       stop(1)
     }
   }
+
+  setResource("/SimDTM.v")
+  setResource("/SimDTM.cc")
 }
 
 class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay))) {
@@ -145,7 +149,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
 
 class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Parameters)
     extends BlackBox ( Map ("TCK_HALF_PERIOD" -> IntParam(tckHalfPeriod),
-      "CMD_DELAY" -> IntParam(cmdDelay))) {
+      "CMD_DELAY" -> IntParam(cmdDelay))) with HasBlackBoxResource {
   val io = new Bundle {
     val jtag = new JTAGIO(hasTRSTn = false)
     val enable = Bool(INPUT)
@@ -165,4 +169,7 @@ class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Paramet
     // which is controlling this simulation.
     tbsuccess := Bool(false)
   }
+
+  setResource("/jtag_vpi.v")
+  setResource("/jtag_vpi.c")
 }
