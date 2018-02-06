@@ -33,8 +33,8 @@ object ALU
 
   def FN_MUL    = FN_ADD
   def FN_MULH   = FN_SL
-  def FN_MULHSU = FN_SLT
-  def FN_MULHU  = FN_SLTU
+  def FN_MULHSU = FN_SEQ
+  def FN_MULHU  = FN_SNE
 
   def isMulFN(fn: UInt, cmp: UInt) = fn(1,0) === cmp(1,0)
   def isSub(cmd: UInt) = cmd(3)
