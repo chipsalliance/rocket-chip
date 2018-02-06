@@ -545,7 +545,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   csr.io.fcsr_flags := io.fpu.fcsr_flags
   csr.io.rocc_interrupt := io.rocc.interrupt
   csr.io.pc := wb_reg_pc
-  csr.io.badaddr := encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata)
+  val tval_valid = wb_xcpt && wb_cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
+    Causes.misaligned_load, Causes.misaligned_store,
+    Causes.load_access, Causes.store_access, Causes.fetch_access,
+    Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
+  csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.status := csr.io.status
   io.ptw.pmp := csr.io.pmp
