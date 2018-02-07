@@ -174,7 +174,6 @@ sealed trait LazyModuleImpLike extends BaseModule
       mod.finishInstantiate()
       mod.dangles
     }
-    wrapper.instantiate()
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     val allDangles = nodeDangles ++ childDangles
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
@@ -189,6 +188,7 @@ sealed trait LazyModuleImpLike extends BaseModule
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
     }
+    wrapper.instantiate()
     (auto, dangles)
   }
 

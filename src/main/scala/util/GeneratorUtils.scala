@@ -29,25 +29,25 @@ case class ParsedInputNames(
   * canonical ways of building various JVM elaboration-time structures.
   */
 trait HasGeneratorUtilities {
-  def getConfig(names: ParsedInputNames): Config = {
-    new Config(names.fullConfigClasses.foldRight(Parameters.empty) { case (currentName, config) =>
+  def getConfig(fullConfigClassNames: Seq[String]): Config = {
+    new Config(fullConfigClassNames.foldRight(Parameters.empty) { case (currentName, config) =>
       val currentConfig = try {
         Class.forName(currentName).newInstance.asInstanceOf[Config]
       } catch {
         case e: java.lang.ClassNotFoundException =>
-          throwException(s"""Unable to find part "$currentName" from "${names.configs}", did you misspell it?""", e)
+          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it?""", e)
       }
       currentConfig ++ config
     })
   }
 
-  def getParameters(names: ParsedInputNames): Parameters = getParameters(getConfig(names))
+  def getParameters(names: Seq[String]): Parameters = getParameters(getConfig(names))
 
-  def getParameters(config: Config): Parameters = Parameters.root(config.toInstance)
+  def getParameters(config: Config): Parameters = config.toInstance
 
-  def elaborate(names: ParsedInputNames, params: Parameters): Circuit = {
+  def elaborate(fullTopModuleClassName: String, params: Parameters): Circuit = {
     val gen = () =>
-      Class.forName(names.fullTopModuleClass)
+      Class.forName(fullTopModuleClassName)
         .getConstructor(classOf[Parameters])
         .newInstance(params)
         .asInstanceOf[RawModule]
@@ -69,16 +69,7 @@ trait HasGeneratorUtilities {
     }
     res.toString
   }
-
-  def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
-    val f = new File(targetDir, fname)
-    val fw = new FileWriter(f)
-    fw.write(contents)
-    fw.close
-    f
-  }
 }
-
 
 /** Standardized command line interface for Scala entry point */
 trait GeneratorApp extends App with HasGeneratorUtilities {
@@ -95,11 +86,10 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   }
 
   // Canonical ways of building various JVM elaboration-time structures
-  lazy val td = names.targetDir
-  lazy val config = getConfig(names)
-  lazy val world = config.toInstance
-  lazy val params = Parameters.root(world)
-  lazy val circuit = elaborate(names, params)
+  lazy val td: String = names.targetDir
+  lazy val config: Config = getConfig(names.fullConfigClasses)
+  lazy val params: Parameters = config.toInstance
+  lazy val circuit: Circuit = elaborate(names.fullTopModuleClass, params)
 
   val longName: String // Exhaustive name used to interface with external build tool targets
 
@@ -136,6 +126,14 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     ElaborationArtefacts.files.foreach { case (extension, contents) =>
       writeOutputFile(td, s"$longName.$extension", contents ())
     }
+  }
+
+  def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
+    val f = new File(targetDir, fname)
+    val fw = new FileWriter(f)
+    fw.write(contents)
+    fw.close
+    f
   }
 }
 
