@@ -12,6 +12,8 @@ import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -231,6 +233,25 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     pending(0) := false
     for (e <- enables)
       e(0) := false
+
+    if (nDevices >= 2) {
+      val claimed = claimer(0) && maxDevs(0) > 0
+      val completed = completer(0)
+      cover(claimed && RegEnable(claimed, false.B, claimed || completed), "TWO_CLAIMS", "two claims with no intervening complete")
+      cover(completed && RegEnable(completed, false.B, claimed || completed), "TWO_COMPLETES", "two completes with no intervening claim")
+
+      val ep = enables(0).asUInt & pending.asUInt
+      val ep2 = RegNext(ep)
+      val diff = ep & ~ep2
+      cover((diff & (diff - 1)) =/= 0, "TWO_INTS_PENDING", "two enabled interrupts became pending on same cycle")
+
+      if (nPriorities > 0)
+        ccover(maxDevs(0) > (UInt(1) << priority(0).getWidth) && maxDevs(0) <= Cat(UInt(1), threshold(0)),
+               "THRESHOLD", "interrupt pending but less than threshold")
+    }
+
+    def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+      cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 }
 
