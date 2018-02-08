@@ -81,7 +81,7 @@ class ICachePerfEvents extends Bundle {
   val acquire = Bool()
 }
 
-class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
+class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   val hartid = UInt(INPUT, hartIdLen)
   val req = Decoupled(new ICacheReq).flip
   val s1_paddr = UInt(INPUT, paddrBits) // delayed one cycle w.r.t. req

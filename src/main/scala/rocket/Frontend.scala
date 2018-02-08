@@ -62,7 +62,7 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
   val slaveNode = icache.slaveNode
 }
 
-class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)
+class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
     with HasExternallyDrivenTileConstants {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
