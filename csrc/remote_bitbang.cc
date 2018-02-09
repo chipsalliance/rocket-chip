@@ -44,7 +44,7 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(port);
 
-  if (bind(socket_fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
+  if (::bind(socket_fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
     fprintf(stderr, "remote_bitbang failed to bind socket: %s (%d)\n",
             strerror(errno), errno);
     abort();
