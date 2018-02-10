@@ -117,7 +117,8 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   setResource("/SimDTM.cc")
 }
 
-class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay))) {
+class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
+    with HasBlackBoxResource {
   val io = new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
@@ -145,6 +146,8 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
       stop(1)
     }
   }
+
+  setResource("SimJTAG.v")
 }
 
 class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Parameters)
@@ -172,4 +175,5 @@ class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Paramet
 
   setResource("/jtag_vpi.v")
   setResource("/jtag_vpi.c")
+  setResource("/jtag_vpi.tab")
 }
