@@ -94,6 +94,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val tl_out_a = Wire(tl_out.a)
   tl_out.a <> outer.bufferUncachedRequests
                 .map(_ min maxUncachedInFlight-1)
+                .filter(_ > 0)
                 .map(Queue(tl_out_a, _, flow = true))
                 .getOrElse(tl_out_a)
 
