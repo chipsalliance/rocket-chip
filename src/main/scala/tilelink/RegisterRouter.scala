@@ -85,23 +85,23 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     // Dump out the register map for documentation purposes.
-    val regDescs = mapping.map { case (offset, seq) =>
+    val regDescs = mapping.flatMap { case (offset, seq) =>
       var currentBitOffset = 0      
-      (s"0x${offset.toHexString}" -> seq.zipWithIndex.map { case (f, i) => {
+      seq.zipWithIndex.map { case (f, i) => {
         val tmp = (f.desc.map{ _.name}.getOrElse(s"unnamedRegField${i}") -> (
             ("byteOffset"  -> s"0x${offset.toHexString}") ~
             ("bitOffset"   -> currentBitOffset) ~
             ("bitWidth"    -> f.width) ~
-            ("name" -> f.desc.map(_.name)         
-            ("description" -> f.desc.map{if _.desc == "" None else Some(_.desc)}) ~
+            ("name" -> f.desc.map(_.name)) ~
+            ("description" -> f.desc.map{ d=> if (d.desc == "") None else Some(d.desc)}) ~
             ("resetValue"  -> f.desc.map{_.reset}) ~
             ("group"       -> f.desc.map{_.group}) ~
             ("groupDesc"   -> f.desc.map{_.groupDesc}) ~
             ("accessType"  -> f.desc.map {d => d.access.toString})
-          ))
+        ))
         currentBitOffset = currentBitOffset + f.width
         tmp
-        }})
+      }}
     }
 
     //TODO: It would be better to name this other than "Device at ...."
