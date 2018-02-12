@@ -15,6 +15,7 @@ lazy val commonSettings = Seq(
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
+  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.5.0"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 )
 
@@ -44,3 +45,4 @@ val chipSettings = Seq(
     s"make -C $makeDir  -j $jobs $target".!
   }
 )
+
