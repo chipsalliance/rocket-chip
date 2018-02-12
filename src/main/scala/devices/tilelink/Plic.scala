@@ -179,8 +179,8 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
 
  
     val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
-      PLICConsts.enableBase(i) -> RegFieldGroup(s"enables_${i}", Some("Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."),
-        e.zipWithIndex.map{case (b, j) => RegField(1, b, RegFieldDesc(s"enable_$i_$j", s"Enable interrupt for source $j for target $i.", reset=None))})
+      PLICConsts.enableBase(i) -> RegFieldGroup(s"enables_${i}", Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."),
+        e.zipWithIndex.map{case (b, j) => RegField(1, b, RegFieldDesc(s"enable_${i}_${j}", s"Enable interrupt for source $j for target $i.", reset=None))})
     }
 
     // When a hart reads a claim/complete register, then the
