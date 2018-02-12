@@ -85,32 +85,31 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     // Dump out the register map for documentation purposes.
-    val registerDescriptions = mapping.map { case (offset, seq) =>
-      var currentBitOffset = 0
-      s"regAt0x${offset.toHexString}" -> (
-        ("description"    ->  "None Provided") ~
-        ("addressOffset"  -> s"0x${offset.toHexString}") ~
-          ("fields" -> seq.zipWithIndex.map { case (f, i) => {
-            val tmp = (f.description.map{ _.displayName }.getOrElse(s"unnamedRegField${i}") -> (
-                ("bitOffset"   -> currentBitOffset) ~
-                ("bitWidth"    -> f.width) ~
-                ("description" -> f.description.map{ _.description}) ~
-                ("resetMask"   -> f.description.map { d => if (d.resetType != RegFieldResetType.N) "all" else "none"}) ~
-                ("resetValue"  -> f.description.map { _.resetValue})
-                ("headerName"  -> f.description.map { _.headerName}))
-            currentBitOffset = currentBitOffset + f.width
-            tmp
-          }}))}
+    val regDescs = mapping.map { case (offset, seq) =>
+      var currentBitOffset = 0      
+      (s"0x${offset.toHexString}" -> seq.zipWithIndex.map { case (f, i) => {
+        val tmp = (f.desc.map{ _.name}.getOrElse(s"unnamedRegField${i}") -> (
+            ("byteOffset"  -> s"0x${offset.toHexString}") ~
+            ("bitOffset"   -> currentBitOffset) ~
+            ("bitWidth"    -> f.width) ~
+            ("name" -> f.desc.map(_.name)         
+            ("description" -> f.desc.map{if _.desc == "" None else Some(_.desc)}) ~
+            ("resetValue"  -> f.desc.map{_.reset}) ~
+            ("group"       -> f.desc.map{_.group}) ~
+            ("groupDesc"   -> f.desc.map{_.groupDesc}) ~
+            ("accessType"  -> f.desc.map {d => d.access.toString})
+          ))
+        currentBitOffset = currentBitOffset + f.width
+        tmp
+        }})
+    }
 
-    val simpleDev = device.asInstanceOf[SimpleDevice]
+    //TODO: It would be better to name this other than "Device at ...."
     val base = s"0x${address.head.base.toInt.toHexString}"
     val json = ("peripheral" -> (
       ("displayName" -> s"deviceAt${base}") ~
-      ("description" -> s"None Provided") ~
       ("baseAddress" -> base) ~
-      ("regWidth" -> beatBytes) ~
-      ("access" -> "rw") ~ // specified at field level
-      ("registers" -> registerDescriptions)
+      ("regfields" -> regDescs)
     ))
     ElaborationArtefacts.add(s"${base}.regmap.json", pretty(render(json)))
   }

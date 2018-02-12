@@ -83,9 +83,9 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
      */
 
     node.regmap(
-      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.map{ case (r, i) => RegField(ipiWidth, r, RegFieldDesc(s"msip_$i", "MSIP bit for Hart $i", reset=Some(0)))}),
+      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.map{ case (r, i) => RegField(ipiWidth, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0)))}),
       timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) =>
-        RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"), RegField.bytes(t, Some(RegFieldDesc("mtimecmp_$i", "", reset=None))))},
+        RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"), RegField.bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset=None))))},
       timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"), RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0)))))
     )
   }
