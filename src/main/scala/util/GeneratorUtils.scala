@@ -140,7 +140,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
 object ElaborationArtefacts {
   var files: Seq[(String, () => String)] = Nil
 
-  def add(extension: String, contents: => String) = {
+  def add(extension: String, contents: => String) {
     files = (extension, () => contents) +: files
   }
 
