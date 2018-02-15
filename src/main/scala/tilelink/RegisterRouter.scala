@@ -116,7 +116,7 @@ case class TLRegisterNode(
     while( ElaborationArtefacts.contains(s"${base}.${suffix}.regmap.json")){
       suffix = suffix + 1
     }
-    ElaborationArtefacts.add(s"${base}.${suffix}regmap.json", pretty(render(json)))
+    ElaborationArtefacts.add(s"${base}.${suffix}.regmap.json", pretty(render(json)))
   }
 }
 
