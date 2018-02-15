@@ -270,7 +270,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
 /** Trait that will connect a PLIC to a subsystem */
 trait HasPeripheryPLIC extends HasInterruptBus with HasPeripheryBus {
-  val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes))
-  plic.node := pbus.toVariableWidthSlaves
+  val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes)))
+  pbus.toVariableWidthSlave(Some("PLIC")) { plic.node }
   plic.intnode := ibus.toPLIC
 }

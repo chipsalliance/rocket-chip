@@ -121,6 +121,5 @@ class DeadlockDevice(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parame
 trait HasSystemErrorSlave extends HasSystemBus {
   private val params = p(ErrorParams)
   val error = LazyModule(new TLError(params, sbus.beatBytes))
-
-  error.node := sbus.toSlave
+  sbus.toSlave(Some("Error")){ error.node }
 }

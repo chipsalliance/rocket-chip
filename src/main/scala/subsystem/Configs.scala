@@ -270,10 +270,6 @@ class WithJtagDTM extends Config ((site, here, up) => {
   case IncludeJtagDTM => true
 })
 
-class WithNoPeripheryArithAMO extends Config ((site, here, up) => {
-  case PeripheryBusKey => up(PeripheryBusKey, site).copy(arithmetic = false)
-})
-
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {
   case PeripheryBusKey => up(PeripheryBusKey, site).copy(beatBytes = nBits/8)
 })

@@ -8,38 +8,40 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class FrontBusParams(
-  beatBytes: Int,
-  blockBytes: Int,
-  masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.default
-) extends TLBusParams
+case class FrontBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusParams
 
 case object FrontBusKey extends Field[FrontBusParams]
 
-class FrontBus(params: FrontBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "FrontBus") {
+class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = SynchronousCrossing())
+              (implicit p: Parameters) extends TLBusWrapper(params, "FrontBus")
+    with HasTLXbarPhy
+    with HasCrossing {
 
-  private val master_buffer = LazyModule(new TLBuffer(params.masterBuffering))
-  private val master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-
-  master_buffer.suggestName(s"${busName}_master_TLBuffer")
-  master_fixer.suggestName(s"${busName}_master_TLFIFOFixer")
-
-  master_fixer.node :=* master_buffer.node
-  inwardNode :=* master_fixer.node
-
-  def fromSyncPorts(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
-    TLBuffer.chain(addBuffers).foldLeft(master_buffer.node:TLInwardNode)(_ :=* _)
+  def fromPort[D,U,E,B <: Data](
+        name: Option[String] = None,
+        buffers: Int = 1)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
+    from(s"Port${name.getOrElse("")}") {
+      val nodes = TLFIFOFixer(TLFIFOFixer.all) +: TLBuffer.chain(buffers)
+      inwardNode :=* nodes.reduce(_ :=* _) :=* gen
+    }
   }
 
-  def fromSyncMasters(addBuffers: Int = 0, name: Option[String] = None): TLInwardNode = {
-    TLBuffer.chain(addBuffers).foldLeft(master_buffer.node:TLInwardNode)(_ :=* _)
+  def fromMaster(name: Option[String] = None, buffers: Int = 1)
+                (gen: => TLNode): TLInwardNode = {
+    from(s"Master${name.getOrElse("")}") {
+      inwardNode :=* TLBuffer.chain(buffers).reduce(_ :=* _) :=* gen
+    }
   }
 
-  def fromCoherentChip: TLInwardNode = inwardNode
+  def fromCoherentChip(gen: => TLNode): TLInwardNode = {
+    from("CoherentChip") { inwardNode :=* gen }
+  }
 
-  def toSystemBus : TLOutwardNode = TLBuffer(params.slaveBuffering) :=* xbar.node
-
+  def toSystemBus(buffer: BufferParams = BufferParams.none)
+                 (gen: => TLInwardNode) {
+    to("SystemBus") { gen :*= TLBuffer(buffer) :*= outwardNode }
+  }
 }
 
 /** Provides buses that serve as attachment points,
@@ -51,5 +53,7 @@ trait HasFrontBus extends HasSystemBus {
 
   val fbus = LazyModule(new FrontBus(frontbusParams))
 
-  FlipRendering { implicit p => sbus.fromFrontBus :=* fbus.toSystemBus }
+  FlipRendering { implicit p =>
+    fbus.toSystemBus() { sbus.fromFrontBus { fbus.crossTLOut } }
+  }
 }

@@ -7,41 +7,97 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
-import freechips.rocketchip.config.Field
-
 case class PeripheryBusParams(
   beatBytes: Int,
   blockBytes: Int,
-  masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.none,
-  arithmetic: Boolean = true,
   frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
-) extends TLBusParams {
-}
+) extends HasTLBusParams
 
 case object PeripheryBusKey extends Field[PeripheryBusParams]
 
-class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "PeripheryBus") {
+class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCrossing = SynchronousCrossing())
+                  (implicit p: Parameters) extends TLBusWrapper(params, "PeripheryBus")
+    with HasTLXbarPhy
+    with HasCrossing {
 
-  def toFixedWidthSingleBeatSlave(widthBytes: Int) = {
-    TLFragmenter(widthBytes, params.blockBytes) := outwardWWNode
+  private def bufferTo(buffer: BufferParams): TLOutwardNode =
+    TLBuffer(buffer) :*= delayNode :*= outwardNode
+
+  private def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
+    TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
+
+  private def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
+    TLWidthWidget(params.beatBytes) :*= bufferTo(buffer)
+
+  def toSlave(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") { gen :*= bufferTo(buffer) }
   }
 
-  def toLargeBurstSlave(maxXferBytes: Int) = {
-    TLFragmenter(params.beatBytes, maxXferBytes) := outwardBufNode
+  def toVariableWidthSlave(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") {
+      gen :*= fragmentTo(params.beatBytes, params.blockBytes, buffer)
+    }
   }
 
-  val fromSystemBus: TLInwardNode = {
-    val atomics = LazyModule(new TLAtomicAutomata(arithmetic = params.arithmetic))
-    xbar.node :*= TLBuffer(params.masterBuffering) :*= atomics.node
+  def toFixedWidthSlave(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") {
+      gen :*= fixedWidthTo(buffer)
+    }
   }
 
-  def toTile(name: Option[String] = None)(gen: Parameters => TLInwardNode) {
-    this {
-      LazyScope(s"${busName}ToTile${name.getOrElse("")}") {
-        FlipRendering { implicit p =>
-          gen(p) :*= outwardNode
-        }
+  def toFixedWidthSingleBeatSlave(
+        widthBytes: Int,
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") {
+      gen :*= TLFragmenter(widthBytes, params.blockBytes) :*= fixedWidthTo(buffer)
+    }
+  }
+
+  def toLargeBurstSlave(
+        maxXferBytes: Int,
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") {
+      gen :*= fragmentTo(params.beatBytes, maxXferBytes, buffer)
+    }
+  }
+
+  def fromSystemBus(
+        arithmetic: Boolean = true,
+        buffer: BufferParams = BufferParams.default)
+      (gen: => TLOutwardNode) {
+    from("SystemBus") {
+      (inwardNode
+        :*= TLBuffer(buffer)
+        :*= TLAtomicAutomata(arithmetic = arithmetic)
+        :*= gen)
+    }
+  }
+
+  def fromOtherMaster(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLInwardNode = {
+    from(s"OtherMaster${name.getOrElse("")}") { inwardNode :*= TLBuffer(buffer) :*= gen }
+  }
+
+
+  def toTile(name: Option[String] = None)(gen: => TLNode): TLOutwardNode = {
+    to(s"Tile${name.getOrElse("")}") {
+      FlipRendering { implicit p =>
+        gen :*= delayNode :*= outwardNode
       }
     }
   }
@@ -57,5 +113,5 @@ trait HasPeripheryBus extends HasSystemBus {
   val pbus = LazyModule(new PeripheryBus(pbusParams))
 
   // The peripheryBus hangs off of systemBus; here we convert TL-UH -> TL-UL
-  pbus.fromSystemBus :*= sbus.toPeripheryBus()
+  pbus.fromSystemBus() { sbus.toPeripheryBus() { pbus.crossTLIn } }
 }

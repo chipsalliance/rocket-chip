@@ -8,65 +8,94 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class SystemBusParams(
-  beatBytes: Int,
-  blockBytes: Int,
-  masterBuffering: BufferParams = BufferParams.default,
-  slaveBuffering: BufferParams = BufferParams.default
-) extends TLBusParams
+case class SystemBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusParams
 
 case object SystemBusKey extends Field[SystemBusParams]
 
-class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus") {
+class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus")
+    with HasTLXbarPhy {
 
-  private val master_splitter = LazyModule(new TLSplitter)  // Allows cycle-free connection to external networks
-  master_splitter.suggestName(s"${busName}_master_TLSplitter")
+  private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
+
   def busView = master_splitter.node.edges.in.head
 
-  protected def inwardSplitNode: TLInwardNode = master_splitter.node
-  protected def outwardSplitNode: TLOutwardNode = master_splitter.node
+  private def bufferTo(buffer: BufferParams): TLOutwardNode =
+    TLBuffer(buffer) :*= delayNode :*= outwardNode
 
-
-  private val port_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  port_fixer.suggestName(s"${busName}_port_TLFIFOFixer")
-  master_splitter.node :=* port_fixer.node
-
-  private val pbus_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  pbus_fixer.suggestName(s"${busName}_pbus_TLFIFOFixer")
-  pbus_fixer.node :*= outwardWWNode
-
-  def toSplitSlaves: TLOutwardNode = outwardSplitNode
-
-  def toPeripheryBus(addBuffers: Int = 0): TLOutwardNode = {
-    TLBuffer.chain(addBuffers).foldRight(pbus_fixer.node:TLOutwardNode)(_ :*= _)
-  }
-
-  val toMemoryBus: TLOutwardNode = outwardNode
-
-  val toSlave: TLOutwardNode = outwardBufNode
-
-  def fromCoherentChip: TLInwardNode = inwardNode
-
-  def fromFrontBus: TLInwardNode = master_splitter.node
-
-  def fromTile(name: Option[String])(gen: Parameters => TLOutwardNode) {
-    this {
-      LazyScope(s"${busName}FromTile${name.getOrElse("")}") {
-        master_splitter.node :=* gen(p)
-      }
+  def toPeripheryBus(buffer: BufferParams = BufferParams.none)
+                    (gen: => TLNode): TLOutwardNode = {
+    to("PeripheryBus") {
+      (gen
+        := TLFIFOFixer(TLFIFOFixer.all)
+        := TLWidthWidget(params.beatBytes)
+        := bufferTo(buffer))
     }
   }
 
-  def fromSyncPorts(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
-    val buffer = LazyModule(new TLBuffer(params))
-    name.foreach { n => buffer.suggestName(s"${busName}_${n}_TLBuffer") }
-    port_fixer.node :=* buffer.node
-    buffer.node
+  def toMemoryBus(gen: => TLInwardNode) {
+    to("MemoryBus") { gen :*= delayNode :*= outwardNode }
   }
 
-  def fromSyncFIFOMaster(params: BufferParams =  BufferParams.default, name: Option[String] = None): TLInwardNode = {
-    fromSyncPorts(params, name)
+  def toSlave(name: Option[String] = None, buffer: BufferParams = BufferParams.default)
+             (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") { gen :*= bufferTo(buffer) }
+  }
+ 
+  def toSplitSlave(name: Option[String] = None)
+                  (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") { gen :*= master_splitter.node }
+  }
+
+  def toVariableWidthSlave(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.default)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") {
+      gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
+    }
+  }
+
+  def fromCoherentChip(gen: => TLNode): TLInwardNode = {
+    from("CoherentChip") { inwardNode :=* gen }
+  }
+
+  def fromFrontBus(gen: => TLNode): TLInwardNode = {
+    from("FrontBus") { master_splitter.node :=* gen }
+  }
+
+  def fromTile(
+        name: Option[String],
+        buffers: Int = 0,
+        cork: Option[Boolean] = None)
+      (gen: => TLNode): TLInwardNode = {
+    from(s"Tile${name.getOrElse("")}") {
+      (List(master_splitter.node, TLFIFOFixer(TLFIFOFixer.allUncacheable)) ++
+        TLBuffer.chain(buffers) ++
+        cork.map(u => TLCacheCork(unsafe = u))
+      ).reduce(_ :=* _) :=* gen
+    }
+  }
+
+  def toFixedWidthPort[D,U,E,B <: Data](
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.default)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {
+    to(s"Port${name.getOrElse("")}") {
+      gen := TLWidthWidget(params.beatBytes) := bufferTo(buffer)
+    }
+  }
+
+  def fromPort[D,U,E,B <: Data](
+        name: Option[String] = None,
+        buffers: Int = 0)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
+    from(s"Port${name.getOrElse("")}") {
+      (List(
+        master_splitter.node,
+        TLFIFOFixer(TLFIFOFixer.all)) ++
+        TLBuffer.chain(buffers)).reduce(_ :=* _) :=* gen
+    }
   }
 }
 

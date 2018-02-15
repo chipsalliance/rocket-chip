@@ -71,7 +71,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
 
   val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, pbus.beatBytes))
 
-  bootrom.node := pbus.toVariableWidthSlaves
+  pbus.toVariableWidthSlave(Some("BootROM")){ bootrom.node }
 }
 
 /** Subsystem will power-on running at 0x10040 (BootROM) */

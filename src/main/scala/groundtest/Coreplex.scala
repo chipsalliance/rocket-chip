@@ -28,14 +28,11 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   )}
 
   tiles.flatMap(_.dcacheOpt).foreach { dc =>
-    sbus.fromTile(None) { implicit p => TileMasterPortParams(addBuffers = 1).adapt(this)(dc.node) }
+    sbus.fromTile(None, buffers = 1){ dc.node }
   }
 
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) := ibus.toPLIC
-
-  val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), true, false, pbus.beatBytes))
-  pbusRAM.node := pbus.toVariableWidthSlaves
 
   override lazy val module = new GroundTestSubsystemModule(this)
 }
@@ -53,11 +50,11 @@ class GroundTestSubsystemModule[+L <: GroundTestSubsystem](_outer: L) extends Ba
 /** Adds a SRAM to the system for testing purposes. */
 trait HasPeripheryTestRAMSlave extends HasPeripheryBus {
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
-  testram.node := pbus.toVariableWidthSlaves
+  pbus.toVariableWidthSlave(Some("TestRAM")) { testram.node }
 }
 
 /** Adds a fuzzing master to the system for testing purposes. */
 trait HasPeripheryTestFuzzMaster extends HasPeripheryBus {
   val fuzzer = LazyModule(new TLFuzzer(5000))
-  pbus.bufferFromMasters := fuzzer.node
+  pbus.fromOtherMaster(Some("Fuzzer")) { fuzzer.node }
 }

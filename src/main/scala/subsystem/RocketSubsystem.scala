@@ -15,19 +15,8 @@ import freechips.rocketchip.util._
 
 // TODO: how specific are these to RocketTiles?
 case class TileMasterPortParams(
-    addBuffers: Int = 0,
-    cork: Option[Boolean] = None) {
-
-  def adapt(subsystem: HasPeripheryBus)
-           (masterNode: TLOutwardNode)
-           (implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
-    val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
-
-    (Seq(tile_master_fixer.node) ++ TLBuffer.chain(addBuffers) ++ tile_master_cork.map(_.node))
-      .foldRight(masterNode)(_ :=* _)
-  }
-}
+    buffers: Int = 0,
+    cork: Option[Boolean] = None)
 
 case class TileSlavePortParams(
     addBuffers: Int = 0,
@@ -41,9 +30,12 @@ case class TileSlavePortParams(
         .map(BasicBusBlockerParams(_, subsystem.pbus.beatBytes, subsystem.sbus.beatBytes))
         .map(bp => LazyModule(new BasicBusBlocker(bp)))
 
-    tile_slave_blocker.foreach { _.controlNode := subsystem.pbus.toVariableWidthSlaves }
+    tile_slave_blocker.foreach { b =>
+      subsystem.pbus.toVariableWidthSlave(Some("TileSlavePortBusBlocker")) { b.controlNode }
+    }
+
     (Seq() ++ tile_slave_blocker.map(_.node) ++ TLBuffer.chain(addBuffers))
-    .foldLeft(slaveNode)(_ :*= _)
+      .foldLeft(slaveNode)(_ :*= _)
   }
 }
 
@@ -111,7 +103,9 @@ trait HasRocketTiles extends HasTiles
       }
     }
 
-    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(rocket.crossTLOut :=* tileMasterBuffering) }
+    sbus.fromTile(tp.name, crossing.master.buffers, crossing.master.cork) {
+      rocket.crossTLOut
+    } :=* tileMasterBuffering
 
     // Connect the slave ports of the tile to the periphery bus
 
@@ -123,9 +117,9 @@ trait HasRocketTiles extends HasTiles
       }
     }
 
-    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)( DisableMonitors { implicit p =>
-      tileSlaveBuffering :*= rocket.crossTLIn
-    })}
+    DisableMonitors { implicit p =>
+      tileSlaveBuffering :*= pbus.toTile(tp.name) { rocket.crossTLIn }
+    }
 
     // Handle all the different types of interrupts crossing to or from the tile:
     // 1. Debug interrupt is definitely asynchronous in all cases.

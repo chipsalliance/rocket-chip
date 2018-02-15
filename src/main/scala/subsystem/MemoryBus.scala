@@ -36,26 +36,47 @@ case class BankedL2Params(
 case object BankedL2Key extends Field(BankedL2Params())
 
 /** Parameterization of the memory-side bus created for each memory channel */
-case class MemoryBusParams(
-  beatBytes: Int,
-  blockBytes: Int,
-  masterBuffering: BufferParams = BufferParams.none,
-  slaveBuffering: BufferParams = BufferParams.none
-) extends TLBusParams
+case class MemoryBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusParams
 
 case object MemoryBusKey extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
-class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "MemoryBus")(p) {
-  def fromCoherenceManager: TLInwardNode = inwardBufNode
-  def toDRAMController: TLOutwardNode = outwardBufNode
-  def toVariableWidthSlave: TLOutwardNode = outwardFragNode
+class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "MemoryBus")(p)
+    with HasTLXbarPhy {
+
+  private def bufferTo(buffer: BufferParams): TLOutwardNode =
+    TLBuffer(buffer) :*= delayNode :*= outwardNode
+
+  def fromCoherenceManager(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLInwardNode = {
+    from(s"CoherenceManager${name.getOrElse("")}") {
+      inwardNode :*= TLBuffer(buffer) :*= gen
+    }
+  }
+
+  def toDRAMController[D,U,E,B <: Data](
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {
+    to(s"DRAMController${name.getOrElse("")}") { gen := bufferTo(buffer) }
+  }
+
+  def toVariableWidthSlave(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to(s"Slave${name.getOrElse("")}") {
+      gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
+    }
+  }
 }
 
 trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBus {
   private val mbusParams = p(MemoryBusKey)
   private val l2Params = p(BankedL2Key)
-  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes, _, _) = mbusParams
+  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes) = mbusParams
   val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
   val nBanks = l2Params.nBanks
   val cacheBlockBytes = memBusBlockBytes
@@ -71,8 +92,8 @@ trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBu
     val mbus = LazyModule(new MemoryBus(mbusParams))
     for (bank <- 0 until nBanksPerChannel) {
       val offset = (bank * nMemoryChannels) + channel
-      ForceFanout(a = true) { implicit p => in := sbus.toMemoryBus }
-      mbus.fromCoherenceManager := TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) := out
+      ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
+      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) } := out
     }
     mbus
   }

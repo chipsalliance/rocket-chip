@@ -50,13 +50,16 @@ trait HasMemoryZeroSlave extends HasMemoryBus {
   private val params = p(ZeroParams)
   private val device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))
 
-  val zeros = memBuses.map(_.toVariableWidthSlave).zipWithIndex.map { case (node, channel) =>
+  val zeros = memBuses
+                .map(m => m.toVariableWidthSlave(Some("Zero"))(_))
+                .zipWithIndex
+                .map { case (attach, channel) =>
     val channels = memBuses.size
     val base = AddressSet(params.base, params.size-1)
     val filter = AddressSet(channel * cacheBlockBytes, ~((channels-1) * cacheBlockBytes))
     val address = base.intersect(filter).get
     val zero = LazyModule(new TLZero(address, beatBytes = params.beatBytes, resources = device.reg("mem")))
-    zero.node := node
+    attach { zero.node }
     zero
   }
 }
