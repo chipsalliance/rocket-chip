@@ -163,7 +163,7 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
       TLClientParameters(
         name          = s"Core ${hartid} DCache",
          sourceId      = IdRange(0, firstMMIO),
-         supportsProbe = TransferSizes(1, cfg.blockBytes)),
+         supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes)),
       TLClientParameters(
         name          = s"Core ${hartid} DCache MMIO",
         sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
