@@ -164,7 +164,7 @@ object RegField
     val valids = Wire(init = Vec.fill(numBytes) { Bool(false) })
     when (valids.reduce(_ || _)) { reg := newBytes.asUInt }
     Seq.tabulate(numBytes) { i =>
-      val newDesc = desc.map {d => d.copy(name = d.name + s"[${(i+1)*8-1}:${i*8}]")}
+      val newDesc = desc.map {d => d.copy(name = d.name + s"_$i")}
       RegField(8, oldBytes(i),
         RegWriteFn((valid, data) => {
         valids(i) := valid

@@ -111,7 +111,12 @@ case class TLRegisterNode(
       ("baseAddress" -> base) ~
       ("regfields" -> regDescs)
     ))
-    ElaborationArtefacts.add(s"${base}.regmap.json", pretty(render(json)))
+
+    var suffix = 0
+    while( ElaborationArtefacts.contains(s"${base}.${suffix}.regmap.json")){
+      suffix = suffix + 1
+    }
+    ElaborationArtefacts.add(s"${base}.${suffix}.regmap.json", pretty(render(json)))
   }
 }
 
