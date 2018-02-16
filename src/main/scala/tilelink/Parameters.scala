@@ -186,7 +186,7 @@ case class TLClientParameters(
   name:                String,
   sourceId:            IdRange       = IdRange(0,1),
   nodePath:            Seq[BaseNode] = Seq(),
-  requestFifo:         Boolean       = false, // only a request, not a requirement
+  requestFifo:         Boolean       = false, // only a request, not a requirement. applies to A, not C.
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,
@@ -204,8 +204,6 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutFull))
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
-  // If you need FIFO, you better not be TL-C (due to independent A vs. C order)
-  require (!requestFifo || !supportsProbe)
 
   val maxTransfer = List(
     supportsProbe.max,
