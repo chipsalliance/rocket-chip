@@ -14,30 +14,8 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 // TODO: how specific are these to RocketTiles?
-case class TileMasterPortParams(
-    buffers: Int = 0,
-    cork: Option[Boolean] = None)
-
-case class TileSlavePortParams(
-    addBuffers: Int = 0,
-    blockerCtrlAddr: Option[BigInt] = None) {
-
-  def adapt(subsystem: HasPeripheryBus)
-           (slaveNode: TLInwardNode)
-           (implicit p: Parameters, sourceInfo: SourceInfo): TLInwardNode = {
-    val tile_slave_blocker =
-      blockerCtrlAddr
-        .map(BasicBusBlockerParams(_, subsystem.pbus.beatBytes, subsystem.sbus.beatBytes))
-        .map(bp => LazyModule(new BasicBusBlocker(bp)))
-
-    tile_slave_blocker.foreach { b =>
-      subsystem.pbus.toVariableWidthSlave(Some("TileSlavePortBusBlocker")) { b.controlNode }
-    }
-
-    (Seq() ++ tile_slave_blocker.map(_.node) ++ TLBuffer.chain(addBuffers))
-      .foldLeft(slaveNode)(_ :*= _)
-  }
-}
+case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
+case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
 
 case class RocketCrossingParams(
     crossingType: SubsystemClockCrossing = SynchronousCrossing(),
@@ -87,7 +65,7 @@ trait HasRocketTiles extends HasTiles
 
     def tileMasterBuffering: TLOutwardNode = rocket {
       // The buffers needed to cut feed-through paths are microarchitecture specific, so belong here
-      val masterBuffer = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1)))
+      val masterBufferNode = TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
       crossing.crossingType match {
         case _: AsynchronousCrossing => rocket.masterNode
         case SynchronousCrossing(b) =>
@@ -96,29 +74,40 @@ trait HasRocketTiles extends HasTiles
         case RationalCrossing(dir) =>
           require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
           if (tp.boundaryBuffers) {
-            masterBuffer.node :=* rocket.masterNode
+            masterBufferNode :=* rocket.masterNode
           } else {
             rocket.masterNode
           }
       }
     }
 
-    sbus.fromTile(tp.name, crossing.master.buffers, crossing.master.cork) {
-      rocket.crossTLOut
+    sbus.fromTile(tp.name, crossing.master.buffers) {
+        crossing.master.cork
+          .map { u => TLCacheCork(unsafe = u) }
+          .map { _ :=* rocket.crossTLOut }
+          .getOrElse { rocket.crossTLOut }
     } :=* tileMasterBuffering
 
     // Connect the slave ports of the tile to the periphery bus
 
     def tileSlaveBuffering: TLInwardNode = rocket {
-      val slaveBuffer  = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
+      val slaveBufferNode = TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
       crossing.crossingType match {
-        case RationalCrossing(_) if (tp.boundaryBuffers) => rocket.slaveNode :*= slaveBuffer.node
+        case RationalCrossing(_) if (tp.boundaryBuffers) => rocket.slaveNode :*= slaveBufferNode
         case _ => rocket.slaveNode
       }
     }
 
     DisableMonitors { implicit p =>
-      tileSlaveBuffering :*= pbus.toTile(tp.name) { rocket.crossTLIn }
+      tileSlaveBuffering :*= pbus.toTile(tp.name) {
+        crossing.slave.blockerCtrlAddr
+          .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
+          .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
+          .map { bbb =>
+            pbus.toVariableWidthSlave(Some("TileSlavePortBusBlocker")) { bbb.controlNode }
+            rocket.crossTLIn :*= bbb.node
+          } .getOrElse { rocket.crossTLIn }
+      }
     }
 
     // Handle all the different types of interrupts crossing to or from the tile:

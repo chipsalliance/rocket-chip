@@ -23,6 +23,9 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
   private def bufferTo(buffer: BufferParams): TLOutwardNode =
     TLBuffer(buffer) :*= delayNode :*= outwardNode
 
+  private def bufferTo(buffers: Int): TLOutwardNode =
+    TLBuffer.chain(buffers).foldRight(delayNode)(_ :*= _) :*= outwardNode
+
   private def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
     TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
 
@@ -94,10 +97,13 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
   }
 
 
-  def toTile(name: Option[String] = None)(gen: => TLNode): TLOutwardNode = {
+  def toTile(
+        name: Option[String] = None,
+        buffers: Int = 0)
+      (gen: => TLNode): TLOutwardNode = {
     to(s"Tile${name.getOrElse("")}") {
       FlipRendering { implicit p =>
-        gen :*= delayNode :*= outwardNode
+        gen :*= bufferTo(buffers)
       }
     }
   }

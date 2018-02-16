@@ -70,10 +70,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         cork: Option[Boolean] = None)
       (gen: => TLNode): TLInwardNode = {
     from(s"Tile${name.getOrElse("")}") {
-      (List(master_splitter.node, TLFIFOFixer(TLFIFOFixer.allUncacheable)) ++
-        TLBuffer.chain(buffers) ++
-        cork.map(u => TLCacheCork(unsafe = u))
-      ).reduce(_ :=* _) :=* gen
+      (List(master_splitter.node, TLFIFOFixer(TLFIFOFixer.allUncacheable)) ++ TLBuffer.chain(buffers))
+        .reduce(_ :=* _) :=* gen
     }
   }
 
