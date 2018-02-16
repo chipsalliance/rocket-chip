@@ -25,35 +25,12 @@ abstract class LazyModule()(implicit val p: Parameters)
   parent.foreach(p => p.children = this :: p.children)
 
   // suggestedName accumulates Some(names), taking the final one. Nones are ignored.
-  private var suggestedName: Option[String] = None
+  private var suggestedNameVar: Option[String] = None
   def suggestName(x: String): this.type = suggestName(Some(x))
   def suggestName(x: Option[String]): this.type = {
-    x.foreach { n => suggestedName = Some(n) }
+    x.foreach { n => suggestedNameVar = Some(n) }
     this
   }
-
-  private lazy val childNames =
-    getClass.getMethods.filter { m =>
-      m.getParameterTypes.isEmpty &&
-      !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-      m.getName != "children" &&
-      m.getName != "getChildren"
-    }.flatMap { m =>
-      if (classOf[LazyModule].isAssignableFrom(m.getReturnType)) {
-        val obj = m.invoke(this)
-        if (obj eq null) Seq() else Seq((m.getName, obj))
-      } else if (classOf[Seq[LazyModule]].isAssignableFrom(m.getReturnType)) {
-        val obj = m.invoke(this)
-        if (obj eq null) Seq() else {
-          val seq = try { obj.asInstanceOf[Seq[Object]] } catch { case _: Throwable => null }
-          if (seq eq null) Seq() else {
-            seq.zipWithIndex.map { case (l, i) => (m.getName + "_"  + i, l) }
-          }
-        }
-      } else Seq()
-    }
-  private def findValName =
-    parent.flatMap(_.childNames.find(_._2 eq this)).map(_._1)
 
   private def findClassName(c: Class[_]): String = {
     val n = c.getName.split('.').last
@@ -61,13 +38,16 @@ abstract class LazyModule()(implicit val p: Parameters)
   }
 
   lazy val className = findClassName(getClass)
-  lazy val valName = suggestedName.orElse(findValName)
-  lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
+  lazy val suggestedName = suggestedNameVar.getOrElse(className)
+  lazy val desiredName = className // + hashcode?
 
-  def moduleName = className + valName.orElse(outerName).map("_" + _).getOrElse("")
-  def instanceName = valName.getOrElse(outerName.map(_ + "_").getOrElse("") + className)
-  def name = valName.getOrElse(className)
+  def name = suggestedName // className + suggestedName ++ hashcode ?
   def line = sourceLine(info)
+
+  // Accessing these names can only be done after circuit elaboration!
+  lazy val moduleName = module.name // The final Verilog Module name
+  lazy val pathName = module.pathName
+  lazy val instanceName = pathName.split('.').last // The final Verilog instance name
 
   def instantiate() { } // a hook for running things in module scope (after children exist, but before dangles+auto exists)
   def module: LazyModuleImpLike
@@ -149,6 +129,7 @@ object LazyModule
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
     scope = bc.parent
     bc.info = sourceInfo
+    if (!bc.suggestedNameVar.isDefined) bc.suggestName(valName.name)
     bc
   }
 }
@@ -162,8 +143,8 @@ sealed trait LazyModuleImpLike extends BaseModule
   // .module had better not be accessed while LazyModules are still being built!
   require (!LazyModule.scope.isDefined, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.scope.get.name}")
 
-  override def desiredName = wrapper.moduleName
-  suggestName(wrapper.instanceName)
+  override def desiredName = wrapper.desiredName
+  suggestName(wrapper.suggestedName)
 
   implicit val p = wrapper.p
 
@@ -186,7 +167,7 @@ sealed trait LazyModuleImpLike extends BaseModule
     val auto = IO(new AutoBundle(forward.map { d => (d.name, d.data, d.flipped) }:_*))
     val dangles = (forward zip auto.elements) map { case (d, (_, io)) =>
       if (d.flipped) { d.data <> io } else { io <> d.data }
-      d.copy(data = io, name = wrapper.valName.getOrElse("anon") + "_" + d.name)
+      d.copy(data = io, name = wrapper.suggestedName + "_" + d.name)
     }
     wrapper.instantiate()
     (auto, dangles)

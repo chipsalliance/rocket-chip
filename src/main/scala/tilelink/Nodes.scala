@@ -30,18 +30,6 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     pd.copy(clients  = pd.clients.map  { c => c.copy (nodePath = node +: c.nodePath) })
   override def mixI(pu: TLManagerPortParameters, node: InwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLManagerPortParameters =
     pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
-  override def getO(pu: TLManagerPortParameters): Option[BaseNode] = {
-    val head = pu.managers.map(_.nodePath.headOption)
-    if (head.exists(!_.isDefined) || head.map(_.get).distinct.size != 1) {
-      None
-    } else {
-      val subproblem = pu.copy(managers = pu.managers.map(m => m.copy(nodePath = m.nodePath.tail)))
-      getO(subproblem) match {
-        case Some(x) => Some(x)
-        case None => Some(head(0).get)
-      }
-    }
-  }
 }
 
 case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams)
