@@ -313,17 +313,17 @@ done_processing:
 
   if (dtm->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
+    fprintf(stderr, "*** FAILED *** via dtm (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
     ret = dtm->exit_code();
   }
   else if (jtag->exit_code())
   {
-    fprintf(stderr, "*** FAILED *** (code = %d, seed %d) after %ld cycles\n", jtag->exit_code(), random_seed, trace_count);
+    fprintf(stderr, "*** FAILED *** via jtag (code = %d, seed %d) after %ld cycles\n", jtag->exit_code(), random_seed, trace_count);
     ret = jtag->exit_code();
   }
   else if (trace_count == max_cycles)
   {
-    fprintf(stderr, "*** FAILED *** (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
+    fprintf(stderr, "*** FAILED *** via trace_count (timeout, seed %d) after %ld cycles\n", random_seed, trace_count);
     ret = 2;
   }
   else if (verbose || print_cycles)
