@@ -26,10 +26,10 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val clients = edgeIn.client.clients
       val caches = clients.filter(_.supportsProbe)
-      require (clients.size == 1 || caches.size == 0 || unsafe, "Only one client can safely use a TLCacheCork")
-      require (caches.size <= 1 || unsafe, "Only one caching client allowed")
+      require (clients.size == 1 || caches.size == 0 || unsafe, s"Only one client can safely use a TLCacheCork; ${clients.map(_.name)}")
+      require (caches.size <= 1 || unsafe, s"Only one caching client allowed; ${clients.map(_.name)}")
       edgeOut.manager.managers.foreach { case m =>
-        require (!m.supportsAcquireB || unsafe, "Cannot support caches beyond the Cork")
+        require (!m.supportsAcquireB || unsafe, s"Cannot support caches beyond the Cork; ${m.name}")
         require (m.regionType <= RegionType.UNCACHED)
       }
 
@@ -39,8 +39,15 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
       // A caveat is that we get Acquire+Release with the same source and must keep the
       // source unique after transformation onto the A channel.
       // The coding scheme is:
-      //   Put: 1, Release: 0 => AccessAck
-      //   *: 0, Acquire: 1 => AccessAckData
+      //   Release, AcquireBlock.BtoT, AcquirePerm => instant response
+      //   Put{Full,Partial}Data: 1, ReleaseData: 0 => AccessAck
+      //   {Arithmetic,Logical}Data,Get: 0, Acquire: 1 => AccessAckData
+      //   Hint:0 => HintAck
+
+      // The CacheCork can potentially send the same source twice if a client sends
+      // simultaneous Release and AMO/Get with the same source. It will still correctly
+      // decode the messages based on the D.opcode, but the double use violates the spec.
+      // Fortunately, no masters we know of behave this way!
 
       // Take requests from A to A or D (if BtoT Acquire)
       val a_a = Wire(out.a)
