@@ -40,17 +40,16 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   }
 
   protected def to[T](name: String)(body: => T): T = {
-    this { LazyScope(s"${busName}To${name}") { body } }
+    this { LazyScope(s"coupler_to_${name}") { body } }
   }
 
   protected def from[T](name: String)(body: => T): T = {
-    this { LazyScope(s"${busName}From${name}") { body } }
+    this { LazyScope(s"coupler_from_${name}") { body } }
   }
 }
 
 trait HasTLXbarPhy { this: TLBusWrapper =>
-  private val xbar = LazyModule(new TLXbar)
-  xbar.suggestName(busName)
+  private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
 
   protected def inwardNode: TLInwardNode = xbar.node
   protected def outwardNode: TLOutwardNode = xbar.node
