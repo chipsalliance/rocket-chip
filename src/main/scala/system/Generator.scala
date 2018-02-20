@@ -57,15 +57,14 @@ object Generator extends GeneratorApp {
     val env = if (vm) List("p","v") else List("p")
     coreParams.fpu foreach { case cfg =>
       if (xlen == 32) {
-        TestGeneration.addSuites(env.map(rv32ufNoDiv))
+        TestGeneration.addSuites(env.map(rv32uf))
+        if (cfg.fLen >= 64)
+          TestGeneration.addSuites(env.map(rv32ud))
       } else {
         TestGeneration.addSuite(rv32udBenchmarks)
-        TestGeneration.addSuites(env.map(rv64ufNoDiv))
-        TestGeneration.addSuites(env.map(rv64udNoDiv))
-        if (cfg.divSqrt) {
-          TestGeneration.addSuites(env.map(rv64uf))
+        TestGeneration.addSuites(env.map(rv64uf))
+        if (cfg.fLen >= 64)
           TestGeneration.addSuites(env.map(rv64ud))
-        }
       }
     }
     if (coreParams.useAtomics) {
