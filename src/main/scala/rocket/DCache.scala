@@ -687,7 +687,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // AMOs
   if (usingRMW) {
-    val amoalu = Module(new AMOALU(xLen))
+    // when xLen < coreDataBits (e.g. RV32D), this AMOALU is wider than necessary
+    val amoalu = Module(new AMOALU(coreDataBits))
     amoalu.io.mask := pstore1_mask
     amoalu.io.cmd := (if (usingAtomicsInCache) pstore1_cmd else M_XWR)
     amoalu.io.lhs := s2_data_word
