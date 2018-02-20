@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-case class ErrorParams(address: Seq[AddressSet], maxAtomic: Int, maxTransfer: Int)
+case class ErrorParams(address: Seq[AddressSet], maxAtomic: Int, maxTransfer: Int, acquire: Boolean = false)
 {
   require (1 <= maxAtomic && maxAtomic <= maxTransfer && maxTransfer <= 4096)
 }
@@ -26,10 +26,10 @@ abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
     Seq(TLManagerParameters(
       address            = params.address,
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHEABLE,
+      regionType         = if (params.acquire) RegionType.TRACKED else RegionType.UNCACHEABLE,
       executable         = true,
-      supportsAcquireT   = xfer,
-      supportsAcquireB   = xfer,
+      supportsAcquireT   = if (params.acquire) xfer else TransferSizes.none,
+      supportsAcquireB   = if (params.acquire) xfer else TransferSizes.none,
       supportsGet        = xfer,
       supportsPutPartial = xfer,
       supportsPutFull    = xfer,
@@ -52,19 +52,15 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
 
     val (in, edge) = node.in(0)
     val a = Queue(in.a, 1)
-    val c = Queue(in.c, 1)
     val da = Wire(in.d)
-    val dc = Wire(in.d)
 
     val a_last = edge.last(a)
-    val c_last = edge.last(c)
     val da_last = edge.last(da)
-    val dc_last = edge.last(dc)
 
     a.ready := (da.ready && da_last) || !a_last
     da.valid := a.valid && a_last
 
-    val a_opcodes = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant)
+    val a_opcodes = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
     da.bits.opcode  := a_opcodes(a.bits.opcode)
     da.bits.param   := UInt(0) // toT, but error grants must be handled transiently (ie: you don't keep permissions)
     da.bits.size    := a.bits.size
@@ -73,21 +69,31 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
     da.bits.data    := UInt(0)
     da.bits.error   := Bool(true)
 
-    c.ready := (dc.ready && dc_last) || !c_last
-    dc.valid := c.valid && c_last
+    if (params.acquire) {
+      val c = Queue(in.c, 1)
+      val dc = Wire(in.d)
 
-    dc.bits.opcode := ReleaseAck
-    dc.bits.param  := Vec(toB, toN, toN)(c.bits.param)
-    dc.bits.size   := c.bits.size
-    dc.bits.source := c.bits.source
-    dc.bits.sink   := UInt(0)
-    dc.bits.data   := UInt(0)
-    dc.bits.error  := Bool(true)
+      val c_last = edge.last(c)
+      val dc_last = edge.last(dc)
 
-    // Combine response channels
-    TLArbiter.lowest(edge, in.d, dc, da)
+      c.ready := (dc.ready && dc_last) || !c_last
+      dc.valid := c.valid && c_last
 
-    // We never probe or issue B requests; we are UNCACHED
+      dc.bits.opcode := ReleaseAck
+      dc.bits.param  := Vec(toB, toN, toN)(c.bits.param)
+      dc.bits.size   := c.bits.size
+      dc.bits.source := c.bits.source
+      dc.bits.sink   := UInt(0)
+      dc.bits.data   := UInt(0)
+      dc.bits.error  := Bool(true)
+
+      // Combine response channels
+      TLArbiter.lowest(edge, in.d, dc, da)
+    } else {
+      in.d <> da
+    }
+
+    // We never probe or issue B requests
     in.b.valid := Bool(false)
 
     // Sink GrantAcks

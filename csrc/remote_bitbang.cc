@@ -20,7 +20,8 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
   socket_fd(0),
   client_fd(0),
   recv_start(0),
-  recv_end(0)
+  recv_end(0),
+  err(0)
 {
   socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_fd == -1) {
@@ -61,7 +62,7 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
     fprintf(stderr, "remote_bitbang getsockname failed: %s (%d)\n",
             strerror(errno), errno);
     abort();
-  } 
+  }
 
   tck = 1;
   tms = 1;
