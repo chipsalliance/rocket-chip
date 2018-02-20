@@ -14,6 +14,7 @@ import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 
 case class FPUParams(
+  fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
   dfmaLatency: Int = 4

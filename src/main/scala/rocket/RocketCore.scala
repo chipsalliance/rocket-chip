@@ -108,8 +108,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val decode_table = {
     (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode +: (xLen > 32).option(new A64Decode).toSeq else Nil) ++:
-    (if (usingFPU) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
-    (if (usingFPU && xLen > 32) Seq(new DDecode, new D64Decode) else Nil) ++:
+    (if (fLen >= 32) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
+    (if (fLen >= 64) new DDecode +: (xLen > 32).option(new D64Decode).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
     ((xLen > 32).option(new I64Decode)) ++:
     (usingVM.option(new SDecode)) ++:
