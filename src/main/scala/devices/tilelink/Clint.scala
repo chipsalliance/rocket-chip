@@ -7,7 +7,6 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -33,7 +32,7 @@ case class ClintParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 
 case object ClintKey extends Field(ClintParams())
 
-class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) extends LazyModule
+class CoreplexLocalInterrupter(params: ClintParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   import ClintConsts._
 
@@ -45,7 +44,7 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
   val node = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
-    beatBytes = p(XLen)/8)
+    beatBytes = beatBytes)
 
   val intnode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
@@ -93,6 +92,6 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
 
 /** Trait that will connect a Clint to a coreplex */
 trait HasPeripheryClint extends HasPeripheryBus {
-  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey)))
+  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey), pbus.beatBytes))
   clint.node := pbus.toVariableWidthSlaves
 }
