@@ -7,7 +7,6 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
-import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -424,7 +423,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   }
 }
 
-class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: Parameters) extends LazyModule
+class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
 
   val dmiNode = TLRegisterNode(
@@ -438,7 +437,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
   val tlNode = TLRegisterNode(
     address=Seq(AddressSet(0, 0xFFF)), // This is required for correct functionality, it's not configurable.
     device=device,
-    beatBytes=p(XLen)/8,
+    beatBytes=beatBytes,
     executable=true
   )
 
@@ -1029,9 +1028,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int)(implicit p: 
 // Handles the synchronization of dmactive, which is used as a synchronous reset
 // inside the Inner block.
 // Also is the Sink side of hartsel & resumereq fields of DMCONTROL.
-class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implicit p: Parameters) extends LazyModule{
+class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule{
 
-  val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents))
+  val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents, beatBytes))
   val dmiXing = LazyModule(new TLAsyncCrossingSink(depth=1))
   val dmiNode = dmiXing.node
   val tlNode = dmInner.tlNode
@@ -1060,14 +1059,14 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int)(implici
   *  because the Clock must run when tlClock isn't running or tlReset is asserted.
   */
 
-class TLDebugModule(implicit p: Parameters) extends LazyModule {
+class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
   }
 
   val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
-  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {dmOuter.dmOuter.intnode.edges.out.size})(p))
+  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {dmOuter.dmOuter.intnode.edges.out.size}, beatBytes)(p))
 
   val node = dmInner.tlNode
   val intnode = dmOuter.intnode
