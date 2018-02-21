@@ -148,10 +148,10 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
-  override lazy val module = new RocketSubsystemModule(this)
+  override lazy val module = new RocketSubsystemModuleImp(this)
 }
 
-class RocketSubsystemModule[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModule(_outer)
+class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
     with HasRocketTilesModuleImp {
   tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
     wire.clock := clock

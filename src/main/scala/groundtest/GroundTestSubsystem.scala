@@ -33,10 +33,10 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) := ibus.toPLIC
 
-  override lazy val module = new GroundTestSubsystemModule(this)
+  override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
-class GroundTestSubsystemModule[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModule(_outer)
+class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
     with HasMasterAXI4MemPortModuleImp {
   val success = IO(Bool(OUTPUT))
 

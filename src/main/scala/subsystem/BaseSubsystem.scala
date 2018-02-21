@@ -16,7 +16,7 @@ abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with Bin
   lazy val json = JSON(bindingTree)
 }
 
-abstract class BareSubsystemModule[+L <: BareSubsystem](_outer: L) extends LazyModuleImp(_outer) {
+abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends LazyModuleImp(_outer) {
   val outer = _outer
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)
@@ -27,7 +27,7 @@ abstract class BareSubsystemModule[+L <: BareSubsystem](_outer: L) extends LazyM
 
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
-  override val module: BaseSubsystemModule[BaseSubsystem]
+  override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   // These are wrappers around the standard buses available in all subsytems, where
   // peripherals, tiles, ports, and other masters and slaves can attach themselves.
@@ -97,7 +97,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   }
 }
 
-abstract class BaseSubsystemModule[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModule(_outer) {
+abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
   println("Generated Address Map")
   private val aw = (outer.sbus.busView.bundle.addressBits-1)/4 + 1
   private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c%c %s"
