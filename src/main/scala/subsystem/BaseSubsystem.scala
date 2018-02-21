@@ -26,15 +26,53 @@ abstract class BareSubsystemModule[+L <: BareSubsystem](_outer: L) extends LazyM
 }
 
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
-    with HasInterruptBus
-    with HasSystemBus
-    with HasPeripheryBus
-    with HasMemoryBus {
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   override val module: BaseSubsystemModule[BaseSubsystem]
 
+  // These are wrappers around the standard buses available in all subsytems, where
+  // peripherals, tiles, ports, and other masters and slaves can attach themselves.
+  val ibus = new InterruptBusWrapper()
+  val sbus = LazyModule(new SystemBus(p(SystemBusKey)))
+  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
+  val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
+
+  // The sbus masters the pbus; here we convert TL-UH -> TL-UL
+  pbus.fromSystemBus() { sbus.toPeripheryBus() { pbus.crossTLIn } }
+
+  // The fbus masters the sbus; both are TL-UH or TL-C
+  FlipRendering { implicit p =>
+    fbus.toSystemBus() { sbus.fromFrontBus { fbus.crossTLOut } }
+  }
+
+  // The sbus masters the mbus; here we convert TL-C -> TL-UH
+  private val mbusParams = p(MemoryBusKey)
+  private val l2Params = p(BankedL2Key)
+  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes) = mbusParams
+  val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
+  val nBanks = l2Params.nBanks
+  val cacheBlockBytes = memBusBlockBytes
+  // TODO: the below call to coherenceManager should be wrapped in a LazyScope here,
+  //       but plumbing halt is too annoying for now.
+  private val (in, out, halt) = coherenceManager(this)
+  def memBusCanCauseHalt: () => Option[Bool] = halt
+
+  require (isPow2(nMemoryChannels) || nMemoryChannels == 0)
+  require (isPow2(nBanksPerChannel))
+  require (isPow2(memBusBlockBytes))
+
+  private val mask = ~BigInt((nBanks-1) * memBusBlockBytes)
+  val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
+    val mbus = LazyModule(new MemoryBus(mbusParams)(p))
+    for (bank <- 0 until nBanksPerChannel) {
+      val offset = (bank * nMemoryChannels) + channel
+      ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
+      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) } := out
+    }
+    mbus
+  }
+
   // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
-  lazy val topManagers = Some(ManagerUnification(sharedMemoryTLEdge.manager.managers))
+  lazy val topManagers = Some(ManagerUnification(sbus.busView.manager.managers))
   ResourceBinding {
     val managers = topManagers.get
     val max = managers.flatMap(_.address).map(_.max).max
@@ -61,7 +99,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
 
 abstract class BaseSubsystemModule[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModule(_outer) {
   println("Generated Address Map")
-  private val aw = (outer.sharedMemoryTLEdge.bundle.addressBits-1)/4 + 1
+  private val aw = (outer.sbus.busView.bundle.addressBits-1)/4 + 1
   private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c%c %s"
 
   private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {

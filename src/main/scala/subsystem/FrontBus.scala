@@ -43,17 +43,3 @@ class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = Sy
     to("sbus") { gen :=* TLBuffer(buffer) :=* outwardNode }
   }
 }
-
-/** Provides buses that serve as attachment points,
-  * for use in traits that connect individual devices or external ports.
-  */
-trait HasFrontBus extends HasSystemBus {
-  private val frontbusParams = p(FrontBusKey)
-  val frontbusBeatBytes = frontbusParams.beatBytes
-
-  val fbus = LazyModule(new FrontBus(frontbusParams))
-
-  FlipRendering { implicit p =>
-    fbus.toSystemBus() { sbus.fromFrontBus { fbus.crossTLOut } }
-  }
-}

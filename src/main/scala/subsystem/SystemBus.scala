@@ -96,15 +96,3 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     }
   }
 }
-
-/** Provides buses that serve as attachment points,
-  * for use in traits that connect individual devices or external ports.
-  */
-trait HasSystemBus extends HasInterruptBus {
-  private val sbusParams = p(SystemBusKey)
-  val sbusBeatBytes = sbusParams.beatBytes
-
-  val sbus = LazyModule(new SystemBus(sbusParams))
-
-  def sharedMemoryTLEdge: TLEdge = sbus.busView
-}

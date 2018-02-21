@@ -17,8 +17,7 @@ case object TileId extends Field[Int]
 
 class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasMasterAXI4MemPort
-    with HasPeripheryTestRAMSlave
-    with HasInterruptBus {
+    with HasPeripheryTestRAMSlave {
   val tileParams = p(GroundTestTilesKey)
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
     c.build(i, p.alterPartial {
@@ -48,13 +47,13 @@ class GroundTestSubsystemModule[+L <: GroundTestSubsystem](_outer: L) extends Ba
 }
 
 /** Adds a SRAM to the system for testing purposes. */
-trait HasPeripheryTestRAMSlave extends HasPeripheryBus {
+trait HasPeripheryTestRAMSlave { this: BaseSubsystem =>
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
   pbus.toVariableWidthSlave(Some("TestRAM")) { testram.node }
 }
 
 /** Adds a fuzzing master to the system for testing purposes. */
-trait HasPeripheryTestFuzzMaster extends HasPeripheryBus {
+trait HasPeripheryTestFuzzMaster { this: BaseSubsystem =>
   val fuzzer = LazyModule(new TLFuzzer(5000))
   pbus.fromOtherMaster(Some("Fuzzer")) { fuzzer.node }
 }

@@ -14,12 +14,13 @@ class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
     with HasExternallyDrivenTileConstants
     with Clocked
 
-trait HasTiles extends HasSystemBus {
+trait HasTiles { this: BaseSubsystem =>
   val tiles: Seq[BaseTile]
   protected def tileParams: Seq[TileParams] = tiles.map(_.tileParams)
   def nTiles: Int = tileParams.size
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
+  def sharedMemoryTLEdge = sbus.busView
 }
 
 trait HasTilesBundle {

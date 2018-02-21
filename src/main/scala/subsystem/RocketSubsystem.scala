@@ -31,10 +31,9 @@ case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
 
 trait HasRocketTiles extends HasTiles
-    with HasPeripheryBus
     with HasPeripheryPLIC
     with HasPeripheryCLINT
-    with HasPeripheryDebug {
+    with HasPeripheryDebug { this: BaseSubsystem =>
   val module: HasRocketTilesModuleImp
 
   protected val rocketTileParams = p(RocketTilesKey)
@@ -104,7 +103,7 @@ trait HasRocketTiles extends HasTiles
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
-            pbus.toVariableWidthSlave(Some("TileSlavePortBusBlocker")) { bbb.controlNode }
+            pbus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
             rocket.crossTLIn :*= bbb.node
           } .getOrElse { rocket.crossTLIn }
       }

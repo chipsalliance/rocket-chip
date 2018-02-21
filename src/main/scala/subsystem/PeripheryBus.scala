@@ -107,16 +107,3 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
     }
   }
 }
-
-/** Provides buses that serve as attachment points,
-  * for use in traits that connect individual devices or external ports.
-  */
-trait HasPeripheryBus extends HasSystemBus {
-  private val pbusParams = p(PeripheryBusKey)
-  val pbusBeatBytes = pbusParams.beatBytes
-
-  val pbus = LazyModule(new PeripheryBus(pbusParams))
-
-  // The peripheryBus hangs off of systemBus; here we convert TL-UH -> TL-UL
-  pbus.fromSystemBus() { sbus.toPeripheryBus() { pbus.crossTLIn } }
-}

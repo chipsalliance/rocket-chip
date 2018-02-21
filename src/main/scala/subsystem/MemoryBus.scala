@@ -22,11 +22,11 @@ case object BroadcastKey extends Field(BroadcastParams())
 case class BankedL2Params(
   nMemoryChannels:  Int = 1,
   nBanksPerChannel: Int = 1,
-  coherenceManager: HasMemoryBus => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { subsystem =>
+  coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { subsystem =>
     implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
     val bh = LazyModule(new TLBroadcast(subsystem.memBusBlockBytes, nTrackers, bufferless))
-    val ww = LazyModule(new TLWidthWidget(subsystem.sbusBeatBytes))
+    val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes))
     ww.node :*= bh.node
     (bh.node, ww.node, () => None)
   }) {
@@ -70,31 +70,5 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWr
     to("slave" named name) {
       gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
     }
-  }
-}
-
-trait HasMemoryBus extends HasSystemBus with HasPeripheryBus with HasInterruptBus {
-  private val mbusParams = p(MemoryBusKey)
-  private val l2Params = p(BankedL2Key)
-  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes) = mbusParams
-  val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
-  val nBanks = l2Params.nBanks
-  val cacheBlockBytes = memBusBlockBytes
-  private val (in, out, halt) = coherenceManager(this)
-  def memBusCanCauseHalt: () => Option[Bool] = halt
-
-  require (isPow2(nMemoryChannels) || nMemoryChannels == 0)
-  require (isPow2(nBanksPerChannel))
-  require (isPow2(memBusBlockBytes))
-
-  private val mask = ~BigInt((nBanks-1) * memBusBlockBytes)
-  val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
-    val mbus = LazyModule(new MemoryBus(mbusParams))
-    for (bank <- 0 until nBanksPerChannel) {
-      val offset = (bank * nMemoryChannels) + channel
-      ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) } := out
-    }
-    mbus
   }
 }

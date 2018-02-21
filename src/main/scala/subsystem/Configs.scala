@@ -23,6 +23,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case SystemBusKey => SystemBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case PeripheryBusKey => PeripheryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case MemoryBusKey => MemoryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
+  case FrontBusKey => FrontBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
@@ -156,7 +157,7 @@ class WithIncoherentTiles extends Config((site, here, up) => {
     r.copy(master = r.master.copy(cork = Some(true)))
   }
   case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
-    val ww = LazyModule(new TLWidthWidget(subsystem.sbusBeatBytes)(subsystem.p))
+    val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes)(subsystem.p))
     (ww.node, ww.node, () => None)
   })
 })

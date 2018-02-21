@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.HasMemoryBus
+import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
@@ -46,20 +46,17 @@ case class ZeroParams(base: Long, size: Long, beatBytes: Int)
 case object ZeroParams extends Field[ZeroParams]
 
 /** Adds a /dev/null slave that generates zero-filled responses to reads */
-trait HasMemoryZeroSlave extends HasMemoryBus {
+trait HasMemoryZeroSlave { this: BaseSubsystem =>
   private val params = p(ZeroParams)
   private val device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))
 
-  val zeros = memBuses
-                .map(m => m.toVariableWidthSlave(Some("Zero"))(_))
-                .zipWithIndex
-                .map { case (attach, channel) =>
+  val zeros = memBuses.zipWithIndex.map { case (bus, channel) =>
     val channels = memBuses.size
     val base = AddressSet(params.base, params.size-1)
-    val filter = AddressSet(channel * cacheBlockBytes, ~((channels-1) * cacheBlockBytes))
+    val filter = AddressSet(channel * bus.blockBytes, ~((channels-1) * bus.blockBytes))
     val address = base.intersect(filter).get
     val zero = LazyModule(new TLZero(address, beatBytes = params.beatBytes, resources = device.reg("mem")))
-    attach { zero.node }
+    bus.toVariableWidthSlave(Some("Zero")) { zero.node }
     zero
   }
 }

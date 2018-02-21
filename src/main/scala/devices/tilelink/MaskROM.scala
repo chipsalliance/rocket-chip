@@ -3,9 +3,9 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.subsystem.{HasPeripheryBus}
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -13,7 +13,7 @@ case class MaskROMParams(address: BigInt, name: String, depth: Int = 2048, width
 
 case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]]
 
-trait HasPeripheryMaskROMSlave extends HasPeripheryBus {
+trait HasPeripheryMaskROMSlave { this: BaseSubsystem =>
   val maskROMParams = p(PeripheryMaskROMKey)
   val maskROMs = maskROMParams map { params =>
     val maskROM = LazyModule(new TLMaskROM(params))

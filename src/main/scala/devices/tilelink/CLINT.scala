@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.HasPeripheryBus
+import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -91,7 +91,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 }
 
 /** Trait that will connect a CLINT to a subsystem */
-trait HasPeripheryCLINT extends HasPeripheryBus {
+trait HasPeripheryCLINT { this: BaseSubsystem =>
   val clint = LazyModule(new CLINT(p(CLINTKey), pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("CLINT")) { clint.node }
+  pbus.toVariableWidthSlave(Some("clint")) { clint.node }
 }

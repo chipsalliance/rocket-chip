@@ -27,12 +27,13 @@ case object ExtIn extends Field[SlavePortParams]
 ///// The following traits add ports to the sytem, in some cases converting to different interconnect standards
 
 /** Adds a port to the system intended to master an AXI4 DRAM controller. */
-trait HasMasterAXI4MemPort extends HasMemoryBus {
+trait HasMasterAXI4MemPort { this: BaseSubsystem =>
   val module: HasMasterAXI4MemPortModuleImp
 
   private val params = p(ExtMem)
   private val portName = "axi4"
   private val device = new MemoryDevice
+  val nMemoryChannels: Int
 
   val mem_axi4 = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
     val base = AddressSet(params.base, params.size-1)
@@ -73,13 +74,14 @@ trait HasMasterAXI4MemPortBundle {
 /** Actually generates the corresponding IO in the concrete Module */
 trait HasMasterAXI4MemPortModuleImp extends LazyModuleImp with HasMasterAXI4MemPortBundle {
   val outer: HasMasterAXI4MemPort
+
   val mem_axi4 = IO(HeterogeneousBag.fromNode(outer.mem_axi4.in))
   (mem_axi4 zip outer.mem_axi4.in) foreach { case (i, (o, _)) => i <> o }
   val nMemoryChannels = outer.nMemoryChannels
 }
 
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
-trait HasMasterAXI4MMIOPort extends HasSystemBus {
+trait HasMasterAXI4MMIOPort { this: BaseSubsystem =>
   private val params = p(ExtBus)
   private val portName = "mmio_port_axi4"
   private val device = new SimpleBus(portName.kebab, Nil)
@@ -119,7 +121,7 @@ trait HasMasterAXI4MMIOPortModuleImp extends LazyModuleImp with HasMasterAXI4MMI
 }
 
 /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
-trait HasSlaveAXI4Port extends HasSystemBus {
+trait HasSlaveAXI4Port { this: BaseSubsystem =>
   private val params = p(ExtIn)
   private val portName = "slave_port_axi4"
   val l2FrontendAXI4Node = AXI4MasterNode(Seq(AXI4MasterPortParameters(
@@ -160,7 +162,7 @@ trait HasSlaveAXI4PortModuleImp extends LazyModuleImp with HasSlaveAXI4PortBundl
 }
 
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
-trait HasMasterTLMMIOPort extends HasSystemBus {
+trait HasMasterTLMMIOPort { this: BaseSubsystem =>
   private val params = p(ExtBus)
   private val portName = "mmio_port_tl"
   private val device = new SimpleBus(portName.kebab, Nil)
@@ -204,7 +206,7 @@ trait HasMasterTLMMIOPortModuleImp extends LazyModuleImp with HasMasterTLMMIOPor
 /** Adds an TL port to the system intended to be a slave on an MMIO device bus.
   * NOTE: this port is NOT allowed to issue Acquires.
   */
-trait HasSlaveTLPort extends HasSystemBus {
+trait HasSlaveTLPort { this: BaseSubsystem =>
   private val params = p(ExtIn)
   private val portName = "slave_port_tl"
   val l2FrontendTLNode = TLClientNode(Seq(TLClientPortParameters(

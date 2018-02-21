@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem._
+import freechips.rocketchip.subsystem.{BaseSubsystem, HasResetVectorWire}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -59,7 +59,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
 }
 
 /** Adds a boot ROM that contains the DTB describing the system's subsystem. */
-trait HasPeripheryBootROM extends HasPeripheryBus {
+trait HasPeripheryBootROM { this: BaseSubsystem =>
   val dtb: DTB
   private val params = p(BootROMParams)
   private lazy val contents = {
@@ -71,7 +71,7 @@ trait HasPeripheryBootROM extends HasPeripheryBus {
 
   val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, pbus.beatBytes))
 
-  pbus.toVariableWidthSlave(Some("BootROM")){ bootrom.node }
+  pbus.toVariableWidthSlave(Some("bootrom")){ bootrom.node }
 }
 
 /** Subsystem will power-on running at 0x10040 (BootROM) */
