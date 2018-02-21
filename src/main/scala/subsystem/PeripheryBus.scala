@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
 
 case class PeripheryBusParams(
   beatBytes: Int,
@@ -16,7 +17,7 @@ case class PeripheryBusParams(
 case object PeripheryBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCrossing = SynchronousCrossing())
-                  (implicit p: Parameters) extends TLBusWrapper(params, "PeripheryBus")
+                  (implicit p: Parameters) extends TLBusWrapper(params, "periphery_bus")
     with HasTLXbarPhy
     with HasCrossing {
 
@@ -36,14 +37,14 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") { gen :*= bufferTo(buffer) }
+    to("slave" named name) { gen :*= bufferTo(buffer) }
   }
 
   def toVariableWidthSlave(
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") {
+    to("slave" named name) {
       gen :*= fragmentTo(params.beatBytes, params.blockBytes, buffer)
     }
   }
@@ -52,9 +53,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") {
-      gen :*= fixedWidthTo(buffer)
-    }
+    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
   }
 
   def toFixedWidthSingleBeatSlave(
@@ -62,7 +61,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") {
+    to("slave" named name) {
       gen :*= TLFragmenter(widthBytes, params.blockBytes) :*= fixedWidthTo(buffer)
     }
   }
@@ -72,7 +71,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") {
+    to("slave" named name) {
       gen :*= fragmentTo(params.beatBytes, maxXferBytes, buffer)
     }
   }
@@ -81,7 +80,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         arithmetic: Boolean = true,
         buffer: BufferParams = BufferParams.default)
       (gen: => TLOutwardNode) {
-    from("SystemBus") {
+    from("sbus") {
       (inwardNode
         :*= TLBuffer(buffer)
         :*= TLAtomicAutomata(arithmetic = arithmetic)
@@ -93,7 +92,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLInwardNode = {
-    from(s"OtherMaster${name.getOrElse("")}") { inwardNode :*= TLBuffer(buffer) :*= gen }
+    from("master" named name) { inwardNode :*= TLBuffer(buffer) :*= gen }
   }
 
 
@@ -101,7 +100,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffers: Int = 0)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Tile${name.getOrElse("")}") {
+    to("tile" named name) {
       FlipRendering { implicit p =>
         gen :*= bufferTo(buffers)
       }

@@ -13,7 +13,7 @@ case class FrontBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusParam
 case object FrontBusKey extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = SynchronousCrossing())
-              (implicit p: Parameters) extends TLBusWrapper(params, "FrontBus")
+              (implicit p: Parameters) extends TLBusWrapper(params, "front_bus")
     with HasTLXbarPhy
     with HasCrossing {
 
@@ -21,7 +21,7 @@ class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = Sy
         name: Option[String] = None,
         buffers: Int = 1)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
-    from(s"Port${name.getOrElse("")}") {
+    from("port" named name) {
       val nodes = TLFIFOFixer(TLFIFOFixer.all) +: TLBuffer.chain(buffers)
       inwardNode :=* nodes.reduce(_ :=* _) :=* gen
     }
@@ -29,18 +29,18 @@ class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = Sy
 
   def fromMaster(name: Option[String] = None, buffers: Int = 1)
                 (gen: => TLNode): TLInwardNode = {
-    from(s"Master${name.getOrElse("")}") {
+    from("master" named name) {
       inwardNode :=* TLBuffer.chain(buffers).reduce(_ :=* _) :=* gen
     }
   }
 
   def fromCoherentChip(gen: => TLNode): TLInwardNode = {
-    from("CoherentChip") { inwardNode :=* gen }
+    from("coherent_subsystem") { inwardNode :=* gen }
   }
 
   def toSystemBus(buffer: BufferParams = BufferParams.none)
                  (gen: => TLInwardNode) {
-    to("SystemBus") { gen :*= TLBuffer(buffer) :*= outwardNode }
+    to("sbus") { gen :=* TLBuffer(buffer) :=* outwardNode }
   }
 }
 

@@ -31,6 +31,7 @@ trait HasMasterAXI4MemPort extends HasMemoryBus {
   val module: HasMasterAXI4MemPortModuleImp
 
   private val params = p(ExtMem)
+  private val portName = "axi4"
   private val device = new MemoryDevice
 
   val mem_axi4 = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
@@ -50,7 +51,7 @@ trait HasMasterAXI4MemPort extends HasMemoryBus {
   })
 
   memBuses.map { m =>
-    mem_axi4 := m.toDRAMController(Some("AXI4DRAM")) {
+    mem_axi4 := m.toDRAMController(Some(portName)) {
       (AXI4UserYanker() := AXI4IdIndexer(params.idBits) := TLToAXI4())
     }
   }
@@ -80,7 +81,8 @@ trait HasMasterAXI4MemPortModuleImp extends LazyModuleImp with HasMasterAXI4MemP
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
 trait HasMasterAXI4MMIOPort extends HasSystemBus {
   private val params = p(ExtBus)
-  private val device = new SimpleBus("mmio", Nil)
+  private val portName = "mmio_port_axi4"
+  private val device = new SimpleBus(portName.kebab, Nil)
   val mmio_axi4 = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     slaves = Seq(AXI4SlaveParameters(
       address       = AddressSet.misaligned(params.base, params.size),
@@ -90,7 +92,7 @@ trait HasMasterAXI4MMIOPort extends HasSystemBus {
       supportsRead  = TransferSizes(1, params.maxXferBytes))),
     beatBytes = params.beatBytes)))
 
-  mmio_axi4 := sbus.toFixedWidthPort(Some("AXI4MMIO")) {
+  mmio_axi4 := sbus.toFixedWidthPort(Some(portName)) {
     (AXI4Buffer()
       := AXI4UserYanker()
       := AXI4Deinterleaver(sbus.blockBytes)
@@ -119,13 +121,14 @@ trait HasMasterAXI4MMIOPortModuleImp extends LazyModuleImp with HasMasterAXI4MMI
 /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
 trait HasSlaveAXI4Port extends HasSystemBus {
   private val params = p(ExtIn)
+  private val portName = "slave_port_axi4"
   val l2FrontendAXI4Node = AXI4MasterNode(Seq(AXI4MasterPortParameters(
     masters = Seq(AXI4MasterParameters(
-      name = "AXI4 periphery",
+      name = portName.kebab,
       id   = IdRange(0, 1 << params.idBits))))))
 
   private val fifoBits = 1
-  sbus.fromPort(Some("AXI4Front")) {
+  sbus.fromPort(Some(portName)) {
     (TLWidthWidget(params.beatBytes)
       := AXI4ToTL()
       := AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))
@@ -159,7 +162,8 @@ trait HasSlaveAXI4PortModuleImp extends LazyModuleImp with HasSlaveAXI4PortBundl
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
 trait HasMasterTLMMIOPort extends HasSystemBus {
   private val params = p(ExtBus)
-  private val device = new SimpleBus("mmio", Nil)
+  private val portName = "mmio_port_tl"
+  private val device = new SimpleBus(portName.kebab, Nil)
   val mmio_tl = TLManagerNode(Seq(TLManagerPortParameters(
     managers = Seq(TLManagerParameters(
       address            = AddressSet.misaligned(params.base, params.size),
@@ -170,7 +174,7 @@ trait HasMasterTLMMIOPort extends HasSystemBus {
       supportsPutPartial = TransferSizes(1, sbus.blockBytes))),
     beatBytes = params.beatBytes)))
 
-  mmio_tl := sbus.toFixedWidthPort(Some("TLMMIO")) {
+  mmio_tl := sbus.toFixedWidthPort(Some(portName)) {
     TLBuffer() := TLSourceShrinker(1 << params.idBits)
   }
 }
@@ -202,12 +206,13 @@ trait HasMasterTLMMIOPortModuleImp extends LazyModuleImp with HasMasterTLMMIOPor
   */
 trait HasSlaveTLPort extends HasSystemBus {
   private val params = p(ExtIn)
+  private val portName = "slave_port_tl"
   val l2FrontendTLNode = TLClientNode(Seq(TLClientPortParameters(
     clients = Seq(TLClientParameters(
-      name     = "Front Port (TL)",
+      name     = portName.kebab,
       sourceId = IdRange(0, 1 << params.idBits))))))
 
-  sbus.fromPort(Some("TLFront")) {
+  sbus.fromPort(Some(portName)) {
     TLSourceShrinker(1 << params.sourceBits) := TLWidthWidget(params.beatBytes)
   } := l2FrontendTLNode
 }

@@ -12,7 +12,7 @@ case class SystemBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusPara
 
 case object SystemBusKey extends Field[SystemBusParams]
 
-class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "SystemBus")
+class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "system_bus")
     with HasTLXbarPhy {
 
   private val master_splitter = LazyModule(new TLSplitter)
@@ -25,7 +25,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def toPeripheryBus(buffer: BufferParams = BufferParams.none)
                     (gen: => TLNode): TLOutwardNode = {
-    to("PeripheryBus") {
+    to("pbus") {
       (gen
         := TLFIFOFixer(TLFIFOFixer.all)
         := TLWidthWidget(params.beatBytes)
@@ -34,24 +34,24 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   }
 
   def toMemoryBus(gen: => TLInwardNode) {
-    to("MemoryBus") { gen :*= delayNode :*= outwardNode }
+    to("mbus") { gen :*= delayNode :*= outwardNode }
   }
 
   def toSlave(name: Option[String] = None, buffer: BufferParams = BufferParams.default)
              (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") { gen :*= bufferTo(buffer) }
+    to("slave" named name) { gen :*= bufferTo(buffer) }
   }
  
   def toSplitSlave(name: Option[String] = None)
                   (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") { gen :*= master_splitter.node }
+    to("slave" named name) { gen :*= master_splitter.node }
   }
 
   def toVariableWidthSlave(
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.default)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") {
+    to("slave" named name) {
       gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
     }
   }
@@ -69,7 +69,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         buffers: Int = 0,
         cork: Option[Boolean] = None)
       (gen: => TLNode): TLInwardNode = {
-    from(s"Tile${name.getOrElse("")}") {
+    from("tile" named name) {
       (List(master_splitter.node, TLFIFOFixer(TLFIFOFixer.allUncacheable)) ++ TLBuffer.chain(buffers))
         .reduce(_ :=* _) :=* gen
     }
@@ -79,7 +79,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.default)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {
-    to(s"Port${name.getOrElse("")}") {
+    to("port" named name) {
       gen := TLWidthWidget(params.beatBytes) := bufferTo(buffer)
     }
   }
@@ -88,7 +88,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         name: Option[String] = None,
         buffers: Int = 0)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
-    from(s"Port${name.getOrElse("")}") {
+    from("port" named name) {
       (List(
         master_splitter.node,
         TLFIFOFixer(TLFIFOFixer.all)) ++

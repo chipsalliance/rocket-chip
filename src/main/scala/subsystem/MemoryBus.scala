@@ -41,7 +41,7 @@ case class MemoryBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusPara
 case object MemoryBusKey extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
-class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "MemoryBus")(p)
+class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "memory_bus")(p)
     with HasTLXbarPhy {
 
   private def bufferTo(buffer: BufferParams): TLOutwardNode =
@@ -51,7 +51,7 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWr
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLInwardNode = {
-    from(s"CoherenceManager${name.getOrElse("")}") {
+    from("coherence_manager" named name) {
       inwardNode :*= TLBuffer(buffer) :*= gen
     }
   }
@@ -60,14 +60,14 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWr
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {
-    to(s"DRAMController${name.getOrElse("")}") { gen := bufferTo(buffer) }
+    to("memory_controller" named name) { gen := bufferTo(buffer) }
   }
 
   def toVariableWidthSlave(
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
-    to(s"Slave${name.getOrElse("")}") {
+    to("slave" named name) {
       gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
     }
   }
