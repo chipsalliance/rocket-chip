@@ -56,7 +56,14 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWr
     }
   }
 
-  def toDRAMController[D,U,E,B <: Data](
+  def toDRAMController(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLInwardNode) {
+    to("memory_controller" named name) { gen := bufferTo(buffer) }
+  }
+
+  def toDRAMControllerPort[D,U,E,B <: Data](
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {

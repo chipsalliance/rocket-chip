@@ -23,6 +23,9 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   private def bufferTo(buffer: BufferParams): TLOutwardNode =
     TLBuffer(buffer) :*= delayNode :*= outwardNode
 
+  private def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
+    TLWidthWidget(params.beatBytes) :*= bufferTo(buffer)
+
   def toPeripheryBus(buffer: BufferParams = BufferParams.none)
                     (gen: => TLNode): TLOutwardNode = {
     to("pbus") {
@@ -45,6 +48,13 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   def toSplitSlave(name: Option[String] = None)
                   (gen: => TLNode): TLOutwardNode = {
     to("slave" named name) { gen :*= master_splitter.node }
+  }
+
+  def toFixedWidthSlave(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: => TLNode): TLOutwardNode = {
+    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
   }
 
   def toVariableWidthSlave(
@@ -79,9 +89,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.default)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {
-    to("port" named name) {
-      gen := TLWidthWidget(params.beatBytes) := bufferTo(buffer)
-    }
+    to("port" named name) { gen := fixedWidthTo(buffer) }
   }
 
   def fromPort[D,U,E,B <: Data](
@@ -89,6 +97,18 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         buffers: Int = 0)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
     from("port" named name) {
+      (List(
+        master_splitter.node,
+        TLFIFOFixer(TLFIFOFixer.all)) ++
+        TLBuffer.chain(buffers)).reduce(_ :=* _) :=* gen
+    }
+  }
+
+  def fromMaster(
+        name: Option[String] = None,
+        buffers: Int = 0)
+      (gen: => TLNode): TLInwardNode = {
+    from("master" named name) {
       (List(
         master_splitter.node,
         TLFIFOFixer(TLFIFOFixer.all)) ++

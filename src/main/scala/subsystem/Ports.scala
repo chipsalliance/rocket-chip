@@ -52,7 +52,7 @@ trait HasMasterAXI4MemPort { this: BaseSubsystem =>
   })
 
   memBuses.map { m =>
-    mem_axi4 := m.toDRAMController(Some(portName)) {
+    mem_axi4 := m.toDRAMControllerPort(Some(portName)) {
       (AXI4UserYanker() := AXI4IdIndexer(params.idBits) := TLToAXI4())
     }
   }
