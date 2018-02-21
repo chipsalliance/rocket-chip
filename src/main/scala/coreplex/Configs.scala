@@ -165,8 +165,8 @@ class WithRV32 extends Config((site, here, up) => {
   case XLen => 32
   case RocketTilesKey => up(RocketTilesKey, site) map { r =>
     r.copy(core = r.core.copy(
-      mulDiv = Some(MulDivParams(mulUnroll = 8)),
-      fpu = r.core.fpu.map(_.copy(divSqrt = false))))
+      fpu = r.core.fpu.map(_.copy(fLen = 32)),
+      mulDiv = Some(MulDivParams(mulUnroll = 8))))
   }
 })
 

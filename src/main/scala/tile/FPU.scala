@@ -14,6 +14,7 @@ import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 
 case class FPUParams(
+  fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
   dfmaLatency: Int = 4
@@ -168,6 +169,12 @@ class FPResult(implicit p: Parameters) extends CoreBundle()(p) {
   val exc = Bits(width = FPConstants.FLAGS_SZ)
 }
 
+class IntToFPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSigs {
+  val rm = Bits(width = FPConstants.RM_SZ)
+  val typ = Bits(width = 2)
+  val in1 = Bits(width = xLen)
+}
+
 class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSigs {
   val rm = Bits(width = FPConstants.RM_SZ)
   val fmaCmd = Bits(width = 2)
@@ -233,6 +240,7 @@ object FType {
 }
 
 trait HasFPUParameters {
+  require(fLen == 32 || fLen == 64)
   val fLen: Int
   def xLen: Int
   val minXLen = 32
@@ -390,7 +398,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   val store = ieee(in.in1)
   val toint = Wire(init = store)
   val intType = Wire(init = tag)
-  io.out.bits.store := ((0 until nIntTypes).map(i => Fill(1 << (nIntTypes - i - 1), store((minXLen << i) - 1, 0))): Seq[UInt])(tag)
+  io.out.bits.store := (floatTypes.map(t => Fill(maxType.ieeeWidth / t.ieeeWidth, store(t.ieeeWidth - 1, 0))): Seq[UInt])(tag)
   io.out.bits.toint := ((0 until nIntTypes).map(i => toint((minXLen << i) - 1, 0).sextTo(xLen)): Seq[UInt])(intType)
   io.out.bits.exc := Bits(0)
 
@@ -441,7 +449,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
 
 class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Valid(new IntToFPInput).flip
     val out = Valid(new FPResult)
   }
 

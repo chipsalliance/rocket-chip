@@ -8,7 +8,6 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.{HasInterruptBus, HasPeripheryBus}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -64,7 +63,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 case object PLICKey extends Field(PLICParams())
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
+class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
   val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
@@ -83,7 +82,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
   val node = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
-    beatBytes = p(XLen)/8,
+    beatBytes = beatBytes,
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
@@ -271,7 +270,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
 
 /** Trait that will connect a PLIC to a coreplex */
 trait HasPeripheryPLIC extends HasInterruptBus with HasPeripheryBus {
-  val plic  = LazyModule(new TLPLIC(p(PLICKey)))
+  val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes))
   plic.node := pbus.toVariableWidthSlaves
   plic.intnode := ibus.toPLIC
 }

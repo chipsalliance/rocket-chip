@@ -46,8 +46,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   val cacheParams = tileParams.dcache.get
   val cfg = cacheParams
 
-  def wordBits = xLen // really, xLen max 
-  def wordBytes = wordBits/8
+  def wordBits = coreDataBits
+  def wordBytes = coreDataBytes
   def wordOffBits = log2Up(wordBytes)
   def beatBytes = cacheBlockBytes / cacheDataBeats
   def beatWords = beatBytes / wordBytes
