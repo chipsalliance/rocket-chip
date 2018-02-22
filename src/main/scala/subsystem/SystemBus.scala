@@ -47,7 +47,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
  
   def toSplitSlave(name: Option[String] = None)
                   (gen: => TLNode): TLOutwardNode = {
-    to("slave" named name) { gen :*= master_splitter.node }
+    to("slave" named name) { gen :=* master_splitter.node }
   }
 
   def toFixedWidthSlave(
@@ -66,12 +66,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     }
   }
 
-  def fromCoherentChip(gen: => TLNode): TLInwardNode = {
-    from("CoherentChip") { inwardNode :=* gen }
-  }
-
   def fromFrontBus(gen: => TLNode): TLInwardNode = {
-    from("FrontBus") { master_splitter.node :=* gen }
+    from("front_bus") { master_splitter.node :=* gen }
   }
 
   def fromTile(
@@ -104,15 +100,27 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     }
   }
 
+  def fromCoherentMaster(
+        name: Option[String] = None,
+        buffers: Int = 0)
+      (gen: => TLNode): TLInwardNode = {
+    from("coherent_master" named name) {
+      (inwardNode
+        :=* TLFIFOFixer(TLFIFOFixer.all)
+        :=* TLBuffer.chain(buffers).reduce(_ :=* _)
+        :=* gen)
+    }
+  }
+
   def fromMaster(
         name: Option[String] = None,
         buffers: Int = 0)
       (gen: => TLNode): TLInwardNode = {
     from("master" named name) {
-      (List(
-        master_splitter.node,
-        TLFIFOFixer(TLFIFOFixer.all)) ++
-        TLBuffer.chain(buffers)).reduce(_ :=* _) :=* gen
+      (master_splitter.node
+        :=* TLFIFOFixer(TLFIFOFixer.all)
+        :=* TLBuffer.chain(buffers).reduce(_ :=* _)
+        :=* gen)
     }
   }
 }

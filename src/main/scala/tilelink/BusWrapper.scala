@@ -54,3 +54,10 @@ trait HasTLXbarPhy { this: TLBusWrapper =>
   protected def inwardNode: TLInwardNode = xbar.node
   protected def outwardNode: TLOutwardNode = xbar.node
 }
+
+object TLIdentity {
+  def gen: TLNode = {
+    val passthru = TLIdentityNode()
+    passthru
+  }
+}
