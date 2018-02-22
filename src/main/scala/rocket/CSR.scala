@@ -837,6 +837,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       when (decoded_addr(lo)) { ctr := wdata(ctr.getWidth-1, 0) }
     }
   }
-  def formEPC(x: UInt) = ~(~x | Cat(!reg_misa('c'-'a'), UInt(1)))
+  def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
 }

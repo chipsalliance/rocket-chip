@@ -228,12 +228,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
 
+  val id_pc_misaligned = !csr.io.status.isa('c'-'a') && ibuf.io.pc(1)
   val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
   val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
     (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
+    (id_pc_misaligned, UInt(Causes.misaligned_fetch)),
     (id_xcpt0.pf.inst, UInt(Causes.fetch_page_fault)),
     (id_xcpt0.ae.inst, UInt(Causes.fetch_access)),
     (id_xcpt1.pf.inst, UInt(Causes.fetch_page_fault)),
