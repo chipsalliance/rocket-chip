@@ -8,13 +8,13 @@ output_dir = $(sim_dir)/output
 
 include $(base_dir)/Makefrag
 
-CXXSRCS := emulator SimDTM SimJTAG remote_bitbang
-CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include -I$(base_dir)/csrc
+CXXFLAGS := $(CXXFLAGS) -std=c++11 -I$(RISCV)/include
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L$(abspath $(sim_dir)) -lfesvr -lpthread
 
 emu = emulator-$(PROJECT)-$(CONFIG)
 emu_debug = emulator-$(PROJECT)-$(CONFIG)-debug
 
+include $(base_dir)/Makefrag.generate_sources
 include $(sim_dir)/Makefrag-verilator
 
 all: $(emu)
@@ -24,6 +24,15 @@ clean:
 	rm -rf *.o *.a emulator-* $(generated_dir) $(generated_dir_debug) DVEfiles $(output_dir)
 
 .PHONY: default all debug clean
+
+cppfiles = $(generated_cppfiles)              \
+           $(base_dir)/csrc/emulator.cc       \
+		   $(base_dir)/csrc/remote_bitbang.cc \
+		   $(base_dir)/csrc/SimJTAG.cc
+
+headers  = $(generated_headers)               \
+           $(base_dir)/csrc/remote_bitbang.h  \
+           $(base_dir)/csrc/verilator.h
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks

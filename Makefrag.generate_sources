@@ -1,0 +1,42 @@
+#--------------------------------------------------------------------
+# Verilator Generation
+#--------------------------------------------------------------------
+firrtl = $(generated_dir)/$(long_name).fir
+verilog = \
+  $(generated_dir)/$(long_name).v \
+  $(generated_dir)/$(long_name).behav_srams.v
+sim_sources_makefrag = $(generated_dir)/$(long_name)/Makefrag.sim_sources
+
+.SECONDARY: $(firrtl) $(verilog)
+
+$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
+
+%.v %.conf: %.fir $(FIRRTL_JAR)
+	mkdir -p $(dir $@)
+	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$*.conf -faf $*.anno -td $(generated_dir)/$(long_name)/
+
+$(generated_dir)/$(long_name).behav_srams.v: $(generated_dir)/$(long_name).conf $(VLSI_MEM_GEN)
+	cd $(generated_dir) && \
+	$(VLSI_MEM_GEN) $(generated_dir)/$(long_name).conf > $@.tmp && \
+	mv -f $@.tmp $@
+
+$(generated_dir)/$(long_name)/black_box_verilog_files.f: $(generated_dir)/$(long_name).v ;
+
+$(sim_sources_makefrag): $(generated_dir)/$(long_name)/black_box_verilog_files.f
+	# Make target
+	echo "generated_verilog = \\" > $@
+	cat $<              |  awk '!($$1="")'       | grep -e '.*\.v$$' | sed 's/$$/\\/'         >> $@
+	echo "" >> $@
+	echo "generated_cppfiles = \\" >> $@
+	# Open black boxes -> strip leading column  -> Select cpp files               -> Add trailing backslash -> Append to file
+	cat $<              |  awk '!($$1="")'       | grep -e '.*\.cc$$' -e '.*\.c$$' | sed 's/$$/\\/'         >> $@
+	echo "" >> $@
+	echo "generated_headers = \\" >> $@
+	cat $<                      |  awk '!($$1="")'       | grep -e '.*\.h$$' | sed 's/$$/\\/' >> $@
+	echo "" >> $@
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(sim_sources_makefrag)
+endif

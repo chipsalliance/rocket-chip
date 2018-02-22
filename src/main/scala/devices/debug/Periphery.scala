@@ -148,6 +148,9 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
   }
 
   setResource("SimJTAG.v")
+  setResource("SimJTAG.cc")
+  setResource("remote_bitbang.h")
+  setResource("remote_bitbang.cc")
 }
 
 class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Parameters)

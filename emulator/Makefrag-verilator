@@ -1,26 +1,3 @@
-#--------------------------------------------------------------------
-# Verilator Generation
-#--------------------------------------------------------------------
-firrtl = $(generated_dir)/$(long_name).fir
-verilog = \
-  $(generated_dir)/$(long_name).v \
-  $(generated_dir)/$(long_name).behav_srams.v \
-
-.SECONDARY: $(firrtl) $(verilog)
-
-$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
-	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
-
-%.v %.conf: %.fir $(FIRRTL_JAR)
-	mkdir -p $(dir $@)
-	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$*.conf -faf $*.anno -ffaaf
-
-$(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(VLSI_MEM_GEN)
-	cd $(generated_dir) && \
-	$(VLSI_MEM_GEN) $(generated_dir)/$(long_name).conf > $@.tmp && \
-	mv -f $@.tmp $@
-
 # Build and install our own Verilator, to work around versionining issues.
 VERILATOR_VERSION=3.904
 VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
@@ -59,22 +36,19 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   --output-split 20000 \
   --output-split-cfuncs 20000 \
 	-Wno-STMTDLY --x-assign unique \
-  -I$(base_dir)/vsrc \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(base_dir)/csrc/verilator.h"
-cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
-headers = $(wildcard $(base_dir)/csrc/*.h)
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(base_dir)/csrc/verilator.h -include $(base_dir)/csrc/remote_bitbang.h"
 
 model_header = $(generated_dir)/$(long_name)/V$(MODEL).h
 model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h
 
-$(emu): $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
+$(emu): $(sim_sources_makefrag) $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir)/$(long_name)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(long_name) \
 	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
 	-CFLAGS "-I$(generated_dir) -include $(model_header)"
 	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir)/$(long_name) -f V$(MODEL).mk
 
-$(emu_debug): $(verilog) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
+$(emu_debug): $(sim_sources_makefrag) $(verilog) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(long_name)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(long_name)  --trace \
 	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \

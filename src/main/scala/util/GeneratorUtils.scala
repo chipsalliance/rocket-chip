@@ -11,9 +11,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
 import net.jcazevedo.moultingyaml._
-import firrtl.annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.transforms.{BlackBoxSourceAnnotation, BlackBoxTargetDir}
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
@@ -76,7 +74,7 @@ trait HasGeneratorUtilities {
 /** Standardized command line interface for Scala entry point */
 trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val names: ParsedInputNames = {
-    require(args.size == 5, "Usage: sbt> " + 
+    require(args.size == 5, "Usage: sbt> " +
       "run TargetDir TopModuleProjectName TopModuleName " +
       "ConfigProjectName ConfigNameString")
     ParsedInputNames(
@@ -103,10 +101,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   def generateAnno {
     val annotationFile = new File(td, s"$longName.anno")
     val af = new FileWriter(annotationFile)
-    val moduleName  = ModuleName(circuit.name, CircuitName(circuit.name))
-    val bboxTargetDir = BlackBoxSourceAnnotation(moduleName, BlackBoxTargetDir(s"$td/").serialize)
-    val annotationsWithBBoxTargetDir = bboxTargetDir +: circuit.annotations
-    af.write(annotationsWithBBoxTargetDir.toArray.toYaml.prettyPrint)
+    af.write(circuit.annotations.toArray.toYaml.prettyPrint)
     af.close()
   }
 
@@ -120,7 +115,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     TestGeneration.addSuite(DefaultTestSuites.groundtest64("p"))
     TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
-  } 
+  }
 
   def generateROMs {
     writeOutputFile(td, s"$longName.rom.conf", enumerateROMs(circuit))
@@ -129,7 +124,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   /** Output files created as a side-effect of elaboration */
   def generateArtefacts {
     ElaborationArtefacts.files.foreach { case (extension, contents) =>
-      writeOutputFile(td, s"${names.configs}.${extension}", contents ())
+      writeOutputFile(td, s"$longName.$extension", contents ())
     }
   }
 
