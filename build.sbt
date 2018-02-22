@@ -16,15 +16,15 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation","-unchecked"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.5.0"),
+  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.1-SNAPSHOT"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 )
 
-lazy val chisel = (project in file("chisel3")).settings(commonSettings)
-lazy val hardfloat  = project.dependsOn(chisel).settings(commonSettings)
+lazy val hardfloat  = project.settings(commonSettings)
 lazy val macros = (project in file("macros")).settings(commonSettings)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
-  .dependsOn(chisel, hardfloat, macros)
+  .dependsOn(hardfloat, macros)
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
