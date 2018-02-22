@@ -427,14 +427,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val mem_breakpoint = (mem_reg_load && bpu.io.xcpt_ld) || (mem_reg_store && bpu.io.xcpt_st)
   val mem_debug_breakpoint = (mem_reg_load && bpu.io.debug_ld) || (mem_reg_store && bpu.io.debug_st)
-  val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
-    (mem_debug_breakpoint,               UInt(CSR.debugTriggerCause)),
-    (mem_breakpoint,                     UInt(Causes.breakpoint)),
-    (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch))))
+  val (mem_ldst_xcpt, mem_ldst_cause) = checkExceptions(List(
+    (mem_debug_breakpoint, UInt(CSR.debugTriggerCause)),
+    (mem_breakpoint,       UInt(Causes.breakpoint))))
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_valid && mem_new_xcpt,          mem_new_cause)))
+    (mem_reg_valid && mem_npc_misaligned,    UInt(Causes.misaligned_fetch)),
+    (mem_reg_valid && mem_ldst_xcpt,         mem_ldst_cause)))
 
   val memCoverCauses = (exCoverCauses ++ List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
@@ -673,7 +673,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
   io.dmem.invalidate_lr := wb_xcpt
   io.dmem.s1_data.data := Mux(mem_ctrl.fp, io.fpu.store_data, mem_reg_rs2)
-  io.dmem.s1_kill := killm_common || mem_breakpoint
+  io.dmem.s1_kill := killm_common || mem_ldst_xcpt
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
