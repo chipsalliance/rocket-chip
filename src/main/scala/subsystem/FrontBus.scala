@@ -17,29 +17,32 @@ class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = Sy
     with HasTLXbarPhy
     with HasCrossing {
 
-  def fromPort[D,U,E,B <: Data](
-        name: Option[String] = None,
-        buffers: Int = 1)
-      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
+  def fromPort[D,U,E,B <: Data]
+      (name: Option[String] = None, buffers: Int = 1)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
+        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("port" named name) {
       val nodes = TLFIFOFixer(TLFIFOFixer.all) +: TLBuffer.chain(buffers)
       inwardNode :=* nodes.reduce(_ :=* _) :=* gen
     }
   }
 
-  def fromMaster(name: Option[String] = None, buffers: Int = 1)
-                (gen: => TLNode): TLInwardNode = {
-    from("master" named name) {
-      inwardNode :=* TLBuffer.chain(buffers).reduce(_ :=* _) :=* gen
-    }
+  def fromMasterNode( name: Option[String] = None, buffers: Int = 1)(gen: TLOutwardNode) { 
+    from("master" named name) { bufferFrom(buffers) :=* gen }
+  }
+
+  def fromMaster[D,U,E,B <: Data]
+      (name: Option[String] = None, buffers: Int = 1)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
+        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
+    from("master" named name) { bufferFrom(buffers) :=* gen }
   }
 
   def fromCoherentChip(gen: => TLNode): TLInwardNode = {
     from("coherent_subsystem") { inwardNode :=* gen }
   }
 
-  def toSystemBus(buffer: BufferParams = BufferParams.none)
-                 (gen: => TLInwardNode) {
+  def toSystemBus(buffer: BufferParams = BufferParams.none)(gen: => TLInwardNode) {
     to("sbus") { gen :=* TLBuffer(buffer) :=* outwardNode }
   }
 }

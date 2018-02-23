@@ -29,6 +29,28 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   protected def inwardNode: TLInwardNode
   protected def outwardNode: TLOutwardNode
 
+  protected def bufferFrom(buffer: BufferParams): TLInwardNode =
+    inwardNode :=* TLBuffer(buffer)
+
+  protected def bufferFrom(buffers: Int): TLInwardNode =
+    TLBuffer.chain(buffers).foldLeft(inwardNode)(_ :=* _)
+
+  protected def bufferTo(buffer: BufferParams): TLOutwardNode =
+    TLBuffer(buffer) :*= delayNode :*= outwardNode
+
+  protected def bufferTo(buffers: Int): TLOutwardNode =
+    TLBuffer.chain(buffers).foldRight(delayNode)(_ :*= _) :*= outwardNode
+
+  protected def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
+    TLWidthWidget(beatBytes) :*= bufferTo(buffer)
+
+  protected def fragmentTo(buffer: BufferParams): TLOutwardNode =
+    TLFragmenter(beatBytes, blockBytes) :*= bufferTo(buffer)
+
+  protected def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
+    TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
+
+
   protected def delayNode(implicit p: Parameters): TLNode = {
     val delayProb = p(TLBusDelayProbability)
     if (delayProb > 0.0) {

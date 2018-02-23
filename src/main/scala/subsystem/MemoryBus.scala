@@ -44,33 +44,34 @@ case object MemoryBusKey extends Field[MemoryBusParams]
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "memory_bus")(p)
     with HasTLXbarPhy {
 
-  private def bufferTo(buffer: BufferParams): TLOutwardNode =
-    TLBuffer(buffer) :*= delayNode :*= outwardNode
-
   def fromCoherenceManager(
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLInwardNode = {
     from("coherence_manager" named name) {
-      inwardNode :*= TLBuffer(buffer) :*= gen
+      inwardNode := TLBuffer(buffer) := gen
     }
   }
 
-  def toDRAMController[D,U,E,B <: Data](
-        name: Option[String] = None,
-        buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[
-                TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,
-                D,U,E,B] = TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+  def toDRAMController[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("memory_controller" named name) { gen := bufferTo(buffer) }
   }
 
-  def toVariableWidthSlave(
-        name: Option[String] = None,
-        buffer: BufferParams = BufferParams.none)
-      (gen: => TLNode): TLOutwardNode = {
-    to("slave" named name) {
-      gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
-    }
+  def toVariableWidthSlave[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+    to("slave" named name) { gen :*= fragmentTo(buffer) }
   }
+
+  def toFixedWidthSlave[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
+  }
+
 }

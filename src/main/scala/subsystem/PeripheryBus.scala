@@ -21,18 +21,6 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
     with HasTLXbarPhy
     with HasCrossing {
 
-  private def bufferTo(buffer: BufferParams): TLOutwardNode =
-    TLBuffer(buffer) :*= delayNode :*= outwardNode
-
-  private def bufferTo(buffers: Int): TLOutwardNode =
-    TLBuffer.chain(buffers).foldRight(delayNode)(_ :*= _) :*= outwardNode
-
-  private def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
-    TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
-
-  private def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
-    TLWidthWidget(params.beatBytes) :*= bufferTo(buffer)
-
   def toSlave[D,U,E,B <: Data](
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
@@ -40,6 +28,15 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
                 TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,
                 D,U,E,B] = TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= bufferTo(buffer) }
+  }
+
+  def toVariableWidthSlaveNode(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: TLInwardNode) {
+    to("slave" named name) {
+      gen :*= fragmentTo(params.beatBytes, params.blockBytes, buffer)
+    }
   }
 
   def toVariableWidthSlave[D,U,E,B <: Data](
@@ -53,6 +50,13 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
     }
   }
 
+  def toFixedWidthSlaveNode(
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: TLInwardNode) {
+    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
+  }
+
   def toFixedWidthSlave[D,U,E,B <: Data](
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
@@ -60,6 +64,16 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
                 TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,
                 D,U,E,B] = TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fixedWidthTo(buffer) }
+  }
+
+  def toFixedWidthSingleBeatSlaveNode(
+        widthBytes: Int,
+        name: Option[String] = None,
+        buffer: BufferParams = BufferParams.none)
+      (gen: TLInwardNode) {
+    to("slave" named name) {
+      gen :*= TLFragmenter(widthBytes, params.blockBytes) :*= fixedWidthTo(buffer)
+    }
   }
 
   def toFixedWidthSingleBeatSlave[D,U,E,B <: Data](
@@ -108,7 +122,7 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLInwardNode = {
-    from("master" named name) { inwardNode :*= TLBuffer(buffer) :*= gen }
+    from("master" named name) { bufferFrom(buffer) :=* gen }
   }
 
 
@@ -116,10 +130,8 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
         name: Option[String] = None,
         buffers: Int = 0)
       (gen: => TLNode): TLOutwardNode = {
-    to("tile" named name) {
-      FlipRendering { implicit p =>
-        gen :*= bufferTo(buffers)
-      }
-    }
+    to("tile" named name) { FlipRendering { implicit p =>
+      gen :*= bufferTo(buffers)
+    }}
   }
 }

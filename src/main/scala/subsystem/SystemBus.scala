@@ -20,12 +20,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def busView = master_splitter.node.edges.in.head
 
-  private def bufferTo(buffer: BufferParams): TLOutwardNode =
-    TLBuffer(buffer) :*= delayNode :*= outwardNode
-
-  private def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
-    TLWidthWidget(params.beatBytes) :*= bufferTo(buffer)
-
   def toPeripheryBus(buffer: BufferParams = BufferParams.none)
                     (gen: => TLNode): TLOutwardNode = {
     to("pbus") {
@@ -37,30 +31,34 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   }
 
   def toMemoryBus(gen: => TLInwardNode) {
-    to("mbus") { gen :*= delayNode :*= outwardNode }
+    to("mbus") { gen := delayNode := outwardNode }
   }
 
-  def toSlave(name: Option[String] = None, buffer: BufferParams = BufferParams.default)
-             (gen: => TLNode): TLOutwardNode = {
+  def toSlave[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.default)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= bufferTo(buffer) }
   }
  
-  def toSplitSlave(name: Option[String] = None)
-                  (gen: => TLNode): TLOutwardNode = {
+  def toSplitSlave[D,U,E,B <: Data]
+      (name: Option[String] = None)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :=* master_splitter.node }
   }
 
-  def toFixedWidthSlave(
-        name: Option[String] = None,
-        buffer: BufferParams = BufferParams.none)
-      (gen: => TLNode): TLOutwardNode = {
+  def toFixedWidthSlave[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: =>  NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fixedWidthTo(buffer) }
   }
 
-  def toVariableWidthSlave(
-        name: Option[String] = None,
-        buffer: BufferParams = BufferParams.default)
-      (gen: => TLNode): TLOutwardNode = {
+  def toVariableWidthSlave[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.default)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
       gen :*= TLFragmenter(params.beatBytes, params.blockBytes) :*= bufferTo(buffer)
     }
@@ -70,10 +68,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     from("front_bus") { master_splitter.node :=* gen }
   }
 
-  def fromTile(
-        name: Option[String],
-        buffers: Int = 0,
-        cork: Option[Boolean] = None)
+  def fromTile
+      (name: Option[String], buffers: Int = 0, cork: Option[Boolean] = None)
       (gen: => TLNode): TLInwardNode = {
     from("tile" named name) {
       (List(master_splitter.node, TLFIFOFixer(TLFIFOFixer.allUncacheable)) ++ TLBuffer.chain(buffers))
@@ -81,17 +77,17 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     }
   }
 
-  def toFixedWidthPort[D,U,E,B <: Data](
-        name: Option[String] = None,
-        buffer: BufferParams = BufferParams.default)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B]): OutwardNodeHandle[D,U,E,B] = {
+  def toFixedWidthPort[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.default)
+      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
+        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("port" named name) { gen := fixedWidthTo(buffer) }
   }
 
-  def fromPort[D,U,E,B <: Data](
-        name: Option[String] = None,
-        buffers: Int = 0)
-      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle]): InwardNodeHandle[D,U,E,B] = {
+  def fromPort[D,U,E,B <: Data]
+      (name: Option[String] = None, buffers: Int = 0)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
+        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("port" named name) {
       (List(
         master_splitter.node,
@@ -100,22 +96,21 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
     }
   }
 
-  def fromCoherentMaster(
-        name: Option[String] = None,
-        buffers: Int = 0)
-      (gen: => TLNode): TLInwardNode = {
+  def fromCoherentMaster[D,U,E,B <: Data]
+      (name: Option[String] = None, buffers: Int = 0)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
+        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("coherent_master" named name) {
       (inwardNode
-        :=* TLFIFOFixer(TLFIFOFixer.all)
-        :=* TLBuffer.chain(buffers).reduce(_ :=* _)
+        :=* TLBuffer.chain(buffers).foldLeft(TLFIFOFixer(TLFIFOFixer.all))(_ :=* _)
         :=* gen)
     }
   }
 
-  def fromMaster(
-        name: Option[String] = None,
-        buffers: Int = 0)
-      (gen: => TLNode): TLInwardNode = {
+  def fromMaster[D,U,E,B <: Data]
+      (name: Option[String] = None, buffers: Int = 0)
+      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
+        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("master" named name) {
       (master_splitter.node
         :=* TLFIFOFixer(TLFIFOFixer.all)
