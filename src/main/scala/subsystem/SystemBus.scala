@@ -8,7 +8,10 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class SystemBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusParams
+case class SystemBusParams(
+  beatBytes: Int,
+  blockBytes: Int,
+  pbusBuffer: BufferParams = BufferParams.none) extends HasTLBusParams
 
 case object SystemBusKey extends Field[SystemBusParams]
 
@@ -23,13 +26,12 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
 
   def busView = master_splitter.node.edges.in.head
 
-  def toPeripheryBus(buffer: BufferParams = BufferParams.none)
-                    (gen: => TLNode): TLOutwardNode = {
+  def toPeripheryBus(gen: => TLNode): TLOutwardNode = {
     to("pbus") {
       (gen
         := TLFIFOFixer(TLFIFOFixer.all)
         := TLWidthWidget(params.beatBytes)
-        := bufferTo(buffer))
+        := bufferTo(params.pbusBuffer))
     }
   }
 
@@ -52,7 +54,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   }
 
   def toFixedWidthSlave[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.default)
       (gen: =>  NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fixedWidthTo(buffer) }

@@ -12,6 +12,7 @@ case class PeripheryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   arithmeticAtomics: Boolean = true,
+  bufferAtomics: BufferParams = BufferParams.default,
   sbusCrossingType: SubsystemClockCrossing = SynchronousCrossing(), // relative to sbus
   frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
 ) extends HasTLBusParams
@@ -92,7 +93,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def fromSystemBus(gen: => TLOutwardNode) {
     from("sbus") {
       (inwardNode
-        :*= TLBuffer(BufferParams.default)
+        :*= TLBuffer(params.bufferAtomics)
         :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics)
         :*= gen)
     }

@@ -8,14 +8,19 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class FrontBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusParams
+case class FrontBusParams(
+  beatBytes: Int,
+  blockBytes: Int,
+  sbusCrossing: SubsystemClockCrossing = SynchronousCrossing(),
+  sbusBuffer: BufferParams = BufferParams.default) extends HasTLBusParams
 
 case object FrontBusKey extends Field[FrontBusParams]
 
-class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = SynchronousCrossing())
+class FrontBus(params: FrontBusParams)
               (implicit p: Parameters) extends TLBusWrapper(params, "front_bus")
     with HasTLXbarPhy
     with HasCrossing {
+  val crossing = params.sbusCrossing
 
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffers: Int = 1)
@@ -39,7 +44,7 @@ class FrontBus(params: FrontBusParams, val crossing: SubsystemClockCrossing = Sy
     from("coherent_subsystem") { inwardNode :=* gen }
   }
 
-  def toSystemBus(buffer: BufferParams = BufferParams.none)(gen: => TLInwardNode) {
-    to("sbus") { gen :=* TLBuffer(buffer) :=* outwardNode }
+  def toSystemBus(gen: => TLInwardNode) {
+    to("sbus") { gen :=* TLBuffer(params.sbusBuffer) :=* outwardNode }
   }
 }
