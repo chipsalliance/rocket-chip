@@ -29,26 +29,27 @@ verilator: $(INSTALLED_VERILATOR)
 
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
-VERILATOR_FLAGS := --top-module $(MODEL) \
+VERILATOR_FLAGS = --top-module $(MODEL) \
   +define+PRINTF_COND=\$$c\(\"verbose\",\"\&\&\"\,\"done_reset\"\) \
   +define+RANDOMIZE_GARBAGE_ASSIGN \
   +define+STOP_COND=\$$c\(\"done_reset\"\) --assert \
   --output-split 20000 \
   --output-split-cfuncs 20000 \
 	-Wno-STMTDLY --x-assign unique \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(base_dir)/csrc/verilator.h -include $(base_dir)/csrc/remote_bitbang.h"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) $(foreach h,$(headers),-include $(h))"
 
 model_header = $(generated_dir)/$(long_name)/V$(MODEL).h
 model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h
 
-$(emu): $(sim_sources_makefrag) $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
+$(emu): $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir)/$(long_name)
+	echo $(headers_includes)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(long_name) \
 	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
 	-CFLAGS "-I$(generated_dir) -include $(model_header)"
 	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir)/$(long_name) -f V$(MODEL).mk
 
-$(emu_debug): $(sim_sources_makefrag) $(verilog) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
+$(emu_debug): $(verilog) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir_debug)/$(long_name)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(long_name)  --trace \
 	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
