@@ -228,12 +228,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
 
+  val id_pc_misaligned = !csr.io.status.isa('c'-'a') && ibuf.io.pc(1)
   val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
   val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
     (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
+    (id_pc_misaligned, UInt(Causes.misaligned_fetch)),
     (id_xcpt0.pf.inst, UInt(Causes.fetch_page_fault)),
     (id_xcpt0.ae.inst, UInt(Causes.fetch_access)),
     (id_xcpt1.pf.inst, UInt(Causes.fetch_page_fault)),
@@ -427,14 +429,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val mem_breakpoint = (mem_reg_load && bpu.io.xcpt_ld) || (mem_reg_store && bpu.io.xcpt_st)
   val mem_debug_breakpoint = (mem_reg_load && bpu.io.debug_ld) || (mem_reg_store && bpu.io.debug_st)
-  val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
-    (mem_debug_breakpoint,               UInt(CSR.debugTriggerCause)),
-    (mem_breakpoint,                     UInt(Causes.breakpoint)),
-    (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch))))
+  val (mem_ldst_xcpt, mem_ldst_cause) = checkExceptions(List(
+    (mem_debug_breakpoint, UInt(CSR.debugTriggerCause)),
+    (mem_breakpoint,       UInt(Causes.breakpoint))))
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_valid && mem_new_xcpt,          mem_new_cause)))
+    (mem_reg_valid && mem_npc_misaligned,    UInt(Causes.misaligned_fetch)),
+    (mem_reg_valid && mem_ldst_xcpt,         mem_ldst_cause)))
 
   val memCoverCauses = (exCoverCauses ++ List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
@@ -677,7 +679,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
   io.dmem.invalidate_lr := wb_xcpt
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
-  io.dmem.s1_kill := killm_common || mem_breakpoint
+  io.dmem.s1_kill := killm_common || mem_ldst_xcpt
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
