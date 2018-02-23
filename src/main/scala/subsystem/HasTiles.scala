@@ -15,6 +15,7 @@ class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
     with Clocked
 
 trait HasTiles { this: BaseSubsystem =>
+  implicit val p: Parameters
   val tiles: Seq[BaseTile]
   protected def tileParams: Seq[TileParams] = tiles.map(_.tileParams)
   def nTiles: Int = tileParams.size
