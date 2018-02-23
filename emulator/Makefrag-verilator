@@ -43,7 +43,6 @@ model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h
 
 $(emu): $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
 	mkdir -p $(generated_dir)/$(long_name)
-	echo $(headers_includes)
 	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(long_name) \
 	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
 	-CFLAGS "-I$(generated_dir) -include $(model_header)"
