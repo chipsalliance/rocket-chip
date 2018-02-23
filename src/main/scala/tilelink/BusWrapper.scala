@@ -35,6 +35,9 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   protected def bufferFrom(buffers: Int): TLInwardNode =
     TLBuffer.chain(buffers).foldLeft(inwardNode)(_ :=* _)
 
+  protected def fixFrom(policy: TLFIFOFixer.Policy, buffers: Int): TLInwardNode =
+    inwardNode :=* TLBuffer.chain(buffers).foldLeft(TLFIFOFixer(policy))(_ :=* _)
+
   protected def bufferTo(buffer: BufferParams): TLOutwardNode =
     TLBuffer(buffer) :*= delayNode :*= outwardNode
 
@@ -49,7 +52,6 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   protected def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
     TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
-
 
   protected def delayNode(implicit p: Parameters): TLNode = {
     val delayProb = p(TLBusDelayProbability)
