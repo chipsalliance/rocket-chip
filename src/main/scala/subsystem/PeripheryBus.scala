@@ -11,15 +11,18 @@ import freechips.rocketchip.util._
 case class PeripheryBusParams(
   beatBytes: Int,
   blockBytes: Int,
+  arithmeticAtomics: Boolean = true,
+  sbusCrossingType: SubsystemClockCrossing = SynchronousCrossing(), // relative to sbus
   frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
 ) extends HasTLBusParams
 
 case object PeripheryBusKey extends Field[PeripheryBusParams]
 
-class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCrossing = SynchronousCrossing())
+class PeripheryBus(params: PeripheryBusParams)
                   (implicit p: Parameters) extends TLBusWrapper(params, "periphery_bus")
     with HasTLXbarPhy
     with HasCrossing {
+  val crossing = params.sbusCrossingType
 
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
@@ -86,13 +89,11 @@ class PeripheryBus(params: PeripheryBusParams, val crossing: SubsystemClockCross
   }
 
 
-  def fromSystemBus
-      (arithmetic: Boolean = true, buffer: BufferParams = BufferParams.default)
-      (gen: => TLOutwardNode) {
+  def fromSystemBus(gen: => TLOutwardNode) {
     from("sbus") {
       (inwardNode
-        :*= TLBuffer(buffer)
-        :*= TLAtomicAutomata(arithmetic = arithmetic)
+        :*= TLBuffer(BufferParams.default)
+        :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics)
         :*= gen)
     }
   }
