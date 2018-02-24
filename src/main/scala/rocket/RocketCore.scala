@@ -210,17 +210,17 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
     !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode(0).system_illegal)
-  // stall decode for fences (now, for AMO.aq; later, for AMO.rl and FENCE)
+  // stall decode for fences (now, for AMO.rl; later, for AMO.aq and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
-  val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_rl
+  val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_aq
   val id_mem_busy = !io.dmem.ordered || io.dmem.req.valid
   when (!id_mem_busy) { id_reg_fence := false }
   val id_rocc_busy = Bool(usingRoCC) &&
     (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
      mem_reg_valid && mem_ctrl.rocc || wb_reg_valid && wb_ctrl.rocc)
   val id_do_fence = Wire(init = id_rocc_busy && id_ctrl.fence ||
-    id_mem_busy && (id_ctrl.amo && id_amo_aq || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
+    id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
 
   val bpu = Module(new BreakpointUnit(nBreakpoints))
   bpu.io.status := csr.io.status
