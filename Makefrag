@@ -16,24 +16,34 @@ CXX ?= g++
 CXXFLAGS := -O1
 JVM_MEMORY ?= 2G
 
-SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+JAVA ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M
+IVY ?= -Dsbt.ivy.home=$(base_dir)/.ivy2/
+SBT ?= $(JAVA) $(IVY) -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
-FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
-FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
+lookup_scala_srcs = $(shell find $(1)/ -iname "*.scala" 2> /dev/null)
 
-# Build firrtl.jar and put it where chisel3 can find it.
-$(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
+firrtl_dir ?= $(base_dir)/firrtl
+FIRRTL_STAMP ?= $(base_dir)/firrtl.stamp
+FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
+FIRRTL ?= $(JAVA) -cp $(FIRRTL_JAR) firrtl.Driver
+
+$(FIRRTL_STAMP): $(call lookup_scala_srcs, $(firrtl_dir))
+	cd $(firrtl_dir) && $(SBT) publishLocal
+	touch $@
+
+$(FIRRTL_JAR): $(FIRRTL_STAMP)
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
-	touch $(FIRRTL_JAR)
-	mkdir -p $(base_dir)/lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/lib
-# When chisel3 pr 448 is merged, the following extraneous copy may be removed.
-	mkdir -p $(base_dir)/chisel3/lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
+
+chisel3_dir ?= $(base_dir)/chisel3
+CHISEL3_STAMP ?= $(base_dir)/chisel3.stamp
+
+$(CHISEL3_STAMP): $(FIRRTL_STAMP) $(call lookup_scala_srcs, $(chisel3_dir))
+	cd $(chisel3_dir) && $(SBT) publishLocal
+	touch $@
 
 src_path := src/main/scala
-default_submodules := . hardfloat chisel3
+default_submodules := . hardfloat
 chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
 
 disasm := 2>
