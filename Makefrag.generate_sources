@@ -37,6 +37,6 @@ $(sim_sources_makefrag): $(generated_dir)/$(long_name)/black_box_verilog_files.f
 	cat $<                      |  awk '!($$1="")'       | grep -e '.*\.h$$' | sed 's/$$/\\/' >> $@
 	echo "" >> $@
 
-ifneq ($filter clean verilator,$(MAKECMDGOALS),)
+ifeq ($filter clean verilator,$(MAKECMDGOALS),)
 -include $(sim_sources_makefrag)
 endif
