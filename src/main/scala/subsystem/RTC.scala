@@ -1,13 +1,13 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.diplomacy.{LazyModuleImp, DTSTimebase}
-import freechips.rocketchip.devices.tilelink.HasPeripheryClint
+import freechips.rocketchip.devices.tilelink.HasPeripheryCLINT
 
 trait HasRTCModuleImp extends LazyModuleImp {
-  val outer: HasPeripheryClint
+  val outer: BaseSubsystem with HasPeripheryCLINT
   private val pbusFreq = outer.p(PeripheryBusKey).frequency
   private val rtcFreq = outer.p(DTSTimebase)
   private val internalPeriod: BigInt = pbusFreq / rtcFreq

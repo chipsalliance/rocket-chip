@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy.LazyModule
 
 class TestHarness(implicit p: Parameters) extends Module {
   val io = new Bundle { val success = Bool(OUTPUT) }
-  val dut = Module(LazyModule(new GroundTestCoreplex).module)
+  val dut = Module(LazyModule(new GroundTestSubsystem).module)
   io.success := dut.success
   dut.connectSimAXIMem()
 }

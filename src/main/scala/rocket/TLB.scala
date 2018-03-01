@@ -7,7 +7,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.CacheBlockBytes
+import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._

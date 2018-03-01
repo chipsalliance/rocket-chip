@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
@@ -24,11 +24,6 @@ class InterruptBusWrapper(implicit p: Parameters) {
   def toPLIC: IntOutwardNode = int_bus.intnode
 }
 
-trait HasInterruptBus {
-  implicit val p: Parameters
-  val ibus = new InterruptBusWrapper
-}
-
 /** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int](0)
 
@@ -36,7 +31,7 @@ case object NExtTopInterrupts extends Field[Int](0)
   * However, it should not be used directly; instead one of the below
   * synchronization wiring child traits should be used.
   */
-abstract trait HasExtInterrupts extends HasInterruptBus {
+abstract trait HasExtInterrupts { this: BaseSubsystem =>
   private val device = new Device with DeviceInterrupts {
     def describe(resources: ResourceBindings): Description = {
       Description("soc/external-interrupts", describeInterrupts(resources))
@@ -50,7 +45,7 @@ abstract trait HasExtInterrupts extends HasInterruptBus {
 /** This trait should be used if the External Interrupts have NOT
   * already been synchronized to the Periphery (PLIC) Clock.
   */
-trait HasAsyncExtInterrupts extends HasExtInterrupts {
+trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
     ibus.fromAsync := extInterrupts
   }
@@ -59,7 +54,7 @@ trait HasAsyncExtInterrupts extends HasExtInterrupts {
 /** This trait can be used if the External Interrupts have already been synchronized
   * to the Periphery (PLIC) Clock.
   */
-trait HasSyncExtInterrupts extends HasExtInterrupts {
+trait HasSyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
     ibus.fromSync := extInterrupts
   }

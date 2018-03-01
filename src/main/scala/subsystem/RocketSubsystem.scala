@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
@@ -14,41 +14,11 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 // TODO: how specific are these to RocketTiles?
-case class TileMasterPortParams(
-    addBuffers: Int = 0,
-    cork: Option[Boolean] = None) {
-
-  def adapt(coreplex: HasPeripheryBus)
-           (masterNode: TLOutwardNode)
-           (implicit p: Parameters, sourceInfo: SourceInfo): TLOutwardNode = {
-    val tile_master_cork = cork.map(u => (LazyModule(new TLCacheCork(unsafe = u))))
-    val tile_master_fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.allUncacheable))
-
-    (Seq(tile_master_fixer.node) ++ TLBuffer.chain(addBuffers) ++ tile_master_cork.map(_.node))
-      .foldRight(masterNode)(_ :=* _)
-  }
-}
-
-case class TileSlavePortParams(
-    addBuffers: Int = 0,
-    blockerCtrlAddr: Option[BigInt] = None) {
-
-  def adapt(coreplex: HasPeripheryBus)
-           (slaveNode: TLInwardNode)
-           (implicit p: Parameters, sourceInfo: SourceInfo): TLInwardNode = {
-    val tile_slave_blocker =
-      blockerCtrlAddr
-        .map(BasicBusBlockerParams(_, coreplex.pbus.beatBytes, coreplex.sbus.beatBytes))
-        .map(bp => LazyModule(new BasicBusBlocker(bp)))
-
-    tile_slave_blocker.foreach { _.controlNode := coreplex.pbus.toVariableWidthSlaves }
-    (Seq() ++ tile_slave_blocker.map(_.node) ++ TLBuffer.chain(addBuffers))
-    .foldLeft(slaveNode)(_ :*= _)
-  }
-}
+case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
+case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
 
 case class RocketCrossingParams(
-    crossingType: CoreplexClockCrossing = SynchronousCrossing(),
+    crossingType: SubsystemClockCrossing = SynchronousCrossing(),
     master: TileMasterPortParams = TileMasterPortParams(),
     slave: TileSlavePortParams = TileSlavePortParams()) {
   def knownRatio: Option[Int] = crossingType match {
@@ -61,10 +31,9 @@ case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
 
 trait HasRocketTiles extends HasTiles
-    with HasPeripheryBus
     with HasPeripheryPLIC
-    with HasPeripheryClint
-    with HasPeripheryDebug {
+    with HasPeripheryCLINT
+    with HasPeripheryDebug { this: BaseSubsystem =>
   val module: HasRocketTilesModuleImp
 
   protected val rocketTileParams = p(RocketTilesKey)
@@ -95,7 +64,7 @@ trait HasRocketTiles extends HasTiles
 
     def tileMasterBuffering: TLOutwardNode = rocket {
       // The buffers needed to cut feed-through paths are microarchitecture specific, so belong here
-      val masterBuffer = LazyModule(new TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1)))
+      val masterBufferNode = TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
       crossing.crossingType match {
         case _: AsynchronousCrossing => rocket.masterNode
         case SynchronousCrossing(b) =>
@@ -104,28 +73,41 @@ trait HasRocketTiles extends HasTiles
         case RationalCrossing(dir) =>
           require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
           if (tp.boundaryBuffers) {
-            masterBuffer.node :=* rocket.masterNode
+            masterBufferNode :=* rocket.masterNode
           } else {
             rocket.masterNode
           }
       }
     }
 
-    sbus.fromTile(tp.name) { implicit p => crossing.master.adapt(this)(rocket.crossTLOut :=* tileMasterBuffering) }
+    sbus.fromTile(tp.name, crossing.master.buffers) {
+        crossing.master.cork
+          .map { u => TLCacheCork(unsafe = u) }
+          .map { _ :=* rocket.crossTLOut }
+          .getOrElse { rocket.crossTLOut }
+    } :=* tileMasterBuffering
 
     // Connect the slave ports of the tile to the periphery bus
 
     def tileSlaveBuffering: TLInwardNode = rocket {
-      val slaveBuffer  = LazyModule(new TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none))
+      val slaveBufferNode = TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
       crossing.crossingType match {
-        case RationalCrossing(_) if (tp.boundaryBuffers) => rocket.slaveNode :*= slaveBuffer.node
+        case RationalCrossing(_) if (tp.boundaryBuffers) => rocket.slaveNode :*= slaveBufferNode
         case _ => rocket.slaveNode
       }
     }
 
-    pbus.toTile(tp.name) { implicit p => crossing.slave.adapt(this)( DisableMonitors { implicit p =>
-      tileSlaveBuffering :*= rocket.crossTLIn
-    })}
+    DisableMonitors { implicit p =>
+      tileSlaveBuffering :*= pbus.toTile(tp.name) {
+        crossing.slave.blockerCtrlAddr
+          .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
+          .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
+          .map { bbb =>
+            pbus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
+            rocket.crossTLIn :*= bbb.node
+          } .getOrElse { rocket.crossTLIn }
+      }
+    }
 
     // Handle all the different types of interrupts crossing to or from the tile:
     // 1. Debug interrupt is definitely asynchronous in all cases.
@@ -163,13 +145,13 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
   val outer: HasRocketTiles
 }
 
-class RocketCoreplex(implicit p: Parameters) extends BaseCoreplex
+class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
-  override lazy val module = new RocketCoreplexModule(this)
+  override lazy val module = new RocketSubsystemModuleImp(this)
 }
 
-class RocketCoreplexModule[+L <: RocketCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
+class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
     with HasRocketTilesModuleImp {
   tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
     wire.clock := clock

@@ -108,7 +108,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   /** Output software test Makefrags, which provide targets for integration testing. */
   def generateTestSuiteMakefrags {
     addTestSuites
-    writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Coreplex-specific test suites
+    writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Subsystem-specific test suites
   }
 
   def addTestSuites {
