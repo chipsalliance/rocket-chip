@@ -18,8 +18,8 @@ trait Pattern {
 
 case class WritePattern(address: BigInt, size: Int, data: BigInt) extends Pattern
 {
-  require (log2Floor(data) < (BigInt(8) << size))
-  def bits(edge: TLEdgeOut) = edge.Put(UInt(0), UInt(address), UInt(size), UInt(data))
+  require (0 <= data && data < (BigInt(1) << (8 << size)))
+  def bits(edge: TLEdgeOut) = edge.Put(UInt(0), UInt(address), UInt(size), UInt(data << (8*(address % edge.manager.beatBytes).toInt)))
 }
 
 case class ReadPattern(address: BigInt, size: Int) extends Pattern

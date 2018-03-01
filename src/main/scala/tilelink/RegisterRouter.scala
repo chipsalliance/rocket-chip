@@ -7,8 +7,11 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.HeterogeneousBag
+import freechips.rocketchip.util.{HeterogeneousBag, ElaborationArtefacts}
 import scala.math.{min,max}
+
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.{pretty, render}
 
 case class TLRegisterNode(
     address:     Seq[AddressSet],
@@ -80,6 +83,46 @@ case class TLRegisterNode(
     bundleIn.b.valid := Bool(false)
     bundleIn.c.ready := Bool(true)
     bundleIn.e.ready := Bool(true)
+
+    // Dump out the register map for documentation purposes.
+    val regDescs = mapping.flatMap { case (offset, seq) =>
+      var currentBitOffset = 0      
+      seq.zipWithIndex.map { case (f, i) => {
+        val tmp = (f.desc.map{ _.name}.getOrElse(s"unnamedRegField${offset.toHexString}_${currentBitOffset}") -> (
+            ("byteOffset"  -> s"0x${offset.toHexString}") ~
+            ("bitOffset"   -> currentBitOffset) ~
+            ("bitWidth"    -> f.width) ~
+            ("name" -> f.desc.map(_.name)) ~
+            ("description" -> f.desc.map{d => if (d.desc == "") None else Some(d.desc)}) ~
+            ("resetValue"  -> f.desc.map{_.reset}) ~
+            ("group"       -> f.desc.map{_.group}) ~
+            ("groupDesc"   -> f.desc.map{_.groupDesc}) ~
+            ("accessType"  -> f.desc.map {d => d.access.toString}) ~
+            ("enumerations" -> f.desc.map {d =>
+              Option(d.enumerations.map { case (key, (name, desc)) =>
+                (("value" -> key) ~
+                  ("name" -> name) ~
+                  ("description" -> desc))
+              }).filter(_.nonEmpty)})
+        ))
+        currentBitOffset = currentBitOffset + f.width
+        tmp
+      }}
+    }
+
+    //TODO: It would be better to name this other than "Device at ...."
+    val base = s"0x${address.head.base.toInt.toHexString}"
+    val json = ("peripheral" -> (
+      ("displayName" -> s"deviceAt${base}") ~
+      ("baseAddress" -> base) ~
+      ("regfields" -> regDescs)
+    ))
+
+    var suffix = 0
+    while( ElaborationArtefacts.contains(s"${base}.${suffix}.regmap.json")){
+      suffix = suffix + 1
+    }
+    ElaborationArtefacts.add(s"${base}.${suffix}.regmap.json", pretty(render(json)))
   }
 }
 

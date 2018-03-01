@@ -40,7 +40,7 @@ case class TLManagerParameters(
   require (supportsAcquireB.contains(supportsAcquireT),  s"AcquireB($supportsAcquireB) < AcquireT($supportsAcquireT)")
 
   // Make sure that the regionType agrees with the capabilities
-  require (!supportsAcquireB || regionType >= RegionType.UNCACHEABLE) // acquire -> uncached, tracked, cached
+  require (!supportsAcquireB || regionType >= RegionType.UNCACHED) // acquire -> uncached, tracked, cached
   require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
   require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
@@ -186,7 +186,7 @@ case class TLClientParameters(
   name:                String,
   sourceId:            IdRange       = IdRange(0,1),
   nodePath:            Seq[BaseNode] = Seq(),
-  requestFifo:         Boolean       = false, // only a request, not a requirement
+  requestFifo:         Boolean       = false, // only a request, not a requirement. applies to A, not C.
   // Supports both Probe+Grant of these sizes
   supportsProbe:       TransferSizes = TransferSizes.none,
   supportsArithmetic:  TransferSizes = TransferSizes.none,
@@ -204,8 +204,6 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutFull))
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
-  // If you need FIFO, you better not be TL-C (due to independent A vs. C order)
-  require (!requestFifo || !supportsProbe)
 
   val maxTransfer = List(
     supportsProbe.max,

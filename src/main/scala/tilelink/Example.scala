@@ -20,7 +20,7 @@ trait ExampleModule extends HasRegMap
   val io: ExampleBundle
   val interrupts: Vec[Bool]
 
-  val state = RegInit(UInt(0))
+  val state = RegInit(UInt(0, width = params.num))
   val pending = RegInit(UInt(0xf, width = 4))
 
   io.gpio := state
@@ -28,9 +28,15 @@ trait ExampleModule extends HasRegMap
 
   regmap(
     0 -> Seq(
-      RegField(params.num, state)),
+      RegField(params.num, state,
+        RegFieldDesc("state", "State: Example of a R/W Register with description.", reset = Some(0)))),
     4 -> Seq(
-      RegField.w1ToClear(4, pending, state)))
+      RegField.w1ToClear(4, pending, state,
+        Some(RegFieldDesc("pending", "Pending: Example of a special (W1ToC) Register. " +
+          "Writing a bit here causes it to be reset to 0. " +
+          "The bits are set when the corresponding bit in 'state' is high.",
+          reset=Some(0xF)))))
+  )
 }
 
 // Create a concrete TL2 version of the abstract Example slave

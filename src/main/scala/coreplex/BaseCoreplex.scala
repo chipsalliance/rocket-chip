@@ -21,6 +21,7 @@ abstract class BareCoreplexModule[+L <: BareCoreplex](_outer: L) extends LazyMod
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)
   ElaborationArtefacts.add("json", outer.json)
+  ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
   println(outer.dts)
 }
 

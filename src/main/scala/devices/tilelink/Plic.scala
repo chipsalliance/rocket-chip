@@ -8,10 +8,11 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.{HasInterruptBus, HasPeripheryBus}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -62,7 +63,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 case object PLICKey extends Field(PLICParams())
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
+class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
   val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
@@ -81,7 +82,7 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
   val node = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
-    beatBytes = p(XLen)/8,
+    beatBytes = beatBytes,
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
@@ -167,12 +168,18 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
       harts(hart) := ShiftRegister(Reg(next = maxPri) > Cat(UInt(1), threshold(hart)), params.intStages)
     }
 
-    def priorityRegField(x: UInt) = if (nPriorities > 0) RegField(32, x) else RegField.r(32, x)
-    val priorityRegFields = Seq(PLICConsts.priorityBase -> priority.map(p => priorityRegField(p)))
-    val pendingRegFields = Seq(PLICConsts.pendingBase  -> pending .map(b => RegField.r(1, b)))
+    def priorityRegDesc(i: Int) = RegFieldDesc(s"priority_$i", s"Acting priority of interrupt source $i", reset=if (nPriorities > 0) None else Some(1)) 
+    def pendingRegDesc(i: Int) = RegFieldDesc(s"pending_$i", s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.") 
+    def priorityRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, priorityRegDesc(i)) else RegField.r(32, x, priorityRegDesc(i))
+    val priorityRegFields = Seq(PLICConsts.priorityBase -> RegFieldGroup("priority", Some("Acting priorities of each interrupt source. 32 bits for each interrupt source."),
+      priority.zipWithIndex.map{case (p, i) => priorityRegField(p, i)}))
+    val pendingRegFields = Seq(PLICConsts.pendingBase  -> RegFieldGroup("pending", Some("Pending Bit Array. 1 Bit for each interrupt source."),
+      pending.zipWithIndex.map{case (b, i) => RegField.r(1, b, pendingRegDesc(i))}))
 
+ 
     val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
-      PLICConsts.enableBase(i) -> e.map(b => RegField(1, b))
+      PLICConsts.enableBase(i) -> RegFieldGroup(s"enables_${i}", Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."),
+        e.zipWithIndex.map{case (b, j) => RegField(1, b, RegFieldDesc(s"enable_${i}_${j}", s"Enable interrupt for source $j for target $i.", reset=None))})
     }
 
     // When a hart reads a claim/complete register, then the
@@ -206,9 +213,12 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
        g.complete := c
     }
 
+    def thresholdRegDesc(i: Int) = RegFieldDesc(s"threshold_$i", s"Interrupt & claim threshold for target $i", reset=if (nPriorities > 0) None else Some(1))
+    def thresholdRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, thresholdRegDesc(i)) else RegField.r(32, x, thresholdRegDesc(i))
+
     val hartRegFields = Seq.tabulate(nHarts) { i =>
       PLICConsts.hartBase(i) -> Seq(
-        priorityRegField(threshold(i)),
+        thresholdRegField(threshold(i), i),
         RegField(32,
           RegReadFn { valid =>
             claimer(i) := valid
@@ -220,10 +230,15 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
             completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
             completer(i) := valid && enables(i)(completerDev)
             Bool(true)
-          }
+          },
+          Some(RegFieldDesc(s"claim_complete_$i",
+            s"Claim/Complete register for Target $i. Reading this register returns the claimed interrupt number and makes it no longer pending." +
+            s"Writing the interrupt number back completes the interrupt.",
+            reset = None,
+            access = RegFieldAccessType.RWSPECIAL))
         )
       )
-    }
+    } 
 
     node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
@@ -231,12 +246,31 @@ class TLPLIC(params: PLICParams)(implicit p: Parameters) extends LazyModule
     pending(0) := false
     for (e <- enables)
       e(0) := false
+
+    if (nDevices >= 2) {
+      val claimed = claimer(0) && maxDevs(0) > 0
+      val completed = completer(0)
+      cover(claimed && RegEnable(claimed, false.B, claimed || completed), "TWO_CLAIMS", "two claims with no intervening complete")
+      cover(completed && RegEnable(completed, false.B, claimed || completed), "TWO_COMPLETES", "two completes with no intervening claim")
+
+      val ep = enables(0).asUInt & pending.asUInt
+      val ep2 = RegNext(ep)
+      val diff = ep & ~ep2
+      cover((diff & (diff - 1)) =/= 0, "TWO_INTS_PENDING", "two enabled interrupts became pending on same cycle")
+
+      if (nPriorities > 0)
+        ccover(maxDevs(0) > (UInt(1) << priority(0).getWidth) && maxDevs(0) <= Cat(UInt(1), threshold(0)),
+               "THRESHOLD", "interrupt pending but less than threshold")
+    }
+
+    def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+      cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 }
 
 /** Trait that will connect a PLIC to a coreplex */
 trait HasPeripheryPLIC extends HasInterruptBus with HasPeripheryBus {
-  val plic  = LazyModule(new TLPLIC(p(PLICKey)))
+  val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes))
   plic.node := pbus.toVariableWidthSlaves
   plic.intnode := ibus.toPLIC
 }

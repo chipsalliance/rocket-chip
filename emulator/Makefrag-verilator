@@ -36,7 +36,7 @@ VERILATOR_FLAGS = --top-module $(MODEL) \
   --output-split 20000 \
   --output-split-cfuncs 20000 \
 	-Wno-STMTDLY --x-assign unique \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) $(foreach h,$(headers),-include $(h))"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) $(foreach h,$(headers),-include $(h)) -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
 
 model_header = $(generated_dir)/$(long_name)/V$(MODEL).h
 model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h

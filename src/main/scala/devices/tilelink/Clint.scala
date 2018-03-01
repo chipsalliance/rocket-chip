@@ -7,7 +7,6 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -33,7 +32,7 @@ case class ClintParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 
 case object ClintKey extends Field(ClintParams())
 
-class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) extends LazyModule
+class CoreplexLocalInterrupter(params: ClintParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   import ClintConsts._
 
@@ -45,7 +44,7 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
   val node = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
-    beatBytes = p(XLen)/8)
+    beatBytes = beatBytes)
 
   val intnode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
@@ -83,14 +82,16 @@ class CoreplexLocalInterrupter(params: ClintParams)(implicit p: Parameters) exte
      */
 
     node.regmap(
-      0                -> ipi.map(r => RegField(ipiWidth, r)),
-      timecmpOffset(0) -> timecmp.flatMap(RegField.bytes(_)),
-      timeOffset       -> RegField.bytes(time))
+      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.map{ case (r, i) => RegField(ipiWidth, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0)))}),
+      timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) =>
+        RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"), RegField.bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset=None))))},
+      timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"), RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0)))))
+    )
   }
 }
 
 /** Trait that will connect a Clint to a coreplex */
 trait HasPeripheryClint extends HasPeripheryBus {
-  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey)))
+  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey), pbus.beatBytes))
   clint.node := pbus.toVariableWidthSlaves
 }

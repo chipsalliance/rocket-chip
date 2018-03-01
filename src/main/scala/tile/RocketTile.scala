@@ -105,8 +105,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   val uncorrectable = RegInit(Bool(false))
   val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))
 
-  outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
-
   outer.bus_error_unit.foreach { lm =>
     lm.module.io.errors.dcache := outer.dcache.module.io.errors
     lm.module.io.errors.icache := outer.frontend.module.io.errors
@@ -129,6 +127,9 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   core.io.rocc.resp <> roccCore.resp
   core.io.rocc.busy := roccCore.busy
   core.io.rocc.interrupt := roccCore.interrupt
+
+  // Rocket has higher priority to DTIM than other TileLink clients
+  outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
 
   when(!uncorrectable) { uncorrectable :=
     List(outer.frontend.module.io.errors, outer.dcache.module.io.errors)

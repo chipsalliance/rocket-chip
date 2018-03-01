@@ -31,7 +31,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+libext+.v \
 
 VCS_OPTS += +vpi
-VCS_OPTS += -P $(base_dir)/vsrc/jtag_vpi.tab
 VCS_OPTS += -CC "-DVCS_VPI"
 
 

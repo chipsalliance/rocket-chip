@@ -196,7 +196,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val retire = UInt(INPUT, log2Up(1+retireWidth))
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
-  val badaddr = UInt(INPUT, vaddrBitsExtended)
+  val tval = UInt(INPUT, vaddrBitsExtended)
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
@@ -333,8 +333,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val isaMaskString =
     (if (usingMulDiv) "M" else "") +
     (if (usingAtomics) "A" else "") +
-    (if (usingFPU) "F" else "") +
-    (if (usingFPU && xLen > 32) "D" else "") +
+    (if (fLen >= 32) "F" else "") +
+    (if (fLen >= 64) "D" else "") +
     (if (usingCompressed) "C" else "") +
     (if (usingRoCC) "X" else "")
   val isaString = "I" + isaMaskString +
@@ -527,12 +527,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(!reg_singleStepped || io.retire === UInt(0))
 
   val epc = formEPC(io.pc)
-  val write_badaddr = exception && cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
-    Causes.misaligned_load, Causes.misaligned_store,
-    Causes.load_access, Causes.store_access, Causes.fetch_access,
-    Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
-  val badaddr_value = Mux(write_badaddr, io.badaddr, 0.U)
-
   val noCause :: mCause :: hCause :: sCause :: uCause :: Nil = Enum(5)
   val xcause_dest = Wire(init = noCause)
 
@@ -549,7 +543,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_sepc := epc
       reg_scause := cause
       xcause_dest := sCause
-      reg_sbadaddr := badaddr_value
+      reg_sbadaddr := io.tval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -558,7 +552,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_mepc := epc
       reg_mcause := cause
       xcause_dest := mCause
-      reg_mbadaddr := badaddr_value
+      reg_mbadaddr := io.tval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
@@ -808,7 +802,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     t.priv := Cat(reg_debug, reg_mstatus.prv)
     t.cause := cause
     t.interrupt := cause(xLen-1)
-    t.tval := badaddr_value
+    t.tval := io.tval
   }
 
   def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {
@@ -843,6 +837,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       when (decoded_addr(lo)) { ctr := wdata(ctr.getWidth-1, 0) }
     }
   }
-  def formEPC(x: UInt) = ~(~x | Cat(!reg_misa('c'-'a'), UInt(1)))
+  def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
 }

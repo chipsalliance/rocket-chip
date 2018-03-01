@@ -30,7 +30,7 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
 trait HasPeripheryDebug extends HasPeripheryBus {
   val module: HasPeripheryDebugModuleImp
 
-  val debug = LazyModule(new TLDebugModule())
+  val debug = LazyModule(new TLDebugModule(pbus.beatBytes))
 
   debug.node := pbus.toVariableWidthSlaves
 }

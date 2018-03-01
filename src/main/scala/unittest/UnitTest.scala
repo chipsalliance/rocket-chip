@@ -5,7 +5,7 @@ package freechips.rocketchip.unittest
 import Chisel._
 import chisel3.experimental.MultiIOModule
 import freechips.rocketchip.config._
-import freechips.rocketchip.util.SimpleTimer
+import freechips.rocketchip.util._
 
 trait UnitTestIO {
   val finished = Bool(OUTPUT)
@@ -22,6 +22,7 @@ trait UnitTestLegacyModule extends HasUnitTestIO {
 
 trait UnitTestModule extends MultiIOModule with HasUnitTestIO {
   val io = IO(new Bundle with UnitTestIO)
+  ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
 }
 
 abstract class UnitTest(val timeout: Int = 4096) extends Module with UnitTestLegacyModule {
