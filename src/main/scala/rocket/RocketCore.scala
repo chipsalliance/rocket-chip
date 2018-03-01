@@ -429,12 +429,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_debug_breakpoint = (mem_reg_load && bpu.io.debug_ld) || (mem_reg_store && bpu.io.debug_st)
   val (mem_new_xcpt, mem_new_cause) = checkExceptions(List(
     (mem_debug_breakpoint,               UInt(CSR.debugTriggerCause)),
-    (mem_breakpoint,                     UInt(Causes.breakpoint)),
-    (mem_npc_misaligned,                 UInt(Causes.misaligned_fetch))))
+    (mem_breakpoint,                     UInt(Causes.breakpoint))))
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_valid && mem_new_xcpt,          mem_new_cause)))
+    (mem_reg_valid && mem_new_xcpt,          mem_new_cause),
+    (mem_reg_valid && mem_npc_misaligned, UInt(Causes.misaligned_fetch))))
 
   val memCoverCauses = (exCoverCauses ++ List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
@@ -770,6 +770,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       when (ens) { _r := _next }
     }
   }
+
+  io.dmem.s1_kill := killm_common || mem_new_xcpt
 }
 
 class RegFile(n: Int, w: Int, zero: Boolean = false) {
