@@ -68,17 +68,17 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     io.interrupt := (accrued.asUInt & local_interrupt.asUInt).orR
     int_out(0) := (accrued.asUInt & global_interrupt.asUInt).orR
 
-    def reg(r: UInt) = RegField.bytes(r, (r.getWidth + 7)/8)
-    def reg(v: Vec[Bool]) = v.map(r => RegField(1, r))
+    def reg(r: UInt, name: String, reset: Option[BigInt]) = RegFieldGroup(name, None, RegField.bytes(r, (r.getWidth + 7)/8, Some(RegFieldDesc(name, "", reset=reset))))
+    def reg(v: Vec[Bool], name: String, reset: Option[BigInt]) = RegFieldGroup(name, None, v.map(r => RegField(1, r, RegFieldDesc(name, "", reset=reset))))
     def numberRegs(x: Seq[Seq[RegField]]) = x.zipWithIndex.map { case (f, i) => (i * regWidth / 8) -> f }
 
     node.regmap(numberRegs(Seq(
-      reg(cause),
-      reg(value),
-      reg(enable),
-      reg(global_interrupt),
-      reg(accrued),
-      reg(local_interrupt))):_*)
+      reg(cause, "cause", Some(BigInt(0))),
+      reg(value, "value", None),
+      reg(enable, "enable", Some(sources.zipWithIndex.map { case (s, i) => BigInt(s.size) << i }.sum)),
+      reg(global_interrupt, "plic_interrupt", Some(BigInt(0))),
+      reg(accrued, "accrued", Some(BigInt(0))),
+      reg(local_interrupt, "local_interrupt", Some(BigInt(0))))):_*)
 
     // hardwire mask bits for unsupported sources to 0
     for ((s, i) <- sources.zipWithIndex; if s.isEmpty) {
