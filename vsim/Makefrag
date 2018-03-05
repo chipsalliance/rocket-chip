@@ -5,7 +5,6 @@
 # Verilog sources
 
 bb_vsrcs = \
-	$(base_dir)/vsrc/jtag_vpi.v \
 	$(base_dir)/vsrc/plusarg_reader.v \
 	$(base_dir)/vsrc/ClockDivider2.v \
 	$(base_dir)/vsrc/ClockDivider3.v \
@@ -24,7 +23,7 @@ sim_vsrcs = \
 sim_csrcs = \
 	$(base_dir)/csrc/SimDTM.cc \
         $(base_dir)/csrc/SimJTAG.cc \
-        $(base_dir)/csrc/remote_bitbang.cc \
+        $(base_dir)/csrc/remote_bitbang.cc
 
 #--------------------------------------------------------------------
 # Build Verilog
@@ -59,7 +58,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+libext+.v \
 
 VCS_OPTS += +vpi
-VCS_OPTS += -P $(base_dir)/vsrc/jtag_vpi.tab
 VCS_OPTS += -CC "-DVCS_VPI"
 
 

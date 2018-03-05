@@ -26,7 +26,7 @@ case class RegFieldDesc (
   groupDesc: Option[String] = None,
   access: RegFieldAccessType = RegFieldAccessType.RW,
   reset: Option[BigInt] = None,
-  enumerations: Map[String, BigInt] = Map()
+  enumerations: Map[BigInt, (String, String)] = Map()
 ){
 }
 

@@ -18,7 +18,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
 }
 
-// Use diplomatic interrupts to external interrupts from the coreplex into the tile
+// Use diplomatic interrupts to external interrupts from the subsystem into the tile
 trait HasExternalInterrupts { this: BaseTile =>
 
   val intInwardNode = intXbar.intnode
@@ -50,7 +50,7 @@ trait HasExternalInterrupts { this: BaseTile =>
 
   // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the
-  //         per-tile crossbar in coreplex.HasRocketTiles
+  //         per-tile crossbar in subsystem.HasRocketTiles
 
   // debug, msip, mtip, meip, seip, lip offsets in CSRs
   def csrIntMap: List[Int] = {

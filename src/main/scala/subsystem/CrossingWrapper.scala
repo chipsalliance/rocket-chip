@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config._
@@ -11,16 +11,16 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 /** Enumerates the three types of clock crossing between tiles and system bus */
-sealed trait CoreplexClockCrossing
+sealed trait SubsystemClockCrossing
 {
   def sameClock = this match {
     case _: SynchronousCrossing => true
     case _ => false
   }
 }
-case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends CoreplexClockCrossing
-case class RationalCrossing(direction: RationalDirection = FastToSlow) extends CoreplexClockCrossing
-case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends CoreplexClockCrossing
+case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends SubsystemClockCrossing
+case class RationalCrossing(direction: RationalDirection = FastToSlow) extends SubsystemClockCrossing
+case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends SubsystemClockCrossing
 
 private case class CrossingCheck(out: Boolean, source: BaseNode, sink: BaseNode)
 
@@ -45,26 +45,26 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   // TileLink
 
   def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
-    val node = this { LazyModule(new TLBuffer(params)).node }
-    checks = CrossingCheck(out, node, node) :: checks
-    node
+    val sync_xing = this { LazyModule(new TLBuffer(params)).node }
+    checks = CrossingCheck(out, sync_xing, sync_xing) :: checks
+    sync_xing
   }
 
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
-    lazy val asource = LazyModule(new TLAsyncCrossingSource(sync))
-    lazy val asink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    val source = if (out) this { asource } else asource
-    val sink = if (out) asink else this { asink }
+    lazy val async_xing_source = LazyModule(new TLAsyncCrossingSource(sync))
+    lazy val async_xing_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+    val source = if (out) this { async_xing_source } else async_xing_source
+    val sink = if (out) async_xing_sink else this { async_xing_sink }
     sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
   def crossTLRationalInOut(out: Boolean)(direction: RationalDirection)(implicit p: Parameters): TLNode = {
-    lazy val rsource = LazyModule(new TLRationalCrossingSource)
-    lazy val rsink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
-    val source = if (out) this { rsource } else rsource
-    val sink = if (out) rsink else this { rsink }
+    lazy val rational_xing_source = LazyModule(new TLRationalCrossingSource)
+    lazy val rational_xing_sink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
+    val source = if (out) this { rational_xing_source } else rational_xing_source
+    val sink = if (out) rational_xing_sink else this { rational_xing_sink }
     sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
@@ -77,13 +77,13 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   def crossTLRationalIn (direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(false)(direction)
   def crossTLRationalOut(direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(true )(direction)
 
-  def crossTLIn(arg: CoreplexClockCrossing)(implicit p: Parameters): TLNode = arg match {
+  def crossTLIn(arg: SubsystemClockCrossing)(implicit p: Parameters): TLNode = arg match {
     case x: SynchronousCrossing  => crossTLSyncIn(x.params)
     case x: AsynchronousCrossing => crossTLAsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalIn(x.direction)
   }
 
-  def crossTLOut(arg: CoreplexClockCrossing)(implicit p: Parameters): TLNode = arg match {
+  def crossTLOut(arg: SubsystemClockCrossing)(implicit p: Parameters): TLNode = arg match {
     case x: SynchronousCrossing  => crossTLSyncOut(x.params)
     case x: AsynchronousCrossing => crossTLAsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalOut(x.direction)
@@ -92,16 +92,16 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   // AXI4
 
   def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
-    val node = this { LazyModule(new AXI4Buffer(params)).node }
-    checks = CrossingCheck(out, node, node) :: checks
-    node
+    val axi4_sync_xing = this { LazyModule(new AXI4Buffer(params)).node }
+    checks = CrossingCheck(out, axi4_sync_xing, axi4_sync_xing) :: checks
+    axi4_sync_xing
   }
 
   def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
-    lazy val axi4asource = LazyModule(new AXI4AsyncCrossingSource(sync))
-    lazy val axi4asink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
-    val source = if (out) this { axi4asource } else axi4asource
-    val sink = if (out) axi4asink else this { axi4asink }
+    lazy val axi4_async_xing_source = LazyModule(new AXI4AsyncCrossingSource(sync))
+    lazy val axi4_async_xing_sink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
+    val source = if (out) this { axi4_async_xing_source } else axi4_async_xing_source
+    val sink = if (out) axi4_async_xing_sink else this { axi4_async_xing_sink }
     sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
@@ -112,13 +112,13 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   def crossAXI4AsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(false)(depth, sync)
   def crossAXI4AsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(true )(depth, sync)
 
-  def crossAXI4In(arg: CoreplexClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+  def crossAXI4In(arg: SubsystemClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
     case x: SynchronousCrossing  => crossAXI4SyncIn(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
   }
 
-  def crossAXI4Out(arg: CoreplexClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+  def crossAXI4Out(arg: SubsystemClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
     case x: SynchronousCrossing  => crossAXI4SyncOut(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
@@ -127,30 +127,30 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   // Interrupts
 
   def crossIntSyncInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
-    lazy val intssource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
-    lazy val intssink = LazyModule(new IntSyncCrossingSink(0))
-    val source = if (out) this { intssource } else intssource
-    val sink = if (out) intssink else this { intssink }
+    lazy val int_sync_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    lazy val int_sync_xing_sink = LazyModule(new IntSyncCrossingSink(0))
+    val source = if (out) this { int_sync_xing_source } else int_sync_xing_source
+    val sink = if (out) int_sync_xing_sink else this { int_sync_xing_sink }
     sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
   def crossIntAsyncInOut(out: Boolean)(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
-    lazy val intasource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
-    lazy val intasink = LazyModule(new IntSyncCrossingSink(sync))
-    val source = if (out) this { intasource } else intasource
-    val sink = if (out) intasink else this { intasink }
+    lazy val int_async_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    lazy val int_async_xing_sink = LazyModule(new IntSyncCrossingSink(sync))
+    val source = if (out) this { int_async_xing_source } else int_async_xing_source
+    val sink = if (out) int_async_xing_sink else this { int_async_xing_sink }
     sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
   }
 
   def crossIntRationalInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
-    lazy val intrsource = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
-    lazy val intrsink = LazyModule(new IntSyncCrossingSink(1))
-    val source = if (out) this { intrsource } else intrsource
-    val sink = if (out) intrsink else this { intrsink }
+    lazy val int_rational_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
+    lazy val int_rational_xing_sink = LazyModule(new IntSyncCrossingSink(1))
+    val source = if (out) this { int_rational_xing_source } else int_rational_xing_source
+    val sink = if (out) int_rational_xing_sink else this { int_rational_xing_sink }
     sink.node :*=* source.node
     checks = CrossingCheck(out, source.node, sink.node) :: checks
     NodeHandle(source.node, sink.node)
@@ -163,26 +163,26 @@ trait HasCrossingMethods extends LazyModule with LazyScope
   def crossIntRationalIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(false)(alreadyRegistered)
   def crossIntRationalOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(true )(alreadyRegistered)
 
-  def crossIntIn(arg: CoreplexClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
+  def crossIntIn(arg: SubsystemClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
     case x: SynchronousCrossing  => crossIntSyncIn(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncIn(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalIn(alreadyRegistered)
   }
 
-  def crossIntOut(arg: CoreplexClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
+  def crossIntOut(arg: SubsystemClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
     case x: SynchronousCrossing  => crossIntSyncOut(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncOut(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalOut(alreadyRegistered)
   }
 
-  def crossIntIn (arg: CoreplexClockCrossing)(implicit p: Parameters): IntNode = crossIntIn (arg, false)
-  def crossIntOut(arg: CoreplexClockCrossing)(implicit p: Parameters): IntNode = crossIntOut(arg, false)
+  def crossIntIn (arg: SubsystemClockCrossing)(implicit p: Parameters): IntNode = crossIntIn (arg, false)
+  def crossIntOut(arg: SubsystemClockCrossing)(implicit p: Parameters): IntNode = crossIntOut(arg, false)
 }
 
 trait HasCrossing extends HasCrossingMethods
 {
   this: LazyModule =>
-  val crossing: CoreplexClockCrossing
+  val crossing: SubsystemClockCrossing
 
   def crossTLIn   (implicit p: Parameters): TLNode  = crossTLIn   (crossing)
   def crossTLOut  (implicit p: Parameters): TLNode  = crossTLOut  (crossing)
@@ -195,4 +195,4 @@ trait HasCrossing extends HasCrossingMethods
   def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = crossIntOut(crossing, alreadyRegistered)
 }
 
-class CrossingWrapper(val crossing: CoreplexClockCrossing)(implicit p: Parameters) extends SimpleLazyModule with HasCrossing
+class CrossingWrapper(val crossing: SubsystemClockCrossing)(implicit p: Parameters) extends SimpleLazyModule with HasCrossing

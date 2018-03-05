@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.{HasInterruptBus, HasPeripheryBus}
+import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -268,9 +268,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 }
 
-/** Trait that will connect a PLIC to a coreplex */
-trait HasPeripheryPLIC extends HasInterruptBus with HasPeripheryBus {
+/** Trait that will connect a PLIC to a subsystem */
+trait HasPeripheryPLIC { this: BaseSubsystem =>
   val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes))
-  plic.node := pbus.toVariableWidthSlaves
+  pbus.toVariableWidthSlave(Some("plic")) { plic.node }
   plic.intnode := ibus.toPLIC
 }

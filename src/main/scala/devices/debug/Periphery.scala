@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.debug
 import Chisel._
 import chisel3.core.{IntParam, Input, Output}
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasPeripheryBus
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.jtag._
@@ -26,12 +26,9 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
   * or exports the Debug Module Interface (DMI), based on a global parameter.
   */
-trait HasPeripheryDebug extends HasPeripheryBus {
-  val module: HasPeripheryDebugModuleImp
-
+trait HasPeripheryDebug { this: BaseSubsystem =>
   val debug = LazyModule(new TLDebugModule(pbus.beatBytes))
-
-  debug.node := pbus.toVariableWidthSlaves
+  pbus.toVariableWidthSlave(Some("debug")){ debug.node }
 }
 
 trait HasPeripheryDebugBundle {

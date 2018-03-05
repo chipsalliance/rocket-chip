@@ -93,11 +93,17 @@ case class TLRegisterNode(
             ("bitOffset"   -> currentBitOffset) ~
             ("bitWidth"    -> f.width) ~
             ("name" -> f.desc.map(_.name)) ~
-            ("description" -> f.desc.map{ d=> if (d.desc == "") None else Some(d.desc)}) ~
+            ("description" -> f.desc.map{d => if (d.desc == "") None else Some(d.desc)}) ~
             ("resetValue"  -> f.desc.map{_.reset}) ~
             ("group"       -> f.desc.map{_.group}) ~
             ("groupDesc"   -> f.desc.map{_.groupDesc}) ~
-            ("accessType"  -> f.desc.map {d => d.access.toString})
+            ("accessType"  -> f.desc.map {d => d.access.toString}) ~
+            ("enumerations" -> f.desc.map {d =>
+              Option(d.enumerations.map { case (key, (name, desc)) =>
+                (("value" -> key) ~
+                  ("name" -> name) ~
+                  ("description" -> desc))
+              }).filter(_.nonEmpty)})
         ))
         currentBitOffset = currentBitOffset + f.width
         tmp
@@ -137,7 +143,7 @@ class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
   implicit val p = arg.p
 }
 
-class TLRegBundle[P](val params: P, arg: TLRegBundleArg)(implicit p: Parameters) extends TLRegBundleBase(arg)
+class TLRegBundle[P](val params: P, val arg: TLRegBundleArg) extends TLRegBundleBase(arg)
 
 class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap

@@ -6,7 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -173,7 +173,7 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   val module: HellaCacheModule
 }
 
-class HellaCacheBundle(outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
+class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
   val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()

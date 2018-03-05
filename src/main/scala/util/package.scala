@@ -43,6 +43,28 @@ package object util {
     def readAndHold(addr: UInt, enable: Bool): T = x.read(addr, enable) holdUnless RegNext(enable)
   }
 
+  implicit class StringToAugmentedString(val x: String) extends AnyVal {
+    /** converts from camel case to to underscores, also removing all spaces */
+    def underscore: String = x.tail.foldLeft(x.headOption.map(_.toLower + "") getOrElse "") {
+      case (acc, c) if c.isUpper => acc + "_" + c.toLower
+      case (acc, c) if c == ' ' => acc
+      case (acc, c) => acc + c
+    }
+
+    /** converts spaces or underscores to hyphens, also lowering case */
+    def kebab: String = x.toLowerCase map {
+      case ' ' => '-'
+      case '_' => '-'
+      case c => c
+    }
+
+    def named(name: Option[String]): String = {
+      x + name.map("_named_" + _ ).getOrElse("_with_no_name")
+    }
+
+    def named(name: String): String = named(Some(name))
+  }
+
   implicit def uintToBitPat(x: UInt): BitPat = BitPat(x)
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 
