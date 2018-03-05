@@ -15,16 +15,20 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util.property._
 
 trait BusErrors extends Bundle {
-  def toErrorList: List[Option[Valid[UInt]]]
+  def toErrorList: List[Option[(Valid[UInt], String, String)]]
 }
 
 class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors {
   val icache = new ICacheErrors
   val dcache = new DCacheErrors
 
-  def toErrorList = 
-    List(None, None, icache.correctable, icache.uncorrectable,
-         None, Some(dcache.bus), dcache.correctable, dcache.uncorrectable)
+  def toErrorList = List(None, None,
+      icache.correctable.map((_, "I_CORRECTABLE", "Instruction cache or ITIM correctable ECC error ")),
+      icache.uncorrectable.map((_, "I_UNCORRECTABLE", "ITIM uncorrectable ECC error")),
+      None,
+      Some((dcache.bus, "DBUS", "Load or store TileLink bus error")),
+      dcache.correctable.map((_, "D_CORRECTABLE", "Data cache correctable ECC error")),
+      dcache.uncorrectable.map((_, "D_UNCORRECTABLE", "Data cache uncorrectable ECC error")))
 }
 
 case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
@@ -44,14 +48,33 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
       val interrupt = Bool().asOutput
     })
 
-    val sources = io.errors.toErrorList
-    val cause = Reg(init = UInt(0, log2Ceil(sources.lastIndexWhere(_.nonEmpty) + 1)))
-    val value = Reg(UInt(width = sources.flatten.map(_.bits.getWidth).max))
+    val sources_and_desc = io.errors.toErrorList
+    val sources = sources_and_desc.map(_.map(_._1))
+    val sources_enums = sources_and_desc.zipWithIndex.flatMap{case (s, i) => s.map {e => (BigInt(i) -> (e._2, e._3))}}
+
+    val causeWidth = log2Ceil(sources.lastIndexWhere(_.nonEmpty) + 1)
+    val (cause, cause_desc) = DescribedReg(UInt(causeWidth.W),
+      "cause", "Cause of error event", reset=Some(0.U(causeWidth.W)), enumerations=sources_enums.toMap)
+
+    val (value, value_desc) = DescribedReg(UInt(width = sources.flatten.map(_.bits.getWidth).max),
+      "value", "Physical address of error event", reset=None)
     require(value.getWidth <= regWidth)
+
     val enable = Reg(init = Vec(sources.map(_.nonEmpty.B)))
+    val enable_desc =  sources.zipWithIndex.map { case (s, i) =>
+      RegFieldDesc(s"enable_$i", "", reset=Some(if (s.nonEmpty) 1 else 0))}
+
     val global_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
+    val global_interrupt_desc = sources.zipWithIndex.map { case (s, i) =>
+      RegFieldDesc(s"plic_interrupt_$i", "", reset=Some(0))}
+
     val accrued = Reg(init = Vec.fill(sources.size)(false.B))
+    val accrued_desc = sources.zipWithIndex.map { case (s, i) =>
+      RegFieldDesc(s"accrued_$i", "", reset=Some(0))}
+
     val local_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
+    val local_interrupt_desc = sources.zipWithIndex.map { case (s, i) =>
+        RegFieldDesc(s"local_interrupt_$i", "", reset=Some(0))}
 
     for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
       when (s.get.valid) {
@@ -68,17 +91,18 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     io.interrupt := (accrued.asUInt & local_interrupt.asUInt).orR
     int_out(0) := (accrued.asUInt & global_interrupt.asUInt).orR
 
-    def reg(r: UInt, name: String, reset: Option[BigInt]) = RegFieldGroup(name, None, RegField.bytes(r, (r.getWidth + 7)/8, Some(RegFieldDesc(name, "", reset=reset))))
-    def reg(v: Vec[Bool], name: String, reset: Option[BigInt]) = RegFieldGroup(name, None, v.map(r => RegField(1, r, RegFieldDesc(name, "", reset=reset))))
-    def numberRegs(x: Seq[Seq[RegField]]) = x.zipWithIndex.map { case (f, i) => (i * regWidth / 8) -> f }
+    def reg(r: UInt, gn: String, d: RegFieldDesc) = RegFieldGroup(gn, None, RegField.bytes(r, (r.getWidth + 7)/8, Some(d)))
+    def reg(v: Vec[Bool], gn: String, gd: String, d: Seq[RegFieldDesc]) =
+      RegFieldGroup(gn, Some(gd), (v zip d).map {case (r, rd) => RegField(1, r, rd)})
+    def numberRegs(x: Seq[Seq[RegField]]) = x.zipWithIndex.map {case (f, i) => (i * regWidth / 8) -> f }
 
     node.regmap(numberRegs(Seq(
-      reg(cause, "cause", Some(BigInt(0))),
-      reg(value, "value", None),
-      reg(enable, "enable", Some(sources.zipWithIndex.map { case (s, i) => BigInt(s.size) << i }.sum)),
-      reg(global_interrupt, "plic_interrupt", Some(BigInt(0))),
-      reg(accrued, "accrued", Some(BigInt(0))),
-      reg(local_interrupt, "local_interrupt", Some(BigInt(0))))):_*)
+      reg(cause, "cause", cause_desc),
+      reg(value, "value", value_desc),
+      reg(enable, "enable", "Event enable mask", enable_desc),
+      reg(global_interrupt, "plic_interrupt", "Platform-level interrupt enable mask", global_interrupt_desc),
+      reg(accrued, "accrued", "Accrued event mask" ,accrued_desc),
+      reg(local_interrupt,  "local_interrupt", "Hart-local interrupt-enable mask", local_interrupt_desc))):_*)
 
     // hardwire mask bits for unsupported sources to 0
     for ((s, i) <- sources.zipWithIndex; if s.isEmpty) {
