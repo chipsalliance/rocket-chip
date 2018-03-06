@@ -1,11 +1,9 @@
 // See LICENSE for license details.
-package freechips.rocketchip.util
+package freechips.rocketchip.regmapper
 
 import Chisel._
 import chisel3.experimental._
 import chisel3.{Input, Output}
-
-import freechips.rocketchip.regmapper.{RegFieldDesc}
 
 object DescribedReg {
   import freechips.rocketchip.regmapper.RegFieldAccessType._
