@@ -63,7 +63,7 @@ module SimJTAG #(
       if (reset || r_reset) begin
          __exit = 0;
          tickCounterReg <= TICK_DELAY;
-         init_done_sticky <= 1/b0;
+         init_done_sticky <= 1'b0;
       end else begin
          init_done_sticky <= init_done | init_done_sticky;
          if (enable && init_done_sticky) begin
