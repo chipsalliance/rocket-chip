@@ -169,7 +169,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     def priorityRegDesc(i: Int) = if (i > 0) {
-      RegFieldDesc(s"priority_$i", s"Acting priority of interrupt source $i", reset=if (nPriorities > 0) None else Some(1))
+      RegFieldDesc(s"priority_$i", s"Acting priority of interrupt source $i",
+        reset=if (nPriorities > 0) None else Some(1), access=RegFieldAccessType.RWSPECIAL)
     } else {
       RegFieldDesc("reserved", "", reset=Some(0), access=RegFieldAccessType.R)
     }
@@ -180,7 +181,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     def priorityRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, priorityRegDesc(i)) else RegField.r(32, x, priorityRegDesc(i))
-    val priorityRegFields = Seq(PLICConsts.priorityBase -> RegFieldGroup("priority", Some("Acting priorities of each interrupt source. 32 bits for each interrupt source."),
+    val priorityRegFields = Seq(PLICConsts.priorityBase -> RegFieldGroup("priority",
+      Some(s"Acting priorities of each interrupt source. Maximum legal value is ${nPriorities}. 32 bits for each interrupt source."),
       priority.zipWithIndex.map{case (p, i) => priorityRegField(p, i)}))
     val pendingRegFields = Seq(PLICConsts.pendingBase  -> RegFieldGroup("pending", Some("Pending Bit Array. 1 Bit for each interrupt source."),
       pending.zipWithIndex.map{case (b, i) => RegField.r(1, b, pendingRegDesc(i))}))
@@ -226,7 +228,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
        g.complete := c
     }
 
-    def thresholdRegDesc(i: Int) = RegFieldDesc(s"threshold_$i", s"Interrupt & claim threshold for target $i", reset=if (nPriorities > 0) None else Some(1))
+    def thresholdRegDesc(i: Int) = RegFieldDesc(s"threshold_$i", s"Interrupt & claim threshold for target $i. Maximum value is ${nPriorities}.",
+      reset=if (nPriorities > 0) None else Some(1), access=RegFieldAccessType.RWSPECIAL)
     def thresholdRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, thresholdRegDesc(i)) else RegField.r(32, x, thresholdRegDesc(i))
 
     val hartRegFields = Seq.tabulate(nHarts) { i =>
