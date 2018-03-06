@@ -4,6 +4,7 @@ package freechips.rocketchip.regmapper
 import Chisel._
 import chisel3.experimental._
 import chisel3.{Input, Output}
+import freechips.rocketchip.util.{AsyncResetRegVec, SimpleRegIO}
 
 object DescribedReg {
   import freechips.rocketchip.regmapper.RegFieldAccessType._
