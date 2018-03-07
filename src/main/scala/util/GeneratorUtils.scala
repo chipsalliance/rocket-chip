@@ -10,8 +10,7 @@ import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
-import net.jcazevedo.moultingyaml._
-import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.annotations.JsonProtocol
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
@@ -99,9 +98,9 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   }
 
   def generateAnno {
-    val annotationFile = new File(td, s"$longName.anno")
+    val annotationFile = new File(td, s"$longName.anno.json")
     val af = new FileWriter(annotationFile)
-    af.write(circuit.annotations.toArray.toYaml.prettyPrint)
+    af.write(JsonProtocol.serialize(circuit.annotations.map(_.toFirrtl)))
     af.close()
   }
 
