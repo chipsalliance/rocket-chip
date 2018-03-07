@@ -46,7 +46,6 @@ trait HasPeripheryDebugBundle {
       val dtm = Module(new SimDTM).connect(c, r, d, out)
     }
     debug.systemjtag.foreach { sj =>
-      //val jtag = Module(new JTAGVPI(tckHalfPeriod = tckHalfPeriod, cmdDelay = cmdDelay)).connect(sj.jtag, sj.reset, r, out)
       val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
       sj.reset := r
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
@@ -140,25 +139,3 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
   }
 }
 
-class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Parameters)
-    extends BlackBox ( Map ("TCK_HALF_PERIOD" -> IntParam(tckHalfPeriod),
-      "CMD_DELAY" -> IntParam(cmdDelay))) {
-  val io = new Bundle {
-    val jtag = new JTAGIO(hasTRSTn = false)
-    val enable = Bool(INPUT)
-    val init_done = Bool(INPUT)
-  }
-
-  def connect(dutio: JTAGIO, tbreset: Bool, tbsuccess: Bool) = {
-    dutio <> io.jtag
-
-    dutio.TRSTn.foreach{ _:= false.B}
-
-    io.enable    := ~tbreset
-    io.init_done := ~tbreset
-
-    // Success is determined by the gdbserver
-    // which is controlling this simulation.
-    tbsuccess := Bool(false)
-  }
-}
