@@ -52,8 +52,6 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
   val exception = Bool(INPUT)
-
-  override def cloneType = new RoCCCoreIO()(p).asInstanceOf[this.type]
 }
 
 /** Base classes for Diplomatic TL2 RoCC units **/
@@ -64,7 +62,7 @@ abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
   val tlNode: TLNode = TLIdentityNode()
 }
 
-class RoCCIO(outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
+class RoCCIO(val outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
   // Should be handled differently, eventually
   val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
@@ -264,7 +262,7 @@ class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Para
   with HasL1CacheParameters {
   val cacheParams = tileParams.icache.get
 
-  private val blockOffset = blockOffBits 
+  private val blockOffset = blockOffBits
   private val beatOffset = log2Up(cacheDataBits/8)
 
   val needle = Reg(UInt(width = 8))
