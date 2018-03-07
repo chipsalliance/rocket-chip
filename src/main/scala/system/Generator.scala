@@ -2,13 +2,13 @@
 
 package freechips.rocketchip.system
 
-import freechips.rocketchip.coreplex.RocketTilesKey
+import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.util.GeneratorApp
 
 import scala.collection.mutable.LinkedHashSet
 
-/** A Generator for platforms containing Rocket Coreplexes */
+/** A Generator for platforms containing Rocket Subsystemes */
 object Generator extends GeneratorApp {
 
   val rv64RegrTestNames = LinkedHashSet(
@@ -50,22 +50,21 @@ object Generator extends GeneratorApp {
   override def addTestSuites {
     import DefaultTestSuites._
     val xlen = params(XLen)
-    // TODO: for now only generate tests for the first core in the first coreplex
+    // TODO: for now only generate tests for the first core in the first subsystem
     val tileParams = params(RocketTilesKey).head
     val coreParams = tileParams.core
     val vm = coreParams.useVM
     val env = if (vm) List("p","v") else List("p")
     coreParams.fpu foreach { case cfg =>
       if (xlen == 32) {
-        TestGeneration.addSuites(env.map(rv32ufNoDiv))
+        TestGeneration.addSuites(env.map(rv32uf))
+        if (cfg.fLen >= 64)
+          TestGeneration.addSuites(env.map(rv32ud))
       } else {
         TestGeneration.addSuite(rv32udBenchmarks)
-        TestGeneration.addSuites(env.map(rv64ufNoDiv))
-        TestGeneration.addSuites(env.map(rv64udNoDiv))
-        if (cfg.divSqrt) {
-          TestGeneration.addSuites(env.map(rv64uf))
+        TestGeneration.addSuites(env.map(rv64uf))
+        if (cfg.fLen >= 64)
           TestGeneration.addSuites(env.map(rv64ud))
-        }
       }
     }
     if (coreParams.useAtomics) {

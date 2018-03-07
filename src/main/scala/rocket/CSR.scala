@@ -333,8 +333,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val isaMaskString =
     (if (usingMulDiv) "M" else "") +
     (if (usingAtomics) "A" else "") +
-    (if (usingFPU) "F" else "") +
-    (if (usingFPU && xLen > 32) "D" else "") +
+    (if (fLen >= 32) "F" else "") +
+    (if (fLen >= 64) "D" else "") +
     (if (usingCompressed) "C" else "") +
     (if (usingRoCC) "X" else "")
   val isaString = "I" + isaMaskString +
@@ -837,6 +837,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       when (decoded_addr(lo)) { ctr := wdata(ctr.getWidth-1, 0) }
     }
   }
-  def formEPC(x: UInt) = ~(~x | Cat(!reg_misa('c'-'a'), UInt(1)))
+  def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
 }

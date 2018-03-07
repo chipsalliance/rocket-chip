@@ -4,22 +4,22 @@ package freechips.rocketchip.system
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util.DontTouch
 
-/** Example Top with periphery devices and ports, and a Rocket coreplex */
-class ExampleRocketSystem(implicit p: Parameters) extends RocketCoreplex
+/** Example Top with periphery devices and ports, and a Rocket subsystem */
+class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     with HasAsyncExtInterrupts
     with HasMasterAXI4MemPort
     with HasMasterAXI4MMIOPort
     with HasSlaveAXI4Port
     with HasPeripheryBootROM
     with HasSystemErrorSlave {
-  override lazy val module = new ExampleRocketSystemModule(this)
+  override lazy val module = new ExampleRocketSystemModuleImp(this)
 }
 
-class ExampleRocketSystemModule[+L <: ExampleRocketSystem](_outer: L) extends RocketCoreplexModule(_outer)
+class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends RocketSubsystemModuleImp(_outer)
     with HasRTCModuleImp
     with HasExtInterruptsModuleImp
     with HasMasterAXI4MemPortModuleImp

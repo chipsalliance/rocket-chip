@@ -48,6 +48,8 @@ module SimJTAG #(
    bit          __jtag_TDI;
    bit          __jtag_TRSTn;
    int          __exit;
+
+   reg          init_done_sticky;
    
    assign #0.1 jtag_TCK   = __jtag_TCK;
    assign #0.1 jtag_TMS   = __jtag_TMS;
@@ -61,8 +63,10 @@ module SimJTAG #(
       if (reset || r_reset) begin
          __exit = 0;
          tickCounterReg <= TICK_DELAY;
+         init_done_sticky <= 1'b0;
       end else begin
-         if (enable && init_done) begin
+         init_done_sticky <= init_done | init_done_sticky;
+         if (enable && init_done_sticky) begin
             tickCounterReg <= tickCounterNxt;
             if (tickCounterReg == 0) begin
                __exit = jtag_tick(
@@ -72,7 +76,7 @@ module SimJTAG #(
                                   __jtag_TRSTn,
                                   __jtag_TDO);
             end
-         end // if (enable && init_done)
+         end // if (enable && init_done_sticky)
       end // else: !if(reset || r_reset)
    end // always @ (posedge clock)
 

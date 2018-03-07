@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.debug
 import Chisel._
 import chisel3.core.{IntParam, Input, Output}
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasPeripheryBus
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.jtag._
@@ -26,12 +26,9 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
   * or exports the Debug Module Interface (DMI), based on a global parameter.
   */
-trait HasPeripheryDebug extends HasPeripheryBus {
-  val module: HasPeripheryDebugModuleImp
-
-  val debug = LazyModule(new TLDebugModule())
-
-  debug.node := pbus.toVariableWidthSlaves
+trait HasPeripheryDebug { this: BaseSubsystem =>
+  val debug = LazyModule(new TLDebugModule(pbus.beatBytes))
+  pbus.toVariableWidthSlave(Some("debug")){ debug.node }
 }
 
 trait HasPeripheryDebugBundle {
@@ -50,7 +47,8 @@ trait HasPeripheryDebugBundle {
     }
     debug.systemjtag.foreach { sj =>
       //val jtag = Module(new JTAGVPI(tckHalfPeriod = tckHalfPeriod, cmdDelay = cmdDelay)).connect(sj.jtag, sj.reset, r, out)
-      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, sj.reset, c, r, out)
+      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
+      sj.reset := r
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
     }
     debug.psd.foreach { _ <> psd }
@@ -123,15 +121,14 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     val exit = UInt(OUTPUT, 32)
   }
 
-  def connect(dutio: JTAGIO, jtag_reset: Bool, tbclock: Clock, tbreset: Bool, tbsuccess: Bool) = {
+  def connect(dutio: JTAGIO, tbclock: Clock, tbreset: Bool, init_done: Bool, tbsuccess: Bool) = {
     dutio <> io.jtag
-    jtag_reset := tbreset
 
     io.clock := tbclock
     io.reset := tbreset
 
     io.enable    := PlusArg("jtag_rbb_enable", 0, "Enable SimJTAG for JTAG Connections. Simulation will pause until connection is made.")
-    io.init_done := ~tbreset
+    io.init_done := init_done
 
     // Success is determined by the gdbserver
     // which is controlling this simulation.
@@ -152,11 +149,10 @@ class JTAGVPI(tckHalfPeriod: Int = 2, cmdDelay: Int = 2)(implicit val p: Paramet
     val init_done = Bool(INPUT)
   }
 
-  def connect(dutio: JTAGIO, jtag_reset: Bool, tbreset: Bool, tbsuccess: Bool) = {
+  def connect(dutio: JTAGIO, tbreset: Bool, tbsuccess: Bool) = {
     dutio <> io.jtag
 
     dutio.TRSTn.foreach{ _:= false.B}
-    jtag_reset := tbreset
 
     io.enable    := ~tbreset
     io.init_done := ~tbreset

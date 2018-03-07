@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 
@@ -15,10 +15,9 @@ import scala.math.max
 
 case object TileId extends Field[Int]
 
-class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
+class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasMasterAXI4MemPort
-    with HasPeripheryTestRAMSlave
-    with HasInterruptBus {
+    with HasPeripheryTestRAMSlave {
   val tileParams = p(GroundTestTilesKey)
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
     c.build(i, p.alterPartial {
@@ -28,19 +27,16 @@ class GroundTestCoreplex(implicit p: Parameters) extends BaseCoreplex
   )}
 
   tiles.flatMap(_.dcacheOpt).foreach { dc =>
-    sbus.fromTile(None) { implicit p => TileMasterPortParams(addBuffers = 1).adapt(this)(dc.node) }
+    sbus.fromTile(None, buffers = 1){ dc.node }
   }
 
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) := ibus.toPLIC
 
-  val pbusRAM = LazyModule(new TLRAM(AddressSet(testRamAddr, 0xffff), true, false, pbus.beatBytes))
-  pbusRAM.node := pbus.toVariableWidthSlaves
-
-  override lazy val module = new GroundTestCoreplexModule(this)
+  override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
-class GroundTestCoreplexModule[+L <: GroundTestCoreplex](_outer: L) extends BaseCoreplexModule(_outer)
+class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
     with HasMasterAXI4MemPortModuleImp {
   val success = IO(Bool(OUTPUT))
 
@@ -51,13 +47,13 @@ class GroundTestCoreplexModule[+L <: GroundTestCoreplex](_outer: L) extends Base
 }
 
 /** Adds a SRAM to the system for testing purposes. */
-trait HasPeripheryTestRAMSlave extends HasPeripheryBus {
+trait HasPeripheryTestRAMSlave { this: BaseSubsystem =>
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
-  testram.node := pbus.toVariableWidthSlaves
+  pbus.toVariableWidthSlave(Some("TestRAM")) { testram.node }
 }
 
 /** Adds a fuzzing master to the system for testing purposes. */
-trait HasPeripheryTestFuzzMaster extends HasPeripheryBus {
+trait HasPeripheryTestFuzzMaster { this: BaseSubsystem =>
   val fuzzer = LazyModule(new TLFuzzer(5000))
-  pbus.bufferFromMasters := fuzzer.node
+  pbus.fromOtherMaster(Some("Fuzzer")) { fuzzer.node }
 }

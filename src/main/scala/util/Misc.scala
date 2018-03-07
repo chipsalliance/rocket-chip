@@ -89,7 +89,7 @@ object ValidMux {
     apply(v1 +: v2.toSeq)
   }
   def apply[T <: Data](valids: Seq[ValidIO[T]]): ValidIO[T] = {
-    val out = Wire(Valid(valids.head.bits))
+    val out = Wire(Valid(valids.head.bits.cloneType))
     out.valid := valids.map(_.valid).reduce(_ || _)
     out.bits := MuxCase(valids.head.bits,
       valids.map(v => (v.valid -> v.bits)))
