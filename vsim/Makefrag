@@ -57,10 +57,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_INVALID_ASSIGN \
 	+libext+.v \
 
-VCS_OPTS += +vpi
-VCS_OPTS += -CC "-DVCS_VPI"
-
-
 #--------------------------------------------------------------------
 # Build the simulator
 #--------------------------------------------------------------------
