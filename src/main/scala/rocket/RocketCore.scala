@@ -433,8 +433,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val (mem_xcpt, mem_cause) = checkExceptions(List(
     (mem_reg_xcpt_interrupt || mem_reg_xcpt, mem_reg_cause),
-    (mem_reg_valid && mem_new_xcpt,          mem_new_cause),
-    (mem_reg_valid && mem_npc_misaligned, UInt(Causes.misaligned_fetch))))
+    (mem_reg_valid && mem_npc_misaligned, UInt(Causes.misaligned_fetch)),
+    (mem_reg_valid && mem_new_xcpt,          mem_new_cause)))
 
   val memCoverCauses = (exCoverCauses ++ List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
