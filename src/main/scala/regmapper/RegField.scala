@@ -7,7 +7,6 @@ import chisel3.util.{ReadyValidIO}
 
 import freechips.rocketchip.util.{SimpleRegIO}
 
-
 // This information is not used internally by the regmap(...) function.
 // However, the author of a RegField may be the best person to provide this
 // information which is likely to be needed by downstream SW and Documentation
@@ -15,9 +14,22 @@ import freechips.rocketchip.util.{SimpleRegIO}
 
 object RegFieldAccessType extends scala.Enumeration {
   type RegFieldAccessType = Value
-  val R, W, RW, RSPECIAL, WSPECIAL, RWSPECIAL, OTHER = Value
+  val R, W, RW = Value
 }
 import RegFieldAccessType._
+
+object RegFieldWrType extends scala.Enumeration {
+  type RegFieldWrType = Value
+  val ONE_TO_CLEAR, ONE_TO_SET, ONE_TO_TOGGLE, ZERO_TO_CLEAR,
+    ZERO_TO_SET, ZERO_TO_TOGGLE, CLEAR, SET, MODIFY = Value
+}
+import RegFieldWrType._
+
+object RegFieldRdAction extends scala.Enumeration {
+  type RegFieldRdAction = Value
+  val CLEAR, SET, MODIFY = Value
+}
+import RegFieldRdAction._
 
 case class RegFieldDesc (
   name: String,
@@ -25,16 +37,24 @@ case class RegFieldDesc (
   group: Option[String] = None,
   groupDesc: Option[String] = None,
   access: RegFieldAccessType = RegFieldAccessType.RW,
+  wrType: Option[RegFieldWrType] = None,
+  rdAction: Option[RegFieldRdAction] = None,
+  volatile: Boolean = false,
+  // TODO: testable?
   reset: Option[BigInt] = None,
   enumerations: Map[BigInt, (String, String)] = Map()
 ){
 }
 
-// Our descriptions are in terms of RegFields only, which is somewhat unusual for
-// developers who are used to things being defined as bitfields within registers.
-// The "Group" allows a string & (optional) description to be added which describes the conceptual "Group"
-// the RegField belongs to. This can be used by downstream flows as they see fit to
-// present the information.
+object RegFieldDescReserved {
+  def apply(): RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
+}
+
+// Our descriptions are in terms of RegFields only, which is somewhat
+// unusual for developers who are used to things being defined as bitfields
+// within registers. The "Group" allows a string & (optional) description
+// to be added which describes the conceptual "Group" the RegField belongs to.
+// This can be used by downstream flows as they see fit to present the information.
 
 object RegFieldGroup {
   def apply (name: String, desc: Option[String], regs: Seq[RegField], descFirstOnly: Boolean = true): Seq[RegField] = {
@@ -125,8 +145,7 @@ object RegField
   // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
 
-  def apply(n: Int)                                                             : RegField = apply(n, (), (),
-    Some(RegFieldDesc("reserved", "", access = RegFieldAccessType.R, reset = Some(0))))
+  def apply(n: Int)                                                             : RegField = apply(n, (), (), Some(RegFieldDescReserved()))
 
   def apply(n: Int, r: RegReadFn, w: RegWriteFn)                                : RegField = apply(n, r,  w,  None)
   def apply(n: Int, r: RegReadFn, w: RegWriteFn, desc: RegFieldDesc)            : RegField = apply(n, r,  w,  Some(desc))
@@ -142,7 +161,7 @@ object RegField
   // Setting takes priority over clearing.
   def w1ToClear(n: Int, reg: UInt, set: UInt, desc: Option[RegFieldDesc] = None): RegField =
     RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }),
-      desc.map{_.copy(access = RegFieldAccessType.RWSPECIAL)})
+      desc.map{_.copy(access = RegFieldAccessType.RW, wrType=Some(RegFieldWrType.ONE_TO_CLEAR), volatile = true)})
 
   // This RegField wraps an explicit register
   // (e.g. Black-Boxed Register) to create a R/W register.
@@ -151,7 +170,7 @@ object RegField
       bb.en := valid
       bb.d := data
       Bool(true)
-    }), desc.map{_.copy(access = RegFieldAccessType.RW)})
+    }), desc)
 
   // Create byte-sized read-write RegFields out of a large UInt register.
   // It is updated when any of the bytes are written. Because the RegFields
