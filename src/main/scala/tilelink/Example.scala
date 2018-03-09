@@ -35,7 +35,7 @@ trait ExampleModule extends HasRegMap
         Some(RegFieldDesc("pending", "Pending: Example of a special (W1ToC) Register. " +
           "Writing a bit here causes it to be reset to 0. " +
           "The bits are set when the corresponding bit in 'state' is high.",
-          reset=Some(0xF)))))
+          reset=Some(0xF), volatile=true))))
   )
 }
 
