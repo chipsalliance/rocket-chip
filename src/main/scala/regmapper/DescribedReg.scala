@@ -8,6 +8,8 @@ import freechips.rocketchip.util.{AsyncResetRegVec, SimpleRegIO}
 
 object DescribedReg {
   import freechips.rocketchip.regmapper.RegFieldAccessType._
+  import freechips.rocketchip.regmapper.RegFieldWrType._
+  import freechips.rocketchip.regmapper.RegFieldRdAction._
 
   def apply[T <: Data](
     gen: => T,
@@ -15,9 +17,12 @@ object DescribedReg {
     desc: String,
     reset: Option[T],
     access: RegFieldAccessType = RW,
+    wrType: Option[RegFieldWrType] = None,
+    rdAction: Option[RegFieldRdAction] = None,
+    volatile: Boolean = false,
     enumerations: Map[BigInt, (String, String)] = Map()): (T, RegFieldDesc) = {
     val rdesc = RegFieldDesc(name, desc, None, None,
-      access, reset.map{_.litValue}, enumerations)
+      access, wrType, rdAction, volatile, reset.map{_.litValue}, enumerations)
     val reg = reset.map{i => RegInit(i)}.getOrElse(Reg(gen))
     reg.suggestName(name + "_reg")
     (reg, rdesc)
@@ -29,9 +34,12 @@ object DescribedReg {
     desc: String,
     reset: Int,
     access: RegFieldAccessType = RW,
+    wrType: Option[RegFieldWrType] = None,
+    rdAction: Option[RegFieldRdAction] = None,
+    volatile: Boolean = false,
     enumerations: Map[BigInt, (String, String)] = Map()): (SimpleRegIO, RegFieldDesc) = {
     val rdesc = RegFieldDesc(name, desc, None, None,
-      access, Some(reset), enumerations)
+      access, wrType, rdAction, volatile, Some(reset), enumerations)
     val reg = Module(new AsyncResetRegVec(w = width, init = reset))
     reg.suggestName(name + "_reg")
     (reg.io, rdesc)
