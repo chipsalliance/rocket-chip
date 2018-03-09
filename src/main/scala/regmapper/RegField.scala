@@ -173,23 +173,38 @@ object RegField
     }), desc)
 
   // Create byte-sized read-write RegFields out of a large UInt register.
-  // It is updated when any of the bytes are written. Because the RegFields
-  // are all byte-sized, this is also suitable when a register is larger
+  // It is updated when any of the (implemented) bytes are written, the non-written
+  // bytes are just copied over from their current value.
+  // Because the RegField are all byte-sized, this is also suitable when a register is larger
   // than the intended bus width of the device (atomic updates are impossible). 
   def bytes(reg: UInt, numBytes: Int, desc: Option[RegFieldDesc]): Seq[RegField] = {
-   val pad = reg | UInt(0, width = 8*numBytes)
+    require(reg.getWidth * 8 >= numBytes, "Can't break a ${reg.getWidth}-bit-wide register into only ${numBytes} bytes.")
+    val numFullBytes = reg.getWidth/8
+    val numPartialBytes  = if ((reg.getWidth % 8) > 0) 1 else 0
+    val numPadBytes = numBytes - numFullBytes - numPartialBytes
+    val pad = reg | UInt(0, width = 8*numBytes)
     val oldBytes = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
     val newBytes = Wire(init = oldBytes)
     val valids = Wire(init = Vec.fill(numBytes) { Bool(false) })
     when (valids.reduce(_ || _)) { reg := newBytes.asUInt }
-    Seq.tabulate(numBytes) { i =>
+
+    def wrFn(i: Int): RegWriteFn = RegWriteFn((valid, data) => {
+      valids(i) := valid
+      when (valid) {newBytes(i) := data}
+      Bool(true)
+    })
+
+    val fullBytes = Seq.tabulate(numFullBytes) { i =>
       val newDesc = desc.map {d => d.copy(name = d.name + s"_$i")}
-      RegField(8, oldBytes(i),
-        RegWriteFn((valid, data) => {
-        valids(i) := valid
-        when (valid) { newBytes(i) := data }
-        Bool(true)
-      }), newDesc)}}
+      RegField(8, oldBytes(i), wrFn(i), newDesc)}
+    val partialBytes = if (numPartialBytes > 0) {
+      val newDesc = desc.map {d => d.copy(name = d.name + s"_$numFullBytes")}
+      Seq(RegField(reg.getWidth % 8, oldBytes(numFullBytes), wrFn(numFullBytes), newDesc),
+        RegField(8 - (reg.getWidth % 8)))
+    } else Nil
+    val padBytes = Seq.fill(numPadBytes){RegField(8)}
+      fullBytes ++ partialBytes ++ padBytes
+  }
 
   def bytes(reg: UInt, desc: Option[RegFieldDesc]): Seq[RegField] = {
     val width = reg.getWidth
