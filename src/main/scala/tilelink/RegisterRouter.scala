@@ -89,15 +89,18 @@ case class TLRegisterNode(
       var currentBitOffset = 0      
       seq.zipWithIndex.map { case (f, i) => {
         val tmp = (f.desc.map{ _.name}.getOrElse(s"unnamedRegField${offset.toHexString}_${currentBitOffset}") -> (
-            ("byteOffset"  -> s"0x${offset.toHexString}") ~
-            ("bitOffset"   -> currentBitOffset) ~
-            ("bitWidth"    -> f.width) ~
-            ("name" -> f.desc.map(_.name)) ~
-            ("description" -> f.desc.map{d => if (d.desc == "") None else Some(d.desc)}) ~
-            ("resetValue"  -> f.desc.map{_.reset}) ~
-            ("group"       -> f.desc.map{_.group}) ~
-            ("groupDesc"   -> f.desc.map{_.groupDesc}) ~
-            ("accessType"  -> f.desc.map {d => d.access.toString}) ~
+            ("byteOffset"   -> s"0x${offset.toHexString}") ~
+            ("bitOffset"    -> currentBitOffset) ~
+            ("bitWidth"     -> f.width) ~
+            ("name"         -> f.desc.map(_.name)) ~
+            ("description"  -> f.desc.map{d => if (d.desc == "") None else Some(d.desc)}) ~
+            ("resetValue"   -> f.desc.map{_.reset}) ~
+            ("group"        -> f.desc.map{_.group}) ~
+            ("groupDesc"    -> f.desc.map{_.groupDesc}) ~
+            ("accessType"   -> f.desc.map {d => d.access.toString}) ~
+            ("writeType"    -> f.desc.map {d => d.wrType.map(_.toString)}) ~
+            ("readAction"   -> f.desc.map {d => d.rdAction.map(_.toString)}) ~
+            ("volatile"     -> f.desc.map {d => if (d.volatile) Some(true) else None}) ~
             ("enumerations" -> f.desc.map {d =>
               Option(d.enumerations.map { case (key, (name, desc)) =>
                 (("value" -> key) ~
