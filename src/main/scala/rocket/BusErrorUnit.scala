@@ -63,22 +63,22 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     val enable = Reg(init = Vec(sources.map(_.nonEmpty.B)))
     val enable_desc =  sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"enable_$i", "", reset=Some(1))
-      else RegFieldDescReserved()}
+      else RegFieldDesc.reserved()}
 
     val global_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
     val global_interrupt_desc = sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"plic_interrupt_$i", "", reset=Some(0))
-      else RegFieldDescReserved()}
+      else RegFieldDesc.reserved()}
 
     val accrued = Reg(init = Vec.fill(sources.size)(false.B))
     val accrued_desc = sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"accrued_$i", "", reset=Some(0), volatile = true)
-      else RegFieldDescReserved()}
+      else RegFieldDesc.reserved()}
 
     val local_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
     val local_interrupt_desc = sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"local_interrupt_$i", "", reset=Some(0))
-      else RegFieldDescReserved()}
+      else RegFieldDesc.reserved()}
 
     for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
       when (s.get.valid) {
