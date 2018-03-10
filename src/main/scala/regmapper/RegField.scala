@@ -46,8 +46,8 @@ case class RegFieldDesc (
 ){
 }
 
-object RegFieldDescReserved {
-  def apply(): RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
+object RegFieldDesc {
+  def reserved() RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
 }
 
 // Our descriptions are in terms of RegFields only, which is somewhat
@@ -145,7 +145,7 @@ object RegField
   // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
 
-  def apply(n: Int)                                                             : RegField = apply(n, (), (), Some(RegFieldDescReserved()))
+  def apply(n: Int)                                                             : RegField = apply(n, (), (), Some(RegFieldDesc.reserved()))
 
   def apply(n: Int, r: RegReadFn, w: RegWriteFn)                                : RegField = apply(n, r,  w,  None)
   def apply(n: Int, r: RegReadFn, w: RegWriteFn, desc: RegFieldDesc)            : RegField = apply(n, r,  w,  Some(desc))
