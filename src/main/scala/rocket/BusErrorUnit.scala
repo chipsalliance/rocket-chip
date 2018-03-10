@@ -54,7 +54,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
 
     val causeWidth = log2Ceil(sources.lastIndexWhere(_.nonEmpty) + 1)
     val (cause, cause_desc) = DescribedReg(UInt(causeWidth.W),
-      "cause", "Cause of error event", reset=Some(0.U(causeWidth.W)), enumerations=sources_enums.toMap)
+      "cause", "Cause of error event", reset=Some(0.U(causeWidth.W)), volatile=true, enumerations=sources_enums.toMap)
 
     val (value, value_desc) = DescribedReg(UInt(width = sources.flatten.map(_.bits.getWidth).max),
       "value", "Physical address of error event", reset=None, volatile=true)
