@@ -173,13 +173,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         reset=if (nPriorities > 0) None else Some(1),
         wrType=Some(RegFieldWrType.MODIFY))
     } else {
-      RegFieldDesc.reserved()
+      RegFieldDesc.reserved
     }
     def pendingRegDesc(i: Int) = if (i > 0) {
       RegFieldDesc(s"pending_$i", s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.",
       volatile = true)
     } else {
-      RegFieldDesc.reserved()
+      RegFieldDesc.reserved
     }
 
     def priorityRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, priorityRegDesc(i)) else RegField.r(32, x, priorityRegDesc(i))
@@ -195,7 +195,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         e.zipWithIndex.map{case (b, j) => if (j > 0) {
           RegField(1, b, RegFieldDesc(s"enable_${i}_${j}", s"Enable interrupt for source $j for target $i.", reset=None))
         } else {
-          RegField(1, b, RegFieldDesc.reserved())
+          RegField(1, b, RegFieldDesc.reserved)
         }})
     }
 
