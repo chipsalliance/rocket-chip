@@ -10,9 +10,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util.{HeterogeneousBag, ElaborationArtefacts}
 import scala.math.{min,max}
 
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.{pretty, render}
-
 case class TLRegisterNode(
     address:     Seq[AddressSet],
     device:      Device,
@@ -85,47 +82,15 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     // Dump out the register map for documentation purposes.
-    val regDescs = mapping.flatMap { case (offset, seq) =>
-      var currentBitOffset = 0      
-      seq.zipWithIndex.map { case (f, i) => {
-        val tmp = (f.desc.map{ _.name}.getOrElse(s"unnamedRegField${offset.toHexString}_${currentBitOffset}") -> (
-            ("byteOffset"   -> s"0x${offset.toHexString}") ~
-            ("bitOffset"    -> currentBitOffset) ~
-            ("bitWidth"     -> f.width) ~
-            ("name"         -> f.desc.map(_.name)) ~
-            ("description"  -> f.desc.map{d => if (d.desc == "") None else Some(d.desc)}) ~
-            ("resetValue"   -> f.desc.map{_.reset}) ~
-            ("group"        -> f.desc.map{_.group}) ~
-            ("groupDesc"    -> f.desc.map{_.groupDesc}) ~
-            ("accessType"   -> f.desc.map {d => d.access.toString}) ~
-            ("writeType"    -> f.desc.map {d => d.wrType.map(_.toString)}) ~
-            ("readAction"   -> f.desc.map {d => d.rdAction.map(_.toString)}) ~
-            ("volatile"     -> f.desc.map {d => if (d.volatile) Some(true) else None}) ~
-            ("enumerations" -> f.desc.map {d =>
-              Option(d.enumerations.map { case (key, (name, desc)) =>
-                (("value" -> key) ~
-                  ("name" -> name) ~
-                  ("description" -> desc))
-              }).filter(_.nonEmpty)})
-        ))
-        currentBitOffset = currentBitOffset + f.width
-        tmp
-      }}
-    }
-
-    //TODO: It would be better to name this other than "Device at ...."
-    val base = s"0x${address.head.base.toInt.toHexString}"
-    val json = ("peripheral" -> (
-      ("displayName" -> s"deviceAt${base}") ~
-      ("baseAddress" -> base) ~
-      ("regfields" -> regDescs)
-    ))
-
+    val base = address.head.base
+    val baseHex = s"0x${base.toInt.toHexString}"
+    val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
+    val json = RegMappingAnnotation.serialize(base, name, mapping:_*)
     var suffix = 0
-    while( ElaborationArtefacts.contains(s"${base}.${suffix}.regmap.json")){
+    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")){
       suffix = suffix + 1
     }
-    ElaborationArtefacts.add(s"${base}.${suffix}.regmap.json", pretty(render(json)))
+    ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
   }
 }
 
