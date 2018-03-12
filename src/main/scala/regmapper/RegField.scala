@@ -5,6 +5,10 @@ package freechips.rocketchip.regmapper
 import Chisel._
 import chisel3.util.{ReadyValidIO}
 
+import org.json4s.JsonDSL._
+import org.json4s.JsonAST.JValue
+import org.json4s.jackson.JsonMethods.{pretty, render}
+
 import freechips.rocketchip.util.{SimpleRegIO}
 
 // This information is not used internally by the regmap(...) function.
@@ -136,8 +140,29 @@ object RegWriteFn
 case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option[RegFieldDesc])
 {
   require (width > 0, s"RegField width must be > 0, not $width")
+
   def pipelined = !read.combinational || !write.combinational
+
   def readOnly = this.copy(write = (), desc = this.desc.map(_.copy(access = RegFieldAccessType.R)))
+
+  def toJson(byteOffset: Int, bitOffset: Int): JValue = {
+    ( ("byteOffset"   -> s"0x${byteOffset.toHexString}") ~
+      ("bitOffset"    -> bitOffset) ~
+      ("bitWidth"     -> width) ~
+      ("name"         -> desc.map(_.name)) ~
+      ("description"  -> desc.map{ d=> if (d.desc == "") None else Some(d.desc)}) ~
+      ("resetValue"   -> desc.map{_.reset}) ~
+      ("group"        -> desc.map{_.group}) ~
+      ("groupDesc"    -> desc.map{_.groupDesc}) ~
+      ("accessType"   -> desc.map {d => d.access.toString}) ~
+      ("writeType"    -> desc.map {d => d.wrType.map(_.toString)}) ~
+      ("readAction"   -> desc.map {d => d.rdAction.map(_.toString)}) ~
+      ("volatile"     -> desc.map {d => if (d.volatile) Some(true) else None}) ~
+      ("enumerations" -> desc.map {d =>
+        Option(d.enumerations.map { case (key, (name, edesc)) =>
+          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+        }).filter(_.nonEmpty)}) )
+  }
 }
 
 object RegField
