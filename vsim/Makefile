@@ -37,6 +37,7 @@ sim_vsrcs = $(base_dir)/vsrc/$(TB).v $(generated_verilog) $(verilog)
 
 sim_csrcs = $(generated_cppfiles)              \
 			$(base_dir)/csrc/remote_bitbang.cc \
+			$(base_dir)/csrc/SimDTM.cc \
 			$(base_dir)/csrc/SimJTAG.cc
 
 headers = $(generated_headers)                 \

@@ -28,6 +28,7 @@ clean:
 cppfiles = $(generated_cppfiles)              \
            $(base_dir)/csrc/emulator.cc       \
            $(base_dir)/csrc/remote_bitbang.cc \
+           $(base_dir)/csrc/SimDTM.cc         \
            $(base_dir)/csrc/SimJTAG.cc
 
 headers  = $(generated_headers)               \
