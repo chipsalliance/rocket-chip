@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasPeripheryBus
+import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -12,7 +12,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import scala.math.{min,max}
 
-object ClintConsts
+object CLINTConsts
 {
   def msipOffset(hart: Int) = hart * msipBytes
   def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes
@@ -25,16 +25,16 @@ object ClintConsts
   def ints = 2
 }
 
-case class ClintParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
+case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 {
-  def address = AddressSet(baseAddress, ClintConsts.size-1)
+  def address = AddressSet(baseAddress, CLINTConsts.size-1)
 }
 
-case object ClintKey extends Field(ClintParams())
+case object CLINTKey extends Field(CLINTParams())
 
-class CoreplexLocalInterrupter(params: ClintParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
+class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
-  import ClintConsts._
+  import CLINTConsts._
 
   // clint0 => at most 4095 devices
   val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
@@ -90,8 +90,8 @@ class CoreplexLocalInterrupter(params: ClintParams, beatBytes: Int)(implicit p: 
   }
 }
 
-/** Trait that will connect a Clint to a coreplex */
-trait HasPeripheryClint extends HasPeripheryBus {
-  val clint = LazyModule(new CoreplexLocalInterrupter(p(ClintKey), pbus.beatBytes))
-  clint.node := pbus.toVariableWidthSlaves
+/** Trait that will connect a CLINT to a subsystem */
+trait HasPeripheryCLINT { this: BaseSubsystem =>
+  val clint = LazyModule(new CLINT(p(CLINTKey), pbus.beatBytes))
+  pbus.toVariableWidthSlave(Some("clint")) { clint.node }
 }

@@ -30,10 +30,6 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_INVALID_ASSIGN \
 	+libext+.v \
 
-VCS_OPTS += +vpi
-VCS_OPTS += -CC "-DVCS_VPI"
-
-
 #--------------------------------------------------------------------
 # Build the simulator
 #--------------------------------------------------------------------
@@ -57,25 +53,25 @@ $(simv_debug) : $(sim_vsrcs) $(sim_csrcs)
 #--------------------------------------------------------------------
 
 seed = $(shell date +%s)
-exec_simv = $(simv) -q +ntb_random_seed_automatic
-exec_simv_debug = $(simv_debug) -q +ntb_random_seed_automatic
+exec_simv = $(simv) +permissive -q +ntb_random_seed_automatic +permissive-off
+exec_simv_debug = $(simv_debug) +permissive -q +ntb_random_seed_automatic +permissive-off
 
 .PRECIOUS: $(output_dir)/%.vpd
 
 $(output_dir)/%.run: $(output_dir)/% $(simv)
-	cd $(sim_dir) && $(exec_simv) +max-cycles=$(timeout_cycles) $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+	cd $(sim_dir) && $(exec_simv) +permissive +max-cycles=$(timeout_cycles) +permissive-off $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.out: $(output_dir)/% $(simv)
-	cd $(sim_dir) && $(exec_simv) +verbose +max-cycles=$(timeout_cycles) $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+	cd $(sim_dir) && $(exec_simv) +permissive +verbose +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.vcd: $(output_dir)/% $(simv_debug)
-	cd $(sim_dir) && $(exec_simv_debug) +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+	cd $(sim_dir) && $(exec_simv_debug) +permissive +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.vpd: $(output_dir)/% $(simv_debug)
-	cd $(sim_dir) && $(exec_simv_debug) +verbose +vcdplusfile=$@ +max-cycles=$(timeout_cycles) $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+	cd $(sim_dir) && $(exec_simv_debug) +permissive +verbose +vcdplusfile=$@ +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
 
 $(output_dir)/%.saif: $(output_dir)/% $(simv_debug)
-	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) $<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +permissive +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) +permissive-off $<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
 
 run: run-asm-tests run-bmark-tests
 run-debug: run-asm-tests-debug run-bmark-tests-debug

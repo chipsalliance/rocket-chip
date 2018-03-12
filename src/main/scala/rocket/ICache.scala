@@ -6,7 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.coreplex.RocketTilesKey
+import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -81,7 +81,7 @@ class ICachePerfEvents extends Bundle {
   val acquire = Bool()
 }
 
-class ICacheBundle(outer: ICache) extends CoreBundle()(outer.p) {
+class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   val hartid = UInt(INPUT, hartIdLen)
   val req = Decoupled(new ICacheReq).flip
   val s1_paddr = UInt(INPUT, paddrBits) // delayed one cycle w.r.t. req

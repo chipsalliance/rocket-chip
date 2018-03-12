@@ -18,6 +18,7 @@ module TestDriver;
   reg [63:0] max_cycles = 0;
   reg [63:0] dump_start = 0;
   reg [63:0] trace_count = 0;
+  reg [1023:0] fsdbfile = 0;
   reg [1023:0] vcdplusfile = 0;
   reg [1023:0] vcdfile = 0;
   int unsigned rand_value;
@@ -50,7 +51,19 @@ module TestDriver;
 `ifdef VCS
       $vcdplusfile(vcdplusfile);
 `else
-      $fdisplay(stderr, "Error: +vcdplusfile is VCS-only; use +vcdfile instead");
+      $fdisplay(stderr, "Error: +vcdplusfile is VCS-only; use +vcdfile instead or recompile with VCS=1");
+      $fatal;
+`endif
+    end
+
+    if ($value$plusargs("fsdbfile=%s", fsdbfile))
+    begin
+`ifdef FSDB
+      $fsdbDumpfile(fsdbfile);
+      $fsdbDumpvars("+all");
+      //$fsdbDumpSVA;
+`else
+      $fdisplay(stderr, "Error: +fsdbfile is FSDB-only; use +vcdfile/+vcdplus instead or recompile with FSDB=1");
       $fatal;
 `endif
     end
@@ -60,7 +73,11 @@ module TestDriver;
       $dumpfile(vcdfile);
       $dumpvars(0, testHarness);
     end
-`ifdef VCS
+
+`ifdef FSDB
+`define VCDPLUSON $fsdbDumpon;
+`define VCDPLUSCLOSE $fsdbDumpoff;
+`elsif VCS
 `define VCDPLUSON $vcdpluson(0); $vcdplusmemon(0);
 `define VCDPLUSCLOSE $vcdplusclose; $dumpoff;
 `else
@@ -72,9 +89,9 @@ module TestDriver;
 `define VCDPLUSON
 `define VCDPLUSCLOSE
 
-    if ($test$plusargs("vcdplusfile=") || $test$plusargs("vcdfile="))
+    if ($test$plusargs("vcdplusfile=") || $test$plusargs("vcdfile=") || $test$plusargs("fsdbfile="))
     begin
-      $fdisplay(stderr, "Error: +vcdfile or +vcdplusfile requested but compile did not have +define+DEBUG enabled");
+      $fdisplay(stderr, "Error: +vcdfile, +vcdplusfile, or +fsdbfile requested but compile did not have +define+DEBUG enabled");
       $fatal;
     end
 

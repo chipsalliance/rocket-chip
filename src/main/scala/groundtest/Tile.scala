@@ -6,7 +6,7 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{DCache, RocketCoreParams}
 import freechips.rocketchip.tile._

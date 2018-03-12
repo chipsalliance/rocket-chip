@@ -7,7 +7,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.core.withReset
 import freechips.rocketchip.config._
-import freechips.rocketchip.coreplex._
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
@@ -62,7 +62,7 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
   val slaveNode = icache.slaveNode
 }
 
-class FrontendBundle(outer: Frontend) extends CoreBundle()(outer.p)
+class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
     with HasExternallyDrivenTileConstants {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()

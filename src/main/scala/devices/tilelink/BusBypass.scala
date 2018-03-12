@@ -4,7 +4,6 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.coreplex.HasPeripheryBus
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -104,7 +103,7 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
     flight := next_flight
 
     when (next_flight === UInt(0)) { bypass := io.bypass }
-    val stall = (bypass != io.bypass) && a_first
+    val stall = (bypass =/= io.bypass) && a_first
 
     out0.a.valid := !stall && in.a.valid &&  bypass
     out1.a.valid := !stall && in.a.valid && !bypass

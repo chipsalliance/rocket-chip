@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package freechips.rocketchip.coreplex
+package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config._
@@ -13,7 +13,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class BaseCoreplexConfig extends Config ((site, here, up) => {
+class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
@@ -23,6 +23,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case SystemBusKey => SystemBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case PeripheryBusKey => PeripheryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case MemoryBusKey => MemoryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
+  case FrontBusKey => FrontBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
@@ -155,8 +156,8 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(master = r.master.copy(cork = Some(true)))
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { coreplex =>
-    val ww = LazyModule(new TLWidthWidget(coreplex.sbusBeatBytes)(coreplex.p))
+  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
+    val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes)(subsystem.p))
     (ww.node, ww.node, () => None)
   })
 })
@@ -268,10 +269,6 @@ class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
 
 class WithJtagDTM extends Config ((site, here, up) => {
   case IncludeJtagDTM => true
-})
-
-class WithNoPeripheryArithAMO extends Config ((site, here, up) => {
-  case PeripheryBusKey => up(PeripheryBusKey, site).copy(arithmetic = false)
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {

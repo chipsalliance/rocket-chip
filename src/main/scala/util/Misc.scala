@@ -4,33 +4,18 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.experimental.{ChiselAnnotation, RawModule}
+import chisel3.experimental.RawModule
 import freechips.rocketchip.config.Parameters
 import scala.math._
 
-class ParameterizedBundle(implicit p: Parameters) extends Bundle {
-  override def cloneType = {
-    try {
-      this.getClass.getConstructors.head.newInstance(p).asInstanceOf[this.type]
-    } catch {
-      case e: java.lang.IllegalArgumentException =>
-        throwException("Unable to use ParamaterizedBundle.cloneType on " +
-                       this.getClass + ", probably because " + this.getClass +
-                       "() takes more than one argument.  Consider overriding " +
-                       "cloneType() on " + this.getClass, e)
-    }
-  }
-}
+class ParameterizedBundle(implicit p: Parameters) extends Bundle
 
 // TODO: replace this with an implicit class when @chisel unprotects dontTouchPorts
-trait DontTouch {
-  self: RawModule =>
+trait DontTouch { self: RawModule =>
 
   def dontTouch(data: Data): Unit = data match {
-    case agg: Aggregate =>
-      agg.getElements.foreach(dontTouch)
-    case elt: Element =>
-      annotate(ChiselAnnotation(elt, classOf[firrtl.Transform], "DONTtouch!"))
+     case agg: Aggregate => agg.getElements.foreach(dontTouch)
+     case elt: Element => chisel3.core.dontTouch(elt)
   }
 
   /** Marks every port as don't touch
@@ -101,7 +86,7 @@ object ValidMux {
     apply(v1 +: v2.toSeq)
   }
   def apply[T <: Data](valids: Seq[ValidIO[T]]): ValidIO[T] = {
-    val out = Wire(Valid(valids.head.bits))
+    val out = Wire(Valid(valids.head.bits.cloneType))
     out.valid := valids.map(_.valid).reduce(_ || _)
     out.bits := MuxCase(valids.head.bits,
       valids.map(v => (v.valid -> v.bits)))

@@ -938,7 +938,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     //------------------------
     // DMI Register Control and Status
 
-    abstractCommandBusy := (ctrlStateReg != CtrlState(Waiting))
+    abstractCommandBusy := (ctrlStateReg =/= CtrlState(Waiting))
 
     ABSTRACTCSWrEnLegal   := (ctrlStateReg === CtrlState(Waiting))
     COMMANDWrEnLegal      := (ctrlStateReg === CtrlState(Waiting))
