@@ -48,6 +48,7 @@ case class RegFieldDesc (
   reset: Option[BigInt] = None,
   enumerations: Map[BigInt, (String, String)] = Map()
 ){
+  def toMap = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap
 }
 
 object RegFieldDesc {
