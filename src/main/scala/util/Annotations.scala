@@ -3,8 +3,26 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.internal.InstanceId
 import chisel3.experimental.{annotate, ChiselAnnotation, RawModule}
 import firrtl.annotations._
+
+case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named) = this.copy(n)
+}
+
+case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) extends ChiselAnnotation {
+  private val paramMap = params.getClass.getDeclaredFields.map(_.getName).zip(params.productIterator.to).toMap
+  def toFirrtl = ParamsAnnotation(target.toNamed, params.getClass.getName, paramMap)
+}
+
+object annotated {
+  def params[T <: Product](component: InstanceId, params: T): T = {
+    val anno = ParamsChiselAnnotation(component, params)
+    annotate(anno)
+    params
+  }
+}
 
 // TODO: replace this with an implicit class when @chisel unprotects dontTouchPorts
 trait DontTouch { self: RawModule =>
