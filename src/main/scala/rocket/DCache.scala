@@ -700,7 +700,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s2_correct) { pstore1_storegen_data := s2_data_word_corrected }
 
   // flushes
-  val resetting = Reg(init=Bool(!usingDataScratchpad))
+  val resetting = RegInit(false.B)
+  if (!usingDataScratchpad)
+    when (RegNext(reset)) { resetting := true }
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
