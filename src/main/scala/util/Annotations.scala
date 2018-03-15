@@ -7,6 +7,11 @@ import chisel3.internal.InstanceId
 import chisel3.experimental.{annotate, ChiselAnnotation, RawModule}
 import firrtl.annotations._
 
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.{pretty, render}
+
+import freechips.rocketchip.diplomacy.AddressMapEntry
+
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
@@ -16,11 +21,19 @@ case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) e
   def toFirrtl = ParamsAnnotation(target.toNamed, params.getClass.getName, paramMap)
 }
 
+case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named) = this.copy(n)
+}
+
 object annotated {
   def params[T <: Product](component: InstanceId, params: T): T = {
-    val anno = ParamsChiselAnnotation(component, params)
-    annotate(anno)
+    annotate(ParamsChiselAnnotation(component, params))
     params
+  }
+
+  def addressMap(component: InstanceId, mapping: Seq[AddressMapEntry]): Seq[AddressMapEntry] = {
+    annotate(new ChiselAnnotation { def toFirrtl = AddressMapAnnotation(component.toNamed, mapping) })
+    mapping
   }
 }
 
