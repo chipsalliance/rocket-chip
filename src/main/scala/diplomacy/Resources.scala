@@ -251,6 +251,15 @@ trait BindingScope
     }
   }
 
+  private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
+    value match {
+      case r: ResourceAddress => List((path(1), r))
+      case b: ResourceMapping => List((path(1), ResourceAddress(b.address, b.permissions)))
+      case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
+      case _ => Nil
+    }
+  }
+
   /** Generate the device tree. */
   def bindingTree: ResourceMap = {
     eval
@@ -263,6 +272,9 @@ trait BindingScope
       expand(tokens, Seq(ResourceMap(mapping, Seq(d.label)))) })
     ResourceMap(SortedMap("/" -> tree))
   }
+
+  /** Collect resource addresses from tree. */
+  def collectResourceAddresses = collect(Nil, bindingTree)
 }
 
 object BindingScope
