@@ -147,7 +147,7 @@ class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p:
         }
 
         when (a.opcode === TLMessages.Get) {
-          printf(log + " G  0x%x - 0%x\n", a_base, a_base | UIntToOH1(a_size, addressBits))
+          printf(log + " G  0x%x - 0x%x\n", a_base, a_base | UIntToOH1(a_size, addressBits))
         }
       }
 
