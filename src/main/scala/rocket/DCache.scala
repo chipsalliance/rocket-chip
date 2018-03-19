@@ -15,16 +15,15 @@ import TLMessages._
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
     with CanHaveErrors {
-  val correctable = (cacheParams.tagECC.canCorrect || cacheParams.dataECC.canCorrect).option(Valid(UInt(width = paddrBits)))
-  val uncorrectable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+  val correctable = (cacheParams.tagCode.canCorrect || cacheParams.dataCode.canCorrect).option(Valid(UInt(width = paddrBits)))
+  val uncorrectable = (cacheParams.tagCode.canDetect || cacheParams.dataCode.canDetect).option(Valid(UInt(width = paddrBits)))
   val bus = Valid(UInt(width = paddrBits))
 }
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
-  val eccBytes = cacheParams.dataECCBytes
   val addr = Bits(width = untagBits)
   val write = Bool()
-  val wdata = UInt(width = cacheParams.dataECC.width(eccBytes*8) * rowBytes/eccBytes)
+  val wdata = UInt(width = encBits * rowBytes / eccBytes)
   val wordMask = UInt(width = rowBytes / wordBytes)
   val eccMask = UInt(width = wordBytes / eccBytes)
   val way_en = Bits(width = nWays)
@@ -37,9 +36,6 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   require(rowBytes % wordBytes == 0)
-  val eccBits = cacheParams.dataECCBytes * 8
-  val encBits = cacheParams.dataECC.width(eccBits)
-  val encWordBits = encBits * (wordBits / eccBits)
   val eccMask = if (eccBits == wordBits) Seq(true.B) else io.req.bits.eccMask.toBools
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
@@ -69,11 +65,8 @@ class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, va
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  // no tag ECC support
-  val tECC = cacheParams.tagECC
-  val dECC = cacheParams.dataECC
-  val eccBytes = cacheParams.dataECCBytes
-  val eccBits = eccBytes * 8
+  val tECC = cacheParams.tagCode
+  val dECC = cacheParams.dataCode
   require(isPow2(eccBytes) && eccBytes <= wordBytes)
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
   val usingRMW = eccBytes > 1 || usingAtomicsInCache

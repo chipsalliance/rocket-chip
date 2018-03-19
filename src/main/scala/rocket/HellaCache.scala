@@ -19,8 +19,8 @@ case class DCacheParams(
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
-    tagECC: Code = new IdentityCode,
-    dataECC: Code = new IdentityCode,
+    tagECC: Option[String] = None,
+    dataECC: Option[String] = None,
     dataECCBytes: Int = 1,
     nMSHRs: Int = 1,
     nSDQ: Int = 17,
@@ -30,6 +30,9 @@ case class DCacheParams(
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
     scratch: Option[BigInt] = None) extends L1CacheParams {
+
+  def tagCode: Code = Code.fromString(tagECC)
+  def dataCode: Code = Code.fromString(dataECC)
 
   def dataScratchpadBytes: Int = scratch.map(_ => nSets*blockBytes).getOrElse(0)
 
@@ -58,7 +61,11 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def offsetlsb = wordOffBits
   def rowWords = rowBits/wordBits
   def doNarrowRead = coreDataBits * nWays % rowBits == 0
-  def encDataBits = cacheParams.dataECC.width(coreDataBits)
+  def eccBytes = cacheParams.dataECCBytes
+  val eccBits = cacheParams.dataECCBytes * 8
+  val encBits = cacheParams.dataCode.width(eccBits)
+  val encWordBits = encBits * (wordBits / eccBits)
+  def encDataBits = cacheParams.dataCode.width(coreDataBits) // NBDCache only
   def encRowBits = encDataBits*rowWords
   def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
   def lrscBackoff = 3 // disallow LRSC reacquisition briefly
