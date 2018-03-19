@@ -34,7 +34,6 @@ object DMIConsts{
 }
 
 object DsbBusConsts {
-
   def sbAddrWidth = 12
   def sbIdWidth   = 10 
 
@@ -128,7 +127,7 @@ case class DebugModuleParams (
   nProgramBufferWords: Int = 16,
   nAbstractDataWords : Int = 4,
   nScratch : Int = 1,
-  hasBusMaster : Boolean = true,
+  hasBusMaster : Boolean = false,
   supportQuickAccess : Boolean = false,
   supportHartArray   : Boolean = false,
   hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
@@ -267,8 +266,7 @@ object RWNotify {
 class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyModule {
 
   // For Shorter Register Names
-  import uncore.devices._
-  import uncore.devices.DMI_RegAddrs._
+  import DMI_RegAddrs._
 
   val intnode = IntNexusNode(
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
@@ -418,9 +416,6 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
 
 class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
-
-  import uncore.devices._
-  import uncore.devices.DMI_RegAddrs._
 
   val cfg = p(DebugModuleParams)
 
@@ -728,259 +723,180 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // System Bus Access
     //--------------------------------------------------------------
     // --- SBCS Registers ---
-
-    sb2tlOpt match {                   
-      case Some(sb2tl) => {
+    val (sbcsFields, sbAddrFields, sbDataFields):
+        (Seq[RegField], Array[Seq[RegField]], Array[Seq[RegField]]) = sb2tlOpt.map { sb2tl =>
        
-        /* Flags for setting error flag registers, needed because the number of SBDATA and
-         * SBADDRESS registers depends on system bus widths
-         */
-        val anyAddressWrEn = Wire(init = false.B)
-        val anyDataRdEn    = Wire(init = false.B)
-        val anyDataWrEn    = Wire(init = false.B)
+      var sbaddrfields, sbdatafields: Array[Seq[RegField]] = new Array[Seq[RegField]](4)
 
-        // --- SBCS Status Register ---
-        val SBCSFieldsReg      = Reg(new SBCSFields())
-        val SBCSFieldsRegReset = Wire(init = (new SBCSFields()).fromBits(0.U))
-        val SBCSRdData         = Wire(init = new SBCSFields().fromBits(0.U)) 
-        val SBCSWrDataVal      = Wire(init = 0.U(32.W))
-        val SBCSWrData         = Wire(init = new SBCSFields().fromBits(SBCSWrDataVal))
-        val SBCSRdEn, SBCSWrEn = Wire(init = false.B)
+      /* Flags for setting error flag registers, needed because the number of SBDATA and
+       * SBADDRESS registers depends on system bus widths
+       */
+      val anyAddressWrEn = Wire(init = false.B)
+      val anyDataRdEn    = Wire(init = false.B)
+      val anyDataWrEn    = Wire(init = false.B)
+      anyAddressWrEn.suggestName("anyAddressWrEn")
+      anyDataRdEn.suggestName("anyDataRdEn")
+      anyDataWrEn.suggestName("anyDataWrEn")
 
+      // --- SBCS Status Register ---
+      val SBCSFieldsReg      = Reg(new SBCSFields())
+      val SBCSFieldsRegReset = Wire(init = (new SBCSFields()).fromBits(0.U))
+      val SBCSRdData         = Wire(init = new SBCSFields().fromBits(0.U)) 
+      val SBCSWrDataVal      = Wire(init = 0.U(32.W))
+      val SBCSWrData         = Wire(init = new SBCSFields().fromBits(SBCSWrDataVal))
+      val SBCSRdEn, SBCSWrEn = Wire(init = false.B)
 
-        // --- System Bus Registers ---
-        val SBADDRESS0FieldsReg = Reg(new SBADDRESS0Fields())
-        val SBADDRESS1FieldsReg = Reg(new SBADDRESS1Fields())
-        val SBADDRESS2FieldsReg = Reg(new SBADDRESS2Fields())
-        val SBADDRESS3FieldsReg = Reg(new SBADDRESS3Fields())
-        val SBADDRESS0RdData    = Wire(init = new SBADDRESS0Fields().fromBits(0.U))
-        val SBADDRESS1RdData    = Wire(init = new SBADDRESS1Fields().fromBits(0.U))
-        val SBADDRESS2RdData    = Wire(init = new SBADDRESS2Fields().fromBits(0.U))
-        val SBADDRESS3RdData    = Wire(init = new SBADDRESS3Fields().fromBits(0.U))
+      val sbcsfields = Seq(RWNotify(32, SBCSRdData.asUInt(), SBCSWrDataVal, SBCSRdEn, SBCSWrEn,
+                          Some(RegFieldDesc("dmi_sbcs", "", reset=Some(0)))))
 
-        val SBADDRESS0WrData, SBADDRESS1WrData, SBADDRESS2WrData, SBADDRESS3WrData = Wire(init = 0.U(32.W))
-        val SBADDRESS0RdEn,   SBADDRESS1RdEn,   SBADDRESS2RdEn,   SBADDRESS3RdEn   = Wire(init = false.B)  
-        val SBADDRESS0WrEn,   SBADDRESS1WrEn,   SBADDRESS2WrEn,   SBADDRESS3WrEn   = Wire(init = false.B)  
+      // --- System Bus Address Registers ---
+      // ADDR0 Register is required
+      // Instantiate ADDR1-3 registers as needed depending on system bus address width
+      val hasSBAddr1 = (sb2tl.module.edge.bundle.addressBits >= 33)
+      val hasSBAddr2 = (sb2tl.module.edge.bundle.addressBits >= 65)
+      val hasSBAddr3 = (sb2tl.module.edge.bundle.addressBits >= 97)
+      val hasAddr    = Seq(true, hasSBAddr1, hasSBAddr2, hasSBAddr3)
 
-        val autoIncrementedAddr = Wire(init = 0.U(128.W))
-        autoIncrementedAddr := sb2tl.module.io.addrIn + (1.U << SBCSFieldsReg.sbaccess)
+      val SBADDRESSFieldsReg = Seq.fill(4)(Reg (UInt(32.W)))
+      val SBADDRESSRdData    = Seq.fill(4)(Reg (UInt(32.W)))
+      val SBADDRESSWrData    = Seq.fill(4)(Reg (UInt(32.W)))
+      val SBADDRESSRdEn      = Seq.fill(4)(Wire(Bool()))
+      val SBADDRESSWrEn      = Seq.fill(4)(Wire(Bool()))
 
-        // ADDR0 Register is required
-        when (~io.dmactive) {
-          SBADDRESS0FieldsReg := new SBADDRESS0Fields().fromBits(0.U(32.W))
-        }.otherwise {
-          SBADDRESS0FieldsReg := Mux(SBADDRESS0WrEn && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, new SBADDRESS0Fields().fromBits(SBADDRESS0WrData),
-                                 Mux(sb2tl.module.io.dataOutValid && SBCSFieldsReg.sbautoincrement,     new SBADDRESS0Fields().fromBits(autoIncrementedAddr(31,0)),SBADDRESS0FieldsReg))
-        }
+      val autoIncrementedAddr = Wire(init = 0.U(128.W))
+      autoIncrementedAddr := sb2tl.module.io.addrIn + (1.U << SBCSFieldsReg.sbaccess)
 
-        SBADDRESS0RdData := SBADDRESS0FieldsReg
+      SBADDRESSFieldsReg.zipWithIndex.foreach { case(a,i) =>
 
-        dmiNode.regmap(
-          (DMI_SBADDRESS0 << 2) -> Seq(RWNotify(32, SBADDRESS0RdData.asUInt(), SBADDRESS0WrData, SBADDRESS0RdEn, SBADDRESS0WrEn,
-            Some(RegFieldDesc("dmi_sbaddress0", "", reset=Some(0))))))
-
-        sb2tl.module.io.addrIn := SBADDRESS0RdData.asUInt()
-
-        anyAddressWrEn         := SBADDRESS0WrEn 
-
-        // Instantiate ADDR1-3 registers as needed depending on system bus address width
-        val hasSBAddr1 = (sb2tl.module.edge.bundle.addressBits >= 33)
-        val hasSBAddr2 = (sb2tl.module.edge.bundle.addressBits >= 65)
-        val hasSBAddr3 = (sb2tl.module.edge.bundle.addressBits >= 97)
-
-        if(hasSBAddr1) {
+        if(hasAddr(i)) {
           when (~io.dmactive) {
-            SBADDRESS1FieldsReg := new SBADDRESS1Fields().fromBits(0.U(32.W))
+            a := 0.U(32.W)
           }.otherwise {
-            SBADDRESS1FieldsReg := Mux(SBADDRESS1WrEn && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, new SBADDRESS1Fields().fromBits(SBADDRESS1WrData),
-                                   Mux(sb2tl.module.io.dataOutValid && SBCSFieldsReg.sbautoincrement,     new SBADDRESS1Fields().fromBits(autoIncrementedAddr(63,32)), SBADDRESS1FieldsReg))
+            a := Mux(SBADDRESSWrEn(i) && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, SBADDRESSWrData(i),
+                 Mux(sb2tl.module.io.dataOutValid && SBCSFieldsReg.sbautoincrement,       autoIncrementedAddr(32*i+31,32*i), SBADDRESSFieldsReg(i)))
           }
 
-          SBADDRESS1RdData := SBADDRESS1FieldsReg
+          SBADDRESSRdData(i) := SBADDRESSFieldsReg(i)
 
-          dmiNode.regmap(
-            (DMI_SBADDRESS1 << 2) -> Seq(RWNotify(32, SBADDRESS1RdData.asUInt(), SBADDRESS1WrData, SBADDRESS1RdEn, SBADDRESS1WrEn,
-              Some(RegFieldDesc("dmi_sbaddress1", "", reset=Some(0))))))
-
-          sb2tl.module.io.addrIn := Cat(SBADDRESS1RdData.asUInt(), SBADDRESS0RdData.asUInt())
-
-          anyAddressWrEn := SBADDRESS1WrEn || SBADDRESS0WrEn 
+          sbaddrfields(i) = Seq(RWNotify(32, SBADDRESSRdData(i).asUInt(), SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
+                            Some(RegFieldDesc("dmi_sbaddr"+i, "", reset=Some(0)))))
+        } else {
+          sbaddrfields(i) =  Seq.empty[RegField]
         }
-
-        if(hasSBAddr2) {
-          when (~io.dmactive) {
-            SBADDRESS2FieldsReg := new SBADDRESS2Fields().fromBits(0.U(32.W))
-          }.otherwise {
-            SBADDRESS2FieldsReg := Mux(SBADDRESS2WrEn && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, new SBADDRESS2Fields().fromBits(SBADDRESS2WrData),
-                                   Mux(sb2tl.module.io.dataOutValid && SBCSFieldsReg.sbautoincrement,     new SBADDRESS2Fields().fromBits(autoIncrementedAddr(95,64)), SBADDRESS2FieldsReg))
-          }
-
-          SBADDRESS2RdData := SBADDRESS2FieldsReg
-
-          dmiNode.regmap(
-            (DMI_SBADDRESS2 << 2) -> Seq(RWNotify(32, SBADDRESS2RdData.asUInt(), SBADDRESS2WrData, SBADDRESS2RdEn, SBADDRESS2WrEn,
-              Some(RegFieldDesc("dmi_sbaddress2", "", reset=Some(0))))))
-
-          sb2tl.module.io.addrIn := Cat(SBADDRESS2RdData.asUInt(), SBADDRESS1RdData.asUInt(), SBADDRESS0RdData.asUInt())
-
-          anyAddressWrEn := SBADDRESS2WrEn || SBADDRESS1WrEn || SBADDRESS0WrEn 
-        }
-
-        if(hasSBAddr3) {
-          when (~io.dmactive) {
-            SBADDRESS3FieldsReg := new SBADDRESS3Fields().fromBits(0.U(32.W))
-          }.otherwise {
-            SBADDRESS3FieldsReg := Mux(SBADDRESS3WrEn && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, new SBADDRESS3Fields().fromBits(SBADDRESS3WrData),
-                                   Mux(sb2tl.module.io.dataOutValid && SBCSFieldsReg.sbautoincrement,     new SBADDRESS3Fields().fromBits(autoIncrementedAddr(127,96)), SBADDRESS3FieldsReg))
-          }
-
-          SBADDRESS3RdData := SBADDRESS3FieldsReg
-
-          dmiNode.regmap(
-            (DMI_SBADDRESS3 << 2) -> Seq(RWNotify(32, SBADDRESS3RdData.asUInt(), SBADDRESS3WrData, SBADDRESS3RdEn, SBADDRESS3WrEn,
-              Some(RegFieldDesc("dmi_sbaddress3", "", reset=Some(0))))))
-
-          sb2tl.module.io.addrIn := Cat(SBADDRESS3RdData.asUInt(), SBADDRESS2RdData.asUInt(), SBADDRESS1RdData.asUInt(), SBADDRESS0RdData.asUInt())
-
-          anyAddressWrEn := SBADDRESS3WrEn || SBADDRESS2WrEn || SBADDRESS1WrEn || SBADDRESS0WrEn 
-        }
-
-
-        // --- System Bus Data Registers ---
-        val SBDATA0FieldsReg = Reg(new SBDATA0Fields())
-        val SBDATA1FieldsReg = Reg(new SBDATA1Fields())
-        val SBDATA2FieldsReg = Reg(new SBDATA2Fields())
-        val SBDATA3FieldsReg = Reg(new SBDATA3Fields())
-        val SBDATA1RdData    = Wire(init = SBDATA1FieldsReg)
-        val SBDATA2RdData    = Wire(init = SBDATA2FieldsReg)
-        val SBDATA0RdData    = Wire(init = SBDATA0FieldsReg)
-        val SBDATA3RdData    = Wire(init = SBDATA3FieldsReg)
-
-        val SBDATA0WrData, SBDATA1WrData, SBDATA2WrData, SBDATA3WrData = Wire(init = 0.U(32.W)) 
-        val SBDATA0WrEn,   SBDATA1WrEn,   SBDATA2WrEn,   SBDATA3WrEn   = Wire(init = false.B)  
-        val SBDATA0RdEn,   SBDATA1RdEn,   SBDATA2RdEn,   SBDATA3RdEn   = Wire(init = false.B)  
-
-        // DATA0 Register is required
-        when (~io.dmactive) {
-          SBDATA0FieldsReg := new SBDATA0Fields().fromBits(0.U(32.W))
-        }.otherwise {
-          SBDATA0FieldsReg := Mux(SBDATA0WrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, new SBDATA0Fields().fromBits(SBDATA0WrData),
-                              Mux(sb2tl.module.io.dataOutValid, new SBDATA0Fields().fromBits(sb2tl.module.io.dataOut(127,96)), SBDATA0FieldsReg))
-        }
-
-        SBDATA0RdData := SBDATA0FieldsReg
-
-        dmiNode.regmap(
-          (DMI_SBDATA0    << 2) -> Seq(RWNotify(32, SBDATA0RdData.asUInt(), SBDATA0WrData, SBDATA0RdEn, SBDATA0WrEn,
-            Some(RegFieldDesc("dmi_sbdata0", "", reset=Some(0))))))
-
-        sb2tl.module.io.dataIn := SBDATA0RdData.asUInt()
-
-        anyDataRdEn := SBDATA0RdEn
-        anyDataWrEn := SBDATA0WrEn
-
-        val hasSBData1     = (sb2tl.module.edge.bundle.dataBits >=  33)
-        val hasSBData2And3 = (sb2tl.module.edge.bundle.dataBits == 128)
-
-        if(hasSBData1){
-          when (~io.dmactive) {
-            SBDATA1FieldsReg := new SBDATA1Fields().fromBits(0.U(32.W))
-          }.otherwise {
-            SBDATA1FieldsReg := Mux(SBDATA1WrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, new SBDATA1Fields().fromBits(SBDATA1WrData),
-                                Mux(sb2tl.module.io.dataOutValid, new SBDATA3Fields().fromBits(sb2tl.module.io.dataOut(127,96)), SBDATA1FieldsReg))
-          }
-
-          SBDATA1RdData := SBDATA1FieldsReg
-
-          dmiNode.regmap(
-            (DMI_SBDATA1 << 2) -> Seq(RWNotify(32, SBDATA1RdData.asUInt(), SBDATA1WrData, SBDATA1RdEn, SBDATA1WrEn,
-              Some(RegFieldDesc("dmi_sbdata3", "", reset=Some(0))))))
-
-          sb2tl.module.io.dataIn   := Cat(SBDATA1RdData.asUInt(), SBDATA0RdData.asUInt())
-
-          anyDataRdEn := SBDATA1RdEn || SBDATA0RdEn
-          anyDataWrEn := SBDATA1WrEn || SBDATA0WrEn
-        }
-
-        if(hasSBData2And3){
-          when (~io.dmactive) {
-            SBDATA2FieldsReg := new SBDATA2Fields().fromBits(0.U(32.W))
-            SBDATA3FieldsReg := new SBDATA3Fields().fromBits(0.U(32.W))
-          }.otherwise {
-            SBDATA2FieldsReg := Mux(SBDATA2WrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, new SBDATA2Fields().fromBits(SBDATA2WrData),
-                                Mux(sb2tl.module.io.dataOutValid, new SBDATA2Fields().fromBits(sb2tl.module.io.dataOut(127,96)), SBDATA2FieldsReg))
-            SBDATA3FieldsReg := Mux(SBDATA3WrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, new SBDATA3Fields().fromBits(SBDATA3WrData),
-                                Mux(sb2tl.module.io.dataOutValid, new SBDATA3Fields().fromBits(sb2tl.module.io.dataOut(127,96)), SBDATA3FieldsReg))
-          }
-
-          SBDATA2RdData := SBDATA2FieldsReg
-          SBDATA3RdData := SBDATA3FieldsReg
-
-          dmiNode.regmap(
-            (DMI_SBDATA2 << 2) -> Seq(RWNotify(32, SBDATA2RdData.asUInt(), SBDATA2WrData, SBDATA2RdEn, SBDATA2WrEn,
-              Some(RegFieldDesc("dmi_sbdata3", "", reset=Some(0))))),
-            (DMI_SBDATA3 << 2) -> Seq(RWNotify(32, SBDATA3RdData.asUInt(), SBDATA3WrData, SBDATA3RdEn, SBDATA3WrEn,
-              Some(RegFieldDesc("dmi_sbdata3", "", reset=Some(0))))))
-
-          sb2tl.module.io.dataIn   := Cat(SBDATA3RdData.asUInt(), SBDATA2RdData.asUInt(), SBDATA1RdData.asUInt(), SBDATA0RdData.asUInt())
-
-          anyDataRdEn := SBDATA3RdEn || SBDATA2RdEn || SBDATA1RdEn || SBDATA0RdEn
-          anyDataWrEn := SBDATA3RdEn || SBDATA2RdEn || SBDATA1WrEn || SBDATA0WrEn
-        }
-
-        sb2tl.module.io.rdEn     := (SBADDRESS0WrEn && SBCSFieldsReg.sbreadonaddr || SBDATA0RdEn && SBCSFieldsReg.sbreadondata) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror
-        sb2tl.module.io.wrEn     := SBDATA0WrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror
-        sb2tl.module.io.sizeIn   := (1.U << SBCSFieldsReg.sbaccess)
-        sb2tl.module.io.dmactive := io.dmactive
-
-        val SBAlignmentError = (SBCSWrData.sbaccess === 0.U) && (SBCSFieldsReg.sbaccess8   =/= 1.U) ||
-                               (SBCSWrData.sbaccess === 1.U) && (SBCSFieldsReg.sbaccess16  =/= 1.U) ||
-                               (SBCSWrData.sbaccess === 2.U) && (SBCSFieldsReg.sbaccess32  =/= 1.U) ||
-                               (SBCSWrData.sbaccess === 3.U) && (SBCSFieldsReg.sbaccess64  =/= 1.U) ||
-                               (SBCSWrData.sbaccess === 4.U) && (SBCSFieldsReg.sbaccess128 =/= 1.U)  
-
-        when (~io.dmactive) {
-          SBCSFieldsReg := SBCSFieldsRegReset
-        }.otherwise {
-          SBCSFieldsReg.sbbusyerror     := Mux(SBCSWrEn && SBCSWrData.sbbusyerror,                   false.B, // W1C
-                                           Mux(anyAddressWrEn && SBCSFieldsReg.sbbusy,               true.B, // Set if a write to SBADDRESS occurs while busy
-                                           Mux((anyDataRdEn || anyDataWrEn) && SBCSFieldsReg.sbbusy, true.B, SBCSFieldsReg.sbbusyerror))) // Set if any access to SBDATA occurs while busy
-          SBCSFieldsReg.sbreadonaddr    := Mux(SBCSWrEn, SBCSWrData.sbreadonaddr   , SBCSFieldsReg.sbreadonaddr)
-          SBCSFieldsReg.sbautoincrement := Mux(SBCSWrEn, SBCSWrData.sbautoincrement, SBCSFieldsReg.sbautoincrement)
-          SBCSFieldsReg.sbreadondata    := Mux(SBCSWrEn, SBCSWrData.sbreadondata   , SBCSFieldsReg.sbreadondata)
-          SBCSFieldsReg.sberror         := Mux(SBCSWrEn && SBCSWrData.sberror =/= 0.U, 0.U, // W1C
-                                           Mux(SBCSWrEn && SBAlignmentError,           3.U, SBCSFieldsReg.sberror))
-        }
-       
-        cover(SBCSFieldsReg.sbbusyerror,                              "SBCS Cover", "sberror set")
-        cover(SBCSFieldsReg.sbbusy === 3.U,                           "SBCS Cover", "sbbusyerror alignment error")
-        cover(SBCSFieldsReg.sbaccess === 0.U && !SBAlignmentError,    "SBCS Cover", "8-bit access")
-        cover(SBCSFieldsReg.sbaccess === 1.U && !SBAlignmentError,    "SBCS Cover", "16-bit access")
-        cover(SBCSFieldsReg.sbaccess === 2.U && !SBAlignmentError,    "SBCS Cover", "32-bit access")
-        cover(SBCSFieldsReg.sbaccess === 3.U && !SBAlignmentError,    "SBCS Cover", "64-bit access")
-        cover(SBCSFieldsReg.sbaccess === 4.U && !SBAlignmentError,    "SBCS Cover", "128-bit access")
-        cover(SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy,  "SBCS Cover", "Access with autoincrement set")
-        cover(!SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy, "SBCS Cover", "Access without autoincrement set")
-
-        SBCSRdData             := SBCSFieldsReg
-        SBCSRdData.sbversion   := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
-        SBCSRdData.sbbusy      := (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
-        SBCSRdData.sbasize     := sb2tl.module.edge.bundle.addressBits.U
-        SBCSRdData.sbaccess128 := (sb2tl.module.edge.bundle.dataBits == 128).B
-        SBCSRdData.sbaccess64  := (sb2tl.module.edge.bundle.dataBits >= 64).B
-        SBCSRdData.sbaccess32  := (sb2tl.module.edge.bundle.dataBits >= 32).B
-        SBCSRdData.sbaccess16  := (sb2tl.module.edge.bundle.dataBits >= 16).B
-        SBCSRdData.sbaccess8   := (sb2tl.module.edge.bundle.dataBits >= 8).B
-
-        dmiNode.regmap(
-          (DMI_SBCS << 2) -> Seq(RWNotify(32, SBCSRdData.asUInt(), SBCSWrDataVal, SBCSRdEn, SBCSWrEn,
-            Some(RegFieldDesc("dmi_sbcs", "", reset=Some(0))))))
-
-
       }
-      case None => {}
-    }
 
+      if(hasAddr(3)) {
+        sb2tl.module.io.addrIn := Cat(SBADDRESSRdData(3),SBADDRESSRdData(2),SBADDRESSRdData(1),SBADDRESSRdData(0))
+        anyAddressWrEn         := SBADDRESSWrEn(3) || SBADDRESSWrEn(2) || SBADDRESSWrEn(1) || SBADDRESSWrEn(0)
+      }else if(hasAddr(2)){
+        sb2tl.module.io.addrIn := Cat(SBADDRESSRdData(2),SBADDRESSRdData(1),SBADDRESSRdData(0))
+        anyAddressWrEn         := SBADDRESSWrEn(2) || SBADDRESSWrEn(1) || SBADDRESSWrEn(0)
+      }else if(hasAddr(1)){
+        sb2tl.module.io.addrIn := Cat(SBADDRESSRdData(1),SBADDRESSRdData(0))
+        anyAddressWrEn         := SBADDRESSWrEn(1) || SBADDRESSWrEn(0)
+      }else if(hasAddr(0)){
+        sb2tl.module.io.addrIn := SBADDRESSRdData(0)
+        anyAddressWrEn         := SBADDRESSWrEn(0)
+      }
+
+      // --- System Bus Data Registers ---           
+      // DATA0 Register is required
+      // DATA1-3 Registers may not be needed depending on implementation
+      val hasSBData1     = (sb2tl.module.edge.bundle.dataBits >   32)
+      val hasSBData2And3 = (sb2tl.module.edge.bundle.dataBits == 128)
+      val hasData        = Seq(true, hasSBData1, hasSBData2And3, hasSBData2And3)
+
+      val SBDATAFieldsReg = Seq.fill(4)(Reg (UInt(32.W)))
+      val SBDATARdData    = Seq.fill(4)(Reg (UInt(32.W)))
+      val SBDATAWrData    = Seq.fill(4)(Reg (UInt(32.W)))
+      val SBDATARdEn      = Seq.fill(4)(Wire(Bool()))
+      val SBDATAWrEn      = Seq.fill(4)(Wire(Bool()))
+
+      SBDATAFieldsReg.zipWithIndex.foreach { case(d,i) =>
+
+        if(hasData(i)) {
+          when (~io.dmactive) {
+            SBDATAFieldsReg(i) := 0.U(32.W)
+          }.otherwise {
+            SBDATAFieldsReg(i) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, SBDATAWrData(i),
+                                  Mux(sb2tl.module.io.dataOutValid, sb2tl.module.io.dataOut(32*i+31,32*i), SBDATAFieldsReg(i)))
+          }
+
+          SBDATARdData(i) := SBDATAFieldsReg(i)
+
+          sbdatafields(i) = Seq(RWNotify(32, SBDATARdData(i).asUInt(), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
+                            Some(RegFieldDesc("dmi_sbdata"+i, "", reset=Some(0)))))
+        } else {
+          sbdatafields(i) = Seq.empty[RegField]
+        }
+      }
+
+      if(hasData(3)) {
+        sb2tl.module.io.dataIn := Cat(SBDATARdData(3),SBDATARdData(2),SBDATARdData(1),SBDATARdData(0))
+        anyDataRdEn            := SBDATARdEn(3) || SBDATARdEn(2) || SBDATARdEn(1) || SBDATARdEn(0)
+        anyDataWrEn            := SBDATAWrEn(3) || SBDATAWrEn(2) || SBDATAWrEn(1) || SBDATAWrEn(0)
+      }else if(hasData(2)){
+        sb2tl.module.io.dataIn := Cat(SBDATARdData(2),SBDATARdData(1),SBDATARdData(0))
+        anyDataRdEn            := SBDATARdEn(2) || SBDATARdEn(1) || SBDATARdEn(0)
+        anyDataWrEn            := SBDATAWrEn(2) || SBDATAWrEn(1) || SBDATAWrEn(0)
+      }else if(hasData(1)){
+        sb2tl.module.io.dataIn := Cat(SBDATARdData(1),SBDATARdData(0))
+        anyDataRdEn            := SBDATARdEn(1) || SBDATARdEn(0)
+        anyDataWrEn            := SBDATAWrEn(1) || SBDATAWrEn(0)
+      }else if(hasData(0)){
+        sb2tl.module.io.dataIn := SBDATARdData(0)
+        anyDataRdEn            := SBDATARdEn(0)
+        anyDataWrEn            := SBDATAWrEn(0)
+      }
+
+      sb2tl.module.io.rdEn     := (SBADDRESSWrEn(0) && SBCSFieldsReg.sbreadonaddr || SBDATARdEn(0) && SBCSFieldsReg.sbreadondata) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror
+      sb2tl.module.io.wrEn     := SBDATAWrEn(0) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror
+      sb2tl.module.io.sizeIn   := (1.U << SBCSFieldsReg.sbaccess)
+      sb2tl.module.io.dmactive := io.dmactive
+
+      val SBAlignmentError = (SBCSWrData.sbaccess === 0.U) && (SBCSFieldsReg.sbaccess8   =/= 1.U) ||
+                             (SBCSWrData.sbaccess === 1.U) && (SBCSFieldsReg.sbaccess16  =/= 1.U) ||
+                             (SBCSWrData.sbaccess === 2.U) && (SBCSFieldsReg.sbaccess32  =/= 1.U) ||
+                             (SBCSWrData.sbaccess === 3.U) && (SBCSFieldsReg.sbaccess64  =/= 1.U) ||
+                             (SBCSWrData.sbaccess === 4.U) && (SBCSFieldsReg.sbaccess128 =/= 1.U)  
+
+      when (~io.dmactive) {
+        SBCSFieldsReg := SBCSFieldsRegReset
+      }.otherwise {
+        SBCSFieldsReg.sbbusyerror     := Mux(SBCSWrEn && SBCSWrData.sbbusyerror,                   false.B, // W1C
+                                         Mux(anyAddressWrEn && SBCSFieldsReg.sbbusy,               true.B, // Set if a write to SBADDRESS occurs while busy
+                                         Mux((anyDataRdEn || anyDataWrEn) && SBCSFieldsReg.sbbusy, true.B, SBCSFieldsReg.sbbusyerror))) // Set if any access to SBDATA occurs while busy
+        SBCSFieldsReg.sbreadonaddr    := Mux(SBCSWrEn, SBCSWrData.sbreadonaddr   , SBCSFieldsReg.sbreadonaddr)
+        SBCSFieldsReg.sbautoincrement := Mux(SBCSWrEn, SBCSWrData.sbautoincrement, SBCSFieldsReg.sbautoincrement)
+        SBCSFieldsReg.sbreadondata    := Mux(SBCSWrEn, SBCSWrData.sbreadondata   , SBCSFieldsReg.sbreadondata)
+        SBCSFieldsReg.sberror         := Mux(SBCSWrEn && SBCSWrData.sberror =/= 0.U, 0.U, // W1C
+                                         Mux(SBCSWrEn && SBAlignmentError,           3.U, SBCSFieldsReg.sberror))
+      }
+      
+      cover(SBCSFieldsReg.sbbusyerror,                              "SBCS Cover", "sberror set")
+      cover(SBCSFieldsReg.sbbusy === 3.U,                           "SBCS Cover", "sbbusyerror alignment error")
+      cover(SBCSFieldsReg.sbaccess === 0.U && !SBAlignmentError,    "SBCS Cover", "8-bit access")
+      cover(SBCSFieldsReg.sbaccess === 1.U && !SBAlignmentError,    "SBCS Cover", "16-bit access")
+      cover(SBCSFieldsReg.sbaccess === 2.U && !SBAlignmentError,    "SBCS Cover", "32-bit access")
+      cover(SBCSFieldsReg.sbaccess === 3.U && !SBAlignmentError,    "SBCS Cover", "64-bit access")
+      cover(SBCSFieldsReg.sbaccess === 4.U && !SBAlignmentError,    "SBCS Cover", "128-bit access")
+      cover(SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy,  "SBCS Cover", "Access with autoincrement set")
+      cover(!SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy, "SBCS Cover", "Access without autoincrement set")
+
+      SBCSRdData             := SBCSFieldsReg
+      SBCSRdData.sbversion   := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
+      SBCSRdData.sbbusy      := (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
+      SBCSRdData.sbasize     := sb2tl.module.edge.bundle.addressBits.U
+      SBCSRdData.sbaccess128 := (sb2tl.module.edge.bundle.dataBits == 128).B
+      SBCSRdData.sbaccess64  := (sb2tl.module.edge.bundle.dataBits >=  64).B
+      SBCSRdData.sbaccess32  := (sb2tl.module.edge.bundle.dataBits >=  32).B
+      SBCSRdData.sbaccess16  := (sb2tl.module.edge.bundle.dataBits >=  16).B
+      SBCSRdData.sbaccess8   := (sb2tl.module.edge.bundle.dataBits >=   8).B
+
+      (sbcsfields, sbaddrfields, sbdatafields)
+
+    }.getOrElse((Nil, Array.empty[Seq[RegField]], Array.empty[Seq[RegField]]))
+  
     //--------------------------------------------------------------
     // Program Buffer Access (DMI ... System Bus can override)
     //--------------------------------------------------------------
@@ -1003,7 +919,24 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", None, programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, programBufferNxt(i),
         dmiProgramBufferRdEn(i),
         dmiProgramBufferWrEnMaybe(i),
+<<<<<<< e870d72692b1c6ca0f92e9329abd5f47be2cfd53
         Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))})
+||||||| merged common ancestors
+        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))}),
+      (DMIConsts.dmi_haltStatusAddr << 2) -> RegFieldGroup("dmi_halt_status", None, haltedStatus.zipWithIndex.map{case (x, i) => RegField.r(32, x, RegFieldDesc(s"halt_status_$i", ""))})
+=======
+        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))}),
+      (DMIConsts.dmi_haltStatusAddr << 2) -> RegFieldGroup("dmi_halt_status", None, haltedStatus.zipWithIndex.map{case (x, i) => RegField.r(32, x, RegFieldDesc(s"halt_status_$i", ""))}),
+      (DMI_SBCS       << 2) -> sbcsFields,
+      (DMI_SBDATA0    << 2) -> sbAddrFields(0),
+      (DMI_SBDATA1    << 2) -> sbAddrFields(1),
+      (DMI_SBDATA2    << 2) -> sbAddrFields(2),
+      (DMI_SBDATA3    << 2) -> sbAddrFields(3),
+      (DMI_SBADDRESS0 << 2) -> sbDataFields(0),
+      (DMI_SBADDRESS1 << 2) -> sbDataFields(1),
+      (DMI_SBADDRESS2 << 2) -> sbDataFields(2),
+      (DMI_SBADDRESS3 << 2) -> sbDataFields(3) 
+>>>>>>> Code refactor after feedback from Megan+Henry
     )
 
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
@@ -1374,9 +1307,6 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
 
-  import uncore.devices._
-  import uncore.devices.DMI_RegAddrs._
-
   val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
 
   lazy val module = new LazyModuleImp(this) {
@@ -1424,7 +1354,7 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
 
 class SBToTL(implicit p: Parameters) extends LazyModule {
 
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("sba")))))
+  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug_sba")))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -1439,8 +1369,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
       val sbStateOut   = UInt(OUTPUT, log2Ceil(SystemBusAccessState.maxId))
     })
 
-    import uncore.devices._
-    import uncore.devices.DMI_RegAddrs._
+    import SystemBusAccessState._
  
     val (tl, edge) = node.out(0)
  
@@ -1452,9 +1381,9 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     val sbState = Reg(init = 0.U)
  
     io.sbStateOut := sbState
-    when       (sbState === SystemBusAccessState.SBReadRequest.id.U) { tl.a.bits := pfbits
-    }.elsewhen (sbState === SystemBusAccessState.SBWriteRequest.id.U){ tl.a.bits :=  gbits
-    }.otherwise                                                 {      tl.a.bits :=  nbits
+    when       (sbState === SBReadRequest.id.U) { tl.a.bits := pfbits
+    }.elsewhen (sbState === SBWriteRequest.id.U){ tl.a.bits :=  gbits
+    }.otherwise                                 { tl.a.bits :=  nbits
     }
  
     // --- State Machine to interface with TileLink ---
@@ -1465,27 +1394,27 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     val responseReady = tl.d.ready
  
     when(~io.dmactive){
-      sbState := SystemBusAccessState.Idle.id.U
-    }.elsewhen (sbState === SystemBusAccessState.Idle.id.U){
-      sbState := Mux(io.rdEn, SystemBusAccessState.SBReadRequest.id.U,
-                 Mux(io.wrEn, SystemBusAccessState.SBWriteRequest.id.U,sbState))
-    }.elsewhen (sbState === SystemBusAccessState.SBReadRequest.id.U){
-      sbState := Mux(requestValid && requestReady, SystemBusAccessState.SBReadResponse.id.U, sbState) 
-    }.elsewhen (sbState === SystemBusAccessState.SBWriteRequest.id.U){
-      sbState := Mux(requestValid && requestReady, SystemBusAccessState.SBWriteResponse.id.U, sbState)
-    }.elsewhen (sbState === SystemBusAccessState.SBReadResponse.id.U){
-      sbState := Mux(responseValid && responseReady, SystemBusAccessState.Idle.id.U, sbState)
-    }.elsewhen (sbState === SystemBusAccessState.SBWriteResponse.id.U){
-      sbState := Mux(responseValid && responseReady, SystemBusAccessState.Idle.id.U, sbState)
+      sbState := Idle.id.U
+    }.elsewhen (sbState === Idle.id.U){
+      sbState := Mux(io.rdEn, SBReadRequest.id.U,
+                 Mux(io.wrEn, SBWriteRequest.id.U,sbState))
+    }.elsewhen (sbState === SBReadRequest.id.U){
+      sbState := Mux(requestValid && requestReady, SBReadResponse.id.U, sbState) 
+    }.elsewhen (sbState === SBWriteRequest.id.U){
+      sbState := Mux(requestValid && requestReady, SBWriteResponse.id.U, sbState)
+    }.elsewhen (sbState === SBReadResponse.id.U){
+      sbState := Mux(responseValid && responseReady, Idle.id.U, sbState)
+    }.elsewhen (sbState === SBWriteResponse.id.U){
+      sbState := Mux(responseValid && responseReady, Idle.id.U, sbState)
     }
  
-    io.dataOutValid := (sbState === SystemBusAccessState.SBReadResponse.id.U) && responseValid && responseReady
+    io.dataOutValid := (sbState === SBReadResponse.id.U) && responseValid && responseReady
     io.dataOut      := tl.d.bits.data
  
-    tl.a.valid := (sbState === SystemBusAccessState.SBReadRequest.id.U) ||
-                  (sbState === SystemBusAccessState.SBWriteRequest.id.U)
-    tl.d.ready := (sbState === SystemBusAccessState.SBReadResponse.id.U) ||
-                  (sbState === SystemBusAccessState.SBWriteResponse.id.U)
+    tl.a.valid := (sbState === SBReadRequest.id.U) ||
+                  (sbState === SBWriteRequest.id.U)
+    tl.d.ready := (sbState === SBReadResponse.id.U) ||
+                  (sbState === SBWriteResponse.id.U)
  
     // Tie off unused channels
     tl.b.ready := false.B
@@ -1493,17 +1422,17 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     tl.e.valid := false. B
  
     assert (!tl.d.valid || tl.d.ready, "Debug module not ready to accept TL response") // assert tl.d.valid |-> tl.d.ready
-    assert (sbState === SystemBusAccessState.Idle.id.U ||
-            sbState === SystemBusAccessState.SBReadRequest.id.U ||
-            sbState === SystemBusAccessState.SBWriteRequest.id.U || 
-            sbState === SystemBusAccessState.SBReadResponse.id.U ||          
-            sbState === SystemBusAccessState.SBWriteResponse.id.U, "SBA state machine in undefined state")
+    assert (sbState === Idle.id.U ||
+            sbState === SBReadRequest.id.U ||
+            sbState === SBWriteRequest.id.U || 
+            sbState === SBReadResponse.id.U ||          
+            sbState === SBWriteResponse.id.U, "SBA state machine in undefined state")
 
-    cover (sbState === SystemBusAccessState.Idle.id.U,            "SBA State Cover", "SBA Access Idle")
-    cover (sbState === SystemBusAccessState.SBReadRequest.id.U,   "SBA State Cover", "SBA Access Read Req")
-    cover (sbState === SystemBusAccessState.SBWriteRequest.id.U,  "SBA State Cover", "SBA Access Write Req")
-    cover (sbState === SystemBusAccessState.SBReadResponse.id.U,  "SBA State Cover", "SBA Access Read Resp")
-    cover (sbState === SystemBusAccessState.SBWriteResponse.id.U, "SBA State Cover", "SBA Access Write Resp")
+    cover (sbState === Idle.id.U,            "SBA State Cover", "SBA Access Idle")
+    cover (sbState === SBReadRequest.id.U,   "SBA State Cover", "SBA Access Read Req")
+    cover (sbState === SBWriteRequest.id.U,  "SBA State Cover", "SBA Access Write Req")
+    cover (sbState === SBReadResponse.id.U,  "SBA State Cover", "SBA Access Read Resp")
+    cover (sbState === SBWriteResponse.id.U, "SBA State Cover", "SBA Access Write Resp")
  
   }
 }
