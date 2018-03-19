@@ -178,3 +178,15 @@ trait CanHaveErrors extends Bundle {
   val correctable: Option[ValidIO[UInt]]
   val uncorrectable: Option[ValidIO[UInt]]
 }
+
+object Code {
+  def fromString(s: Option[String]): Code = fromString(s.getOrElse("none"))
+  def fromString(s: String): Code = s.toLowerCase match {
+    case "none" => new IdentityCode
+    case "identity" => new IdentityCode
+    case "parity" => new ParityCode
+    case "sec" => new SECCode
+    case "secded" => new SECDEDCode
+    case _ => throw new IllegalArgumentException("Unknown ECC type")
+  }
+}

@@ -668,8 +668,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   require(dataScratchpadSize == 0)
 
   // ECC is only supported on the data array
-  require(cacheParams.tagECC.isInstanceOf[IdentityCode])
-  val dECC = cacheParams.dataECC
+  require(cacheParams.tagCode.isInstanceOf[IdentityCode])
+  val dECC = cacheParams.dataCode
 
   val wb = Module(new WritebackUnit)
   val prober = Module(new ProbeUnit)
