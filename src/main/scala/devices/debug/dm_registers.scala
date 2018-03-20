@@ -191,7 +191,7 @@ object DMI_RegAddrs {
         The MSB reflects the halt status of harts \{hartsel[19:10],10'h3e0\}
         through \{hartsel[19:10],10'h3ff\}.
   */
-  def DMI_HALTSUM1 =  0x18
+  def DMI_HALTSUM1 =  0x13
 
   /* Each bit in this read-only register indicates whether any of a group of
         harts is halted or not.
