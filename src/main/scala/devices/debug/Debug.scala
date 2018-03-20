@@ -571,7 +571,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val haltedSummary = Cat(haltedStatus.map(_.orR).reverse)
     val HALTSUM1RdData = (new HALTSUM1Fields()).fromBits(haltedSummary)
 
-    val selectedHaltedStatus = Mux((selectedHartReg >> 5) >= (nComponents.U >> 5), 0.U, haltedStatus(selectedHartReg >> 5))
+    val selectedHaltedStatus = Mux((selectedHartReg >> 5) > numHaltedStatus.U, 0.U, haltedStatus(selectedHartReg >> 5))
     val HALTSUM0RdData = (new HALTSUM0Fields()).fromBits(selectedHaltedStatus)
 
     // Since we only support 1024 harts, we don't implement HALTSUM2 or HALTSUM3
