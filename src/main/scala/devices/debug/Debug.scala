@@ -779,25 +779,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           SBADDRESSRdData(i) := SBADDRESSFieldsReg(i)
 
           sbaddrfields(i) = Seq(RWNotify(32, SBADDRESSRdData(i).asUInt(), SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
-                            Some(RegFieldDesc("dmi_sbaddr"+i, "", reset=Some(0)))))
+                              Some(RegFieldDesc("dmi_sbaddr"+i, "", reset=Some(0)))))
         } else {
           sbaddrfields(i) =  Seq.empty[RegField]
         }
       }
 
-      if(hasAddr(3)) {
-        sb2tl.module.io.addrIn := Cat(SBADDRESSRdData(3),SBADDRESSRdData(2),SBADDRESSRdData(1),SBADDRESSRdData(0))
-        anyAddressWrEn         := SBADDRESSWrEn(3) || SBADDRESSWrEn(2) || SBADDRESSWrEn(1) || SBADDRESSWrEn(0)
-      }else if(hasAddr(2)){
-        sb2tl.module.io.addrIn := Cat(SBADDRESSRdData(2),SBADDRESSRdData(1),SBADDRESSRdData(0))
-        anyAddressWrEn         := SBADDRESSWrEn(2) || SBADDRESSWrEn(1) || SBADDRESSWrEn(0)
-      }else if(hasAddr(1)){
-        sb2tl.module.io.addrIn := Cat(SBADDRESSRdData(1),SBADDRESSRdData(0))
-        anyAddressWrEn         := SBADDRESSWrEn(1) || SBADDRESSWrEn(0)
-      }else if(hasAddr(0)){
-        sb2tl.module.io.addrIn := SBADDRESSRdData(0)
-        anyAddressWrEn         := SBADDRESSWrEn(0)
-      }
+      sb2tl.module.io.addrIn := Cat(SBADDRESSRdData.reverse)
+      anyAddressWrEn         := SBADDRESSRdEn.reduce(_ || _)
 
       // --- System Bus Data Registers ---           
       // DATA0 Register is required
@@ -831,25 +820,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         }
       }
 
-      if(hasData(3)) {
-        sb2tl.module.io.dataIn := Cat(SBDATARdData(3),SBDATARdData(2),SBDATARdData(1),SBDATARdData(0))
-        anyDataRdEn            := SBDATARdEn(3) || SBDATARdEn(2) || SBDATARdEn(1) || SBDATARdEn(0)
-        anyDataWrEn            := SBDATAWrEn(3) || SBDATAWrEn(2) || SBDATAWrEn(1) || SBDATAWrEn(0)
-      }else if(hasData(2)){
-        sb2tl.module.io.dataIn := Cat(SBDATARdData(2),SBDATARdData(1),SBDATARdData(0))
-        anyDataRdEn            := SBDATARdEn(2) || SBDATARdEn(1) || SBDATARdEn(0)
-        anyDataWrEn            := SBDATAWrEn(2) || SBDATAWrEn(1) || SBDATAWrEn(0)
-      }else if(hasData(1)){
-        sb2tl.module.io.dataIn := Cat(SBDATARdData(1),SBDATARdData(0))
-        anyDataRdEn            := SBDATARdEn(1) || SBDATARdEn(0)
-        anyDataWrEn            := SBDATAWrEn(1) || SBDATAWrEn(0)
-      }else if(hasData(0)){
-        sb2tl.module.io.dataIn := SBDATARdData(0)
-        anyDataRdEn            := SBDATARdEn(0)
-        anyDataWrEn            := SBDATAWrEn(0)
-      }
+      sb2tl.module.io.dataIn := Cat(SBDATARdData.reverse)
+      anyDataRdEn            := SBDATARdEn.reduce(_ || _)
+      anyDataWrEn            := SBDATAWrEn.reduce(_ || _)
 
-      sb2tl.module.io.rdEn     := (SBADDRESSWrEn(0) && SBCSFieldsReg.sbreadonaddr || SBDATARdEn(0) && SBCSFieldsReg.sbreadondata) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror
       sb2tl.module.io.wrEn     := SBDATAWrEn(0) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror
       sb2tl.module.io.sizeIn   := (1.U << SBCSFieldsReg.sbaccess)
       sb2tl.module.io.dmactive := io.dmactive
@@ -895,7 +869,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
       (sbcsfields, sbaddrfields, sbdatafields)
 
-    }.getOrElse((Nil, Array.empty[Seq[RegField]], Array.empty[Seq[RegField]]))
+    }.getOrElse((Nil, Array.fill[Seq[RegField]](4)(Seq.empty[RegField]), Array.fill[Seq[RegField]](4)(Seq.empty[RegField])))
   
     //--------------------------------------------------------------
     // Program Buffer Access (DMI ... System Bus can override)
