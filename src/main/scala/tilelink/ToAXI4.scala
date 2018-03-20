@@ -9,6 +9,30 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import scala.math.{min, max}
 
+class TLtoAXI4IdMap(tl: TLClientPortParameters, axi4: AXI4MasterPortParameters) {
+  private val axiDigits = String.valueOf(axi4.endId-1).length()
+  private val tlDigits = String.valueOf(tl.endSourceId-1).length()
+  private val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
+  private val sorted = tl.clients.sortWith(TLToAXI4.sortByType)
+
+  val mapping: Seq[TLToAXI4IdMapEntry] = (sorted zip axi4.masters) map { case (c, m) =>
+    TLToAXI4IdMapEntry(m.id, c.sourceId, c.name, c.supportsProbe, c.requestFifo)
+  }
+
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
+}
+
+case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean) {
+  def pretty(fmt: String) = fmt.format(
+    axi4Id.start,
+    axi4Id.end,
+    tlId.start,
+    tlId.end,
+    s""""$name"""",
+    if (isCache) " [CACHE]" else "",
+    if (requestFifo) " [FIFO]" else "")
+}
+
 case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
     p.clients.foreach { c =>
@@ -59,32 +83,25 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       require (slaves(0).interleavedId.isDefined)
       slaves.foreach { s => require (s.interleavedId == slaves(0).interleavedId) }
 
-      val axiDigits = String.valueOf(edgeOut.master.endId-1).length()
-      val tlDigits = String.valueOf(edgeIn.client.endSourceId-1).length()
-
       // Construct the source=>ID mapping table
-      adapterName.foreach { n => println(s"$n AXI4-ID <= TL-Source mapping:") }
+      val map = new TLtoAXI4IdMap(edgeIn.client, edgeOut.master)
       val sourceStall = Wire(Vec(edgeIn.client.endSourceId, Bool()))
       val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
       val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
-      val maps = (edgeIn.client.clients.sortWith(TLToAXI4.sortByType) zip edgeOut.master.masters) flatMap { case (c, m) =>
-        for (i <- 0 until c.sourceId.size) {
-          val id = m.id.start + (if (c.requestFifo) 0 else (i >> stripBits))
-          sourceStall(c.sourceId.start + i) := idStall(id)
-          sourceTable(c.sourceId.start + i) := UInt(id)
+
+      annotated.idMapping(this, map.mapping).foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
+        for (i <- 0 until tlId.size) {
+          val id = axi4Id.start + (if (fifo) 0 else (i >> stripBits))
+          sourceStall(tlId.start + i) := idStall(id)
+          sourceTable(tlId.start + i) := UInt(id)
         }
-        if (c.requestFifo) { idCount(m.id.start) = Some(c.sourceId.size) }
-        adapterName.map { n =>
-          val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s"
-          println(fmt.format(m.id.start, m.id.end, c.sourceId.start, c.sourceId.end, c.name, if (c.supportsProbe) " CACHE" else ""))
-          s"""{"axi4-id":[${m.id.start},${m.id.end}],"tilelink-id":[${c.sourceId.start},${c.sourceId.end}],"master":["${c.name}"],"cache":[${!(!c.supportsProbe)}]}"""
-        }
+        if (fifo) { idCount(axi4Id.start) = Some(tlId.size) }
       }
 
       adapterName.foreach { n =>
-        println("")
-        ElaborationArtefacts.add(s"${n}.axi4.json", s"""{"mapping":[${maps.mkString(",")}]}""")
+        println(s"$n AXI4-ID <= TL-Source mapping:\n${map.pretty}\n")
+        ElaborationArtefacts.add(s"$n.axi4.json", s"""{"mapping":[${map.mapping.mkString(",")}]}""")
       }
 
       // We need to keep the following state from A => D: (size, source)

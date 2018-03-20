@@ -24,6 +24,7 @@ object DescribedReg {
     val rdesc = RegFieldDesc(name, desc, None, None,
       access, wrType, rdAction, volatile, reset.map{_.litValue}, enumerations)
     val reg = reset.map{i => RegInit(i)}.getOrElse(Reg(gen))
+    annotate(DescribedRegChiselAnnotation(reg, rdesc))
     reg.suggestName(name + "_reg")
     (reg, rdesc)
   }
@@ -41,6 +42,7 @@ object DescribedReg {
     val rdesc = RegFieldDesc(name, desc, None, None,
       access, wrType, rdAction, volatile, Some(reset), enumerations)
     val reg = Module(new AsyncResetRegVec(w = width, init = reset))
+    annotate(DescribedRegChiselAnnotation(reg, rdesc))
     reg.suggestName(name + "_reg")
     (reg.io, rdesc)
   }
