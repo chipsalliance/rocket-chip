@@ -30,8 +30,6 @@ object DMIConsts{
   // This is used outside this block
   // to indicate 'busy'.
   def dmi_RESP_RESERVED    = "b11".U
-
-  def dmi_haltStatusAddr   = 0x40
 }
 
 object DsbBusConsts {
