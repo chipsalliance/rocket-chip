@@ -30,8 +30,6 @@ object DMIConsts{
   // This is used outside this block
   // to indicate 'busy'.
   def dmi_RESP_RESERVED    = "b11".U
-
-  def dmi_haltStatusAddr   = 0x40
 }
 
 object DsbBusConsts {
@@ -329,7 +327,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     } .otherwise {
       when (DMCONTROLWrEn) {
         DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset
-        DMCONTROLNxt.hartsel      := DMCONTROLWrData.hartsel
+        DMCONTROLNxt.hartsello    := DMCONTROLWrData.hartsello
         DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq
         DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
         DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
@@ -376,14 +374,14 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       when (~dmactive) {
         debugIntNxt(component) := false.B
       }. otherwise {
-        when (DMCONTROLWrEn && DMCONTROLWrData.hartsel === component.U) {
+        when (DMCONTROLWrEn && DMCONTROLWrData.hartsello === component.U) {
           debugIntNxt(component) := DMCONTROLWrData.haltreq
         }
       }
     }
 
     io.innerCtrl.valid := DMCONTROLWrEn
-    io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsel
+    io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsello
     io.innerCtrl.bits.resumereq    := DMCONTROLWrData.resumereq
     io.innerCtrl.bits.ackhavereset := DMCONTROLWrData.ackhavereset 
 
@@ -560,7 +558,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
     HARTINFORdData.nscratch    := cfg.nScratch.U
 
-    //----HALTSUM (and halted registers)
+    //----HALTSUM*
     val numHaltedStatus = ((nComponents - 1) / 32) + 1
     val haltedStatus   = Wire(Vec(numHaltedStatus, Bits(width = 32)))
 
@@ -569,7 +567,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     val haltedSummary = Cat(haltedStatus.map(_.orR).reverse)
-    val HALTSUMRdData = (new HALTSUMFields()).fromBits(haltedSummary)
+    val HALTSUM1RdData = (new HALTSUM1Fields()).fromBits(haltedSummary)
+
+    val selectedHaltedStatus = Mux((selectedHartReg >> 5) > numHaltedStatus.U, 0.U, haltedStatus(selectedHartReg >> 5))
+    val HALTSUM0RdData = (new HALTSUM0Fields()).fromBits(selectedHaltedStatus)
+
+    // Since we only support 1024 harts, we don't implement HALTSUM2 or HALTSUM3
 
     //----ABSTRACTCS
 
@@ -729,7 +732,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_DMSTATUS    << 2) -> Seq(RegField.r(32, DMSTATUSRdData.asUInt(), RegFieldDesc("dmi_dmstatus", ""))),
       //TODO (DMI_CFGSTRADDR0 << 2) -> cfgStrAddrFields,
       (DMI_HARTINFO    << 2) -> Seq(RegField.r(32, HARTINFORdData.asUInt(), RegFieldDesc("dmi_hartinfo", "" /*, reset=Some(HARTINFORdData.litValue)*/))),
-      (DMI_HALTSUM     << 2) -> Seq(RegField.r(32, HALTSUMRdData.asUInt(), RegFieldDesc("dmi_haltsum", ""))),
+      (DMI_HALTSUM0    << 2) -> Seq(RegField.r(32, HALTSUM0RdData.asUInt(), RegFieldDesc("dmi_haltsum0", ""))),
+      (DMI_HALTSUM1    << 2) -> Seq(RegField.r(32, HALTSUM1RdData.asUInt(), RegFieldDesc("dmi_haltsum1", ""))),
       (DMI_ABSTRACTCS  << 2) -> Seq(RWNotify(32, ABSTRACTCSRdData.asUInt(), ABSTRACTCSWrDataVal, ABSTRACTCSRdEn, ABSTRACTCSWrEnMaybe,
         Some(RegFieldDesc("dmi_abstractcs", "" /*, reset=Some(ABSTRACTCSReset.litValue)*/)))),
       (DMI_ABSTRACTAUTO<< 2) -> Seq(RWNotify(32, ABSTRACTAUTORdData.asUInt(), ABSTRACTAUTOWrDataVal, ABSTRACTAUTORdEn, ABSTRACTAUTOWrEnMaybe,
@@ -743,8 +747,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", None, programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, programBufferNxt(i),
         dmiProgramBufferRdEn(i),
         dmiProgramBufferWrEnMaybe(i),
-        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))}),
-      (DMIConsts.dmi_haltStatusAddr << 2) -> RegFieldGroup("dmi_halt_status", None, haltedStatus.zipWithIndex.map{case (x, i) => RegField.r(32, x, RegFieldDesc(s"halt_status_$i", ""))})
+        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))})
     )
 
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
