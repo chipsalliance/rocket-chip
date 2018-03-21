@@ -12,7 +12,7 @@ case class FrontBusParams(
   beatBytes: Int,
   blockBytes: Int,
   sbusCrossing: SubsystemClockCrossing = SynchronousCrossing(),
-  sbusBuffer: BufferParams = BufferParams.default) extends HasTLBusParams
+  sbusBuffer: BufferParams = BufferParams.none) extends HasTLBusParams
 
 case object FrontBusKey extends Field[FrontBusParams]
 
@@ -23,7 +23,7 @@ class FrontBus(params: FrontBusParams)
   val crossing = params.sbusCrossing
 
   def fromPort[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 1)
+      (name: Option[String] = None, buffers: Int = 0)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("port" named name) { fixFrom(TLFIFOFixer.all, buffers) :=* gen }
@@ -34,7 +34,7 @@ class FrontBus(params: FrontBusParams)
   }
 
   def fromMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 1)
+      (name: Option[String] = None, buffers: Int = 0)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("master" named name) { fixFrom(TLFIFOFixer.all, buffers) :=* gen }
