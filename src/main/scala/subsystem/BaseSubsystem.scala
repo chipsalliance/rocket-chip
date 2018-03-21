@@ -97,39 +97,22 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   }
 }
 
-abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
-  println("Generated Address Map")
-  private val aw = (outer.sbus.busView.bundle.addressBits-1)/4 + 1
-  private val fmt = s"\t%${aw}x - %${aw}x %c%c%c%c%c %s"
 
-  private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
-    value match {
-      case r: ResourceAddress => List((path(1), r))
-      case b: ResourceMapping => List((path(1), ResourceAddress(b.address, b.permissions)))
-      case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
-      case _ => Nil
-    }
+abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
+  private val mapping: Seq[AddressMapEntry] = {
+    outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
+      AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
+    }.sortBy(_.range)
   }
-  private val ranges = collect(Nil, outer.bindingTree).groupBy(_._2).toList.flatMap { case (key, seq) =>
-    AddressRange.fromSets(key.address).map { r => (r, key.permissions, seq.map(_._1)) }
-  }.sortBy(_._1)
-  private val json = ranges.map { case (range, ResourcePermissions(r, w, x, c, a), names) =>
-    println(fmt.format(
-      range.base,
-      range.base+range.size,
-      if (a) 'A' else ' ',
-      if (r) 'R' else ' ',
-      if (w) 'W' else ' ',
-      if (x) 'X' else ' ',
-      if (c) 'C' else ' ',
-      names.mkString(", ")))
-    s"""{"base":[${range.base}],"size":[${range.size}],"r":[$r],"w":[$w],"x":[$x],"c":[$c],"a":[$a],"names":[${names.map('"'+_+'"').mkString(",")}]}"""
-  }
+
+  println("Generated Address Map")
+  mapping.map(entry => println(entry.toString((outer.sbus.busView.bundle.addressBits-1)/4 + 1)))
   println("")
-  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${json.mkString(",")}]}""")
+
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.serialize).mkString(",")}]}""")
 
   // Confirm that all of memory was described by DTS
-  private val dtsRanges = AddressRange.unify(ranges.map(_._1))
+  private val dtsRanges = AddressRange.unify(mapping.map(_.range))
   private val allRanges = AddressRange.unify(outer.topManagers.get.flatMap { m => AddressRange.fromSets(m.address) })
 
   if (dtsRanges != allRanges) {

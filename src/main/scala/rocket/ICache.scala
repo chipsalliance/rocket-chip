@@ -20,13 +20,15 @@ case class ICacheParams(
     rowBits: Int = 128,
     nTLBEntries: Int = 32,
     cacheIdBits: Int = 0,
-    tagECC: Code = new IdentityCode,
-    dataECC: Code = new IdentityCode,
+    tagECC: Option[String] = None,
+    dataECC: Option[String] = None,
     itimAddr: Option[BigInt] = None,
     prefetch: Boolean = false,
     blockBytes: Int = 64,
     latency: Int = 2,
     fetchBytes: Int = 4) extends L1CacheParams {
+  def tagCode: Code = Code.fromString(tagECC)
+  def dataCode: Code = Code.fromString(dataECC)
   def replacement = new RandomReplacement(nWays)
 }
 
@@ -41,8 +43,8 @@ class ICacheReq(implicit p: Parameters) extends CoreBundle()(p) with HasL1ICache
 class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
     with HasL1ICacheParameters
     with CanHaveErrors {
-  val correctable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
-  val uncorrectable = (cacheParams.itimAddr.nonEmpty && cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+  val correctable = (cacheParams.tagCode.canDetect || cacheParams.dataCode.canDetect).option(Valid(UInt(width = paddrBits)))
+  val uncorrectable = (cacheParams.itimAddr.nonEmpty && cacheParams.dataCode.canDetect).option(Valid(UInt(width = paddrBits)))
 }
 
 class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parameters) extends LazyModule {
@@ -113,8 +115,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   // Option.unzip does not exist :-(
   val (tl_in, edge_in) = outer.slaveNode.in.headOption.unzip
 
-  val tECC = cacheParams.tagECC
-  val dECC = cacheParams.dataECC
+  val tECC = cacheParams.tagCode
+  val dECC = cacheParams.dataCode
 
   require(isPow2(nSets) && isPow2(nWays))
   require(!usingVM || pgIdxBits >= untagBits)
