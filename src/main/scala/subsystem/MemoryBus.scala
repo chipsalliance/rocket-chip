@@ -44,9 +44,8 @@ case object MemoryBusKey extends Field[MemoryBusParams]
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "memory_bus")(p)
     with HasTLXbarPhy {
 
-  def fromCoherenceManager(
-        name: Option[String] = None,
-        buffer: BufferParams = BufferParams.none)
+  def fromCoherenceManager
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLInwardNode = {
     from("coherence_manager" named name) {
       inwardNode := TLBuffer(buffer) := gen

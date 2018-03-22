@@ -27,7 +27,7 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   )}
 
   tiles.flatMap(_.dcacheOpt).foreach { dc =>
-    sbus.fromTile(None, buffers = 1){ dc.node }
+    sbus.fromTile(None, buffer = BufferParams.default){ dc.node }
   }
 
   // No PLIC in ground test; so just sink the interrupts to nowhere

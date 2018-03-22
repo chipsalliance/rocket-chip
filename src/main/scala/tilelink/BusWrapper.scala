@@ -32,17 +32,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   protected def bufferFrom(buffer: BufferParams): TLInwardNode =
     inwardNode :=* TLBuffer(buffer)
 
-  protected def bufferFrom(buffers: Int): TLInwardNode =
-    TLBuffer.chain(buffers).foldLeft(inwardNode)(_ :=* _)
-
-  protected def fixFrom(policy: TLFIFOFixer.Policy, buffers: Int): TLInwardNode =
-    inwardNode :=* TLBuffer.chain(buffers).foldLeft(TLFIFOFixer(policy))(_ :=* _)
+  protected def fixFrom(policy: TLFIFOFixer.Policy, buffer: BufferParams): TLInwardNode =
+    inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(policy)
 
   protected def bufferTo(buffer: BufferParams): TLOutwardNode =
     TLBuffer(buffer) :*= delayNode :*= outwardNode
-
-  protected def bufferTo(buffers: Int): TLOutwardNode =
-    TLBuffer.chain(buffers).foldRight(delayNode)(_ :*= _) :*= outwardNode
 
   protected def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
     TLWidthWidget(beatBytes) :*= bufferTo(buffer)

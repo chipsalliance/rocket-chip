@@ -108,10 +108,10 @@ class PeripheryBus(params: PeripheryBusParams)
 
 
   def toTile
-      (name: Option[String] = None, buffers: Int = 0)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLOutwardNode = {
     to("tile" named name) { FlipRendering { implicit p =>
-      gen :*= bufferTo(buffers)
+      gen :*= bufferTo(buffer)
     }}
   }
 }

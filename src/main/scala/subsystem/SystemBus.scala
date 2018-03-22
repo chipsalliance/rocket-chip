@@ -21,8 +21,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
 
-  protected def fixFromThenSplit(policy: TLFIFOFixer.Policy, buffers: Int): TLInwardNode =
-    master_splitter.node :=* TLBuffer.chain(buffers).foldLeft(TLFIFOFixer(policy))(_ :=* _)
+  protected def fixFromThenSplit(policy: TLFIFOFixer.Policy, buffer: BufferParams): TLInwardNode =
+    master_splitter.node :=* TLBuffer(buffer) :=* TLFIFOFixer(policy)
 
   def busView = master_splitter.node.edges.in.head
 
@@ -72,10 +72,10 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   }
 
   def fromTile
-      (name: Option[String], buffers: Int = 0, cork: Option[Boolean] = None)
+      (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
       (gen: => TLNode): TLInwardNode = {
     from("tile" named name) {
-      fixFromThenSplit(TLFIFOFixer.allUncacheable, buffers) :=* gen
+      fixFromThenSplit(TLFIFOFixer.allUncacheable, buffer) :=* gen
     }
   }
 
@@ -87,23 +87,23 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   }
 
   def fromPort[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 0)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
-    from("port" named name) { fixFromThenSplit(TLFIFOFixer.all, buffers) :=* gen }
+    from("port" named name) { fixFromThenSplit(TLFIFOFixer.all, buffer) :=* gen }
   }
 
   def fromCoherentMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 0)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
-    from("coherent_master" named name) { fixFrom(TLFIFOFixer.all, buffers) :=* gen }
+    from("coherent_master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
   }
 
   def fromMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 0)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
-    from("master" named name) { fixFromThenSplit(TLFIFOFixer.all, buffers) :=* gen }
+    from("master" named name) { fixFromThenSplit(TLFIFOFixer.all, buffer) :=* gen }
   }
 }
