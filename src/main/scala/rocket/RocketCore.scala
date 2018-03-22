@@ -727,7 +727,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   }
 
   PlusArg.timeout(
-    name = "max-core-cycles",
+    name = "max_core_cycles",
     docstring = "Kill the emulation after INT rdtime cycles. Off if 0."
   )(csr.io.time)
 
