@@ -726,12 +726,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
          csr.io.trace(0).insn, csr.io.trace(0).insn)
   }
 
-  val max_core_cycles = PlusArg("max-core-cycles",
-    default = 0,
-    docstring = "Kill the emulation after INT rdtime cycles. Off if 0.")
-  when (max_core_cycles > UInt(0)) {
-    assert (csr.io.time < max_core_cycles, "Maximum Core Cycles reached.")
-  }
+  PlusArg.timeout(
+    name = "max_core_cycles",
+    docstring = "Kill the emulation after INT rdtime cycles. Off if 0."
+  )(csr.io.time)
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))

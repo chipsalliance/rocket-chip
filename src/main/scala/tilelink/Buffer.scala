@@ -75,4 +75,8 @@ object TLBuffer
     name.foreach { n => buffers.zipWithIndex.foreach { case (b, i) => b.suggestName(s"${n}_${i}") } }
     buffers.map(_.node)
   }
+
+  def chainNode(depth: Int, name: Option[String] = None)(implicit p: Parameters): TLNode = {
+    chain(depth, name).reduceLeftOption(_ :*=* _).getOrElse(TLIdentity.gen)
+  }
 }
