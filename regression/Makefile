@@ -231,6 +231,8 @@ ifdef SEED
 SEED_ARG = --seed $(SEED)
 endif
 
+JTAG_DTM_ENABLE_SBA ?= off
+
 JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
 
 stamps/riscv-tests.stamp:
