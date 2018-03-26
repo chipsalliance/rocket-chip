@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 class EventSet(gate: (UInt, UInt) => Bool, events: Seq[(String, () => Bool)]) {
   def size = events.size
@@ -13,6 +14,11 @@ class EventSet(gate: (UInt, UInt) => Bool, events: Seq[(String, () => Bool)]) {
   def dump() {
     for (((name, _), i) <- events.zipWithIndex)
       when (check(1.U << i)) { printf(s"Event $name\n") }
+  }
+  def withCovers {
+    events.zipWithIndex.foreach {
+      case ((name, _), i) => cover(check(1.U << i), name)
+    }
   }
 }
 
@@ -34,6 +40,8 @@ class EventSets(val eventSets: Seq[EventSet]) {
     val sets = eventSets map (_ check mask)
     sets(set)
   }
+
+  def cover = eventSets.foreach { _ withCovers }
 
   private def eventSetIdBits = 8
 }
