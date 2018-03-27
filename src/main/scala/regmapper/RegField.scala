@@ -44,9 +44,9 @@ case class RegFieldDesc (
   wrType: Option[RegFieldWrType] = None,
   rdAction: Option[RegFieldRdAction] = None,
   volatile: Boolean = false,
-  // TODO: testable?
   reset: Option[BigInt] = None,
-  enumerations: Map[BigInt, (String, String)] = Map()
+  enumerations: Map[BigInt, (String, String)] = Map(),
+  testable: Boolean = true
 ){
 }
 
@@ -161,7 +161,8 @@ case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option
       ("enumerations" -> desc.map {d =>
         Option(d.enumerations.map { case (key, (name, edesc)) =>
           (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
-        }).filter(_.nonEmpty)}) )
+        }).filter(_.nonEmpty)}) ~
+      ("testable"     -> desc.map {d => if (!d.testable) Some(false) else None} ))
   }
 }
 

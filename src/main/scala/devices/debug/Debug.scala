@@ -342,7 +342,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     // DMCONTROL is the only register, so it's at offset 0.
     dmiNode.regmap(
       0 -> Seq(RWNotify(32, DMCONTROLRdData.asUInt(),
-        DMCONTROLWrDataVal, DMCONTROLRdEn, DMCONTROLWrEn, Some(RegFieldDesc("dmi_dmcontrol", "", reset=Some(0)))))
+        DMCONTROLWrDataVal, DMCONTROLRdEn, DMCONTROLWrEn, Some(RegFieldDesc("dmi_dmcontrol", "", reset=Some(0), testable=false))))
     )
 
     //--------------------------------------------------------------
