@@ -13,6 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.dontTouch
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -140,6 +141,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s1_valid = Reg(init=Bool(false))
   val s1_tag_hit = Wire(Vec(nWays, Bool()))
   val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
+  dontTouch(s1_hit)
   val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
   val s2_hit = RegNext(s1_hit)
 
