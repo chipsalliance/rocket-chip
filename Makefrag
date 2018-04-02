@@ -16,7 +16,7 @@ CXX ?= g++
 CXXFLAGS := -O1
 JVM_MEMORY ?= 2G
 
-SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M @(SBT_OPTS) -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
