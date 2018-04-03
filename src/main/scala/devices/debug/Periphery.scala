@@ -4,6 +4,7 @@ package freechips.rocketchip.devices.debug
 
 import Chisel._
 import chisel3.core.{IntParam, Input, Output}
+import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
@@ -87,7 +88,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp with HasPeripheryDebugBun
   outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 }
 
-class SimDTM(implicit p: Parameters) extends BlackBox {
+class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   val io = new Bundle {
     val clk = Clock(INPUT)
     val reset = Bool(INPUT)
@@ -108,9 +109,13 @@ class SimDTM(implicit p: Parameters) extends BlackBox {
       stop(1)
     }
   }
+
+  setResource("/SimDTM.v")
+  setResource("/SimDTM.cc")
 }
 
-class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay))) {
+class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
+    with HasBlackBoxResource {
   val io = new Bundle {
     val clock = Clock(INPUT)
     val reset = Bool(INPUT)
@@ -137,5 +142,10 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
       stop(1)
     }
   }
+
+  setResource("/SimJTAG.v")
+  setResource("/SimJTAG.cc")
+  setResource("/remote_bitbang.h")
+  setResource("/remote_bitbang.cc")
 }
 

@@ -1,31 +1,4 @@
 #--------------------------------------------------------------------
-# Sources
-#--------------------------------------------------------------------
-
-# Verilog sources
-
-bb_vsrcs = \
-	$(base_dir)/vsrc/plusarg_reader.v \
-	$(base_dir)/vsrc/ClockDivider2.v \
-	$(base_dir)/vsrc/ClockDivider3.v \
-	$(base_dir)/vsrc/AsyncResetReg.v \
-
-sim_vsrcs = \
-	$(generated_dir)/$(long_name).v \
-	$(generated_dir)/$(long_name).behav_srams.v \
-	$(base_dir)/vsrc/$(TB).v \
-	$(base_dir)/vsrc/SimDTM.v \
-        $(base_dir)/vsrc/SimJTAG.v \
-	$(bb_vsrcs)
-
-# C sources
-
-sim_csrcs = \
-	$(base_dir)/csrc/SimDTM.cc \
-        $(base_dir)/csrc/SimJTAG.cc \
-        $(base_dir)/csrc/remote_bitbang.cc
-
-#--------------------------------------------------------------------
 # Build Verilog
 #--------------------------------------------------------------------
 
@@ -82,3 +55,30 @@ $(simv_debug) : $(sim_vsrcs) $(sim_csrcs)
 seed = $(shell date +%s)
 exec_simv = $(simv) +permissive -q +ntb_random_seed_automatic +permissive-off
 exec_simv_debug = $(simv_debug) +permissive -q +ntb_random_seed_automatic +permissive-off
+
+.PRECIOUS: $(output_dir)/%.vpd
+
+$(output_dir)/%.run: $(output_dir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +permissive +max-cycles=$(timeout_cycles) +permissive-off $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.out: $(output_dir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +permissive +verbose +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.vcd: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +permissive +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.vpd: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +permissive +verbose +vcdplusfile=$@ +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $(patsubst %.vpd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.saif: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +permissive +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) +permissive-off $<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+
+run: run-asm-tests run-bmark-tests
+run-debug: run-asm-tests-debug run-bmark-tests-debug
+run-fast: run-asm-tests-fast run-bmark-tests-fast
+
+.PHONY: run-asm-tests run-bmark-tests
+.PHONY: run-asm-tests-debug run-bmark-tests-debug
+.PHONY: run run-debug run-fast
+
+junk += $(output_dir)
