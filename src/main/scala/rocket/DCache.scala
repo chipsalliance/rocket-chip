@@ -11,20 +11,20 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.dontTouch
 import TLMessages._
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
     with CanHaveErrors {
-  val correctable = (cacheParams.tagECC.canCorrect || cacheParams.dataECC.canCorrect).option(Valid(UInt(width = paddrBits)))
-  val uncorrectable = (cacheParams.tagECC.canDetect || cacheParams.dataECC.canDetect).option(Valid(UInt(width = paddrBits)))
+  val correctable = (cacheParams.tagCode.canCorrect || cacheParams.dataCode.canCorrect).option(Valid(UInt(width = paddrBits)))
+  val uncorrectable = (cacheParams.tagCode.canDetect || cacheParams.dataCode.canDetect).option(Valid(UInt(width = paddrBits)))
   val bus = Valid(UInt(width = paddrBits))
 }
 
 class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
-  val eccBytes = cacheParams.dataECCBytes
   val addr = Bits(width = untagBits)
   val write = Bool()
-  val wdata = UInt(width = cacheParams.dataECC.width(eccBytes*8) * rowBytes/eccBytes)
+  val wdata = UInt(width = encBits * rowBytes / eccBytes)
   val wordMask = UInt(width = rowBytes / wordBytes)
   val eccMask = UInt(width = wordBytes / eccBytes)
   val way_en = Bits(width = nWays)
@@ -37,9 +37,6 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   require(rowBytes % wordBytes == 0)
-  val eccBits = cacheParams.dataECCBytes * 8
-  val encBits = cacheParams.dataECC.width(eccBits)
-  val encWordBits = encBits * (wordBits / eccBits)
   val eccMask = if (eccBits == wordBits) Seq(true.B) else io.req.bits.eccMask.toBools
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
@@ -69,11 +66,8 @@ class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, va
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  // no tag ECC support
-  val tECC = cacheParams.tagECC
-  val dECC = cacheParams.dataECC
-  val eccBytes = cacheParams.dataECCBytes
-  val eccBits = eccBytes * 8
+  val tECC = cacheParams.tagCode
+  val dECC = cacheParams.dataCode
   require(isPow2(eccBytes) && eccBytes <= wordBytes)
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
@@ -260,6 +254,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && can_acquire_before_release
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
+  dontTouch(s2_valid_cached_miss)
   val s2_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
   val s2_victim_way = Mux(s2_hit_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
@@ -268,6 +263,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
+  dontTouch(s2_victim_dirty)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
   io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached_pending && tl_out_a.ready)
   when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
@@ -700,7 +696,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s2_correct) { pstore1_storegen_data := s2_data_word_corrected }
 
   // flushes
-  val resetting = Reg(init=Bool(!usingDataScratchpad))
+  val resetting = RegInit(false.B)
+  if (!usingDataScratchpad)
+    when (RegNext(reset)) { resetting := true }
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))

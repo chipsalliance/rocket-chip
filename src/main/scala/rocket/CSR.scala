@@ -357,14 +357,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
     CSRs.mscratch -> reg_mscratch,
-    CSRs.mepc -> reg_mepc.sextTo(xLen),
+    CSRs.mepc -> readEPC(reg_mepc).sextTo(xLen),
     CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.hartid)
 
   val debug_csrs = LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
-    CSRs.dpc -> reg_dpc.sextTo(xLen),
+    CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
   val fp_csrs = LinkedHashMap[Int,Bits](
@@ -431,7 +431,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     read_mapping += CSRs.scause -> reg_scause
     read_mapping += CSRs.sbadaddr -> reg_sbadaddr.sextTo(xLen)
     read_mapping += CSRs.sptbr -> reg_sptbr.asUInt
-    read_mapping += CSRs.sepc -> reg_sepc.sextTo(xLen)
+    read_mapping += CSRs.sepc -> readEPC(reg_sepc).sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
     read_mapping += CSRs.scounteren -> reg_scounteren
     read_mapping += CSRs.mideleg -> reg_mideleg
@@ -584,17 +584,17 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_mstatus.spie := true
       reg_mstatus.spp := PRV.U
       new_prv := reg_mstatus.spp
-      io.evec := reg_sepc
+      io.evec := readEPC(reg_sepc)
     }.elsewhen (Bool(usingDebug) && io.rw.addr(10)) {
       new_prv := reg_dcsr.prv
       reg_debug := false
-      io.evec := reg_dpc
+      io.evec := readEPC(reg_dpc)
     }.otherwise {
       reg_mstatus.mie := reg_mstatus.mpie
       reg_mstatus.mpie := true
       reg_mstatus.mpp := legalizePrivilege(PRV.U)
       new_prv := reg_mstatus.mpp
-      io.evec := reg_mepc
+      io.evec := readEPC(reg_mepc)
     }
   }
 
@@ -640,8 +640,11 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (decoded_addr(CSRs.misa)) {
       val mask = UInt(isaStringToMask(isaMaskString), xLen)
       val f = wdata('f' - 'a')
-      if (coreParams.misaWritable)
-        reg_misa := ~(~wdata | (!f << ('d' - 'a'))) & mask | reg_misa & ~mask
+      // suppress write if it would cause the next fetch to be misaligned
+      when (!usingCompressed || !io.pc(1) || wdata('c' - 'a')) {
+        if (coreParams.misaWritable)
+          reg_misa := ~(~wdata | (!f << ('d' - 'a'))) & mask | reg_misa & ~mask
+      }
     }
     when (decoded_addr(CSRs.mip)) {
       // MIP should be modified based on the value in reg_mip, not the value
@@ -838,5 +841,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
   }
   def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
+  def readEPC(x: UInt) = ~(~x | Mux(reg_misa('c' - 'a'), 1.U, 3.U))
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
 }

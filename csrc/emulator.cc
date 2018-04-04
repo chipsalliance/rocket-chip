@@ -3,6 +3,7 @@
 
 #include "verilated.h"
 #if VM_TRACE
+#include <memory>
 #include "verilated_vcd_c.h"
 #endif
 #include <fesvr/dtm.h>

@@ -12,7 +12,7 @@ case class FrontBusParams(
   beatBytes: Int,
   blockBytes: Int,
   sbusCrossing: SubsystemClockCrossing = SynchronousCrossing(),
-  sbusBuffer: BufferParams = BufferParams.default) extends HasTLBusParams
+  sbusBuffer: BufferParams = BufferParams.none) extends HasTLBusParams
 
 case object FrontBusKey extends Field[FrontBusParams]
 
@@ -23,21 +23,23 @@ class FrontBus(params: FrontBusParams)
   val crossing = params.sbusCrossing
 
   def fromPort[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 1)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
-    from("port" named name) { fixFrom(TLFIFOFixer.all, buffers) :=* gen }
+    from("port" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
   }
 
-  def fromMasterNode(name: Option[String] = None, buffers: Int = 1)(gen: TLOutwardNode) { 
-    from("master" named name) { fixFrom(TLFIFOFixer.all, buffers) :=* gen }
+  def fromMasterNode
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: TLOutwardNode) {
+    from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
   }
 
   def fromMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffers: Int = 1)
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
-    from("master" named name) { fixFrom(TLFIFOFixer.all, buffers) :=* gen }
+    from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
   }
 
   def fromCoherentChip(gen: => TLNode): TLInwardNode = {

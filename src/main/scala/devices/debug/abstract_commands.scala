@@ -25,6 +25,9 @@ class ACCESS_REGISTERFields extends Bundle {
             If \Fsize specifies a size larger than the register's actual size,
             then the access must fail. If a register is accessible, then reads of \Fsize
             less than or equal to the register's actual size must be supported.
+
+            This field controls the Argument Width as referenced in
+            Table~\ref{tab:datareg}.
   */
   val size = UInt(3.W)
 

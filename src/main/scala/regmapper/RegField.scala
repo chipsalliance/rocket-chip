@@ -5,8 +5,11 @@ package freechips.rocketchip.regmapper
 import Chisel._
 import chisel3.util.{ReadyValidIO}
 
-import freechips.rocketchip.util.{SimpleRegIO}
+import org.json4s.JsonDSL._
+import org.json4s.JsonAST.JValue
+import org.json4s.jackson.JsonMethods.{pretty, render}
 
+import freechips.rocketchip.util.{SimpleRegIO}
 
 // This information is not used internally by the regmap(...) function.
 // However, the author of a RegField may be the best person to provide this
@@ -15,9 +18,22 @@ import freechips.rocketchip.util.{SimpleRegIO}
 
 object RegFieldAccessType extends scala.Enumeration {
   type RegFieldAccessType = Value
-  val R, W, RW, RSPECIAL, WSPECIAL, RWSPECIAL, OTHER = Value
+  val R, W, RW = Value
 }
 import RegFieldAccessType._
+
+object RegFieldWrType extends scala.Enumeration {
+  type RegFieldWrType = Value
+  val ONE_TO_CLEAR, ONE_TO_SET, ONE_TO_TOGGLE, ZERO_TO_CLEAR,
+    ZERO_TO_SET, ZERO_TO_TOGGLE, CLEAR, SET, MODIFY = Value
+}
+import RegFieldWrType._
+
+object RegFieldRdAction extends scala.Enumeration {
+  type RegFieldRdAction = Value
+  val CLEAR, SET, MODIFY = Value
+}
+import RegFieldRdAction._
 
 case class RegFieldDesc (
   name: String,
@@ -25,16 +41,24 @@ case class RegFieldDesc (
   group: Option[String] = None,
   groupDesc: Option[String] = None,
   access: RegFieldAccessType = RegFieldAccessType.RW,
+  wrType: Option[RegFieldWrType] = None,
+  rdAction: Option[RegFieldRdAction] = None,
+  volatile: Boolean = false,
+  // TODO: testable?
   reset: Option[BigInt] = None,
   enumerations: Map[BigInt, (String, String)] = Map()
 ){
 }
 
-// Our descriptions are in terms of RegFields only, which is somewhat unusual for
-// developers who are used to things being defined as bitfields within registers.
-// The "Group" allows a string & (optional) description to be added which describes the conceptual "Group"
-// the RegField belongs to. This can be used by downstream flows as they see fit to
-// present the information.
+object RegFieldDesc {
+  def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
+}
+
+// Our descriptions are in terms of RegFields only, which is somewhat
+// unusual for developers who are used to things being defined as bitfields
+// within registers. The "Group" allows a string & (optional) description
+// to be added which describes the conceptual "Group" the RegField belongs to.
+// This can be used by downstream flows as they see fit to present the information.
 
 object RegFieldGroup {
   def apply (name: String, desc: Option[String], regs: Seq[RegField], descFirstOnly: Boolean = true): Seq[RegField] = {
@@ -116,8 +140,29 @@ object RegWriteFn
 case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option[RegFieldDesc])
 {
   require (width > 0, s"RegField width must be > 0, not $width")
+
   def pipelined = !read.combinational || !write.combinational
+
   def readOnly = this.copy(write = (), desc = this.desc.map(_.copy(access = RegFieldAccessType.R)))
+
+  def toJson(byteOffset: Int, bitOffset: Int): JValue = {
+    ( ("byteOffset"   -> s"0x${byteOffset.toHexString}") ~
+      ("bitOffset"    -> bitOffset) ~
+      ("bitWidth"     -> width) ~
+      ("name"         -> desc.map(_.name)) ~
+      ("description"  -> desc.map{ d=> if (d.desc == "") None else Some(d.desc)}) ~
+      ("resetValue"   -> desc.map{_.reset}) ~
+      ("group"        -> desc.map{_.group}) ~
+      ("groupDesc"    -> desc.map{_.groupDesc}) ~
+      ("accessType"   -> desc.map {d => d.access.toString}) ~
+      ("writeType"    -> desc.map {d => d.wrType.map(_.toString)}) ~
+      ("readAction"   -> desc.map {d => d.rdAction.map(_.toString)}) ~
+      ("volatile"     -> desc.map {d => if (d.volatile) Some(true) else None}) ~
+      ("enumerations" -> desc.map {d =>
+        Option(d.enumerations.map { case (key, (name, edesc)) =>
+          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+        }).filter(_.nonEmpty)}) )
+  }
 }
 
 object RegField
@@ -125,8 +170,7 @@ object RegField
   // Byte address => sequence of bitfields, lowest index => lowest address
   type Map = (Int, Seq[RegField])
 
-  def apply(n: Int)                                                             : RegField = apply(n, (), (),
-    Some(RegFieldDesc("reserved", "", access = RegFieldAccessType.R, reset = Some(0))))
+  def apply(n: Int)                                                             : RegField = apply(n, (), (), Some(RegFieldDesc.reserved))
 
   def apply(n: Int, r: RegReadFn, w: RegWriteFn)                                : RegField = apply(n, r,  w,  None)
   def apply(n: Int, r: RegReadFn, w: RegWriteFn, desc: RegFieldDesc)            : RegField = apply(n, r,  w,  Some(desc))
@@ -142,7 +186,7 @@ object RegField
   // Setting takes priority over clearing.
   def w1ToClear(n: Int, reg: UInt, set: UInt, desc: Option[RegFieldDesc] = None): RegField =
     RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }),
-      desc.map{_.copy(access = RegFieldAccessType.RWSPECIAL)})
+      desc.map{_.copy(access = RegFieldAccessType.RW, wrType=Some(RegFieldWrType.ONE_TO_CLEAR), volatile = true)})
 
   // This RegField wraps an explicit register
   // (e.g. Black-Boxed Register) to create a R/W register.
@@ -151,26 +195,41 @@ object RegField
       bb.en := valid
       bb.d := data
       Bool(true)
-    }), desc.map{_.copy(access = RegFieldAccessType.RW)})
+    }), desc)
 
   // Create byte-sized read-write RegFields out of a large UInt register.
-  // It is updated when any of the bytes are written. Because the RegFields
-  // are all byte-sized, this is also suitable when a register is larger
+  // It is updated when any of the (implemented) bytes are written, the non-written
+  // bytes are just copied over from their current value.
+  // Because the RegField are all byte-sized, this is also suitable when a register is larger
   // than the intended bus width of the device (atomic updates are impossible). 
   def bytes(reg: UInt, numBytes: Int, desc: Option[RegFieldDesc]): Seq[RegField] = {
-   val pad = reg | UInt(0, width = 8*numBytes)
+    require(reg.getWidth * 8 >= numBytes, "Can't break a ${reg.getWidth}-bit-wide register into only ${numBytes} bytes.")
+    val numFullBytes = reg.getWidth/8
+    val numPartialBytes  = if ((reg.getWidth % 8) > 0) 1 else 0
+    val numPadBytes = numBytes - numFullBytes - numPartialBytes
+    val pad = reg | UInt(0, width = 8*numBytes)
     val oldBytes = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
     val newBytes = Wire(init = oldBytes)
     val valids = Wire(init = Vec.fill(numBytes) { Bool(false) })
     when (valids.reduce(_ || _)) { reg := newBytes.asUInt }
-    Seq.tabulate(numBytes) { i =>
+
+    def wrFn(i: Int): RegWriteFn = RegWriteFn((valid, data) => {
+      valids(i) := valid
+      when (valid) {newBytes(i) := data}
+      Bool(true)
+    })
+
+    val fullBytes = Seq.tabulate(numFullBytes) { i =>
       val newDesc = desc.map {d => d.copy(name = d.name + s"_$i")}
-      RegField(8, oldBytes(i),
-        RegWriteFn((valid, data) => {
-        valids(i) := valid
-        when (valid) { newBytes(i) := data }
-        Bool(true)
-      }), newDesc)}}
+      RegField(8, oldBytes(i), wrFn(i), newDesc)}
+    val partialBytes = if (numPartialBytes > 0) {
+      val newDesc = desc.map {d => d.copy(name = d.name + s"_$numFullBytes")}
+      Seq(RegField(reg.getWidth % 8, oldBytes(numFullBytes), wrFn(numFullBytes), newDesc),
+        RegField(8 - (reg.getWidth % 8)))
+    } else Nil
+    val padBytes = Seq.fill(numPadBytes){RegField(8)}
+      fullBytes ++ partialBytes ++ padBytes
+  }
 
   def bytes(reg: UInt, desc: Option[RegFieldDesc]): Seq[RegField] = {
     val width = reg.getWidth

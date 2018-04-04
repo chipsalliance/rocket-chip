@@ -22,10 +22,9 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem(size: Int) = {
+  def makeSinglePortedByteWriteSeqMem(size: Int, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
-    require ((address.mask & (beatBytes-1)) == beatBytes-1)
-    val mem = SeqMem(size, Vec(beatBytes, Bits(width = 8)))
+    val mem = SeqMem(size, Vec(lanes, Bits(width = bits)))
     devName.foreach(n => mem.suggestName(n.split("-").last))
     mem
   }

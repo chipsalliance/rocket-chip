@@ -30,8 +30,6 @@ object DMIConsts{
   // This is used outside this block
   // to indicate 'busy'.
   def dmi_RESP_RESERVED    = "b11".U
-
-  def dmi_haltStatusAddr   = 0x40
 }
 
 object DsbBusConsts {
@@ -254,7 +252,8 @@ object WNotifyWire {
       set := valid
       value := data
       Bool(true)
-    }), Some(RegFieldDesc(name = name, desc = desc, access = RegFieldAccessType.WSPECIAL)))
+    }), Some(RegFieldDesc(name = name, desc = desc,
+      access = RegFieldAccessType.W)))
   }
 }
 
@@ -328,7 +327,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     } .otherwise {
       when (DMCONTROLWrEn) {
         DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset
-        DMCONTROLNxt.hartsel      := DMCONTROLWrData.hartsel
+        DMCONTROLNxt.hartsello    := DMCONTROLWrData.hartsello
         DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq
         DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
         DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
@@ -375,14 +374,14 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       when (~dmactive) {
         debugIntNxt(component) := false.B
       }. otherwise {
-        when (DMCONTROLWrEn && DMCONTROLWrData.hartsel === component.U) {
+        when (DMCONTROLWrEn && DMCONTROLWrData.hartsello === component.U) {
           debugIntNxt(component) := DMCONTROLWrData.haltreq
         }
       }
     }
 
     io.innerCtrl.valid := DMCONTROLWrEn
-    io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsel
+    io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsello
     io.innerCtrl.bits.resumereq    := DMCONTROLWrData.resumereq
     io.innerCtrl.bits.ackhavereset := DMCONTROLWrData.ackhavereset 
 
@@ -559,7 +558,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
     HARTINFORdData.nscratch    := cfg.nScratch.U
 
-    //----HALTSUM (and halted registers)
+    //----HALTSUM*
     val numHaltedStatus = ((nComponents - 1) / 32) + 1
     val haltedStatus   = Wire(Vec(numHaltedStatus, Bits(width = 32)))
 
@@ -568,7 +567,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     val haltedSummary = Cat(haltedStatus.map(_.orR).reverse)
-    val HALTSUMRdData = (new HALTSUMFields()).fromBits(haltedSummary)
+    val HALTSUM1RdData = (new HALTSUM1Fields()).fromBits(haltedSummary)
+
+    val selectedHaltedStatus = Mux((selectedHartReg >> 5) > numHaltedStatus.U, 0.U, haltedStatus(selectedHartReg >> 5))
+    val HALTSUM0RdData = (new HALTSUM0Fields()).fromBits(selectedHaltedStatus)
+
+    // Since we only support 1024 harts, we don't implement HALTSUM2 or HALTSUM3
 
     //----ABSTRACTCS
 
@@ -728,7 +732,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_DMSTATUS    << 2) -> Seq(RegField.r(32, DMSTATUSRdData.asUInt(), RegFieldDesc("dmi_dmstatus", ""))),
       //TODO (DMI_CFGSTRADDR0 << 2) -> cfgStrAddrFields,
       (DMI_HARTINFO    << 2) -> Seq(RegField.r(32, HARTINFORdData.asUInt(), RegFieldDesc("dmi_hartinfo", "" /*, reset=Some(HARTINFORdData.litValue)*/))),
-      (DMI_HALTSUM     << 2) -> Seq(RegField.r(32, HALTSUMRdData.asUInt(), RegFieldDesc("dmi_haltsum", ""))),
+      (DMI_HALTSUM0    << 2) -> Seq(RegField.r(32, HALTSUM0RdData.asUInt(), RegFieldDesc("dmi_haltsum0", ""))),
+      (DMI_HALTSUM1    << 2) -> Seq(RegField.r(32, HALTSUM1RdData.asUInt(), RegFieldDesc("dmi_haltsum1", ""))),
       (DMI_ABSTRACTCS  << 2) -> Seq(RWNotify(32, ABSTRACTCSRdData.asUInt(), ABSTRACTCSWrDataVal, ABSTRACTCSRdEn, ABSTRACTCSWrEnMaybe,
         Some(RegFieldDesc("dmi_abstractcs", "" /*, reset=Some(ABSTRACTCSReset.litValue)*/)))),
       (DMI_ABSTRACTAUTO<< 2) -> Seq(RWNotify(32, ABSTRACTAUTORdData.asUInt(), ABSTRACTAUTOWrDataVal, ABSTRACTAUTORdEn, ABSTRACTAUTOWrEnMaybe,
@@ -742,8 +747,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", None, programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, programBufferNxt(i),
         dmiProgramBufferRdEn(i),
         dmiProgramBufferWrEnMaybe(i),
-        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))}),
-      (DMIConsts.dmi_haltStatusAddr << 2) -> RegFieldGroup("dmi_halt_status", None, haltedStatus.zipWithIndex.map{case (x, i) => RegField.r(32, x, RegFieldDesc(s"halt_status_$i", ""))})
+        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))})
     )
 
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
@@ -784,7 +788,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(nComponents){new flagBundle().fromBits(0.U)})
+    val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
     assert ((cfg.hartSelToHartId(selectedHartReg) < 1024.U),
       "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
     flags(cfg.hartSelToHartId(selectedHartReg)).go := goReg
@@ -898,15 +902,15 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         programBufferMem.zipWithIndex.map {case (x, i) => RegField(8, x, RegFieldDesc(s"debug_progbuf_$i", ""))}),
 
       // These sections are read-only.
-      IMPEBREAK(cfg)-> {if (cfg.hasImplicitEbreak) Seq(RegField.r(32,  Instructions.EBREAK.value.U, RegFieldDesc("debug_impebreak", "Debug Implicit EBREAK"))) else Nil},
-      WHERETO       -> Seq(RegField.r(32, jalAbstract.asUInt, RegFieldDesc("debug_whereto", "Instruction filled in by Debug Module to control hart in Debug Mode"))),
+      IMPEBREAK(cfg)-> {if (cfg.hasImplicitEbreak) Seq(RegField.r(32,  Instructions.EBREAK.value.U,
+        RegFieldDesc("debug_impebreak", "Debug Implicit EBREAK", reset=Some(Instructions.EBREAK.value)))) else Nil},
+      WHERETO       -> Seq(RegField.r(32, jalAbstract.asUInt, RegFieldDesc("debug_whereto", "Instruction filled in by Debug Module to control hart in Debug Mode", volatile = true))),
       ABSTRACT(cfg) -> RegFieldGroup("debug_abstract", Some("Instructions generated by Debug Module"),
-        abstractGeneratedMem.zipWithIndex.map{ case (x,i) => RegField.r(32, x, RegFieldDesc(s"debug_abstract_$i", ""))}),
+        abstractGeneratedMem.zipWithIndex.map{ case (x,i) => RegField.r(32, x, RegFieldDesc(s"debug_abstract_$i", "", volatile=true))}),
       FLAGS         -> RegFieldGroup("debug_flags", Some("Memory region used to control hart going/resuming in Debug Mode"),
-        flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt(), RegFieldDesc(s"debug_flags_${i}", ""))}),
+        flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true))}),
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
-        DebugRomContents().zipWithIndex.map{case (x, i) => RegField.r(8, (x & 0xFF).U(8.W),
-          RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
+        DebugRomContents().zipWithIndex.map{case (x, i) => RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
     )
 
     // Override System Bus accesses with dmactive reset.

@@ -170,14 +170,16 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
     def priorityRegDesc(i: Int) = if (i > 0) {
       RegFieldDesc(s"priority_$i", s"Acting priority of interrupt source $i",
-        reset=if (nPriorities > 0) None else Some(1), access=RegFieldAccessType.RWSPECIAL)
+        reset=if (nPriorities > 0) None else Some(1),
+        wrType=Some(RegFieldWrType.MODIFY))
     } else {
-      RegFieldDesc("reserved", "", reset=Some(0), access=RegFieldAccessType.R)
+      RegFieldDesc.reserved
     }
     def pendingRegDesc(i: Int) = if (i > 0) {
-      RegFieldDesc(s"pending_$i", s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.")
+      RegFieldDesc(s"pending_$i", s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.",
+      volatile = true)
     } else {
-      RegFieldDesc("reserved", "", reset=Some(0), access=RegFieldAccessType.R)
+      RegFieldDesc.reserved
     }
 
     def priorityRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, priorityRegDesc(i)) else RegField.r(32, x, priorityRegDesc(i))
@@ -193,7 +195,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         e.zipWithIndex.map{case (b, j) => if (j > 0) {
           RegField(1, b, RegFieldDesc(s"enable_${i}_${j}", s"Enable interrupt for source $j for target $i.", reset=None))
         } else {
-          RegField(1, b, RegFieldDesc("reserved", "", reset=Some(0), access=RegFieldAccessType.R))
+          RegField(1, b, RegFieldDesc.reserved)
         }})
     }
 
@@ -229,7 +231,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     def thresholdRegDesc(i: Int) = RegFieldDesc(s"threshold_$i", s"Interrupt & claim threshold for target $i. Maximum value is ${nPriorities}.",
-      reset=if (nPriorities > 0) None else Some(1), access=RegFieldAccessType.RWSPECIAL)
+      reset=if (nPriorities > 0) None else Some(1),
+      wrType=Some(RegFieldWrType.MODIFY))
     def thresholdRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, thresholdRegDesc(i)) else RegField.r(32, x, thresholdRegDesc(i))
 
     val hartRegFields = Seq.tabulate(nHarts) { i =>
@@ -251,7 +254,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             s"Claim/Complete register for Target $i. Reading this register returns the claimed interrupt number and makes it no longer pending." +
             s"Writing the interrupt number back completes the interrupt.",
             reset = None,
-            access = RegFieldAccessType.RWSPECIAL))
+            wrType = Some(RegFieldWrType.MODIFY),
+            rdAction = Some(RegFieldRdAction.MODIFY),
+            volatile = true))
         )
       )
     } 

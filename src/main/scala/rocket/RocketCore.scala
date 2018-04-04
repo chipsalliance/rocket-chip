@@ -68,13 +68,13 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ("store", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XWR && !id_ctrl.fp),
       ("amo", () => Bool(usingAtomics) && id_ctrl.mem && (isAMO(id_ctrl.mem_cmd) || id_ctrl.mem_cmd.isOneOf(M_XLR, M_XSC))),
       ("system", () => id_ctrl.csr =/= CSR.N),
-      ("arith", () => id_ctrl.wxd && !(id_ctrl.jal || id_ctrl.jalr || id_ctrl.mem || id_ctrl.fp || id_ctrl.div || id_ctrl.csr =/= CSR.N)),
+      ("arith", () => id_ctrl.wxd && !(id_ctrl.jal || id_ctrl.jalr || id_ctrl.mem || id_ctrl.fp || id_ctrl.mul || id_ctrl.div || id_ctrl.csr =/= CSR.N)),
       ("branch", () => id_ctrl.branch),
       ("jal", () => id_ctrl.jal),
       ("jalr", () => id_ctrl.jalr))
       ++ (if (!usingMulDiv) Seq() else Seq(
-        ("mul", () => id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) =/= ALU.FN_DIV),
-        ("div", () => id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) === ALU.FN_DIV)))
+        ("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) =/= ALU.FN_DIV),
+        ("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) === ALU.FN_DIV)))
       ++ (if (!usingFPU) Seq() else Seq(
         ("fp load", () => id_ctrl.fp && io.fpu.dec.ldst && io.fpu.dec.wen),
         ("fp store", () => id_ctrl.fp && io.fpu.dec.ldst && !io.fpu.dec.wen),
@@ -94,7 +94,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ("flush", () => wb_reg_flush_pipe),
       ("replay", () => replay_wb))
       ++ (if (!usingMulDiv) Seq() else Seq(
-        ("mul/div interlock", () => id_ex_hazard && ex_ctrl.div || id_mem_hazard && mem_ctrl.div || id_wb_hazard && wb_ctrl.div)))
+        ("mul/div interlock", () => id_ex_hazard && (ex_ctrl.mul || ex_ctrl.div) || id_mem_hazard && (mem_ctrl.mul || mem_ctrl.div) || id_wb_hazard && wb_ctrl.div)))
       ++ (if (!usingFPU) Seq() else Seq(
         ("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu)))),
     new EventSet((mask, hits) => (mask & hits).orR, Seq(
@@ -105,8 +105,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
       ("DTLB miss", () => io.dmem.perf.tlbMiss),
       ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
 
+  val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
-    (if (usingMulDiv) new MDecode +: (xLen > 32).option(new M64Decode).toSeq else Nil) ++:
+    (if (usingMulDiv) new MDecode(pipelinedMul) +: (xLen > 32).option(new M64Decode(pipelinedMul)).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode +: (xLen > 32).option(new A64Decode).toSeq else Nil) ++:
     (if (fLen >= 32) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
     (if (fLen >= 64) new DDecode +: (xLen > 32).option(new D64Decode).toSeq else Nil) ++:
@@ -202,7 +203,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val id_csr_flush = id_sfence || id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode(0).write_flush)
 
   val id_illegal_insn = !id_ctrl.legal ||
-    id_ctrl.div && !csr.io.status.isa('m'-'a') ||
+    (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
@@ -228,14 +229,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
 
-  val id_pc_misaligned = !csr.io.status.isa('c'-'a') && ibuf.io.pc(1)
   val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
   val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
   val (id_xcpt, id_cause) = checkExceptions(List(
     (csr.io.interrupt, csr.io.interrupt_cause),
     (bpu.io.debug_if,  UInt(CSR.debugTriggerCause)),
     (bpu.io.xcpt_if,   UInt(Causes.breakpoint)),
-    (id_pc_misaligned, UInt(Causes.misaligned_fetch)),
     (id_xcpt0.pf.inst, UInt(Causes.fetch_page_fault)),
     (id_xcpt0.ae.inst, UInt(Causes.fetch_access)),
     (id_xcpt1.pf.inst, UInt(Causes.fetch_page_fault)),
@@ -290,13 +289,19 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   alu.io.in1 := ex_op1.asUInt
 
   // multiplier and divider
-  val div = Module(new MulDiv(mulDivParams, width = xLen))
+  val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen))
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
   div.io.req.bits.dw := ex_ctrl.alu_dw
   div.io.req.bits.fn := ex_ctrl.alu_fn
   div.io.req.bits.in1 := ex_rs(0)
   div.io.req.bits.in2 := ex_rs(1)
   div.io.req.bits.tag := ex_waddr
+  val mul = pipelinedMul.option {
+    val m = Module(new PipelinedMultiplier(xLen, 2))
+    m.io.req.valid := ex_reg_valid && ex_ctrl.mul
+    m.io.req.bits := div.io.req.bits
+    m
+  }
 
   ex_reg_valid := !ctrl_killd
   ex_reg_replay := !take_pc && ibuf.io.inst(0).valid && ibuf.io.inst(0).bits.replay
@@ -532,7 +537,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data(xLen-1, 0),
                  Mux(ll_wen, ll_wdata,
                  Mux(wb_ctrl.csr =/= CSR.N, csr.io.rw.rdata,
-                 wb_reg_wdata)))
+                 Mux(wb_ctrl.mul, mul.map(_.io.resp.bits.data).getOrElse(wb_reg_wdata),
+                 wb_reg_wdata))))
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
 
   // hook up control/status regfile
@@ -572,14 +578,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   sboard.clear(ll_wen, ll_waddr)
   def id_sboard_clear_bypass(r: UInt) = {
     // ll_waddr arrives late when D$ has ECC, so reshuffle the hazard check
-    if (tileParams.dcache.get.dataECC.isInstanceOf[IdentityCode]) ll_wen && ll_waddr === r
+    if (!tileParams.dcache.get.dataECC.isDefined) ll_wen && ll_waddr === r
     else div.io.resp.fire() && div.io.resp.bits.tag === r || dmem_resp_replay && dmem_resp_xpu && dmem_resp_waddr === r
   }
   val id_sboard_hazard = checkHazards(hazard_targets, rd => sboard.read(rd) && !id_sboard_clear_bypass(rd))
   sboard.set(wb_set_sboard && wb_wen, wb_waddr)
 
   // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
-  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
+  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.mul || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
   val data_hazard_ex = ex_ctrl.wxd && checkHazards(hazard_targets, _ === ex_waddr)
   val fp_data_hazard_ex = ex_ctrl.wfd && checkHazards(fp_hazard_targets, _ === ex_waddr)
   val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)
@@ -588,7 +594,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val mem_mem_cmd_bh =
     if (fastLoadWord) Bool(!fastLoadByte) && mem_reg_slow_bypass
     else Bool(true)
-  val mem_cannot_bypass = mem_ctrl.csr =/= CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc
+  val mem_cannot_bypass = mem_ctrl.csr =/= CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.mul || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc
   val data_hazard_mem = mem_ctrl.wxd && checkHazards(hazard_targets, _ === mem_waddr)
   val fp_data_hazard_mem = mem_ctrl.wfd && checkHazards(fp_hazard_targets, _ === mem_waddr)
   val id_mem_hazard = mem_reg_valid && (data_hazard_mem && mem_cannot_bypass || fp_data_hazard_mem)
@@ -728,12 +734,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
          csr.io.trace(0).insn, csr.io.trace(0).insn)
   }
 
-  val max_core_cycles = PlusArg("max-core-cycles",
-    default = 0,
-    docstring = "Kill the emulation after INT rdtime cycles. Off if 0.")
-  when (max_core_cycles > UInt(0)) {
-    assert (csr.io.time < max_core_cycles, "Maximum Core Cycles reached.")
-  }
+  PlusArg.timeout(
+    name = "max_core_cycles",
+    docstring = "Kill the emulation after INT rdtime cycles. Off if 0."
+  )(csr.io.time)
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))

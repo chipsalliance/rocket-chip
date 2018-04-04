@@ -130,7 +130,7 @@ trait HasSlaveAXI4Port { this: BaseSubsystem =>
       id   = IdRange(0, 1 << params.idBits))))))
 
   private val fifoBits = 1
-  sbus.fromPort(Some(portName)) {
+  fbus.fromPort(Some(portName), buffer = BufferParams.default) {
     (TLWidthWidget(params.beatBytes)
       := AXI4ToTL()
       := AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))
