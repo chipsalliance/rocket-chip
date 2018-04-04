@@ -1,5 +1,6 @@
 // See LICENSE.SiFive for license details.
 //VCS coverage exclude_file
+`ifndef SYNTHESIS
 import "DPI-C" function int jtag_tick
 (
  output bit jtag_TCK,
@@ -9,6 +10,7 @@ import "DPI-C" function int jtag_tick
  
  input bit  jtag_TDO
 );
+`endif //!SYNTHESIS
 
 module SimJTAG #(
                  parameter TICK_DELAY = 50
@@ -31,6 +33,7 @@ module SimJTAG #(
                    output [31:0] exit
                    );
 
+`ifndef SYNTHESIS
    reg [31:0]                    tickCounterReg;
    wire [31:0]                   tickCounterNxt;
    
@@ -80,4 +83,5 @@ module SimJTAG #(
       end // else: !if(reset || r_reset)
    end // always @ (posedge clock)
 
+ `endif //!SYNTHESIS
 endmodule
