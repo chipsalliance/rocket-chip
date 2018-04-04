@@ -1,6 +1,7 @@
 // See LICENSE.SiFive for license details.
 //VCS coverage exclude_file
 
+`ifndef SYNTHESIS
 import "DPI-C" function int debug_tick
 (
   output bit     debug_req_valid,
@@ -14,6 +15,7 @@ import "DPI-C" function int debug_tick
   input  int        debug_resp_bits_resp,
   input  int        debug_resp_bits_data
 );
+`endif //!SYNTHESIS
 
 module SimDTM(
   input clk,
@@ -33,6 +35,7 @@ module SimDTM(
   output [31:0] exit
 );
 
+`ifndef SYNTHESIS
   bit r_reset;
 
   wire #0.1 __debug_req_ready = debug_req_ready;
@@ -78,4 +81,5 @@ module SimDTM(
       );
     end
   end
+`endif //!SYNTHESIS
 endmodule
