@@ -5,6 +5,7 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket.constants.MemoryOpConstants
 import freechips.rocketchip.util._
 
@@ -37,7 +38,8 @@ object MemoryOpCategories extends MemoryOpConstants {
   * Its API can be used to make TileLink messages in response to
   * memory operations, cache control oeprations, or Probe messages.
   */
-class ClientMetadata extends Bundle {
+class ClientMetadata(implicit p: Parameters) extends ParameterizedBundle {
+  val policy = p(CoherenceKey)
   /** Actual state information stored in this bundle */
   val state = UInt(width = ClientStates.width)
 
@@ -52,24 +54,11 @@ class ClientMetadata extends Bundle {
   /** Determine whether this cmd misses, and the new state (on hit) or param to be sent (on miss) */
   private def growStarter(cmd: UInt): (Bool, UInt) = {
     import MemoryOpCategories._
-    import TLPermissions._
-    import ClientStates._
     val c = categorize(cmd)
-    MuxTLookup(Cat(c, state), (Bool(false), UInt(0)), Seq(
-    //(effect, am now) -> (was a hit,   next)
-      Cat(rd, Dirty)   -> (Bool(true),  Dirty),
-      Cat(rd, Trunk)   -> (Bool(true),  Trunk),
-      Cat(rd, Branch)  -> (Bool(true),  Branch),
-      Cat(wi, Dirty)   -> (Bool(true),  Dirty),
-      Cat(wi, Trunk)   -> (Bool(true),  Trunk),
-      Cat(wr, Dirty)   -> (Bool(true),  Dirty),
-      Cat(wr, Trunk)   -> (Bool(true),  Dirty),
-    //(effect, am now) -> (was a miss,  param)
-      Cat(rd, Nothing) -> (Bool(false), NtoB),
-      Cat(wi, Branch)  -> (Bool(false), BtoT),
-      Cat(wi, Nothing) -> (Bool(false), NtoT),
-      Cat(wr, Branch)  -> (Bool(false), BtoT),
-      Cat(wr, Nothing) -> (Bool(false), NtoT)))
+    MuxTLookup(Cat(c, state), (Bool(false), UInt(0)),
+      policy.upgradeStart.map { case (cat, current, hit, next) =>
+        Cat(cat, current) -> (Bool(hit), next)
+      })
   }
 
   /** Determine what state to go to after miss based on Grant param
@@ -77,16 +66,13 @@ class ClientMetadata extends Bundle {
     */
   private def growFinisher(cmd: UInt, param: UInt): UInt = {
     import MemoryOpCategories._
-    import TLPermissions._
     import ClientStates._
     val c = categorize(cmd)
     //assert(c === rd || param === toT, "Client was expecting trunk permissions.")
-    MuxLookup(Cat(c, param), Nothing, Seq(
-    //(effect param) -> (next)
-      Cat(rd, toB)   -> Branch,
-      Cat(rd, toT)   -> Trunk,
-      Cat(wi, toT)   -> Trunk,
-      Cat(wr, toT)   -> Dirty))
+    MuxLookup(Cat(c, param), Nothing, policy.upgradeFinish.map {
+      case (cat, response, next) =>
+        Cat(cat, response) -> next
+    })
   }
 
   /** Does this cache have permissions on this block sufficient to perform op,
@@ -115,22 +101,10 @@ class ClientMetadata extends Bundle {
 
   /** Determine what state to go to based on Probe param */
   private def shrinkHelper(param: UInt): (Bool, UInt, UInt) = {
-    import ClientStates._
-    import TLPermissions._
-    MuxTLookup(Cat(param, state), (Bool(false), UInt(0), UInt(0)), Seq(
-    //(wanted, am now)  -> (hasDirtyData resp, next)
-      Cat(toT, Dirty)   -> (Bool(true),  TtoT, Trunk),
-      Cat(toT, Trunk)   -> (Bool(false), TtoT, Trunk),
-      Cat(toT, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toT, Nothing) -> (Bool(false), NtoN, Nothing),
-      Cat(toB, Dirty)   -> (Bool(true),  TtoB, Branch),
-      Cat(toB, Trunk)   -> (Bool(false), TtoB, Branch),  // Policy: Don't notify on clean downgrade
-      Cat(toB, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toB, Nothing) -> (Bool(false), BtoN, Nothing),
-      Cat(toN, Dirty)   -> (Bool(true),  TtoN, Nothing),
-      Cat(toN, Trunk)   -> (Bool(false), TtoN, Nothing), // Policy: Don't notify on clean downgrade
-      Cat(toN, Branch)  -> (Bool(false), BtoN, Nothing), // Policy: Don't notify on clean downgrade
-      Cat(toN, Nothing) -> (Bool(false), NtoN, Nothing)))
+    MuxTLookup(Cat(param, state), (Bool(false), UInt(0), UInt(0)),
+      policy.downgrade.map { case (req, current, dirty, resp, next) =>
+        Cat(req, current) -> ((Bool(dirty), resp, next))
+      })
   }
 
   /** Translate cache control cmds into Probe param */
@@ -156,11 +130,11 @@ class ClientMetadata extends Bundle {
 
 /** Factories for ClientMetadata, including on reset */
 object ClientMetadata {
-  def apply(perm: UInt) = {
+  def apply(perm: UInt)(implicit p: Parameters) = {
     val meta = Wire(new ClientMetadata)
     meta.state := perm
     meta
   }
-  def onReset = ClientMetadata(ClientStates.Nothing)
-  def maximum = ClientMetadata(ClientStates.Dirty)
+  def onReset(implicit p: Parameters) = ClientMetadata(ClientStates.Nothing)
+  def maximum(implicit p: Parameters) = ClientMetadata(ClientStates.Dirty)
 }

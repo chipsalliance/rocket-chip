@@ -27,6 +27,7 @@ class BaseCoreplexConfig extends Config ((site, here, up) => {
   case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
   case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
+  case CoherenceKey => new MESICoherence()
 })
 
 /* Composable partial function Configs to set individual parameters */
@@ -301,4 +302,12 @@ class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up
 
 class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
   case DTSTimebase => hertz
+})
+
+class WithMSICoherence extends Config((site, here, up) => {
+  case CoherenceKey => new MSICoherence
+})
+
+class WithMICoherence extends Config((site, here, up) => {
+  case CoherenceKey => new MICoherence
 })
