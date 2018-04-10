@@ -3,12 +3,14 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import firrtl.annotations.{CircuitName, ModuleName}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{HeterogeneousBag, ElaborationArtefacts}
-import scala.math.{min,max}
+import freechips.rocketchip.util.{ElaborationArtefacts, HeterogeneousBag}
+
+import scala.math.{max, min}
 
 case class TLRegisterNode(
     address:     Seq[AddressSet],
@@ -40,7 +42,7 @@ case class TLRegisterNode(
 
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
-  def regmap(mapping: RegField.Map*) = {
+  def regmap(mapping: RegField.Map*) : Unit = {
     val (bundleIn, edge) = this.in(0)
     val a = bundleIn.a
     val d = bundleIn.d
@@ -87,9 +89,10 @@ case class TLRegisterNode(
     val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
     val json = RegMappingAnnotation.serialize(base, name, mapping:_*)
     var suffix = 0
-    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")){
+    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
       suffix = suffix + 1
     }
+    println(s"${baseHex}.${suffix}.regmap.json" + json)
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
   }
 }
@@ -97,7 +100,15 @@ case class TLRegisterNode(
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
+abstract class TLRegisterRouterBase(
+    devname: String,
+    devcompat: Seq[String],
+    val address: AddressSet,
+    interrupts: Int,
+    concurrency: Int,
+    beatBytes: Int,
+    undefZero: Boolean,
+    executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val device = new SimpleDevice(devname, devcompat)
   val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
@@ -119,7 +130,18 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val io = IO(bundleBuilder)
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
-  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
+  def regmap(mapping: RegField.Map*) : Unit = {
+    // Does not work because regmap wants a varargs and not a list val m = mapping:_*
+    annotateRegs(this, router, mapping:_*)
+    router.node.regmap(mapping:_*)
+  }
+
+  def annotateRegs(module: TLRegModule[P, B], router: TLRegisterRouterBase, mapping: RegField.Map*) : Unit = {
+    RegAnnotationUtil.annotate(
+     // this.toNamed,
+      BigInt(0),
+      mapping)
+  }
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
