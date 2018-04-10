@@ -121,7 +121,7 @@ object RegAnnotationUtil {
           }.getOrElse(anonName)) -> f.toJson(byte, offset)
           //RegFieldhHolder(named, f.toJson(byte, offset).toString)
           val json = f.toJson(byte, offset).toString
-          RegFieldDescAnnotation(named, json)
+          RegFieldDescAnnotation(named, json.toString)
         }
       }
     }
