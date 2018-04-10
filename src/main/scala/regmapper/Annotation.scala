@@ -16,6 +16,13 @@ case class RegFieldDescAnnotation(
   def duplicate(n: Named): RegFieldDescAnnotation = this.copy(n)
 }
 
+object RegFieldDescAnnotation {
+  def nameMap(state: CircuitState): Map[String,String] = {
+    state.annotations.collect {
+      case RegFieldDescAnnotation(mname, cname) => mname.toString -> cname
+    }.toMap
+  }
+}
 case class DescribedRegChiselAnnotation(
     target: InstanceId,
     desc: RegFieldDesc) extends ChiselAnnotation with RunFirrtlTransform {
