@@ -7,6 +7,7 @@ import sys
 import math
 
 use_latches = 0
+blackbox = 0
 
 def parse_line(line):
   name = ''
@@ -182,14 +183,20 @@ def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
 \n\
 %s\
 \n\
-endmodule" % (name, ',\n  '.join(port_spec), body)
+endmodule" % (name, ',\n  '.join(port_spec), body if blackbox == False else "")
   return s
 
-def main():
-  if len(sys.argv) < 2:
-    sys.exit('Please give a .conf file as input')
-  for line in open(sys.argv[1]):
+def main(conf_file):
+  for line in open(conf_file):
     print(gen_mem(*parse_line(line)))
 
+
 if __name__ == '__main__':
-  main()
+  import argparse
+  parser = argparse.ArgumentParser(description='Memory generator for Rocket Chip')
+  parser.add_argument('conf', metavar='.conf file')
+  parser.add_argument('--blackbox', '-b', action='store_true')
+  args = parser.parse_args()
+  blackbox = args.blackbox # yes, global variable, not reinventing wheel, see use of use_latches
+  main(args.conf)
+
