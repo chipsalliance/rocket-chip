@@ -13,7 +13,7 @@ import org.json4s.jackson.JsonMethods.{pretty, render}
 case class RegFieldDescAnnotation(
     target: Named,
     desc: String) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named): RegFieldDescAnnotation = this.copy(n)
+  def duplicate(n: Named): RegFieldDescAnnotation = this.copy(target = n)
 }
 
 object RegFieldDescAnnotation {
@@ -116,9 +116,9 @@ object RegAnnotationUtil {
       seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map {
         case (offset, f) => {
           val anonName = s"unnamedRegField${byte.toHexString}_${offset}"
-          (f.desc.map {
-            _.name
-          }.getOrElse(anonName)) -> f.toJson(byte, offset)
+//          (f.desc.map {
+//            _.name
+//          }.getOrElse(anonName)) -> f.toJson(byte, offset)
           //RegFieldhHolder(named, f.toJson(byte, offset).toString)
           val json = f.toJson(byte, offset).toString
           RegFieldDescAnnotation(named, json.toString)
