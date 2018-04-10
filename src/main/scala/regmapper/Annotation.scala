@@ -10,6 +10,8 @@ import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+// Do not call this function
+// This function is called by DescribedRegChiselAnnotation
 case class RegFieldDescAnnotation(
     target: Named,
     desc: String) extends SingleTargetAnnotation[Named] {
@@ -24,9 +26,39 @@ object RegFieldDescAnnotation {
   }
 }
 case class DescribedRegChiselAnnotation(
-    target: InstanceId,
-    desc: RegFieldDesc) extends ChiselAnnotation with RunFirrtlTransform {
-  def toFirrtl = RegFieldDescAnnotation(target.toNamed, desc.toMap.toString)
+  target: InstanceId,
+  reg: RegFieldDesc) extends ChiselAnnotation with RunFirrtlTransform {
+  def toFirrtl: RegFieldDescAnnotation = {
+    val byte = 0 // TODO
+    val offset = 0 // TODO
+    val json = toJson(byte, offset).toString
+
+    RegFieldDescAnnotation(target.toNamed, json)
+  }
+
+  def toJson(byteOffset: Int, bitOffset: Int): JValue = {
+    (("byteOffset" -> s"0x${byteOffset.toHexString}") ~
+      ("bitOffset" -> bitOffset) ~
+      ("name" -> reg.name) ~
+      ("description" -> reg.desc) ~
+      ("resetValue" -> reg.reset) ~
+      ("group" -> reg.group) ~
+      ("accessType" -> reg.access.toString) ~
+      ("writeType" -> reg.wrType.getOrElse("").toString) ~
+      ("readAction" -> reg.rdAction.getOrElse("").toString) ~
+      ("volatile" -> reg.volatile) ~
+      ("enumerations" -> reg.enumerations.map {
+        case (key, (name, edesc)) => {
+          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+        }
+      })
+      )
+  }
+
+
+  // ("bitWidth"     -> reg.width) ~
+  // ("groupreg"    -> reg.map{_.groupreg}) ~
+
   def transformClass = classOf[DescribedRegDumpTransform]
 }
 
