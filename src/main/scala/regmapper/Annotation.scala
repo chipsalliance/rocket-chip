@@ -13,7 +13,8 @@ import org.json4s.jackson.JsonMethods.{pretty, render}
 case class RegFieldDescAnnotation(
     target: Named,
     desc: String) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named): RegFieldDescAnnotation = this.copy(n)
+  def duplicate(n: Named): RegFieldDescAnnotation = this.copy(target = n)
+
 }
 
 case class DescribedRegChiselAnnotation(
@@ -53,17 +54,7 @@ object RegMappingAnnotation {
     */
 
     val regDescs = mapping.flatMap { case (byte, seq) =>
-      println("RegMappingAnnotation: base: " + base)
-      println("RegMappingAnnotation: name: " + name)
-      println("RegMappingAnnotation: byte" + byte)
-      println("RegMappingAnnotation: width" + seq.map(_.width))
-      seq.map(_.width).foreach(println)
-      println("RegMappingAnnotation: scanleft " + seq.map(_.width).scanLeft(base)(_ + _))
-      seq.map(_.width).scanLeft(base)(_ + _).foreach(println)
-      println("RegMappingAnnotation: zip  " + seq.map(_.width).scanLeft(base)(_ + _).zip(seq))
-      seq.map(_.width).scanLeft(base)(_ + _).zip(seq).foreach(println)
-      println("RegMappingAnnotation: base: " + base)
-      println("RegMappingAnnotation: name: " + name)
+
       seq.map(_.width).scanLeft(0)(_ + _).zip(seq).foreach(println)
       seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map {
         case (bit, f) => {
@@ -99,9 +90,8 @@ object RegAnnotationUtil {
     println(firrtl.annotations.JsonProtocol.serialize(List(anno)))
     */
 
-    // TODO val name: String = named.
-    val name = "dummy" // TODO remove
-    val named: Named = CircuitName(name) // TODO remove
+
+    val name = named.name
 
     mapping.flatMap { case (byte, seq) =>
       println("RegMappingAnnotation: base: " + base)
@@ -124,7 +114,7 @@ object RegAnnotationUtil {
           }.getOrElse(anonName)) -> f.toJson(byte, offset)
           //RegFieldhHolder(named, f.toJson(byte, offset).toString)
           val json = f.toJson(byte, offset).toString
-          RegFieldDescAnnotation(named, json)
+          jj(named, base, json)
         }
       }
     }
