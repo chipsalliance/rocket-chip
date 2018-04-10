@@ -90,7 +90,7 @@ object RegMappingAnnotation {
 
 object RegAnnotationUtil {
   def annotate(
-    // TODO named: ModuleName,
+    named: ModuleName,
     base: BigInt,
     mapping: Seq[RegField.Map]): Unit = {
     /*
