@@ -157,7 +157,7 @@ object RegAnnotationUtil {
           //RegFieldhHolder(named, f.toJson(byte, offset).toString)
           val json = regField.toJson(byte, offset).toString
 
-          annotate(DescribedRegChiselAnnotation(named, json))
+          annotate(DescribedRegChiselAnnotation(named, json.toString()))
         }
       }
     }
