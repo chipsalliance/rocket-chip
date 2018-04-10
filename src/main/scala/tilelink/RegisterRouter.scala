@@ -137,8 +137,9 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   }
 
   def annotateRegs(module: TLRegModule[P, B], router: TLRegisterRouterBase, mapping: RegField.Map*) : Unit = {
-    RegAnnotationUtil.annotate(
-      this.toNamed,
+
+    RegAnnotationUtil.anno(
+      this,
       BigInt(0),
       mapping)
   }
