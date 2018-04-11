@@ -142,9 +142,29 @@ case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option
 {
   require (width > 0, s"RegField width must be > 0, not $width")
 
-  def pipelined = !read.combinational || !write.combinational
+  def pipelined: Boolean = !read.combinational || !write.combinational
 
-  def readOnly = this.copy(write = (), desc = this.desc.map(_.copy(access = RegFieldAccessType.R)))
+  def readOnly: RegField = this.copy(write = (), desc = this.desc.map(_.copy(access = RegFieldAccessType.R)))
+
+//  def toJsonString(byteOffset: Int, bitOffset: Int): String ={
+//
+//    "{ byteOffset"   -> s"0x${byteOffset.toHexString}") ~
+//      ("bitOffset"    -> bitOffset) ~
+//      ("bitWidth"     -> width) ~
+//      ("name"         -> desc.map(_.name)) ~
+//      ("description"  -> desc.map{ d=> if (d.desc == "") None else Some(d.desc)}) ~
+//      ("resetValue"   -> desc.map{_.reset}) ~
+//      ("group"        -> desc.map{_.group}) ~
+//      ("groupDesc"    -> desc.map{_.groupDesc}) ~
+//      ("accessType"   -> desc.map {d => d.access.toString}) ~
+//      ("writeType"    -> desc.map {d => d.wrType.map(_.toString)}) ~
+//      ("readAction"   -> desc.map {d => d.rdAction.map(_.toString)}) ~
+//      ("volatile"     -> desc.map {d => if (d.volatile) Some(true) else None}) ~
+//      ("enumerations" -> desc.map {d =>
+//        Option(d.enumerations.map { case (key, (name, edesc)) =>
+//          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+//        }).filter(_.nonEmpty)}) )
+//  }
 
   def toJson(byteOffset: Int, bitOffset: Int): JValue = {
     ( ("byteOffset"   -> s"0x${byteOffset.toHexString}") ~

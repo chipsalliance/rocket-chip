@@ -6,6 +6,9 @@ import chisel3.internal.InstanceId
 import chisel3.experimental.{ChiselAnnotation, RunFirrtlTransform, annotate}
 import firrtl.{CircuitForm, CircuitState, LowForm, Transform}
 import firrtl.annotations._
+import freechips.rocketchip.regmapper.RegFieldAccessType.RegFieldAccessType
+import freechips.rocketchip.regmapper.RegFieldRdAction.RegFieldRdAction
+import freechips.rocketchip.regmapper.RegFieldWrType.RegFieldWrType
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
@@ -125,6 +128,22 @@ object RegMappingAnnotation {
 
 //case class RegFieldhHolder(named: Named, json: String)
 
+import java.io._
+
+@SerialVersionUID(123L)
+case class RegFieldDescSer(
+  name: String,
+  desc: String,
+  group: String,
+  groupDesc: String,
+  access: String,
+  wrType: String,
+  rdAction: String,
+  volatile: Boolean,
+  reset: BigInt
+  //,
+  //enumerations: Map[BigInt, (String, String)] = Map()
+)
 
 object RegAnnotationUtil {
   def anno(
