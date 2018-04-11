@@ -244,6 +244,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val io = IO(new Bundle {
       val ctrl = (new DebugCtrlBundle(nComponents))
       val innerCtrl = new DecoupledIO(new DebugInternalBundle())
+      val innerOnResetHaltReq = Vec(nComponents, Bool()).asOutput
+      val innerDebugInt = Vec(nComponents, Bool()).asInput
     })
 
     //----DMCONTROL (The whole point of 'Outer' is to maintain this register on dmiClock (e.g. TCK) domain, so that it
@@ -305,9 +307,17 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     debugIntNxt := debugIntRegs
 
+    val onResetDebugIntNxt = Wire(init = Vec.fill(nComponents){false.B})
+    val onResetDebugIntReg = Wire(init = Vec(AsyncResetReg(updateData = onResetDebugIntNxt.asUInt,
+      resetData = 0,
+      enable = true.B,
+      name = "onResetDebugInterrupts").toBools))
+
+    onResetDebugIntNxt := onResetDebugIntReg
+
     val (intnode_out, _) = intnode.out.unzip
     for (component <- 0 until nComponents) {
-      intnode_out(component)(0) := debugIntRegs(component)
+      intnode_out(component)(0) := debugIntRegs(component) | io.innerDebugInt(component)
     }
 
     // Halt request registers are set & cleared by writes to DMCONTROL.haltreq
@@ -320,10 +330,17 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     for (component <- 0 until nComponents) {
       when (~dmactive) {
-        debugIntNxt(component) := false.B
+        debugIntNxt(component)        := false.B
+        onResetDebugIntNxt(component) := false.B
       }. otherwise {
         when (DMCONTROLWrEn && DMCONTROLWrData.hartsello === component.U) {
-          debugIntNxt(component) := DMCONTROLWrData.haltreq
+          debugIntNxt(component)        := DMCONTROLWrData.haltreq
+          when (DMCONTROLWrData.setresethaltreq) {
+            onResetDebugIntNxt(component) := true.B
+          }
+          .elsewhen (DMCONTROLWrData.clrresethaltreq) {
+            onResetDebugIntNxt(component) := false.B
+          }
         }
       }
     }
@@ -332,6 +349,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     io.innerCtrl.bits.hartsel      := DMCONTROLWrData.hartsello
     io.innerCtrl.bits.resumereq    := DMCONTROLWrData.resumereq
     io.innerCtrl.bits.ackhavereset := DMCONTROLWrData.ackhavereset 
+
+    io.innerOnResetHaltReq := onResetDebugIntReg
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
     io.ctrl.dmactive := DMCONTROLReg.dmactive
@@ -360,6 +379,9 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val dmi   = new DMIIO()(p).flip()
       val ctrl = new DebugCtrlBundle(nComponents)
       val innerCtrl = new AsyncBundle(new DebugInternalBundle(), AsyncQueueParams.singleton())
+      val innerCtrl = new AsyncBundle(depth=1, new DebugInternalBundle())
+      val innerOnResetHaltReq = Vec(nComponents, Bool()).asOutput
+      val innerDebugInt = Vec(nComponents, Bool()).asInput
     })
 
     dmi2tl.module.io.dmi <> io.dmi
@@ -367,6 +389,9 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     io.ctrl <> dmOuter.module.io.ctrl
     io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
 
+    //!!! TODO: No Synchronization here!
+    io.innerOnResetHaltReq := dmOuter.module.io.innerOnResetHaltReq
+    dmOuter.module.io.innerDebugInt := io.innerDebugInt
   }
 }
 
@@ -400,6 +425,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val io = IO(new Bundle {
       val dmactive = Bool(INPUT)
       val innerCtrl = (new DecoupledIO(new DebugInternalBundle())).flip
+      val innerOnResetHaltReq = Vec(nComponents, Bool()).asInput
+      val innerDebugInt = Vec(nComponents, Bool()).asOutput
       val debugUnavail = Vec(nComponents, Bool()).asInput
     })
 
@@ -427,6 +454,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val haltedBitRegs    = RegInit(Vec.fill(nComponents){false.B})
     val resumeReqRegs    = RegInit(Vec.fill(nComponents){false.B})
     val haveResetBitRegs = RegInit(Vec.fill(nComponents){true.B})
+    //!!! Non-constant reset value!
+    val onResetHaltRegs  = RegInit(io.innerOnResetHaltReq)
+    io.innerDebugInt := onResetHaltRegs
 
     // --- regmapper outputs
 
@@ -649,11 +679,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       when (~io.dmactive) {
         haltedBitRegs(component) := false.B
         resumeReqRegs(component) := false.B
+        onResetHaltRegs(component) := false.B
       }.otherwise {
         // Hart Halt Notification Logic
         when (hartHaltedWrEn) {
           when (hartSelFuncs.hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
+            onResetHaltRegs(component) := false.B
           }
         }.elsewhen (hartResumingWrEn) {
           when (hartSelFuncs.hartIdToHartSel(hartResumingId) === component.U) {
@@ -1009,18 +1041,30 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
   lazy val module = new LazyModuleImp(this) {
 
+    val nComponents = getNComponents()
+
     val io = IO(new Bundle {
       // These are all asynchronous and come from Outer
       val dmactive = Bool(INPUT)
       val innerCtrl = new AsyncBundle(new DebugInternalBundle(), AsyncQueueParams.singleton()).flip
+      val innerCtrl = new AsyncBundle(1, new DebugInternalBundle()).flip
+      //!!! No Synchronization here! Assume that it's stable!
+      val innerOnResetHaltReq = Vec(nComponents, Bool()).asInput
+      val innerDebugInt = Vec(nComponents, Bool()).asOutput
       // This comes from tlClk domain.
-      val debugUnavail    = Vec(getNComponents(), Bool()).asInput
+      val debugUnavail    = Vec(nComponents, Bool()).asInput
       val psd = new PSDTestMode().asInput
     })
 
     dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
     dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
     dmInner.module.io.debugUnavail := io.debugUnavail
+
+    // !!! NO synchronization here! Assume that they're stable
+    //   and we don't care about metastability.
+    dmInner.module.io.innerOnResetHaltReq := io.innerOnResetHaltReq
+    io.innerDebugInt := dmInner.module.io.innerDebugInt
+
   }
 }
 
