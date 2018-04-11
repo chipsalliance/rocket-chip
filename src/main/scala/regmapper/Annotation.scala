@@ -25,6 +25,8 @@ object RegFieldDescAnnotation {
     }.toMap
   }
 }
+
+
 case class DescribedRegChiselAnnotation(
   target: InstanceId,
   json: String) extends ChiselAnnotation with RunFirrtlTransform {
@@ -157,7 +159,7 @@ object RegAnnotationUtil {
           //RegFieldhHolder(named, f.toJson(byte, offset).toString)
           val json = regField.toJson(byte, offset).toString
 
-          annotate(DescribedRegChiselAnnotation(named, json.toString()))
+          annotate(DescribedRegChiselAnnotation(named, json.toString))
         }
       }
     }
