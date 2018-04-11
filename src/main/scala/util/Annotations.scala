@@ -30,11 +30,12 @@ trait DontTouch { self: RawModule =>
   }
 }
 
-case class RetimeModuleAnnotation(target: Named) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+/** Marks this module as a candidate for register retiming */
+case class RetimeModuleAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(n)
 }
 
-/** Marks this module as a candidate for register retiming */
+/** Mix this into a Module class or instance to mark it for register retiming */
 trait ShouldBeRetimed { self: RawModule =>
-  annotate(new ChiselAnnotation { def toFirrtl = RetimeModuleAnnotation(self.toNamed) })
+  chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl = RetimeModuleAnnotation(self.toNamed) })
 }
