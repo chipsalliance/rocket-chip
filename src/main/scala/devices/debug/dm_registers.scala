@@ -9,7 +9,7 @@ object DMI_RegAddrs {
   /* The address of this register will not change in the future, because it
         contains \Fversion.  It has changed from version 0.11 of this spec.
 
-        This register reports status for the overall debug module
+        This register reports status for the overall Debug Module
         as well as the currently selected harts, as defined in \Fhasel.
 
         Harts are nonexistent if they will never be part of this system, no
@@ -29,7 +29,7 @@ object DMI_RegAddrs {
   */
   def DMI_DMSTATUS =  0x11
 
-  /* This register controls the overall debug module
+  /* This register controls the overall Debug Module
         as well as the currently selected harts, as defined in \Fhasel.
 
 \label{hartsel}
@@ -400,7 +400,11 @@ class DMSTATUSFields extends Bundle {
   */
   val authbusy = Bool()
 
-  val reserved2 = UInt(1.W)
+  /* 1 if this Debug Module supports halt-on-reset functionality
+            controllable by the \Fsetresethaltreq and \Fclrresethaltreq bits.
+            0 otherwise.
+  */
+  val hasresethaltreq = Bool()
 
   /* 0: \Rdevtreeaddrzero--\Rdevtreeaddrthree hold information which
             is not relevant to the Device Tree.
@@ -494,7 +498,26 @@ class DMCONTROLFields extends Bundle {
   */
   val hartselhi = UInt(10.W)
 
-  val reserved1 = UInt(4.W)
+  val reserved1 = UInt(2.W)
+
+  /* This optional field writes the halt-on-reset request bit for all
+            currently selected harts.
+            When set to 1, each selected hart will halt upon the next deassertion
+            of its reset. The halt-on-reset request bit is not automatically
+            cleared. The debugger must write to \Fclrresethaltreq to clear it.
+
+            Writes apply to the new value of \Fhartsel and \Fhasel.
+
+            If \Fhasresethaltreq is 0, this field is not implemented.
+  */
+  val setresethaltreq = Bool()
+
+  /* This optional field clears the halt-on-reset request bit for all
+            currently selected harts.
+
+            Writes apply to the new value of \Fhartsel and \Fhasel.
+  */
+  val clrresethaltreq = Bool()
 
   /* This bit controls the reset signal from the DM to the rest of the
             system. The signal should reset every part of the system, including
@@ -518,7 +541,7 @@ class DMCONTROLFields extends Bundle {
             Debug Module after power up, including the platform's system reset
             or Debug Transport reset signals.
 
-            A debugger may pulse this bit low to get the debug module into a
+            A debugger may pulse this bit low to get the Debug Module into a
             known state.
 
             Implementations may use this bit to aid debugging, for example by
@@ -543,7 +566,7 @@ class HARTINFOFields extends Bundle {
   val reserved1 = UInt(3.W)
 
   /* 0: The {\tt data} registers are shadowed in the hart by CSR
-            registers. Each CSR register is XLEN bits in size, and corresponds
+            registers. Each CSR register is MXLEN bits in size, and corresponds
             to a single argument, per Table~\ref{tab:datareg}.
 
             1: The {\tt data} registers are shadowed in the hart's memory map.
@@ -753,7 +776,7 @@ class SBCSFields extends Bundle {
             it's explicitly cleared by the debugger.
 
             While this field is non-zero, no more system bus accesses can be
-            initiated by the debug module.
+            initiated by the Debug Module.
   */
   val sbbusyerror = Bool()
 
@@ -762,8 +785,9 @@ class SBCSFields extends Bundle {
             bit goes high immediately when a read or write is requested for any
             reason, and does not go low until the access is fully completed.
 
-            To avoid race conditions, debuggers must not try to clear \Fsberror
-            until they read \Fsbbusy as 0.
+            Writes to \Rsbcs while \Fsbbusy is high result in undefined
+            behavior.  A debugger must not write to \Rsbcs until it reads
+            \Fsbbusy as 0.
   */
   val sbbusy = Bool()
 
@@ -799,11 +823,11 @@ class SBCSFields extends Bundle {
   */
   val sbreadondata = Bool()
 
-  /* When the debug module's system bus
+  /* When the Debug Module's system bus
             master causes a bus error, this field gets set. The bits in this
             field remain set until they are cleared by writing 1 to them.
             While this field is non-zero, no more system bus accesses can be
-            initiated by the debug module.
+            initiated by the Debug Module.
 
             An implementation may report "Other" (7) for any error condition.
 
