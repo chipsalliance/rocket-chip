@@ -8,8 +8,8 @@ import sys.process._
 enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
-  organization := "berkeley",
-  version      := "1.2",
+  organization := "edu.berkeley.cs",
+  version      := "1.2-SNAPSHOT",
   scalaVersion := "2.11.12",
   parallelExecution in Global := false,
   traceLevel   := 15,
@@ -20,11 +20,17 @@ lazy val commonSettings = Seq(
 )
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
-lazy val hardfloat  = project.dependsOn(chisel).settings(commonSettings)
-lazy val macros = (project in file("macros")).settings(commonSettings)
+lazy val hardfloat  = project.dependsOn(chisel).
+                              aggregate(chisel).
+                              settings(commonSettings)
+lazy val macros = Project(
+        id = "rocket-macros",
+        base = file("macros")).
+        settings(commonSettings)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(chisel, hardfloat, macros)
+  .aggregate(chisel, hardfloat, macros)
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
