@@ -3,6 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.util.HasBlackBoxResource
 
 /** This black-boxes a Clock Divider by 2.
   * The output clock is phase-aligned to the input clock.
@@ -13,17 +14,21 @@ import Chisel._
   * blocking assignments, it is impossible
   * to create a deterministic divided clock.
   */
-class ClockDivider2 extends BlackBox {
+class ClockDivider2 extends BlackBox with HasBlackBoxResource {
   val io = new Bundle {
     val clk_out = Clock(OUTPUT)
     val clk_in  = Clock(INPUT)
   }
+
+  setResource("/vsrc/ClockDivider2.v")
 }
-class ClockDivider3 extends BlackBox {
+class ClockDivider3 extends BlackBox with HasBlackBoxResource {
   val io = new Bundle {
     val clk_out = Clock(OUTPUT)
     val clk_in  = Clock(INPUT)
   }
+
+  setResource("/vsrc/ClockDivider3.v")
 }
 
 /** Divide the clock by power of 2 times.
