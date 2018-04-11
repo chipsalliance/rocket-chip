@@ -59,7 +59,7 @@ module AsyncResetReg (
 `ifdef RANDOMIZE
  `ifdef RANDOMIZE_REG_INIT
       else begin
-  `ifdef verilator
+  `ifndef verilator
          #0.002 begin end
   `endif
          q_reg = _RAND[0];
