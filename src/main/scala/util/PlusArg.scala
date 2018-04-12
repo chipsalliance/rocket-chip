@@ -3,15 +3,18 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.util.HasBlackBoxResource
 
 case class PlusArgInfo(default: Int, docstring: String)
 
 class plusarg_reader(val format: String, val default: Int, val docstring: String) extends BlackBox(Map(
     "FORMAT"  -> chisel3.core.StringParam(format),
-    "DEFAULT" -> chisel3.core.IntParam(default))) {
+    "DEFAULT" -> chisel3.core.IntParam(default))) with HasBlackBoxResource {
   val io = new Bundle {
     val out = UInt(OUTPUT, width = 32)
   }
+
+  setResource("/vsrc/plusarg_reader.v")
 }
 
 /* This wrapper class has no outputs, making it clear it is a simulation-only construct */

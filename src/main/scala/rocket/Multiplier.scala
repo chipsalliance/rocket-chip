@@ -176,3 +176,29 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   io.resp.valid := (state === s_done_mul || state === s_done_div)
   io.req.ready := state === s_ready
 }
+
+class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Module {
+  val io = new Bundle {
+    val req = Valid(new MultiplierReq(width, log2Ceil(nXpr))).flip
+    val resp = Valid(new MultiplierResp(width, log2Ceil(nXpr)))
+  }
+
+  val in = Pipe(io.req)
+
+  val decode = List(
+    FN_MUL    -> List(N, X, X),
+    FN_MULH   -> List(Y, Y, Y),
+    FN_MULHU  -> List(Y, N, N),
+    FN_MULHSU -> List(Y, Y, N))
+  val cmdHi :: lhsSigned :: rhsSigned :: Nil =
+    DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.toBool)
+  val cmdHalf = Bool(width > 32) && in.bits.dw === DW_32
+
+  val lhs = Cat(lhsSigned && in.bits.in1(width-1), in.bits.in1).asSInt
+  val rhs = Cat(rhsSigned && in.bits.in2(width-1), in.bits.in2).asSInt
+  val prod = lhs * rhs
+  val muxed = Mux(cmdHi, prod(2*width-1, width), Mux(cmdHalf, prod(width/2-1, 0).sextTo(width), prod(width-1, 0)))
+
+  io.resp := Pipe(in, latency-1)
+  io.resp.bits.data := Pipe(in.valid, muxed, latency-1).bits
+}
