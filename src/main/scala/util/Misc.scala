@@ -4,35 +4,10 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.experimental.RawModule
 import freechips.rocketchip.config.Parameters
 import scala.math._
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle
-
-// TODO: replace this with an implicit class when @chisel unprotects dontTouchPorts
-trait DontTouch { self: RawModule =>
-
-  def dontTouch(data: Data): Unit = data match {
-     case agg: Aggregate => agg.getElements.foreach(dontTouch)
-     case elt: Element => chisel3.core.dontTouch(elt)
-  }
-
-  /** Marks every port as don't touch
-    *
-    * @note This method can only be called after the Module has been fully constructed
-    *   (after Module(...))
-    */
-  def dontTouchPorts(): this.type = {
-    self.getModulePorts.foreach(dontTouch(_))
-    self
-  }
-
-  def dontTouchPortsExcept(f: Data => Boolean): this.type = {
-    self.getModulePorts.filterNot(f).foreach(dontTouch(_))
-    self
-  }
-}
 
 trait Clocked extends Bundle {
   val clock = Clock()

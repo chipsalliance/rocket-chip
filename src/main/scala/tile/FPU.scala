@@ -372,7 +372,7 @@ trait HasFPUParameters {
 
 abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters
 
-class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
+class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   class Output extends Bundle {
     val in = new FPInput
     val lt = Bool()
@@ -447,7 +447,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) {
   io.out.bits.in := in
 }
 
-class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
+class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
     val in = Valid(new IntToFPInput).flip
     val out = Valid(new FPResult)
@@ -492,7 +492,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
   io.out <> Pipe(in.valid, mux, latency-1)
 }
 
-class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) {
+class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
     val in = Valid(new FPInput).flip
     val out = Valid(new FPResult)
@@ -615,7 +615,8 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     io.exceptionFlags := roundRawFNToRecFN.io.exceptionFlags
 }
 
-class FPUFMAPipe(val latency: Int, val t: FType)(implicit p: Parameters) extends FPUModule()(p) {
+class FPUFMAPipe(val latency: Int, val t: FType)
+                (implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   require(latency>0)
 
   val io = new Bundle {
