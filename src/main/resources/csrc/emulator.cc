@@ -69,6 +69,10 @@ EMULATOR OPTIONS\n\
   -m, --max-cycles=CYCLES  Kill the emulation after CYCLES\n\
        +max-cycles=CYCLES\n\
   -s, --seed=SEED          Use random number seed SEED\n\
+
+      --rbb-port=PORT      Use PORT for remote bit bang (with OpenOCD and GDB) \n\
+                           If not specified, a random port will be chosen\n\
+                           automatically.\n\
   -V, --verbose            Enable all Chisel printfs (cycle-by-cycle info)\n\
        +verbose\n\
 ", stdout);
@@ -110,6 +114,8 @@ int main(int argc, char** argv)
   uint64_t max_cycles = -1;
   int ret = 0;
   bool print_cycles = false;
+  // Port numbers are 16 bit unsigned integers. 
+  uint16_t port = 0;
 #if VM_TRACE
   FILE * vcdfile = NULL;
   uint64_t start = 0;
@@ -123,6 +129,7 @@ int main(int argc, char** argv)
       {"help",        no_argument,       0, 'h' },
       {"max-cycles",  required_argument, 0, 'm' },
       {"seed",        required_argument, 0, 's' },
+      {"rbb-port",    required_argument, 0, 'r' },
       {"verbose",     no_argument,       0, 'V' },
 #if VM_TRACE
       {"vcd",         required_argument, 0, 'v' },
@@ -145,6 +152,7 @@ int main(int argc, char** argv)
       case 'h': usage(argv[0]);             return 0;
       case 'm': max_cycles = atoll(optarg); break;
       case 's': random_seed = atoi(optarg); break;
+      case 'r': port = atoi(optarg);        break;
       case 'V': verbose = true;             break;
 #if VM_TRACE
       case 'v': {
@@ -259,7 +267,7 @@ done_processing:
   }
 #endif
 
-  jtag = new remote_bitbang_t(0);
+  jtag = new remote_bitbang_t(port);
   dtm = new dtm_t(htif_argc, htif_argv);
 
   signal(SIGTERM, handle_sigterm);
