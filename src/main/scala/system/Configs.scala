@@ -10,6 +10,7 @@ import freechips.rocketchip.devices.debug.{IncludeJtagDTM, JtagDTMKey}
 import freechips.rocketchip.diplomacy._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
+class WithSBASystem extends freechips.rocketchip.subsystem.WithSBA
 
 class BaseConfig extends Config(new BaseSubsystemConfig().alter((site,here,up) => {
   // DTS descriptive parameters
