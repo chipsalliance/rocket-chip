@@ -6,23 +6,27 @@ import chisel3.internal.InstanceId
 import chisel3.experimental.{ChiselAnnotation, RunFirrtlTransform, annotate}
 import firrtl.{CircuitForm, CircuitState, LowForm, Transform}
 import firrtl.annotations._
-import freechips.rocketchip.regmapper.RegFieldAccessType.RegFieldAccessType
-import freechips.rocketchip.regmapper.RegFieldRdAction.RegFieldRdAction
-import freechips.rocketchip.regmapper.RegFieldWrType.RegFieldWrType
+import freechips.rocketchip.regmapper._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
+import org.json4s._
+import org.json4s.native.JsonMethods._
 
-// Do not call this function
-// This function is called by DescribedRegChiselAnnotation
+
+/**
+  * This function is called by DescribedRegChiselAnnotation which creates a RegFieldDescAnnotation
+  * A backend Firrtl transform 'looks' for RegFieldDescAnnotation's attached to circuits and then processes
+  * the discovered RegFieldDescAnnotation's.
+   */
 case class RegFieldDescAnnotation(
     target: Named,
-    desc: String) extends SingleTargetAnnotation[Named] {
+    desc: Seq[String]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named): RegFieldDescAnnotation = this.copy(target = n)
 }
 
 object RegFieldDescAnnotation {
-  def nameMap(state: CircuitState): Map[String,String] = {
+  def nameMap(state: CircuitState): Map[String,Seq[String]] = {
     state.annotations.collect {
       case RegFieldDescAnnotation(mname, cname) => mname.toString -> cname
     }.toMap
@@ -32,44 +36,54 @@ object RegFieldDescAnnotation {
 
 case class DescribedRegChiselAnnotation(
   target: InstanceId,
-  json: String) extends ChiselAnnotation with RunFirrtlTransform {
+  jsons: Seq[String]) extends ChiselAnnotation with RunFirrtlTransform {
   def toFirrtl: RegFieldDescAnnotation = {
 
-    RegFieldDescAnnotation(target.toNamed, json)
+    RegFieldDescAnnotation(target.toNamed, jsons)
   }
 
   override def transformClass: Class[_ <: Transform] = classOf[DescribedRegDumpTransform]
 }
 
+
 object DescribedRegChiselAnnotationUtil {
+
+  def get[T](key: String, default: T, params: Map[String, Any]): T = {
+    params.get(key).map(_.asInstanceOf[T]).getOrElse(default)
+  }
+
   def toJson (
 //    target: InstanceId,
     regField: freechips.rocketchip.regmapper.RegField,
     byteOffset: Int,
     bitOffset: Int): JValue = {
 
-    val regDesc: freechips.rocketchip.regmapper.RegFieldDesc = regField.desc.get
+    regField.desc.map { regDesc =>
+      val enumerations = regDesc.enumerations.map {
+        case (key, (name, edesc)) =>
+          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+      }
 
-    //require("", regDesc.desc != None)
+      val resetValue: BigInt = regDesc.reset.getOrElse(0)
+      val json = (("byteOffset" -> s"0x${byteOffset.toHexString}") ~
+        ("bitOffset" -> bitOffset) ~
+        ("bitWidth" -> regField.width) ~
+        ("name" -> regDesc.name) ~
+        ("description" -> regDesc.desc) ~
+        ("resetValue" -> regDesc.reset.map(_.toString()).getOrElse("None")) ~
+        ("group" -> regDesc.group.getOrElse("")) ~
+        ("groupDesc" -> regDesc.groupDesc.getOrElse("")) ~
+        ("accessType" -> regDesc.access.toString) ~
+        ("writeType" -> new String(regDesc.wrType.map(_.toString).getOrElse("None"))) ~
+        ("readAction" -> new String(regDesc.rdAction.map(_.toString).getOrElse("None"))) ~
+        ("volatile" -> regDesc.volatile) ~
+        ("enumerations" -> enumerations)
+        )
 
-    ( ("byteOffset"   -> s"0x${byteOffset.toHexString}") ~
-      ("bitOffset"    -> bitOffset) ~
-      ("bitWidth"     -> regField.width) ~
-      ("name"         -> regDesc.name) ~
-      ("description"  -> regDesc.desc) ~
-// TODO      ("resetValue"   -> regDesc.reset.getOrElse("0")) ~
-      ("group"        -> regDesc.group.getOrElse("")) ~
-      ("groupDesc"    -> regDesc.groupDesc.getOrElse("")) ~
-      ("accessType"   -> regDesc.access.toString) ~
-// TODO     ("writeType"    -> regDesc.wrType.getOrElse("")) ~
-// TODO      ("readAction"   -> regDesc.rdAction.getOrElse("")) ~
-      ("volatile"     -> regDesc.volatile)
-      //~
-//      ("enumerations" -> regDesc.map {d =>
-//        Option(d.enumerations.map { case (key, (name, edesc)) =>
-//          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
-//        }).filter(_.nonEmpty)})
-      )
+      val jsonString: String = pretty(render(json))
+      println("DescribedRegChiselAnnotationUtil: " + jsonString)
+      json
+    }.getOrElse("")
   }
 
 }
@@ -103,26 +117,34 @@ object RegMappingAnnotation {
     println(firrtl.annotations.JsonProtocol.serialize(List(anno)))
     */
 
-    val regDescs = mapping.flatMap { case (byte, seq) =>
+    val regDescs = mapping.flatMap {
+      case (byte, seqRegField) =>
 
-      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).foreach(println)
-      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map {
-        case (bit, f) => {
-          val anonName = s"unnamedRegField${byte.toHexString}_${bit}"
-          (f.desc.map {
-            _.name
-          }.getOrElse(anonName)) -> f.toJson(byte, bit)
+        println("ScanLeft start { ")
+        seqRegField.map(_.width).scanLeft(0)(_ + _).zip(seqRegField).foreach(println)
+        println("} ScanLeft end")
+
+        // create the list of offsets and zip them with the RegDesc's
+        seqRegField.map(_.width).scanLeft(0)(_ + _).zip(seqRegField).map {
+          case (offset, regDesc) => {
+            val anonName = s"unnamedRegField${byte.toHexString}_${offset}"
+            (regDesc.desc.map {
+              _.name
+            }.getOrElse(anonName)) -> regDesc.toJson(byte, offset)
+          }
         }
-      }
     }
 //    regDescs.map(reg => RegFieldDescAnnotation(reg,))
 
+    println("JSON Render start { ")
 
     pretty(render(
       ("peripheral" -> (
         ("displayName" -> name) ~
         ("baseAddress" -> s"0x${base.toInt.toHexString}") ~
         ("regfields" -> regDescs)))))
+    println("} JSON Render end")
+    regDescs.toString()
   }
 }
 
@@ -140,6 +162,7 @@ case class RegFieldDescSer(
   wrType: String,
   rdAction: String,
   volatile: Boolean,
+  hasReset: Boolean,
   reset: BigInt
   //,
   //enumerations: Map[BigInt, (String, String)] = Map()
@@ -147,42 +170,28 @@ case class RegFieldDescSer(
 
 object RegAnnotationUtil {
   def anno(
-    named: InstanceId,
-    base: BigInt,
-    mapping: Seq[RegField.Map]): Unit = {
+            named: InstanceId,
+            base: BigInt,
+            mapping: Seq[RegField.Map]): Unit = {
     /*
     val anno = RegMappingAnnotation(name, s"0x${base.toInt.toHexString}", mapping.flatMap { case (byte, seq) => (seq.flatMap(_.desc)) })
     implicit val formats = Serialization.formats(NoTypeHints)
     println(firrtl.annotations.JsonProtocol.serialize(List(anno)))
     */
 
+    val jsons = Seq[String]()
 
-    mapping.flatMap { case (byte, seqRegField) =>
-      println("RegMappingAnnotation: base: " + base)
-      println("RegMappingAnnotation: byte" + byte)
-      println("RegMappingAnnotation: width" + seqRegField.map(_.width))
-      seqRegField.map(_.width).foreach(println)
-      println("RegMappingAnnotation: scanleft " + seqRegField.map(_.width).scanLeft(base)(_ + _))
-      seqRegField.map(_.width).scanLeft(base)(_ + _).foreach(println)
-      println("RegMappingAnnotation: zip  " + seqRegField.map(_.width).scanLeft(base)(_ + _).zip(seqRegField))
-      seqRegField.map(_.width).scanLeft(base)(_ + _).zip(seqRegField).foreach(println)
-      println("RegMappingAnnotation: base: " + base)
-      seqRegField.map(_.width).scanLeft(0)(_ + _).zip(seqRegField).foreach(println)
+    mapping.flatMap {
+      case (byte, seqRegField) =>
+        seqRegField.map(_.width).scanLeft(0)(_ + _).zip(seqRegField).map {
+          case (offset, regField) => {
+            val anonName = s"unnamedRegField${byte.toHexString}_${offset}"
 
-      seqRegField.map(_.width).scanLeft(0)(_ + _).zip(seqRegField).map {
-        case (offset, regField) => {
-          val anonName = s"unnamedRegField${byte.toHexString}_${offset}"
-          //          (f.desc.map {
-          //            _.name
-          //          }.getOrElse(anonName)) -> f.toJson(byte, offset)
-          //RegFieldhHolder(named, f.toJson(byte, offset).toString)
-          val json = regField.toJson(byte, offset).toString
-
-          annotate(DescribedRegChiselAnnotation(named, json.toString))
+            val json = DescribedRegChiselAnnotationUtil.toJson(regField, byte, offset).toString
+            jsons ++ json
+          }
         }
-      }
     }
-    //regDescs.map(reg => RegFieldDescAnnotation(named,reg.toJson()))
-
+    annotate(DescribedRegChiselAnnotation(named, jsons))
   }
 }

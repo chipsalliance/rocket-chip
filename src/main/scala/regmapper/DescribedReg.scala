@@ -3,7 +3,6 @@ package freechips.rocketchip.regmapper
 
 import Chisel._
 import chisel3.experimental._
-import chisel3.internal.InstanceId
 import chisel3.{Input, Output}
 import freechips.rocketchip.util.{AsyncResetRegVec, SimpleRegIO}
 
@@ -24,14 +23,7 @@ object DescribedReg {
     enumerations: Map[BigInt, (String, String)] = Map()): (T, RegFieldDesc) = {
     val rdesc = RegFieldDesc(name, desc, None, None,
       access, wrType, rdAction, volatile, reset.map{_.litValue}, enumerations)
-
     val reg = reset.map{i => RegInit(i)}.getOrElse(Reg(gen))
-    val byte = 0 // TODO
-    val offset = 0 // TODO
-   // val json = DescribedRegChiselAnnotationUtil.toJson(reg.toNamed, byte, offset).toString
-
-    val json = "" // TODO
-    annotate(DescribedRegChiselAnnotation(reg, json))
     reg.suggestName(name + "_reg")
     (reg, rdesc)
   }
@@ -49,10 +41,6 @@ object DescribedReg {
     val rdesc = RegFieldDesc(name, desc, None, None,
       access, wrType, rdAction, volatile, Some(reset), enumerations)
     val reg = Module(new AsyncResetRegVec(w = width, init = reset))
-
-    val json = "" // TODO
-
-    annotate(DescribedRegChiselAnnotation(reg, json))
     reg.suggestName(name + "_reg")
     (reg.io, rdesc)
   }

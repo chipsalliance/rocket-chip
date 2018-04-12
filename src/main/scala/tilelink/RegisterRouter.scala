@@ -88,6 +88,7 @@ case class TLRegisterNode(
     val baseHex = s"0x${base.toInt.toHexString}"
     val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
     val json = RegMappingAnnotation.serialize(base, name, mapping:_*)
+
     var suffix = 0
     while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
       suffix = suffix + 1
@@ -131,17 +132,8 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
   def regmap(mapping: RegField.Map*) : Unit = {
-    // Does not work because regmap wants a varargs and not a list val m = mapping:_*
-    annotateRegs(this, router, mapping:_*)
+    RegAnnotationUtil.anno(named = this, base = BigInt(0), mapping = mapping)
     router.node.regmap(mapping:_*)
-  }
-
-  def annotateRegs(module: TLRegModule[P, B], router: TLRegisterRouterBase, mapping: RegField.Map*) : Unit = {
-
-    RegAnnotationUtil.anno(
-      this,
-      BigInt(0),
-      mapping)
   }
 }
 
