@@ -10,6 +10,7 @@ import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
+import freechips.rocketchip.tilelink._
 
 /** A knob selecting one of the two possible debug interfaces */
 case object IncludeJtagDTM extends Field[Boolean](false)
@@ -30,8 +31,9 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   val debug = LazyModule(new TLDebugModule(pbus.beatBytes))
   pbus.toVariableWidthSlave(Some("debug")){ debug.node }
 
+
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-    fbus.fromPort(Some("debug_sb")){ sb2tl.node }
+    fbus.fromPort(Some("debug_sb")){ TLWidthWidget(1) := sb2tl.node }
   }
 }
 
