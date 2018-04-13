@@ -64,14 +64,15 @@ endif
 ifeq ($(SUITE), JtagDtmSuite)
 PROJECT=freechips.rocketchip.system
 
+JTAG_DTM_ENABLE_SBA ?= off
 ifeq ($(JTAG_DTM_ENABLE_SBA), off)
 CONFIGS_32=WithJtagDTMSystem_DefaultRV32Config
 CONFIGS_64=WithJtagDTMSystem_DefaultConfig
 endif
 
 ifeq ($(JTAG_DTM_ENABLE_SBA), on)
-CONFIGS_32=WithJtagDTMSystem_WithSBASystem_DefaultRV32Config
-CONFIGS_64=WithJtagDTMSystem_WithSBASystem_DefaultConfig
+CONFIGS_32=WithJtagDTMSystem_WithDebugSBASystem_DefaultRV32Config
+CONFIGS_64=WithJtagDTMSystem_WithDebugSBASystem_DefaultConfig
 endif
 
 CONFIGS += $(CONFIGS_32)
@@ -239,8 +240,6 @@ endif
 ifdef SEED
 SEED_ARG = --seed $(SEED)
 endif
-
-JTAG_DTM_ENABLE_SBA ?= off
 
 JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
 
