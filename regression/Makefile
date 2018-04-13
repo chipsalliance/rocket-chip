@@ -64,7 +64,7 @@ endif
 ifeq ($(SUITE), JtagDtmSuite)
 PROJECT=freechips.rocketchip.system
 
-JTAG_DTM_ENABLE_SBA ?= off
+export JTAG_DTM_ENABLE_SBA ?= off
 ifeq ($(JTAG_DTM_ENABLE_SBA), off)
 CONFIGS_32=WithJtagDTMSystem_DefaultRV32Config
 CONFIGS_64=WithJtagDTMSystem_DefaultConfig
