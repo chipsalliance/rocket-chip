@@ -2,31 +2,30 @@
 
 package freechips.rocketchip.regmapper
 
+import chisel3.core.annotate
 import chisel3.internal.InstanceId
-import chisel3.experimental.{ChiselAnnotation, RunFirrtlTransform}
-
-import firrtl.{CircuitState, LowForm, Transform}
+import chisel3.experimental.{ChiselAnnotation, RawModule, RunFirrtlTransform}
+import firrtl.{CircuitForm, CircuitState, LowForm, Transform}
 import firrtl.annotations._
-
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.{pretty, render}
+import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
+import freechips.rocketchip.util.ElaborationArtefacts
 
 case class RegFieldDescAnnotation(
-    target: Named,
-    desc: String) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+    target: ModuleName,
+    desc: String) extends SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName): RegFieldDescAnnotation = this.copy(n)
 }
 
 case class DescribedRegChiselAnnotation(
-    target: InstanceId,
-    desc: RegFieldDesc) extends ChiselAnnotation with RunFirrtlTransform {
-  def toFirrtl = RegFieldDescAnnotation(target.toNamed, desc.toMap.toString)
-  def transformClass = classOf[DescribedRegDumpTransform]
+                                         target: RawModule,
+                                         desc: RegFieldDesc) extends ChiselAnnotation with RunFirrtlTransform {
+  def toFirrtl: RegFieldDescAnnotation = RegFieldDescAnnotation(target.toNamed, desc.toMap.toString)
+  def transformClass: Class[DescribedRegDumpTransform] = classOf[DescribedRegDumpTransform]
 }
 
 class DescribedRegDumpTransform extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  def inputForm: CircuitForm = LowForm
+  def outputForm: CircuitForm = LowForm
 
   def execute(state: CircuitState): CircuitState = {
     state.annotations.foreach {
@@ -36,34 +35,93 @@ class DescribedRegDumpTransform extends Transform {
   }
 }
 
-case class RegMappingAnnotation(
+/**********************************************************************************/
+
+import java.io._
+
+@SerialVersionUID(123L)
+case class RegMappingSer(
+                          displayName: String,
+                          byteOffset: Int,
+                          bitOffset: Int,
+                          regField: RegField
+                          )
+
+case class RegFieldDescMappingAnnotation(
     target: ModuleName,
-    displayName: String,
-    baseAddress: String,
-    regfields: Seq[RegFieldDesc]) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(target = n)
+    regMappingSer: Seq[RegMappingSer]) extends SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
 }
 
-object RegMappingAnnotation {
 
-  def serialize(base: BigInt, name: String, mapping: RegField.Map*): String = {
-    /*
-    val anno = RegMappingAnnotation(name, s"0x${base.toInt.toHexString}", mapping.flatMap { case (byte, seq) => (seq.flatMap(_.desc)) })
-    implicit val formats = Serialization.formats(NoTypeHints)
-    println(firrtl.annotations.JsonProtocol.serialize(List(anno)))
-    */
+case class RegMappingChiselAnnotation(
+                                         target: RawModule,
+                                         regMappingSer: Seq[RegMappingSer]) extends ChiselAnnotation with RunFirrtlTransform {
+  def toFirrtl: RegFieldDescMappingAnnotation = RegFieldDescMappingAnnotation(target.toNamed, regMappingSer)
+  def transformClass: Class[RegMappingDumpTransform] = classOf[RegMappingDumpTransform]
+}
 
-    val regDescs = mapping.flatMap { case (byte, seq) =>
-      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bit, f) =>
-        val anonName = s"unnamedRegField${byte.toHexString}_${bit}"
-        (f.desc.map{ _.name}.getOrElse(anonName)) -> f.toJson(byte, bit)
-      }
+class RegMappingDumpTransform extends Transform {
+  def inputForm: CircuitForm = LowForm
+  def outputForm: CircuitForm = LowForm
+
+  def execute(state: CircuitState): CircuitState = {
+    state.annotations.foreach {
+      case RegFieldDescMappingAnnotation(t, desc) => println(desc)
+    }
+    state
+  }
+}
+
+
+object GenRegDescsAnno {
+
+  def makeRegMappingSer(displayName: String,
+                        baseAddress: String,
+                        //width: Int,
+                        byteOffset: Int,
+                        bitOffset: Int,
+                        regField: RegField): RegMappingSer = {
+
+    val anonName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
+
+    RegMappingSer(
+      displayName = anonName,
+      bitOffset = bitOffset,
+      byteOffset = byteOffset,
+      regField = regField
+    )
+  }
+
+  def anno(target: RawModule,
+           module: LazyModule,
+           baseAddress: AddressSet,
+           mapping: RegField.Map*): Seq[RegField.Map] = {
+    //val displayName = module
+    val baseAddr = baseAddress.base
+    val baseHex = s"0x${baseAddr.toInt.toHexString}"
+    val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
+    val regs = mapping.flatMap {
+      case (byteOffset, seq) =>
+        println("ScanLeft start { ")
+        seq.map(_.width).scanLeft(0)(_ + _).zip(seq).foreach(println)
+
+        println("} ScanLeft end")
+
+        seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
+
+          makeRegMappingSer(
+            name, // TODO use the LazyModule name
+            baseAddr.toString(),
+            // TODO  width,
+            byteOffset,
+            bitOffset,
+            regField
+          )
+        }
     }
 
-    pretty(render(
-      ("peripheral" -> (
-        ("displayName" -> name) ~
-        ("baseAddress" -> s"0x${base.toInt.toHexString}") ~
-        ("regfields" -> regDescs)))))
+    annotate(RegMappingChiselAnnotation(target, regs))
+    mapping
   }
 }

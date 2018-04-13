@@ -151,10 +151,10 @@ case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option
       ("bitOffset"    -> bitOffset) ~
       ("bitWidth"     -> width) ~
       ("name"         -> desc.map(_.name)) ~
-      ("description"  -> desc.map{ d=> if (d.desc == "") None else Some(d.desc)}) ~
-      ("resetValue"   -> desc.map{_.reset}) ~
-      ("group"        -> desc.map{_.group}) ~
-      ("groupDesc"    -> desc.map{_.groupDesc}) ~
+      ("description"  -> desc.map { d=> if (d.desc == "") None else Some(d.desc)}) ~
+      ("resetValue"   -> desc.map {_.reset}) ~
+      ("group"        -> desc.map {_.group}) ~
+      ("groupDesc"    -> desc.map {_.groupDesc}) ~
       ("accessType"   -> desc.map {d => d.access.toString}) ~
       ("writeType"    -> desc.map {d => d.wrType.map(_.toString)}) ~
       ("readAction"   -> desc.map {d => d.rdAction.map(_.toString)}) ~
