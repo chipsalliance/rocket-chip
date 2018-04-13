@@ -63,7 +63,7 @@ trait HasMasterAXI4MemPortBundle {
   implicit val p: Parameters
   val mem_axi4: HeterogeneousBag[AXI4Bundle]
   val nMemoryChannels: Int
-  def connectSimAXIMem(dummy: Int = 1) = {
+  def connectSimAXIMem() = {
     if (nMemoryChannels > 0)  {
       val mem = LazyModule(new SimAXIMem(nMemoryChannels))
       Module(mem.module).io.axi4 <> mem_axi4
@@ -107,7 +107,7 @@ trait HasMasterAXI4MMIOPort { this: BaseSubsystem =>
 trait HasMasterAXI4MMIOPortBundle {
   implicit val p: Parameters
   val mmio_axi4: HeterogeneousBag[AXI4Bundle]
-  def connectSimAXIMMIO(dummy: Int = 1) {
+  def connectSimAXIMMIO() {
     val mmio_mem = LazyModule(new SimAXIMem(1, 4096))
     Module(mmio_mem.module).io.axi4 <> mmio_axi4
   }
@@ -143,7 +143,7 @@ trait HasSlaveAXI4Port { this: BaseSubsystem =>
 trait HasSlaveAXI4PortBundle {
   implicit val p: Parameters
   val l2_frontend_bus_axi4: HeterogeneousBag[AXI4Bundle]
-  def tieOffAXI4SlavePort(dummy: Int = 1) {
+  def tieOffAXI4SlavePort() {
     l2_frontend_bus_axi4.foreach { l2_axi4 =>
       l2_axi4.ar.valid := Bool(false)
       l2_axi4.aw.valid := Bool(false)
@@ -185,7 +185,7 @@ trait HasMasterTLMMIOPort { this: BaseSubsystem =>
 trait HasMasterTLMMIOPortBundle {
   implicit val p: Parameters
   val mmio_tl: HeterogeneousBag[TLBundle]
-  def tieOffTLMMIO(dummy: Int = 1) {
+  def tieOffTLMMIO() {
     mmio_tl.foreach { tl =>
       tl.a.ready := Bool(true)
       tl.b.valid := Bool(false)
@@ -223,7 +223,7 @@ trait HasSlaveTLPort { this: BaseSubsystem =>
 trait HasSlaveTLPortBundle {
   implicit val p: Parameters
   val l2_frontend_bus_tl: HeterogeneousBag[TLBundle]
-  def tieOffSlaveTLPort(dummy: Int = 1) {
+  def tieOffSlaveTLPort() {
     l2_frontend_bus_tl.foreach { tl =>
       tl.a.valid := Bool(false)
       tl.b.ready := Bool(true)
