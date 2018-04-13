@@ -271,8 +271,8 @@ class WithJtagDTM extends Config ((site, here, up) => {
   case IncludeJtagDTM => true
 })
 
-class WithSBA extends Config ((site, here, up) => {
-  case DebugModuleParams => DebugModuleParams(hasBusMaster = true)
+class WithDebugSBA extends Config ((site, here, up) => {
+  case DebugModuleParams => up(DebugModuleParams).copy(hasBusMaster = true)
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {

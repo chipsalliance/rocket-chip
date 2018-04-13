@@ -19,7 +19,8 @@ import SystemBusAccessState._
 
 object SystemBusAccessModule
 {
-  def apply(sb2tl: SBToTL, dmactive: Bool)(implicit p: Parameters): (Seq[RegField], Seq[Seq[RegField]], Seq[Seq[RegField]]) =
+  def apply(sb2tl: SBToTL, dmactive: Bool)(implicit p: Parameters):
+    (Seq[RegField], Seq[Seq[RegField]], Seq[Seq[RegField]]) =
   {
     import DMI_RegAddrs._
 
@@ -52,7 +53,7 @@ object SystemBusAccessModule
     SBCSRdEn.suggestName("SBCSRdEn")
 
     val sbcsfields = Seq(RWNotify(32, SBCSRdData.asUInt(), SBCSWrDataVal, SBCSRdEn, SBCSWrEn,
-                        Some(RegFieldDesc("dmi_sbcs", "", reset=Some(0)))))
+                        Some(RegFieldDesc("dmi_sbcs", ""))))
 
     // --- System Bus Address Registers ---
     // ADDR0 Register is required
@@ -64,7 +65,6 @@ object SystemBusAccessModule
 
     val SBADDRESSFieldsReg = Seq.fill(4)(Reg (UInt(32.W)))
     SBADDRESSFieldsReg.zipWithIndex.foreach { case(a,i) => a.suggestName("SBADDRESS"+i+"FieldsReg")}
-    val SBADDRESSRdData    = Seq.fill(4)(Wire(UInt(32.W)))
     val SBADDRESSWrData    = Seq.fill(4)(Wire(UInt(32.W)))
     val SBADDRESSRdEn      = Seq.fill(4)(Wire(Bool()))
     val SBADDRESSWrEn      = Seq.fill(4)(Wire(Bool()))
@@ -79,12 +79,10 @@ object SystemBusAccessModule
           a := 0.U(32.W)
         }.otherwise {
           a := Mux(SBADDRESSWrEn(i) && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, SBADDRESSWrData(i),
-               Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement, autoIncrementedAddr(32*i+31,32*i), SBADDRESSFieldsReg(i)))
+               Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement, autoIncrementedAddr(32*i+31,32*i), a))
         }
 
-        SBADDRESSRdData(i) := a
-
-        Seq(RWNotify(32, SBADDRESSRdData(i).asUInt(), SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
+        Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
           Some(RegFieldDesc("dmi_sbaddr"+i, "", reset=Some(0)))))
       } else {
         Seq.empty[RegField]
@@ -119,13 +117,13 @@ object SystemBusAccessModule
             d(j) := 0.U(8.W)
           }.otherwise {
             d(j) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, SBDATAWrData(i)(8*j+7,8*j),
-                    Mux(sb2tl.module.io.rdLoad(4*i+j), sb2tl.module.io.dataOut, SBDATAFieldsReg(i)(j)))
+                    Mux(sb2tl.module.io.rdLoad(4*i+j), sb2tl.module.io.dataOut, d(j)))
           }
         }
 
         SBDATARdData(i) := Cat(d.reverse)
 
-        Seq(RWNotify(32, SBDATARdData(i).asUInt(), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
+        Seq(RWNotify(32, SBDATARdData(i), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
           Some(RegFieldDesc("dmi_sbdata"+i, "", reset=Some(0)))))
       } else {
         Seq.empty[RegField]
@@ -161,12 +159,14 @@ object SystemBusAccessModule
     sb2tl.module.io.sizeIn   := SBCSFieldsReg.sbaccess
     sb2tl.module.io.dmactive := dmactive
 
+    val sbBusy = (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
+
     when (~dmactive) {
       SBCSFieldsReg := SBCSFieldsRegReset
     }.otherwise {
-      SBCSFieldsReg.sbbusyerror     := Mux(SBCSWrEn && SBCSWrData.sbbusyerror,                   false.B, // W1C
-                                       Mux(anyAddressWrEn && SBCSFieldsReg.sbbusy,               true.B, // Set if a write to SBADDRESS occurs while busy
-                                       Mux((anyDataRdEn || anyDataWrEn) && SBCSFieldsReg.sbbusy, true.B, SBCSFieldsReg.sbbusyerror))) // Set if any access to SBDATA occurs while busy
+      SBCSFieldsReg.sbbusyerror     := Mux(SBCSWrEn && SBCSWrData.sbbusyerror,     false.B, // W1C
+                                       Mux(anyAddressWrEn && sbBusy,               true.B, // Set if a write to SBADDRESS occurs while busy
+                                       Mux((anyDataRdEn || anyDataWrEn) && sbBusy, true.B, SBCSFieldsReg.sbbusyerror))) // Set if any access to SBDATA occurs while busy
       SBCSFieldsReg.sbreadonaddr    := Mux(SBCSWrEn, SBCSWrData.sbreadonaddr   , SBCSFieldsReg.sbreadonaddr)
       SBCSFieldsReg.sbautoincrement := Mux(SBCSWrEn, SBCSWrData.sbautoincrement, SBCSFieldsReg.sbautoincrement)
       SBCSFieldsReg.sbreadondata    := Mux(SBCSWrEn, SBCSWrData.sbreadondata   , SBCSFieldsReg.sbreadondata)
@@ -177,17 +177,17 @@ object SystemBusAccessModule
                                        Mux((tryWrEn || tryRdEn) && sbAlignmentError, 3.U, SBCSFieldsReg.sberror))))) // Address alignment error
       SBCSFieldsReg.sbaccess        := Mux(SBCSWrEn, SBCSWrData.sbaccess, SBCSFieldsReg.sbaccess)
       SBCSFieldsReg.sbversion       := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
-      SBCSFieldsReg.sbbusy          := (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
-      SBCSFieldsReg.sbasize         := sb2tl.module.edge.bundle.addressBits.U
-      SBCSFieldsReg.sbaccess128     := (cfg.maxSupportedSBAccess == 128).B
-      SBCSFieldsReg.sbaccess64      := (cfg.maxSupportedSBAccess >=  64).B
-      SBCSFieldsReg.sbaccess32      := (cfg.maxSupportedSBAccess >=  32).B
-      SBCSFieldsReg.sbaccess16      := (cfg.maxSupportedSBAccess >=  16).B
-      SBCSFieldsReg.sbaccess8       := (cfg.maxSupportedSBAccess >=   8).B
+      SBCSFieldsReg.sbbusy          := sbBusy
     }
 
-    SBCSRdData        := SBCSFieldsReg
-    SBCSRdData.sbbusy := (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
+    SBCSRdData             := SBCSFieldsReg
+    SBCSRdData.sbasize     := sb2tl.module.edge.bundle.addressBits.U
+    SBCSRdData.sbaccess128 := (cfg.maxSupportedSBAccess == 128).B
+    SBCSRdData.sbaccess64  := (cfg.maxSupportedSBAccess >=  64).B
+    SBCSRdData.sbaccess32  := (cfg.maxSupportedSBAccess >=  32).B
+    SBCSRdData.sbaccess16  := (cfg.maxSupportedSBAccess >=  16).B
+    SBCSRdData.sbaccess8   := (cfg.maxSupportedSBAccess >=   8).B
+
     
     cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
     cover(SBCSFieldsReg.sbbusy === 3.U, "SBCS Cover", "sbbusyerror alignment error")
