@@ -138,9 +138,9 @@ int main(int argc, char** argv)
     };
     int option_index = 0;
 #if VM_TRACE
-    int c = getopt_long(argc, argv, "-chm:s:v:Vx:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "-chm:s:r:v:Vx:", long_options, &option_index);
 #else
-    int c = getopt_long(argc, argv, "-chm:s:V", long_options, &option_index);
+    int c = getopt_long(argc, argv, "-chm:s:r:V", long_options, &option_index);
 #endif
     if (c == -1) break;
  retry:
