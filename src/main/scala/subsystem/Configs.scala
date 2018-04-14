@@ -308,6 +308,10 @@ class WithDefaultMemPort extends Config((site, here, up) => {
                       idBits = 4))
 })
 
+class WithNoMemPort extends Config((site, here, up) => {
+  case ExtMem => None
+})
+
 class WithDefaultMMIOPort extends Config((site, here, up) => {
   case ExtBus => Some(MasterPortParams(
                       base = x"6000_0000",
@@ -316,6 +320,20 @@ class WithDefaultMMIOPort extends Config((site, here, up) => {
                       idBits = 4))
 })
 
+class WithNoMMIOPort extends Config((site, here, up) => {
+  case ExtBus => None
+})
+
 class WithDefaultSlavePort extends Config((site, here, up) => {
   case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
+})
+
+class WithNoSlavePort extends Config((site, here, up) => {
+  case ExtIn => None
+})
+
+class WithScratchpadsOnly extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(dcache = r.dcache.map(_.copy(scratch = Some(0x80000000L))))
+  }
 })

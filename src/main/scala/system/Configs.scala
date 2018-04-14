@@ -56,10 +56,26 @@ class DualCoreConfig extends Config(
   new WithNBigCores(2) ++ new BaseConfig)
 
 class TinyConfig extends Config(
+  new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
   new WithIncoherentTiles ++
   new With1TinyCore ++
   new BaseConfig)
+
+class MemPortOnlyConfig extends Config(
+  new WithNoMMIOPort ++
+  new WithNoSlavePort ++
+  new DefaultConfig
+)
+
+class MMIOPortOnlyConfig extends Config(
+  new WithNoSlavePort ++
+  new WithNoMemPort ++
+  new WithNMemoryChannels(0) ++
+  new WithIncoherentTiles ++
+  new WithScratchpadsOnly ++
+  new DefaultConfig
+)
 
 class BaseFPGAConfig extends Config(new BaseConfig)
 
