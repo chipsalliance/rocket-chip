@@ -299,3 +299,23 @@ class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up
 class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
   case DTSTimebase => hertz
 })
+
+class WithDefaultMemPort extends Config((site, here, up) => {
+  case ExtMem => Some(MasterPortParams(
+                      base = x"8000_0000",
+                      size = x"1000_0000",
+                      beatBytes = site(MemoryBusKey).beatBytes,
+                      idBits = 4))
+})
+
+class WithDefaultMMIOPort extends Config((site, here, up) => {
+  case ExtBus => Some(MasterPortParams(
+                      base = x"6000_0000",
+                      size = x"2000_0000",
+                      beatBytes = site(MemoryBusKey).beatBytes,
+                      idBits = 4))
+})
+
+class WithDefaultSlavePort extends Config((site, here, up) => {
+  case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
+})

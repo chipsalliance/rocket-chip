@@ -11,25 +11,15 @@ import freechips.rocketchip.diplomacy._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 
-class BaseConfig extends Config(new BaseSubsystemConfig().alter((site,here,up) => {
-  // DTS descriptive parameters
-  case DTSModel => "freechips,rocketchip-unknown"
-  case DTSCompat => Nil
-  case DTSTimebase => BigInt(1000000) // 1 MHz
-  // External port parameters
-  case NExtTopInterrupts => 2
-  case ExtMem => Some(MasterPortParams(
-                      base = x"8000_0000",
-                      size = x"1000_0000",
-                      beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4))
-  case ExtBus => Some(MasterPortParams(
-                      base = x"6000_0000",
-                      size = x"2000_0000",
-                      beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4))
-  case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
-}))
+class BaseConfig extends Config(
+  new WithDefaultMemPort() ++
+  new WithDefaultMMIOPort() ++
+  new WithDefaultSlavePort() ++
+  new WithTimebase(BigInt(1000000)) ++ // 1 MHz
+  new WithDTS("freechips,rocketchip-unknown", Nil) ++
+  new WithNExtTopInterrupts(2) ++
+  new BaseSubsystemConfig()
+)
 
 class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)
 
