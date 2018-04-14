@@ -47,9 +47,9 @@ module AsyncResetReg (
 
    reg                           q_reg;
 
-   // There is a lot of initialization mess
+   // There is a lot of initialization
    // here you don't normally find in Verilog
-   // async registe because of scenarios in which reset
+   // async registers because of scenarios in which reset
    // is not actually asserted cleanly at time 0,
    // and we want to make sure to properly model
    // that, yet Chisel codebase is absolutely intolerant
