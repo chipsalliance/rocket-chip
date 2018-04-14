@@ -18,17 +18,17 @@ class BaseConfig extends Config(new BaseSubsystemConfig().alter((site,here,up) =
   case DTSTimebase => BigInt(1000000) // 1 MHz
   // External port parameters
   case NExtTopInterrupts => 2
-  case ExtMem => MasterPortParams(
+  case ExtMem => Some(MasterPortParams(
                       base = x"8000_0000",
                       size = x"1000_0000",
                       beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4)
-  case ExtBus => MasterPortParams(
+                      idBits = 4))
+  case ExtBus => Some(MasterPortParams(
                       base = x"6000_0000",
                       size = x"2000_0000",
                       beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4)
-  case ExtIn  => SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4)
+                      idBits = 4))
+  case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
 }))
 
 class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)

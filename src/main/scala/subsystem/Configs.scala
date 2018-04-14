@@ -263,7 +263,7 @@ class WithRationalRocketTiles extends Config((site, here, up) => {
 
 class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
   case MemoryBusKey => up(MemoryBusKey, site).copy(beatBytes = dataBits/8)
-  case ExtIn => up(ExtIn, site).copy(beatBytes = dataBits/8)
+  case ExtIn => up(ExtIn, site).map(_.copy(beatBytes = dataBits/8))
   
 })
 
@@ -288,7 +288,7 @@ class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
 })
 
 class WithExtMemSize(n: Long) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).copy(size = n)
+  case ExtMem => up(ExtMem, site).map(_.copy(size = n))
 })
 
 class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
