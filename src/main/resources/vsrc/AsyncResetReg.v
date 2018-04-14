@@ -46,6 +46,14 @@ module AsyncResetReg (
                       input      rst);
 
    reg                           q_reg;
+
+   // There is a lot of initialization mess
+   // here you don't normally find in Verilog
+   // async registe because of scenarios in which reset
+   // is not actually asserted cleanly at time 0,
+   // and we want to make sure to properly model
+   // that, yet Chisel codebase is absolutely intolerant
+   // of Xs.
    
    initial begin
 `ifdef RANDOMIZE
@@ -62,7 +70,11 @@ module AsyncResetReg (
   `ifndef verilator
          #0.002 begin end
   `endif // verilator
-         q_reg = _RAND[0];
+         // We have to check for rst again
+         // otherwise we initialize this
+         // even though rst is asserted.
+         if (~rst)
+           q_reg = _RAND[0];
       end
  `endif // RANDOMIZE_REG_INIT
 `endif // RANDOMIZE
