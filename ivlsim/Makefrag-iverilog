@@ -95,13 +95,15 @@ verilog: $(sim_vsrcs)
 CXX = g++
 
 CXX_OPTS = \
-	-I/usr/local/include/iverilog \
+	-I$(abspath iverilog/install/include/iverilog) \
 	-I$(RISCV)/include \
 	-std=c++11 \
 	-Wl,-rpath,$(RISCV)/lib \
-    -Wl,--no-as-needed \
-    -L$(RISCV)/lib -lvpi -lveriuser -lfesvr -lpthread \
-    -fPIC -shared \
+	-Wl,--no-as-needed \
+	-L$(abspath iverilog/install/lib) \
+	-L$(RISCV)/lib \
+	-lvpi -lveriuser -lfesvr -lpthread \
+	-fPIC -shared \
 
 IVL = $(IVL_TARGET)
 VVP = $(VVP_TARGET)
