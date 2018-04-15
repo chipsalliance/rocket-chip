@@ -31,7 +31,7 @@ lazy val macros = Project(
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(chisel, hardfloat, macros)
-  .aggregate(chisel, hardfloat, macros)
+  .aggregate(chisel, hardfloat, macros) // <-- means the running task on rocketchip is also run by aggregate tasks
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")

@@ -34,8 +34,9 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
 
   def napot = cfg.a(1)
   def torNotNAPOT = cfg.a(0)
+  def tor = !napot && torNotNAPOT
   def cfgLocked = cfg.l
-  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.cfg.a(1)
+  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.tor
 }
 
 class PMP(implicit p: Parameters) extends PMPReg {
