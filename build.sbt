@@ -20,13 +20,14 @@ lazy val commonSettings = Seq(
 )
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
-lazy val hardfloat  = project.dependsOn(chisel).
-                              aggregate(chisel).
-                              settings(commonSettings)
+lazy val hardfloat  = project
+  .settings(commonSettings)
+  .dependsOn(chisel)
+  .aggregate(chisel)
 lazy val macros = Project(
-        id = "rocket-macros",
-        base = file("macros")).
-        settings(commonSettings)
+  id = "rocket-macros",
+  base = file("macros")).
+  settings(commonSettings)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(chisel, hardfloat, macros)
