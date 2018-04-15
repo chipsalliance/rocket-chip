@@ -19,11 +19,10 @@ BACKEND ?= v
 TB ?= TestDriver
 
 include $(base_dir)/Makefrag
-include $(sim_dir)/Makefrag
 ifneq ($(filter run% %.run %.out %.vpd %.vcd,$(MAKECMDGOALS)),)
 -include $(generated_dir)/$(long_name).d
 endif
-include $(base_dir)/ivlsim/Makefrag-verilog
+include $(base_dir)/ivlsim/Makefrag-iverilog
 
 all: $(simv)
 debug: $(simv_debug)

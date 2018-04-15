@@ -1,0 +1,172 @@
+#--------------------------------------------------------------------
+# Verilog Generation
+#--------------------------------------------------------------------
+firrtl = $(generated_dir)/$(long_name).fir
+verilog = $(generated_dir)/$(long_name).v
+
+# If I don't mark these as .SECONDARY then make will delete these internal
+# files.
+.SECONDARY: $(firrtl) $(verilog)
+
+$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
+
+$(generated_dir)/%.v $(generated_dir)/%.conf: $(generated_dir)/%.fir $(FIRRTL_JAR)
+	mkdir -p $(dir $@)
+	$(FIRRTL) -i $< -o $(generated_dir)/$*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$*.conf -faf $(generated_dir)/$*.anno.json
+
+$(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
+	cd $(generated_dir) && \
+	rm -f $@ && \
+	$(mem_gen) $(generated_dir)/$(long_name).conf >> $@.tmp && \
+	mv $@.tmp $@
+
+# Build and install our own iverilog, to work around versionining issues.
+IVL_VERSION=v10_2
+IVL_SRCDIR ?= iverilog/src/iverilog-$(IVL_VERSION)
+IVL_TARGET := $(abspath iverilog/install/bin/iverilog)
+VVP_TARGET := $(abspath iverilog/install/bin/vvp)
+INSTALLED_IVL ?= $(IVL_TARGET)
+$(IVL_TARGET): $(IVL_SRCDIR)/driver/iverilog
+	$(MAKE) -C $(IVL_SRCDIR) install
+	touch $@
+
+$(IVL_SRCDIR)/driver/iverilog: $(IVL_SRCDIR)/Makefile
+	$(MAKE) -C $(IVL_SRCDIR) 
+	touch $@
+
+$(IVL_SRCDIR)/Makefile: $(IVL_SRCDIR)/configure
+	mkdir -p $(dir $@)
+	cd $(dir $@) && sh ./autoconf.sh
+	cd $(dir $@) && ./configure --prefix=$(abspath iverilog/install)
+
+$(IVL_SRCDIR)/configure: iverilog/$(IVL_VERSION).tar.gz
+	rm -rf $(dir $@)
+	mkdir -p $(dir $@)
+	cat $^ | tar -xz --strip-components=1 -C $(dir $@)
+	touch $@
+
+iverilog/$(IVL_VERSION).tar.gz:
+	mkdir -p $(dir $@)
+	wget https://github.com/steveicarus/iverilog/archive/$(IVL_VERSION).tar.gz -O $@
+
+iverilog: $(INSTALLED_IVL)
+
+#--------------------------------------------------------------------
+# Sources
+#--------------------------------------------------------------------
+
+# Verilog sources
+
+bb_vsrcs = \
+	$(base_dir)/ivlsrc/plusarg_reader.v \
+	$(base_dir)/ivlsrc/ClockDivider2.v \
+	$(base_dir)/ivlsrc/ClockDivider3.v \
+	$(base_dir)/ivlsrc/AsyncResetReg.v \
+
+sim_vsrcs = \
+	$(generated_dir)/$(long_name).v \
+	$(generated_dir)/$(long_name).behav_srams.v \
+	$(base_dir)/ivlsrc/$(TB).v \
+	$(base_dir)/ivlsrc/SimDTM.v \
+    $(base_dir)/ivlsrc/SimJTAG.v \
+	$(bb_vsrcs)
+
+# C sources
+
+sim_csrcs = \
+    $(base_dir)/ivlsrc/vpi_register.cc \
+	$(base_dir)/ivlsrc/SimDTM.cc \
+    $(base_dir)/ivlsrc/SimJTAG.cc \
+    $(base_dir)/ivlsrc/remote_bitbang.cc \
+
+#--------------------------------------------------------------------
+# Build Verilog
+#--------------------------------------------------------------------
+verilog: $(sim_vsrcs)
+
+.PHONY: verilog
+
+#--------------------------------------------------------------------
+# Build rules
+#--------------------------------------------------------------------
+
+CXX = g++
+
+CXX_OPTS = \
+	-I/usr/local/include/iverilog \
+	-I$(RISCV)/include \
+	-std=c++11 \
+	-Wl,-rpath,$(RISCV)/lib \
+    -Wl,--no-as-needed \
+    -L$(RISCV)/lib -lvpi -lveriuser -lfesvr -lpthread \
+    -fPIC -shared \
+
+IVL = $(IVL_TARGET)
+VVP = $(VVP_TARGET)
+
+IVL_OPTS = \
+	-g2005-sv \
+    -c timescale \
+    -s $(TB) \
+    -y $(generated_dir) -Y .v\
+	-DCLOCK_PERIOD=1.0 \
+	-DPRINTF_COND=$(TB).printf_cond \
+	-DSTOP_COND=\!$(TB).reset \
+	-DRANDOMIZE_MEM_INIT \
+	-DRANDOMIZE_REG_INIT \
+	-DRANDOMIZE_GARBAGE_ASSIGN \
+	-DRANDOMIZE_INVALID_ASSIGN \
+
+
+#--------------------------------------------------------------------
+# Build the simulator
+#--------------------------------------------------------------------
+
+simv = $(sim_dir)/simv-$(PROJECT)-$(CONFIG)
+$(simv) : $(sim_vsrcs) $(sim_csrcs) $(INSTALLED_IVL)
+	cd $(sim_dir) && \
+	rm -rf csrc && \
+    $(CXX) $(CXX_OPTS) $(sim_csrcs) -o $(simv).vpi && \
+    $(IVL) $(IVL_OPTS) -o $(simv) $(sim_vsrcs) \
+
+simv_debug = $(sim_dir)/simv-$(PROJECT)-$(CONFIG)-debug
+$(simv_debug) : $(sim_vsrcs) $(sim_csrcs) $(INSTALLED_IVL)
+	cd $(sim_dir) && \
+	rm -rf csrc && \
+    $(CXX) $(CXX_OPTS) $(sim_csrcs) -o $(simv).vpi && \
+	$(IVL) $(IVL_OPTS) -o $(simv_debug) $(sim_vsrcs) -DDEBUG \
+
+exec_simv = $(VVP) -M. -msimv-$(PROJECT)-$(CONFIG) $(simv) 
+exec_simv_debug = $(VVP) -v -M. -msimv-$(PROJECT)-$(CONFIG) $(simv_debug)
+
+#--------------------------------------------------------------------
+# Run
+#--------------------------------------------------------------------
+.PRECIOUS: $(output_dir)/%.fst
+
+$(output_dir)/%.run: $(output_dir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +permissive +max-cycles=$(timeout_cycles) +permissive-off $< 2> /dev/null 2> $@ && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.out: $(output_dir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +permissive +verbose +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $@ && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.vcd: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +permissive +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) +permissive-off $< $(disasm) $(patsubst %.vcd,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.fst: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +permissive +verbose +vcdfile=$@ +max-cycles=$(timeout_cycles) +permissive-off $< -fst $(disasm) $(patsubst %.fst,%.out,$@) && [ $$PIPESTATUS -eq 0 ]
+
+$(output_dir)/%.saif: $(output_dir)/% $(simv_debug)
+	cd $(sim_dir) && rm -f $(output_dir)/pipe-$*.vcd && vcd2saif -input $(output_dir)/pipe-$*.vcd -pipe "$(exec_simv_debug) +permissive +verbose +vcdfile=$(output_dir)/pipe-$*.vcd +max-cycles=$(bmark_timeout_cycles) +permissive-off $<" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+
+run: run-asm-tests run-bmark-tests
+run-debug: run-asm-tests-debug run-bmark-tests-debug
+run-fast: run-asm-tests-fast run-bmark-tests-fast
+
+.PHONY: run-asm-tests run-bmark-tests
+.PHONY: run-asm-tests-debug run-bmark-tests-debug
+.PHONY: run run-debug run-fast
+
+junk += $(output_dir)
