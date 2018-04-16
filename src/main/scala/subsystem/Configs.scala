@@ -334,6 +334,11 @@ class WithNoSlavePort extends Config((site, here, up) => {
 
 class WithScratchpadsOnly extends Config((site, here, up) => {
   case RocketTilesKey => up(RocketTilesKey, site) map { r =>
-    r.copy(dcache = r.dcache.map(_.copy(scratch = Some(0x80000000L))))
+    r.copy(
+      core = RocketCoreParams(useVM = false),
+      dcache = r.dcache.map(_.copy(
+        nSets = 256, // 16Kb scratchpad
+        nWays = 1,
+        scratch = Some(0x80000000L))))
   }
 })
