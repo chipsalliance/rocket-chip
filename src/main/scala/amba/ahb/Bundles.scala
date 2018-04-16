@@ -27,6 +27,27 @@ class AHBBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   val hreadyout = Bool(INPUT)
   val hresp     = Bool(INPUT)
   val hrdata    = UInt(INPUT, width = params.dataBits)
+
+  def tieoff() {
+    hreadyout.dir match {
+      case INPUT =>
+        hreadyout := Bool(false)
+        hresp     := Bool(false)
+        hrdata    := UInt(0)
+      case OUTPUT => 
+        hmastlock := Bool(false)
+        htrans    := UInt(0)
+        hsel      := Bool(false)
+        hready    := Bool(false)
+        hwrite    := Bool(false)
+        haddr     := UInt(0)
+        hsize     := UInt(0)
+        hburst    := UInt(0)
+        hprot     := UInt(0)
+        hwdata    := UInt(0)
+      case _ =>
+    }
+  }
 }
 
 object AHBBundle
