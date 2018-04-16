@@ -173,11 +173,10 @@ object SystemBusAccessModule
       SBCSFieldsReg.sberror         := Mux(SBCSWrEn && SBCSWrData.sberror =/= 0.U, 0.U, // W1C
                                        Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), 2.U, // Bad address accessed
                                        Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, 3.U, // Response error from TL
-                                       Mux((tryWrEn || tryRdEn) && sbAlignmentError, 3.U, // Access size error
-                                       Mux((tryWrEn || tryRdEn) && sbAccessError, 4.U, SBCSFieldsReg.sberror))))) // Address alignment error
+                                       Mux((tryWrEn || tryRdEn) && sbAlignmentError, 3.U, // Address alignment error
+                                       Mux((tryWrEn || tryRdEn) && sbAccessError, 4.U, SBCSFieldsReg.sberror))))) // Access size error
       SBCSFieldsReg.sbaccess        := Mux(SBCSWrEn, SBCSWrData.sbaccess, SBCSFieldsReg.sbaccess)
       SBCSFieldsReg.sbversion       := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
-      SBCSFieldsReg.sbbusy          := sbBusy
     }
 
     SBCSRdData             := SBCSFieldsReg
@@ -187,6 +186,7 @@ object SystemBusAccessModule
     SBCSRdData.sbaccess32  := (cfg.maxSupportedSBAccess >=  32).B
     SBCSRdData.sbaccess16  := (cfg.maxSupportedSBAccess >=  16).B
     SBCSRdData.sbaccess8   := (cfg.maxSupportedSBAccess >=   8).B
+    SBCSRdData.sbbusy      := sbBusy
 
     
     cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
@@ -233,32 +233,35 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
  
     val (tl, edge) = node.out(0)
 
+    val sbState = Reg(init = 0.U)
+
     // --- Drive payloads on bus to TileLink ---
+    val d = Queue(tl.d, 1) // Add a small buffer since response could arrive on same cycle as request
+    d.ready := (sbState === SBReadResponse.id.U) || (sbState === SBWriteResponse.id.U)
+
     val muxedData = Wire(init = 0.U(8.W))
     val requestValid = tl.a.valid
     val requestReady = tl.a.ready
-    val responseValid = tl.d.valid
-    val responseReady = tl.d.ready
-    val (rdLegal,  gbits) = edge.Get(0.U, io.addrIn, io.sizeIn)
-    val (wrLegal, pfbits) = edge.Put(0.U, io.addrIn, io.sizeIn, muxedData)
-    val (      _,  nbits) = edge.Put(0.U, io.addrIn, io.sizeIn, data=0.U, mask=0.U)
-
-    io.rdLegal := rdLegal
-    io.wrLegal := wrLegal
-
-    val sbState = Reg(init = 0.U)
-    io.sbStateOut := sbState
-    when      (sbState === SBReadRequest.id.U) { tl.a.bits :=  gbits  }
-    .elsewhen (sbState === SBWriteRequest.id.U){ tl.a.bits := pfbits  }
-    .otherwise                                 { tl.a.bits :=  nbits  }
-
-    val respError = tl.d.bits.error
-    io.respError := respError
+    val responseValid = d.valid
+    val responseReady = d.ready
 
     val counter = Reg(init = 0.U((log2Ceil(cfg.maxSupportedSBAccess/8)+1).W))
     val vecData   = Wire(Vec(cfg.maxSupportedSBAccess/8, UInt(8.W)))
     vecData := Vec.tabulate(16) { i => io.dataIn(8*i+7,8*i) }
     muxedData := vecData(counter)
+
+    val (rdLegal,  gbits) = edge.Get(0.U, io.addrIn, io.sizeIn)
+    val (wrLegal, pfbits) = edge.Put(0.U, io.addrIn, io.sizeIn, muxedData)
+
+    io.rdLegal := rdLegal
+    io.wrLegal := wrLegal
+
+    io.sbStateOut := sbState
+    when(sbState === SBReadRequest.id.U) { tl.a.bits :=  gbits  }
+    .otherwise                           { tl.a.bits := pfbits  }
+
+    val respError = tl.d.bits.error
+    io.respError := respError
 
     val wrTxValid = sbState === SBWriteRequest.id.U && requestValid && requestReady
     val rdTxValid = sbState === SBReadResponse.id.U && responseValid && responseReady
@@ -288,13 +291,10 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
  
     io.rdDone  := rdTxValid && txLast
     io.wrDone  := (sbState === SBWriteResponse.id.U) && responseValid && responseReady
-    io.dataOut := tl.d.bits.data
+    io.dataOut := d.bits.data
  
-    tl.a.valid := (sbState === SBReadRequest.id.U) ||
-                  (sbState === SBWriteRequest.id.U)
-    tl.d.ready := (sbState === SBReadResponse.id.U) ||
-                  (sbState === SBWriteResponse.id.U)
- 
+    tl.a.valid := (sbState === SBReadRequest.id.U) || (sbState === SBWriteRequest.id.U)
+
     // Tie off unused channels
     tl.b.ready := false.B
     tl.c.valid := false.B
