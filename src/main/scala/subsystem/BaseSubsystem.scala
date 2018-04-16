@@ -109,7 +109,7 @@ abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends Ba
   mapping.map(entry => println(entry.toString((outer.sbus.busView.bundle.addressBits-1)/4 + 1)))
   println("")
 
-  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.serialize).mkString(",")}]}""")
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.toJSON).mkString(",")}]}""")
 
   // Confirm that all of memory was described by DTS
   private val dtsRanges = AddressRange.unify(mapping.map(_.range))

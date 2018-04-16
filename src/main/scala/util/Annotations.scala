@@ -10,7 +10,7 @@ import firrtl.annotations._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
-import freechips.rocketchip.diplomacy.AddressMapEntry
+import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 
 /** Record a case class that was used to parameterize this target. */
@@ -24,8 +24,17 @@ case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) e
 }
 
 /** Record an address map. */
-case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[Named] {
+case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], label: String) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
+
+  def toUVM: String =
+    s"// Instance Name: ${target.serialize}\n" +
+      mapping.map(_.range.toUVM).mkString("\n")
+
+  def toJSON: String =
+    s"""{\n  "${label}":  [\n""" +
+      mapping.map(_.range.toJSON).mkString(",\n") +
+      "\n  ]\n}"
 }
 
 /** Record a conversion of TL source ids to AXI4 ids. */
@@ -38,6 +47,19 @@ case class RetimeModuleAnnotation(target: ModuleName) extends SingleTargetAnnota
   def duplicate(n: ModuleName) = this.copy(n)
 }
 
+/** Annotation capturing information about port slave devices. */
+case class SlaveAddressMapChiselAnnotation(
+    target: InstanceId,
+    addresses: Seq[AddressSet],
+    perms: ResourcePermissions) extends ChiselAnnotation {
+  private val range = AddressRange.fromSets(addresses)
+  def toFirrtl = AddressMapAnnotation(
+    target = target.toNamed,
+    mapping = range.map { r => AddressMapEntry(r, perms, Nil) },
+    label = "slaves")
+}
+
+/** Helper object containing methods for applying annotations to targets */
 object annotated {
   def params[T <: Product](component: InstanceId, params: T): T = {
     annotate(ParamsChiselAnnotation(component, params))
@@ -45,7 +67,7 @@ object annotated {
   }
 
   def addressMapping(component: InstanceId, mapping: Seq[AddressMapEntry]): Seq[AddressMapEntry] = {
-    annotate(new ChiselAnnotation { def toFirrtl = AddressMapAnnotation(component.toNamed, mapping) })
+    annotate(new ChiselAnnotation { def toFirrtl = AddressMapAnnotation(component.toNamed, mapping, "mapping") })
     mapping
   }
 
@@ -53,6 +75,7 @@ object annotated {
     annotate(new ChiselAnnotation { def toFirrtl = TLToAXI4IdMapAnnotation(component.toNamed, mapping) })
     mapping
   }
+
 }
 
 /** Mix this into a Module class or instance to mark its ports as untouchable */
