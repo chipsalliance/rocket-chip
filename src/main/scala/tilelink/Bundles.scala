@@ -195,17 +195,17 @@ class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
   def tieoff() {
     a.ready.dir match {
       case INPUT =>
-        a.ready := Bool(true)
-        c.ready := Bool(true)
-        e.ready := Bool(true)
+        a.ready := Bool(false)
+        c.ready := Bool(false)
+        e.ready := Bool(false)
         b.valid := Bool(false)
         d.valid := Bool(false)
       case OUTPUT =>
         a.valid := Bool(false)
         c.valid := Bool(false)
         e.valid := Bool(false)
-        b.ready := Bool(true)
-        d.ready := Bool(true)
+        b.ready := Bool(false)
+        d.ready := Bool(false)
       case _ =>
     }
   }
