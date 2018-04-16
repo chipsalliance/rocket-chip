@@ -173,8 +173,8 @@ object SystemBusAccessModule
       SBCSFieldsReg.sberror         := Mux(SBCSWrEn && SBCSWrData.sberror =/= 0.U, 0.U, // W1C
                                        Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), 2.U, // Bad address accessed
                                        Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, 3.U, // Response error from TL
-                                       Mux((tryWrEn || tryRdEn) && sbAccessError, 3.U, // Access size error
-                                       Mux((tryWrEn || tryRdEn) && sbAlignmentError, 3.U, SBCSFieldsReg.sberror))))) // Address alignment error
+                                       Mux((tryWrEn || tryRdEn) && sbAlignmentError, 3.U, // Access size error
+                                       Mux((tryWrEn || tryRdEn) && sbAccessError, 4.U, SBCSFieldsReg.sberror))))) // Address alignment error
       SBCSFieldsReg.sbaccess        := Mux(SBCSWrEn, SBCSWrData.sbaccess, SBCSFieldsReg.sbaccess)
       SBCSFieldsReg.sbversion       := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
       SBCSFieldsReg.sbbusy          := sbBusy
