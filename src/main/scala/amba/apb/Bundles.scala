@@ -34,7 +34,7 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
       case OUTPUT =>
         pwrite  := Bool(false)
         paddr   := UInt(0)
-        pprot   := UInt(0)
+        pprot   := APBParameters.PROT_DEFAULT
         pwdata  := UInt(0)
         pstrb   := UInt(0)
       case _ =>

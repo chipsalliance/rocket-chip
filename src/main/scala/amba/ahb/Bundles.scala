@@ -32,18 +32,18 @@ class AHBBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
     hreadyout.dir match {
       case INPUT =>
         hreadyout := Bool(false)
-        hresp     := Bool(false)
+        hresp     := AHBParameters.RESP_OKAY
         hrdata    := UInt(0)
       case OUTPUT => 
         hmastlock := Bool(false)
-        htrans    := UInt(0)
+        htrans    := AHBParameters.TRANS_IDLE
         hsel      := Bool(false)
         hready    := Bool(false)
         hwrite    := Bool(false)
         haddr     := UInt(0)
         hsize     := UInt(0)
-        hburst    := UInt(0)
-        hprot     := UInt(0)
+        hburst    := AHBParameters.BURST_SINGLE
+        hprot     := AHBParameters.PROT_DEFAULT
         hwdata    := UInt(0)
       case _ =>
     }
