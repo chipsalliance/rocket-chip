@@ -67,7 +67,6 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
 /** Actually generates the corresponding IO in the concrete Module */
 trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
   val outer: CanHaveMasterAXI4MemPort
-  val nMemoryChannels = outer.nMemoryChannels
 
   val mem_axi4 = IO(HeterogeneousBag.fromNode(outer.mem_axi4.in))
   (mem_axi4 zip outer.mem_axi4.in).foreach { case (io, (bundle, _)) => io <> bundle }
@@ -147,26 +146,11 @@ trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
   }
 }
 
-/** Common io name and methods for propagating or tying off the port bundle */
-trait CanHaveSlaveAXI4PortBundle {
-  implicit val p: Parameters
-  val l2_frontend_bus_axi4: HeterogeneousBag[AXI4Bundle]
-  def tieOffAXI4SlavePort() {
-    l2_frontend_bus_axi4.foreach { l2_axi4 =>
-      l2_axi4.ar.valid := Bool(false)
-      l2_axi4.aw.valid := Bool(false)
-      l2_axi4.w .valid := Bool(false)
-      l2_axi4.r .ready := Bool(true)
-      l2_axi4.b .ready := Bool(true)
-    }
-  }
-}
-
 /** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveSlaveAXI4PortModuleImp extends LazyModuleImp with CanHaveSlaveAXI4PortBundle {
+trait CanHaveSlaveAXI4PortModuleImp extends LazyModuleImp {
   val outer: CanHaveSlaveAXI4Port
   val l2_frontend_bus_axi4 = IO(HeterogeneousBag.fromNode(outer.l2FrontendAXI4Node.out).flip)
-  (outer.l2FrontendAXI4Node.out zip l2_frontend_bus_axi4) foreach { case ((i, _), o) => i <> o }
+  (outer.l2FrontendAXI4Node.out zip l2_frontend_bus_axi4) foreach { case ((bundle, _), io) => bundle <> io }
 }
 
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
@@ -194,26 +178,12 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
   }
 }
 
-/** Common io name and methods for propagating or tying off the port bundle */
-trait CanHaveMasterTLMMIOPortBundle {
-  implicit val p: Parameters
-  val mmio_tl: HeterogeneousBag[TLBundle]
-  def tieOffTLMMIO() {
-    mmio_tl.foreach { tl =>
-      tl.a.ready := Bool(true)
-      tl.b.valid := Bool(false)
-      tl.c.ready := Bool(true)
-      tl.d.valid := Bool(false)
-      tl.e.ready := Bool(true)
-    }
-  }
-}
 
 /** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveMasterTLMMIOPortModuleImp extends LazyModuleImp with CanHaveMasterTLMMIOPortBundle {
+trait CanHaveMasterTLMMIOPortModuleImp extends LazyModuleImp {
   val outer: CanHaveMasterTLMMIOPort
   val mmio_tl = IO(HeterogeneousBag.fromNode(outer.mmio_tl.in))
-  (mmio_tl zip outer.mmio_tl.in) foreach { case (i, (o, _)) => i <> o }
+  (mmio_tl zip outer.mmio_tl.in) foreach { case (io, (bundle, _)) => io <> bundle }
 }
 
 /** Adds an TL port to the system intended to be a slave on an MMIO device bus.
@@ -237,26 +207,11 @@ trait CanHaveSlaveTLPort { this: BaseSubsystem =>
   }
 }
 
-/** Common io name and methods for propagating or tying off the port bundle */
-trait CanHaveSlaveTLPortBundle {
-  implicit val p: Parameters
-  val l2_frontend_bus_tl: HeterogeneousBag[TLBundle]
-  def tieOffSlaveTLPort() {
-    l2_frontend_bus_tl.foreach { tl =>
-      tl.a.valid := Bool(false)
-      tl.b.ready := Bool(true)
-      tl.c.valid := Bool(false)
-      tl.d.ready := Bool(true)
-      tl.e.valid := Bool(false)
-    }
-  }
-}
-
 /** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveSlaveTLPortModuleImp extends LazyModuleImp with CanHaveSlaveTLPortBundle {
+trait CanHaveSlaveTLPortModuleImp extends LazyModuleImp {
   val outer: CanHaveSlaveTLPort
   val l2_frontend_bus_tl = IO(HeterogeneousBag.fromNode(outer.l2FrontendTLNode.out).flip)
-  (outer.l2FrontendTLNode.in zip l2_frontend_bus_tl) foreach { case ((i, _), o) => i <> o }
+  (outer.l2FrontendTLNode.in zip l2_frontend_bus_tl) foreach { case ((bundle, _), io) => bundle <> io }
 }
 
 /** Memory with AXI port for use in elaboratable test harnesses. */
@@ -268,6 +223,6 @@ class SimAXIMem(edge: AXI4EdgeParameters, size: BigInt)(implicit p: Parameters) 
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle { val axi4 = HeterogeneousBag.fromNode(node.out).flip })
-    (node.out zip io.axi4) foreach { case ((i, _), o) => i <> o }
+    (node.out zip io.axi4) foreach { case ((bundle, _), io) => bundle <> io }
   }
 }

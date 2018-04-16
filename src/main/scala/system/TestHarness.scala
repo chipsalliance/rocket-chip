@@ -18,6 +18,6 @@ class TestHarness()(implicit p: Parameters) extends Module {
   dut.tieOffInterrupts()
   dut.connectSimAXIMem()
   dut.connectSimAXIMMIO()
-  dut.tieOffAXI4SlavePort()
+  dut.l2_frontend_bus_axi4.foreach(_.tieoff)
   dut.connectDebug(clock, reset, io.success)
 }
