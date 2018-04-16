@@ -135,7 +135,9 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
   def regmap(mapping: RegField.Map*) : Unit = {
-    val annoSeq = GenRegDescsAnno.anno(this, router, address, mapping:_*)
+    // val annoSeq = GenRegDescsAnno.anno(this, router, address, mapping:_*)
+    val baseAddr = address.base
+    val annoSeq = GenRegDescsAnno.anno(this, baseAddr, mapping:_*)
     router.node.regmap(annoSeq:_*)
   }
 }

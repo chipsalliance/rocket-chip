@@ -259,9 +259,12 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             volatile = true))
         )
       )
-    } 
+    }
 
-    node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+    val mapping = priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields
+    val baseAddr = 0 // TODO
+    val annoSeq = GenRegDescsAnno.anno(this, baseAddr, mapping:_*)
+    node.regmap(annoSeq:_*)
 
     priority(0) := 0
     pending(0) := false
