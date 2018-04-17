@@ -74,13 +74,24 @@ case class RegMappingSer(
                           regField: RegFieldSer
                           )
 
+/**
+  * Firrtl annotation
+  * @param target
+  * @param regMappingSer
+  */
 case class RegFieldDescMappingAnnotation(
     target: ModuleName,
     regMappingSer: Seq[RegMappingSer]) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
 }
 
-
+/**
+  * Chisel Annotation
+  *
+  * This creates the firrtl annotation
+  * @param target
+  * @param regMappingSer
+  */
 case class RegMappingChiselAnnotation(
                                          target: RawModule,
                                          regMappingSer: Seq[RegMappingSer]) extends ChiselAnnotation with RunFirrtlTransform {
@@ -130,7 +141,7 @@ object GenRegDescsAnno {
         rdAction = d.rdAction.map(_.toString).getOrElse("Error"),
         volatile = d.volatile,
         hasReset = false,
-        reset = BigInt(0),
+        reset = BigInt(0), // TODO
         enumerations = map
       )
     }.getOrElse(
@@ -182,11 +193,10 @@ object GenRegDescsAnno {
         println("} ScanLeft end")
 
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
-          val width = 0 // TODO fix me
           makeRegMappingSer(
             name, // TODO use the LazyModule name
             baseAddress.toString(),
-            width,
+            regField.width,
             byteOffset,
             bitOffset,
             regField
