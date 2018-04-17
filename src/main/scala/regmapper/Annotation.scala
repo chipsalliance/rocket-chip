@@ -34,7 +34,7 @@ case class RegFieldDescAnnotation(
 
 /** ********************************************************************************/
 
-@SerialVersionUID(1111111111L)
+//SerialVersionUID(1111111111L)
 case class RegFieldDescSer(
   byteOffset: Int,
   bitOffset: Int,
@@ -52,20 +52,24 @@ case class RegFieldDescSer(
   enumerations: Map[BigInt, (String, String)] = Map()
 )
 
-@SerialVersionUID(1111111112L)
-case class RegFieldSer(regFieldName: String,
-  desc: RegFieldDescSer)
+//@SerialVersionUID(1111111112L)
+case class RegFieldSer(
+  regFieldName: String,
+  desc: RegFieldDescSer
+)
 
-@SerialVersionUID(1111111114L)
-case class RegistersSer(displayName: String,
+//@SerialVersionUID(1111111114L)
+case class RegistersSer(
+  displayName: String,
   baseAddress: BigInt,
   regFields: Seq[RegFieldSer]
 )
 
-@SerialVersionUID(1111111114L)
-case class RegMappingSer(rawModule: RawModule,
-  registerSer: RegistersSer
-)
+////@SerialVersionUID(1111111114L)
+//case class RegMappingSer(
+//  rawModule: RawModule,
+//  registerSer: RegistersSer
+//)
 
 
 /**
@@ -76,10 +80,8 @@ case class RegMappingSer(rawModule: RawModule,
   */
 case class RegFieldDescMappingAnnotation(
   target: ModuleName,
-  regMappingSer: RegMappingSer) extends SingleTargetAnnotation[ModuleName] {
+  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
-
-  override def equals(that: Any): Boolean = ???
 }
 
 /**
@@ -92,7 +94,7 @@ case class RegFieldDescMappingAnnotation(
   */
 case class RegMappingChiselAnnotation(
   target: RawModule,
-  regMappingSer: RegMappingSer) extends ChiselAnnotation with RunFirrtlTransform {
+  regMappingSer: RegistersSer) extends ChiselAnnotation with RunFirrtlTransform {
   def toFirrtl: RegFieldDescMappingAnnotation = RegFieldDescMappingAnnotation(target.toNamed, regMappingSer)
 
   def transformClass: Class[RegMappingDumpTransform] = classOf[RegMappingDumpTransform]
@@ -110,7 +112,6 @@ class RegMappingDumpTransform extends Transform {
     state
   }
 }
-
 
 object GenRegDescsAnno {
 
@@ -130,48 +131,35 @@ object GenRegDescsAnno {
     val map = Map[BigInt, (String, String)]() // TODO
 
     val desc = regField.desc
+
+    val regFieldDescSer = RegFieldDescSer(
+      byteOffset = byteOffset,
+      bitOffset = bitOffset,
+      bitWidth = width,
+      name = selectedName,
+      desc = desc.map {
+        _.desc
+      }.getOrElse("None"),
+      group = desc.map {
+        _.group.getOrElse("None")
+      }.getOrElse("None"),
+      groupDesc = desc.map {
+        _.groupDesc.getOrElse("None")
+      }.getOrElse("None"),
+      accessType = desc.map {
+        _.access.toString
+      }.getOrElse("r"), // TODO default?
+      wrType = desc.map(_.wrType.toString).getOrElse("None"),
+      rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
+      volatile = desc.map(_.volatile).getOrElse(false),
+      hasReset = desc.map { d => if (d.reset != None) true else false }.getOrElse(false), // TODO ugly
+      reset = BigInt(0), // TODO desc.map{_.reset}.getOrElse(BigInt(0))
+      enumerations = map
+    )
     RegFieldSer(
       selectedName,
-      RegFieldDescSer(
-        byteOffset = byteOffset,
-        bitOffset = bitOffset,
-        bitWidth = width,
-        name = selectedName,
-        desc = desc.map {
-          _.desc
-        }.getOrElse("None"),
-        group = desc.map {
-          _.group.getOrElse("None")
-        }.getOrElse("None"),
-        groupDesc = desc.map {
-          _.groupDesc.getOrElse("None")
-        }.getOrElse("None"),
-        accessType = desc.map {
-          _.access.toString
-        }.getOrElse("r"), // TODO default?
-        wrType = desc.map(_.wrType.toString).getOrElse("None"),
-        rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
-        volatile = desc.map(_.volatile).getOrElse(false),
-        hasReset = desc.map { d => if (d.reset != None) true else false }.getOrElse(false), // TODO ugly
-        reset = BigInt(0), // TODO desc.map{_.reset}.getOrElse(BigInt(0))
-        enumerations = map
-      ))
-    //
-    //    ("name"         -> desc.map(_.name)) ~
-    //      ("description"  -> desc.map { d=> if (d.desc == "") None else Some(d.desc)}) ~
-    //      ("resetValue"   -> desc.map {_.reset}) ~
-    //      ("group"        -> desc.map {_.group}) ~
-    //      ("groupDesc"    -> desc.map {_.groupDesc}) ~
-    //      ("accessType"   -> desc.map {d => d.access.toString}) ~
-    //      ("writeType"    -> desc.map {d => d.wrType.map(_.toString)}) ~
-    //      ("readAction"   -> desc.map {d => d.rdAction.map(_.toString)}) ~
-    //      ("volatile"     -> desc.map {d => if (d.volatile) Some(true) else None}) ~
-    //      ("enumerations" -> desc.map {d =>
-    //        Option(d.enumerations.map { case (key, (name, edesc)) =>
-    //          (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
-    //        }).filter(_.nonEmpty)}) )
-
-
+      regFieldDescSer
+     )
   }
 
   def anno(rawModule: RawModule,
@@ -209,11 +197,7 @@ object GenRegDescsAnno {
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
 
-    val regMappingSer = RegMappingSer(
-      rawModule,
-      registersSer
-    )
-    annotate(RegMappingChiselAnnotation(rawModule, regMappingSer))
+    annotate(RegMappingChiselAnnotation(rawModule, registersSer))
     mapping
   }
 }
