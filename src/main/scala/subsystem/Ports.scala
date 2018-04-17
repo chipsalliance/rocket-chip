@@ -73,7 +73,7 @@ trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
 
   def connectSimAXIMem() {
     (mem_axi4 zip outer.mem_axi4.in).foreach { case (io, (_, edge)) =>
-      val mem = LazyModule(new SimAXIMem(edge, size = 16*1024))
+      val mem = LazyModule(new SimAXIMem(edge, size = p(ExtMem).get.size))
       Module(mem.module).io.axi4 <> io
     }
   }
