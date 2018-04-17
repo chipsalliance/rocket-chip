@@ -60,10 +60,10 @@ iverilog: $(INSTALLED_IVL)
 # Verilog sources
 
 bb_vsrcs = \
-	$(base_dir)/ivlsrc/plusarg_reader.v \
-	$(base_dir)/ivlsrc/ClockDivider2.v \
-	$(base_dir)/ivlsrc/ClockDivider3.v \
-	$(base_dir)/ivlsrc/AsyncResetReg.v \
+	$(base_dir)/vsrc/plusarg_reader.v \
+	$(base_dir)/vsrc/ClockDivider2.v \
+	$(base_dir)/vsrc/ClockDivider3.v \
+	$(base_dir)/vsrc/AsyncResetReg.v \
 
 sim_vsrcs = \
 	$(generated_dir)/$(long_name).v \
