@@ -263,7 +263,7 @@ class WithRationalRocketTiles extends Config((site, here, up) => {
 
 class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
   case MemoryBusKey => up(MemoryBusKey, site).copy(beatBytes = dataBits/8)
-  case ExtIn => up(ExtIn, site).copy(beatBytes = dataBits/8)
+  case ExtIn => up(ExtIn, site).map(_.copy(beatBytes = dataBits/8))
   
 })
 
@@ -288,7 +288,7 @@ class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
 })
 
 class WithExtMemSize(n: Long) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).copy(size = n)
+  case ExtMem => up(ExtMem, site).map(_.copy(size = n))
 })
 
 class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
@@ -298,4 +298,47 @@ class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up
 
 class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
   case DTSTimebase => hertz
+})
+
+class WithDefaultMemPort extends Config((site, here, up) => {
+  case ExtMem => Some(MasterPortParams(
+                      base = x"8000_0000",
+                      size = x"1000_0000",
+                      beatBytes = site(MemoryBusKey).beatBytes,
+                      idBits = 4))
+})
+
+class WithNoMemPort extends Config((site, here, up) => {
+  case ExtMem => None
+})
+
+class WithDefaultMMIOPort extends Config((site, here, up) => {
+  case ExtBus => Some(MasterPortParams(
+                      base = x"6000_0000",
+                      size = x"2000_0000",
+                      beatBytes = site(MemoryBusKey).beatBytes,
+                      idBits = 4))
+})
+
+class WithNoMMIOPort extends Config((site, here, up) => {
+  case ExtBus => None
+})
+
+class WithDefaultSlavePort extends Config((site, here, up) => {
+  case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
+})
+
+class WithNoSlavePort extends Config((site, here, up) => {
+  case ExtIn => None
+})
+
+class WithScratchpadsOnly extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(
+      core = RocketCoreParams(useVM = false),
+      dcache = r.dcache.map(_.copy(
+        nSets = 256, // 16Kb scratchpad
+        nWays = 1,
+        scratch = Some(0x80000000L))))
+  }
 })
