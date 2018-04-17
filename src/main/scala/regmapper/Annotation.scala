@@ -13,28 +13,9 @@ case class RegFieldDescAnnotation(
   def duplicate(n: ModuleName): RegFieldDescAnnotation = this.copy(n)
 }
 
-//case class DescribedRegChiselAnnotation(
-//                                         target: RawModule,
-//                                         desc: RegFieldDesc) extends ChiselAnnotation with RunFirrtlTransform {
-//  def toFirrtl: RegFieldDescAnnotation = RegFieldDescAnnotation(target.toNamed, desc.toMap.toString)
-//  def transformClass: Class[DescribedRegDumpTransform] = classOf[DescribedRegDumpTransform]
-//}
-//
-//class DescribedRegDumpTransform extends Transform {
-//  def inputForm: CircuitForm = LowForm
-//  def outputForm: CircuitForm = LowForm
-//
-//  def execute(state: CircuitState): CircuitState = {
-//    state.annotations.foreach {
-//      case RegFieldDescAnnotation(t, desc) => println(desc)
-//    }
-//    state
-//  }
-//}
 
 /** ********************************************************************************/
 
-//SerialVersionUID(1111111111L)
 case class RegFieldDescSer(
   byteOffset: Int,
   bitOffset: Int,
@@ -52,25 +33,16 @@ case class RegFieldDescSer(
   enumerations: Map[BigInt, (String, String)] = Map()
 )
 
-//@SerialVersionUID(1111111112L)
 case class RegFieldSer(
   regFieldName: String,
   desc: RegFieldDescSer
 )
 
-//@SerialVersionUID(1111111114L)
 case class RegistersSer(
   displayName: String,
   baseAddress: BigInt,
   regFields: Seq[RegFieldSer]
 )
-
-////@SerialVersionUID(1111111114L)
-//case class RegMappingSer(
-//  rawModule: RawModule,
-//  registerSer: RegistersSer
-//)
-
 
 /**
   * Firrtl annotation
@@ -116,7 +88,6 @@ class RegMappingDumpTransform extends Transform {
 object GenRegDescsAnno {
 
   def makeRegMappingSer(rawModule: RawModule,
-    // name: String,
     baseAddress: BigInt,
     width: Int,
     byteOffset: Int,
@@ -127,7 +98,7 @@ object GenRegDescsAnno {
     val descName = regField.desc.map {
       _.name
     }.getOrElse("")
-    val selectedName = if (descName == "") anonName else anonName
+    val selectedName = if (descName.isEmpty) anonName else descName
     val map = Map[BigInt, (String, String)]() // TODO
 
     val desc = regField.desc
