@@ -17,11 +17,23 @@ object SystemBusAccessState extends scala.Enumeration {
 }
 import SystemBusAccessState._ 
 
+object SBErrorCode extends scala.Enumeration {
+  type SBErrorCode = Value
+  val NoError    = Value(0)
+  val Timeout    = Value(1)
+  val BadAddr    = Value(2)
+  val AlgnError  = Value(3)
+  val BadAccess  = Value(4)
+  val OtherError = Value(7)
+}
+import SBErrorCode._
+
 object SystemBusAccessModule
 {
   def apply(sb2tl: SBToTL, dmactive: Bool)(implicit p: Parameters):
     (Seq[RegField], Seq[Seq[RegField]], Seq[Seq[RegField]]) =
   {
+    import SBErrorCode._
     import DMI_RegAddrs._
 
     val cfg = p(DebugModuleParams)
@@ -31,7 +43,7 @@ object SystemBusAccessModule
     val anyDataWrEn    = Wire(init = false.B).suggestName("anyDataWrEn")
 
     // --- SBCS Status Register ---
-    val SBCSFieldsReg      = Reg(new SBCSFields()).suggestName("SBCSFieldsReg")
+    val SBCSFieldsReg = Reg(new SBCSFields()).suggestName("SBCSFieldsReg")
 
     val SBCSFieldsRegReset = Wire(init = (new SBCSFields()).fromBits(0.U))
     SBCSFieldsRegReset.sbversion   := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
@@ -78,7 +90,7 @@ object SystemBusAccessModule
         when (~dmactive) {
           a := 0.U(32.W)
         }.otherwise {
-          a := Mux(SBADDRESSWrEn(i) && !SBCSFieldsReg.sberror && !SBCSFieldsReg.sbbusy, SBADDRESSWrData(i),
+          a := Mux(SBADDRESSWrEn(i) && !SBCSRdData.sberror && !SBCSFieldsReg.sbbusy, SBADDRESSWrData(i),
                Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement, autoIncrementedAddr(32*i+31,32*i), a))
         }
 
@@ -116,7 +128,7 @@ object SystemBusAccessModule
           when (~dmactive) {
             d(j) := 0.U(8.W)
           }.otherwise {
-            d(j) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror, SBDATAWrData(i)(8*j+7,8*j),
+            d(j) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSRdData.sberror, SBDATAWrData(i)(8*j+7,8*j),
                     Mux(sb2tl.module.io.rdLoad(4*i+j), sb2tl.module.io.dataOut, d(j)))
           }
         }
@@ -154,8 +166,8 @@ object SystemBusAccessModule
     sbAccessError.suggestName("sbAccessError")
     sbAlignmentError.suggestName("sbAlignmentError")
 
-    sb2tl.module.io.wrEn     := tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror && !sbAccessError && !sbAlignmentError 
-    sb2tl.module.io.rdEn     := tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sberror && !sbAccessError && !sbAlignmentError
+    sb2tl.module.io.wrEn     := tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError 
+    sb2tl.module.io.rdEn     := tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
     sb2tl.module.io.sizeIn   := SBCSFieldsReg.sbaccess
     sb2tl.module.io.dmactive := dmactive
 
@@ -170,13 +182,22 @@ object SystemBusAccessModule
       SBCSFieldsReg.sbreadonaddr    := Mux(SBCSWrEn, SBCSWrData.sbreadonaddr   , SBCSFieldsReg.sbreadonaddr)
       SBCSFieldsReg.sbautoincrement := Mux(SBCSWrEn, SBCSWrData.sbautoincrement, SBCSFieldsReg.sbautoincrement)
       SBCSFieldsReg.sbreadondata    := Mux(SBCSWrEn, SBCSWrData.sbreadondata   , SBCSFieldsReg.sbreadondata)
-      SBCSFieldsReg.sberror         := Mux(SBCSWrEn && SBCSWrData.sberror =/= 0.U, 0.U, // W1C
-                                       Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), 2.U, // Bad address accessed
-                                       Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, 3.U, // Response error from TL
-                                       Mux((tryWrEn || tryRdEn) && sbAlignmentError, 3.U, // Address alignment error
-                                       Mux((tryWrEn || tryRdEn) && sbAccessError, 4.U, SBCSFieldsReg.sberror))))) // Access size error
       SBCSFieldsReg.sbaccess        := Mux(SBCSWrEn, SBCSWrData.sbaccess, SBCSFieldsReg.sbaccess)
       SBCSFieldsReg.sbversion       := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
+    }
+
+    // sbErrorReg has a per-bit load enable since each bit can be individually cleared by writing a 1 to it
+    val sbErrorReg = Reg(Vec(4, UInt(1.W)))
+    when(~dmactive) {
+      for (i <- 0 until 3)
+        sbErrorReg(i) := 0.U
+    }.otherwise {
+      for (i <- 0 until 3)
+        sbErrorReg(i) := Mux(SBCSWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U(i), // W1C
+                         Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), BadAddr.id.U(i), // Bad address accessed
+                         Mux((tryWrEn || tryRdEn) && sbAlignmentError, AlgnError.id.U(i), // Address alignment error
+                         Mux((tryWrEn || tryRdEn) && sbAccessError, BadAccess.id.U(i), // Access size error
+                         Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, OtherError.id.U(i), sbErrorReg(i)))))) // Response error from TL
     }
 
     SBCSRdData             := SBCSFieldsReg
@@ -187,7 +208,7 @@ object SystemBusAccessModule
     SBCSRdData.sbaccess16  := (cfg.maxSupportedSBAccess >=  16).B
     SBCSRdData.sbaccess8   := (cfg.maxSupportedSBAccess >=   8).B
     SBCSRdData.sbbusy      := sbBusy
-
+    SBCSRdData.sberror     := sbErrorReg.toBits
     
     cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
     cover(SBCSFieldsReg.sbbusy === 3.U, "SBCS Cover", "sbbusyerror alignment error")
@@ -236,7 +257,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     val sbState = Reg(init = 0.U)
 
     // --- Drive payloads on bus to TileLink ---
-    val d = Queue(tl.d, 1) // Add a small buffer since response could arrive on same cycle as request
+    val d = Queue(tl.d, 2) // Add a small buffer since response could arrive on same cycle as request
     d.ready := (sbState === SBReadResponse.id.U) || (sbState === SBWriteResponse.id.U)
 
     val muxedData = Wire(init = 0.U(8.W))
@@ -260,7 +281,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     when(sbState === SBReadRequest.id.U) { tl.a.bits :=  gbits  }
     .otherwise                           { tl.a.bits := pfbits  }
 
-    val respError = tl.d.bits.error
+    val respError = d.bits.error
     io.respError := respError
 
     val wrTxValid = sbState === SBWriteRequest.id.U && requestValid && requestReady
