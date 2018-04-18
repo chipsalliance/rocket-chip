@@ -57,21 +57,20 @@ object DMI_RegAddrs {
   */
   def DMI_HARTINFO =  0x12
 
-  /* This register selects which of the 32-bit portion of the hart array mask register
-      is accessible in \Rhawindow.
-
-      The hart array mask register provides a mask of all harts controlled by
-      the debug module. A hart is part of the currently selected harts if
-      the corresponding bit is set in the hart array mask register and
-      \Fhasel in \Rdmcontrol is 1, or if the hart is selected by \Fhartsel.
+  /* This register selects which of the 32-bit portion of the hart array mask
+      register (see Section~\ref{hartarraymask}) is accessible in \Rhawindow.
   */
   def DMI_HAWINDOWSEL =  0x14
 
   /* This register provides R/W access to a 32-bit portion of the
-      hart array mask register.
+      hart array mask register (see Section~\ref{hartarraymask}).
       The position of the window is determined by \Rhawindowsel. I.e. bit 0
       refers to hart $\Rhawindowsel * 32$, while bit 31 refers to hart
       $\Rhawindowsel * 32 + 31$.
+
+      Since some bits in the hart array mask register may be constant 0, some
+      bits in this register may be constant 0, depending on the current value
+      of \Fhawindowsel.
   */
   def DMI_HAWINDOW =  0x15
 
@@ -173,7 +172,8 @@ object DMI_RegAddrs {
   def DMI_AUTHDATA =  0x30
 
   /* Each bit in this read-only register indicates whether one specific hart
-        is halted or not.
+        is halted or not. Unavailable/nonexistent harts are not considered to
+        be halted.
 
         The LSB reflects the halt status of hart \{hartsel[19:5],5'h0\}, and the
         MSB reflects halt status of hart \{hartsel[19:5],5'h1f\}.
@@ -181,7 +181,8 @@ object DMI_RegAddrs {
   def DMI_HALTSUM0 =  0x40
 
   /* Each bit in this read-only register indicates whether any of a group of
-        harts is halted or not.
+        harts is halted or not. Unavailable/nonexistent harts are not considered to
+        be halted.
 
         This register may not be present in systems with fewer than
         33 harts.
@@ -194,7 +195,8 @@ object DMI_RegAddrs {
   def DMI_HALTSUM1 =  0x13
 
   /* Each bit in this read-only register indicates whether any of a group of
-        harts is halted or not.
+        harts is halted or not. Unavailable/nonexistent harts are not considered to
+        be halted.
 
         This register may not be present in systems with fewer than
         1025 harts.
@@ -207,7 +209,8 @@ object DMI_RegAddrs {
   def DMI_HALTSUM2 =  0x34
 
   /* Each bit in this read-only register indicates whether any of a group of
-        harts is halted or not.
+        harts is halted or not. Unavailable/nonexistent harts are not considered to
+        be halted.
 
         This register may not be present in systems with fewer than
         32769 harts.
@@ -259,7 +262,9 @@ object DMI_RegAddrs {
   /* If all of the {\tt sbaccess} bits in \Rsbcs are 0, then this register
         is not present.
 
-        Any successful system bus read updates the data in this register.
+        Any successful system bus read updates {\tt sbdata}. If the width of
+        the read access is less than the width of {\tt sbdata}, the contents of
+        the remaining high bits may take on any value.
 
         If \Fsberror or \Fsbbusyerror both aren't 0 then accesses do nothing.
 
@@ -473,7 +478,7 @@ class DMCONTROLFields extends Bundle {
                plus those selected by the hart array mask register.
 
             An implementation which does not implement the hart array mask register
-            should tie this field to 0. A debugger which wishes to use the hart array
+            must tie this field to 0. A debugger which wishes to use the hart array
             mask register feature should set this bit and read back to see if the functionality
             is supported.
   */
@@ -571,6 +576,10 @@ class HAWINDOWSELFields extends Bundle {
 
   val reserved0 = UInt(17.W)
 
+  /* The high bits of this field may be tied to 0, depending on how large
+          the array mask register is.  Eg. on a system with 48 harts only bit 0
+          of this field may actually be writable.
+  */
   val hawindowsel = UInt(15.W)
 
 }
@@ -610,15 +619,14 @@ class ABSTRACTCSFields extends Bundle {
             \Rabstractcs, \Rabstractauto was written, or when one
             of the {\tt data} or {\tt progbuf} registers was read or written.
 
-            2 (not supported): The requested command is not supported. A
-            command that is not supported while the hart is running may be
-            supported when it is halted.
+            2 (not supported): The requested command is not supported,
+            regardless of whether the hart is running or not.
 
             3 (exception): An exception occurred while executing the command
             (eg. while executing the Program Buffer).
 
-            4 (halt/resume): An abstract command couldn't execute because the
-            hart wasn't in the expected state (running/halted).
+            4 (halt/resume): The abstract command couldn't execute because the
+            hart wasn't in the required state (running/halted).
 
             7 (other): The command failed for another reason.
   */
@@ -797,13 +805,19 @@ class SBCSFields extends Bundle {
             While this field is non-zero, no more system bus accesses can be
             initiated by the debug module.
 
+            An implementation may report "Other" (7) for any error condition.
+
             0: There was no bus error.
 
             1: There was a timeout.
 
             2: A bad address was accessed.
 
-            3: There was some other error (eg. alignment).
+            3: There was an alignment error.
+
+            4: An access of unsupported size was requested.
+
+            7: Other.
   */
   val sberror = UInt(3.W)
 
