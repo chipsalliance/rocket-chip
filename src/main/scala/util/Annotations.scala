@@ -6,10 +6,6 @@ import Chisel._
 import chisel3.internal.InstanceId
 import chisel3.experimental.{annotate, ChiselAnnotation, RawModule}
 import firrtl.annotations._
-
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.{pretty, render}
-
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 
