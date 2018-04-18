@@ -441,10 +441,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   )
 
   lazy val module = new LazyModuleImp(this){
-
     val cfg = p(DebugModuleParams)
-
     val nComponents = getNComponents()
+    annotated.params(this, cfg)
 
     val io = IO(new Bundle {
       val dmactive = Bool(INPUT)

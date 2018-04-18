@@ -99,17 +99,17 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
 
 
 abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
-  private val mapping: Seq[AddressMapEntry] = {
+  private val mapping: Seq[AddressMapEntry] = annotated.addressMapping(this, {
     outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
     }.sortBy(_.range)
-  }
+  })
 
   println("Generated Address Map")
   mapping.map(entry => println(entry.toString((outer.sbus.busView.bundle.addressBits-1)/4 + 1)))
   println("")
 
-  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.serialize).mkString(",")}]}""")
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.toJSON).mkString(",")}]}""")
 
   // Confirm that all of memory was described by DTS
   private val dtsRanges = AddressRange.unify(mapping.map(_.range))
