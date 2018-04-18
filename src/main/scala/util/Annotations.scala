@@ -59,6 +59,15 @@ case class SlaveAddressMapChiselAnnotation(
     label = "slaves")
 }
 
+/** Record information about a top-level port of the design */
+case class TopLevelPortAnnotation(
+    target: ComponentName,
+    protocol: String,
+    tags: Seq[String],
+    mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[ComponentName] {
+  def duplicate(n: ComponentName) = this.copy(n)
+}
+
 /** Helper object containing methods for applying annotations to targets */
 object annotated {
   def params[T <: Product](component: InstanceId, params: T): T = {
@@ -76,6 +85,14 @@ object annotated {
     mapping
   }
 
+  def port[T <: Data](
+      data: T,
+      protocol: String,
+      tags: Seq[String],
+      mapping: Seq[AddressMapEntry]): T = {
+    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, mapping) })
+    data
+  }
 }
 
 /** Mix this into a Module class or instance to mark its ports as untouchable */
