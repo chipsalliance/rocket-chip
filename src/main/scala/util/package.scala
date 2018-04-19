@@ -33,6 +33,29 @@ package object util {
     }
 
     def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
+
+    def rotate(n: Int): Seq[T] = x.drop(n) ++ x.take(n)
+
+    def rotate(n: UInt): Seq[T] = {
+      require(isPow2(x.size))
+      val amt = n.padTo(log2Ceil(x.size))
+      (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+    }
+  }
+
+  // allow bitwise ops on Seq[Bool] just like UInt
+  implicit class SeqBoolBitwiseOps(val x: Seq[Bool]) extends AnyVal {
+    def & (y: Seq[Bool]): Seq[Bool] = (x zip y).map { case (a, b) => a && b }
+    def | (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a || b }
+    def ^ (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a ^ b }
+    def << (n: Int): Seq[Bool] = Seq.fill(n)(false.B) ++ x
+    def >> (n: Int): Seq[Bool] = x drop n
+    def unary_~(): Seq[Bool] = x.map(!_)
+    def andR: Bool = if (x.isEmpty) true.B else x.reduce(_&&_)
+    def orR: Bool = if (x.isEmpty) false.B else x.reduce(_||_)
+    def xorR: Bool = if (x.isEmpty) false.B else x.reduce(_^_)
+
+    private def padZip(y: Seq[Bool], z: Seq[Bool]): Seq[(Bool, Bool)] = y.padTo(z.size, false.B) zip z.padTo(y.size, false.B)
   }
 
   implicit class DataToAugmentedData[T <: Data](val x: T) extends AnyVal {
