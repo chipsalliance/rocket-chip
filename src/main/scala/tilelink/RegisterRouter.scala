@@ -84,7 +84,6 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     genRegDescsJson(mapping: _*)
-    genRegDescsJson(mapping: _*)
   }
 
 
@@ -101,6 +100,7 @@ case class TLRegisterNode(
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
   }
 }
+
 
 
 // register mapped device from a totally abstract register mapped device.
@@ -137,7 +137,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   def regmap(mapping: RegField.Map*) : Unit = {
     // val annoSeq = GenRegDescsAnno.anno(this, router, address, mapping:_*)
     val baseAddr = address.base
-    val annoSeq = GenRegDescsAnno.anno(this, baseAddr, mapping:_*)
+    val annoSeq = GenRegDescsAnno.anno(this, GenRegDescsAnno.getInstanceCount(GenRegDescsAnno.TLREGROUTER_NAME), baseAddr, mapping:_*)
     router.node.regmap(annoSeq:_*)
   }
 }

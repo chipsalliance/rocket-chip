@@ -40,6 +40,7 @@ case class RegFieldSer(
 
 case class RegistersSer(
   displayName: String,
+  instanceCounter: Int,
   baseAddress: BigInt,
   regFields: Seq[RegFieldSer]
 )
@@ -87,6 +88,36 @@ class RegMappingDumpTransform extends Transform {
 
 object GenRegDescsAnno {
 
+  // a list of classes which have regmaps
+  val TLREGROUTER_NAME = "TLRegisterRouter"
+  val AON_NAME = "AON"
+  val ONCHIPDAC12B_NAME ="ONCHIPDAC12B"
+  val PLIC_NAME ="PLIC"
+
+  // Each class which has regmaps has instance counters
+  private var instanceCounters = Map[String, Int]()
+
+  {
+    addInstanceCounter(TLREGROUTER_NAME)
+    addInstanceCounter(AON_NAME)
+    addInstanceCounter(ONCHIPDAC12B_NAME)
+    addInstanceCounter(PLIC_NAME)
+  }
+
+
+  def addInstanceCounter(key: String) : Unit = {
+    instanceCounters +=  ( key -> 0)
+  }
+
+  def getInstanceCount(key: String) : Int = {
+    if (! (instanceCounters isDefinedAt key)) {
+      throw new NoSuchElementException("ERROR: GenRegDescsAnno:getInstanceCounter: key not defined: " + key)
+    }
+    val cnt = instanceCounters(key)
+    instanceCounters updated (key, cnt + 1)
+    cnt
+  }
+
   def makeRegMappingSer(rawModule: RawModule,
     baseAddress: BigInt,
     width: Int,
@@ -133,9 +164,10 @@ object GenRegDescsAnno {
      )
   }
 
-  def anno(rawModule: RawModule,
-    //module: LazyModule,
-    // baseAddress: AddressSet,
+
+  def anno(
+    rawModule: RawModule,
+    instanceCounter: Int,
     baseAddress: BigInt,
     mapping: RegField.Map*): Seq[RegField.Map] = {
     //val displayName = module
@@ -164,6 +196,7 @@ object GenRegDescsAnno {
 
     val registersSer = RegistersSer(
       displayName = name,
+      instanceCounter = instanceCounter,
       baseAddress = baseAddress,
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
