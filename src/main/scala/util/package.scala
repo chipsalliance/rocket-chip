@@ -141,6 +141,14 @@ package object util {
     def option[T](z: => T): Option[T] = if (x) Some(z) else None
   }
 
+  implicit class IntToAugmentedInt(val x: Int) extends AnyVal {
+    // exact log2
+    def log2: Int = {
+      require(isPow2(x))
+      log2Ceil(x)
+    }
+  }
+
   def OH1ToOH(x: UInt): UInt = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
   def OH1ToUInt(x: UInt): UInt = OHToUInt(OH1ToOH(x))
   def UIntToOH1(x: UInt, width: Int): UInt = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
