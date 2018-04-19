@@ -453,13 +453,18 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val wdata = readModifyWriteCSR(io.rw.cmd, io.rw.rdata, io.rw.wdata)
 
   val system_insn = io.rw.cmd === CSR.I
-  val opcode = UInt(1) << io.rw.addr(2,0)
-  val insn_call = system_insn && opcode(0)
-  val insn_break = system_insn && opcode(1)
-  val insn_ret = system_insn && opcode(2)
-  val insn_wfi = system_insn && opcode(5)
+  val decode_table = Seq(
+    SCALL->     List(Y,N,N,N,N),
+    SBREAK->    List(N,Y,N,N,N),
+    MRET->      List(N,N,Y,N,N),
+    WFI->       List(N,N,N,Y,N)) ++ (if (usingDebug) Seq(
+    DRET->      List(N,N,Y,N,N)) else Seq()) ++ (if (usingVM) Seq(
+    SRET->      List(N,N,Y,N,N),
+    SFENCE_VMA->List(N,N,N,N,Y)) else Seq())
+  val insn_call::insn_break::insn_ret::insn_wfi::insn_sfence::Nil = DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.toBool)
 
   for (io_dec <- io.decode) {
+    val is_call::is_break::is_ret::is_wfi::is_sfence::Nil = DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.toBool)
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
@@ -475,9 +480,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     io_dec.write_illegal := io_dec.csr(11,10).andR
     io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mbadaddr || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.sbadaddr)
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
-      !io_dec.csr(5) && io_dec.csr(2) && !allow_wfi ||
-      !io_dec.csr(5) && io_dec.csr(1) && !allow_sret ||
-      io_dec.csr(5) && !allow_sfence_vma
+      is_wfi && !allow_wfi ||
+      is_ret && !allow_sret ||
+      is_sfence && !allow_sfence_vma
   }
 
   val cause =
