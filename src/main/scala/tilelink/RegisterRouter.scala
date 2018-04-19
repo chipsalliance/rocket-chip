@@ -3,6 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.experimental.RawModule
+import chisel3.internal.GetMeMyModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -98,6 +100,25 @@ case class TLRegisterNode(
       suffix = suffix + 1
     }
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
+
+    /* GetMeMyModule is a hack to get the current module during elaboration.
+    *
+    *  A pull request will be issued against Chisel3 to add this function to:
+    *
+    *  chiselFrontend/src/main/scala/chisel3/core/Module.scala:79
+    *
+    *  The pull request adds the following function:
+    *
+    *  /** Returns the current elaborating module */
+    *  def self: Option[BaseModule] = Builder.currentModule
+    *
+    *  When and if the function is added to Chisel3 GetMeMyModule should be deleted and
+    *  replaced with the Chisel:Module.self call
+    *
+    *  */
+    GenRegDescsAnno.anno(GetMeMyModule.currentModule.get.asInstanceOf[RawModule],
+      GenRegDescsAnno.getInstanceCount(GenRegDescsAnno.TLDEBUGMODULEINNER_NAME), base, mapping:_*)
+
   }
 }
 

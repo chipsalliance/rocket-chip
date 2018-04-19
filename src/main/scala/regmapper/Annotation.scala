@@ -93,15 +93,17 @@ object GenRegDescsAnno {
   val AON_NAME = "AON"
   val ONCHIPDAC12B_NAME ="ONCHIPDAC12B"
   val PLIC_NAME ="PLIC"
+  val TLDEBUGMODULEINNER_NAME = "TLDebugModuleInner"
 
   // Each class which has regmaps has instance counters
-  private var instanceCounters = Map[String, Int]()
+  private var instanceCounters = scala.collection.mutable.Map[String, Int]()
 
   {
     addInstanceCounter(TLREGROUTER_NAME)
     addInstanceCounter(AON_NAME)
     addInstanceCounter(ONCHIPDAC12B_NAME)
     addInstanceCounter(PLIC_NAME)
+    addInstanceCounter(TLDEBUGMODULEINNER_NAME)
   }
 
 
@@ -114,7 +116,8 @@ object GenRegDescsAnno {
       throw new NoSuchElementException("ERROR: GenRegDescsAnno:getInstanceCounter: key not defined: " + key)
     }
     val cnt = instanceCounters(key)
-    instanceCounters updated (key, cnt + 1)
+    val newCnt = cnt + 1
+    instanceCounters(key) = newCnt
     cnt
   }
 
@@ -201,6 +204,8 @@ object GenRegDescsAnno {
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
 
+    val moduleName = rawModule.name
+    println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}")
     annotate(RegMappingChiselAnnotation(rawModule, registersSer))
     mapping
   }
