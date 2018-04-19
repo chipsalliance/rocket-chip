@@ -226,6 +226,12 @@ class WithoutFPU extends Config((site, here, up) => {
   }
 })
 
+class WithoutCompressed extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useCompressed = false))
+  }
+})
+
 class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
   case RocketTilesKey => up(RocketTilesKey, site) map { r =>
     r.copy(core = r.core.copy(fpu = r.core.fpu.map(_.copy(divSqrt = false))))
@@ -338,4 +344,39 @@ class WithScratchpadsOnly extends Config((site, here, up) => {
         nWays = 1,
         scratch = Some(0x80000000L))))
   }
+})
+
+
+class WithoutDebug extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useDebug = false))
+  }
+})
+
+class WithNPMP(num_pmp: Int) extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(nPMPs = num_pmp))
+  }
+})
+
+class WithoutMISAWrite extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(misaWritable = false))
+  }
+})
+
+class WithoutmtvecWrite extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(mtvecWritable = false))
+  }
+})
+
+class WithoutCounters extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(haveBasicCounters = false))
+  }
+})
+
+class WithRVFIMonitors extends Config((site, here, up) => {
+  case BuildCore => (p: Parameters) => new RocketWithRVFI()(p)
 })

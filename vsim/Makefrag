@@ -16,6 +16,7 @@ sim_vsrcs = \
     $(vsrc)/$(TB).v \
     $(vsrc)/SimDTM.v \
     $(vsrc)/SimJTAG.v \
+    $(vsrc)/RVFIMonitor.v \
     $(bb_vsrcs)
 
 # C sources
