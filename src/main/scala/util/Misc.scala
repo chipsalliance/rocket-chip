@@ -127,27 +127,17 @@ object Str
 
 object Split
 {
-  // is there a better way to do do this?
-  def apply(x: Bits, n0: Int) = {
-    val w = checkWidth(x, n0)
-    (x(w-1,n0), x(n0-1,0))
-  }
-  def apply(x: Bits, n1: Int, n0: Int) = {
-    val w = checkWidth(x, n1, n0)
-    (x(w-1,n1), x(n1-1,n0), x(n0-1,0))
-  }
-  def apply(x: Bits, n2: Int, n1: Int, n0: Int) = {
-    val w = checkWidth(x, n2, n1, n0)
-    (x(w-1,n2), x(n2-1,n1), x(n1-1,n0), x(n0-1,0))
-  }
-
-  private def checkWidth(x: Bits, n: Int*) = {
+  def apply(x: UInt, n0: Int) = {
     val w = x.getWidth
-    def decreasing(x: Seq[Int]): Boolean =
-      if (x.tail.isEmpty) true
-      else x.head >= x.tail.head && decreasing(x.tail)
-    require(decreasing(w :: n.toList))
-    w
+    (x.extract(w-1,n0), x.extract(n0-1,0))
+  }
+  def apply(x: UInt, n1: Int, n0: Int) = {
+    val w = x.getWidth
+    (x.extract(w-1,n1), x.extract(n1-1,n0), x.extract(n0-1,0))
+  }
+  def apply(x: UInt, n2: Int, n1: Int, n0: Int) = {
+    val w = x.getWidth
+    (x.extract(w-1,n2), x.extract(n2-1,n1), x.extract(n1-1,n0), x.extract(n0-1,0))
   }
 }
 
