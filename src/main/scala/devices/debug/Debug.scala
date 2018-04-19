@@ -112,11 +112,8 @@ import DebugAbstractCommandType._
   *  maxSupportedSBAccess: Maximum transaction size supported by System Bus Access logic.
   *  supportQuickAccess : Whether or not to support the quick access command.
   *  supportHartArray : Whether or not to implement the hart array register.
-  *  hartIdToHartSel: For systems where hart ids are not 1:1 with hartsel, provide the mapping.
-  *  hartSelToHartId: Provide inverse mapping of the above
   *  hasImplicitEbreak: There is an additional RO program buffer word containing an ebreak
   **/
-
 case class DebugModuleParams (
   nDMIAddrSize  : Int = 7,
   nProgramBufferWords: Int = 16,
@@ -126,8 +123,6 @@ case class DebugModuleParams (
   maxSupportedSBAccess : Int = 32,
   supportQuickAccess : Boolean = false,
   supportHartArray   : Boolean = false,
-  hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
-  hartSelToHartId : (UInt) => UInt = (x:UInt) => x,
   hasImplicitEbreak : Boolean = false
 ) {
 
@@ -154,6 +149,18 @@ object DefaultDebugModuleParams {
 
 
 case object DebugModuleParams extends Field[DebugModuleParams]
+
+/** Functional parameters exposed to the design configuration.
+  *
+  *  hartIdToHartSel: For systems where hart ids are not 1:1 with hartsel, provide the mapping.
+  *  hartSelToHartId: Provide inverse mapping of the above
+  **/
+case class DebugModuleHartSelFuncs (
+  hartIdToHartSel : (UInt) => UInt = (x:UInt) => x,
+  hartSelToHartId : (UInt) => UInt = (x:UInt) => x
+)
+
+case object DebugModuleHartSelKey extends Field(DebugModuleHartSelFuncs())
 
 // *****************************************
 // Module Interfaces
@@ -415,6 +422,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 {
 
   val cfg = p(DebugModuleParams)
+  val hartSelFuncs = p(DebugModuleHartSelKey)
 
   val dmiNode = TLRegisterNode(
     address = AddressSet.misaligned(0, DMI_RegAddrs.DMI_DMCONTROL << 2) ++
@@ -692,11 +700,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       }.otherwise {
         // Hart Halt Notification Logic
         when (hartHaltedWrEn) {
-          when (cfg.hartIdToHartSel(hartHaltedId) === component.U) {
+          when (hartSelFuncs.hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
           }
         }.elsewhen (hartResumingWrEn) {
-          when (cfg.hartIdToHartSel(hartResumingId) === component.U) {
+          when (hartSelFuncs.hartIdToHartSel(hartResumingId) === component.U) {
             haltedBitRegs(component) := false.B
           }
         }
@@ -706,7 +714,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         // it actually does resume, then the request wins.
         // So don't try to write resumereq more than once
         when (hartResumingWrEn) {
-          when (cfg.hartIdToHartSel(hartResumingId) === component.U) {
+          when (hartSelFuncs.hartIdToHartSel(hartResumingId) === component.U) {
             resumeReqRegs(component) := false.B
           }
         }
@@ -794,12 +802,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
-    assert ((cfg.hartSelToHartId(selectedHartReg) < 1024.U),
+    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < 1024.U),
       "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
-    flags(cfg.hartSelToHartId(selectedHartReg)).go := goReg
+    flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
     for (component <- 0 until nComponents) {
       val componentSel = Wire(init = component.U)
-      flags(cfg.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
+      flags(hartSelFuncs.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
     }
 
     //----------------------------
@@ -1014,7 +1022,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       // We can't just look at 'hartHalted' here, because
       // hartHaltedWrEn is overloaded to mean 'got an ebreak'
       // which may have happened when we were already halted.
-      when(goReg === false.B && hartHaltedWrEn && (cfg.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
+      when(goReg === false.B && hartHaltedWrEn && (hartSelFuncs.hartIdToHartSel(hartHaltedId) === selectedHartReg)){
         ctrlStateNxt := CtrlState(Waiting)
       }
       when(hartExceptionWrEn) {
