@@ -382,6 +382,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   })
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
+  // performance hints to processor
+  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard)
+
   // Prepare a TileLink request message that initiates a transaction
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
   val acquire_address = s2_req_block_addr
