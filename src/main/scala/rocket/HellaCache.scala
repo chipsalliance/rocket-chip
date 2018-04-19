@@ -145,6 +145,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s1_kill = Bool(OUTPUT) // kill previous cycle's req
   val s1_data = new HellaCacheWriteData().asOutput // data for previous cycle's req
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
+  val s2_kill = Bool(OUTPUT) // kill req from two cycles ago
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
