@@ -109,6 +109,25 @@ package object util {
       else x(hi, lo)
     }
 
+    def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
+
+    def rotateRight(n: UInt): UInt = {
+      val amt = n.padTo(log2Ceil(x.getWidth))
+      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+    }
+
+    // compute (this + y) % n, given (this < n) and (y < n)
+    def addWrap(y: UInt, n: Int): UInt = {
+      val z = x +& y
+      if (isPow2(n)) z(n.log2-1, 0) else Mux(z >= n.U, z - n.U, z)(log2Ceil(n)-1, 0)
+    }
+
+    // compute (this - y) % n, given (this < n) and (y < n)
+    def subWrap(y: UInt, n: Int): UInt = {
+      val z = x -& y
+      if (isPow2(n)) z(n.log2-1, 0) else Mux(z(z.getWidth-1), z + n.U, z)(log2Ceil(n)-1, 0)
+    }
+
     def grouped(width: Int): Seq[UInt] =
       (0 until x.getWidth by width).map(base => x(base + width - 1, base))
 
