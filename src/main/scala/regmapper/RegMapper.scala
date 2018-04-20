@@ -5,7 +5,7 @@ package freechips.rocketchip.regmapper
 import Chisel._
 
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers}
+import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers, MuxSeq}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 
@@ -119,7 +119,7 @@ object RegMapper
     val wofire = Array.fill(regSize) { Nil:List[(Bool, Bool)] }
 
     // The output values for each register
-    val dataOut = Array.tabulate(regSize) { _ => UInt(0) }
+    val dataOut = Array.fill(regSize) { UInt(0) }
 
     // Which bits are touched?
     val frontMask = FillInterleaved(8, front.bits.mask)
@@ -168,21 +168,21 @@ object RegMapper
     val backSel  = UIntToOH(oindex).toBools
 
     // Compute: is the selected register ready? ... and cross-connect all ready-valids
-    def mux(valid: Bool, select: Seq[Bool], guard: Seq[Bool], flow: Seq[Seq[(Bool, Bool)]]): Vec[Bool] =
-      Vec(((select zip guard) zip flow).map { case ((s, g), f) =>
+    def mux(index: UInt, valid: Bool, select: Seq[Bool], guard: Seq[Bool], flow: Seq[Seq[(Bool, Bool)]]): Bool =
+      MuxSeq(index, Bool(true), ((select zip guard) zip flow).map { case ((s, g), f) =>
         val out = Wire(Bool())
         ReduceOthers((out, valid && s && g) +: f)
         out || !g
       })
 
     // Include the per-register one-hot selected criteria
-    val rifireMux = mux(in.valid && front.ready &&  front.bits.read, frontSel, iRightReg, rifire)
-    val wifireMux = mux(in.valid && front.ready && !front.bits.read, frontSel, iRightReg, wifire)
-    val rofireMux = mux(back.valid && out.ready &&  back .bits.read, backSel,  oRightReg, rofire)
-    val wofireMux = mux(back.valid && out.ready && !back .bits.read, backSel,  oRightReg, wofire)
+    val rifireMux = mux(iindex, in.valid && front.ready &&  front.bits.read, frontSel, iRightReg, rifire)
+    val wifireMux = mux(iindex, in.valid && front.ready && !front.bits.read, frontSel, iRightReg, wifire)
+    val rofireMux = mux(oindex, back.valid && out.ready &&  back .bits.read, backSel,  oRightReg, rofire)
+    val wofireMux = mux(oindex, back.valid && out.ready && !back .bits.read, backSel,  oRightReg, wofire)
 
-    val iready = Mux(front.bits.read, rifireMux(iindex), wifireMux(iindex))
-    val oready = Mux(back .bits.read, rofireMux(oindex), wofireMux(oindex))
+    val iready = Mux(front.bits.read, rifireMux, wifireMux)
+    val oready = Mux(back .bits.read, rofireMux, wofireMux)
 
     // Connect the pipeline
     in.ready    := front.ready && iready
@@ -191,7 +191,9 @@ object RegMapper
     out.valid   := back.valid  && oready
 
     out.bits.read  := back.bits.read
-    out.bits.data  := Mux(Vec(oRightReg)(oindex), Vec(dataOut)(oindex), UInt(0))
+    out.bits.data  := Mux(MuxSeq(oindex, Bool(true), oRightReg),
+                          MuxSeq(oindex, UInt(0), dataOut),
+                          UInt(0))
     out.bits.extra := back.bits.extra
 
     out
