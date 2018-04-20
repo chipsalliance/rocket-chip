@@ -208,7 +208,7 @@ object SystemBusAccessModule
     SBCSRdData.sbaccess16  := (cfg.maxSupportedSBAccess >=  16).B
     SBCSRdData.sbaccess8   := (cfg.maxSupportedSBAccess >=   8).B
     SBCSRdData.sbbusy      := sbBusy
-    SBCSRdData.sberror     := sbErrorReg.toBits
+    SBCSRdData.sberror     := sbErrorReg.asUInt
     
     cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
     cover(SBCSFieldsReg.sbbusy === 3.U, "SBCS Cover", "sbbusyerror alignment error")
