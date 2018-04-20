@@ -87,41 +87,27 @@ class RegMappingDumpTransform extends Transform {
 }
 
 object GenRegDescsAnno {
-
-  // a list of classes which have regmaps
-  val TLREGROUTER_NAME = "TLRegisterRouter"
-  val AON_NAME = "AON"
-  val ONCHIPDAC12B_NAME ="ONCHIPDAC12B"
-  val PLIC_NAME ="PLIC"
-  val TLDEBUGMODULEINNER_NAME = "TLDebugModuleInner"
-
   // Each class which has regmaps has instance counters
   private var instanceCounters = scala.collection.mutable.Map[String, Int]()
-
-  {
-    addInstanceCounter(TLREGROUTER_NAME)
-    addInstanceCounter(AON_NAME)
-    addInstanceCounter(ONCHIPDAC12B_NAME)
-    addInstanceCounter(PLIC_NAME)
-    addInstanceCounter(TLDEBUGMODULEINNER_NAME)
-  }
-
 
   def addInstanceCounter(key: String) : Unit = {
     instanceCounters +=  ( key -> 0)
   }
 
-  def getInstanceCount(key: String) : Int = {
-    if (! (instanceCounters isDefinedAt key)) {
-      throw new NoSuchElementException("ERROR: GenRegDescsAnno:getInstanceCounter: key not defined: " + key)
+  def getInstanceCount(name: String, baseAddress: BigInt) : Int = {
+    val nameAddress = s"${name}.${baseAddress}"
+
+    if (! (instanceCounters isDefinedAt nameAddress)) {
+      addInstanceCounter(nameAddress)
     }
-    val cnt = instanceCounters(key)
+    val cnt = instanceCounters(nameAddress)
     val newCnt = cnt + 1
-    instanceCounters(key) = newCnt
+    instanceCounters(nameAddress) = newCnt
     cnt
   }
 
   def makeRegMappingSer(rawModule: RawModule,
+    name: String,
     baseAddress: BigInt,
     width: Int,
     byteOffset: Int,
@@ -129,10 +115,10 @@ object GenRegDescsAnno {
     regField: RegField): RegFieldSer = {
 
     val anonName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
-    val descName = regField.desc.map {
-      _.name
-    }.getOrElse("")
-    val selectedName = if (descName.isEmpty) anonName else descName
+//    val descName = regField.desc.map {
+//      _.name
+//    }.getOrElse("")
+    val selectedName = if (name.isEmpty) anonName else name
     val map = Map[BigInt, (String, String)]() // TODO
 
     val desc = regField.desc
@@ -170,10 +156,14 @@ object GenRegDescsAnno {
 
   def anno(
     rawModule: RawModule,
+    name: String,
     instanceCounter: Int,
     baseAddress: BigInt,
     mapping: RegField.Map*): Seq[RegField.Map] = {
-    //val displayName = module
+
+    val baseHex = s"0x${baseAddress.toInt.toHexString}"
+    val displayName = s"${name}.${baseHex}"
+
     val regFieldSers = mapping.flatMap {
       case (byteOffset, seq) =>
         println("ScanLeft start { ")
@@ -184,7 +174,7 @@ object GenRegDescsAnno {
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
           makeRegMappingSer(
             rawModule,
-            //name, // TODO use the LazyModule name
+            name,
             baseAddress,
             regField.width,
             byteOffset,
@@ -194,9 +184,6 @@ object GenRegDescsAnno {
         }
     }
 
-    val baseHex = s"0x${baseAddress.toInt.toHexString}"
-    val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
-
     val registersSer = RegistersSer(
       displayName = name,
       instanceCounter = instanceCounter,
@@ -205,7 +192,7 @@ object GenRegDescsAnno {
     )
 
     val moduleName = rawModule.name
-    println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}")
+    println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}.${baseHex}")
     annotate(RegMappingChiselAnnotation(rawModule, registersSer))
     mapping
   }

@@ -116,8 +116,11 @@ case class TLRegisterNode(
     *  replaced with the Chisel:Module.self call
     *
     *  */
-    GenRegDescsAnno.anno(GetMeMyModule.currentModule.get.asInstanceOf[RawModule],
-      GenRegDescsAnno.getInstanceCount(GenRegDescsAnno.TLDEBUGMODULEINNER_NAME), base, mapping:_*)
+
+
+    val module = GetMeMyModule.currentModule.get.asInstanceOf[RawModule]
+    GenRegDescsAnno.anno(module, module.name,
+      GenRegDescsAnno.getInstanceCount(module.name, base), base, mapping:_*)
 
   }
 }
@@ -158,7 +161,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   def regmap(mapping: RegField.Map*) : Unit = {
     // val annoSeq = GenRegDescsAnno.anno(this, router, address, mapping:_*)
     val baseAddr = address.base
-    val annoSeq = GenRegDescsAnno.anno(this, GenRegDescsAnno.getInstanceCount(GenRegDescsAnno.TLREGROUTER_NAME), baseAddr, mapping:_*)
+    val annoSeq = GenRegDescsAnno.anno(this, this.name, GenRegDescsAnno.getInstanceCount(this.name, baseAddr), baseAddr, mapping:_*)
     router.node.regmap(annoSeq:_*)
   }
 }
