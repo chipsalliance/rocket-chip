@@ -17,7 +17,7 @@ case class RegFieldDescAnnotation(
 /** ********************************************************************************/
 
 case class RegFieldDescSer(
-  byteOffset: Int,
+  byteOffset: String,
   bitOffset: Int,
   bitWidth: Int,
   name: String,
@@ -123,8 +123,10 @@ object GenRegDescsAnno {
 
     val desc = regField.desc
 
+    val byteOffsetHex = s"0x${byteOffset.toInt.toHexString}"
+
     val regFieldDescSer = RegFieldDescSer(
-      byteOffset = byteOffset,
+      byteOffset = byteOffsetHex,
       bitOffset = bitOffset,
       bitWidth = width,
       name = selectedName,
