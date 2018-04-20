@@ -44,7 +44,7 @@ case class TLRegisterNode(
 
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
-  def regmap(mapping: RegField.Map*) : Unit = {
+  def regmap(mapping: RegField.Map*) : {
     val (bundleIn, edge) = this.in(0)
     val a = bundleIn.a
     val d = bundleIn.d
@@ -119,8 +119,12 @@ case class TLRegisterNode(
 
 
     val module = GetMeMyModule.currentModule.get.asInstanceOf[RawModule]
-    GenRegDescsAnno.anno(module, module.name,
-      GenRegDescsAnno.getInstanceCount(module.name, base), base, mapping:_*)
+    GenRegDescsAnno.anno(
+      module,
+      module.name,
+      GenRegDescsAnno.getInstanceCount(module.name, base),
+      base,
+      mapping:_*)
 
   }
 }
@@ -130,13 +134,7 @@ case class TLRegisterNode(
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
 
-abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String],
-                                    val address: AddressSet,
-                                    interrupts: Int,
-                                    concurrency: Int,
-                                    beatBytes: Int,
-                                    undefZero: Boolean,
-                                    executable: Boolean)(implicit p: Parameters) extends LazyModule
+abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val device = new SimpleDevice(devname, devcompat)
   val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)

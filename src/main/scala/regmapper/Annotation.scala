@@ -168,11 +168,6 @@ object GenRegDescsAnno {
 
     val regFieldSers = mapping.flatMap {
       case (byteOffset, seq) =>
-        println("ScanLeft start { ")
-        seq.map(_.width).scanLeft(0)(_ + _).zip(seq).foreach(println)
-
-        println("} ScanLeft end")
-
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
           makeRegMappingSer(
             rawModule,
