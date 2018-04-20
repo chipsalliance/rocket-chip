@@ -262,10 +262,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     val mapping = priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields
-    val baseAddr = 0 // TODO
+    val baseAddr =  2^4 // TODO fix me
 
-    val annoSeq = GenRegDescsAnno.anno(this, this.name, GenRegDescsAnno.getInstanceCount(this.name, baseAddr), baseAddr, mapping:_*)
-    node.regmap(annoSeq:_*)
+    node.regmap(mapping:_*)
 
     priority(0) := 0
     pending(0) := false
