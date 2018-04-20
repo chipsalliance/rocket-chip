@@ -446,7 +446,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     for (i <- 0 until read_pmp.size by pmpCfgPerCSR)
       read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> read_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
     for ((pmp, i) <- read_pmp zipWithIndex)
-      read_mapping += (CSRs.pmpaddr0 + i) -> pmp.addr
+      read_mapping += (CSRs.pmpaddr0 + i) -> pmp.readAddr
   }
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
@@ -753,7 +753,11 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
       require(xLen % pmp.cfg.getWidth == 0)
       when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.cfgLocked) {
-        pmp.cfg := new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
+        val newCfg = new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
+        pmp.cfg := newCfg
+        // can't select a=NA4 with coarse-grained PMPs
+        if (pmpGranularity.log2 > PMP.lgAlign)
+          pmp.cfg.a := Cat(newCfg.a(1), newCfg.a.orR)
       }
       when (decoded_addr(CSRs.pmpaddr0 + i) && !pmp.addrLocked(next)) {
         pmp.addr := wdata
