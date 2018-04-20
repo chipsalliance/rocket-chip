@@ -118,7 +118,7 @@ object GenRegDescsAnno {
     val descName = regField.desc.map {
       _.name
     }.getOrElse("")
-    val selectedName = if (name.isEmpty) anonName else descName
+    val selectedName = if (descName.isEmpty /* selectedName.isEmpty */) anonName else descName
     val map = Map[BigInt, (String, String)]() // TODO
 
     val desc = regField.desc
@@ -150,7 +150,7 @@ object GenRegDescsAnno {
       enumerations = map
     )
     RegFieldSer(
-      selectedName,
+      name, //selectedName,
       regFieldDescSer
      )
   }
@@ -165,6 +165,9 @@ object GenRegDescsAnno {
 
     val baseHex = s"0x${baseAddress.toInt.toHexString}"
     val displayName = s"${name}.${baseHex}"
+    val moduleName = rawModule.name
+
+    println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}.${baseHex}")
 
     val regFieldSers = mapping.flatMap {
       case (byteOffset, seq) =>
@@ -188,8 +191,6 @@ object GenRegDescsAnno {
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
 
-    val moduleName = rawModule.name
-    println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}.${baseHex}")
     annotate(RegMappingChiselAnnotation(rawModule, registersSer))
     mapping
   }
