@@ -20,5 +20,7 @@ trait HasRTCModuleImp extends LazyModuleImp {
   // Use the static period to toggle the RTC
   val (_, int_rtc_tick) = Counter(true.B, internalPeriod.toInt)
 
-  outer.clint.module.io.rtcTick := int_rtc_tick
+  outer.clintOpt.foreach { clint =>
+    clint.module.io.rtcTick := int_rtc_tick
+  }
 }

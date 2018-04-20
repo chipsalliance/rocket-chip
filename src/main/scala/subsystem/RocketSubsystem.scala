@@ -124,7 +124,9 @@ trait HasRocketTiles extends HasTiles
 
     // 2. clint+plic conditionally crossing
     val periphIntNode = rocket.intInwardNode :=* rocket.crossIntIn
-    periphIntNode := clint.intnode                   // msip+mtip
+    p(CLINTKey).map { params =>
+      periphIntNode := clintOpt.get.intnode          // msip+mtip
+    }
     periphIntNode := plic.intnode                    // meip
     if (tp.core.useVM) periphIntNode := plic.intnode // seip
 
