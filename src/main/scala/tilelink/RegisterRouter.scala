@@ -3,12 +3,16 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.experimental.RawModule
+import chisel3.internal.GetMeMyModule
+import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{HeterogeneousBag, ElaborationArtefacts}
-import scala.math.{min,max}
+import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescJson, HeterogeneousBag}
+
+import scala.math.{max, min}
 
 case class TLRegisterNode(
     address:     Seq[AddressSet],
@@ -81,18 +85,51 @@ case class TLRegisterNode(
     bundleIn.c.ready := Bool(true)
     bundleIn.e.ready := Bool(true)
 
+    genRegDescsJson(mapping: _*)
+  }
+
+
+  def genRegDescsJson(mapping: RegField.Map*) : Unit = {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
     val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
-    val json = RegMappingAnnotation.serialize(base, name, mapping:_*)
+    val json = GenRegDescJson.serialize(base, name, mapping:_*)
     var suffix = 0
-    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")){
+    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
       suffix = suffix + 1
     }
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
+
+    /* GetMeMyModule is a hack to get the current module during elaboration.
+    *
+    *  A pull request will be issued against Chisel3 to add this function to:
+    *
+    *  chiselFrontend/src/main/scala/chisel3/core/Module.scala:79
+    *
+    *  The pull request adds the following function:
+    *
+    *  /** Returns the current elaborating module */
+    *  def self: Option[BaseModule] = Builder.currentModule
+    *
+    *  When and if the function is added to Chisel3 GetMeMyModule should be deleted and
+    *  replaced with the Chisel:Module.self call
+    *
+    *  */
+
+
+    val module = GetMeMyModule.currentModule.get.asInstanceOf[RawModule]
+    GenRegDescsAnno.anno(
+      module,
+      module.name,
+      GenRegDescsAnno.getInstanceCount(module.name, base),
+      base,
+      mapping:_*)
+
   }
 }
+
+
 
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
@@ -119,7 +156,12 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val io = IO(bundleBuilder)
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
-  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
+  def regmap(mapping: RegField.Map*) : Unit = {
+    // val annoSeq = GenRegDescsAnno.anno(this, router, address, mapping:_*)
+    val baseAddr = address.base
+    val annoSeq = GenRegDescsAnno.anno(this, this.name, GenRegDescsAnno.getInstanceCount(this.name, baseAddr), baseAddr, mapping:_*)
+    router.node.regmap(annoSeq:_*)
+  }
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
