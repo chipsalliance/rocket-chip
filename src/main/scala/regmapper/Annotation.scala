@@ -115,10 +115,10 @@ object GenRegDescsAnno {
     regField: RegField): RegFieldSer = {
 
     val anonName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
-//    val descName = regField.desc.map {
-//      _.name
-//    }.getOrElse("")
-    val selectedName = if (name.isEmpty) anonName else name
+    val descName = regField.desc.map {
+      _.name
+    }.getOrElse("")
+    val selectedName = if (name.isEmpty) anonName else descName
     val map = Map[BigInt, (String, String)]() // TODO
 
     val desc = regField.desc
