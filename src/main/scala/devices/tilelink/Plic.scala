@@ -150,24 +150,14 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
     val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
     
-    def findMax(x: Seq[UInt]): (UInt, UInt) = {
-      if (x.length > 1) {
-        val half = 1 << (log2Ceil(x.length) - 1)
-        val left = findMax(x take half)
-        val right = findMax(x drop half)
-        MuxT(left._1 >= right._1, left, (right._1, UInt(half) | right._2))
-      } else (x.head, UInt(0))
-    }
-
     val maxDevs = Reg(Vec(nHarts, UInt(width = log2Up(pending.size))))
+    val pendingUInt =  Cat(pending.reverse)
     for (hart <- 0 until nHarts) {
-      val effectivePriority = (UInt(1) << priority(0).getWidth) +:
-        (for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
-          yield Cat(p && en, pri))
-      val (maxPri, maxDev) = findMax(effectivePriority)
-
-      maxDevs(hart) := maxDev
-      harts(hart) := ShiftRegister(Reg(next = maxPri) > Cat(UInt(1), threshold(hart)), params.intStages)
+      val fanin = Module(new PLICFanIn(nDevices, log2Up(nPriorities+1)))
+      fanin.io.prio := priority
+      fanin.io.ip   := Cat(enables(hart).reverse) & pendingUInt
+      maxDevs(hart) := fanin.io.dev
+      harts(hart) := ShiftRegister(Reg(next = fanin.io.max) > Cat(UInt(1), threshold(hart)), params.intStages)
     }
 
     def priorityRegDesc(i: Int) = if (i > 0) {
@@ -289,6 +279,29 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
+}
+
+class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
+  val io = new Bundle {
+    val prio = Vec(nDevices+1, UInt(width = prioBits)).flip
+    val ip   = UInt(width = nDevices+1).flip
+    val dev  = UInt(width = log2Ceil(nDevices+1))
+    val max  = UInt(width = prioBits)
+  }
+
+  def findMax(x: Seq[UInt]): (UInt, UInt) = {
+    if (x.length > 1) {
+      val half = 1 << (log2Ceil(x.length) - 1)
+      val left = findMax(x take half)
+      val right = findMax(x drop half)
+      MuxT(left._1 >= right._1, left, (right._1, UInt(half) | right._2))
+    } else (x.head, UInt(0))
+  }
+
+  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.toBools zip io.prio).tail.map { case (p, x) => Cat(p, x) }
+  val (maxPri, maxDev) = findMax(effectivePriority)
+  io.max := maxPri
+  io.dev := maxDev
 }
 
 /** Trait that will connect a PLIC to a subsystem */
