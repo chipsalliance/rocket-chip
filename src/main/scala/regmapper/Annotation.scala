@@ -23,7 +23,7 @@ case class RegFieldDescSer(
   name: String,
   resetValue: BigInt,
   accessType: String,
-  wrType: String,
+  writeType: String,
   rdAction: String,
   desc: String,
   group: String,
@@ -130,23 +130,15 @@ object GenRegDescsAnno {
       bitOffset = bitOffset,
       bitWidth = width,
       name = selectedRegFieldName,
-      desc = desc.map {
-        _.desc
-      }.getOrElse("None"),
-      group = desc.map {
-        _.group.getOrElse("None")
-      }.getOrElse("None"),
-      groupDesc = desc.map {
-        _.groupDesc.getOrElse("None")
-      }.getOrElse("None"),
-      accessType = desc.map {
-        _.access.toString
-      }.getOrElse("r"), // TODO default?
-      wrType = desc.map(_.wrType.toString).getOrElse("None"),
+      desc = desc.map {_.desc}.getOrElse("None"),
+      group = desc.map {_.group.getOrElse("None")}.getOrElse("None"),
+      groupDesc = desc.map {_.groupDesc.getOrElse("None")}.getOrElse("None"),
+      accessType = desc.map {_.access.toString}.getOrElse("UNKNOWN"),
+      writeType = desc.map(_.wrType.toString).getOrElse("None"),
       rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
       volatile = desc.map(_.volatile).getOrElse(false),
-      hasReset = desc.map { d => if (d.reset != None) true else false }.getOrElse(false), // TODO ugly
-      resetValue = BigInt(0), // TODO desc.map{_.reset}.getOrElse(BigInt(0))
+      hasReset = desc.map { d => d.reset != None }.getOrElse(false),
+      resetValue = desc.map{_.reset.getOrElse(BigInt(0))}.getOrElse(BigInt(0)),
       enumerations = map
     )
     RegFieldSer(
