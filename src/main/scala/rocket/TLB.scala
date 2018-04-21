@@ -57,6 +57,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
     val resp = new TLBResp().asOutput
     val ptw = new TLBPTWIO
+    val kill = Bool(INPUT) // suppress a TLB refill, one cycle after a miss
   }
 
   class Entry extends Bundle {
@@ -233,7 +234,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
 
-  io.ptw.req.valid := state === s_request
+  io.ptw.req.valid := state === s_request && !io.kill
   io.ptw.req.bits <> io.ptw.status
   io.ptw.req.bits.addr := r_refill_tag
 
@@ -248,6 +249,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     when (state === s_request) {
       when (sfence) { state := s_ready }
       when (io.ptw.req.ready) { state := Mux(sfence, s_wait_invalidate, s_wait) }
+      when (io.kill) { state := s_ready }
     }
     when (state === s_wait && sfence) {
       state := s_wait_invalidate
@@ -257,7 +259,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     }
 
     when (sfence) {
-      assert((io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn)
+      assert(!io.req.bits.sfence.bits.rs1 || (io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn)
       valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
                Mux(io.req.bits.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }

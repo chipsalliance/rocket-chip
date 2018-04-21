@@ -702,6 +702,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
+  dtlb.io.kill := io.cpu.s2_kill
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   dtlb.io.req.bits.sfence.valid := s1_sfence
   dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -943,7 +944,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_nack_victim = s2_hit && mshrs.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshrs.io.req.ready
   val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss
-  s2_valid_masked := s2_valid && !s2_nack
+  s2_valid_masked := s2_valid && !s2_nack && !io.cpu.s2_kill
 
   val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
   val s2_recycle_next = Reg(init=Bool(false))
