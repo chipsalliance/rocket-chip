@@ -107,18 +107,18 @@ object GenRegDescsAnno {
   }
 
   def makeRegMappingSer(rawModule: RawModule,
-    name: String,
+    moduleName: String,
     baseAddress: BigInt,
     width: Int,
     byteOffset: Int,
     bitOffset: Int,
     regField: RegField): RegFieldSer = {
 
-    val anonName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
-    val descName = regField.desc.map {
+    val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
+    val regFieldName = regField.desc.map {
       _.name
     }.getOrElse("")
-    val selectedName = if (descName.isEmpty /* selectedName.isEmpty */) anonName else descName
+    val selectedRegFieldName = if (regFieldName.isEmpty /* selectedName.isEmpty */) anonRegFieldName else regFieldName
     val map = Map[BigInt, (String, String)]() // TODO
 
     val desc = regField.desc
@@ -129,7 +129,7 @@ object GenRegDescsAnno {
       byteOffset = byteOffsetHex,
       bitOffset = bitOffset,
       bitWidth = width,
-      name = selectedName,
+      name = selectedRegFieldName,
       desc = desc.map {
         _.desc
       }.getOrElse("None"),
@@ -150,7 +150,7 @@ object GenRegDescsAnno {
       enumerations = map
     )
     RegFieldSer(
-      name, //selectedName,
+      moduleName, //selectedName,
       regFieldDescSer
      )
   }
@@ -158,14 +158,14 @@ object GenRegDescsAnno {
 
   def anno(
     rawModule: RawModule,
-    name: String,
+    moduleName: String,
     instanceCounter: Int,
     baseAddress: BigInt,
     mapping: RegField.Map*): Seq[RegField.Map] = {
 
-    val baseHex = s"0x${baseAddress.toInt.toHexString}"
-    val displayName = s"${name}.${baseHex}"
     val moduleName = rawModule.name
+    val baseHex = s"0x${baseAddress.toInt.toHexString}"
+    val displayName = s"${moduleName}.${baseHex}"
 
     println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}.${baseHex}")
 
@@ -174,7 +174,7 @@ object GenRegDescsAnno {
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
           makeRegMappingSer(
             rawModule,
-            name,
+            moduleName,
             baseAddress,
             regField.width,
             byteOffset,
@@ -185,7 +185,7 @@ object GenRegDescsAnno {
     }
 
     val registersSer = RegistersSer(
-      displayName = name,
+      displayName = moduleName,
       instanceCounter = instanceCounter,
       baseAddress = baseAddress,
       regFields = regFieldSers // Seq[RegFieldSer]()
