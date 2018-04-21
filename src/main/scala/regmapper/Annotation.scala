@@ -21,15 +21,15 @@ case class RegFieldDescSer(
   bitOffset: Int,
   bitWidth: Int,
   name: String,
-  desc: String,
-  group: String,
-  groupDesc: String,
+  resetValue: BigInt,
   accessType: String,
   wrType: String,
   rdAction: String,
+  desc: String,
+  group: String,
+  groupDesc: String,
   volatile: Boolean = false,
   hasReset: Boolean = false,
-  reset: BigInt,
   enumerations: Map[BigInt, (String, String)] = Map()
 )
 
@@ -146,7 +146,7 @@ object GenRegDescsAnno {
       rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
       volatile = desc.map(_.volatile).getOrElse(false),
       hasReset = desc.map { d => if (d.reset != None) true else false }.getOrElse(false), // TODO ugly
-      reset = BigInt(0), // TODO desc.map{_.reset}.getOrElse(BigInt(0))
+      resetValue = BigInt(0), // TODO desc.map{_.reset}.getOrElse(BigInt(0))
       enumerations = map
     )
     RegFieldSer(
