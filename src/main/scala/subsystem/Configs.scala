@@ -28,6 +28,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ErrorParams => ErrorParams(Seq(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
   case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
+  case CLINTKey => Some(CLINTParams())
 })
 
 /* Composable partial function Configs to set individual parameters */
