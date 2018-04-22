@@ -45,10 +45,12 @@ module AsyncResetReg (
                       input      clk,
                       input      rst);
    
-   initial begin
 `ifdef RANDOMIZE
       integer                       initvar;
       reg [31:0]                    _RAND;
+`endif
+   initial begin
+`ifdef RANDOMIZE
       _RAND = {1{$random}};
 `endif
       if (rst) begin

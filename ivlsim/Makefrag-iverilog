@@ -68,18 +68,18 @@ bb_vsrcs = \
 sim_vsrcs = \
 	$(generated_dir)/$(long_name).v \
 	$(generated_dir)/$(long_name).behav_srams.v \
-	$(base_dir)/ivlsrc/$(TB).v \
-	$(base_dir)/ivlsrc/SimDTM.v \
-    $(base_dir)/ivlsrc/SimJTAG.v \
+	$(base_dir)/vsrc/$(TB).v \
+	$(base_dir)/vsrc/SimDTM.v \
+    $(base_dir)/vsrc/SimJTAG.v \
 	$(bb_vsrcs)
 
 # C sources
 
 sim_csrcs = \
-    $(base_dir)/ivlsrc/vpi_register.cc \
-	$(base_dir)/ivlsrc/SimDTM.cc \
-    $(base_dir)/ivlsrc/SimJTAG.cc \
-    $(base_dir)/ivlsrc/remote_bitbang.cc \
+    $(base_dir)/csrc/vpi_register.cc \
+	$(base_dir)/csrc/SimDTM.cc \
+    $(base_dir)/csrc/SimJTAG.cc \
+    $(base_dir)/csrc/remote_bitbang.cc \
 
 #--------------------------------------------------------------------
 # Build Verilog
@@ -95,6 +95,7 @@ verilog: $(sim_vsrcs)
 CXX = g++
 
 CXX_OPTS = \
+    -D__ICARUS__ \
 	-I$(abspath iverilog/install/include/iverilog) \
 	-I$(RISCV)/include \
 	-std=c++11 \
@@ -112,7 +113,8 @@ IVL_OPTS = \
 	-g2005-sv \
     -c timescale \
     -s $(TB) \
-    -y $(generated_dir) -Y .v\
+    -y $(generated_dir) -Y .v \
+    -m$(abspath $(simv).vpi) \
 	-DCLOCK_PERIOD=1.0 \
 	-DPRINTF_COND=$(TB).printf_cond \
 	-DSTOP_COND=\!$(TB).reset \

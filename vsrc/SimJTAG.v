@@ -1,5 +1,6 @@
 // See LICENSE.SiFive for license details.
 //VCS coverage exclude_file
+`ifndef __ICARUS__
 import "DPI-C" function int jtag_tick
 (
  output bit jtag_TCK,
@@ -9,6 +10,7 @@ import "DPI-C" function int jtag_tick
  
  input bit  jtag_TDO
 );
+`endif
 
 module SimJTAG #(
                  parameter TICK_DELAY = 50
@@ -69,7 +71,11 @@ module SimJTAG #(
          if (enable && init_done_sticky) begin
             tickCounterReg <= tickCounterNxt;
             if (tickCounterReg == 0) begin
+`ifdef __ICARUS__
+               __exit = $jtag_tick(
+`else
                __exit = jtag_tick(
+`endif
                                   __jtag_TCK,
                                   __jtag_TMS,
                                   __jtag_TDI,

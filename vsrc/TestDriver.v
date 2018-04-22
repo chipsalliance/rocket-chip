@@ -6,11 +6,16 @@
 
 module TestDriver;
 
-  reg clock = 1'b0;
-  reg reset = 1'b1;
+  reg clock; // = 1'b0;
+  reg reset; // = 1'b1;
 
+  initial clock = 1'b0;
   always #(`CLOCK_PERIOD/2.0) clock = ~clock;
-  initial #(`RESET_DELAY) reset = 0;
+  
+  initial begin
+    reset = 1'b1; 
+    #(`RESET_DELAY) reset = 0;
+  end
 
   // Read input arguments and initialize
   reg verbose = 1'b0;
@@ -22,10 +27,19 @@ module TestDriver;
   reg [1023:0] vcdplusfile = 0;
   reg [1023:0] vcdfile = 0;
   int unsigned rand_value;
+`ifdef __ICARUS__
+  int unsigned seed_value;
+  integer res;
+`endif
   initial
   begin
+`ifdef __ICARUS__
+    res = $value$plusargs("max-cycles=%d", max_cycles);
+    res = $value$plusargs("dump-start=%d", dump_start);
+`else
     void'($value$plusargs("max-cycles=%d", max_cycles));
     void'($value$plusargs("dump-start=%d", dump_start));
+`endif
     verbose = $test$plusargs("verbose");
 
     // do not delete the lines below.
@@ -34,8 +48,18 @@ module TestDriver;
     // code.
     // $urandom is seeded via cmdline (+ntb_random_seed in VCS) but that
     // doesn't seed $random.
+`ifdef __ICARUS__
+    if ($value$plusargs("seed=%d", seed_value)) begin
+        rand_value = $random(rand_value);
+    end
+    else begin
+        rand_value = $urandom;
+        rand_value = $random(rand_value);
+    end
+`else
     rand_value = $urandom;
     rand_value = $random(rand_value);
+`endif
     if (verbose) begin
 `ifdef VCS
       $fdisplay(stderr, "testing $random %0x seed %d", rand_value, unsigned'($get_initial_random_seed));

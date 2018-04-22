@@ -58,7 +58,7 @@ jobs:
   include:
     - stage: prepare cache-riscv-tools
       script:
-        - travis_wait 30 make tools -C regression SUITE=none
+        - travis_wait 120 make tools -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8
       before_cache:

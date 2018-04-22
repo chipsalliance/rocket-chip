@@ -1,6 +1,7 @@
 // See LICENSE.SiFive for license details.
 //VCS coverage exclude_file
 
+`ifndef __ICARUS__
 import "DPI-C" function int debug_tick
 (
   output bit     debug_req_valid,
@@ -14,6 +15,7 @@ import "DPI-C" function int debug_tick
   input  int        debug_resp_bits_resp,
   input  int        debug_resp_bits_data
 );
+`endif
 
 module SimDTM(
   input clk,
@@ -65,7 +67,11 @@ module SimDTM(
     end
     else
     begin
+`ifdef __ICARUS__
+      __exit = $debug_tick(
+`else
       __exit = debug_tick(
+`endif
         __debug_req_valid,
         __debug_req_ready,
         __debug_req_bits_addr,
