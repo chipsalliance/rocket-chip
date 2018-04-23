@@ -5,15 +5,13 @@ package freechips.rocketchip.util
 import Chisel._
 import chisel3.experimental.RawModule
 import chisel3.internal.firrtl.Circuit
-import freechips.rocketchip.regmapper.RegField
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
 import java.io.{File, FileWriter}
 
 import firrtl.annotations.JsonProtocol
 import freechips.rocketchip.config._
 import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.{pretty, render}
+
 
 
 /** Representation of the information this Generator needs to collect from external sources. */
@@ -149,26 +147,5 @@ object ElaborationArtefacts {
 
   def contains(extension: String): Boolean = {
     files.foldLeft(false)((t, s) => {s._1 == extension | t})
-  }
-}
-
-
-object GenRegDescJson {
-
-  def serialize(base: BigInt, name: String, mapping: RegField.Map*): String = {
-
-
-    val regDescs = mapping.flatMap { case (byte, seq) =>
-      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bit, f) =>
-        val anonName = s"unnamedRegField${byte.toHexString}_${bit}"
-        (f.desc.map{ _.name}.getOrElse(anonName)) -> f.toJson(byte, bit)
-      }
-    }
-
-    pretty(render(
-      ("peripheral" -> (
-        ("displayName" -> name) ~
-          ("baseAddress" -> s"0x${base.toInt.toHexString}") ~
-          ("regfields" -> regDescs)))))
   }
 }
