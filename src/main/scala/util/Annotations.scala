@@ -62,7 +62,7 @@ object GenRegDescsAnno {
 
     val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
     val selectedRegFieldName = regField.desc.map(_.name).getOrElse(anonRegFieldName)
-    
+
     val map = Map[BigInt, (String, String)]() // TODO
 
     val byteOffsetHex = s"0x${byteOffset.toInt.toHexString}"
