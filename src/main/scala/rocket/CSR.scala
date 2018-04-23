@@ -524,7 +524,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
   when (pending_interrupts.orR || exception || io.interrupts.debug) { reg_wfi := false }
-  assert(!RegNext(reg_wfi) || io.retire === UInt(0))
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }
