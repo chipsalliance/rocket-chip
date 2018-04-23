@@ -10,7 +10,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescJson, GenRegDescsAnno, HeterogeneousBag}
+import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescsAnno, HeterogeneousBag}
 
 import scala.math.{max, min}
 
@@ -94,7 +94,7 @@ case class TLRegisterNode(
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
     val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
-    val json = GenRegDescJson.serialize(base, name, mapping:_*)
+    val json = GenRegDescsAnno.serialize(base, name, mapping:_*)
     var suffix = 0
     while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
       suffix = suffix + 1

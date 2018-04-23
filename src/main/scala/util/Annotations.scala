@@ -43,29 +43,6 @@ trait ShouldBeRetimed { self: RawModule =>
   chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl = RetimeModuleAnnotation(self.toNamed) })
 }
 
-
-
-object GenRegDescJson {
-
-  def serialize(base: BigInt, name: String, mapping: RegField.Map*): String = {
-
-
-    val regDescs = mapping.flatMap { case (byte, seq) =>
-      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bit, f) =>
-        val anonName = s"unnamedRegField${byte.toHexString}_${bit}"
-        (f.desc.map{ _.name}.getOrElse(anonName)) -> f.toJson(byte, bit)
-      }
-    }
-
-    pretty(render(
-      ("peripheral" -> (
-        ("displayName" -> name) ~
-          ("baseAddress" -> s"0x${base.toInt.toHexString}") ~
-          ("regfields" -> regDescs)))))
-  }
-}
-
-
 object GenRegDescsAnno {
   // Each class which has regmaps has instance counters
   private var instanceCounters = scala.collection.mutable.Map[String, Int]()
@@ -161,6 +138,24 @@ object GenRegDescsAnno {
 
     annotate(RegMappingChiselAnnotation(rawModule, registersSer))
     mapping
+  }
+
+
+  def serialize(base: BigInt, name: String, mapping: RegField.Map*): String = {
+
+
+    val regDescs = mapping.flatMap { case (byte, seq) =>
+      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bit, f) =>
+        val anonName = s"unnamedRegField${byte.toHexString}_${bit}"
+        (f.desc.map{ _.name}.getOrElse(anonName)) -> f.toJson(byte, bit)
+      }
+    }
+
+    pretty(render(
+      ("peripheral" -> (
+        ("displayName" -> name) ~
+          ("baseAddress" -> s"0x${base.toInt.toHexString}") ~
+          ("regfields" -> regDescs)))))
   }
 }
 
