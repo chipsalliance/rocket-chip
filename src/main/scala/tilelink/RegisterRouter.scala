@@ -10,7 +10,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescJson, HeterogeneousBag}
+import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescJson, GenRegDescsAnno, HeterogeneousBag}
 
 import scala.math.{max, min}
 

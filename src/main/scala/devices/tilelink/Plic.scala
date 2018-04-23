@@ -261,9 +261,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       )
     }
 
-    val mapping = priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields
-
-    node.regmap(mapping:_*)
+    node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
     priority(0) := 0
     pending(0) := false
