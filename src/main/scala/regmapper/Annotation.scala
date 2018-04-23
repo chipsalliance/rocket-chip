@@ -7,15 +7,6 @@ import chisel3.experimental.{ChiselAnnotation, RawModule, RunFirrtlTransform}
 import firrtl.annotations._
 import firrtl.{CircuitForm, CircuitState, LowForm, Transform}
 
-case class RegFieldDescAnnotation(
-  target: ModuleName,
-  desc: String) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName): RegFieldDescAnnotation = this.copy(n)
-}
-
-
-/** ********************************************************************************/
-
 case class RegFieldDescSer(
   byteOffset: String,
   bitOffset: Int,
