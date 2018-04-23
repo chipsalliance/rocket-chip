@@ -262,7 +262,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     val mapping = priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields
-    val baseAddr =  2^4 // TODO fix me
 
     node.regmap(mapping:_*)
 

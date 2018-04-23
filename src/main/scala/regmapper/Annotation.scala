@@ -23,7 +23,7 @@ case class RegFieldDescSer(
   name: String,
   resetValue: BigInt,
   accessType: String,
-  writeType: String,
+  wrType: String,
   rdAction: String,
   desc: String,
   group: String,
@@ -119,11 +119,12 @@ object GenRegDescsAnno {
     val selectedRegFieldName = if (regFieldName.isEmpty /* selectedName.isEmpty */) anonRegFieldName else regFieldName
     val map = Map[BigInt, (String, String)]() // TODO
 
-    val desc = regField.desc
 
     val byteOffsetHex = s"0x${byteOffset.toInt.toHexString}"
 
-    val regFieldDescSer = RegFieldDescSer(
+    val regFieldDescSer =     val desc = regField.desc
+
+    RegFieldDescSer(
       byteOffset = byteOffsetHex,
       bitOffset = bitOffset,
       bitWidth = width,
@@ -132,13 +133,14 @@ object GenRegDescsAnno {
       group = desc.map {_.group.getOrElse("None")}.getOrElse("None"),
       groupDesc = desc.map {_.groupDesc.getOrElse("None")}.getOrElse("None"),
       accessType = desc.map {_.access.toString}.getOrElse("UNKNOWN"),
-      writeType = desc.map(_.wrType.toString).getOrElse("None"),
+      wrType = desc.map(_.wrType.toString).getOrElse("None"),
       rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
       volatile = desc.map(_.volatile).getOrElse(false),
       hasReset = desc.map { d => d.reset != None }.getOrElse(false),
       resetValue = desc.map{_.reset.getOrElse(BigInt(0))}.getOrElse(BigInt(0)),
       enumerations = map
     )
+
     RegFieldSer(
       moduleName, //selectedName,
       regFieldDescSer
