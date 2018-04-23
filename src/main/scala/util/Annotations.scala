@@ -43,25 +43,14 @@ trait ShouldBeRetimed { self: RawModule =>
   chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl = RetimeModuleAnnotation(self.toNamed) })
 }
 
+
+case class RegFieldDescMappingAnnotation(
+  target: ModuleName,
+  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
+}
+
 object GenRegDescsAnno {
-  // Each class which has regmaps has instance counters
-  private var instanceCounters = scala.collection.mutable.Map[String, Int]()
-
-  def addInstanceCounter(key: String) : Unit = {
-    instanceCounters +=  ( key -> 0)
-  }
-
-  def getInstanceCount(name: String, baseAddress: BigInt) : Int = {
-    val nameAddress = s"${name}.${baseAddress}"
-
-    if (! (instanceCounters isDefinedAt nameAddress)) {
-      addInstanceCounter(nameAddress)
-    }
-    val cnt = instanceCounters(nameAddress)
-    val newCnt = cnt + 1
-    instanceCounters(nameAddress) = newCnt
-    cnt
-  }
 
   def makeRegMappingSer(rawModule: RawModule,
     moduleName: String,
@@ -112,7 +101,6 @@ object GenRegDescsAnno {
     val moduleName = rawModule.name
     val baseHex = s"0x${baseAddress.toInt.toHexString}"
     val displayName = s"${moduleName}.${baseHex}"
-    val instanceCounter = GenRegDescsAnno.getInstanceCount(moduleName, baseAddress)
 
     val regFieldSers = mapping.flatMap {
       case (byteOffset, seq) =>
@@ -131,12 +119,13 @@ object GenRegDescsAnno {
 
     val registersSer = RegistersSer(
       displayName = moduleName,
-      instanceCounter = instanceCounter,
       baseAddress = baseAddress,
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
 
-    annotate(RegMappingChiselAnnotation(rawModule, registersSer))
+//    annotate(RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer))
+    annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer) })
+
     mapping
   }
 

@@ -30,34 +30,6 @@ case class RegFieldSer(
 
 case class RegistersSer(
   displayName: String,
-  instanceCounter: Int,
   baseAddress: BigInt,
   regFields: Seq[RegFieldSer]
 )
-
-case class RegFieldDescMappingAnnotation(
-  target: ModuleName,
-  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
-    def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
-}
-
-case class RegMappingChiselAnnotation(
-  target: RawModule,
-  regMappingSer: RegistersSer) extends ChiselAnnotation with RunFirrtlTransform {
-  def toFirrtl: RegFieldDescMappingAnnotation = RegFieldDescMappingAnnotation(target.toNamed, regMappingSer)
-
-  def transformClass: Class[RegMappingDumpTransform] = classOf[RegMappingDumpTransform]
-}
-
-class RegMappingDumpTransform extends Transform {
-  def inputForm: CircuitForm = LowForm
-
-  def outputForm: CircuitForm = LowForm
-
-  def execute(state: CircuitState): CircuitState = {
-    state.annotations.foreach {
-      case RegFieldDescMappingAnnotation(t, desc) => println(desc)
-    }
-    state
-  }
-}
