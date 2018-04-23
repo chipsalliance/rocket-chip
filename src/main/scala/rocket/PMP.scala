@@ -32,8 +32,8 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
-  def readAddr = {
-    val mask = 1 << (pmpGranularity.log2 - PMP.lgAlign)
+  def readAddr = if (pmpGranularity.log2 == PMP.lgAlign) addr else {
+    val mask = (BigInt(1) << (pmpGranularity.log2 - PMP.lgAlign - 1)).U
     Mux(napot, addr | mask, ~(~addr | mask))
   }
   def napot = cfg.a(1)
