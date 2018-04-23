@@ -122,9 +122,9 @@ object GenRegDescsAnno {
 
     val byteOffsetHex = s"0x${byteOffset.toInt.toHexString}"
 
-    val regFieldDescSer =     val desc = regField.desc
+    val desc = regField.desc
 
-    RegFieldDescSer(
+    val regFieldDescSer = RegFieldDescSer(
       byteOffset = byteOffsetHex,
       bitOffset = bitOffset,
       bitWidth = width,
