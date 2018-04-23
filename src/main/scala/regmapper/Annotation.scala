@@ -51,7 +51,7 @@ case class RegFieldDescMappingAnnotation(
 /**
   * Chisel Annotation
   *
-  * This creates the firrtl annotation
+  * This creates the firrtl annotation. The Chisel Annotation is converted to a FIRRTL annotation by the toFirrtl class
   *
   * @param target
   * @param regMappingSer
@@ -110,7 +110,6 @@ object GenRegDescsAnno {
     val selectedRegFieldName = if (regFieldName.isEmpty /* selectedName.isEmpty */) anonRegFieldName else regFieldName
     val map = Map[BigInt, (String, String)]() // TODO
 
-
     val byteOffsetHex = s"0x${byteOffset.toInt.toHexString}"
 
     val desc = regField.desc
@@ -123,11 +122,11 @@ object GenRegDescsAnno {
       desc = desc.map {_.desc}.getOrElse("None"),
       group = desc.map {_.group.getOrElse("None")}.getOrElse("None"),
       groupDesc = desc.map {_.groupDesc.getOrElse("None")}.getOrElse("None"),
-      accessType = desc.map {_.access.toString}.getOrElse("UNKNOWN"),
+      accessType = desc.map {_.access.toString}.getOrElse("None"),
       wrType = desc.map(_.wrType.toString).getOrElse("None"),
       rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
       volatile = desc.map(_.volatile).getOrElse(false),
-      hasReset = desc.map { d => d.reset != None }.getOrElse(false),
+      hasReset = desc.map {_.reset != None }.getOrElse(false),
       resetValue = desc.map{_.reset.getOrElse(BigInt(0))}.getOrElse(BigInt(0)),
       enumerations = map
     )
@@ -141,16 +140,13 @@ object GenRegDescsAnno {
 
   def anno(
     rawModule: RawModule,
-    moduleName: String,
-    instanceCounter: Int,
     baseAddress: BigInt,
     mapping: RegField.Map*): Seq[RegField.Map] = {
 
     val moduleName = rawModule.name
     val baseHex = s"0x${baseAddress.toInt.toHexString}"
     val displayName = s"${moduleName}.${baseHex}"
-
-    println(s"INFO: GenRegDescsAnno: annotating rawModule: ${moduleName}.${baseHex}")
+    val instanceCounter = GenRegDescsAnno.getInstanceCount(moduleName, baseAddress)
 
     val regFieldSers = mapping.flatMap {
       case (byteOffset, seq) =>

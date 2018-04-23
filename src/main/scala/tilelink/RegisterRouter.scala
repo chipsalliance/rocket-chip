@@ -85,7 +85,7 @@ case class TLRegisterNode(
     bundleIn.c.ready := Bool(true)
     bundleIn.e.ready := Bool(true)
 
-    genRegDescsJson(mapping: _*)
+    genRegDescsJson(mapping:_*)
   }
 
 
@@ -101,7 +101,12 @@ case class TLRegisterNode(
     }
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
 
-    /* GetMeMyModule is a hack to get the current module during elaboration.
+    // TODO This comment serves as a reminder to change this code to use the new def in Chisel and remove the call to
+    //  GetMeMyModule.
+
+    /*
+    * GetMeMyModule is a hack to get the current module during elaboration.
+    *
     *
     *  A pull request will be issued against Chisel3 to add this function to:
     *
@@ -121,15 +126,11 @@ case class TLRegisterNode(
     val module = GetMeMyModule.currentModule.get.asInstanceOf[RawModule]
     GenRegDescsAnno.anno(
       module,
-      module.name,
-      GenRegDescsAnno.getInstanceCount(module.name, base),
       base,
       mapping:_*)
 
   }
 }
-
-
 
 // register mapped device from a totally abstract register mapped device.
 // See GPIO.scala in this directory for an example
@@ -156,9 +157,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val io = IO(bundleBuilder)
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
-  def regmap(mapping: RegField.Map*) : Unit = {
-       router.node.regmap(mapping:_*)
-  }
+  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](

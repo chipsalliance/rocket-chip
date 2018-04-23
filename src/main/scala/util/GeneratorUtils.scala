@@ -3,17 +3,15 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.internal.firrtl.Circuit
 import chisel3.experimental.RawModule
+import chisel3.internal.firrtl.Circuit
 import freechips.rocketchip.regmapper.RegField
-import org.json4s.jackson.JsonMethods.{pretty, render}
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
-import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
+
 import firrtl.annotations.JsonProtocol
-import org.json4s.JsonAST.JValue
+import freechips.rocketchip.config._
+import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
