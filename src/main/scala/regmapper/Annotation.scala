@@ -45,7 +45,7 @@ case class RegistersSer(
 case class RegFieldDescMappingAnnotation(
   target: ModuleName,
   regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
+    def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
 }
 
 /**
