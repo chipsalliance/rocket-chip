@@ -12,8 +12,6 @@ import firrtl.annotations.JsonProtocol
 import freechips.rocketchip.config._
 import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
 
-
-
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
     targetDir: String,

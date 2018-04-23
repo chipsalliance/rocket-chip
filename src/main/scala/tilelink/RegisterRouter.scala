@@ -89,7 +89,7 @@ case class TLRegisterNode(
   }
 
 
-  def genRegDescsJson(mapping: RegField.Map*) : Unit = {
+  def genRegDescsJson(mapping: RegField.Map*) {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
