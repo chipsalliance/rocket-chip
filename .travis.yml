@@ -52,7 +52,7 @@ branches:
 branches:
   only:
   - master
-  - ivlsim
+  - travis
 
 jobs:
   include:
