@@ -79,6 +79,8 @@ submodules: stamps/other-submodules.stamp
 tools: $(RISCV)/install.stamp
 verilator:
 	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/emulator) verilator
+iverilog:
+	$(MAKE) RISCV=$(RISCV) -C $(abspath $(TOP)/ivlsim) iverilog
 
 EMU_DEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-debug.stamp)
 EMU_NDEBUG_STAMPS=$(foreach config,$(CONFIGS),stamps/$(config)/emulator-ndebug.stamp)

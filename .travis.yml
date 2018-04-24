@@ -8,6 +8,7 @@ cache:
     $HOME/.ivy2
     regression/install
     emulator/verilator
+    ivlsim/iverilog
 
 # packages needed to build riscv-tools
 addons:
@@ -66,6 +67,9 @@ jobs:
     - stage: prepare cache-verilator
       script:
         - travis_wait 120 make verilator -C regression SUITE=none
+    - stage: prepare cache-iverilog
+      script:
+        - travis_wait 120 make iverilog -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8    
     - &test
