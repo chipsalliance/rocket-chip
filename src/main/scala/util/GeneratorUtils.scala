@@ -3,14 +3,14 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.experimental.RawModule
 import chisel3.internal.firrtl.Circuit
-import chisel3.experimental.{RawModule}
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
-import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
+
 import firrtl.annotations.JsonProtocol
+import freechips.rocketchip.config._
+import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(

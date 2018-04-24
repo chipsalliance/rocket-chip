@@ -6,8 +6,13 @@ import Chisel._
 import chisel3.internal.InstanceId
 import chisel3.experimental.{annotate, ChiselAnnotation, RawModule}
 import firrtl.annotations._
+
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
+
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a case class that was used to parameterize this target. */
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
@@ -120,3 +125,108 @@ trait DontTouch { self: RawModule =>
 trait ShouldBeRetimed { self: RawModule =>
   chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl = RetimeModuleAnnotation(self.toNamed) })
 }
+
+
+case class RegFieldDescMappingAnnotation(
+  target: ModuleName,
+  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
+}
+
+object GenRegDescsAnno {
+
+  def makeRegMappingSer(
+    rawModule: RawModule,
+    moduleName: String,
+    baseAddress: BigInt,
+    width: Int,
+    byteOffset: Int,
+    bitOffset: Int,
+    regField: RegField): RegFieldSer = {
+
+    val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
+    val selectedRegFieldName = regField.desc.map(_.name).getOrElse(anonRegFieldName)
+
+    val map = Map[BigInt, (String, String)]() // TODO
+
+    val desc = regField.desc
+
+    val regFieldDescSer = RegFieldDescSer(
+      byteOffset = s"0x${byteOffset.toInt.toHexString}",
+      bitOffset = bitOffset,
+      bitWidth = width,
+      name = selectedRegFieldName,
+      desc = desc.map {_.desc}.getOrElse("None"),
+      group = desc.map {_.group.getOrElse("None")}.getOrElse("None"),
+      groupDesc = desc.map {_.groupDesc.getOrElse("None")}.getOrElse("None"),
+      accessType = desc.map {_.access.toString}.getOrElse("None"),
+      wrType = desc.map(_.wrType.toString).getOrElse("None"),
+      rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
+      volatile = desc.map(_.volatile).getOrElse(false),
+      hasReset = desc.map {_.reset != None }.getOrElse(false),
+      resetValue = desc.map{_.reset.getOrElse(BigInt(0))}.getOrElse(BigInt(0)),
+      enumerations = map
+    )
+
+    RegFieldSer(
+      moduleName, //selectedName,
+      regFieldDescSer
+    )
+  }
+
+
+  def anno(
+    rawModule: RawModule,
+    baseAddress: BigInt,
+    mapping: RegField.Map*): Seq[RegField.Map] = {
+
+    val moduleName = rawModule.name
+    val baseHex = s"0x${baseAddress.toInt.toHexString}"
+    val displayName = s"${moduleName}.${baseHex}"
+
+    val regFieldSers = mapping.flatMap {
+      case (byteOffset, seq) =>
+        seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
+          makeRegMappingSer(
+            rawModule,
+            moduleName,
+            baseAddress,
+            regField.width,
+            byteOffset,
+            bitOffset,
+            regField
+          )
+        }
+    }
+
+    val registersSer = RegistersSer(
+      displayName = moduleName,
+      baseAddress = baseAddress,
+      regFields = regFieldSers // Seq[RegFieldSer]()
+    )
+
+//    annotate(RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer))
+    annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer) })
+
+    mapping
+  }
+
+
+  def serialize(base: BigInt, name: String, mapping: RegField.Map*): String = {
+
+
+    val regDescs = mapping.flatMap { case (byte, seq) =>
+      seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bit, f) =>
+        val anonName = s"unnamedRegField${byte.toHexString}_${bit}"
+        (f.desc.map{ _.name}.getOrElse(anonName)) -> f.toJson(byte, bit)
+      }
+    }
+
+    pretty(render(
+      ("peripheral" -> (
+        ("displayName" -> name) ~
+          ("baseAddress" -> s"0x${base.toInt.toHexString}") ~
+          ("regfields" -> regDescs)))))
+  }
+}
+
