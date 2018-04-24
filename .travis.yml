@@ -10,6 +10,10 @@ cache:
     emulator/verilator
     ivlsim/iverilog
 
+env:
+  global:
+    - MAKEFLAGS="-j2"
+
 # packages needed to build riscv-tools
 addons:
   apt:
