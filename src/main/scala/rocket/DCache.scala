@@ -155,6 +155,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
+  tlb.io.kill := io.cpu.s2_kill
   tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
   tlb.io.req.bits.sfence.valid := s1_sfence
   tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
@@ -202,7 +203,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid = s2_valid_pre_xcpt && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
-  val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
+  val s2_valid_masked = s2_valid && Reg(next = !s1_nack) && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
   val s2_req_block_addr = (s2_req.addr >> idxLSB) << idxLSB
   val s2_uncached = Reg(Bool())
@@ -380,6 +381,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     s1_write && (s1_hazard || needsRead(s1_req) && !s1_did_read)
   })
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
+
+  // performance hints to processor
+  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard)
 
   // Prepare a TileLink request message that initiates a transaction
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR

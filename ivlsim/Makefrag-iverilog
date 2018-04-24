@@ -60,26 +60,26 @@ iverilog: $(INSTALLED_IVL)
 # Verilog sources
 
 bb_vsrcs = \
-	$(base_dir)/vsrc/plusarg_reader.v \
-	$(base_dir)/vsrc/ClockDivider2.v \
-	$(base_dir)/vsrc/ClockDivider3.v \
-	$(base_dir)/vsrc/AsyncResetReg.v \
+	$(vsrc)/plusarg_reader.v \
+	$(vsrc)/ClockDivider2.v \
+	$(vsrc)/ClockDivider3.v \
+	$(vsrc)/AsyncResetReg.v \
 
 sim_vsrcs = \
 	$(generated_dir)/$(long_name).v \
 	$(generated_dir)/$(long_name).behav_srams.v \
-	$(base_dir)/vsrc/$(TB).v \
-	$(base_dir)/vsrc/SimDTM.v \
-    $(base_dir)/vsrc/SimJTAG.v \
+	$(vsrc)/$(TB).v \
+	$(vsrc)/SimDTM.v \
+    $(vsrc)/SimJTAG.v \
 	$(bb_vsrcs)
 
 # C sources
 
 sim_csrcs = \
-    $(base_dir)/csrc/vpi_register.cc \
-	$(base_dir)/csrc/SimDTM.cc \
-    $(base_dir)/csrc/SimJTAG.cc \
-    $(base_dir)/csrc/remote_bitbang.cc \
+    $(csrc)/vpi_register.cc \
+	$(csrc)/SimDTM.cc \
+    $(csrc)/SimJTAG.cc \
+    $(csrc)/remote_bitbang.cc \
 
 #--------------------------------------------------------------------
 # Build Verilog

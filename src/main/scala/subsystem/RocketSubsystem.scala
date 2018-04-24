@@ -32,7 +32,7 @@ case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(Rock
 
 trait HasRocketTiles extends HasTiles
     with HasPeripheryPLIC
-    with HasPeripheryCLINT
+    with CanHavePeripheryCLINT
     with HasPeripheryDebug { this: BaseSubsystem =>
   val module: HasRocketTilesModuleImp
 
@@ -124,7 +124,8 @@ trait HasRocketTiles extends HasTiles
 
     // 2. clint+plic conditionally crossing
     val periphIntNode = rocket.intInwardNode :=* rocket.crossIntIn
-    periphIntNode := clint.intnode                   // msip+mtip
+    require( p(CLINTKey).isDefined, "CLINT must be present")
+    clintOpt.foreach { periphIntNode := _.intnode }  // msip+mtip
     periphIntNode := plic.intnode                    // meip
     if (tp.core.useVM) periphIntNode := plic.intnode // seip
 

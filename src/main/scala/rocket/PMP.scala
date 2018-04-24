@@ -32,22 +32,30 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
+  def readAddr = if (pmpGranularity.log2 == PMP.lgAlign) addr else {
+    val mask = (BigInt(1) << (pmpGranularity.log2 - PMP.lgAlign - 1)).U
+    Mux(napot, addr | mask, ~(~addr | mask))
+  }
   def napot = cfg.a(1)
   def torNotNAPOT = cfg.a(0)
+  def tor = !napot && torNotNAPOT
   def cfgLocked = cfg.l
-  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.cfg.a(1)
+  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.tor
 }
 
 class PMP(implicit p: Parameters) extends PMPReg {
   val mask = UInt(width = paddrBits)
 
   import PMP._
-  def computeMask = Cat(Cat(addr, cfg.a(0)) & ~(Cat(addr, cfg.a(0)) + 1), UInt((BigInt(1) << lgAlign) - 1, lgAlign))
-  private def comparand = addr << lgAlign
+  def computeMask = {
+    val base = Cat(addr, cfg.a(0)) | ((pmpGranularity - 1) >> lgAlign)
+    Cat(base & ~(base + 1), UInt((1 << lgAlign) - 1))
+  }
+  private def comparand = ~(~(addr << lgAlign) | (pmpGranularity - 1))
 
   private def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
     def eval(a: UInt, b: UInt, m: UInt) = ((a ^ b) & ~m) === 0
-    if (lgMaxSize <= lgAlign) {
+    if (lgMaxSize <= pmpGranularity.log2) {
       eval(x, comparand, mask)
     } else {
       // break up the circuit; the MSB part will be CSE'd
@@ -59,7 +67,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
   }
 
   private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) = {
-    if (lgMaxSize <= lgAlign) {
+    if (lgMaxSize <= pmpGranularity.log2) {
       x < comparand
     } else {
       // break up the circuit; the MSB part will be CSE'd
@@ -104,7 +112,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
     Mux(napot, pow2Homogeneous(x, pgLevel), !torNotNAPOT || rangeHomogeneous(x, pgLevel, prev))
 
   // returns whether this matching PMP fully contains the access
-  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= lgAlign) true.B else {
+  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= pmpGranularity.log2) true.B else {
     val lsbMask = UIntToOH1(lgSize, lgMaxSize)
     val straddlesLowerBound = ((x >> lgMaxSize) ^ (prev.comparand >> lgMaxSize)) === 0 && (prev.comparand(lgMaxSize-1, 0) & ~x(lgMaxSize-1, 0)) =/= 0
     val straddlesUpperBound = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0 && (comparand(lgMaxSize-1, 0) & (x(lgMaxSize-1, 0) | lsbMask)) =/= 0

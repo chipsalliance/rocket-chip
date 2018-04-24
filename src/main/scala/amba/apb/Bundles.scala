@@ -24,6 +24,22 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
   val pready    = Bool(INPUT)
   val pslverr   = Bool(INPUT)
   val prdata    = UInt(INPUT, width = params.dataBits)
+
+  def tieoff() {
+    pready.dir match {
+      case INPUT =>
+        pready  := Bool(false)
+        pslverr := Bool(false)
+        prdata  := UInt(0)
+      case OUTPUT =>
+        pwrite  := Bool(false)
+        paddr   := UInt(0)
+        pprot   := APBParameters.PROT_DEFAULT
+        pwdata  := UInt(0)
+        pstrb   := UInt(0)
+      case _ =>
+    }
+  }
 }
 
 object APBBundle

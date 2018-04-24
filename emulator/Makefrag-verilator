@@ -14,7 +14,7 @@ $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(boot
 
 %.v %.conf: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$*.conf -faf $*.anno.json
+	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$*.conf -faf $*.anno.json -td $(generated_dir)/$(long_name)/
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(VLSI_MEM_GEN)
 	cd $(generated_dir) && \
@@ -59,10 +59,10 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   --output-split 20000 \
   --output-split-cfuncs 20000 \
 	-Wno-STMTDLY --x-assign unique \
-  -I$(base_dir)/vsrc \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(base_dir)/csrc/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
-cppfiles = $(addprefix $(base_dir)/csrc/, $(addsuffix .cc, $(CXXSRCS)))
-headers = $(wildcard $(base_dir)/csrc/*.h)
+  -I$(vsrc) \
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
+cppfiles = $(addprefix $(csrc)/, $(addsuffix .cc, $(CXXSRCS)))
+headers = $(wildcard $(csrc)/*.h)
 
 model_header = $(generated_dir)/$(long_name)/V$(MODEL).h
 model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h
