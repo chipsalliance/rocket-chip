@@ -23,9 +23,9 @@ object EarlyAck {
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
 class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None)(implicit p: Parameters) extends LazyModule
 {
-  require (isPow2 (maxSize))
-  require (isPow2 (minSize))
-  require (minSize < maxSize)
+  require(isPow2 (maxSize), s"TLFragmenter expects pow2(maxSize), but got $maxSize")
+  require(isPow2 (minSize), s"TLFragmenter expects pow2(minSize), but got $minSize")
+  require(minSize < maxSize, s"TLFragmenter expects min < max, but got $minSize >= $maxSize")
 
   val fragmentBits = log2Ceil(maxSize / minSize)
   val fullBits = if (earlyAck == EarlyAck.PutFulls) 1 else 0
