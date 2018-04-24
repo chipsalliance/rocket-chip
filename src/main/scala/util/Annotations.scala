@@ -135,7 +135,8 @@ case class RegFieldDescMappingAnnotation(
 
 object GenRegDescsAnno {
 
-  def makeRegMappingSer(rawModule: RawModule,
+  def makeRegMappingSer(
+    rawModule: RawModule,
     moduleName: String,
     baseAddress: BigInt,
     width: Int,
@@ -148,12 +149,10 @@ object GenRegDescsAnno {
 
     val map = Map[BigInt, (String, String)]() // TODO
 
-    val byteOffsetHex = s"0x${byteOffset.toInt.toHexString}"
-
     val desc = regField.desc
 
     val regFieldDescSer = RegFieldDescSer(
-      byteOffset = byteOffsetHex,
+      byteOffset = s"0x${byteOffset.toInt.toHexString}",
       bitOffset = bitOffset,
       bitWidth = width,
       name = selectedRegFieldName,
