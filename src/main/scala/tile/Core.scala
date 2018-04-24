@@ -28,6 +28,7 @@ trait CoreParams {
   val instBits: Int
   val nLocalInterrupts: Int
   val nPMPs: Int
+  val pmpGranularity: Int
   val nBreakpoints: Int
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
@@ -66,6 +67,7 @@ trait HasCoreParameters extends HasTileParameters {
 
   val nBreakpoints = coreParams.nBreakpoints
   val nPMPs = coreParams.nPMPs
+  val pmpGranularity = coreParams.pmpGranularity
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable

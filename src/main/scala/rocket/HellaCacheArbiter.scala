@@ -39,13 +39,18 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
         io.mem.s1_kill := io.requestor(i).s1_kill
         io.mem.s1_data := io.requestor(i).s1_data
       }
+      def connect_s2() = {
+        io.mem.s2_kill := io.requestor(i).s2_kill
+      }
 
       if (i == n-1) {
         connect_s0()
         connect_s1()
+        connect_s2()
       } else {
         when (req.valid) { connect_s0() }
         when (s1_id === UInt(i)) { connect_s1() }
+        when (s2_id === UInt(i)) { connect_s2() }
       }
     }
 
@@ -57,6 +62,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       io.requestor(i).ordered := io.mem.ordered
       io.requestor(i).perf := io.mem.perf
       io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === UInt(i)
+      io.requestor(i).s2_nack_cause_raw := io.mem.s2_nack_cause_raw
       resp.bits := io.mem.resp.bits
       resp.bits.tag := io.mem.resp.bits.tag >> log2Up(n)
 

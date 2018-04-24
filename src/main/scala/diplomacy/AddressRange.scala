@@ -36,6 +36,10 @@ case class AddressRange(base: BigInt, size: BigInt) extends Ordered[AddressRange
 
   // We always want to see things in hex
   override def toString() = "AddressRange(0x%x, 0x%x)".format(base, size)
+
+  // Other possible output formats
+  def toUVM: String = f"    set_addr_range(1, 32'h${base}%08x, 32'h${end}%08x);"
+  def toJSON: String = s"""{"base": ${base}, "max": ${end}}"""
 }
 
 object AddressRange
@@ -69,7 +73,7 @@ case class AddressMapEntry(range: AddressRange, permissions: ResourcePermissions
     if (c) 'C' else ' ',
     names.mkString(", "))
 
-  def serialize = s"""{"base":[${range.base}],"size":[${range.size}],""" +
+  def toJSON = s"""{"base":[${range.base}],"size":[${range.size}],""" +
     s""""r":[$r],"w":[$w],"x":[$x],"c":[$c],"a":[$a],""" +
     s""""names":[${names.map('"'+_+'"').mkString(",")}]}"""
 }

@@ -191,6 +191,24 @@ class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
   val c = Decoupled(new TLBundleC(params))
   val d = Decoupled(new TLBundleD(params)).flip
   val e = Decoupled(new TLBundleE(params))
+
+  def tieoff() {
+    a.ready.dir match {
+      case INPUT =>
+        a.ready := Bool(false)
+        c.ready := Bool(false)
+        e.ready := Bool(false)
+        b.valid := Bool(false)
+        d.valid := Bool(false)
+      case OUTPUT =>
+        a.valid := Bool(false)
+        c.valid := Bool(false)
+        e.valid := Bool(false)
+        b.ready := Bool(false)
+        d.ready := Bool(false)
+      case _ =>
+    }
+  }
 }
 
 object TLBundle
@@ -204,7 +222,7 @@ final class DecoupledSnoop[+T <: Data](gen: T) extends Bundle
   val valid = Bool()
   val bits = gen.asOutput
 
-  def fire(dummy: Int = 0) = ready && valid
+  def fire() = ready && valid
   override def cloneType: this.type = new DecoupledSnoop(gen).asInstanceOf[this.type]
 }
 

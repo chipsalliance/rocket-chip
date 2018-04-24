@@ -111,6 +111,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 
   lazy val module = new LazyModuleImp(this) {
+    annotated.params(this, params)
+
     val (io_devices, edgesIn) = intnode.in.unzip
     val (io_harts, _) = intnode.out.unzip
 
@@ -126,11 +128,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
     println("")
 
-    require (nDevices == interrupts.size)
-    require (nHarts == harts.size)
+    require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
+    require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
 
-    require(nDevices <= PLICConsts.maxDevices)
-    require(nHarts > 0 && nHarts <= PLICConsts.maxHarts)
+    require(nDevices <= PLICConsts.maxDevices, s"Must be: nDevices=$nDevices <= PLICConsts.maxDevices=${PLICConsts.maxDevices}")
+    require(nHarts > 0 && nHarts <= PLICConsts.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICConsts.maxHarts=${PLICConsts.maxHarts}")
 
     // For now, use LevelGateways for all TL2 interrupts
     val gateways = Vec((false.B +: interrupts).map { case i =>

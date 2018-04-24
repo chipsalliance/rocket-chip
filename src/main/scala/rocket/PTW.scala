@@ -208,6 +208,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.typ  := log2Ceil(xLen/8)
   io.mem.req.bits.addr := pte_addr
   io.mem.s1_kill := s1_kill || l2_hit
+  io.mem.s2_kill := Bool(false)
   io.mem.invalidate_lr := Bool(false)
   
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>

@@ -159,6 +159,15 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         when (in.a.fire()) {
           sources(in.a.bits.source) := a_sel
         }
+
+        // depopulate unused source registers:
+        val usedSources = edgeIn.client.clients.map(_.sourceId).sortBy(_.start)
+        ((Seq(0) ++ usedSources.map(_.end)) zip usedSources.map(_.start)) foreach { case (end, start) =>
+          for (id <- end until start) {
+            sources(id) := UInt(0)
+          }
+        }
+
         val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.fire() && in.a.bits.source === source
         Mux(bypass, a_sel, sources(source))
       }
