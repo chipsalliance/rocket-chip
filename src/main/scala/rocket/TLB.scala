@@ -28,7 +28,6 @@ class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
 class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val vaddr = UInt(width = vaddrBitsExtended)
   val passthrough = Bool()
-  val sfence = Valid(new SFenceReq)
   val size = UInt(width = log2Ceil(lgMaxSize + 1))
   val cmd  = Bits(width = M_SZ)
 
@@ -56,6 +55,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val io = new Bundle {
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
     val resp = new TLBResp().asOutput
+    val sfence = Valid(new SFenceReq).asInput
     val ptw = new TLBPTWIO
     val kill = Bool(INPUT) // suppress a TLB refill, one cycle after a miss
   }
@@ -207,7 +207,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   val pf_inst_array = ~(x_array | ptw_ae_array)
 
   val tlb_hit = hits(totalEntries-1, 0).orR
-  val tlb_miss = vm_enabled && !bad_va && !tlb_hit && !io.req.bits.sfence.valid
+  val tlb_miss = vm_enabled && !bad_va && !tlb_hit
   when (io.req.valid && !tlb_miss && !hits(specialEntry)) {
     plru.access(OHToUInt(hits(normalEntries-1, 0)))
   }
@@ -239,7 +239,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
   io.ptw.req.bits.addr := r_refill_tag
 
   if (usingVM) {
-    val sfence = io.req.valid && io.req.bits.sfence.valid
+    val sfence = io.sfence.valid
     when (io.req.fire() && tlb_miss) {
       state := s_request
       r_refill_tag := lookup_tag
@@ -259,9 +259,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     }
 
     when (sfence) {
-      assert(!io.req.bits.sfence.bits.rs1 || (io.req.bits.sfence.bits.addr >> pgIdxBits) === vpn)
-      valid := Mux(io.req.bits.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
-               Mux(io.req.bits.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
+      assert(!io.sfence.bits.rs1 || (io.sfence.bits.addr >> pgIdxBits) === vpn)
+      valid := Mux(io.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
+               Mux(io.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }
     when (multipleHits) {
       valid := 0
@@ -270,10 +270,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
     ccover(io.ptw.req.fire(), "MISS", "TLB miss")
     ccover(io.ptw.req.valid && !io.ptw.req.ready, "PTW_STALL", "TLB miss, but PTW busy")
     ccover(state === s_wait_invalidate, "SFENCE_DURING_REFILL", "flush TLB during TLB refill")
-    ccover(sfence && !io.req.bits.sfence.bits.rs1 && !io.req.bits.sfence.bits.rs2, "SFENCE_ALL", "flush TLB")
-    ccover(sfence && !io.req.bits.sfence.bits.rs1 && io.req.bits.sfence.bits.rs2, "SFENCE_ASID", "flush TLB ASID")
-    ccover(sfence && io.req.bits.sfence.bits.rs1 && !io.req.bits.sfence.bits.rs2, "SFENCE_LINE", "flush TLB line")
-    ccover(sfence && io.req.bits.sfence.bits.rs1 && io.req.bits.sfence.bits.rs2, "SFENCE_LINE_ASID", "flush TLB line/ASID")
+    ccover(sfence && !io.sfence.bits.rs1 && !io.sfence.bits.rs2, "SFENCE_ALL", "flush TLB")
+    ccover(sfence && !io.sfence.bits.rs1 && io.sfence.bits.rs2, "SFENCE_ASID", "flush TLB ASID")
+    ccover(sfence && io.sfence.bits.rs1 && !io.sfence.bits.rs2, "SFENCE_LINE", "flush TLB line")
+    ccover(sfence && io.sfence.bits.rs1 && io.sfence.bits.rs2, "SFENCE_LINE_ASID", "flush TLB line/ASID")
     ccover(multipleHits, "MULTIPLE_HITS", "Two matching translations in TLB")
   }
 

@@ -157,18 +157,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> tlb.io.ptw
   tlb.io.kill := io.cpu.s2_kill
-  tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
-  tlb.io.req.bits.sfence.valid := s1_sfence
-  tlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
-  tlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
-  tlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
-  tlb.io.req.bits.sfence.bits.addr := s1_req.addr
+  tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_readwrite
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.size := s1_req.typ
   tlb.io.req.bits.cmd := s1_req.cmd
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
+
+  tlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
+  tlb.io.sfence.bits.rs1 := s1_req.typ(0)
+  tlb.io.sfence.bits.rs2 := s1_req.typ(1)
+  tlb.io.sfence.bits.asid := io.cpu.s1_data.data
+  tlb.io.sfence.bits.addr := s1_req.addr
 
   val s1_paddr = tlb.io.resp.paddr
   val s1_victim_way = Wire(init = replacer.way)
