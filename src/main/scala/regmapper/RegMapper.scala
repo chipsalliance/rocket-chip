@@ -158,7 +158,10 @@ object RegMapper
       wifire(reg) = (wivalid(i), litOR(f_wiready, !wimask)) +: wifire(reg)
       rofire(reg) = (roready(i), litOR(f_rovalid, !romask)) +: rofire(reg)
       wofire(reg) = (woready(i), litOR(f_wovalid, !womask)) +: wofire(reg)
-      dataOut(reg) = dataOut(reg) | ((f_data << low) & (~UInt(0, width = high+1)))
+
+      // ... this loop iterates from smallest to largest bit offset
+      val prepend = if (low == 0) { f_data } else { Cat(f_data, dataOut(reg) | UInt(0, width=low)) }
+      dataOut(reg) = (prepend | UInt(0, width=high+1))(high, 0)
     }
 
     // Which register is touched?
