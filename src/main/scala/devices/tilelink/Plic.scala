@@ -135,7 +135,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     require(nHarts > 0 && nHarts <= PLICConsts.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICConsts.maxHarts=${PLICConsts.maxHarts}")
 
     // For now, use LevelGateways for all TL2 interrupts
-    val gateways = (false.B +: interrupts).map { case i =>
+    val gateways = interrupts.map { case i =>
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
       gateway.io.plic
@@ -143,54 +143,74 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
     val prioBits = log2Ceil(nPriorities+1)
     val priority =
-      if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=prioBits)))
-      else Wire(init=Vec.fill(nDevices+1)(UInt(1)))
+      if (nPriorities > 0) Reg(Vec(nDevices, UInt(width=prioBits)))
+      else Wire(init=Vec.fill(nDevices)(UInt(1)))
     val threshold =
       if (nPriorities > 0) Reg(Vec(nHarts, UInt(width=prioBits)))
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
-    val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
-    val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
+    val pending = Reg(init=Vec.fill(nDevices){Bool(false)})
+
+    /* Construct the enable registers, chunked into 8-bit segments to reduce verilog size */
+    val firstEnable = nDevices min 7
+    val fullEnables = (nDevices - firstEnable) / 8
+    val tailEnable  = nDevices - firstEnable - 8*fullEnables
+    def enableRegs = (Reg(UInt(width = firstEnable)) +:
+                      Seq.fill(fullEnables) { Reg(UInt(width = 8)) }) ++
+                     (if (tailEnable > 0) Some(Reg(UInt(width = tailEnable))) else None)
+    val enables = Seq.fill(nHarts) { enableRegs }
+    val enableVec = Vec(enables.map(x => Cat(x.reverse)))
+    val enableVec0 = Vec(enableVec.map(x => Cat(x, UInt(0, width=1))))
     
-    val maxDevs = Reg(Vec(nHarts, UInt(width = log2Up(pending.size))))
-    val pendingUInt =  Cat(pending.reverse)
+    val maxDevs = Reg(Vec(nHarts, UInt(width = log2Ceil(nDevices+1))))
+    val pendingUInt = Cat(pending.reverse)
     for (hart <- 0 until nHarts) {
       val fanin = Module(new PLICFanIn(nDevices, prioBits))
       fanin.io.prio := priority
-      fanin.io.ip   := Cat(enables(hart).reverse) & pendingUInt
+      fanin.io.ip   := enableVec(hart) & pendingUInt
       maxDevs(hart) := fanin.io.dev
-      harts(hart) := ShiftRegister(Reg(next = fanin.io.max) > Cat(UInt(1), threshold(hart)), params.intStages)
+      harts(hart)   := ShiftRegister(Reg(next = fanin.io.max) > threshold(hart), params.intStages)
     }
 
-    def priorityRegDesc(i: Int) = if (i > 0) {
-      RegFieldDesc(s"priority_$i", s"Acting priority of interrupt source $i",
-        reset=if (nPriorities > 0) None else Some(1),
-        wrType=Some(RegFieldWrType.MODIFY))
-    } else {
-      RegFieldDesc.reserved
-    }
-    def pendingRegDesc(i: Int) = if (i > 0) {
-      RegFieldDesc(s"pending_$i", s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.",
-      volatile = true)
-    } else {
-      RegFieldDesc.reserved
+    def priorityRegDesc(i: Int) =
+      RegFieldDesc(
+        name      = s"priority_$i",
+        desc      = s"Acting priority of interrupt source $i",
+        group     = Some("priority"),
+        groupDesc = Some("Acting priorities of each interrupt source."),
+        reset     = if (nPriorities > 0) None else Some(1))
+
+    def pendingRegDesc(i: Int) =
+      RegFieldDesc(
+        name      = s"pending_$i",
+        desc      = s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.",
+        group     = Some("pending"),
+        groupDesc = Some("Pending Bit Array. 1 Bit for each interrupt source."),
+        volatile = true)
+
+    def enableRegDesc(i: Int, j: Int, wide: Int) = {
+      val low = if (j == 0) 1 else j*8
+      val high = low + wide - 1
+      RegFieldDesc(
+        name      = s"enables_${j}",
+        desc      = "Targets ${low}-${high}. Set bits to 1 if interrupt should be enabled.",
+        group     = Some(s"enables_${i}"),
+        groupDesc = Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."))
     }
 
-    def priorityRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, priorityRegDesc(i)) else RegField.r(32, x, priorityRegDesc(i))
-    val priorityRegFields = Seq(PLICConsts.priorityBase -> RegFieldGroup("priority",
-      Some(s"Acting priorities of each interrupt source. Maximum legal value is ${nPriorities}. 32 bits for each interrupt source."),
-      priority.zipWithIndex.map{case (p, i) => priorityRegField(p, i)}))
-    val pendingRegFields = Seq(PLICConsts.pendingBase  -> RegFieldGroup("pending", Some("Pending Bit Array. 1 Bit for each interrupt source."),
-      pending.zipWithIndex.map{case (b, i) => RegField.r(1, b, pendingRegDesc(i))}))
+    def priorityRegField(x: UInt, i: Int) =
+      if (nPriorities > 0) {
+        RegField(prioBits, x, priorityRegDesc(i))
+      } else {
+        RegField.r(prioBits, x, priorityRegDesc(i))
+      }
 
- 
+    val priorityRegFields = priority.zipWithIndex.map { case (p, i) =>
+      PLICConsts.priorityBase+4*(i+1) -> Seq(priorityRegField(p, i+1)) }
+    val pendingRegFields = Seq(PLICConsts.pendingBase ->
+      (RegField(1) +: pending.zipWithIndex.map { case (b, i) => RegField.r(1, b, pendingRegDesc(i+1))}))
     val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
-      PLICConsts.enableBase(i) -> RegFieldGroup(s"enables_${i}", Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."),
-        e.zipWithIndex.map{case (b, j) => if (j > 0) {
-          RegField(1, b, RegFieldDesc(s"enable_${i}_${j}", s"Enable interrupt for source $j for target $i.", reset=None))
-        } else {
-          RegField(1, b, RegFieldDesc.reserved)
-        }})
-    }
+      PLICConsts.enableBase(i) -> (RegField(1) +: e.zipWithIndex.map { case (x, j) =>
+        RegField(x.getWidth, x, enableRegDesc(i, j, x.getWidth)) }) }
 
     // When a hart reads a claim/complete register, then the
     // device which is currently its highest priority is no longer pending.
@@ -203,7 +223,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val claiming = Seq.tabulate(nHarts){i => Mux(claimer(i), maxDevs(i), UInt(0))}.reduceLeft(_|_)
     val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).toBools)
 
-    ((pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
+    ((pending zip gateways) zip claimedDevs.tail) foreach { case ((p, g), c) =>
       g.ready := !p
       when (c || g.valid) { p := !c }
     }
@@ -219,18 +239,27 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
     val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(completerDev, nDevices+1), UInt(0))
-    (gateways zip completedDevs.toBools) foreach { case (g, c) =>
+    (gateways zip completedDevs.toBools.tail) foreach { case (g, c) =>
        g.complete := c
     }
 
-    def thresholdRegDesc(i: Int) = RegFieldDesc(s"threshold_$i", s"Interrupt & claim threshold for target $i. Maximum value is ${nPriorities}.",
-      reset=if (nPriorities > 0) None else Some(1),
-      wrType=Some(RegFieldWrType.MODIFY))
-    def thresholdRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, thresholdRegDesc(i)) else RegField.r(32, x, thresholdRegDesc(i))
+    def thresholdRegDesc(i: Int) =
+      RegFieldDesc(
+        name = s"threshold_$i",
+        desc = s"Interrupt & claim threshold for target $i. Maximum value is ${nPriorities}.",
+        reset    = if (nPriorities > 0) None else Some(1))
+
+    def thresholdRegField(x: UInt, i: Int) =
+      if (nPriorities > 0) {
+        RegField(prioBits, x, thresholdRegDesc(i))
+      } else {
+        RegField.r(prioBits, x, thresholdRegDesc(i))
+      }
 
     val hartRegFields = Seq.tabulate(nHarts) { i =>
       PLICConsts.hartBase(i) -> Seq(
         thresholdRegField(threshold(i), i),
+        RegField(32-prioBits),
         RegField(32,
           RegReadFn { valid =>
             claimer(i) := valid
@@ -240,7 +269,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0), 
                    "completerDev should be consistent for all harts")
             completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
-            completer(i) := valid && enables(i)(completerDev)
+            completer(i) := valid && enableVec0(i)(completerDev)
             Bool(true)
           },
           Some(RegFieldDesc(s"claim_complete_$i",
@@ -255,11 +284,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
-
-    priority(0) := 0
-    pending(0) := false
-    for (e <- enables)
-      e(0) := false
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
@@ -284,8 +308,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
   val io = new Bundle {
-    val prio = Vec(nDevices+1, UInt(width = prioBits)).flip
-    val ip   = UInt(width = nDevices+1).flip
+    val prio = Vec(nDevices, UInt(width = prioBits)).flip
+    val ip   = UInt(width = nDevices).flip
     val dev  = UInt(width = log2Ceil(nDevices+1))
     val max  = UInt(width = prioBits)
   }
@@ -299,9 +323,9 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
     } else (x.head, UInt(0))
   }
 
-  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.toBools zip io.prio).tail.map { case (p, x) => Cat(p, x) }
+  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.toBools zip io.prio).map { case (p, x) => Cat(p, x) }
   val (maxPri, maxDev) = findMax(effectivePriority)
-  io.max := maxPri
+  io.max := maxPri // strips the always-constant high '1' bit
   io.dev := maxDev
 }
 
