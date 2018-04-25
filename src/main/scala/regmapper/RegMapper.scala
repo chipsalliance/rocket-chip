@@ -84,6 +84,9 @@ object RegMapper
     def regIndexU(x: UInt) = if (maskBits == 0) UInt(0) else
       Cat((maskFilter zip x.toBools).filter(_._1).map(_._2).reverse)
 
+    val findex = front.bits.index & maskMatch
+    val bindex = back .bits.index & maskMatch
+
     // Protection flag for undefined registers
     val iRightReg = Array.fill(regSize) { Bool(true) }
     val oRightReg = Array.fill(regSize) { Bool(true) }
@@ -91,10 +94,10 @@ object RegMapper
     // Transform the wordmap into minimal decoded indexes, Seq[(index, bit, field)]
     val flat = wordmap.toList.map { case (word, fields) =>
       val index = regIndexI(word)
-      val uint = UInt(word, width = inBits)
       if (undefZero) {
-        iRightReg(index) = ((front.bits.index ^ uint) & maskMatch) === UInt(0)
-        oRightReg(index) = ((back .bits.index ^ uint) & maskMatch) === UInt(0)
+        val uint = UInt(word & ~mask, width = inBits)
+        iRightReg(index) = findex === uint
+        oRightReg(index) = bindex === uint
       }
       // Confirm that no field spans a word boundary
       fields foreach { case (bit, field) =>
