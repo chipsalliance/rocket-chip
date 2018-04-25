@@ -141,11 +141,12 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       gateway.io.plic
     }
 
+    val prioBits = log2Ceil(nPriorities+1)
     val priority =
-      if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))
+      if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=prioBits)))
       else Wire(init=Vec.fill(nDevices+1)(UInt(1)))
     val threshold =
-      if (nPriorities > 0) Reg(Vec(nHarts, UInt(width = log2Up(nPriorities+1))))
+      if (nPriorities > 0) Reg(Vec(nHarts, UInt(width=prioBits)))
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
     val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
     val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
@@ -153,7 +154,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val maxDevs = Reg(Vec(nHarts, UInt(width = log2Up(pending.size))))
     val pendingUInt =  Cat(pending.reverse)
     for (hart <- 0 until nHarts) {
-      val fanin = Module(new PLICFanIn(nDevices, log2Up(nPriorities+1)))
+      val fanin = Module(new PLICFanIn(nDevices, prioBits))
       fanin.io.prio := priority
       fanin.io.ip   := Cat(enables(hart).reverse) & pendingUInt
       maxDevs(hart) := fanin.io.dev
