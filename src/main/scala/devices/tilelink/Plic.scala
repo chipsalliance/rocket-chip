@@ -135,11 +135,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     require(nHarts > 0 && nHarts <= PLICConsts.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICConsts.maxHarts=${PLICConsts.maxHarts}")
 
     // For now, use LevelGateways for all TL2 interrupts
-    val gateways = Vec((false.B +: interrupts).map { case i =>
+    val gateways = (false.B +: interrupts).map { case i =>
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
       gateway.io.plic
-    })
+    }
 
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))
@@ -209,8 +209,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     // Note: PLIC doesn't care which hart reads the register.
     val claimer = Wire(Vec(nHarts, Bool()))
     assert((claimer.asUInt & (claimer.asUInt - UInt(1))) === UInt(0)) // One-Hot
-    val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
-    val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
+    val claiming = Seq.tabulate(nHarts){i => Mux(claimer(i), maxDevs(i), UInt(0))}.reduceLeft(_|_)
+    val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).toBools)
 
     ((pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
       g.ready := !p
