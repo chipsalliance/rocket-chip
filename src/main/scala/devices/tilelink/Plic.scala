@@ -73,7 +73,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       val extra = Map(
         "interrupt-controller" -> Nil,
         "riscv,ndev" -> Seq(ResourceInt(nDevices)),
-        "riscv,max-priority" -> Seq(ResourceInt(params.maxPriorities)),        
+        "riscv,max-priority" -> Seq(ResourceInt(nPriorities)),
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
     }
@@ -94,7 +94,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
   /* Negotiated sizes */
   def nDevices: Int = intnode.edges.in.map(_.source.num).sum
-  def nPriorities = min(params.maxPriorities, nDevices)
+  def minPriorities = min(params.maxPriorities, nDevices)
+  def nPriorities = (1 << log2Ceil(minPriorities+1)) - 1 // round up to next 2^n-1
   def nHarts = intnode.edges.out.map(_.source.num).sum
 
   // Assign all the devices unique ranges
