@@ -14,8 +14,14 @@ import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+/** Record a set of interrupts. */
+case class InterruptsPortAnnotation(target: ComponentName, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[ComponentName] {
+  def duplicate(n: ComponentName) = this.copy(n)
+}
+
 /** Record a case class that was used to parameterize this target. */
-case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
+case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any])
+  extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
@@ -25,7 +31,8 @@ case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) e
 }
 
 /** Record an address map. */
-case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], label: String) extends SingleTargetAnnotation[Named] {
+case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], label: String)
+  extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 
   def toUVM: String =
@@ -39,7 +46,8 @@ case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], la
 }
 
 /** Record a conversion of TL source ids to AXI4 ids. */
-case class TLToAXI4IdMapAnnotation(target: Named, mapping: Seq[TLToAXI4IdMapEntry]) extends SingleTargetAnnotation[Named] {
+case class TLToAXI4IdMapAnnotation(target: Named, mapping: Seq[TLToAXI4IdMapEntry])
+  extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
