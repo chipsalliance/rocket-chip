@@ -15,10 +15,10 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a set of interrupts. */
-case class InterruptsPortAnnotation(target: ComponentName, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(n)
+case class InterruptsPortAnnotation(target: Named, nInterrupts: Seq[Int])
+  extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named) = this.copy(n)
 }
-
 /** Record a case class that was used to parameterize this target. */
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any])
   extends SingleTargetAnnotation[Named] {
@@ -79,6 +79,13 @@ case class TopLevelPortAnnotation(
 
 /** Helper object containing methods for applying annotations to targets */
 object annotated {
+  def interrupts(component: InstanceId, interrupts: Seq[Int]): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = InterruptsPortAnnotation(
+      component.toNamed,
+      interrupts
+    )})
+  }
+
   def params[T <: Product](component: InstanceId, params: T): T = {
     annotate(ParamsChiselAnnotation(component, params))
     params
