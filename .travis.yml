@@ -8,6 +8,11 @@ cache:
     $HOME/.ivy2
     regression/install
     emulator/verilator
+    ivlsim/iverilog
+
+env:
+  global:
+    - MAKEFLAGS="-j2"
 
 # packages needed to build riscv-tools
 addons:
@@ -65,6 +70,9 @@ jobs:
     - stage: prepare cache-verilator
       script:
         - travis_wait 120 make verilator -C regression SUITE=none
+    - stage: prepare cache-iverilog
+      script:
+        - travis_wait 120 make iverilog -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8    
     - &test
@@ -95,3 +103,23 @@ jobs:
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
+      script:
+        - travis_wait 80 make ivlsim-ndebug -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+        - travis_wait 80 make ivlsim-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+        - travis_wait 80 make ivlsim-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
+    - <<: *test
+      script:
+        - travis_wait 80 make ivlsim-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G
+        - travis_wait 80 make ivlsim-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G
+    - <<: *test
+      script:
+        - travis_wait 80 make ivlsim-ndebug -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
+        - travis_wait 80 make ivlsim-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
+    - <<: *test
+      script:
+        - travis_wait 80 make ivlsim-ndebug -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
+        - travis_wait 80 make ivlsim-regression-tests -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
+    - <<: *test
+      script:
+        - travis_wait 80 make ivlsim-ndebug -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
+        - travis_wait 80 make ivlsim-regression-tests -C regression SUITE=RocketSuiteA JVM_MEMORY=3G

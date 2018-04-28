@@ -55,10 +55,12 @@ module AsyncResetReg (
    // that, yet Chisel codebase is absolutely intolerant
    // of Xs.
    
+`ifdef RANDOMIZE
+      integer                       initvar;
+      reg [31:0]                    _RAND;
+`endif
    initial begin
 `ifdef RANDOMIZE
-      integer                    initvar;
-      reg [31:0]                 _RAND;
       _RAND = {1{$random}};
 `endif // RANDOMIZE
       if (rst) begin
