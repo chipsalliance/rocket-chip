@@ -14,6 +14,10 @@ import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+/** Record a set of interrupts. */
+case class InterruptsPortAnnotation(target: Named, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named) = this.copy(n)
+}
 /** Record a case class that was used to parameterize this target. */
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
@@ -66,11 +70,27 @@ case class TopLevelPortAnnotation(
     protocol: String,
     tags: Seq[String],
     mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(n)
+  def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
+}
+
+/** Record the resetVector. */
+case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
 }
 
 /** Helper object containing methods for applying annotations to targets */
-object annotated {
+object Annotated {
+  def interrupts(component: InstanceId, interrupts: Seq[Int]): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = InterruptsPortAnnotation(
+      component.toNamed,
+      interrupts
+    )})
+  }
+
+  def resetVector(component: InstanceId, resetVec: BigInt): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = ResetVectorAnnotation(component.toNamed, resetVec)})
+  }
+
   def params[T <: Product](component: InstanceId, params: T): T = {
     annotate(ParamsChiselAnnotation(component, params))
     params
