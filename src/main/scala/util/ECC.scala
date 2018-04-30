@@ -83,46 +83,67 @@ class SECCode extends Code
     val m = log2Floor(k) + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
   }
+  def swizzle(x: UInt) = {
+    val k = x.getWidth
+    val n = width(k)
+    Cat(UInt(0, width=n-k), x)
+  }
+
+  // An (n=16, k=11) Hamming code is naturally encoded as:
+  //   PPxPxxxPxxxxxxxP where P are parity bits and x are data
+  //   Indexes typically start at 1, because then the P are on powers of two
+  // In systematic coding, you put all the data in the front:
+  //   xxxxxxxxxxxPPPPP
+  //   Indexes typically start at 0, because Computer Science
+  // For sanity when reading SRAMs, you want systematic form.
+
+  private def impl(n: Int, k: Int) = {
+    require (n >= 3 && k >= 1 && !isPow2(n))
+    val hamm2sys = IndexedSeq.tabulate(n+1) { i =>
+      if (i == 0) {
+        n /* undefined */
+      } else if (isPow2(i)) {
+        k + log2Ceil(i)
+      } else {
+        i - 1 - log2Ceil(i)
+      }
+    }
+    val sys2hamm = hamm2sys.zipWithIndex.sortBy(_._1).map(_._2).toIndexedSeq
+    def syndrome(j: Int) = {
+      val bit = 1 << j
+      UInt("b" + Seq.tabulate(n) { i =>
+        if ((sys2hamm(i) & bit) != 0) "1" else "0"
+      }.reverse.mkString)
+    }
+    (hamm2sys, sys2hamm, syndrome _)
+  }
+
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     val k = x.getWidth
-    require(k > 0)
     val n = width(k)
+    val (_, _, syndrome) = impl(n, k)
 
     require ((poison.isLit && poison.litValue == 0) || poisonous(n), s"SEC code of length ${n} cannot be poisoned")
 
-    val y = for (i <- 1 to n) yield {
-      if (isPow2(i)) {
-        val r = for (j <- 1 to n; if j != i && (j & i) != 0)
-          yield x(mapping(j))
-        r.reduce(_^_) ^ poison
-      } else
-        x(mapping(i))
-    }
-    y.asUInt
+    val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j)(k-1, 0) & x).xorR ^ poison }.asUInt
+    Cat(syndromeUInt, x)
   }
-  def swizzle(x: UInt) = {
-    val y = for (i <- 1 to width(x.getWidth))
-      yield (if (isPow2(i)) false.B else x(mapping(i)))
-    y.asUInt
-  }
+
   def decode(y: UInt) = new Decoding {
     val n = y.getWidth
-    require(n > 0 && !isPow2(n))
+    val k = n - log2Ceil(n)
+    val (_, sys2hamm, syndrome) = impl(n, k)
 
-    val p2 = for (i <- 0 until log2Up(n)) yield 1 << i
-    val syndrome = (p2 map { i =>
-      val r = for (j <- 1 to n; if (j & i) != 0)
-        yield y(j-1)
-      r reduce (_^_)
-    }).asUInt
+    val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j) & y).xorR }.asUInt
 
-    private def swizzle(z: UInt) = (1 to n).filter(i => !isPow2(i)).map(i => z(i-1)).asUInt
-    val uncorrected = swizzle(y)
-    val corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
-    val correctable = syndrome.orR
-    val uncorrectable = if (poisonous(n)) { syndrome > UInt(n) } else { Bool(false) }
+    val hammBadBitOH = UIntToOH(syndromeUInt, n+1)
+    val sysBadBitOH = Vec.tabulate(k) { i => hammBadBitOH(sys2hamm(i)) }.asUInt
+
+    val uncorrected = y(k-1, 0)
+    val corrected = uncorrected ^ sysBadBitOH
+    val correctable = syndromeUInt.orR
+    val uncorrectable = if (poisonous(n)) { syndromeUInt > UInt(n) } else { Bool(false) }
   }
-  private def mapping(i: Int) = i-1-log2Up(i)
 }
 
 class SECDEDCode extends Code
