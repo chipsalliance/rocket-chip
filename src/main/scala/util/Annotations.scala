@@ -70,16 +70,16 @@ case class TopLevelPortAnnotation(
     protocol: String,
     tags: Seq[String],
     mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(n)
+  def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
 }
 
 /** Record the resetVector. */
-case class ResetVectorAnnotation(target: Named, resetVec: Int) extends SingleTargetAnnotation[Named] {
+case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
 }
 
 /** Helper object containing methods for applying annotations to targets */
-object annotated {
+object Annotated {
   def interrupts(component: InstanceId, interrupts: Seq[Int]): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = InterruptsPortAnnotation(
       component.toNamed,
@@ -87,7 +87,7 @@ object annotated {
     )})
   }
 
-  def resetVector(component: InstanceId, resetVec: Int): Unit = {
+  def resetVector(component: InstanceId, resetVec: BigInt): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = ResetVectorAnnotation(component.toNamed, resetVec)})
   }
 
