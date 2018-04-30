@@ -43,19 +43,12 @@ entry_loop:
         csrr s0, CSR_MHARTID
         sw   s0, HALTED(zero)
         lbu  s0, FLAGS(s0) // 1 byte flag per hart. Only one hart advances here.
+        andi s0, s0, (1 << FLAG_GO) | (1 << FLAG_RESUME)
+        beqz s0, entry_loop            // Loop until either GO or RESUME is set.
+
         andi s0, s0, (1 << FLAG_GO)
-        bnez s0, going
-        csrr s0, CSR_MHARTID
-        lbu  s0, FLAGS(s0) // multiple harts can resume  here
-        andi s0, s0, (1 << FLAG_RESUME)
-        bnez s0, resume
-        jal  zero, entry_loop
+        beqz s0, _resume               // If GO is clear at this point, RESUME must be set.
 
-_exception:
-        sw      zero, EXCEPTION(zero) // Let debug module know you got an exception.
-        ebreak
-
-going:
         csrr s0, CSR_DSCRATCH          // Restore s0 here
         sw zero, GOING(zero)           // When debug module sees this write, the GO flag is reset.
         jalr zero, zero, %lo(whereto)          // Rocket-Chip has a specific hack which is that jalr in
@@ -67,6 +60,10 @@ _resume:
         sw   s0, RESUMING(zero) // When Debug Module sees this write, the RESUME flag is reset.
         csrr s0, CSR_DSCRATCH   // Restore s0
         dret
+
+_exception:
+        sw      zero, EXCEPTION(zero) // Let debug module know you got an exception.
+        ebreak
 
         // END OF ACTUAL "ROM" CONTENTS. BELOW IS JUST FOR LINKER SCRIPT.
 
