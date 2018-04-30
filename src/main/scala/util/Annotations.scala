@@ -15,13 +15,11 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a set of interrupts. */
-case class InterruptsPortAnnotation(target: Named, nInterrupts: Seq[Int])
-  extends SingleTargetAnnotation[Named] {
+case class InterruptsPortAnnotation(target: Named, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 /** Record a case class that was used to parameterize this target. */
-case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any])
-  extends SingleTargetAnnotation[Named] {
+case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
@@ -31,8 +29,7 @@ case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) e
 }
 
 /** Record an address map. */
-case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], label: String)
-  extends SingleTargetAnnotation[Named] {
+case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], label: String) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 
   def toUVM: String =
@@ -46,8 +43,7 @@ case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], la
 }
 
 /** Record a conversion of TL source ids to AXI4 ids. */
-case class TLToAXI4IdMapAnnotation(target: Named, mapping: Seq[TLToAXI4IdMapEntry])
-  extends SingleTargetAnnotation[Named] {
+case class TLToAXI4IdMapAnnotation(target: Named, mapping: Seq[TLToAXI4IdMapEntry]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
@@ -77,6 +73,11 @@ case class TopLevelPortAnnotation(
   def duplicate(n: ComponentName) = this.copy(n)
 }
 
+/** Record the resetVector. */
+case class ResetVectorAnnotation(target: Named, resetVec: Int) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
+}
+
 /** Helper object containing methods for applying annotations to targets */
 object annotated {
   def interrupts(component: InstanceId, interrupts: Seq[Int]): Unit = {
@@ -84,6 +85,10 @@ object annotated {
       component.toNamed,
       interrupts
     )})
+  }
+
+  def resetVector(component: InstanceId, resetVec: Int): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = ResetVectorAnnotation(component.toNamed, resetVec)})
   }
 
   def params[T <: Product](component: InstanceId, params: T): T = {
