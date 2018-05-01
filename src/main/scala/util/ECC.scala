@@ -157,9 +157,9 @@ class SECDEDCode extends Code
   def width(k: Int) = sec.width(k)+1
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     // toggling two bits ensures the error is uncorrectable
-    val toggle_lo = poison.asUInt // a non-data bit in SEC
-    val toggle_hi = toggle_lo << sec.width(x.getWidth) // the parity bit
-    par.encode(sec.encode(x)) ^ toggle_lo ^ toggle_hi
+    val toggle_lo = Cat(poison.asUInt, poison.asUInt)
+    val toggle_hi = toggle_lo << (sec.width(x.getWidth)-1)
+    par.encode(sec.encode(x)) ^ toggle_hi
   }
   def swizzle(x: UInt) = par.swizzle(sec.swizzle(x))
   def decode(x: UInt) = new Decoding {
