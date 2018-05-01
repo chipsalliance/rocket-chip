@@ -7,6 +7,5 @@ package freechips.rocketchip.util
   * or use this SeededRandom.fromSeed to make reproducible Scala PRNGs.
   */
 object SeededRandom {
-  val fromCurrentTime = new scala.util.Random(System.currentTimeMillis())
   val fromSeed = new scala.util.Random(42)
 }
