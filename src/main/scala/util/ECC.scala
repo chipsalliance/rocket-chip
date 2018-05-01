@@ -22,7 +22,7 @@ abstract class Code
 
   /** Encode x to a codeword suitable for decode.
    *  If poison is true, the decoded value will report uncorrectable
-   *  error despite decoding to the supplied value 'x'.
+   *  error despite uncorrected == corrected == x.
    */
   def encode(x: UInt, poison: Bool = Bool(false)): UInt
   def decode(x: UInt): Decoding
@@ -125,6 +125,7 @@ class SECCode extends Code
 
     require ((poison.isLit && poison.litValue == 0) || poisonous(n), s"SEC code of length ${n} cannot be poisoned")
 
+    /* By setting the entire syndrome on poison, the corrected bit falls off the end of the code */
     val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j)(k-1, 0) & x).xorR ^ poison }.asUInt
     Cat(syndromeUInt, x)
   }
@@ -157,6 +158,10 @@ class SECDEDCode extends Code
   def width(k: Int) = sec.width(k)+1
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     // toggling two bits ensures the error is uncorrectable
+    // to ensure corrected == uncorrected, we pick one redundant
+    // bit from SEC (the highest); correcting it does not affect
+    // corrected == uncorrected. the second toggled bit is the
+    // parity bit, which also does not appear in the decoding
     val toggle_lo = Cat(poison.asUInt, poison.asUInt)
     val toggle_hi = toggle_lo << (sec.width(x.getWidth)-1)
     par.encode(sec.encode(x)) ^ toggle_hi
