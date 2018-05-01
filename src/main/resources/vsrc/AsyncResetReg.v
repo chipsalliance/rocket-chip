@@ -39,13 +39,11 @@
 
 module AsyncResetReg (
                       input      d,
-                      output     q,
+                      output reg q,
                       input      en,
 
                       input      clk,
                       input      rst);
-
-   reg                           q_reg;
 
    // There is a lot of initialization
    // here you don't normally find in Verilog
@@ -62,7 +60,7 @@ module AsyncResetReg (
       _RAND = {1{$random}};
 `endif // RANDOMIZE
       if (rst) begin
-        q_reg = 1'b0;
+        q = 1'b0;
       end 
 `ifdef RANDOMIZE
  `ifdef RANDOMIZE_REG_INIT
@@ -74,7 +72,7 @@ module AsyncResetReg (
          // otherwise we initialize this
          // even though rst is asserted.
          if (~rst)
-           q_reg = _RAND[0];
+           q = _RAND[0];
       end
  `endif // RANDOMIZE_REG_INIT
 `endif // RANDOMIZE
@@ -83,13 +81,11 @@ module AsyncResetReg (
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
-         q_reg <= 1'b0;
+         q <= 1'b0;
       end else if (en) begin
-         q_reg <= d;
+         q <= d;
       end
    end
-
-   assign q = rst ? 1'b0 :  q_reg;
  
 endmodule // AsyncResetReg
 
