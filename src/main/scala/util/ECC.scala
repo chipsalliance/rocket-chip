@@ -183,37 +183,6 @@ object ErrGen
   def apply(x: UInt, f: Int): UInt = x ^ apply(x.getWidth, f)
 }
 
-class SECDEDTest extends Module
-{
-  val code = new SECDEDCode
-  val k = 4
-  val n = code.width(k)
-
-  val io = new Bundle {
-    val original = Bits(OUTPUT, k)
-    val encoded = Bits(OUTPUT, n)
-    val injected = Bits(OUTPUT, n)
-    val uncorrected = Bits(OUTPUT, k)
-    val corrected = Bits(OUTPUT, k)
-    val correctable = Bool(OUTPUT)
-    val uncorrectable = Bool(OUTPUT)
-  }
-
-  val c = Counter(Bool(true), 1 << k)
-  val numErrors = Counter(c._2, 3)._1
-  val e = code.encode(c._1)
-  val i = e ^ Mux(numErrors < UInt(1), UInt(0), ErrGen(n, 1)) ^ Mux(numErrors < UInt(2), UInt(0), ErrGen(n, 1))
-  val d = code.decode(i)
-
-  io.original := c._1
-  io.encoded := e
-  io.injected := i
-  io.uncorrected := d.uncorrected
-  io.corrected := d.corrected
-  io.correctable := d.correctable
-  io.uncorrectable := d.uncorrectable
-}
-
 trait CanHaveErrors extends Bundle {
   val correctable: Option[ValidIO[UInt]]
   val uncorrectable: Option[ValidIO[UInt]]
@@ -228,5 +197,55 @@ object Code {
     case "sec" => new SECCode
     case "secded" => new SECDEDCode
     case _ => throw new IllegalArgumentException("Unknown ECC type")
+  }
+}
+
+/** Synthesizeable unit tests */
+import freechips.rocketchip.unittest._
+
+class ECCTest(k: Int, timeout: Int = 500000) extends UnitTest(timeout) {
+  val code = new SECDEDCode
+  val n = code.width(k)
+
+  // Brute force the decode space
+  val test = RegInit(UInt(0, width=n+1))
+  val last = test(n)
+  test := test + !last
+  io.finished := RegNext(last, Bool(false))
+
+  // Confirm the decoding matches the encoding
+  val decoded = code.decode(test(n-1, 0))
+  val recoded = code.encode(decoded.corrected)
+  val distance = PopCount(recoded ^ test)
+
+  // Count the cases
+  val correct = RegInit(UInt(0, width=n))
+  val correctable = RegInit(UInt(0, width=n))
+  val uncorrectable = RegInit(UInt(0, width=n))
+
+  when (!last) {
+    when (decoded.uncorrectable) {
+      assert (distance >= UInt(2)) // uncorrectable
+      uncorrectable := uncorrectable + UInt(1)
+    } .elsewhen (decoded.correctable) {
+      assert (distance(0)) // correctable => odd bit errors
+      correctable := correctable + UInt(1)
+    } .otherwise {
+      assert (distance === UInt(0)) // correct
+      assert (decoded.uncorrected === decoded.corrected)
+      correct := correct + UInt(1)
+    }
+  }
+
+  // Expected number of each case
+  val nCodes = BigInt(1) << n
+  val nCorrect = BigInt(1) << k
+  val nCorrectable = nCodes / 2
+  val nUncorrectable = nCodes - nCorrectable - nCorrect
+
+  when (last) {
+    assert (correct === UInt(nCorrect))
+    assert (correctable === UInt(nCorrectable))
+    assert (uncorrectable === UInt(nUncorrectable))
   }
 }
