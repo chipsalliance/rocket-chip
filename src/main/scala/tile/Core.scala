@@ -32,6 +32,7 @@ trait CoreParams {
   val nBreakpoints: Int
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
+  val haveFSDirty: Boolean
   val misaWritable: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]

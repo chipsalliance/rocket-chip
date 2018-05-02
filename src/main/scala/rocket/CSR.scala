@@ -200,6 +200,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
+  val set_fs_dirty = coreParams.haveFSDirty.option(Bool(INPUT))
   val rocc_interrupt = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
@@ -615,9 +616,18 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
   }})
 
+  val set_fs_dirty = Wire(init = io.set_fs_dirty.getOrElse(false.B))
+  if (coreParams.haveFSDirty) {
+    when (set_fs_dirty) {
+      assert(reg_mstatus.fs > 0)
+      reg_mstatus.fs := 3
+    }
+  }
+
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
     reg_fflags := reg_fflags | io.fcsr_flags.bits
+    set_fs_dirty := true
   }
 
   when (io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)) {
@@ -641,7 +651,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         }
       }
 
-      if (usingVM || usingFPU) reg_mstatus.fs := Fill(2, new_mstatus.fs.orR)
+      if (usingVM || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
     when (decoded_addr(CSRs.misa)) {
@@ -683,9 +693,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
 
     if (usingFPU) {
-      when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
-      when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
-      when (decoded_addr(CSRs.fcsr))   { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+      when (decoded_addr(CSRs.fflags)) { set_fs_dirty := true; reg_fflags := wdata }
+      when (decoded_addr(CSRs.frm))    { set_fs_dirty := true; reg_frm := wdata }
+      when (decoded_addr(CSRs.fcsr))   { set_fs_dirty := true; reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
     }
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
@@ -707,7 +717,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_mstatus.spp := new_sstatus.spp
         reg_mstatus.mxr := new_sstatus.mxr
         reg_mstatus.sum := new_sstatus.sum
-        reg_mstatus.fs := Fill(2, new_sstatus.fs.orR) // even without an FPU
+        reg_mstatus.fs := formFS(new_sstatus.fs)
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
@@ -854,4 +864,5 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def readEPC(x: UInt) = ~(~x | Mux(reg_misa('c' - 'a'), 1.U, 3.U))
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
+  def formFS(fs: UInt) = if (coreParams.haveFSDirty) fs else Fill(2, fs.orR)
 }
