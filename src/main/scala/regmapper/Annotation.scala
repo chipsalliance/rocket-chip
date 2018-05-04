@@ -24,12 +24,12 @@ case class RegFieldDescSer(
 )
 
 case class RegFieldSer(
-  regFieldName: String,
   desc: RegFieldDescSer
 )
 
 case class RegistersSer(
   displayName: String,
+  deviceName: String,
   baseAddress: BigInt,
   regFields: Seq[RegFieldSer]
 )

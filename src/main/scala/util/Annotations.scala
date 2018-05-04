@@ -169,7 +169,6 @@ object GenRegDescsAnno {
     )
 
     RegFieldSer(
-      moduleName, //selectedName,
       regFieldDescSer
     )
   }
@@ -201,6 +200,7 @@ object GenRegDescsAnno {
 
     val registersSer = RegistersSer(
       displayName = moduleName,
+      deviceName = moduleName,
       baseAddress = baseAddress,
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
