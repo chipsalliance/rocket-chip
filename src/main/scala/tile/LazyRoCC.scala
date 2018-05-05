@@ -12,17 +12,9 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.InOrderArbiter
 
-case object RoccNPTWPorts extends Field[Int]
-case object BuildRoCC extends Field[Seq[RoCCParams]]
+case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 
-case class RoCCParams(
-  opcodes: OpcodeSet,
-  generator: Parameters => LazyRoCC,
-  nPTWPorts : Int = 0,
-  useFPU: Boolean = false)
-
-class RoCCInstruction extends Bundle
-{
+class RoCCInstruction extends Bundle {
   val funct = Bits(width = 7)
   val rs2 = Bits(width = 5)
   val rs1 = Bits(width = 5)
@@ -54,37 +46,36 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val exception = Bool(INPUT)
 }
 
-/** Base classes for Diplomatic TL2 RoCC units **/
-abstract class LazyRoCC(implicit p: Parameters) extends LazyModule {
-  val module: LazyRoCCModule
-
-  val atlNode: TLNode = TLIdentityNode()
-  val tlNode: TLNode = TLIdentityNode()
-}
-
-class RoCCIO(val outer: LazyRoCC)(implicit p: Parameters) extends RoCCCoreIO()(p) {
-  // Should be handled differently, eventually
-  val ptw = Vec(p(RoccNPTWPorts), new TLBPTWIO)
+class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p) {
+  val ptw = Vec(nPTWPorts, new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Decoupled(new FPResult).flip
 }
 
-class LazyRoCCModule(outer: LazyRoCC) extends LazyModuleImp(outer) {
-  val io = IO(new RoCCIO(outer))
+/** Base classes for Diplomatic TL2 RoCC units **/
+abstract class LazyRoCC(
+      val opcodes: OpcodeSet,
+      val nPTWPorts: Int = 0,
+      val usesFPU: Boolean = false
+    )(implicit p: Parameters) extends LazyModule {
+  val module: LazyRoCCModuleImp
+  val atlNode: TLNode = TLIdentityNode()
+  val tlNode: TLNode = TLIdentityNode()
+}
+
+class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
+  val io = IO(new RoCCIO(outer.nPTWPorts))
 }
 
 /** Mixins for including RoCC **/
 
 trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
-  val roccs = p(BuildRoCC).zipWithIndex.map { case (accelParams, i) =>
-    accelParams.generator(p.alterPartial({
-      case RoccNPTWPorts => accelParams.nPTWPorts
-  }))}
+  val roccs = p(BuildRoCC).map(_(p))
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
 
-  nPTWPorts += p(BuildRoCC).map(_.nPTWPorts).foldLeft(0)(_ + _)
+  nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
   nDCachePorts += roccs.size
 }
 
@@ -93,16 +84,10 @@ trait HasLazyRoCCModule[+L <: BaseTile with HasLazyRoCC] extends CanHavePTWModul
 
   val roccCore = Wire(new RoCCCoreIO()(outer.p))
 
-  val buildRocc = outer.p(BuildRoCC)
-  val usingRocc = !buildRocc.isEmpty
-  val nRocc = buildRocc.size
-  val nFPUPorts = buildRocc.filter(_.useFPU).size
-  val roccOpcodes = buildRocc.map(_.opcodes)
-
-  if(usingRocc) {
-    val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), nRocc))
+  if(outer.roccs.size > 0) {
+    val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
     roccCore.resp <> respArb.io.out
-    val cmdRouter = Module(new RoccCommandRouter(roccOpcodes)(outer.p))
+    val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
     cmdRouter.io.in <> roccCore.cmd
 
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
@@ -118,11 +103,10 @@ trait HasLazyRoCCModule[+L <: BaseTile with HasLazyRoCC] extends CanHavePTWModul
     roccCore.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
 
     fpuOpt foreach { fpu =>
+      val nFPUPorts = outer.roccs.filter(_.usesFPU).size
       if (usingFPU && nFPUPorts > 0) {
         val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
-        val fp_rocc_ios = outer.roccs.zip(buildRocc)
-          .filter { case (_, params) => params.useFPU }
-          .map { case (rocc, _) => rocc.module.io }
+        val fp_rocc_ios = outer.roccs.filter { _.usesFPU } .map { _.module.io }
         fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
         fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
           case (rocc, arb) => rocc.fpu_resp <> arb
@@ -137,23 +121,23 @@ trait HasLazyRoCCModule[+L <: BaseTile with HasLazyRoCC] extends CanHavePTWModul
   }
 }
 
-class  AccumulatorExample(implicit p: Parameters) extends LazyRoCC {
-  override lazy val module = new AccumulatorExampleModule(this)
+class  AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parameters) extends LazyRoCC(opcodes) {
+  override lazy val module = new AccumulatorExampleModuleImp(this)
 }
 
-class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p: Parameters) extends LazyRoCCModule(outer)
-  with HasCoreParameters {
-  val regfile = Mem(n, UInt(width = xLen))
-  val busy = Reg(init = Vec.fill(n){Bool(false)})
+class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
+    with HasCoreParameters {
+  val regfile = Mem(outer.n, UInt(width = xLen))
+  val busy = Reg(init = Vec.fill(outer.n){Bool(false)})
 
   val cmd = Queue(io.cmd)
   val funct = cmd.bits.inst.funct
-  val addr = cmd.bits.rs2(log2Up(n)-1,0)
+  val addr = cmd.bits.rs2(log2Up(outer.n)-1,0)
   val doWrite = funct === UInt(0)
   val doRead = funct === UInt(1)
   val doLoad = funct === UInt(2)
   val doAccum = funct === UInt(3)
-  val memRespTag = io.mem.resp.bits.tag(log2Up(n)-1,0)
+  val memRespTag = io.mem.resp.bits.tag(log2Up(outer.n)-1,0)
 
   // datapath
   val addend = cmd.bits.rs1
@@ -206,12 +190,12 @@ class AccumulatorExampleModule(outer: AccumulatorExample, n: Int = 4)(implicit p
   io.mem.invalidate_lr := Bool(false)
 }
 
-class  TranslatorExample(implicit p: Parameters) extends LazyRoCC {
-  override lazy val module = new TranslatorExampleModule(this)
+class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes, nPTWPorts = 1) {
+  override lazy val module = new TranslatorExampleModuleImp(this)
 }
 
-class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
-  with HasCoreParameters {
+class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
+    with HasCoreParameters {
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
   val req_rd = Reg(io.resp.bits.rd)
   val req_offset = req_addr(pgIdxBits - 1, 0)
@@ -252,12 +236,12 @@ class TranslatorExampleModule(outer: TranslatorExample)(implicit p: Parameters) 
   io.mem.req.valid := Bool(false)
 }
 
-class  CharacterCountExample(implicit p: Parameters) extends LazyRoCC {
-  override lazy val module = new CharacterCountExampleModule(this)
+class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes) {
+  override lazy val module = new CharacterCountExampleModuleImp(this)
   override val atlNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("CharacterCountRoCC")))))
 }
 
-class CharacterCountExampleModule(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModule(outer)
+class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
   with HasCoreParameters
   with HasL1CacheParameters {
   val cacheParams = tileParams.icache.get
