@@ -13,6 +13,7 @@ the RISC-V Rocket Core. For more information on Rocket Chip, please consult our 
     + [Mapping a Rocket core down to an FPGA](#fpga)
     + [Pushing a Rocket core through the VLSI tools](#vlsi)
 + [How can I parameterize my Rocket chip?](#param)
++ [Debugging with GDB](#debug)
 + [Contributors](#contributors)
 
 ## <a name="quick"></a> Quick Instructions
@@ -446,6 +447,181 @@ you can create your own Configuration(s) and compose them with Config's ++ opera
     class MyConfig extends Config (new WithNExtInterrupts(16) ++ new DefaultSmallConfig)
 
 Then you can build as usual with CONFIG=MyConfig.
+
+## <a name="debug"></a> Debugging with GDB
+
+### 1) Generating the RBB emulator
+
+The objective of this section is to use GNU debugger to debug programs RISC-V programs running on the emulator in the same fashion as in [Spike](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
+
+For that we need to build a Remote Bit Bang enabled emulator, this could be any of the listed configurations in `rocket-chip/src/main/scala/system/Configs.scala`. Basically all we need is to extend our configuration with JtagDTMSystem that will deal with program loading and interface with the debugger. In the following example we added this extention to the DefaultConfig one.
+
+    class DefaultConfigRBB extends Config(
+    new WithJtagDTMSystem ++ new WithNBigCores(1) ++ new BaseConfig)
+
+    class QuadCoreConfigRBB extends Config(
+    new WithJtagDTMSystem ++ new WithNBigCores(4) ++ new BaseConfig)
+
+To build the configuration we use the command:
+
+    rocket-chip$ cd emulator
+    emulator$ CONFIG=DefaultConfigRBB make
+
+By default the emulator is generated under the name `emulator-freechips.rocketchip.system-DefaultConfigRBB`.
+
+### 2) Compiling the executable
+
+We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests).
+
+In our case we will use the following example:
+
+```
+char text[] = "Vafgehpgvba frgf jnag gb or serr!";
+
+// Don't use the stack, because sp isn't set up.
+volatile int wait = 1;
+
+int main()
+{
+    while (wait)
+        ;
+
+    // Doesn't actually go on the stack, because there are lots of GPRs.
+    int i = 0;
+    while (text[i]) {
+        char lower = text[i] | 32;
+        if (lower >= 'a' && lower <= 'm')
+            text[i] += 13;
+        else if (lower > 'm' && lower <= 'z')
+            text[i] -= 13;
+        i++;
+    }
+
+    while (!wait)
+        ;
+}
+```
+Do not forget to compile with `-g -Og` flags to provide debugging support just as explained [here](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
+
+### 3) Launch the emulator
+
+We can then launch the emulator with
+
+    ./emulator-freechips.rocketchip.system-DefaultConfigRBB +jtag_rbb_enable=1 --rbb-port=9823 helloworld
+	This emulator compiled with JTAG Remote Bitbang client. To enable, use +jtag_rbb_enable=1.
+	Listening on port 9823
+	Attempting to accept client socket
+
+### 4) Launch OpenOCD
+
+We first need to ensure the OpenOCD has been generated. Generally it is in `$(RISCV)/bin/openocd`. We then define a configuration file that is going to define the RBB port we will use, which is in our case `9823`.
+
+    $ cat cemulator.cfg 
+    interface remote_bitbang
+    remote_bitbang_host localhost
+    remote_bitbang_port 9823
+
+    set _CHIPNAME riscv
+    jtag newtap $_CHIPNAME cpu -irlen 5
+
+    set _TARGETNAME $_CHIPNAME.cpu
+    target create $_TARGETNAME riscv -chain-position $_TARGETNAME
+
+    gdb_report_data_abort enable
+
+    init
+    halt
+
+Then we launch OpenOCD in another terminal using the command
+    
+    $ openocd -f ./cemulator.cfg
+    Open On-Chip Debugger 0.10.0+dev-00112-g3c1c6e0 (2018-04-12-10:40)
+    Licensed under GNU GPL v2
+    For bug reports, read
+    http://openocd.org/doc/doxygen/bugs.html
+    Warn : Adapter driver 'remote_bitbang' did not declare which transports it allows; assuming legacy JTAG-only
+    Info : only one transport option; autoselect 'jtag'
+    Info : Initializing remote_bitbang driver
+    Info : Connecting to localhost:9823
+    Info : remote_bitbang driver initialized
+    Info : This adapter doesn't support configurable speed
+    Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 (mfg: 0x000 (<invalid>), part: 0x0000, ver: 0x0)
+    Info : datacount=2 progbufsize=16
+    Info : Disabling abstract command reads from CSRs.
+    Info : Disabling abstract command writes to CSRs.
+    Info : [0] Found 1 triggers
+    Info : Examined RISC-V core; found 1 harts
+    Info :  hart 0: XLEN=64, 1 triggers
+    Info : Listening on port 3333 for gdb connections
+    Info : Listening on port 6666 for tcl connections
+    Info : Listening on port 4444 for telnet connections
+    
+### 5) Launch GDB
+
+Launch GDB in another terminal using
+
+    $ riscv64-unknown-elf-gdb helloworld
+    GNU gdb (GDB) 8.0.50.20170724-git
+    Copyright (C) 2017 Free Software Foundation, Inc.
+    License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+    This is free software: you are free to change and redistribute it.
+    There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+    and "show warranty" for details.
+    This GDB was configured as "--host=x86_64-pc-linux-gnu --target=riscv64-unknown-elf".
+    Type "show configuration" for configuration details.
+    For bug reporting instructions, please see:
+    <http://www.gnu.org/software/gdb/bugs/>.
+    Find the GDB manual and other documentation resources online at:
+    <http://www.gnu.org/software/gdb/documentation/>.
+    For help, type "help".
+    Type "apropos word" to search for commands related to "word"...
+    Reading symbols from ./proj1.out...done.
+    (gdb)
+
+Compared to Spike, the C Emulator is very slow, so several problems are encountered due to timeouts between issuing commands and response from the emulator. Thats why we should increase the `remotetimeout`.
+
+After that we load our program by performing a `load` command.
+
+ 	(gdb) set remotetimeout 2000
+ 	(gdb) target remote localhost:3333
+ 	Remote debugging using localhost:3333
+ 	0x0000000000010050 in ?? ()
+ 	(gdb) load
+ 	Loading section .text.init, size 0x2cc lma 0x80000000
+ 	Loading section .tohost, size 0x48 lma 0x80001000
+ 	Loading section .text, size 0x98c lma 0x80001048
+ 	Loading section .rodata, size 0x158 lma 0x800019d4
+ 	Loading section .rodata.str1.8, size 0x20 lma 0x80001b30
+ 	Loading section .data, size 0x22 lma 0x80001b50
+ 	Loading section .sdata, size 0x4 lma 0x80001b74
+ 	Start address 0x80000000, load size 3646
+ 	Transfer rate: 40 bytes/sec, 520 bytes/write.
+  	(gdb) 
+
+Now we can proceed as with Spike, debugging works in a similar way:
+
+	(gdb) target remote localhost:3333
+	Remote debugging using localhost:3333
+	0x000000008000104c in main (argc=0, argv=0x0) at src/main.c:16
+	16	    while (wait)
+	(gdb) print wait
+	$1 = 1
+	(gdb) print wait=0
+	$2 = 0
+	(gdb) print text
+	$3 = "Vafgehpgvba frgf jnag gb or serr!"
+	(gdb) c
+	Continuing.
+
+	^C
+	Program received signal SIGINT, Interrupt.
+	main (argc=0, argv=<optimized out>) at src/main.c:33
+	33	    while (!wait)
+	(gdb) print wait
+	$4 = 0
+	(gdb) print text
+	$5 = "Instruction sets want to be free!"
+	(gdb)
 
 ## <a name="contributors"></a> Contributors
 
