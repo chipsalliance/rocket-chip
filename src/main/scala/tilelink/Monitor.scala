@@ -261,6 +261,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (sink_ok, "'D' channel Grant carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel Grant smaller than a beat" + extra)
       assert (TLPermissions.isCap(bundle.param), "'D' channel Grant carries invalid cap param" + extra)
+      assert (bundle.param =/= TLPermissions.toN, "'D' channel Grant carries toN param" + extra)
     }
 
     when (bundle.opcode === TLMessages.GrantData) {
@@ -268,6 +269,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
       assert (sink_ok, "'D' channel GrantData carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel GrantData smaller than a beat" + extra)
       assert (TLPermissions.isCap(bundle.param), "'D' channel GrantData carries invalid cap param" + extra)
+      assert (bundle.param =/= TLPermissions.toN, "'D' channel GrantData carries toN param" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
