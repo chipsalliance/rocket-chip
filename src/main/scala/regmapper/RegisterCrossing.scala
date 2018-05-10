@@ -197,7 +197,8 @@ object AsyncRWSlaveRegField {
     width:  Int,
     init: Int,
     name: Option[String] = None,
-    master_bypass: Bool = Bool(true)
+    master_bypass: Bool = Bool(true),
+    desc: Option[RegFieldDesc] = None
   ): (UInt, RegField) = {
 
     val async_slave_reg = Module(new AsyncResetRegVec(width, init))
@@ -228,6 +229,6 @@ object AsyncRWSlaveRegField {
 
     rd_crossing.io.slave_register := async_slave_reg.io.q
 
-    (async_slave_reg.io.q, RegField(width, rd_crossing.io.master_port, wr_crossing.io.master_port))
+    (async_slave_reg.io.q, RegField(width, rd_crossing.io.master_port, wr_crossing.io.master_port, desc))
   }
 }
