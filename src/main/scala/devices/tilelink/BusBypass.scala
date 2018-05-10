@@ -121,8 +121,9 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
     in.d.bits.size   := Mux(bypass, out0.d.bits.size,   out1.d.bits.size)
     in.d.bits.source := Mux(bypass, out0.d.bits.source, out1.d.bits.source)
     in.d.bits.sink   := Mux(bypass, out0.d.bits.sink,   out1.d.bits.sink)
+    in.d.bits.denied := Mux(bypass, out0.d.bits.denied, out1.d.bits.denied)
     in.d.bits.data   := Mux(bypass, out0.d.bits.data,   out1.d.bits.data)
-    in.d.bits.error  := Mux(bypass, out0.d.bits.error,  out1.d.bits.error)
+    in.d.bits.corrupt:= Mux(bypass, out0.d.bits.corrupt,out1.d.bits.corrupt)
 
     if (bce) {
       out0.b.ready := in.b.ready &&  bypass
@@ -136,6 +137,7 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
       in.b.bits.address:= Mux(bypass, out0.b.bits.address,out1.b.bits.address)
       in.b.bits.mask   := Mux(bypass, out0.b.bits.mask,   out1.b.bits.mask)
       in.b.bits.data   := Mux(bypass, out0.b.bits.data,   out1.b.bits.data)
+      in.b.bits.corrupt:= Mux(bypass, out0.b.bits.corrupt,out1.b.bits.corrupt)
 
       out0.c.valid := in.c.valid &&  bypass
       out1.c.valid := in.c.valid && !bypass

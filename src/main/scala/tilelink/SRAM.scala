@@ -65,6 +65,7 @@ class TLRAM(
     val d_address   = Reg(UInt(width = addrBits.size))
     val d_rmw_mask  = Reg(UInt(width = beatBytes))
     val d_rmw_data  = Reg(UInt(width = 8*beatBytes))
+    val d_poison    = Reg(Bool())
 
     // Decode raw unregistered SRAM output
     val d_raw_data      = Wire(Vec(lanes, Bits(width = width)))
@@ -86,7 +87,7 @@ class TLRAM(
     val (d_wb_lanes, d_wb_poison) = Seq.tabulate(lanes) { i =>
       val upd = d_rmw_mask(eccBytes*(i+1)-1, eccBytes*i)
       (upd.orR || d_correctable(i),
-       !upd.andR && d_uncorrectable(i)) // sub-lane writes should not correct uncorrectable
+       (!upd.andR && d_uncorrectable(i)) || d_poison) // sub-lane writes should not correct uncorrectable
     }.unzip
     val d_wb = d_rmw_mask.orR || (d_ram_valid && d_need_fix)
 
@@ -94,14 +95,15 @@ class TLRAM(
     val d_held_data = RegEnable(d_corrected, d_ram_valid)
     val d_held_error = RegEnable(d_error, d_ram_valid)
 
-    in.d.bits.opcode := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
-    in.d.bits.param  := UInt(0)
-    in.d.bits.size   := d_size
-    in.d.bits.source := d_source
-    in.d.bits.sink   := UInt(0)
+    in.d.bits.opcode  := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
+    in.d.bits.param   := UInt(0)
+    in.d.bits.size    := d_size
+    in.d.bits.source  := d_source
+    in.d.bits.sink    := UInt(0)
+    in.d.bits.denied  := Bool(false)
     // It is safe to use uncorrected data here because of d_pause
-    in.d.bits.data   := Mux(d_ram_valid, d_uncorrected, d_held_data)
-    in.d.bits.error  := !d_legal || Mux(d_ram_valid, d_error, d_held_error)
+    in.d.bits.data    := Mux(d_ram_valid, d_uncorrected, d_held_data)
+    in.d.bits.corrupt := !d_legal || Mux(d_ram_valid, d_error, d_held_error)
 
     // Formulate a response only when SRAM output is unused or correct
     val d_pause = d_read && d_ram_valid && d_need_fix
@@ -137,6 +139,7 @@ class TLRAM(
       d_read      := a_read
       d_address   := a_address
       d_rmw_mask  := UInt(0)
+      d_poison    := in.a.bits.corrupt
       when (!a_read && a_sublane) {
         d_rmw_mask := in.a.bits.mask
         d_rmw_data := in.a.bits.data
@@ -153,7 +156,7 @@ class TLRAM(
     val addr   = Mux(d_wb, d_address, a_address)
     val sel    = Mux(d_wb, Vec(d_wb_lanes), Vec(a_lanes))
     val dat    = Mux(d_wb, d_wb_data, a_data)
-    val poison = Mux(d_wb, Vec(d_wb_poison), Vec.fill(lanes) { Bool(false) })
+    val poison = Mux(d_wb, Vec(d_wb_poison), Vec.fill(lanes) { in.a.bits.corrupt })
     val coded  = Vec((dat zip poison) map { case (d, p) =>
       if (code.canDetect) code.encode(d, p) else code.encode(d)
     })

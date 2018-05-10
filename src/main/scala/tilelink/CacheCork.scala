@@ -83,7 +83,8 @@ class TLCacheCork(unsafe: Boolean = false)(implicit p: Parameters) extends LazyM
         fromSource = in.c.bits.source << 1,
         toAddress  = in.c.bits.address,
         lgSize     = in.c.bits.size,
-        data       = in.c.bits.data)._2
+        data       = in.c.bits.data,
+        corrupt    = in.c.bits.corrupt)._2
 
       // Releases without Data succeed instantly
       val c_d = Wire(in.d)

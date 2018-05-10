@@ -24,6 +24,10 @@ case class TLManagerParameters(
   supportsPutFull:    TransferSizes = TransferSizes.none,
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       TransferSizes = TransferSizes.none,
+  // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
+  mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
+  mayDenyPut:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
+                                       // ReleaseAck may NEVER be denied
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   fifoId:             Option[Int] = None)
@@ -94,6 +98,8 @@ case class TLManagerPortParameters(
   // Bounds on required sizes
   def maxAddress  = managers.map(_.maxAddress).max
   def maxTransfer = managers.map(_.maxTransfer).max
+  def mayDenyGet = managers.exists(_.mayDenyGet)
+  def mayDenyPut = managers.exists(_.mayDenyPut)
   
   // Operation sizes supported by all outward Managers
   val allSupportAcquireT   = managers.map(_.supportsAcquireT)  .reduce(_ intersect _)

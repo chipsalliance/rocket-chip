@@ -36,7 +36,9 @@ abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
       supportsArithmetic = atom,
       supportsLogical    = atom,
       supportsHint       = xfer,
-      fifoId             = Some(0))), // requests are handled in order
+      fifoId             = Some(0),
+      mayDenyGet         = true,
+      mayDenyPut         = true)), // requests are handled in order
     beatBytes  = beatBytes,
     endSinkId  = 1, // can receive GrantAck
     minLatency = 1))) // no bypass needed for this device
@@ -66,8 +68,9 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
     da.bits.size    := a.bits.size
     da.bits.source  := a.bits.source
     da.bits.sink    := UInt(0)
+    da.bits.denied  := Bool(true)
     da.bits.data    := UInt(0)
-    da.bits.error   := Bool(true)
+    da.bits.corrupt := edge.hasData(da.bits)
 
     if (params.acquire) {
       val c = Queue(in.c, 1)
@@ -79,13 +82,15 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
       c.ready := (dc.ready && dc_last) || !c_last
       dc.valid := c.valid && c_last
 
-      dc.bits.opcode := ReleaseAck
-      dc.bits.param  := Vec(toB, toN, toN)(c.bits.param)
-      dc.bits.size   := c.bits.size
-      dc.bits.source := c.bits.source
-      dc.bits.sink   := UInt(0)
-      dc.bits.data   := UInt(0)
-      dc.bits.error  := Bool(true)
+      // ReleaseAck is not allowed to report failure
+      dc.bits.opcode  := ReleaseAck
+      dc.bits.param   := Vec(toB, toN, toN)(c.bits.param)
+      dc.bits.size    := c.bits.size
+      dc.bits.source  := c.bits.source
+      dc.bits.sink    := UInt(0)
+      dc.bits.denied  := Bool(false)
+      dc.bits.data    := UInt(0)
+      dc.bits.corrupt := Bool(false)
 
       // Combine response channels
       TLArbiter.lowest(edge, in.d, dc, da)
