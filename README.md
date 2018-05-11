@@ -520,7 +520,9 @@ We can then launch the emulator with
 
 You can also use the `emulator-freechips.rocketchip.system-DefaultConfigRBB-debug` version instead if you would like to generate VCD waveforms.
 
-Please note that if the argument `--rbb-port` is not passed, a default free TCP port on your computer will be chosen randomly. 
+Please note that if the argument `--rbb-port` is not passed, a default free TCP port on your computer will be chosen randomly.
+
+Please note also that when debugging with GDB, the .elf file is not actually loaded by the FESVR. In contrast with Spike, it must  be loaded from GDB as explained in step 5. So the `helloworld` argument may be replaced by any dummy name.
 
 ### 4) Launch OpenOCD
 
