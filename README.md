@@ -450,11 +450,11 @@ Then you can build as usual with CONFIG=MyConfig.
 
 ## <a name="debug"></a> Debugging with GDB
 
-### 1) Generating the RBB emulator
+### 1) Generating the Remote Bit-Bang (RBB) Emulator
 
-The objective of this section is to use GNU debugger to debug programs RISC-V programs running on the emulator in the same fashion as in [Spike](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
+The objective of this section is to use GNU debugger to debug RISC-V programs running on the emulator in the same fashion as in [Spike](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
 
-For that we need to build a Remote Bit Bang enabled emulator, this could be any of the listed configurations in `rocket-chip/src/main/scala/system/Configs.scala`. Basically all we need is to extend our configuration with JtagDTMSystem that will deal with program loading and interface with the debugger. In the following example we added this extention to the DefaultConfig one.
+For that we need to add a Remote Bit-Bang client to the emulator. We can do so by extending our Config with JtagDTMSystem, which will add a DebugTransportModuleJTAG to the DUT and connect a SimJTAG module in the Test Harness. This will allow OpenOCD to interface with the emulator, and GDB can interface with OpenOCD. In the following example we added this Config extension to the DefaultConfig:
 
     class DefaultConfigRBB extends Config(
     new WithJtagDTMSystem ++ new WithNBigCores(1) ++ new BaseConfig)
@@ -462,12 +462,18 @@ For that we need to build a Remote Bit Bang enabled emulator, this could be any 
     class QuadCoreConfigRBB extends Config(
     new WithJtagDTMSystem ++ new WithNBigCores(4) ++ new BaseConfig)
 
-To build the configuration we use the command:
+To build the emulator with `DefaultConfigRBB` configuration we use the command:
 
     rocket-chip$ cd emulator
     emulator$ CONFIG=DefaultConfigRBB make
 
-By default the emulator is generated under the name `emulator-freechips.rocketchip.system-DefaultConfigRBB`.
+We can also build a debug version capable of generating VCD waveforms using the command:
+
+    emulator$ CONFIG=DefaultConfigRBB make debug
+
+By default the emulator is generated under the name `emulator-freechips.rocketchip.system-DefaultConfigRBB` in the first case and `emulator-freechips.rocketchip.system-DefaultConfigRBB-debug` in the second.
+
+Please note that generated VCD waveforms can be very voluminous depending on the size of the .elf file (i.e. code size + debugging symbols). If you need only to execute your program and get output, you may need to strip the .elf file. Make sure you keep `tohost` and `fromhost` because these are necessary in the HTIF interface.
 
 ### 2) Compiling the executable
 
@@ -512,9 +518,13 @@ We can then launch the emulator with
 	Listening on port 9823
 	Attempting to accept client socket
 
+You can also use the `emulator-freechips.rocketchip.system-DefaultConfigRBB-debug` version instead if you would like to generate VCD waveforms.
+
+Please note that if the argument `--rbb-port` is not passed, a default free TCP port on your computer will be chosen randomly. 
+
 ### 4) Launch OpenOCD
 
-We first need to ensure the OpenOCD has been generated. Generally it is in `$(RISCV)/bin/openocd`. We then define a configuration file that is going to define the RBB port we will use, which is in our case `9823`.
+You will need a RISC-V Enabled OpenOCD binary. This is installed with riscv-tools in `$(RISCV)/bin/openocd`, or can be compiled manually from riscv-openocd. OpenOCD requires a configuration file, in which we define the RBB port we will use, which is in our case `9823`.
 
     $ cat cemulator.cfg 
     interface remote_bitbang
@@ -534,7 +544,7 @@ We first need to ensure the OpenOCD has been generated. Generally it is in `$(RI
 
 Then we launch OpenOCD in another terminal using the command
     
-    $ openocd -f ./cemulator.cfg
+    $(RISCV)/bin/openocd -f ./cemulator.cfg
     Open On-Chip Debugger 0.10.0+dev-00112-g3c1c6e0 (2018-04-12-10:40)
     Licensed under GNU GPL v2
     For bug reports, read
@@ -555,10 +565,12 @@ Then we launch OpenOCD in another terminal using the command
     Info : Listening on port 3333 for gdb connections
     Info : Listening on port 6666 for tcl connections
     Info : Listening on port 4444 for telnet connections
+
+A `-d` flag can be added to the command to show further debug information.
     
 ### 5) Launch GDB
 
-Launch GDB in another terminal using
+In another terminal launch GDB and point to the elf file you would like to load then run it with the debugger (in this example, `helloworld`):
 
     $ riscv64-unknown-elf-gdb helloworld
     GNU gdb (GDB) 8.0.50.20170724-git
@@ -578,9 +590,9 @@ Launch GDB in another terminal using
     Reading symbols from ./proj1.out...done.
     (gdb)
 
-Compared to Spike, the C Emulator is very slow, so several problems are encountered due to timeouts between issuing commands and response from the emulator. Thats why we should increase the `remotetimeout`.
+Compared to Spike, the C Emulator is very slow, so several problems may be encountered due to timeouts between issuing commands and response from the emulator. To solve this problem, we increase the timeout with the GDB `set remotetimeout` command.
 
-After that we load our program by performing a `load` command.
+After that we load our program by performing a `load` command. This automatically sets the `$PC` to the `_start` symbol in our .elf file.
 
  	(gdb) set remotetimeout 2000
  	(gdb) target remote localhost:3333
@@ -600,10 +612,6 @@ After that we load our program by performing a `load` command.
 
 Now we can proceed as with Spike, debugging works in a similar way:
 
-	(gdb) target remote localhost:3333
-	Remote debugging using localhost:3333
-	0x000000008000104c in main (argc=0, argv=0x0) at src/main.c:16
-	16	    while (wait)
 	(gdb) print wait
 	$1 = 1
 	(gdb) print wait=0
@@ -622,6 +630,8 @@ Now we can proceed as with Spike, debugging works in a similar way:
 	(gdb) print text
 	$5 = "Instruction sets want to be free!"
 	(gdb)
+
+Further information about GDB debugging is available [here](https://sourceware.org/gdb/onlinedocs/gdb/) and [here](https://sourceware.org/gdb/onlinedocs/gdb/Remote-Debugging.html#Remote-Debugging).
 
 ## <a name="contributors"></a> Contributors
 
