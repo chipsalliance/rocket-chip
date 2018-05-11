@@ -15,7 +15,6 @@ class TLRAM(
     beatBytes: Int = 4,
     eccBytes: Int = 1,
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil,
     code: Code = new IdentityCode)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
@@ -25,7 +24,7 @@ class TLRAM(
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(address) ++ errors,
+      address            = List(address),
       resources          = device.reg("mem"),
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.UNCACHEABLE,
       executable         = executable,
@@ -60,7 +59,6 @@ class TLRAM(
     val d_ram_valid = RegInit(Bool(false)) // true if we just read-out from SRAM
     val d_size      = Reg(UInt())
     val d_source    = Reg(UInt())
-    val d_legal     = Reg(Bool())
     val d_read      = Reg(Bool())
     val d_address   = Reg(UInt(width = addrBits.size))
     val d_rmw_mask  = Reg(UInt(width = beatBytes))
@@ -103,14 +101,13 @@ class TLRAM(
     in.d.bits.denied  := Bool(false)
     // It is safe to use uncorrected data here because of d_pause
     in.d.bits.data    := Mux(d_ram_valid, d_uncorrected, d_held_data)
-    in.d.bits.corrupt := !d_legal || Mux(d_ram_valid, d_error, d_held_error)
+    in.d.bits.corrupt := Mux(d_ram_valid, d_error, d_held_error) && d_read
 
     // Formulate a response only when SRAM output is unused or correct
     val d_pause = d_read && d_ram_valid && d_need_fix
     in.d.valid := d_full && !d_pause
     in.a.ready := !d_full || (in.d.ready && !d_pause && !d_wb)
 
-    val a_legal = Bool(errors.isEmpty) || address.contains(in.a.bits.address)
     val a_address = Cat(addrBits.reverse)
     val a_read = in.a.bits.opcode === TLMessages.Get
     val a_data = Vec(Seq.tabulate(lanes) { i => in.a.bits.data(eccBytes*8*(i+1)-1, eccBytes*8*i) })
@@ -132,10 +129,9 @@ class TLRAM(
     d_rmw_mask  := UInt(0)
     when (in.a.fire()) {
       d_full      := Bool(true)
-      d_ram_valid := a_ren && a_legal
+      d_ram_valid := a_ren
       d_size      := in.a.bits.size
       d_source    := in.a.bits.source
-      d_legal     := a_legal
       d_read      := a_read
       d_address   := a_address
       d_rmw_mask  := UInt(0)
@@ -148,7 +144,7 @@ class TLRAM(
     }
 
     // SRAM arbitration
-    val a_fire = in.a.fire() && a_legal
+    val a_fire = in.a.fire()
     val wen =  d_wb || (a_fire && !a_ren)
 //  val ren = !d_wb && (a_fire &&  a_ren)
     val ren = !wen && a_fire // help Chisel infer a RW-port
@@ -180,10 +176,9 @@ object TLRAM
     beatBytes: Int = 4,
     eccBytes: Int = 1,
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil,
     code: Code = new IdentityCode)(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, cacheable, executable, beatBytes, eccBytes, devName, errors, code))
+    val ram = LazyModule(new TLRAM(address, cacheable, executable, beatBytes, eccBytes, devName, code))
     ram.node
   }
 }

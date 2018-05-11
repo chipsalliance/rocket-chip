@@ -9,13 +9,13 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 // Do not use this for synthesis! Only for simulation.
-class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, trackCorruption: Boolean = true, errors: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule
+class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, trackCorruption: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val device = new MemoryDevice
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(address) ++ errors,
+      address            = List(address),
       resources          = device.reg,
       regionType         = RegionType.UNCACHED,
       executable         = executable,
@@ -45,19 +45,16 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
     in.d.valid := in.a.valid
 
     val hasData = edge.hasData(in.a.bits)
-    val legal = address.contains(in.a.bits.address)
     val wdata = Vec.tabulate(beatBytes) { i => in.a.bits.data(8*(i+1)-1, 8*i) }
 
-    in.d.bits := edge.AccessAck(in.a.bits, !legal)
+    in.d.bits := edge.AccessAck(in.a.bits)
     in.d.bits.data := Cat(mem(memAddress).reverse)
     in.d.bits.corrupt := !hasData && bad(memAddress) && Bool(trackCorruption)
     in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
-    when (in.a.fire() && hasData && legal) {
+    when (in.a.fire() && hasData) {
       mem.write(memAddress, wdata, in.a.bits.mask.toBools)
       bad.write(memAddress, in.a.bits.corrupt)
     }
-
-    // !!! fuck -> 'errors' cannot be supported any more
 
     // Tie off unused channels
     in.b.valid := Bool(false)
