@@ -475,7 +475,7 @@ By default the emulator is generated under the name `emulator-freechips.rocketch
 
 Please note that generated VCD waveforms can be very voluminous depending on the size of the .elf file (i.e. code size + debugging symbols). If you need only to execute your program and get output, you may need to strip the .elf file. Make sure you keep `tohost` and `fromhost` because these are necessary in the HTIF interface.
 
-### 2) Compiling the executable
+### 2) Compiling and executing a custom program using the emulator
 
 We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests).
 
@@ -507,11 +507,35 @@ int main()
         ;
 }
 ```
-Do not forget to compile with `-g -Og` flags to provide debugging support just as explained [here](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
+
+First we can test if your program executes well in the simple version of emulator before moving to debugging in step 3 :
+
+	$ ./emulator-freechips.rocketchip.system-DefaultConfig helloworld 
+	
+Additional verbose information (clock cycle, pc, instruction being executed) can be printed using the following command:
+
+	$ ./emulator-freechips.rocketchip.system-DefaultConfig +verbose helloworld 2>&1 | spike-dasm 
+
+Please note that execution time of the program on the emulator depends on executable size. Stripping the .elf executable will unsurprisingly make it run faster. For this you can use `$RISCV/bin/riscv64-unknown-elf-strip` tool to reduce the size. This is good for accelerating execution but not for debugging. Keep in mind that the HTIF communication interface between our system and the emulator relies on `tohost` and `fromhost` symbols to communicate. This is why you may get the following error when you try to run a totally stripped executable on the emulator:
+
+	$ ./emulator-freechips.rocketchip.system-DefaultConfig totally-stripped-helloworld 
+	This emulator compiled with JTAG Remote Bitbang client. To enable, use +jtag_rbb_enable=1.
+	Listening on port 46529
+	warning: tohost and fromhost symbols not in ELF; can't communicate with target
+
+To resolve this, we need to strip all the .elf executable but keep `tohost` and `fromhost` symbols using the following command:
+
+	$riscv64-unknown-elf-strip -s -Kfromhost -Ktohost helloworld
+
+More details on the GNU strip tool can be foun [here](https://www.thegeekstuff.com/2012/09/strip-command-examples/).
+
+The interest of this step is to make sure your program executes well. To perform debugging you need the original unstripped version, as explained in step 3.	
 
 ### 3) Launch the emulator
 
-We can then launch the emulator with
+First, do not forget to compile your program with `-g -Og` flags to provide debugging support as explained [here](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
+
+We can then launch the Remote Bit-Bang enabled emulator with:
 
     ./emulator-freechips.rocketchip.system-DefaultConfigRBB +jtag_rbb_enable=1 --rbb-port=9823 helloworld
 	This emulator compiled with JTAG Remote Bitbang client. To enable, use +jtag_rbb_enable=1.
