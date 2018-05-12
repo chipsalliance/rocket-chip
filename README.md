@@ -527,7 +527,7 @@ To resolve this, we need to strip all the .elf executable but keep `tohost` and 
 
 	$riscv64-unknown-elf-strip -s -Kfromhost -Ktohost helloworld
 
-More details on the GNU strip tool can be foun [here](https://www.thegeekstuff.com/2012/09/strip-command-examples/).
+More details on the GNU strip tool can be found [here](https://www.thegeekstuff.com/2012/09/strip-command-examples/).
 
 The interest of this step is to make sure your program executes well. To perform debugging you need the original unstripped version, as explained in step 3.	
 
