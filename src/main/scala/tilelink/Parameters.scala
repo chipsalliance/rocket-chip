@@ -83,7 +83,7 @@ case class TLManagerParameters(
 case class TLManagerPortParameters(
   managers:   Seq[TLManagerParameters],
   beatBytes:  Int,
-  endSinkId:  Int = 0, // 0 = no sink ids, 1 = a reusable sink id, >1 = unique sink ids
+  endSinkId:  Int = 0,
   minLatency: Int = 0)
 {
   require (!managers.isEmpty)
@@ -120,6 +120,9 @@ case class TLManagerPortParameters(
   val anySupportPutFull    = managers.map(!_.supportsPutFull.none)   .reduce(_ || _)
   val anySupportPutPartial = managers.map(!_.supportsPutPartial.none).reduce(_ || _)
   val anySupportHint       = managers.map(!_.supportsHint.none)      .reduce(_ || _)
+
+  // Supporting Acquire means being routable for GrantAck
+  require ((endSinkId == 0) == !anySupportAcquireB)
 
   // These return Option[TLManagerParameters] for your convenience
   def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
@@ -202,6 +205,7 @@ case class TLClientParameters(
   supportsPutPartial:  TransferSizes = TransferSizes.none,
   supportsHint:        TransferSizes = TransferSizes.none)
 {
+  require (!sourceId.isEmpty)
   require (supportsPutFull.contains(supportsPutPartial))
   // We only support these operations if we support Probe (ie: we're a cache)
   require (supportsProbe.contains(supportsArithmetic))

@@ -28,7 +28,7 @@ case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
         fifoId             = Some(0),
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 1, 1)
+    TLManagerPortParameters(managers, beatBytes, 0, 1)
   })
 
 class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params)

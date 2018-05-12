@@ -28,7 +28,7 @@ case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
         fifoId             = Some(0), // a common FIFO domain
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 1, 0)
+    TLManagerPortParameters(managers, beatBytes, 0, 1)
   })
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)

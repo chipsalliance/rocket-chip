@@ -256,13 +256,12 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
-    val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
+    val sink_ok = bundle.sink < UInt(edge.manager.endSinkId)
     val deny_put_ok = Bool(edge.manager.mayDenyPut)
     val deny_get_ok = Bool(edge.manager.mayDenyGet)
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assert (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
-      assert (sink_ok, "'D' channel ReleaseAck carries invalid sink ID" + extra)
       assert (bundle.size >= UInt(log2Ceil(edge.manager.beatBytes)), "'D' channel ReleaseAck smaller than a beat" + extra)
       assert (bundle.param === UInt(0), "'D' channel ReleaseeAck carries invalid param" + extra)
       assert (!bundle.corrupt, "'D' channel ReleaseAck is corrupt" + extra)
@@ -291,7 +290,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.AccessAck) {
       assert (source_ok, "'D' channel AccessAck carries invalid source ID" + extra)
-      assert (sink_ok, "'D' channel AccessAck carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel AccessAck carries invalid param" + extra)
       assert (!bundle.corrupt, "'D' channel AccessAck is corrupt" + extra)
@@ -300,7 +298,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.AccessAckData) {
       assert (source_ok, "'D' channel AccessAckData carries invalid source ID" + extra)
-      assert (sink_ok, "'D' channel AccessAckData carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel AccessAckData carries invalid param" + extra)
       assert (!bundle.denied || bundle.corrupt, "'D' channel AccessAckData is denied but not corrupt" + extra)
@@ -309,7 +306,6 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.HintAck) {
       assert (source_ok, "'D' channel HintAck carries invalid source ID" + extra)
-      assert (sink_ok, "'D' channel HintAck carries invalid sink ID" + extra)
       // size is ignored
       assert (bundle.param === UInt(0), "'D' channel HintAck carries invalid param" + extra)
       assert (!bundle.corrupt, "'D' channel HintAck is corrupt" + extra)
@@ -318,7 +314,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
   }
 
   def legalizeFormatE(bundle: TLBundleE, edge: TLEdge) {
-    val sink_ok = Bool(edge.manager.endSinkId == 0) || bundle.sink < UInt(edge.manager.endSinkId)
+    val sink_ok = bundle.sink < UInt(edge.manager.endSinkId)
     assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
@@ -505,7 +501,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     } else {
       legalizeADSource(bundle, edge)
     }
-    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB && edge.manager.endSinkId > 1) {
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
       // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
       val sinkBits = log2Ceil(edge.manager.endSinkId)
       if (sinkBits > tooBig) {

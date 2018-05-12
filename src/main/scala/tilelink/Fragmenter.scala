@@ -66,7 +66,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val beatBytes = manager.beatBytes
       val fifoId = managers(0).fifoId
       require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
-      require (manager.endSinkId <= 1)
+      require (!manager.anySupportAcquireB)
 
       require (minSize >= beatBytes, s"We don't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
       // We can't support devices which are cached on both sides of us
