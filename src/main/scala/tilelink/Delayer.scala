@@ -47,7 +47,7 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       cnoise.source  := LFSRNoiseMaker(cnoise.params.sourceBits)
       cnoise.address := LFSRNoiseMaker(cnoise.params.addressBits)
       cnoise.data    := LFSRNoiseMaker(cnoise.params.dataBits)
-      cnoise.error   := LFSRNoiseMaker(1)(0)
+      cnoise.corrupt := LFSRNoiseMaker(1)(0)
 
       val dnoise = Wire(out.d.bits)
       dnoise.opcode  := LFSRNoiseMaker(3)
@@ -55,8 +55,9 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       dnoise.size    := LFSRNoiseMaker(dnoise.params.sizeBits)
       dnoise.source  := LFSRNoiseMaker(dnoise.params.sourceBits)
       dnoise.sink    := LFSRNoiseMaker(dnoise.params.sinkBits)
+      dnoise.denied  := LFSRNoiseMaker(1)(0)
       dnoise.data    := LFSRNoiseMaker(dnoise.params.dataBits)
-      dnoise.error   := LFSRNoiseMaker(1)(0)
+      dnoise.corrupt := LFSRNoiseMaker(1)(0)
 
       val enoise = Wire(in.e.bits)
       enoise.sink := LFSRNoiseMaker(enoise.params.sinkBits)

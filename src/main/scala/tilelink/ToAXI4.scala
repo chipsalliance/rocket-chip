@@ -66,7 +66,8 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
         supportsGet        = s.supportsRead,
         supportsPutFull    = s.supportsWrite,
         supportsPutPartial = s.supportsWrite,
-        fifoId             = Some(0))},
+        fifoId             = Some(0),
+        mayDenyPut         = true)},
       beatBytes = p.beatBytes,
       minLatency = p.minLatency)
   })
@@ -190,14 +191,13 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       out.b.ready := in.d.ready && !r_wins
       in.d.valid := Mux(r_wins, out.r.valid, out.b.valid)
 
-      val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
-      val b_error = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
+      // I'd really like to mark RESP_DECERR as r_denied, but AXI is allowed to change
+      // RRESP on every beat. This would violate the TileLink signalling rules.
+      val r_corrupt = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
+      val b_denied  = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
 
-      val reg_error = RegInit(Bool(false))
-      when (out.r.fire()) { reg_error := !out.r.bits.last && (reg_error || r_error) }
-
-      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), reg_error || r_error)
-      val b_d = edgeIn.AccessAck(b_source, b_size, b_error)
+      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), denied = Bool(false), corrupt = r_corrupt)
+      val b_d = edgeIn.AccessAck(b_source, b_size, denied = b_denied)
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux

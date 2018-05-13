@@ -43,11 +43,10 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Pa
       if (newSize == 0) Nil else
       ports.grouped(newSize).toList.transpose.map { seq =>
         val fifoIdFactory = TLXbar.relabeler()
-        val outputIdRanges = TLXbar.mapOutputIds(seq)
         seq(0).copy(
           minLatency = seq.map(_.minLatency).min,
-          endSinkId = outputIdRanges.map(_.map(_.end).getOrElse(0)).max,
-          managers = seq.zipWithIndex.flatMap { case (port, i) =>
+          endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
+          managers = seq.flatMap { port =>
             require (port.beatBytes == seq(0).beatBytes,
               s"Splitter data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
             val fifoIdMapper = fifoIdFactory()
@@ -109,13 +108,13 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Pa
 
         io_out(i).a <> out(i).a
         out(i).d <> io_out(i).d
-        out(i).d.bits.sink := io_out(i).d.bits.sink | UInt(r.map(_.start).getOrElse(0))
+        out(i).d.bits.sink := io_out(i).d.bits.sink | UInt(r.start)
 
         if (edgesOut(i).manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
           io_out(i).c <> out(i).c
           io_out(i).e <> out(i).e
           out(i).b <> io_out(i).b
-          io_out(i).e.bits.sink := trim(out(i).e.bits.sink, r.map(_.size).getOrElse(0))
+          io_out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
         } else {
           out(i).c.ready := Bool(false)
           out(i).e.ready := Bool(false)
@@ -128,7 +127,7 @@ class TLSplitter(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Pa
 
       val requestA = Vec(outputPorts.map { o => o(in.a.bits.address) })
       val requestC = Vec(outputPorts.map { o => o(in.c.bits.address) })
-      val requestE = Vec(outputIdRanges.map { o => o.map(_.contains(in.e.bits.sink)).getOrElse(Bool(false)) })
+      val requestE = Vec(outputIdRanges.map { o => o.contains(in.e.bits.sink) })
       (out.map(_.a) zip TLXbar.fanout(in.a, requestA)) foreach { case (o, i) => o <> i }
       (out.map(_.c) zip TLXbar.fanout(in.c, requestC)) foreach { case (o, i) => o <> i }
       (out.map(_.e) zip TLXbar.fanout(in.e, requestE)) foreach { case (o, i) => o <> i }

@@ -182,10 +182,11 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
   when (refill_done) {
-    val enc_tag = tECC.encode(Cat(tl_out.d.bits.error, refill_tag))
+    // For AccessAckData, denied => corrupt
+    val enc_tag = tECC.encode(Cat(tl_out.d.bits.corrupt, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
 
-    ccover(tl_out.d.bits.error, "D_ERROR", "I$ D-channel error")
+    ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
@@ -346,9 +347,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         tl.d.valid := respValid
         tl.d.bits := Mux(edge_in.get.hasData(s1_a),
           edge_in.get.AccessAck(s1_a),
-          edge_in.get.AccessAck(s1_a, UInt(0)))
+          edge_in.get.AccessAck(s1_a, UInt(0), denied = Bool(false), corrupt = respError))
         tl.d.bits.data := s1s3_slaveData
-        tl.d.bits.error := respError
 
         // Tie off unused channels
         tl.b.valid := false

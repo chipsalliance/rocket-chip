@@ -25,9 +25,10 @@ case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
         supportsGet        = if (s.supportsRead)  TransferSizes(1, beatBytes) else TransferSizes.none,
         supportsPutPartial = if (s.supportsWrite) TransferSizes(1, beatBytes) else TransferSizes.none,
         supportsPutFull    = if (s.supportsWrite) TransferSizes(1, beatBytes) else TransferSizes.none,
-        fifoId             = Some(0)) // a common FIFO domain
+        fifoId             = Some(0), // a common FIFO domain
+        mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 1, 0)
+    TLManagerPortParameters(managers, beatBytes, 0, 1)
   })
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
@@ -77,8 +78,10 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       d.valid := a_enable && out.pready
       assert (!d.valid || d.ready)
 
-      d.bits := edgeIn.AccessAck(a.bits, out.prdata, out.pslverr)
-      d.bits.opcode := Mux(a_write, TLMessages.AccessAck, TLMessages.AccessAckData)
+      d.bits := edgeIn.AccessAck(a.bits, out.prdata)
+      d.bits.opcode  := Mux(a_write, TLMessages.AccessAck, TLMessages.AccessAckData)
+      d.bits.denied  :=  a_write && out.pslverr
+      d.bits.corrupt := !a_write && out.pslverr
     }
   }
 }

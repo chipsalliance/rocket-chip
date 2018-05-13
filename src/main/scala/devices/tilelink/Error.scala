@@ -36,9 +36,11 @@ abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
       supportsArithmetic = atom,
       supportsLogical    = atom,
       supportsHint       = xfer,
-      fifoId             = Some(0))), // requests are handled in order
+      fifoId             = Some(0),
+      mayDenyGet         = true,
+      mayDenyPut         = true)), // requests are handled in order
     beatBytes  = beatBytes,
-    endSinkId  = 1, // can receive GrantAck
+    endSinkId  = if (params.acquire) 1 else 0,
     minLatency = 1))) // no bypass needed for this device
 }
 
@@ -53,12 +55,14 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
     val (in, edge) = node.in(0)
     val a = Queue(in.a, 1)
     val da = Wire(in.d)
+    val idle = RegInit(Bool(true))
 
     val a_last = edge.last(a)
-    val da_last = edge.last(da)
+    val (da_first, da_last, _) = edge.firstlast(da)
 
-    a.ready := (da.ready && da_last) || !a_last
-    da.valid := a.valid && a_last
+    assert (idle || da_first) // we only send Grant, never GrantData => simplified flow control below
+    a.ready := (da.ready && da_last && idle) || !a_last
+    da.valid := a.valid && a_last && idle
 
     val a_opcodes = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
     da.bits.opcode  := a_opcodes(a.bits.opcode)
@@ -66,8 +70,9 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
     da.bits.size    := a.bits.size
     da.bits.source  := a.bits.source
     da.bits.sink    := UInt(0)
+    da.bits.denied  := Bool(true)
     da.bits.data    := UInt(0)
-    da.bits.error   := Bool(true)
+    da.bits.corrupt := edge.hasData(da.bits)
 
     if (params.acquire) {
       val c = Queue(in.c, 1)
@@ -76,16 +81,22 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
       val c_last = edge.last(c)
       val dc_last = edge.last(dc)
 
+      // Only allow one Grant in-flight at a time
+      when (da.fire() && da.bits.opcode === Grant) { idle := Bool(false) }
+      when (in.e.fire()) { idle := Bool(true) }
+
       c.ready := (dc.ready && dc_last) || !c_last
       dc.valid := c.valid && c_last
 
-      dc.bits.opcode := ReleaseAck
-      dc.bits.param  := Vec(toB, toN, toN)(c.bits.param)
-      dc.bits.size   := c.bits.size
-      dc.bits.source := c.bits.source
-      dc.bits.sink   := UInt(0)
-      dc.bits.data   := UInt(0)
-      dc.bits.error  := Bool(true)
+      // ReleaseAck is not allowed to report failure
+      dc.bits.opcode  := ReleaseAck
+      dc.bits.param   := Vec(toB, toN, toN)(c.bits.param)
+      dc.bits.size    := c.bits.size
+      dc.bits.source  := c.bits.source
+      dc.bits.sink    := UInt(0)
+      dc.bits.denied  := Bool(false)
+      dc.bits.data    := UInt(0)
+      dc.bits.corrupt := Bool(false)
 
       // Combine response channels
       TLArbiter.lowest(edge, in.d, dc, da)

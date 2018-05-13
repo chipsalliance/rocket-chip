@@ -299,6 +299,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   io.out_a.bits.address := address
   io.out_a.bits.mask    := o_data.bits.mask
   io.out_a.bits.data    := o_data.bits.data
+  io.out_a.bits.corrupt := Bool(false)
 }
 
 object TLBroadcastConstants
