@@ -66,11 +66,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       val beatBytes = manager.beatBytes
       val fifoId = managers(0).fifoId
       require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
-      require (manager.endSinkId <= 1)
+      require (!manager.anySupportAcquireB)
 
       require (minSize >= beatBytes, s"We don't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
       // We can't support devices which are cached on both sides of us
       require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)
+      // We can't support denied because we reassemble fragments
+      require (!edgeOut.manager.mayDenyGet)
+      require (!edgeOut.manager.mayDenyPut || earlyAck == EarlyAck.None)
 
       /* The Fragmenter is a bit tricky, because there are 5 sizes in play:
        *   max  size -- the maximum transfer size possible
@@ -199,15 +202,12 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       in.d.bits.source := out.d.bits.source >> addedBits
       in.d.bits.size   := Mux(dFirst, dFirst_size, dOrig)
 
-      // The specification requires that error transition LOW=>HIGH only once per burst.
-      // Since we fragmented a big burst into mulitple little bursts, we need to OR them.
-      val r_error = Reg(Bool())
-      val d_error = (!dFirst && r_error) || out.d.bits.error
-      when (out.d.fire()) { r_error := d_error }
-      in.d.bits.error := d_error
-
-      // If you do early Ack, errors may not be dropped
-      assert (!out.d.valid || !doEarlyAck || !drop || out.d.bits.error === r_error, "Slave device error behaviour unsuitable for earlyAck setting")
+      if (edgeOut.manager.mayDenyPut) {
+        val r_denied = Reg(Bool())
+        val d_denied = (!dFirst && r_denied) || out.d.bits.denied
+        when (out.d.fire()) { r_denied := d_denied }
+        in.d.bits.denied := d_denied
+      }
 
       // What maximum transfer sizes do downstream devices support?
       val maxArithmetics = managers.map(_.supportsArithmetic.max)

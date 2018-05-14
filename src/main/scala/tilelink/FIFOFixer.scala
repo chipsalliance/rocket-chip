@@ -51,8 +51,9 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       val compacted = ((fixMap zip splatMap) zip edgeOut.manager.managers) flatMap {
         case ((f, s), m) => if (f == Some(0)) Some(m.copy(fifoId = s)) else None
       }
+      val sinks = if (compacted.exists(_.supportsAcquireB)) edgeOut.manager.endSinkId else 0
       val a_id = if (compacted.isEmpty) UInt(0) else
-        edgeOut.manager.copy(managers = compacted).findFifoIdFast(in.a.bits.address)
+        edgeOut.manager.copy(managers = compacted, endSinkId = sinks).findFifoIdFast(in.a.bits.address)
       val a_noDomain = a_id === UInt(0)
 
       if (false) {
