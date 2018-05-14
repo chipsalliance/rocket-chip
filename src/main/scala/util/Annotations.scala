@@ -147,8 +147,9 @@ object GenRegDescsAnno {
     val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
     val selectedRegFieldName = regField.desc.map(_.name).getOrElse(anonRegFieldName)
 
+    val map = Map[BigInt, (String, String)]() // TODO
+
 // TODO: enumerations will be handled in upcoming PR
-val map = Map[BigInt, (String, String)]() // TODO
 //    ("enumerations" -> desc.map {d =>
 //      Option(d.enumerations.map { case (key, (name, edesc)) =>
 //        (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
