@@ -22,7 +22,7 @@ abstract class Code
 
   /** Encode x to a codeword suitable for decode.
    *  If poison is true, the decoded value will report uncorrectable
-   *  error despite decoding to the supplied value 'x'.
+   *  error despite uncorrected == corrected == x.
    */
   def encode(x: UInt, poison: Bool = Bool(false)): UInt
   def decode(x: UInt): Decoding
@@ -83,46 +83,68 @@ class SECCode extends Code
     val m = log2Floor(k) + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
   }
+  def swizzle(x: UInt) = {
+    val k = x.getWidth
+    val n = width(k)
+    Cat(UInt(0, width=n-k), x)
+  }
+
+  // An (n=16, k=11) Hamming code is naturally encoded as:
+  //   PPxPxxxPxxxxxxxP where P are parity bits and x are data
+  //   Indexes typically start at 1, because then the P are on powers of two
+  // In systematic coding, you put all the data in the front:
+  //   xxxxxxxxxxxPPPPP
+  //   Indexes typically start at 0, because Computer Science
+  // For sanity when reading SRAMs, you want systematic form.
+
+  private def impl(n: Int, k: Int) = {
+    require (n >= 3 && k >= 1 && !isPow2(n))
+    val hamm2sys = IndexedSeq.tabulate(n+1) { i =>
+      if (i == 0) {
+        n /* undefined */
+      } else if (isPow2(i)) {
+        k + log2Ceil(i)
+      } else {
+        i - 1 - log2Ceil(i)
+      }
+    }
+    val sys2hamm = hamm2sys.zipWithIndex.sortBy(_._1).map(_._2).toIndexedSeq
+    def syndrome(j: Int) = {
+      val bit = 1 << j
+      UInt("b" + Seq.tabulate(n) { i =>
+        if ((sys2hamm(i) & bit) != 0) "1" else "0"
+      }.reverse.mkString)
+    }
+    (hamm2sys, sys2hamm, syndrome _)
+  }
+
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     val k = x.getWidth
-    require(k > 0)
     val n = width(k)
+    val (_, _, syndrome) = impl(n, k)
 
     require ((poison.isLit && poison.litValue == 0) || poisonous(n), s"SEC code of length ${n} cannot be poisoned")
 
-    val y = for (i <- 1 to n) yield {
-      if (isPow2(i)) {
-        val r = for (j <- 1 to n; if j != i && (j & i) != 0)
-          yield x(mapping(j))
-        r.reduce(_^_) ^ poison
-      } else
-        x(mapping(i))
-    }
-    y.asUInt
+    /* By setting the entire syndrome on poison, the corrected bit falls off the end of the code */
+    val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j)(k-1, 0) & x).xorR ^ poison }.asUInt
+    Cat(syndromeUInt, x)
   }
-  def swizzle(x: UInt) = {
-    val y = for (i <- 1 to width(x.getWidth))
-      yield (if (isPow2(i)) false.B else x(mapping(i)))
-    y.asUInt
-  }
+
   def decode(y: UInt) = new Decoding {
     val n = y.getWidth
-    require(n > 0 && !isPow2(n))
+    val k = n - log2Ceil(n)
+    val (_, sys2hamm, syndrome) = impl(n, k)
 
-    val p2 = for (i <- 0 until log2Up(n)) yield 1 << i
-    val syndrome = (p2 map { i =>
-      val r = for (j <- 1 to n; if (j & i) != 0)
-        yield y(j-1)
-      r reduce (_^_)
-    }).asUInt
+    val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j) & y).xorR }.asUInt
 
-    private def swizzle(z: UInt) = (1 to n).filter(i => !isPow2(i)).map(i => z(i-1)).asUInt
-    val uncorrected = swizzle(y)
-    val corrected = swizzle(((y << 1) ^ UIntToOH(syndrome)) >> 1)
-    val correctable = syndrome.orR
-    val uncorrectable = if (poisonous(n)) { syndrome > UInt(n) } else { Bool(false) }
+    val hammBadBitOH = UIntToOH(syndromeUInt, n+1)
+    val sysBadBitOH = Vec.tabulate(k) { i => hammBadBitOH(sys2hamm(i)) }.asUInt
+
+    val uncorrected = y(k-1, 0)
+    val corrected = uncorrected ^ sysBadBitOH
+    val correctable = syndromeUInt.orR
+    val uncorrectable = if (poisonous(n)) { syndromeUInt > UInt(n) } else { Bool(false) }
   }
-  private def mapping(i: Int) = i-1-log2Up(i)
 }
 
 class SECDEDCode extends Code
@@ -136,9 +158,13 @@ class SECDEDCode extends Code
   def width(k: Int) = sec.width(k)+1
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     // toggling two bits ensures the error is uncorrectable
-    val toggle_lo = poison.asUInt // a non-data bit in SEC
-    val toggle_hi = toggle_lo << sec.width(x.getWidth) // the parity bit
-    par.encode(sec.encode(x)) ^ toggle_lo ^ toggle_hi
+    // to ensure corrected == uncorrected, we pick one redundant
+    // bit from SEC (the highest); correcting it does not affect
+    // corrected == uncorrected. the second toggled bit is the
+    // parity bit, which also does not appear in the decoding
+    val toggle_lo = Cat(poison.asUInt, poison.asUInt)
+    val toggle_hi = toggle_lo << (sec.width(x.getWidth)-1)
+    par.encode(sec.encode(x)) ^ toggle_hi
   }
   def swizzle(x: UInt) = par.swizzle(sec.swizzle(x))
   def decode(x: UInt) = new Decoding {
@@ -162,37 +188,6 @@ object ErrGen
   def apply(x: UInt, f: Int): UInt = x ^ apply(x.getWidth, f)
 }
 
-class SECDEDTest extends Module
-{
-  val code = new SECDEDCode
-  val k = 4
-  val n = code.width(k)
-
-  val io = new Bundle {
-    val original = Bits(OUTPUT, k)
-    val encoded = Bits(OUTPUT, n)
-    val injected = Bits(OUTPUT, n)
-    val uncorrected = Bits(OUTPUT, k)
-    val corrected = Bits(OUTPUT, k)
-    val correctable = Bool(OUTPUT)
-    val uncorrectable = Bool(OUTPUT)
-  }
-
-  val c = Counter(Bool(true), 1 << k)
-  val numErrors = Counter(c._2, 3)._1
-  val e = code.encode(c._1)
-  val i = e ^ Mux(numErrors < UInt(1), UInt(0), ErrGen(n, 1)) ^ Mux(numErrors < UInt(2), UInt(0), ErrGen(n, 1))
-  val d = code.decode(i)
-
-  io.original := c._1
-  io.encoded := e
-  io.injected := i
-  io.uncorrected := d.uncorrected
-  io.corrected := d.corrected
-  io.correctable := d.correctable
-  io.uncorrectable := d.uncorrectable
-}
-
 trait CanHaveErrors extends Bundle {
   val correctable: Option[ValidIO[UInt]]
   val uncorrectable: Option[ValidIO[UInt]]
@@ -207,5 +202,55 @@ object Code {
     case "sec" => new SECCode
     case "secded" => new SECDEDCode
     case _ => throw new IllegalArgumentException("Unknown ECC type")
+  }
+}
+
+/** Synthesizeable unit tests */
+import freechips.rocketchip.unittest._
+
+class ECCTest(k: Int, timeout: Int = 500000) extends UnitTest(timeout) {
+  val code = new SECDEDCode
+  val n = code.width(k)
+
+  // Brute force the decode space
+  val test = RegInit(UInt(0, width=n+1))
+  val last = test(n)
+  test := test + !last
+  io.finished := RegNext(last, Bool(false))
+
+  // Confirm the decoding matches the encoding
+  val decoded = code.decode(test(n-1, 0))
+  val recoded = code.encode(decoded.corrected)
+  val distance = PopCount(recoded ^ test)
+
+  // Count the cases
+  val correct = RegInit(UInt(0, width=n))
+  val correctable = RegInit(UInt(0, width=n))
+  val uncorrectable = RegInit(UInt(0, width=n))
+
+  when (!last) {
+    when (decoded.uncorrectable) {
+      assert (distance >= UInt(2)) // uncorrectable
+      uncorrectable := uncorrectable + UInt(1)
+    } .elsewhen (decoded.correctable) {
+      assert (distance(0)) // correctable => odd bit errors
+      correctable := correctable + UInt(1)
+    } .otherwise {
+      assert (distance === UInt(0)) // correct
+      assert (decoded.uncorrected === decoded.corrected)
+      correct := correct + UInt(1)
+    }
+  }
+
+  // Expected number of each case
+  val nCodes = BigInt(1) << n
+  val nCorrect = BigInt(1) << k
+  val nCorrectable = nCodes / 2
+  val nUncorrectable = nCodes - nCorrectable - nCorrect
+
+  when (last) {
+    assert (correct === UInt(nCorrect))
+    assert (correctable === UInt(nCorrectable))
+    assert (uncorrectable === UInt(nUncorrectable))
   }
 }
