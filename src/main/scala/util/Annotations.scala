@@ -142,12 +142,17 @@ object GenRegDescsAnno {
     width: Int,
     byteOffset: Int,
     bitOffset: Int,
-    regField: RegField): RegFieldSer = {
+    regField: RegField): RegFieldDescSer = {
 
     val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
     val selectedRegFieldName = regField.desc.map(_.name).getOrElse(anonRegFieldName)
 
     val map = Map[BigInt, (String, String)]() // TODO
+
+//    ("enumerations" -> desc.map {d =>
+//      Option(d.enumerations.map { case (key, (name, edesc)) =>
+//        (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+//      }).filter(_.nonEmpty)}) )
 
     val desc = regField.desc
 
@@ -168,10 +173,7 @@ object GenRegDescsAnno {
       enumerations = map
     )
 
-    RegFieldSer(
-      moduleName, //selectedName,
-      regFieldDescSer
-    )
+    regFieldDescSer
   }
 
 
@@ -201,11 +203,11 @@ object GenRegDescsAnno {
 
     val registersSer = RegistersSer(
       displayName = moduleName,
+      deviceName = moduleName,
       baseAddress = baseAddress,
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
 
-//    annotate(RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer))
     annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer) })
 
     mapping
