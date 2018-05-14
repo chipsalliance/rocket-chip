@@ -25,7 +25,7 @@ object RegionType {
 case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 {
   require (start >= 0, s"Ids cannot be negative, but got: $start.")
-  require (start < end, "Id ranges cannot be empty.")
+  require (start <= end, "Id ranges cannot be negative.")
 
   def compare(x: IdRange) = {
     val primary   = (this.start - x.start).signum
@@ -35,11 +35,12 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 
   def overlaps(x: IdRange) = start < x.end && x.start < end
   def contains(x: IdRange) = start <= x.start && x.end <= end
-  // contains => overlaps (because empty is forbidden)
 
   def contains(x: Int)  = start <= x && x < end
   def contains(x: UInt) =
-    if (size == 1) { // simple comparison
+    if (size == 0) {
+      Bool(false)
+    } else if (size == 1) { // simple comparison
       x === UInt(start)
     } else {
       // find index of largest different bit
@@ -56,6 +57,7 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 
   def shift(x: Int) = IdRange(start+x, end+x)
   def size = end - start
+  def isEmpty = end == start
   
   def range = start until end
 }

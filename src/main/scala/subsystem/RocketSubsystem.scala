@@ -55,7 +55,6 @@ trait HasRocketTiles extends HasTiles
     // in the global Parameters about the specific tile being built now
     val rocket = LazyModule(new RocketTile(tp, crossing.crossingType)(p.alterPartial {
         case TileKey => tp
-        case BuildRoCC => tp.rocc
         case SharedMemoryTLEdge => sharedMemoryTLEdge
       })
     ).suggestName(tp.name)

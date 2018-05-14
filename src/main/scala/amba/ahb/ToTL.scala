@@ -46,7 +46,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       val d_send  = RegInit(Bool(false))
       val d_recv  = RegInit(Bool(false))
       val d_pause = RegInit(Bool(true))
-      val d_error = RegInit(Bool(false))
+      val d_fail  = RegInit(Bool(false))
       val d_write = RegInit(Bool(false))
       val d_addr  = Reg(in.haddr)
       val d_size  = Reg(in.hsize)
@@ -104,11 +104,12 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       out.a.bits.address := d_addr
       out.a.bits.data    := in.hwdata
       out.a.bits.mask    := MaskGen(d_addr, d_size, beatBytes)
+      out.a.bits.corrupt := Bool(false)
 
       out.d.ready  := d_recv // backpressure AccessAckData arriving faster than AHB beats
 
-      // NOTE: on error, we present the read result on the hreadyout LOW cycle
-      // This means that if you latch hrdata from an error, the result is garbage.
+      // NOTE: on failure, we present the read result on the hreadyout LOW cycle
+      // This means that if you latch hrdata from a failure, the result is garbage.
       // To fix this would require a bus-wide register, and the AHB spec says this:
       // "A slave only has to provide valid data when a transfer completes with an OKAY
       //  response. ERROR responses do not require valid read data."
@@ -116,15 +117,15 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       in.hrdata := out.d.bits.data
 
       // In a perfect world, we'd use these signals
-      val hresp = d_error || (out.d.valid && out.d.bits.error)
+      val hresp = d_fail || (out.d.valid && (out.d.bits.denied || out.d.bits.corrupt))
       val hreadyout = Mux(d_write, (!d_send || out.a.ready) && (!d_last || !d_recv || out.d.valid), out.d.valid || !d_recv)
 
-      // Make the error persistent (and defer it to the last beat--otherwise AHB can cancel the burst!)
-      d_error :=
-        (hresp && !(a_first && in.hready)) || // clear error when a new beat starts
-        (a_accept && !a_legal)                // error if the address requested is illegal
+      // Make the failure persistent (and defer it to the last beat--otherwise AHB can cancel the burst!)
+      d_fail :=
+        (hresp && !(a_first && in.hready)) || // clear failure when a new beat starts
+        (a_accept && !a_legal)                // failure if the address requested is illegal
 
-      // When we report an error, we need to be hreadyout LOW for one cycle
+      // When we report a failure, we need to be hreadyout LOW for one cycle
       in.hresp     := hreadyout &&  (hresp && d_last)
       in.hreadyout := hreadyout && !(hresp && d_last && d_pause)
 

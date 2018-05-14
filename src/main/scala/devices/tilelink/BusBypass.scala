@@ -15,7 +15,13 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implic
   protected val nodeOut = TLIdentityNode()
   val node = NodeHandle(nodeIn, nodeOut)
 
-  protected val bar = LazyModule(new TLBusBypassBar)
+  protected val bar = LazyModule(new TLBusBypassBar(dFn = { mp =>
+    mp.copy(managers = mp.managers.map { m =>
+      m.copy(
+        mayDenyPut = m.mayDenyPut || !deadlock,
+        mayDenyGet = m.mayDenyGet || !deadlock)
+    })
+  }))
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
   protected val params = ErrorParams(everything, maxAtomic=16, maxTransfer=4096)
   protected val error = if (deadlock) LazyModule(new DeadlockDevice(params, beatBytes))
@@ -37,21 +43,21 @@ class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends TLBusBypassBas
   }
 }
 
-class TLBypassNode(implicit valName: ValName) extends TLCustomNode
+class TLBypassNode(dFn: TLManagerPortParameters => TLManagerPortParameters)(implicit valName: ValName) extends TLCustomNode
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (iStars == 0 && oStars == 0, "TLBypass node does not support :=* or :*=")
     require (iKnown == 1, "TLBypass node expects exactly one input")
-    require (oKnown == 2, "TLBypass node expects exactly one output")
+    require (oKnown == 2, "TLBypass node expects exactly two outputs")
     (0, 0)
   }
   def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { p ++ p }
-  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { p.tail }
+  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { Seq(dFn(p.last)) }
 }
 
-class TLBusBypassBar(implicit p: Parameters) extends LazyModule
+class TLBusBypassBar(dFn: TLManagerPortParameters => TLManagerPortParameters)(implicit p: Parameters) extends LazyModule
 {
-  val node = new TLBypassNode()
+  val node = new TLBypassNode(dFn)
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -121,8 +127,9 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
     in.d.bits.size   := Mux(bypass, out0.d.bits.size,   out1.d.bits.size)
     in.d.bits.source := Mux(bypass, out0.d.bits.source, out1.d.bits.source)
     in.d.bits.sink   := Mux(bypass, out0.d.bits.sink,   out1.d.bits.sink)
+    in.d.bits.denied := Mux(bypass, out0.d.bits.denied, out1.d.bits.denied)
     in.d.bits.data   := Mux(bypass, out0.d.bits.data,   out1.d.bits.data)
-    in.d.bits.error  := Mux(bypass, out0.d.bits.error,  out1.d.bits.error)
+    in.d.bits.corrupt:= Mux(bypass, out0.d.bits.corrupt,out1.d.bits.corrupt)
 
     if (bce) {
       out0.b.ready := in.b.ready &&  bypass
@@ -136,6 +143,7 @@ class TLBusBypassBar(implicit p: Parameters) extends LazyModule
       in.b.bits.address:= Mux(bypass, out0.b.bits.address,out1.b.bits.address)
       in.b.bits.mask   := Mux(bypass, out0.b.bits.mask,   out1.b.bits.mask)
       in.b.bits.data   := Mux(bypass, out0.b.bits.data,   out1.b.bits.data)
+      in.b.bits.corrupt:= Mux(bypass, out0.b.bits.corrupt,out1.b.bits.corrupt)
 
       out0.c.valid := in.c.valid &&  bypass
       out1.c.valid := in.c.valid && !bypass

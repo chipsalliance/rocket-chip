@@ -130,6 +130,7 @@ final class TLBundleA(params: TLBundleParameters)
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
+  val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleB(params: TLBundleParameters)
@@ -145,6 +146,7 @@ final class TLBundleB(params: TLBundleParameters)
   // variable fields during multibeat:
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
+  val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleC(params: TLBundleParameters)
@@ -159,7 +161,7 @@ final class TLBundleC(params: TLBundleParameters)
   val address = UInt(width = params.addressBits) // to
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
-  val error   = Bool() // AccessAck[Data]
+  val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleD(params: TLBundleParameters)
@@ -172,9 +174,10 @@ final class TLBundleD(params: TLBundleParameters)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // to
   val sink    = UInt(width = params.sinkBits)   // from
+  val denied  = Bool() // implies corrupt iff *Data
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
-  val error   = Bool() // AccessAck[Data], Grant[Data]
+  val corrupt = Bool() // only applies to *Data messages
 }
 
 final class TLBundleE(params: TLBundleParameters)

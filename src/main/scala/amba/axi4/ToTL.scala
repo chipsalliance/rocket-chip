@@ -108,7 +108,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       val ok_b  = Wire(in.b)
       val ok_r  = Wire(in.r)
 
-      val d_resp = Mux(out.d.bits.error, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
+      val d_resp = Mux(out.d.bits.denied || out.d.bits.corrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
       val d_hasData = edgeOut.hasData(out.d.bits)
       val d_last = edgeOut.last(out.d)
 

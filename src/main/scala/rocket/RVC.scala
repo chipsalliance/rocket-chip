@@ -110,9 +110,10 @@ class RVCDecoder(x: UInt, xLen: Int) {
   }
   
   def q2 = {
+    val load_opc = Mux(rd.orR, UInt(0x03,7), UInt(0x1F,7))
     def slli = inst(Cat(shamt, rd, UInt(1,3), rd, UInt(0x13,7)), rd, rd, rs2)
-    def ldsp = inst(Cat(ldspImm, sp, UInt(3,3), rd, UInt(0x03,7)), rd, sp, rs2)
-    def lwsp = inst(Cat(lwspImm, sp, UInt(2,3), rd, UInt(0x03,7)), rd, sp, rs2)
+    def ldsp = inst(Cat(ldspImm, sp, UInt(3,3), rd, load_opc), rd, sp, rs2)
+    def lwsp = inst(Cat(lwspImm, sp, UInt(2,3), rd, load_opc), rd, sp, rs2)
     def fldsp = inst(Cat(ldspImm, sp, UInt(3,3), rd, UInt(0x07,7)), rd, sp, rs2)
     def flwsp = {
       if (xLen == 32) inst(Cat(lwspImm, sp, UInt(2,3), rd, UInt(0x07,7)), rd, sp, rs2)

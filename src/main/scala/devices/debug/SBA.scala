@@ -281,7 +281,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     when(sbState === SBReadRequest.id.U) { tl.a.bits :=  gbits  }
     .otherwise                           { tl.a.bits := pfbits  }
 
-    val respError = d.bits.error
+    val respError = d.bits.denied || d.bits.corrupt
     io.respError := respError
 
     val wrTxValid = sbState === SBWriteRequest.id.U && requestValid && requestReady
