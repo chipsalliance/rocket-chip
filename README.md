@@ -473,8 +473,6 @@ We can also build a debug version capable of generating VCD waveforms using the 
 
 By default the emulator is generated under the name `emulator-freechips.rocketchip.system-DefaultConfigRBB` in the first case and `emulator-freechips.rocketchip.system-DefaultConfigRBB-debug` in the second.
 
-Please note that generated VCD waveforms can be very voluminous depending on the size of the .elf file (i.e. code size + debugging symbols). If you need only to execute your program and get output, you may need to strip the .elf file. Make sure you keep `tohost` and `fromhost` because these are necessary in the HTIF interface.
-
 ### 2) Compiling and executing a custom program using the emulator
 
 We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests).
@@ -516,7 +514,13 @@ Additional verbose information (clock cycle, pc, instruction being executed) can
 
 	$ ./emulator-freechips.rocketchip.system-DefaultConfig +verbose helloworld 2>&1 | spike-dasm 
 
-Please note that execution time of the program on the emulator depends on executable size. Stripping the .elf executable will unsurprisingly make it run faster. For this you can use `$RISCV/bin/riscv64-unknown-elf-strip` tool to reduce the size. This is good for accelerating execution but not for debugging. Keep in mind that the HTIF communication interface between our system and the emulator relies on `tohost` and `fromhost` symbols to communicate. This is why you may get the following error when you try to run a totally stripped executable on the emulator:
+VCD output files can be obtained using the `-debug` version of the emulator and are specified using `-v` or `--vcd=FILE` arguments. A detailed log file of all executed instructions can also be obtained from the emulator, this is an example:
+
+	$ ./emulator-freechips.rocketchip.system-DefaultConfig-debug +verbose -v output.vcd  helloworld 2>&1 | spike-dasm > output.log
+
+Please note that generated VCD waveforms and execution log files can be very voluminous depending on the size of the .elf file (i.e. code size + debugging symbols).
+
+Please note also that the time it takes the emulator to load your program depends on executable size. Stripping the .elf executable will unsurprisingly make it run faster. For this you can use `$RISCV/bin/riscv64-unknown-elf-strip` tool to reduce the size. This is good for accelerating your simulation but not for debugging. Keep in mind that the HTIF communication interface between our system and the emulator relies on `tohost` and `fromhost` symbols to communicate. This is why you may get the following error when you try to run a totally stripped executable on the emulator:
 
 	$ ./emulator-freechips.rocketchip.system-DefaultConfig totally-stripped-helloworld 
 	This emulator compiled with JTAG Remote Bitbang client. To enable, use +jtag_rbb_enable=1.
