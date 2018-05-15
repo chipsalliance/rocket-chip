@@ -141,7 +141,7 @@ void remote_bitbang_t::execute_command()
     if (num_read == -1) {
       if (errno == EAGAIN) {
         // We'll try again the next call.
-        fprintf(stderr, "Received no command. Will try again on the next call\n");
+        //fprintf(stderr, "Received no command. Will try again on the next call\n");
       } else {
         fprintf(stderr, "remote_bitbang failed to read on socket: %s (%d)\n",
                 strerror(errno), errno);
@@ -156,7 +156,7 @@ void remote_bitbang_t::execute_command()
     }
   }
 
-  fprintf(stderr, "Received a command %c\n", command);
+  //fprintf(stderr, "Received a command %c\n", command);
 
   int dosend = 0;
 
