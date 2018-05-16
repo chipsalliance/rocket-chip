@@ -18,12 +18,6 @@ import org.json4s.jackson.JsonMethods.{pretty, render}
 case class InterruptsPortAnnotation(target: Named, name: String, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
-
-/** Record the resetVector. */
-case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
-}
-
 /** Record a case class that was used to parameterize this target. */
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
@@ -76,7 +70,12 @@ case class TopLevelPortAnnotation(
     protocol: String,
     tags: Seq[String],
     mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(n)
+  def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
+}
+
+/** Record the resetVector. */
+case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
 }
 
 /** Helper object containing methods for applying annotations to targets */
@@ -161,7 +160,6 @@ object GenRegDescsAnno {
   var LOCAL_EXTERNAL_INTERRUPTS = "local-external-interrupts"
   var LOCAL_INTERRUPTS_STARTING_NUMBER = 16 /* TODO the ISA specfication reserves the first 12 interrupts but
   somewhere in DTS 16 is used as the starting number. */
-
   def makeRegMappingSer(
     rawModule: RawModule,
     moduleName: String,
@@ -169,12 +167,18 @@ object GenRegDescsAnno {
     width: Int,
     byteOffset: Int,
     bitOffset: Int,
-    regField: RegField): RegFieldSer = {
+    regField: RegField): RegFieldDescSer = {
 
     val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
     val selectedRegFieldName = regField.desc.map(_.name).getOrElse(anonRegFieldName)
 
     val map = Map[BigInt, (String, String)]() // TODO
+
+// TODO: enumerations will be handled in upcoming PR
+//    ("enumerations" -> desc.map {d =>
+//      Option(d.enumerations.map { case (key, (name, edesc)) =>
+//        (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
+//      }).filter(_.nonEmpty)}) )
 
     val desc = regField.desc
 
@@ -195,10 +199,7 @@ object GenRegDescsAnno {
       enumerations = map
     )
 
-    RegFieldSer(
-      moduleName, //selectedName,
-      regFieldDescSer
-    )
+    regFieldDescSer
   }
 
 
@@ -211,10 +212,10 @@ object GenRegDescsAnno {
     val baseHex = s"0x${baseAddress.toInt.toHexString}"
     val displayName = s"${moduleName}.${baseHex}"
 
-    val regFieldSers = mapping.flatMap {
+    val regFieldSer = mapping.flatMap {
       case (byteOffset, seq) =>
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
-          makeRegMappingSer(
+          val regFieldDescSer = makeRegMappingSer(
             rawModule,
             moduleName,
             baseAddress,
@@ -223,16 +224,22 @@ object GenRegDescsAnno {
             bitOffset,
             regField
           )
+
+          RegFieldSer(
+            regFieldName = "todo",
+            desc = regFieldDescSer
+          )
         }
     }
+
+
 
     val registersSer = RegistersSer(
       displayName = moduleName,
       baseAddress = baseAddress,
-      regFields = regFieldSers // Seq[RegFieldSer]()
+      regFields = regFieldSer // Seq[RegFieldSer]()
     )
 
-//    annotate(RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer))
     annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer) })
 
     mapping
