@@ -5,6 +5,7 @@ package freechips.rocketchip.jtag
 import Chisel._
 import chisel3.core.{Input, Output}
 import chisel3.experimental.withClock
+import chisel3.util.HasBlackBoxInline
 
 /** Bundle representing a tristate pin.
   */
@@ -13,16 +14,49 @@ class Tristate extends Bundle {
   val driven = Bool()  // active high, pin is hi-Z when driven is low
 }
 
-/** Generates a register that updates on the falling edge of the input clock signal.
+class NegEdgeReg(w: Int) extends HasBlackBoxInline {
+
+
+  require( w > 0, s"NegEdgeReg must be at least 1 bit wide, not ${w}")
+  val width_str = if (w > 1) s"[${w-1}:0]" else ""
+
+  override def desiredName = s"NegEdgeReg_$w"
+
+  val io = IO(new Bundle{
+    val clock = Input(Clock())
+    val enable = Input(Bool())
+    val d = Input(UInt(w.W))
+    val q = Output(UInt(w.W))
+  })
+
+  //scalastyle:off regex
+  setInline(s"NegEdgeReg_${w}.v",
+    s"""
+      |module NegEdgeReg_${w}(
+      |    input      clock,
+      |    input      enable,
+      |    input      ${width_str} d,
+      |    output reg ${width_str} q
+      |);
+      |  always @(negedge clock) begin
+      |    if (enable) begin
+      |        q <= d;
+      |    end
+      |  end
+      |endmodule
+    """.stripMargin)
+}
+
+  /** Generates a non-reset register that updates on the falling edge of the input clock signal.
   */
 object NegEdgeReg {
   def apply[T <: Data](clock: Clock, next: T, enable: Bool=true.B, name: Option[String] = None): T = {
-    // TODO pass in initial value as well
-    withClock((!clock.asUInt).asClock) {
-      val reg = RegEnable(next = next, enable = enable)
-      name.foreach{reg.suggestName(_)}
-      reg
-    }
+    val reg = Module(new NegEdgeReg(w = next.getWidth))
+    reg.io.clock := clock
+    reg.io.d := next.asUInt
+    reg.io.enable := enable
+    name.foreach(reg.suggestName(_))
+    next.chiselCloneType.fromBits(reg.io.q)
   }
 }
 
