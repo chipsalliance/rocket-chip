@@ -14,6 +14,16 @@ import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+/** Record a set of interrupts. */
+case class InterruptsPortAnnotation(target: Named, name: String, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named) = this.copy(n)
+}
+
+/** Record the resetVector. */
+case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
+}
+
 /** Record a case class that was used to parameterize this target. */
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
@@ -71,6 +81,18 @@ case class TopLevelPortAnnotation(
 
 /** Helper object containing methods for applying annotations to targets */
 object annotated {
+  def interrupts(component: InstanceId, name: String, interrupts: Seq[Int]): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = InterruptsPortAnnotation(
+      component.toNamed,
+      name,
+      interrupts
+    )})
+  }
+
+  def resetVector(component: InstanceId, resetVec: BigInt): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = ResetVectorAnnotation(component.toNamed, resetVec)})
+  }
+
   def params[T <: Product](component: InstanceId, params: T): T = {
     annotate(ParamsChiselAnnotation(component, params))
     params
@@ -134,6 +156,11 @@ case class RegFieldDescMappingAnnotation(
 }
 
 object GenRegDescsAnno {
+
+  var GLOBAL_EXTERNAL_INTERRUPTS = "global-external-interrupts"
+  var LOCAL_EXTERNAL_INTERRUPTS = "local-external-interrupts"
+  var LOCAL_INTERRUPTS_STARTING_NUMBER = 16 /* TODO the ISA specfication reserves the first 12 interrupts but
+  somewhere in DTS 16 is used as the starting number. */
 
   def makeRegMappingSer(
     rawModule: RawModule,
