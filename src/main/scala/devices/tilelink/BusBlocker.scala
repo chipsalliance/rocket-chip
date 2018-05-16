@@ -95,14 +95,41 @@ class BusBlocker(params: BusBlockerParams)(implicit p: Parameters) extends TLBus
     val (in, edge) = nodeIn.in(0)
 
     // Determine if a request is allowed
-    val needW = in.a.bits.opcode =/= TLMessages.Get
-    val needR = in.a.bits.opcode =/= TLMessages.PutFullData && in.a.bits.opcode =/= TLMessages.PutPartialData
+    val needW = in.a.bits.opcode =/= TLMessages.Get &&
+                (in.a.bits.opcode =/= TLMessages.AcquireBlock ||
+                 in.a.bits.param  =/= TLPermissions.NtoB ||
+                 Bool(!edge.manager.anySupportAcquireB))
+    val needR = in.a.bits.opcode =/= TLMessages.PutFullData &&
+                in.a.bits.opcode =/= TLMessages.PutPartialData
     val lt = Bool(false) +: pmps.map(in.a.bits.address < _.address)
     val sel = (pmps.map(_.a) zip (lt.init zip lt.tail)) map { case (a, (l, r)) => a(0) && !l && r }
     val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
     val allow = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // no match => deny
 
     bar.module.io.bypass := !allow
+
+    // Track when a request is not allowed to be promoted toT
+    if (edge.manager.anySupportAcquireB) {
+      val wSourceVec = Reg(Vec(edge.client.endSourceId, Bool()))
+      val aWOk = PriorityMux(sel, pmps.map(_.w(0)))
+      val dWOk = wSourceVec(in.d.bits.source)
+      val bypass = Bool(edge.manager.minLatency == 0) && in.a.valid && in.a.bits.source === in.d.bits.source
+      val d_grant = in.d.bits.opcode === TLMessages.Grant || in.d.bits.opcode === TLMessages.GrantData
+      val d_first = edge.first(in.d)
+      val dWHeld = Mux(bypass, aWOk, dWOk) holdUnless d_first
+
+      when (d_grant && !dWHeld) {
+        in.d.bits.param := TLPermissions.toB
+      }
+
+      when (in.a.fire()) {
+        wSourceVec(in.a.bits.source) := aWOk
+      }
+
+      edge.client.unusedSources.foreach { id =>
+        wSourceVec(id) := Bool(true)
+      }
+    }
   }
 }
 
