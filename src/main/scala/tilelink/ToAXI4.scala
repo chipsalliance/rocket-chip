@@ -91,7 +91,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
 
-      annotated.idMapping(this, map.mapping).foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
+      Annotated.idMapping(this, map.mapping).foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
         for (i <- 0 until tlId.size) {
           val id = axi4Id.start + (if (fifo) 0 else (i >> stripBits))
           sourceStall(tlId.start + i) := idStall(id)
