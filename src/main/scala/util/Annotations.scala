@@ -236,6 +236,7 @@ object GenRegDescsAnno {
 
     val registersSer = RegistersSer(
       displayName = moduleName,
+      deviceName = moduleName,
       baseAddress = baseAddress,
       regFields = regFieldSer // Seq[RegFieldSer]()
     )
