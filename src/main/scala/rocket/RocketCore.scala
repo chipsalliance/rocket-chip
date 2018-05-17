@@ -840,6 +840,7 @@ object RVFIMonitor {
     val pc_rdata = SInt(width=xlen)
     val pc_wdata = SInt(width=xlen)
     val mem_addr = UInt(width=xlen)
+    val mem_extamo = UInt(width=1)
     val mem_rmask = UInt(width=xlen/8)
     val mem_wmask = UInt(width=xlen/8)
     val mem_rdata = UInt(width=xlen)
@@ -876,6 +877,7 @@ class RVFIMonitor(implicit p: Parameters) extends BlackBox {
     val rvfi_pc_rdata = SInt(INPUT, width=nret*xlen)
     val rvfi_pc_wdata = SInt(INPUT, width=nret*xlen)
     val rvfi_mem_addr = UInt(INPUT, width=nret*xlen)
+    val rvfi_mem_extamo = UInt(INPUT, width=nret)
     val rvfi_mem_rmask = UInt(INPUT, width=nret*xlen/8)
     val rvfi_mem_wmask = UInt(INPUT, width=nret*xlen/8)
     val rvfi_mem_rdata = UInt(INPUT, width=nret*xlen)
@@ -901,6 +903,7 @@ class RVFIMonitor(implicit p: Parameters) extends BlackBox {
     io.rvfi_pc_rdata := content.map(_.pc_rdata).asUInt.asSInt
     io.rvfi_pc_wdata := content.map(_.pc_wdata).asUInt.asSInt
     io.rvfi_mem_addr := content.map(_.mem_addr).asUInt
+    io.rvfi_mem_extamo := content.map(_.mem_extamo).asUInt
     io.rvfi_mem_rmask := content.map(_.mem_rmask).asUInt
     io.rvfi_mem_wmask := content.map(_.mem_wmask).asUInt
     io.rvfi_mem_rdata := content.map(_.mem_rdata).asUInt
@@ -942,6 +945,7 @@ class RocketWithRVFI(implicit p: Parameters) extends Rocket()(p) {
                                                   mem_npc))).asSInt
   inst_commit.insn := t.insn
   inst_commit.order := UInt(0)
+  inst_commit.mem_extamo := UInt(0)
   // Interrupt should be raised on the first instruction of the interrupt handler
   inst_commit.intr := xpt_encountered
   // Trap occurs on an instruction fault
