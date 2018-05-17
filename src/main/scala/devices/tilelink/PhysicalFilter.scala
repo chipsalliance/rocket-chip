@@ -30,7 +30,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
         Bool(true)
       }))
     Seq(
-      RegField(10),
+      RegField(params.pageBits-2),
       field(params.addressBits-params.pageBits, addr_hi, l(0) || blockAddress),
       RegField(56 - (params.addressBits-2)),
       field(1, r),
@@ -42,14 +42,24 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
   }
 }
 
+case class PMPInitialValue(address: BigInt = 0, l: Boolean = false, a: Boolean = false, r: Boolean = false, w: Boolean = false)
+
 object DevicePMP
 {
-  def apply(addressBits: Int, pageBits: Int) = {
+  def apply(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue] = None) = {
     val out = Wire(new DevicePMP(DevicePMPParams(addressBits, pageBits)))
-    out.l := UInt(0)
-    out.a := UInt(0)
-    out.r := UInt(0)
-    out.w := UInt(0)
+
+    initial.foreach { i =>
+      require ((i.address >> addressBits) == 0)
+      require ((i.address >> pageBits) << pageBits == i.address)
+      out.addr_hi := UInt(i.address >> pageBits)
+    }
+
+    def get(f: PMPInitialValue => Boolean) = initial.map(x => Bool(f(x)).asUInt).getOrElse(UInt(0))
+    out.l := get(_.l)
+    out.a := get(_.a)
+    out.r := get(_.r)
+    out.w := get(_.w)
     out
   }
 }
@@ -60,16 +70,17 @@ object DevicePMP
   * down permissions Acquired previously.
   */
 
+
 case class PhysicalFilterParams(
   controlAddress:   BigInt,
   controlBeatBytes: Int,
-  pmpRegisters:     Int = 1)
+  pmpRegisters:     Seq[PMPInitialValue] = Seq.fill(4) { PMPInitialValue() } )
 {
   val page = 4096
   val pageBits = log2Ceil(page)
-  val size = (((pmpRegisters * 8) + page - 1) / page) * page
+  val size = (((pmpRegisters.size * 8) + page - 1) / page) * page
 
-  require (pmpRegisters > 0)
+  require (!pmpRegisters.isEmpty)
   require (controlAddress > 0)
   require (controlAddress % size == 0)
   require (controlBeatBytes > 0 && isPow2(controlBeatBytes))
@@ -98,7 +109,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
 
       // We need to be able to represent +1 larger than the largest populated address
       val addressBits = log2Ceil(edgeOut.manager.maxAddress+1+1)
-      val pmps = RegInit(Vec.fill(params.pmpRegisters) { DevicePMP(addressBits, params.pageBits) })
+      val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
       val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
       controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
 
