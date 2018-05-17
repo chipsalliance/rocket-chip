@@ -10,10 +10,10 @@ enablePlugins(PackPlugin)
 lazy val commonSettings = Seq(
   organization := "berkeley",
   version      := "1.2",
-  scalaVersion := "2.11.12",
+  scalaVersion := "2.12.4",
   parallelExecution in Global := false,
   traceLevel   := 15,
-  scalacOptions ++= Seq("-deprecation","-unchecked"),
+  scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.5.3"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
