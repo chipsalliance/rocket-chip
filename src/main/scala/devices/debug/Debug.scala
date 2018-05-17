@@ -1067,7 +1067,10 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
     })
 
     dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
-    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
+    // To avoid a DFT hole on the flops in the ResetCatchAndSync itself, bypass even their
+    // own resets in PSD Test Mode.
+    val dmactive_psd_override = Mux(io.psd.test_mode, ~io.psd.test_mode_reset, io.dmactive)
+    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~dmactive_psd_override, "dmactiveSync", io.psd)
     dmInner.module.io.debugUnavail := io.debugUnavail
   }
 }
