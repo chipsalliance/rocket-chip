@@ -21,7 +21,6 @@ trait TileParams {
   val core: CoreParams
   val icache: Option[ICacheParams]
   val dcache: Option[DCacheParams]
-  val rocc: Seq[RoCCParams]
   val btb: Option[BTBParams]
   val spf: Option[SPFParams]
   val trace: Boolean
@@ -36,7 +35,7 @@ trait HasTileParameters {
   def usingVM: Boolean = tileParams.core.useVM
   def usingUser: Boolean = tileParams.core.useUser || usingVM
   def usingDebug: Boolean = tileParams.core.useDebug
-  def usingRoCC: Boolean = !tileParams.rocc.isEmpty
+  def usingRoCC: Boolean = !p(BuildRoCC).isEmpty
   def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
   def usingSPF: Boolean = tileParams.spf.isDefined && tileParams.spf.get.nStreams > 0
   def usingPTW: Boolean = usingVM
@@ -74,7 +73,9 @@ trait HasTileParameters {
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
   def masterPortBeatBytes = p(SystemBusKey).beatBytes
 
-  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + tileParams.rocc.size
+  // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
+  //                  Core   PTW                DTIM                    coprocessors           
+  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
 
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {

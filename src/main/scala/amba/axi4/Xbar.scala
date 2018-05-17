@@ -211,7 +211,7 @@ object AXI4Xbar
     axi4xbar.node
   }
 
-  def mapInputIds(ports: Seq[AXI4MasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endId)).map(_.get)
+  def mapInputIds(ports: Seq[AXI4MasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endId))
 
   // Replicate an input port to each output port
   def fanout[T <: AXI4BundleBase](input: IrrevocableIO[T], select: Seq[Bool]) = {

@@ -1165,7 +1165,7 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
 
     io.dmi.resp.valid      := tl.d.valid
     tl.d.ready             := io.dmi.resp.ready
-    io.dmi.resp.bits.resp  := Mux(tl.d.bits.error, DMIConsts.dmi_RESP_FAILURE, DMIConsts.dmi_RESP_SUCCESS)
+    io.dmi.resp.bits.resp  := Mux(tl.d.bits.corrupt || tl.d.bits.denied, DMIConsts.dmi_RESP_FAILURE, DMIConsts.dmi_RESP_SUCCESS)
     io.dmi.resp.bits.data  := tl.d.bits.data
 
     // Tie off unused channels

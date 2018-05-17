@@ -193,7 +193,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       val high = low + wide - 1
       RegFieldDesc(
         name      = s"enables_${j}",
-        desc      = "Targets ${low}-${high}. Set bits to 1 if interrupt should be enabled.",
+        desc      = s"Targets ${low}-${high}. Set bits to 1 if interrupt should be enabled.",
         group     = Some(s"enables_${i}"),
         groupDesc = Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."))
     }

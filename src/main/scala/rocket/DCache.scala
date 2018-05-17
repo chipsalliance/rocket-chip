@@ -458,7 +458,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       grantInProgress := true
       assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
       when(d_last) {
-        tl_error_valid := tl_out.d.bits.error
+        tl_error_valid := tl_out.d.bits.denied
+        // !!! TODO; store corrupt flag
         cached_grant_wait := false
         grantInProgress := false
         blockProbeAfterGrantCount := blockProbeAfterGrantCycles - 1
@@ -510,7 +511,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // ignore backpressure from metaArb, which can only be caused by tag ECC
   // errors on hit-under-miss.  failing to write the new tag will leave the
   // line invalid, so we'll simply request the line again later.
-  metaArb.io.in(3).valid := grantIsCached && d_done && !tl_out.d.bits.error
+  metaArb.io.in(3).valid := grantIsCached && d_done && !tl_out.d.bits.denied
   metaArb.io.in(3).bits.write := true
   metaArb.io.in(3).bits.way_en := s2_victim_way
   metaArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_req.addr(idxMSB, 0))
@@ -615,7 +616,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
     tl_out_c.bits.address := probe_bits.address
     tl_out_c.bits.data := s2_data_corrected
-    tl_out_c.bits.error := inWriteback && {
+    tl_out_c.bits.corrupt := inWriteback && {
       val accrued = Reg(Bool())
       val next = writeback_data_uncorrectable || (accrued && !c_first)
       when (tl_out_c.fire()) { accrued := next }
@@ -781,7 +782,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       c.bits := error_addr
       io.errors.uncorrectable.foreach { u => when (u.valid) { c.valid := false } }
     }
-    io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.error
+    io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.corrupt
     io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
 
     ccoverNotScratchpad(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
