@@ -216,7 +216,16 @@ trait HasHellaCache { this: BaseTile =>
       new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
     } else { new NonBlockingDCache(hartId) })
 
-  tlMasterXbar.node := dcache.node
+  
+  // Stride prefetcher
+  if (tileParams.core.spfAddr.isDefined) {
+    val spf_inst = LazyModule(new TLSPF(4, tileParams.spf.get, hartId))
+    connectTLSlave(spf_inst.rnode, 4)
+    tlMasterXbar.node := spf_inst.node := dcache.node   // SPF will pass-through DCache channel and monitor it
+    tlMasterXbar.node := spf_inst.masterNode            // SPF's master node for generating prefetch hints
+  } else {
+    tlMasterXbar.node := dcache.node
+  }
 }
 
 trait HasHellaCacheModule {

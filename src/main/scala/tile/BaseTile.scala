@@ -23,6 +23,7 @@ trait TileParams {
   val dcache: Option[DCacheParams]
   val rocc: Seq[RoCCParams]
   val btb: Option[BTBParams]
+  val spf: Option[SPFParams]
   val trace: Boolean
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
@@ -37,6 +38,7 @@ trait HasTileParameters {
   def usingDebug: Boolean = tileParams.core.useDebug
   def usingRoCC: Boolean = !tileParams.rocc.isEmpty
   def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
+  def usingSPF: Boolean = tileParams.spf.isDefined && tileParams.spf.get.nStreams > 0
   def usingPTW: Boolean = usingVM
   def usingDataScratchpad: Boolean = tileParams.dcache.flatMap(_.scratch).isDefined
 

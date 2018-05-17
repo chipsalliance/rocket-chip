@@ -22,6 +22,7 @@ trait GroundTestTileParams extends TileParams {
   
   val icache = None
   val btb = None
+  val spf = None
   val rocc = Nil
   val core = RocketCoreParams(nPMPs = 0) //TODO remove this
   val cached = if(dcache.isDefined) 1 else 0
