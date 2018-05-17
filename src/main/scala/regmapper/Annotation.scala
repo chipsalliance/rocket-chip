@@ -23,6 +23,11 @@ case class RegFieldDescSer(
   enumerations: Map[BigInt, (String, String)] = Map()
 )
 
+case class RegFieldSer(
+  regFieldName: String,
+  desc: RegFieldDescSer
+)
+
 case class RegistersSer(
   displayName: String,
   deviceName: String,
