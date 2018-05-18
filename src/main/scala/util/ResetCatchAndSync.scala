@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.experimental.{withClockAndReset}
+import chisel3.experimental.{withClockAndReset, withReset}
 
 /** Reset: asynchronous assert,
   *  synchronous de-assert
@@ -19,9 +19,15 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
     val psd = new PSDTestMode().asInput
   }
 
-  io.sync_reset := Mux(io.psd.test_mode, io.psd.test_mode_reset,
-    ~AsyncResetSynchronizerShiftReg(Bool(true), sync))
+  // Bypass both the resets to the flops themselves (to prevent DFT holes on
+  // those flops) and on the output of the synchronizer circuit (to control
+  // reset to any flops this circuit drives).
 
+  val post_psd_reset = Mux(io.psd.test_mode, io.psd.test_mode_reset, reset)
+  withReset(post_psd_reset) {
+    io.sync_reset := Mux(io.psd.test_mode, io.psd.test_mode_reset,
+      ~AsyncResetSynchronizerShiftReg(Bool(true), sync))
+  }
 }
 
 object ResetCatchAndSync {
