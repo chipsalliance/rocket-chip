@@ -180,6 +180,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       out_w.bits.data := in.a.bits.data
       out_w.bits.strb := in.a.bits.mask
       out_w.bits.last := a_last
+      out_w.bits.corrupt.foreach { _ := in.a.bits.corrupt }
 
       // R and B => D arbitration
       val r_holds_d = RegInit(Bool(false))
