@@ -791,7 +791,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")
   }
 
-  def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.isInstanceOf[IdentityCode]) false.B else poison)).asUInt
+  def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
   def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt
   def decodeData(x: UInt) = x.grouped(dECC.width(eccBits)).map(dECC.decode(_))
   def eccMask(byteMask: UInt) = byteMask.grouped(eccBytes).map(_.orR).asUInt
