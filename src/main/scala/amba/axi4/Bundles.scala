@@ -45,6 +45,7 @@ class AXI4BundleW(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val data = UInt(width = params.dataBits)
   val strb = UInt(width = params.dataBits/8)
   val last = Bool()
+  val corrupt = if (params.wcorrupt) Some(Bool()) else None
 }
 
 class AXI4BundleR(params: AXI4BundleParameters) extends AXI4BundleBase(params)
