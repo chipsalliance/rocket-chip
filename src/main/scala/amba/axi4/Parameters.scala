@@ -86,8 +86,8 @@ case class AXI4BundleParameters(
   addrBits: Int,
   dataBits: Int,
   idBits:   Int,
-  userBits: Int,
-  wcorrupt: Boolean)
+  userBits: Int = 0,
+  wcorrupt: Boolean = false)
 {
   require (dataBits >= 8, s"AXI4 data bits must be >= 8 (got $dataBits)")
   require (addrBits >= 1, s"AXI4 addr bits must be >= 1 (got $addrBits)")
