@@ -10,7 +10,7 @@ class IDPool(numIds: Int) extends Module {
   val idWidth = log2Up(numIds)
 
   val io = IO(new Bundle {
-    val free = Valid(UInt(idWidth.W)).flip
+    val free = Flipped(Valid(UInt(idWidth.W)))
     val alloc = Irrevocable(UInt(idWidth.W))
   })
 
