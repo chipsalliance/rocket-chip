@@ -15,7 +15,7 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a set of interrupts. */
-case class InterruptsPortAnnotation(target: Named, name: String, nInterrupts: Seq[Int]) extends SingleTargetAnnotation[Named] {
+case class InterruptsPortAnnotation(target: Named, name: String, interruptIndexes: Seq[Int]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 /** Record a case class that was used to parameterize this target. */
@@ -144,9 +144,8 @@ trait DontTouch { self: RawModule =>
 
 /** Mix this into a Module class or instance to mark it for register retiming */
 trait ShouldBeRetimed { self: RawModule =>
-  chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl = RetimeModuleAnnotation(self.toNamed) })
+  chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl: RetimeModuleAnnotation = RetimeModuleAnnotation(self.toNamed) })
 }
-
 
 case class RegFieldDescMappingAnnotation(
   target: ModuleName,
@@ -154,12 +153,16 @@ case class RegFieldDescMappingAnnotation(
   def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
 }
 
+object InterruptsPortAnnotation {
+  val GLOBAL_EXTERNAL_INTERRUPTS = "global-external-interrupts"
+  val LOCAL_EXTERNAL_INTERRUPTS = "local-external-interrupts"
+  val LOCAL_INTERRUPTS_STARTING_NUMBER = 16 /* TODO the ISA specfication reserves the first 12 interrupts but
+  somewhere in DTS 16 is used as the starting number. */
+
+}
+
 object GenRegDescsAnno {
 
-  var GLOBAL_EXTERNAL_INTERRUPTS = "global-external-interrupts"
-  var LOCAL_EXTERNAL_INTERRUPTS = "local-external-interrupts"
-  var LOCAL_INTERRUPTS_STARTING_NUMBER = 16 /* TODO the ISA specfication reserves the first 12 interrupts but
-  somewhere in DTS 16 is used as the starting number. */
   def makeRegMappingSer(
     rawModule: RawModule,
     moduleName: String,
