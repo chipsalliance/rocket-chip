@@ -29,6 +29,7 @@ class AHBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
+    require (mask.filter(b=>b).size < 31)
     val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
 
     // The mask and address during the address phase
