@@ -99,7 +99,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
 
 
 abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
-  private val mapping: Seq[AddressMapEntry] = annotated.addressMapping(this, {
+  private val mapping: Seq[AddressMapEntry] = Annotated.addressMapping(this, {
     outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
     }.sortBy(_.range)
