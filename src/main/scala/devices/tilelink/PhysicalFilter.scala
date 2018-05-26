@@ -108,7 +108,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val (d_first, d_last, _) = edgeIn.firstlast(in.d)
 
       // We need to be able to represent +1 larger than the largest populated address
-      val addressBits = log2Ceil(edgeOut.manager.maxAddress+1+1)
+      val addressBits = log2Ceil(edgeOut.manager.maxAddress+1)+1
       val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
       val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
       controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
