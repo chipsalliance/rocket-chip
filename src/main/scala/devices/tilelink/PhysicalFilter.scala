@@ -99,6 +99,12 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
     beatBytes = params.controlBeatBytes)
 
   lazy val module = new LazyModuleImp(this) {
+    // We need to be able to represent +1 larger than the largest populated address
+    val addressBits = log2Ceil(node.edges.out.map(_.manager.maxAddress).max+1+1)
+    val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
+    val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
+    controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
+
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
@@ -106,12 +112,6 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val mySinkId = UInt(edgeOut.manager.endSinkId)
       val a_first = edgeIn.first(in.a)
       val (d_first, d_last, _) = edgeIn.firstlast(in.d)
-
-      // We need to be able to represent +1 larger than the largest populated address
-      val addressBits = log2Ceil(edgeOut.manager.maxAddress+1+1)
-      val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
-      val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
-      controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
 
       // Determine if a request is allowed
       val needW = in.a.bits.opcode =/= TLMessages.Get &&
