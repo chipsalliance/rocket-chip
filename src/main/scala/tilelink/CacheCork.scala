@@ -9,7 +9,7 @@ import freechips.rocketchip.util._
 import scala.math.{min,max}
 import TLMessages._
 
-class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parameters) extends LazyModule
+class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { case cp =>
@@ -165,7 +165,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parame
 
 object TLCacheCork
 {
-  def apply(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parameters): TLNode =
+  def apply(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters): TLNode =
   {
     val cork = LazyModule(new TLCacheCork(unsafe, sinkIds))
     cork.node
