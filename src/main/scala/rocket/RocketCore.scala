@@ -918,6 +918,8 @@ class RocketWithRVFI(implicit p: Parameters) extends Rocket()(p) {
   rvfi_mon.io.reset := reset
 
   val rd_store_commit = Reg(init=Vec(Seq.fill(32)(RVFIMonitor.invalid_RVFI_base(p(XLen)))))
+  val rd_rocc_commit = Reg(init=Vec(Seq.fill(32)(RVFIMonitor.invalid_RVFI_base(p(XLen)))))
+  val rd_div_commit = Reg(init=Vec(Seq.fill(32)(RVFIMonitor.invalid_RVFI_base(p(XLen)))))
   val inst_commit = Wire(new RVFIMonitor.RVFI_Base(p(XLen))).suggestName("inst_commit")
 
   val t = csr.io.trace(0)
@@ -1035,30 +1037,46 @@ class RocketWithRVFI(implicit p: Parameters) extends Rocket()(p) {
   }
 
   val store_commit = Wire(new RVFIMonitor.RVFI_Base(p(XLen))).suggestName("store_commit")
+  val rocc_commit = Wire(new RVFIMonitor.RVFI_Base(p(XLen))).suggestName("rocc_commit")
+  val div_commit = Wire(new RVFIMonitor.RVFI_Base(p(XLen))).suggestName("div_commit")
   val inst_commit_filtered = Wire(new RVFIMonitor.RVFI_Base(p(XLen))).suggestName("inst_commit_filtered")
 
   inst_commit_filtered := inst_commit
   when(wb_set_sboard && wb_wen) {
-    rd_store_commit(wb_waddr) := inst_commit
+    when(wb_ctrl.div) {
+      rd_div_commit(wb_waddr) := inst_commit
+    }
+    when (wb_dcache_miss) {
+      rd_store_commit(wb_waddr) := inst_commit
+    }
+    when (wb_ctrl.rocc) {
+      rd_rocc_commit(wb_waddr) := inst_commit
+    }
     inst_commit_filtered.valid := Bool(false)
   }
 
-// TODO ll_wen will actually get activate twice if cache miss
-//   so will have to disable first activation if scoreboard
-//   is in "hold" state (have to figure out what "hold" state is
+  when (ll_wen) {
+    when(div.io.resp.fire()) {
+      store_commit := rd_div_commit(rf_waddr)
+    }
+    if (usingRoCC) {
+      when(io.rocc.resp.fire()) {
+        store_commit := rd_rocc_commit(rf_waddr)
+      }
+    }
+    when(dmem_resp_replay && dmem_resp_xpu) {
+      store_commit := rd_store_commit(rf_waddr)
+      store_commit.mem_rdata := io.dmem.resp.bits.data
+      store_commit.mem_rmask := Fill(p(XLen)/8, dmem_resp_valid)
+    }
 
-  when (ll_wen && rf_waddr =/= UInt(0)) {
-    store_commit := rd_store_commit(rf_waddr)
     store_commit.rd_addr := rf_waddr
+
     store_commit.rd_wdata := rf_wdata
-    store_commit.mem_rdata := io.dmem.resp.bits.data
-    store_commit.mem_rmask := Fill(p(XLen)/8, dmem_resp_valid)
-  } .elsewhen (ll_wen /* implies && rf_waddr===UInt(0) */ ) {
-    store_commit := rd_store_commit(rf_waddr)
-    store_commit.rd_addr := rf_waddr
-    store_commit.rd_wdata := UInt(0)
-    store_commit.mem_rdata := io.dmem.resp.bits.data
-    store_commit.mem_rmask := Fill(p(XLen)/8, dmem_resp_valid)
+    when(rf_waddr === 0.U) {
+      store_commit.rd_wdata := UInt(0)
+    }
+
   } .otherwise {
     store_commit := RVFIMonitor.invalid_RVFI_base(p(XLen))
   }
