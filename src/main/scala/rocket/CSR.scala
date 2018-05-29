@@ -625,7 +625,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
       if (usingUser) {
         reg_mstatus.mprv := new_mstatus.mprv
-        reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
+        reg_mstatus.mpp := legalizePrivilege(new_mstatus.mpp)
         if (usingVM) {
           reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.sum := new_mstatus.sum
@@ -691,7 +691,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_dcsr.ebreakm := new_dcsr.ebreakm
         if (usingVM) reg_dcsr.ebreaks := new_dcsr.ebreaks
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
-        if (usingUser) reg_dcsr.prv := trimPrivilege(new_dcsr.prv)
+        if (usingUser) reg_dcsr.prv := legalizePrivilege(new_dcsr.prv)
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
