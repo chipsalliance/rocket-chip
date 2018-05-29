@@ -99,6 +99,12 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
     beatBytes = params.controlBeatBytes)
 
   lazy val module = new LazyModuleImp(this) {
+    // We need to be able to represent +1 larger than the largest populated address
+    val addressBits = log2Ceil(node.edges.out.map(_.manager.maxAddress).max+1+1)
+    val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
+    val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
+    controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
+
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
@@ -106,12 +112,6 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val mySinkId = UInt(edgeOut.manager.endSinkId)
       val a_first = edgeIn.first(in.a)
       val (d_first, d_last, _) = edgeIn.firstlast(in.d)
-
-      // We need to be able to represent +1 larger than the largest populated address
-      val addressBits = log2Ceil(edgeOut.manager.maxAddress+1+1)
-      val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
-      val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
-      controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
 
       // Determine if a request is allowed
       val needW = in.a.bits.opcode =/= TLMessages.Get &&
@@ -129,18 +129,22 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       // Track the progress of transactions from A => D
       val d_rack  = Bool(edgeIn.manager.anySupportAcquireB) && in.d.bits.opcode === TLMessages.ReleaseAck
       val flight = RegInit(UInt(0, width = log2Ceil(edgeIn.client.endSourceId+1+1))) // +1 for inclusive range +1 for a_first vs. d_last
+      val denyWait = RegInit(Bool(false)) // deny already inflight?
       flight := flight + (a_first && in.a.fire()) - (d_last && !d_rack && in.d.fire())
 
       // Discard denied A traffic, but first block it until there is nothing in-flight
-      in.a.ready := Mux(allow, out.a.ready, !a_first || flight === UInt(0))
+      val deny_ready = !denyWait && flight === UInt(0)
+      in.a.ready := Mux(allow, out.a.ready, !a_first || deny_ready)
       out.a.valid := in.a.valid && allow
 
       // Frame an appropriate deny message
       val denyValid = RegInit(Bool(false))
       val deny = Reg(in.d.bits)
       val d_opcode = TLMessages.adResponse(in.a.bits.opcode)
-      when (in.a.fire() && !allow) {
+      val d_grant = Bool(edgeIn.manager.anySupportAcquireB) && deny.opcode === TLMessages.Grant
+      when (in.a.valid && !allow && deny_ready && a_first) {
         denyValid    := Bool(true)
+        denyWait     := Bool(true)
         deny.opcode  := d_opcode
         deny.param   := UInt(0) // toT, but error grants must be handled transiently (ie: you don't keep permissions)
         deny.size    := in.a.bits.size
@@ -152,6 +156,9 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       }
       when (denyValid && in.d.ready && d_last) {
         denyValid := Bool(false)
+        when (!d_grant) {
+          denyWait := Bool(false)
+        }
       }
 
       val out_d = Wire(in.d.bits)
@@ -189,6 +196,10 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
         val isMyId = mySinkId === in.e.bits.sink
         out.e.valid := in.e.valid && !isMyId
         in.e.ready := out.e.ready || isMyId
+
+        when (in.e.fire() && isMyId) {
+          denyWait := Bool(false)
+        }
       }
     }
   }
