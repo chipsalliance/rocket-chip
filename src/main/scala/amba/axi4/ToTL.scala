@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class AXI4ToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
+case class AXI4ToTLNode(wcorrupt: Boolean = false)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
   dFn = { case AXI4MasterPortParameters(masters, userBits) =>
     masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = masters.map(_.maxFlight.get).max
@@ -35,12 +35,13 @@ case class AXI4ToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AX
         supportsRead  = m.supportsGet.intersect(maxXfer),
         interleavedId = Some(0))}, // TL2 never interleaves D beats
     beatBytes = mp.beatBytes,
+    wcorrupt = wcorrupt,
     minLatency = mp.minLatency)
   })
 
-class AXI4ToTL()(implicit p: Parameters) extends LazyModule
+class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
-  val node = AXI4ToTLNode()
+  val node = AXI4ToTLNode(wcorrupt)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -97,6 +98,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       in.w.ready  := w_out.ready && in.aw.valid
       w_out.valid := in.aw.valid && in.w.valid
       w_out.bits := edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
+      in.w.bits.corrupt.foreach { w_out.bits.corrupt := _ }
 
       val w_sel = UIntToOH(in.aw.bits.id, numIds)
       (w_sel.toBools zip w_count) foreach { case (s, r) =>
@@ -160,9 +162,9 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply()(implicit p: Parameters) =
+  def apply(wcorrupt: Boolean = false)(implicit p: Parameters) =
   {
-    val axi42tl = LazyModule(new AXI4ToTL)
+    val axi42tl = LazyModule(new AXI4ToTL(wcorrupt))
     axi42tl.node
   }
 }
