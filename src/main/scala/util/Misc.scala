@@ -199,7 +199,7 @@ object MaskGen {
     require (groupBy >= 1 && beatBytes >= groupBy)
     require (isPow2(beatBytes) && isPow2(groupBy))
     val lgBytes = log2Ceil(beatBytes)
-    val sizeOH = UIntToOH(lgSize, log2Up(beatBytes)) | UInt(groupBy*2 - 1)
+    val sizeOH = UIntToOH(lgSize | 0.U(log2Up(beatBytes).W), log2Up(beatBytes)) | UInt(groupBy*2 - 1)
 
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {

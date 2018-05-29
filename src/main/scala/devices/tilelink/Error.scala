@@ -64,8 +64,7 @@ class TLError(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parameters)
     a.ready := (da.ready && da_last && idle) || !a_last
     da.valid := a.valid && a_last && idle
 
-    val a_opcodes = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
-    da.bits.opcode  := a_opcodes(a.bits.opcode)
+    da.bits.opcode  := TLMessages.adResponse(a.bits.opcode)
     da.bits.param   := UInt(0) // toT, but error grants must be handled transiently (ie: you don't keep permissions)
     da.bits.size    := a.bits.size
     da.bits.source  := a.bits.source

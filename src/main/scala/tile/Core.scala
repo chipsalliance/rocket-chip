@@ -79,6 +79,7 @@ trait HasCoreParameters extends HasTileParameters {
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
+
 }
 
 abstract class CoreModule(implicit val p: Parameters) extends Module

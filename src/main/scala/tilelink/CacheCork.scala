@@ -9,7 +9,7 @@ import freechips.rocketchip.util._
 import scala.math.{min,max}
 import TLMessages._
 
-class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parameters) extends LazyModule
+class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { case cp =>
@@ -125,9 +125,26 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parame
         d_d <> out.d
         d_d.bits.source := out.d.bits.source >> 1
 
+        // Record if a target was writable and auto-promote toT if it was
+        // This is structured so that the vector can be constant prop'd away
+        val wSourceVec = Reg(Vec(edgeIn.client.endSourceId, Bool()))
+        val aWOk = edgeIn.manager.fastProperty(in.a.bits.address, !_.supportsPutFull.none, (b:Boolean) => Bool(b))
+        val dWOk = wSourceVec(d_d.bits.source)
+        val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.valid && in.a.bits.source === d_d.bits.source
+        val dWHeld = Mux(bypass, aWOk, dWOk) holdUnless d_first
+
+        when (in.a.fire()) {
+          wSourceVec(in.a.bits.source) := aWOk
+        }
+
+        // Wipe out any unused registers
+        edgeIn.client.unusedSources.foreach { id =>
+          wSourceVec(id) := Bool(edgeIn.manager.anySupportPutFull)
+        }
+
         when (out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {
           d_d.bits.opcode := GrantData
-          d_d.bits.param := TLPermissions.toT
+          d_d.bits.param := Mux(dWHeld, TLPermissions.toT, TLPermissions.toB)
         }
         when (out.d.bits.opcode === AccessAck && !out.d.bits.source(0)) {
           d_d.bits.opcode := ReleaseAck
@@ -148,7 +165,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parame
 
 object TLCacheCork
 {
-  def apply(unsafe: Boolean = false, sinkIds: Int = 16)(implicit p: Parameters): TLNode =
+  def apply(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters): TLNode =
   {
     val cork = LazyModule(new TLCacheCork(unsafe, sinkIds))
     cork.node

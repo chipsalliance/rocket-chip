@@ -25,6 +25,7 @@ class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)
   val write = Bool()
   val wdata = UInt(width = encBits * rowBytes / eccBytes)
+  val poison = Bool()
   val wordMask = UInt(width = rowBytes / wordBytes)
   val eccMask = UInt(width = wordBytes / eccBytes)
   val way_en = Bits(width = nWays)
@@ -81,7 +82,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val data = Module(new DCacheDataArray)
   val dataArb = Module(new Arbiter(new DCacheDataReq, 4))
   data.io.req <> dataArb.io.out
-  data.io.req.bits.wdata := encodeData(dataArb.io.out.bits.wdata(rowBits-1, 0))
+  data.io.req.bits.wdata := encodeData(dataArb.io.out.bits.wdata(rowBits-1, 0), dataArb.io.out.bits.poison)
   dataArb.io.out.ready := true
   metaArb.io.out.ready := true
 
@@ -365,6 +366,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
   dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
   dataArb.io.in(0).bits.wdata := Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_data))
+  dataArb.io.in(0).bits.poison := false
   dataArb.io.in(0).bits.wordMask := UIntToOH(Mux(pstore2_valid, pstore2_addr, pstore1_addr).extract(rowOffBits-1,offsetlsb))
   dataArb.io.in(0).bits.eccMask := eccMask(Mux(pstore2_valid, pstore2_storegen_mask, pstore1_mask))
 
@@ -459,7 +461,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       assert(cached_grant_wait, "A GrantData was unexpected by the dcache.")
       when(d_last) {
         tl_error_valid := tl_out.d.bits.denied
-        // !!! TODO; store corrupt flag
         cached_grant_wait := false
         grantInProgress := false
         blockProbeAfterGrantCount := blockProbeAfterGrantCycles - 1
@@ -505,6 +506,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(1).bits.addr :=  s2_req_block_addr | d_address_inc
   dataArb.io.in(1).bits.way_en := s2_victim_way
   dataArb.io.in(1).bits.wdata := tl_out.d.bits.data
+  dataArb.io.in(1).bits.poison := tl_out.d.bits.corrupt
   dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
   dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   // tag updates on refill
@@ -782,14 +784,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       c.bits := error_addr
       io.errors.uncorrectable.foreach { u => when (u.valid) { c.valid := false } }
     }
-    io.errors.bus.valid := tl_out.d.fire() && tl_out.d.bits.corrupt
+    io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || !grantIsCached && tl_out.d.bits.corrupt)
     io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
 
     ccoverNotScratchpad(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
     ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")
   }
 
-  def encodeData(x: UInt) = x.grouped(eccBits).map(dECC.encode(_)).asUInt
+  def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
   def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt
   def decodeData(x: UInt) = x.grouped(dECC.width(eccBits)).map(dECC.decode(_))
   def eccMask(byteMask: UInt) = byteMask.grouped(eccBytes).map(_.orR).asUInt

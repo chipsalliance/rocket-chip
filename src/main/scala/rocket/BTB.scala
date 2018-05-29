@@ -34,7 +34,7 @@ trait HasBtbParameters extends HasCoreParameters { this: InstanceId =>
 }
 
 abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters {
-  annotated.params(this, btbParams)
+  Annotated.params(this, btbParams)
 }
 
 abstract class BtbBundle(implicit val p: Parameters) extends Bundle with HasBtbParameters
@@ -289,7 +289,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   if (btbParams.bhtParams.nonEmpty) {
-    val bht = new BHT(annotated.params(this, btbParams.bhtParams.get))
+    val bht = new BHT(Annotated.params(this, btbParams.bhtParams.get))
     val isBranch = (idxHit & cfiType.map(_ === CFIType.branch).asUInt).orR
     val res = bht.get(io.req.bits.addr)
     when (io.bht_advance.valid) {
