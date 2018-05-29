@@ -57,17 +57,6 @@ class RocketTile(
     beu
   }
 
-  // Stride prefetcher
-  //val spf_unit = tileParams.core.spfAddr map { a =>
-  //  val spf_inst = LazyModule(new TLSPF(4, tileParams.spf.get))
-  //  connectTLSlave(spf_inst.rnode, 4)
-  //  spf_inst
-  //}
-
-  //if (usingSPF) {
-  //  require(spf_unit.isDefined)
-  //}
-
   val tile_master_blocker =
     tileParams.blockerCtrlAddr
       .map(BasicBusBlockerParams(_, xBytes, masterPortBeatBytes, deadlock = true))
