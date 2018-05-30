@@ -18,10 +18,12 @@ object EarlyAck {
 // minSize: minimum size of transfers supported by all outward managers
 // maxSize: maximum size of transfers supported after the Fragmenter is applied
 // alwaysMin: fragment all requests down to minSize (else fragment to maximum supported by manager)
+// earlyAck: should a multibeat Put should be acknowledged on the first beat or last beat
+// holdFirstDeny: allow the Fragmenter to unsafely combine multibeat Gets by taking the first denied for the whole burst
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
-class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None)(implicit p: Parameters) extends LazyModule
+class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None, val holdFirstDeny: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   require(isPow2 (maxSize), s"TLFragmenter expects pow2(maxSize), but got $maxSize")
   require(isPow2 (minSize), s"TLFragmenter expects pow2(minSize), but got $minSize")
@@ -72,7 +74,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       // We can't support devices which are cached on both sides of us
       require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)
       // We can't support denied because we reassemble fragments
-      require (!edgeOut.manager.mayDenyGet)
+      require (!edgeOut.manager.mayDenyGet || holdFirstDeny)
       require (!edgeOut.manager.mayDenyPut || earlyAck == EarlyAck.None)
 
       /* The Fragmenter is a bit tricky, because there are 5 sizes in play:
@@ -208,6 +210,13 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         when (out.d.fire()) { r_denied := d_denied }
         in.d.bits.denied := d_denied
       }
+      if (edgeOut.manager.mayDenyGet) {
+        // Take denied only from the first beat and hold that value
+        val d_denied = out.d.bits.denied holdUnless dFirst
+        when (dHasData) {
+          in.d.bits.denied := d_denied
+        }
+      }
 
       // What maximum transfer sizes do downstream devices support?
       val maxArithmetics = managers.map(_.supportsArithmetic.max)
@@ -293,9 +302,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
 object TLFragmenter
 {
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None)(implicit p: Parameters): TLNode =
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false)(implicit p: Parameters): TLNode =
   {
-    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck))
+    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
     fragmenter.node
   }
 }
