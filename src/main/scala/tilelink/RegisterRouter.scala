@@ -4,7 +4,6 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.experimental.RawModule
-import chisel3.internal.GetMeMyModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -101,9 +100,7 @@ case class TLRegisterNode(
     }
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
 
-    // TODO This comment serves as a reminder to change this code to use the new def in Chisel and remove the call to
-    //  GetMeMyModule.
-    val module = GetMeMyModule.currentModule.get.asInstanceOf[RawModule]
+    val module = Module.currentModule.get.asInstanceOf[RawModule]
     GenRegDescsAnno.anno(
       module,
       base,
