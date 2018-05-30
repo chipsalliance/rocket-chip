@@ -3,7 +3,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import scala.collection.mutable.{ArrayBuffer, Map, Set}
+import scala.collection.mutable.{ArrayBuffer, Map}
 
 object DecodeLogic
 {
@@ -88,7 +88,7 @@ object Simplify
     var prime = List[Term]()
     implicants.foreach(_.prime = true)
     val cols = (0 to bits).map(b => implicants.filter(b == _.mask.bitCount))
-    val table = cols.map(c => (0 to bits).map(b => Set(c.filter(b == _.value.bitCount):_*)))
+    val table = cols.map(c => (0 to bits).map(b => collection.mutable.Set(c.filter(b == _.value.bitCount):_*)))
     for (i <- 0 to bits) {
       for (j <- 0 until bits-i)
         table(i)(j).foreach(a => table(i+1)(j) ++= table(i)(j+1).filter(_.similar(a)).map(_.merge(a)))
@@ -99,12 +99,11 @@ object Simplify
     prime.sortWith(_<_)
   }
   def getEssentialPrimeImplicants(prime: Seq[Term], minterms: Seq[Term]): (Seq[Term],Seq[Term],Seq[Term]) = {
-    for (i <- 0 until prime.size) {
-      val icover = minterms.filter(prime(i) covers _)
-      for (j <- 0 until prime.size) {
-        val jcover = minterms.filter(prime(j) covers _)
-        if (icover.size > jcover.size && jcover.forall(prime(i) covers _))
-          return getEssentialPrimeImplicants(prime.filter(_ != prime(j)), minterms)
+    val primeCovers = prime.map(p => minterms.filter(p covers _))
+    for (((icover, pi), i) <- (primeCovers zip prime).zipWithIndex) {
+      for (((jcover, pj), j) <- (primeCovers zip prime).zipWithIndex.drop(i+1)) {
+        if (icover.size > jcover.size && jcover.forall(pi covers _))
+          return getEssentialPrimeImplicants(prime.filter(_ != pj), minterms)
       }
     }
 
@@ -128,8 +127,8 @@ object Simplify
   }
   def getCover(implicants: Seq[Term], minterms: Seq[Term], bits: Int) = {
     if (minterms.nonEmpty) {
-      val cover = minterms.map(m => implicants.filter(_.covers(m)).map(i => Set(i)))
-      val all = cover.reduceLeft((c0, c1) => c0.map(a => c1.map(_ ++ a)).reduceLeft(_++_))
+      val cover = minterms.map(m => implicants.filter(_.covers(m)))
+      val all = cover.tail.foldLeft(cover.head.map(Set(_)))((c0, c1) => c0.flatMap(a => c1.map(a + _)))
       all.map(_.toList).reduceLeft((a, b) => if (cheaper(a, b, bits)) a else b)
     } else
       Seq[Term]()
@@ -165,7 +164,7 @@ object SimplifyDC
     minterms.foreach(_.prime = true)
     var mint = minterms.map(t => new Term(t.value, t.mask))
     val cols = (0 to bits).map(b => mint.filter(b == _.mask.bitCount))
-    val table = cols.map(c => (0 to bits).map(b => Set(c.filter(b == _.value.bitCount):_*)))
+    val table = cols.map(c => (0 to bits).map(b => collection.mutable.Set(c.filter(b == _.value.bitCount):_*)))
 
     for (i <- 0 to bits) {
       for (j <- 0 until bits-i) {
