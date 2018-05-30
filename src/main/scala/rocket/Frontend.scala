@@ -126,8 +126,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.valid := !s2_replay
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
-  tlb.io.req.bits.sfence := io.cpu.sfence
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
+  tlb.io.sfence := io.cpu.sfence
   tlb.io.kill := false
 
   icache.io.hartid := io.hartid
