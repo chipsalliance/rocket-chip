@@ -619,12 +619,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
     tl_out_c.bits.address := probe_bits.address
     tl_out_c.bits.data := s2_data_corrected
-    tl_out_c.bits.corrupt := inWriteback && {
-      val accrued = Reg(Bool())
-      val next = writeback_data_uncorrectable || (accrued && !c_first)
-      when (tl_out_c.fire()) { accrued := next }
-      next
-    }
+    tl_out_c.bits.corrupt := inWriteback && writeback_data_uncorrectable
   }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
