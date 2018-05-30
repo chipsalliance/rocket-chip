@@ -218,7 +218,7 @@ trait HasHellaCache { this: BaseTile =>
 
   
   // Stride prefetcher
-  if (tileParams.core.spfAddr.isDefined) {
+  if (tileParams.spf.isDefined) {
     val spf_inst = LazyModule(new TLSPF(tileParams.spf.get, hartId))
     connectTLSlave(spf_inst.rnode, tileParams.spf.map(_.wordBytes).getOrElse(4))
     tlMasterXbar.node := spf_inst.node := dcache.node   // SPF will pass-through DCache channel and monitor it

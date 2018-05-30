@@ -37,7 +37,6 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val tileControlAddr: Option[BigInt]
-  val spfAddr: Option[BigInt]
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes

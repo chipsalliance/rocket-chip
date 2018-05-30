@@ -33,7 +33,6 @@ case class RocketCoreParams(
   fastLoadWord: Boolean = true,
   fastLoadByte: Boolean = false,
   tileControlAddr: Option[BigInt] = None,
-  spfAddr: Option[BigInt] = None,
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {

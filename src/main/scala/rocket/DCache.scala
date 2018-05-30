@@ -6,7 +6,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.subsystem.{RocketTilesKey}
-import freechips.rocketchip.diplomacy.{AddressSet, RegionType, LazyModule}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._

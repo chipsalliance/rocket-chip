@@ -12,7 +12,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
-import TLMessages._
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -132,15 +131,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Rocket has higher priority to DTIM than other TileLink clients
   outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
-
-  //outer.spf_unit.foreach { lm =>
-  //  // TODO: for now also watch Get transactions so we can test on systems without dcache
-  //  val (dcache_tl_out, _) = outer.dcache.node.out(0)
-  //  lm.module.io.lookupReq.valid := dcache_tl_out.a.valid && (dcache_tl_out.a.bits.opcode.isOneOf(Get, AcquireBlock)) 
-  //  lm.module.io.lookupReq.bits.addr := dcache_tl_out.a.bits.address
-
-  //  lm.module.io.prefReq.ready := true.B    // For now, just say always ready to accept prefetch request
-  //}
 
   when(!uncorrectable) { uncorrectable :=
     List(outer.frontend.module.io.errors, outer.dcache.module.io.errors)

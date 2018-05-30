@@ -39,8 +39,7 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
         mulUnroll = 8,
         mulEarlyOut = true,
-        divEarlyOut = true)),
-        spfAddr = Some(0x2010000L)),
+        divEarlyOut = true))),
       spf = Some(SPFParams(address = Some(0x2010000L))),
       dcache = Some(DCacheParams(
         rowBits = site(SystemBusKey).beatBits,

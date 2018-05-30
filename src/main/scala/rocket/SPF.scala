@@ -31,7 +31,6 @@ trait SPFParamsBase {
   val nStreams:       Int
   val address:        Option[BigInt]
   val size:           Int
-  val distance:       Int
   val prefQueueSize:  Int
   val pageCross:      Boolean
   val ageOut:         Boolean
@@ -46,9 +45,8 @@ trait SPFParamsBase {
 
 case class SPFParams (
   nStreams:       Int = 4,                // # of independent steams to track
-  address:        Option[BigInt] = None,  // # memory-mapped address of SPF TL slave interface for control registers
+  address:        Option[BigInt] = None,  // memory-mapped address of SPF TL slave interface for control registers
   size:           Int = 0x1000,           // Size in bytes of TL slave address space
-  distance:       Int = 3,                // # of cache blocks to prefetch ahead
   prefQueueSize:  Int = 8,                // # of entries in prefetch queue
   pageCross:      Boolean = false,        // Allow prefetching across page boundaries?
   wordBytes:      Int = 4,                // # of words in TL slave access
@@ -58,7 +56,7 @@ case class SPFParams (
                                           //   also max # bits to encode stride
   accessTime:     Boolean = true,         // Support timing memory access latency, to tune prefetch aggressiveness
   accessTimeBits: Int = 8,                // # of bits to use for timing memory access latency
-  distBits:       Int = 3,                // # of bits to encode prefetch distance field
+  distBits:       Int = 3,                // # of bits to encode prefetch distance field in control register
   distDefault:    Int = 3)                // Default value for prefetch distance
   extends SPFParamsBase {
 
@@ -365,9 +363,6 @@ class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p
 
 class SPFModule(c: SPFParamsBase, outer: TLSPF) (implicit p: Parameters) extends LazyModuleImp(outer)
   with HasSPFParameters {
-  val io = IO(new Bundle {
-    val lookupReq = Flipped(Valid(new SPFReq))
-  })
 
   val (tl_in, edge_in)    = outer.node.in(0)          // TL node/edge coming to monitor for address strides
   val (tl_out, edge_out)  = outer.masterNode.out(0)   // TL node/edge for generating prefetch requests
