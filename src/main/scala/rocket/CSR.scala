@@ -469,12 +469,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
     val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
+    val counter_addr = io_dec.csr(log2Ceil(reg_mcounteren.getWidth)-1, 0)
+    val allow_counter = (reg_mstatus.prv > PRV.S || reg_mcounteren(counter_addr)) &&
+      (reg_mstatus.prv >= PRV.S || reg_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       !decodeAny(read_mapping) ||
       io_dec.csr === CSRs.sptbr && !allow_sfence_vma ||
-      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && reg_mstatus.prv <= PRV.S && hpm_mask(io_dec.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
+      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
       Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
       Bool(usingFPU) && decodeAny(fp_csrs) && io_dec.fp_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
