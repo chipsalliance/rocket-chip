@@ -170,6 +170,11 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
 
     Description(s"cpus/cpu@${hartId}", (cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ extraProperties).toMap)
   }
+
+  // The boundary buffering needed to cut feed-through paths is
+  // microarchitecture specific, so these may need to be overridden
+  def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
 }
 
 abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {

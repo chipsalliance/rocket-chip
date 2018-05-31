@@ -62,20 +62,13 @@ trait HasRocketTiles extends HasTiles
     // Connect the master ports of the tile to the system bus
 
     def tileMasterBuffering: TLOutwardNode = rocket {
-      // The buffers needed to cut feed-through paths are microarchitecture specific, so belong here
-      val masterBufferNode = TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
       crossing.crossingType match {
         case _: AsynchronousCrossing => rocket.masterNode
         case SynchronousCrossing(b) =>
-          require (!tp.boundaryBuffers || (b.depth >= 1 && !b.flow && !b.pipe), "Buffer misconfiguration creates feed-through paths")
           rocket.masterNode
         case RationalCrossing(dir) =>
           require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
-          if (tp.boundaryBuffers) {
-            masterBufferNode :=* rocket.masterNode
-          } else {
-            rocket.masterNode
-          }
+          rocket.makeMasterBoundaryBuffers :=* rocket.masterNode
       }
     }
 
@@ -89,9 +82,8 @@ trait HasRocketTiles extends HasTiles
     // Connect the slave ports of the tile to the periphery bus
 
     def tileSlaveBuffering: TLInwardNode = rocket {
-      val slaveBufferNode = TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
       crossing.crossingType match {
-        case RationalCrossing(_) if (tp.boundaryBuffers) => rocket.slaveNode :*= slaveBufferNode
+        case RationalCrossing(_) => rocket.slaveNode :*= rocket.makeSlaveBoundaryBuffers
         case _ => rocket.slaveNode
       }
     }

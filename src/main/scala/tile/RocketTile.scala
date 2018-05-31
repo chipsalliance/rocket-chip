@@ -92,6 +92,16 @@ class RocketTile(
   }
 
   override lazy val module = new RocketTileModuleImp(this)
+
+  override def makeMasterBoundaryBuffers(implicit p: Parameters) = {
+    if (!rocketParams.boundaryBuffers) super.makeMasterBoundaryBuffers
+    else TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
+  }
+
+  override def makeSlaveBoundaryBuffers(implicit p: Parameters) = {
+    if (!rocketParams.boundaryBuffers) super.makeSlaveBoundaryBuffers
+    else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
+  }
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
