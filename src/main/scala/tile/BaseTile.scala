@@ -25,6 +25,7 @@ trait TileParams {
   val trace: Boolean
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
+  val name: Option[String]
 }
 
 trait HasTileParameters {
