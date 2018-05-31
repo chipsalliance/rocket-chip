@@ -100,33 +100,7 @@ trait HasRocketTiles extends HasTiles
       }
     }
 
-    // Handle all the different types of interrupts crossing to or from the tile:
-    // 1. Debug interrupt is definitely asynchronous in all cases.
-    // 2. The CLINT and PLIC output interrupts are synchronous to the periphery clock,
-    //    so might need to be synchronized depending on the Tile's crossing type.
-    // 3. Local Interrupts are required to already be synchronous to the tile clock.
-    // 4. Interrupts coming out of the tile are sent to the PLIC,
-    //    so might need to be synchronized depending on the Tile's crossing type.
-    // NOTE: The order of calls to := matters! They must match how interrupts
-    //       are decoded from rocket.intNode inside the tile.
-
-    // 1. always async crossing for debug
-    rocket.intInwardNode := rocket { IntSyncCrossingSink(3) } := debug.intnode
-
-    // 2. clint+plic conditionally crossing
-    val periphIntNode = rocket.intInwardNode :=* rocket.crossIntIn
-    require( p(CLINTKey).isDefined, "CLINT must be present")
-    clintOpt.foreach { periphIntNode := _.intnode }  // msip+mtip
-    periphIntNode := plic.intnode                    // meip
-    if (tp.core.useVM) periphIntNode := plic.intnode // seip
-
-    // 3. local interrupts  never cross 
-    // rocket.intInwardNode is wired up externally     // lip
-
-    // 4. conditional crossing from core to PLIC
-    FlipRendering { implicit p =>
-      plic.intnode :=* rocket.crossIntOut :=* rocket.intOutwardNode
-    }
+    connectInterrupts(rocket, Some(debug), clintOpt, Some(plic))
 
     rocket
   }
