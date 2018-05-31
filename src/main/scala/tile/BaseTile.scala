@@ -182,7 +182,6 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   val trace = tileParams.trace.option(IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput))
   val constants = IO(new TileInputConstants)
 
-  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
   val halt_and_catch_fire: Option[Bool]
 }
 
