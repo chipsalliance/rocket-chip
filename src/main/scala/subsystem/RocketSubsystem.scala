@@ -59,47 +59,8 @@ trait HasRocketTiles extends HasTiles
       })
     ).suggestName(tp.name)
 
-    // Connect the master ports of the tile to the system bus
-
-    def tileMasterBuffering: TLOutwardNode = rocket {
-      crossing.crossingType match {
-        case _: AsynchronousCrossing => rocket.masterNode
-        case SynchronousCrossing(b) =>
-          rocket.masterNode
-        case RationalCrossing(dir) =>
-          require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
-          rocket.makeMasterBoundaryBuffers :=* rocket.masterNode
-      }
-    }
-
-    sbus.fromTile(tp.name, crossing.master.buffers) {
-        crossing.master.cork
-          .map { u => TLCacheCork(unsafe = u) }
-          .map { _ :=* rocket.crossTLOut }
-          .getOrElse { rocket.crossTLOut }
-    } :=* tileMasterBuffering
-
-    // Connect the slave ports of the tile to the periphery bus
-
-    def tileSlaveBuffering: TLInwardNode = rocket {
-      crossing.crossingType match {
-        case RationalCrossing(_) => rocket.slaveNode :*= rocket.makeSlaveBoundaryBuffers
-        case _ => rocket.slaveNode
-      }
-    }
-
-    DisableMonitors { implicit p =>
-      tileSlaveBuffering :*= pbus.toTile(tp.name) {
-        crossing.slave.blockerCtrlAddr
-          .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
-          .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
-          .map { bbb =>
-            pbus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
-            rocket.crossTLIn :*= bbb.node
-          } .getOrElse { rocket.crossTLIn }
-      }
-    }
-
+    connectMasterPortsToSBus(rocket, crossing)
+    connectSlavePortsToPBus(rocket, crossing)
     connectInterrupts(rocket, Some(debug), clintOpt, Some(plic))
 
     rocket

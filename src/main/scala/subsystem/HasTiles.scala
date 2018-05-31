@@ -6,10 +6,11 @@ import Chisel._
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.TLDebugModule
-import freechips.rocketchip.devices.tilelink.{CLINT, TLPLIC}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, TLPLIC}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
@@ -24,6 +25,47 @@ trait HasTiles { this: BaseSubsystem =>
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
   def sharedMemoryTLEdge = sbus.busView
+
+  protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
+    def tileMasterBuffering: TLOutwardNode = tile {
+      crossing.crossingType match {
+        case _: AsynchronousCrossing => tile.masterNode
+        case SynchronousCrossing(b) =>
+          tile.masterNode
+        case RationalCrossing(dir) =>
+          require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
+          tile.makeMasterBoundaryBuffers :=* tile.masterNode
+      }
+    }
+
+    sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
+        crossing.master.cork
+          .map { u => TLCacheCork(unsafe = u) }
+          .map { _ :=* tile.crossTLOut }
+          .getOrElse { tile.crossTLOut }
+    } :=* tileMasterBuffering
+  }
+
+  protected def connectSlavePortsToPBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
+    def tileSlaveBuffering: TLInwardNode = tile {
+      crossing.crossingType match {
+        case RationalCrossing(_) => tile.slaveNode :*= tile.makeSlaveBoundaryBuffers
+        case _ => tile.slaveNode
+      }
+    }
+
+    DisableMonitors { implicit p =>
+      tileSlaveBuffering :*= pbus.toTile(tile.tileParams.name) {
+        crossing.slave.blockerCtrlAddr
+          .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
+          .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
+          .map { bbb =>
+            pbus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
+            tile.crossTLIn :*= bbb.node
+          } .getOrElse { tile.crossTLIn }
+      }
+    }
+  }
 
   protected def connectInterrupts(tile: BaseTile, debugOpt: Option[TLDebugModule], clintOpt: Option[CLINT], plicOpt: Option[TLPLIC]) {
     // Handle all the different types of interrupts crossing to or from the tile:
