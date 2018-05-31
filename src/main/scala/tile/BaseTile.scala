@@ -171,7 +171,7 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
   }
 }
 
-class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
+abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
 
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits)
@@ -183,6 +183,7 @@ class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(oute
   val constants = IO(new TileInputConstants)
 
   val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
+  val halt_and_catch_fire: Option[Bool]
 }
 
 /** Some other non-tilelink but still standard inputs */
