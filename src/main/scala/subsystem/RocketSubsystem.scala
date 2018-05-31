@@ -37,20 +37,13 @@ trait HasRocketTiles extends HasTiles
   val module: HasRocketTilesModuleImp
 
   protected val rocketTileParams = p(RocketTilesKey)
-  private val NumRocketTiles = rocketTileParams.size
-  private val crossingParams = p(RocketCrossingKey)
-  private val crossings = crossingParams.size match {
-    case 1 => List.fill(NumRocketTiles) { crossingParams.head }
-    case NumRocketTiles => crossingParams
-    case _ => throw new Exception("RocketCrossingKey.size must == 1 or == RocketTilesKey.size")
-  }
-  private val crossingTuples = rocketTileParams.zip(crossings)
+  private val crossings = perTileOrGlobalSetting(p(RocketCrossingKey), rocketTileParams.size)
 
   // Make a tile and wire its nodes into the system,
   // according to the specified type of clock crossing.
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
-  val rocketTiles = crossingTuples.map { case (tp, crossing) =>
+  val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
     // For legacy reasons, it is convenient to store some state
     // in the global Parameters about the specific tile being built now
     val rocket = LazyModule(new RocketTile(tp, crossing.crossingType)(p.alterPartial {

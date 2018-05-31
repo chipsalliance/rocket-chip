@@ -102,6 +102,12 @@ trait HasTiles { this: BaseSubsystem =>
       }
     }
   }
+
+  protected def perTileOrGlobalSetting[T](in: Seq[T], n: Int): Seq[T] = in.size match {
+    case 1 => List.fill(n)(in.head)
+    case x if x == n => in
+    case _ => throw new Exception("must provide exactly 1 or #tiles of this key")
+  }
 }
 
 trait HasTilesBundle {
