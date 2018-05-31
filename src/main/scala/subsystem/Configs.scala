@@ -380,3 +380,9 @@ class WithoutCounters extends Config((site, here, up) => {
 class WithRVFIMonitors extends Config((site, here, up) => {
   case BuildCore => (p: Parameters) => new RocketWithRVFI()(p)
 })
+
+class WithoutAtomics extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useAtomics = false))
+  }
+})
