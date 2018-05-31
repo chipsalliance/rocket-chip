@@ -44,13 +44,8 @@ trait HasRocketTiles extends HasTiles
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
   val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
-    // For legacy reasons, it is convenient to store some state
-    // in the global Parameters about the specific tile being built now
-    val rocket = LazyModule(new RocketTile(tp, crossing.crossingType)(p.alterPartial {
-        case TileKey => tp
-        case SharedMemoryTLEdge => sharedMemoryTLEdge
-      })
-    ).suggestName(tp.name)
+    val rocket = LazyModule(new RocketTile(tp, crossing.crossingType)(augmentedTileParameters(tp)))
+      .suggestName(tp.name)
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToPBus(rocket, crossing)
