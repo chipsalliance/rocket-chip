@@ -228,7 +228,12 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
     dmiReqValidReg := Bool(false)
   }
 
-  io.dmi.resp.ready := dmiAccessChain.io.capture.capture
+  io.dmi.resp.ready := Mux(
+    (dmiReqReg.op === DMIConsts.dmi_OP_WRITE),
+      // for write operations confirm resp immediately because we don't care about data
+      io.dmi.resp.valid,
+      // for read operations confirm resp when we capture the data
+      dmiAccessChain.io.capture.capture)
   io.dmi.req.valid := dmiReqValidReg
 
   // This is a name-based, not type-based assignment. Do these still work?
