@@ -185,7 +185,14 @@ class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModu
 }
 
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
-  val (auto, dangles) = withClockAndReset(Bool(false).asClock, Bool(true)) {
+  // These wires are the default clock+reset for all LazyModule children
+  // It is recommended to drive these even if you manually shove most of your children
+  // Otherwise, anonymous children (Monitors for example) will not be clocked
+  val childClock = Wire(Clock())
+  val childReset = Wire(Bool())
+  childClock := Bool(false).asClock
+  childReset := Bool(true)
+  val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
   }
 }
