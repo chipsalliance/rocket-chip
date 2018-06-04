@@ -136,7 +136,7 @@ object LazyModule
   }
 }
 
-sealed trait LazyModuleImpLike extends BaseModule
+sealed trait LazyModuleImpLike extends RawModule
 {
   val wrapper: LazyModule
   val auto: AutoBundle
