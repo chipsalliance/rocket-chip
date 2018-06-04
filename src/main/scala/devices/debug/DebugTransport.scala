@@ -7,6 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 case class JtagDTMConfig (
   idcodeVersion    : Int,      // chosen by manuf.
@@ -229,11 +230,22 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   }
 
   io.dmi.resp.ready := Mux(
-    (dmiReqReg.op === DMIConsts.dmi_OP_WRITE),
+    dmiReqReg.op === DMIConsts.dmi_OP_WRITE,
       // for write operations confirm resp immediately because we don't care about data
       io.dmi.resp.valid,
       // for read operations confirm resp when we capture the data
       dmiAccessChain.io.capture.capture)
+
+  // incorrect operation - not enough time was spent in JTAG Idle state after DMI Write
+  cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Write");
+  // correct operation - enough time was spent in JTAG Idle state after DMI Write
+  cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & !busy, "Enough Idle after DMI Write");
+
+  // incorrect operation - not enough time was spent in JTAG Idle state after DMI Read
+  cover(dmiReqReg.op === DMIConsts.dmi_OP_READ & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Read");
+  // correct operation - enough time was spent in JTAG Idle state after DMI Read
+  cover(dmiReqReg.op === DMIConsts.dmi_OP_READ & dmiAccessChain.io.capture.capture & !busy, "Enough Idle after DMI Read");
+
   io.dmi.req.valid := dmiReqValidReg
 
   // This is a name-based, not type-based assignment. Do these still work?
