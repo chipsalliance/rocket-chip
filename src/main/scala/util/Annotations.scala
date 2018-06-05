@@ -66,10 +66,10 @@ case class SlaveAddressMapChiselAnnotation(
 
 /** Record information about a top-level port of the design */
 case class TopLevelPortAnnotation(
-    target: ComponentName,
-    protocol: String,
-    tags: Seq[String],
-    mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[ComponentName] {
+  target: ComponentName,
+  protocol: String,
+  tags: Seq[String],
+  name: Seq[String]) extends SingleTargetAnnotation[ComponentName] {
   def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
 }
 
@@ -108,11 +108,11 @@ object Annotated {
   }
 
   def port[T <: Data](
-      data: T,
-      protocol: String,
-      tags: Seq[String],
-      mapping: Seq[AddressMapEntry]): T = {
-    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, mapping) })
+    data: T,
+    protocol: String,
+    tags: Seq[String],
+    names: Seq[String]): T = {
+    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, names) })
     data
   }
 }
