@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.util.{ReadyValidIO}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import scala.collection.immutable.ListMap
 
 abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 
@@ -236,13 +237,26 @@ final class TLBundleE(params: TLBundleParameters)
   val sink = UInt(width = params.sinkBits) // to  
 }
 
-class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
+class TLBundle(val params: TLBundleParameters) extends Record
 {
-  val a = Decoupled(new TLBundleA(params))
-  val b = Decoupled(new TLBundleB(params)).flip
-  val c = Decoupled(new TLBundleC(params))
-  val d = Decoupled(new TLBundleD(params)).flip
-  val e = Decoupled(new TLBundleE(params))
+  // Emulate a Bundle with elements abcde or ad depending on params.hasBCE
+
+  private val optA = Some                (Decoupled(new TLBundleA(params)))
+  private val optB = params.hasBCE.option(Decoupled(new TLBundleB(params)).flip)
+  private val optC = params.hasBCE.option(Decoupled(new TLBundleC(params)))
+  private val optD = Some                (Decoupled(new TLBundleD(params)).flip)
+  private val optE = params.hasBCE.option(Decoupled(new TLBundleE(params)))
+
+  def a: DecoupledIO[TLBundleA] = optA.getOrElse(Wire(Decoupled(new TLBundleA(params))))
+  def b: DecoupledIO[TLBundleB] = optB.getOrElse(Wire(Decoupled(new TLBundleB(params))))
+  def c: DecoupledIO[TLBundleC] = optC.getOrElse(Wire(Decoupled(new TLBundleC(params))))
+  def d: DecoupledIO[TLBundleD] = optD.getOrElse(Wire(Decoupled(new TLBundleD(params))))
+  def e: DecoupledIO[TLBundleE] = optE.getOrElse(Wire(Decoupled(new TLBundleE(params))))
+
+  override def cloneType: this.type = (new TLBundle(params)).asInstanceOf[this.type]
+  val elements =
+    if (params.hasBCE) ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
+    else ListMap("d" -> d, "a" -> a)
 
   def tieoff() {
     a.ready.dir match {
