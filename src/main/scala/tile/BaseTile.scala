@@ -25,6 +25,7 @@ trait TileParams {
   val trace: Boolean
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
+  val name: Option[String]
 }
 
 trait HasTileParameters {
@@ -169,9 +170,14 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
 
     Description(s"cpus/cpu@${hartId}", (cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ extraProperties).toMap)
   }
+
+  // The boundary buffering needed to cut feed-through paths is
+  // microarchitecture specific, so these may need to be overridden
+  def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
 }
 
-class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
+abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
 
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits)
@@ -182,7 +188,7 @@ class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(oute
   val trace = tileParams.trace.option(IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput))
   val constants = IO(new TileInputConstants)
 
-  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
+  val halt_and_catch_fire: Option[Bool]
 }
 
 /** Some other non-tilelink but still standard inputs */

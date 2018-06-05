@@ -68,6 +68,7 @@ case class TraceGenParams(
   val hartId = 0
   val trace = false
   val blockerCtrlAddr = None
+  val name = None
 }
 
 trait HasTraceGenParams {
