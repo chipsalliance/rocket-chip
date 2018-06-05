@@ -399,7 +399,7 @@ tests and benchmarks.
 
 By now, you probably figured out that all generated files have a configuration
 name attached, e.g. DefaultConfig. Take a look at
-src/main/scala/rocketchip/Configs.scala. Search for NSets and NWays defined in
+src/main/scala/system/Configs.scala. Search for NSets and NWays defined in
 BaseConfig. You can change those numbers to get a Rocket core with different
 cache parameters. For example, by changing L1I, NWays to 4, you will get
 a 32KB 4-way set-associative L1 instruction cache rather than a 16KB 2-way
