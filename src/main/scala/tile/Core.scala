@@ -41,6 +41,7 @@ trait CoreParams {
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
+  def lrscCycles: Int
 }
 
 trait HasCoreParameters extends HasTileParameters {
