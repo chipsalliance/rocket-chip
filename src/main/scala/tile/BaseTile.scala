@@ -17,6 +17,11 @@ case object TileKey extends Field[TileParams]
 case object ResetVectorBits extends Field[Int]
 case object MaxHartIdBits extends Field[Int]
 
+abstract class LookupByHartIdImpl {
+  def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T
+}
+case object LookupByHartId extends Field[LookupByHartIdImpl]
+
 trait TileParams {
   val core: CoreParams
   val icache: Option[ICacheParams]

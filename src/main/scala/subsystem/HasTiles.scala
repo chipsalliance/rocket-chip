@@ -9,7 +9,7 @@ import freechips.rocketchip.devices.debug.TLDebugModule
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, TLPLIC}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, TileKey, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileKey, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -26,11 +26,17 @@ trait HasTiles { this: BaseSubsystem =>
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
   def sharedMemoryTLEdge = sbus.busView
 
+  private val lookupByHartId = new LookupByHartIdImpl {
+    def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T =
+      PriorityMux(tileParams.collect { case t if f(t).isDefined => (t.hartId.U === hartId) -> f(t).get })
+  }
+
   protected def augmentedTileParameters(tp: TileParams): Parameters = p.alterPartial {
     // For legacy reasons, it is convenient to store some state
     // in the global Parameters about the specific tile being built now
     case TileKey => tp
     case SharedMemoryTLEdge => sharedMemoryTLEdge
+    case LookupByHartId => lookupByHartId
   }
 
   protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
