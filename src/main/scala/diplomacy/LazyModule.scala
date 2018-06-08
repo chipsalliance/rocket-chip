@@ -16,6 +16,9 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
 
+  // code snippets from 'InModuleBody' injection
+  protected[diplomacy] var inModuleBody = List[() => Unit]()
+
   def parents: Seq[LazyModule] = parent match {
     case None => Nil
     case Some(x) => x +: x.parents
@@ -49,7 +52,6 @@ abstract class LazyModule()(implicit val p: Parameters)
   lazy val pathName = module.pathName
   lazy val instanceName = pathName.split('.').last // The final Verilog instance name
 
-  def instantiate() { } // a hook for running things in module scope (after children exist, but before dangles+auto exists)
   def module: LazyModuleImpLike
 
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
@@ -171,7 +173,7 @@ sealed trait LazyModuleImpLike extends RawModule
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.suggestedName + "_" + d.name)
     }
-    wrapper.instantiate()
+    wrapper.inModuleBody.reverse.foreach { _() }
     (auto, dangles)
   }
 
@@ -248,4 +250,13 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   }
 
   override def cloneType = (new AutoBundle(elts:_*)).asInstanceOf[this.type]
+}
+
+object InModuleBody
+{
+  def apply(body: => Unit) {
+    require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
+    val scope = LazyModule.scope.get
+    scope.inModuleBody = (() => body) +: scope.inModuleBody
+  }
 }
