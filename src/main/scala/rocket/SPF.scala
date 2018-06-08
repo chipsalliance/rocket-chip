@@ -8,21 +8,18 @@ import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tile.{HasCoreParameters, CoreModule, CoreBundle}
+import freechips.rocketchip.subsystem.CacheBlockBytes
+import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import chisel3.experimental.dontTouch
 import TLMessages._
 
-trait HasSPFParameters extends HasCoreParameters {
-  val blockIdxBits   = paddrBits - lgCacheBlockBytes    // # of bits to address one cache block in PA space
-  val pgBlockIdxBits = pgIdxBits - lgCacheBlockBytes    // # of bits to address one cache block in a single page
-}
-
-class SPFReq(implicit p: Parameters) extends CoreBundle()(p) with HasSPFParameters {
+class SPFReq(val blockIdxBits: Int) extends Bundle {
   val addr = UInt(width = blockIdxBits)
 }
 
+// Memory-map of slave registers
 object SPFCRs {
   val ctrl = 0x00
 }
@@ -33,14 +30,14 @@ trait SPFParamsBase {
   val size:           Int
   val prefQueueSize:  Int
   val pageCross:      Boolean
-  val ageOut:         Boolean
-  val ageBits:        Int
-  val wordBytes:      Int
-  val windowBits:     Int
-  val accessTime:     Boolean
-  val accessTimeBits: Int
   val distBits:       Int
   val distDefault:    Int
+  val windowBits:     Int
+  val beatBytes:      Int
+  
+  // Options for including optional features (age-out timers and memory access timers)
+  val ageBits:        Option[Int]
+  val accessTimeBits: Option[Int]
 }
 
 case class SPFParams (
@@ -49,30 +46,28 @@ case class SPFParams (
   size:           Int = 0x1000,           // Size in bytes of TL slave address space
   prefQueueSize:  Int = 8,                // # of entries in prefetch queue
   pageCross:      Boolean = false,        // Allow prefetching across page boundaries?
-  wordBytes:      Int = 4,                // # of words in TL slave access
-  ageOut:         Boolean = true,         // Support timers to age out (and mark invalid) inactive entries
-  ageBits:        Int = 13,               // # of bits to encode age, for aging out
+  distBits:       Int = 3,                // # of bits to encode prefetch distance field in control register
+  distDefault:    Int = 3,                // Default value for prefetch distance
   windowBits:     Int = 6,                // # log2(# of cache blocks) to look forward/backward to detect address match
                                           //   also max # bits to encode stride
-  accessTime:     Boolean = true,         // Support timing memory access latency, to tune prefetch aggressiveness
-  accessTimeBits: Int = 8,                // # of bits to use for timing memory access latency
-  distBits:       Int = 3,                // # of bits to encode prefetch distance field in control register
-  distDefault:    Int = 3)                // Default value for prefetch distance
+  beatBytes:      Int = 8,                // # of bytes per beat in TL slave access
+
+  ageBits:        Option[Int] = None,     // If defined and > 0, Support timers to age out (and mark invalid) inactive entries.
+                                          //   Value is # of bits to encode age, for aging out
+  accessTimeBits: Option[Int] = Some(8))  // If defined and > 0, # of bits to use for timing memory access latency
   extends SPFParamsBase {
 
   require(distDefault > 0)
 }
 
-abstract class SPFBundle(val c: SPFParamsBase) extends Bundle
-
 // Layout for memory-mapped control register
-class SPFControl(c: SPFParamsBase) extends SPFBundle(c) {
+class SPFControl(val c: SPFParamsBase) extends Bundle {
   val en          = Bool()
   val crossPageEn = Bool()
+  val dist        = UInt(width=c.distBits)
   val ageOutEn    = Bool()
   val timeEn      = Bool()
-  val dist        = UInt(width=c.distBits)
-  val approxL2Lat = UInt(width=c.accessTimeBits)
+  val approxL2Lat = UInt(width=c.accessTimeBits.getOrElse(1))
 }
 
 object SPFControl {
@@ -81,51 +76,12 @@ object SPFControl {
 
     ctrl.en           := Bool(false)
     ctrl.crossPageEn  := Bool(false)
+    ctrl.dist         := UInt(c.distDefault)
     ctrl.ageOutEn     := Bool(false)
     ctrl.timeEn       := Bool(false)
-    ctrl.dist         := UInt(c.distDefault)
-    ctrl.approxL2Lat  := UInt(0, c.accessTimeBits)
+    ctrl.approxL2Lat  := UInt(0, c.accessTimeBits.getOrElse(1))
     ctrl
   }
-}
-
-// Create free-listed array of prefetch requests. Requests sent out over TL may be ack'ed out-of-order,
-// and we need to hold onto request until it is ACK'ed.
-// Note: This won't guarantee that requests will be sent out in the same order generated
-class SPFReqArray(nEntries: Int) (implicit p: Parameters) extends Module {
-  val io = new Bundle {
-    val enq     = Flipped(Decoupled(new SPFReq))                // Incoming request to "enqueue"
-    val req     = Decoupled(new SPFReq)                         // Picked request to send out over TL
-    val reqIdx  = UInt(width=log2Up(nEntries)).asOutput         // Index of picked request
-
-    val rsp     = Flipped(Valid(UInt(width=log2Up(nEntries))))  // HintAck response along with entry index
-  }
-
-  // State for each entry
-  val valids = Reg(init = UInt(0, nEntries))
-  val sent   = Reg(init = UInt(0, nEntries))
-  val data   = Reg(Vec(nEntries, new SPFReq))
-
-  // Replace by finding lowest-indexed invalid entry
-  val replEntryIdx = PriorityEncoder(~valids)
-  val replEntryVec = PriorityEncoderOH(~valids) & Fill(nEntries, io.enq.fire())
-
-  // Request is "ready" if it is valid and has not already sent a request
-  // Pick lowest-indexed ready entry for next request
-  val readyVec = valids & ~sent
-  val pickVec  = PriorityEncoderOH(readyVec) & Fill(nEntries, io.req.fire())
-  val ackVec   = UIntToOH(io.rsp.bits) & Fill(nEntries, io.rsp.valid)
-
-  io.enq.ready := !(valids.andR)
-  when (io.enq.fire()) {
-    data(replEntryIdx) := io.enq.bits
-  }
-  valids := (valids | replEntryVec) & ~ackVec
-  sent   := (sent   | pickVec)      & ~ackVec
-
-  io.req.valid     := readyVec.orR
-  io.req.bits.data := PriorityMux(readyVec, data)
-  io.reqIdx        := PriorityEncoder(readyVec)
 }
 
 // Class for various state and control signals generated by each prefetcher entry and 
@@ -154,7 +110,7 @@ class SPFEntryUpdate (val blockIdxBits: Int, val pgIdxBits: Int) extends Bundle 
   val crossPagePause  = Bool()                      // Prefetched addresses crossed a page, so pause this entry
 }
 
-class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p) with HasSPFParameters {
+class SPFEntry(c: SPFParamsBase, blockIdxBits: Int, pgIdxBits: Int) extends Module {
   val io = new Bundle {
     // Control signals (these could be bundled into SPFEntryUpdate class...)
     val ageOutEn    = Bool().asInput
@@ -162,8 +118,8 @@ class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p
 
     val state       = Valid(new SPFEntryState(blockIdxBits, c.windowBits))
     val update      = new SPFEntryUpdate(blockIdxBits, pgIdxBits).flip
-    val lookupReq   = Flipped(Valid(new SPFReq))  // - Note: outside logic determines stride match (so logic isn't duplicated per entry)
-    val prefReq     = Decoupled(new SPFReq)       // - Note: outside logic determines crossPage and baseAddrInc (so logic isn't duplicated per entry)
+    val lookupReq   = Flipped(Valid(new SPFReq(blockIdxBits)))  // - Note: outside logic determines stride match (so logic isn't duplicated per entry)
+    val prefReq     = Decoupled(new SPFReq(blockIdxBits))       // - Note: outside logic determines crossPage and baseAddrInc (so logic isn't duplicated per entry)
   }
 
   val addrMatch             = Wire(Bool())
@@ -180,14 +136,13 @@ class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p
 
   // State elements
   val nextState   = Wire(init = s_invalid)
-  val state       = RegNext(nextState)
+  val state       = RegNext(nextState, s_invalid)
   val prevState   = RegNext(state)
   val prevAddr    = RegEnable(io.lookupReq.bits.addr,   loadPrevAddr)
   val sentAddr    = RegEnable(io.update.baseAddrInc,    loadSentAddr)
   val stride      = RegEnable(io.update.curStride,      validLookupAddrMatch)
   val strideSign  = RegEnable(io.update.curStrideSign,  loadPrevAddr)
   val genCount    = Reg(UInt(width = c.distBits))
-  val age         = Reg(UInt(width = c.ageBits))
   val aggr        = Reg(UInt(width = c.distBits))
 
   val entValid = (state =/= s_invalid)
@@ -316,7 +271,7 @@ class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p
   state := nextState    // state update
 
   val initGenCount      = (state =/= s_armed) && (nextState === s_armed)
-  val initialPrefetch   = state.isOneOf(s_detect2, s_paused)
+  val initialPrefetch   = state.isOneOf(s_detect2, s_paused)  // s_trained -> s_armed are incremental prefetches
   val r_initialPrefetch = RegNext(initialPrefetch)
 
   // ------------------------------------------------------
@@ -330,7 +285,7 @@ class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p
   // ------------------------------------------------------
   // Updates to state registers
   // ------------------------------------------------------
-  when (!io.update.invalidate && initGenCount) {
+  when (initGenCount) {
     genCount := Mux(initialPrefetch, io.dist-UInt(1), aggr)
   } .elsewhen ((state === s_armed) && io.prefReq.ready) {
     genCount := genCount - UInt(1)
@@ -348,49 +303,74 @@ class SPFEntry(c: SPFParamsBase) (implicit p: Parameters) extends CoreModule()(p
   // - When entry is allocated reset age to 0
   // - When entry is generating prefetch reset age to 0
   // - Otherwise if entry is valid, increment age
-  if (c.ageOut) {
+  agingOut := c.ageBits.map ({ bits =>
+    require(bits > 0, "SPF ageBits must be > 0 if defined.")
+
+    val age = Reg(UInt(width = bits))
+
     when (initEntry || (state === s_armed)) {
       age := UInt(0)
     } .elsewhen (entValid && io.ageOutEn) {
       age := age + UInt(1)
     }
 
-    agingOut := age === (UIntToOH(c.ageBits) - 1)
-  } else {
-    agingOut := false.B
-  }
+    age === (UIntToOH(bits) - 1)
+  }).getOrElse(false.B)
 }
 
-class SPFModule(c: SPFParamsBase, outer: TLSPF) (implicit p: Parameters) extends LazyModuleImp(outer)
-  with HasSPFParameters {
+class SPFModule(c: SPFParamsBase, outer: TLSPF, pgIdxBits: Int)(implicit p: Parameters) extends LazyModuleImp(outer)
+  with HasTileParameters {
 
-  val (tl_in, edge_in)    = outer.node.in(0)          // TL node/edge coming to monitor for address strides
-  val (tl_out, edge_out)  = outer.masterNode.out(0)   // TL node/edge for generating prefetch requests
+  val (tl_in, edge_in)    = outer.node.in(0)                              // TL node/edge coming to monitor for address strides
+  val (tl_out, edge_out)  = outer.masterNode.out(0)                       // TL node/edge for generating prefetch requests
 
-  val ctrl            = Reg(init = SPFControl.init(c))                    // Memory-mapped control register
-  val reqQueue        = Module(new SPFReqArray(c.prefQueueSize))          // Queue for prefetch requests
-  val spfEntries      = Seq.fill(c.nStreams) { Module(new SPFEntry(c)) }  // Prefetcher entries
-  val replIdx         = Wire(UInt(width = log2Up(c.nStreams)))            // Replacement index from PseudoLRU
+  // Grab information about address sizes from TL edge and system parameters
+  val paBits            = edge_out.bundle.addressBits
+  val cacheBlockOffBits = log2Up(p(CacheBlockBytes))
+  //val cacheBlockOffBits = edge_out.manager.managers.map(_.supportsAcquireB.max).max
+  val blockIdxBits      = paBits - cacheBlockOffBits
+  val pgBlockIdxBits    = pgIdxBits - cacheBlockOffBits
+
+  val ctrl            = Reg(init = SPFControl.init(c))                                              // Memory-mapped control register
+  val reqQueue        = Module(new Queue(UInt(), 2))                                                // Small queue to decouple prefetch requests from TL master
+  val pool            = Module(new IDPool(c.prefQueueSize))                                         // Pool of outstanding prefetch source IDs
+  val spfEntries      = Seq.fill(c.nStreams) { Module(new SPFEntry(c, blockIdxBits, pgIdxBits)) }   // Prefetcher entries
+  val replIdx         = Wire(UInt(width = log2Up(c.nStreams)))                                      // Replacement index from PseudoLRU
   val increaseAggrVec = Wire(init = Fill(c.nStreams, false.B))
 
   // Grab lookup information from monitored TL channel
   val lookupValid = tl_in.a.fire() && (tl_in.a.bits.opcode === AcquireBlock) && ctrl.en
-  val lookupAddr  = (tl_in.a.bits.address >> lgCacheBlockBytes)   // Don't care about block offset bits
+  val lookupAddr  = (tl_in.a.bits.address >> cacheBlockOffBits)   // Don't care about block offset bits
+
+  // Some control register bits affect optional hardware features.  If the hardware features are not included, then
+  // make the corresponding control register fields reserved instead.
+  val ageOutField = c.ageBits.map( e => 
+    RegField(1, ctrl.ageOutEn, RegFieldDesc("ageOutEn", "Enabling aging out inactive entries", reset=Some(0)))
+  ).getOrElse(RegField(1))
+  
+  val accessTimeField = c.accessTimeBits.map( e => 
+    RegField(1, ctrl.timeEn, RegFieldDesc("timeEn", "Enable timing memory latency to tune prefetcher", reset=Some(0)))
+  ).getOrElse(RegField(1))
+
+  val approxL2LatField = c.accessTimeBits.map( bits => 
+    RegField(bits, ctrl.approxL2Lat, RegFieldDesc("approxL2Lat", "Approximate L2 Latency", reset=Some(0)))
+  ).getOrElse(RegField(1))
 
   protected val regmapBase = Seq(
     SPFCRs.ctrl -> RegFieldGroup("ctrl", Some("SPF Control"), Seq(
-      RegField(1,                 ctrl.en,           RegFieldDesc("en",          "Prefetcher global enable",             reset=Some(0))),
-      RegField(1,                 ctrl.crossPageEn,  RegFieldDesc("crossPageEn", "Enable prefetching cross-page",        reset=Some(0))),
-      RegField(1,                 ctrl.ageOutEn,     RegFieldDesc("ageOutEn",    "Enabling aging out inactive entries",  reset=Some(0))),
-      RegField(c.distBits,        ctrl.dist,         RegFieldDesc("dist",        "Prefetch distance",                    reset=Some(c.distDefault))),
-      RegField(c.accessTimeBits,  ctrl.approxL2Lat,  RegFieldDesc("approxL2Lat", "Approximate L2 Latency",               reset=Some(0)))
+      RegField(1,          ctrl.en,          RegFieldDesc("en",          "Prefetcher global enable",      reset=Some(0))),
+      RegField(1,          ctrl.crossPageEn, RegFieldDesc("crossPageEn", "Enable prefetching cross-page", reset=Some(0))),
+      RegField(c.distBits, ctrl.dist,        RegFieldDesc("dist",        "Prefetch distance",             reset=Some(c.distDefault))),
+
+      // Fields which may turn into "reserved" bits if hardware features are not included
+      ageOutField,
+      accessTimeField,
+      approxL2LatField
     ))
   )
 
   // Detect when prefetcher is being disabled, so we can clear valids and handle cleanup
   val disabling = RegNext(ctrl.en) && !ctrl.en
-
-  assert(!ctrl.ageOutEn || c.ageOut, "SPF control register enabled timeout, but hardware not included")
 
   // ------------------------------------------------------
   // Helper functions
@@ -400,11 +380,6 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF) (implicit p: Parameters) extends
     addr(blockIdxBits-1,pgBlockIdxBits)
   }
 
-  // Get Page offset bits while masking block offset bits
-  def getPageBlock(addr: UInt): UInt = {
-    addr(pgBlockIdxBits-1,0)
-  }
-  
   // Get PPN +/- 1 (depending on sign input)
   def getPpnInc(addr: UInt, sign: UInt) = {
     getPpn(addr) + Cat(Fill(blockIdxBits-pgBlockIdxBits-1,sign), UInt(1,1))
@@ -437,7 +412,7 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF) (implicit p: Parameters) extends
   val addrPpnP1Match  = (getPpnInc(matchState.prevAddr,matchState.strideSign) === getPpn(lookupAddr))
 
   // On a multi-match (two streams are close in the address-space), just invalidate the highest-indexed one.
-  val multiMatch          = PopCount(lookupMatchVec) > UInt(1)
+  val multiMatch          = PopCountAtLeast(lookupMatchVec, 2)
   val multiMatchInvalVec  = Reverse(PriorityEncoderOH(Reverse(lookupMatchVec))) & Fill(c.nStreams, multiMatch)
 
   // Compute current stride from (current lookup address) - (previously seen address from matching entry)
@@ -499,55 +474,62 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF) (implicit p: Parameters) extends
   //   whether the L2 possibly missed (this will be an approximation as we don't have a "hit" indication in response)
   // - If response takes longer than a certain number of cycles, assume L2 missed and take this as a hint that we need
   //   to prefetch more aggressively (issue more incremental prefetches)
-  if (c.accessTime) {
-    val nTimers = (1 << tl_in.a.bits.source.getWidth) - 1
-    val timerValids = RegInit(Vec.fill(nTimers) {false.B})
-    val timerCounts = Reg(Vec(nTimers, UInt(width = c.accessTimeBits)))
-    val timerSPFIdx = Reg(Vec(nTimers, UInt(width = log2Up(c.nStreams))))
+  increaseAggrVec := c.accessTimeBits.map ({ bits =>
+    require( bits > 0, "SPF accessTimeBits must be > 0 if defined")
+
+    val nTimers     = (1 << tl_in.a.bits.source.getWidth) - 1               // 1 timer per possible tl_in source ID
+    val timerValids = RegInit(Vec.fill(nTimers) {false.B})                  // Per-timer Valid bit to indicate timer is operating
+    val timerCounts = Reg(Vec(nTimers, UInt(width = bits)))                 // Per-timer cycle counter
+    val timerSPFIdx = Reg(Vec(nTimers, UInt(width = log2Up(c.nStreams))))   // Per-timer pointer to matching SPF entry
 
     val aSource = tl_in.a.bits.source
     val dSource = tl_in.d.bits.source
     val SPFIdx  = timerSPFIdx(dSource)
 
     for (i <- 0 until nTimers) {
-      when (lookupValid && !lookupMiss && matchState.trained && (i === aSource)) {
+      when (lookupValid && !lookupMiss && matchState.trained && (i === aSource) && ctrl.timeEn) {
         // Allocate new timer using source field from channel A request
-        timerValids(i) := true.   B
-        timerCounts(i) := UInt(0, c.accessTimeBits)
+        timerValids(i) := true.B
+        timerCounts(i) := UInt(0, bits)
         timerSPFIdx(i) := lookupMatchIdx
       } .elsewhen (tl_in.d.fire() && (i === dSource)) {
         // Check to see if timer is allocated for indicated source on channel D response
         // If so, grab index of SPF entry and increase aggressiveness if access took long enough
         timerValids(i) := false.B
       } .elsewhen (timerValids(i) && !timerCounts(i).andR) {
-        timerCounts(i) := timerCounts(i) + UInt(1, c.accessTimeBits)
+        timerCounts(i) := timerCounts(i) + UInt(1, bits)
       }
     }
 
-    when (tl_in.d.fire() && timerValids(dSource) && valids(SPFIdx) && (timerCounts(dSource) > ctrl.approxL2Lat)) {
-        increaseAggrVec := UIntToOH(SPFIdx, width=c.nStreams)
-    }
+    val condition = tl_in.d.fire() && timerValids(dSource) && valids(SPFIdx) && (timerCounts(dSource) > ctrl.approxL2Lat)
 
-  } else {
-    increaseAggrVec := Fill(c.nStreams, false.B)
-  }
+    UIntToOH(SPFIdx, width=c.nStreams) & Fill(c.nStreams, condition)
+  }).getOrElse( Fill(c.nStreams, false.B) )
 
   // ------------------------------------------------------
   // Prefetch request generation portion
   // ------------------------------------------------------
   // Note: We suppress generated prefetch request if we detect that new address crosses a page boundary, and page-crossing
   //       is disabled.
-  reqQueue.io.enq.valid     := armedVec.orR && !crossPagePause
-  reqQueue.io.enq.bits.addr := baseAddrInc
-  reqQueue.io.req.ready     := tl_out.a.fire()
-  reqQueue.io.rsp.valid     := tl_out.d.fire()
-  reqQueue.io.rsp.bits      := tl_out.d.bits.source
 
-  tl_out.a.valid  := reqQueue.io.req.valid
+  // Use IDPool here to keep track of sourceIDs for generated prefetch hints.
+  // We need to wait for HintAck response before we can re-use sourceID, but we don't actually
+  // need to store any information about the prefetch request. So instead of having a full Queue of c.prefQueueSize
+  // entries which store the addresses, we just have a 2-entry Queue to decouple the timing of the SPF entry state machines
+  // and the TL master.
+  reqQueue.io.enq.valid := armedVec.orR && !crossPagePause
+  reqQueue.io.enq.bits  := baseAddrInc
+  reqQueue.io.deq.ready := (pool.io.alloc.valid && tl_out.a.ready)  // TL ready and we have a free sourceID
+  
+  pool.io.alloc.ready := reqQueue.io.deq.valid && tl_out.a.ready
+  pool.io.free.valid  := tl_out.d.fire() && edge_out.first(tl_out.d)
+  pool.io.free.bits   := tl_out.d.bits.source
+
+  tl_out.a.valid  := reqQueue.io.deq.valid && pool.io.alloc.valid  // We have a prefetch request and a free sourceID
   tl_out.a.bits   := edge_out.Hint(
-                      fromSource = reqQueue.io.reqIdx,
-                      toAddress = Cat(reqQueue.io.req.bits.addr, UInt(0, lgCacheBlockBytes)),
-                      lgSize = lgCacheBlockBytes,
+                      fromSource = pool.io.alloc.bits,
+                      toAddress = Cat(reqQueue.io.deq.bits, UInt(0, cacheBlockOffBits)),
+                      lgSize = cacheBlockOffBits,
                       param = TLHints.PREFETCH_READ)._2
 
   // Tie-offs
@@ -557,12 +539,12 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF) (implicit p: Parameters) extends
   tl_out.e.valid  := Bool(false)
 }
 
-abstract class TLSPFBase (c: SPFParamsBase, hartId: Int)(implicit p: Parameters) extends LazyModule {
+abstract class TLSPFBase (c: SPFParamsBase, hartId: Int) (implicit p: Parameters) extends LazyModule {
   require(isPow2(c.size))
   val device = new SimpleDevice("spf", Seq("sifive,spf0"))
 
   // Node for register map
-  val rnode = TLRegisterNode(address = Seq(AddressSet(c.address.getOrElse(0), c.size-1)), device = device, beatBytes = c.wordBytes)
+  val rnode = TLRegisterNode(address = Seq(AddressSet(c.address.getOrElse(0), c.size-1)), device = device, beatBytes = c.beatBytes)
 
   // Node for adapter (monitoring channel)
   val node = TLAdapterNode()
@@ -576,8 +558,8 @@ abstract class TLSPFBase (c: SPFParamsBase, hartId: Int)(implicit p: Parameters)
     )))))
 }
 
-class TLSPF(c: SPFParams, hartId: Int)(implicit p: Parameters) extends TLSPFBase(c,hartId)(p) {
-  lazy val module = new SPFModule(c, this) {
+class TLSPF(c: SPFParams, hartId: Int, pgIdxBits: Int) (implicit p: Parameters) extends TLSPFBase(c,hartId)(p) {
+  lazy val module = new SPFModule(c, this, pgIdxBits) {
     rnode.regmap(regmapBase:_*)
 
     // For now, pass-through the channel we are monitoring to the output
