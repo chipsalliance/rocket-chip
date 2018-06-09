@@ -8,7 +8,7 @@ import sys.process._
 enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
-  organization := "berkeley",
+  organization := "edu.berkeley.cs",
   version      := "1.2",
   scalaVersion := "2.11.12",
   parallelExecution in Global := false,
