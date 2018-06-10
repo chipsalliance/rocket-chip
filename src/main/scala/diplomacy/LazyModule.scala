@@ -252,11 +252,25 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   override def cloneType = (new AutoBundle(elts:_*)).asInstanceOf[this.type]
 }
 
+trait ModuleValue[T]
+{
+  def getWrappedValue: T
+}
+
 object InModuleBody
 {
-  def apply(body: => Unit) {
+  def apply[T](body: => T): ModuleValue[T] = {
     require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
     val scope = LazyModule.scope.get
-    scope.inModuleBody = (() => body) +: scope.inModuleBody
+    val out = new ModuleValue[T] {
+      var result: Option[T] = None
+      def execute() { result = Some(body) }
+      def getWrappedValue = {
+        require (result.isDefined, s"InModuleBody contents were requested before module was evaluated!")
+        result.get
+      }
+    }
+    scope.inModuleBody = (out.execute _) +: scope.inModuleBody
+    out
   }
 }

@@ -4,6 +4,7 @@ package freechips.rocketchip
 
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
+import scala.language.implicitConversions
 
 package object diplomacy
 {
@@ -59,4 +60,6 @@ package object diplomacy
   def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
     case RenderFlipped => !p(RenderFlipped)
   })
+
+  implicit def moduleValue[T](value: ModuleValue[T]): T = value.getWrappedValue
 }
