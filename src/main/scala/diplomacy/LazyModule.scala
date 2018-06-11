@@ -207,7 +207,7 @@ class SimpleLazyModule(implicit p: Parameters) extends LazyModule
 trait LazyScope
 {
   this: LazyModule =>
-  def apply[T](body: => T)(implicit p: Parameters) = {
+  def apply[T](body: => T) = {
     val saved = LazyModule.scope
     LazyModule.scope = Some(this)
     val out = body
