@@ -170,7 +170,20 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
+  //val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
+  val size = nSets
+  val addrWidth = log2Ceil(size)
+  val channels = nWays
+  val channelDataWidth = tECC.width(1 + tagBits)
+  val tag_array = DescribedSRAM.sramMaker(
+      name = "ICache Tag Array",
+      desc = "",
+      size = size,
+      addressWidth = addrWidth,
+      channels = channels, // lanes
+      channelDataWidth = channelDataWidth
+    )
+
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
   when (refill_done) {
@@ -219,7 +232,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
-  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
+  // val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
+
+  val data_arrays = DescribedSRAM.sramMaker(
+    name = "ICache Data Array",
+    desc = "",
+    size = size,
+    addressWidth = log2Ceil(size),
+    channels = nWays,
+    channelDataWidth = dECC.width(wordBits)
+  )
+
   for ((data_array, i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))

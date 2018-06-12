@@ -2,10 +2,11 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import Chisel.{Data, _}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import scala.math._
 
 class AXI4RAM(
     address: AddressSet,

@@ -42,6 +42,16 @@ class TLRAM(
     val lanes = beatBytes/eccBytes
     val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
     val mem = makeSinglePortedByteWriteSeqMem(1 << addrBits.size, lanes, width)
+    val a = (mask zip edge.addr_hi(in.a.bits).toBools)
+
+    DescribedSRAM.sramMaker(
+      name = devName.getOrElse("TLRam"),
+      desc = "",
+      size = 1 << addrBits.size,
+      addressWidth = addrBits.size,
+      channels = lanes,
+      channelDataWidth = width
+    )
 
     /* This block uses a two-stage pipeline; A=>D
      * Both stages vie for access to the single SRAM port.
