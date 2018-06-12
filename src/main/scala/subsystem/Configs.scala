@@ -100,7 +100,7 @@ class With1TinyCore extends Config((site, here, up) => {
         blockBytes = site(CacheBlockBytes)))))
   case RocketCrossingKey => List(RocketCrossingParams(
     crossingType = SynchronousCrossing(),
-    master = TileMasterPortParams(cork = Some(true))
+    master = TileMasterPortParams()
   ))
 })
 

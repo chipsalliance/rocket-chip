@@ -79,8 +79,8 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
   nDCachePorts += roccs.size
 }
 
-trait HasLazyRoCCModule[+L <: BaseTile with HasLazyRoCC] extends CanHavePTWModule
-    with HasCoreParameters { this: BaseTileModuleImp[L] =>
+trait HasLazyRoCCModule[+L <: RocketTile] extends CanHavePTWModule
+    with HasCoreParameters { this: RocketTileModuleImp =>
 
   val roccCore = Wire(new RoCCCoreIO()(outer.p))
 

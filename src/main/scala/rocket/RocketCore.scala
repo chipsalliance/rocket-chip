@@ -36,12 +36,14 @@ case class RocketCoreParams(
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {
+  val haveFSDirty = false
   val pmpGranularity: Int = 4
   val fetchWidth: Int = if (useCompressed) 2 else 1
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
   val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
+  val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {

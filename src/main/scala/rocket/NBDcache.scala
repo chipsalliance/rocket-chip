@@ -629,6 +629,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (i <- 0 until resp.size) {
         val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
+        array.suggestName("data_array_nbdcache")
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(i)) {
           val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
           array.write(waddr, data, wway_en.toBools)
@@ -646,6 +647,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   } else {
     for (w <- 0 until nWays) {
       val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
+      array.suggestName("data_array_nbdcache")
       when (io.write.bits.way_en(w) && io.write.valid) {
         val data = Vec.tabulate(rowWords)(i => io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
         array.write(waddr, data, io.write.bits.wmask.toBools)
@@ -703,17 +705,18 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
   dtlb.io.kill := io.cpu.s2_kill
-  dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && (s1_readwrite || s1_sfence)
-  dtlb.io.req.bits.sfence.valid := s1_sfence
-  dtlb.io.req.bits.sfence.bits.rs1 := s1_req.typ(0)
-  dtlb.io.req.bits.sfence.bits.rs2 := s1_req.typ(1)
-  dtlb.io.req.bits.sfence.bits.addr := s1_req.addr
-  dtlb.io.req.bits.sfence.bits.asid := io.cpu.s1_data.data
+  dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_readwrite
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.vaddr := s1_req.addr
   dtlb.io.req.bits.size := s1_req.typ
   dtlb.io.req.bits.cmd := s1_req.cmd
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
+
+  dtlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
+  dtlb.io.sfence.bits.rs1 := s1_req.typ(0)
+  dtlb.io.sfence.bits.rs2 := s1_req.typ(1)
+  dtlb.io.sfence.bits.addr := s1_req.addr
+  dtlb.io.sfence.bits.asid := io.cpu.s1_data.data
   
   when (io.cpu.req.valid) {
     s1_req := io.cpu.req.bits
