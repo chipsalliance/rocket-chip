@@ -98,26 +98,26 @@ class SPFEntryState(val blockIdxBits: Int, val windowBits: Int) extends Bundle {
 // Class for various control signals sent to each prefetcher entry.  Some signals
 // are generated specific to each entry, and some fanout to all entries but are only used by the lookup match entry
 // or picked armed entry.
-class SPFEntryUpdate (val blockIdxBits: Int, val pgIdxBits: Int) extends Bundle {
+class SPFEntryUpdate (val blockIdxBits: Int, val windowBits: Int) extends Bundle {
   val allocate        = Bool()                      // Allocate this entry for new potential stream
   val invalidate      = Bool()                      // Invalidate this entry
   val strideMatch     = Bool()                      // Current computed stride is same as matching entry
   val addrPpnP1Match  = Bool()                      // Lookup address matches PPN +/- 1 of matching entry
-  val curStride       = UInt(width = pgIdxBits)     // Current computed stride based on matching entry
+  val curStride       = UInt(width = windowBits)    // Current computed stride based on matching entry
   val curStrideSign   = UInt(width = 1)             // Sign of current computed stride
   val baseAddrInc     = UInt(width = blockIdxBits)  // Incremented(/decremented) prefetch address based on matching entry
   val increaseAggr    = Bool()                      // Increase "aggressiveness" of this entry
   val crossPagePause  = Bool()                      // Prefetched addresses crossed a page, so pause this entry
 }
 
-class SPFEntry(c: SPFParamsBase, blockIdxBits: Int, pgIdxBits: Int) extends Module {
+class SPFEntry(c: SPFParamsBase, blockIdxBits: Int) extends Module {
   val io = new Bundle {
     // Control signals (these could be bundled into SPFEntryUpdate class...)
     val ageOutEn    = Bool().asInput
     val dist        = UInt(width=c.distBits).asInput
 
     val state       = Valid(new SPFEntryState(blockIdxBits, c.windowBits))
-    val update      = new SPFEntryUpdate(blockIdxBits, pgIdxBits).flip
+    val update      = Flipped(new SPFEntryUpdate(blockIdxBits, c.windowBits))
     val lookupReq   = Flipped(Valid(new SPFReq(blockIdxBits)))  // - Note: outside logic determines stride match (so logic isn't duplicated per entry)
     val prefReq     = Decoupled(new SPFReq(blockIdxBits))       // - Note: outside logic determines crossPage and baseAddrInc (so logic isn't duplicated per entry)
   }
@@ -153,7 +153,7 @@ class SPFEntry(c: SPFParamsBase, blockIdxBits: Int, pgIdxBits: Int) extends Modu
   io.state.valid            := entValid
   io.state.bits.prevAddr    := prevAddr
   io.state.bits.strideValid := (state >= s_detect2)
-  io.state.bits.trained     := (state >  s_detect2)
+  io.state.bits.trained     := (state >  s_detect2) && (state =/= s_paused)
   io.state.bits.stride      := stride
   io.state.bits.strideSign  := strideSign
   io.state.bits.addrMatch   := addrMatch
@@ -321,21 +321,25 @@ class SPFEntry(c: SPFParamsBase, blockIdxBits: Int, pgIdxBits: Int) extends Modu
 class SPFModule(c: SPFParamsBase, outer: TLSPF, pgIdxBits: Int)(implicit p: Parameters) extends LazyModuleImp(outer)
   with HasTileParameters {
 
+  require (c.nStreams > 0,                          "SPF nStreams must be > 0")
+  require (c.prefQueueSize > 0,                     "SPF prefQueueSize must be > 0")
+  require (c.distDefault > 0,                       "SPF distDefault must be > 0")
+  require (c.distDefault <= ((1 << c.distBits)-1),  "SPF distBits is not enough to encode distDefault")
+
   val (tl_in, edge_in)    = outer.node.in(0)                              // TL node/edge coming to monitor for address strides
   val (tl_out, edge_out)  = outer.masterNode.out(0)                       // TL node/edge for generating prefetch requests
 
   // Grab information about address sizes from TL edge and system parameters
   val paBits            = edge_out.bundle.addressBits
   val cacheBlockOffBits = log2Up(p(CacheBlockBytes))
-  //val cacheBlockOffBits = edge_out.manager.managers.map(_.supportsAcquireB.max).max
-  val blockIdxBits      = paBits - cacheBlockOffBits
-  val pgBlockIdxBits    = pgIdxBits - cacheBlockOffBits
+  val blockIdxBits      = paBits - cacheBlockOffBits        // index of cache block within PA space
+  val pgBlockIdxBits    = pgIdxBits - cacheBlockOffBits     // index of cache block within single page
 
-  val ctrl            = Reg(init = SPFControl.init(c))                                              // Memory-mapped control register
-  val reqQueue        = Module(new Queue(UInt(), 2))                                                // Small queue to decouple prefetch requests from TL master
-  val pool            = Module(new IDPool(c.prefQueueSize))                                         // Pool of outstanding prefetch source IDs
-  val spfEntries      = Seq.fill(c.nStreams) { Module(new SPFEntry(c, blockIdxBits, pgIdxBits)) }   // Prefetcher entries
-  val replIdx         = Wire(UInt(width = log2Up(c.nStreams)))                                      // Replacement index from PseudoLRU
+  val ctrl            = Reg(init = SPFControl.init(c))                                  // Memory-mapped control register
+  val reqQueue        = Module(new Queue(UInt(), 2))                                    // Small queue to decouple prefetch requests from TL master
+  val pool            = Module(new IDPool(c.prefQueueSize))                             // Pool of outstanding prefetch source IDs
+  val spfEntries      = Seq.fill(c.nStreams) { Module(new SPFEntry(c, blockIdxBits)) }  // Prefetcher entries
+  val replIdx         = Wire(UInt(width = log2Up(c.nStreams)))                          // Replacement index from PseudoLRU
   val increaseAggrVec = Wire(init = Fill(c.nStreams, false.B))
 
   // Grab lookup information from monitored TL channel
@@ -368,6 +372,7 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF, pgIdxBits: Int)(implicit p: Para
       approxL2LatField
     ))
   )
+  assert(ctrl.dist > 0, "SPF ctrl.dist field must be > 0")
 
   // Detect when prefetcher is being disabled, so we can clear valids and handle cleanup
   val disabling = RegNext(ctrl.en) && !ctrl.en
@@ -415,11 +420,16 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF, pgIdxBits: Int)(implicit p: Para
   val multiMatch          = PopCountAtLeast(lookupMatchVec, 2)
   val multiMatchInvalVec  = Reverse(PriorityEncoderOH(Reverse(lookupMatchVec))) & Fill(c.nStreams, multiMatch)
 
-  // Compute current stride from (current lookup address) - (previously seen address from matching entry)
-  // Do explicit zero-extend and subtraction so that we can extract the carry-out bit to determine the sign of the stride
+  // Compute current stride from (current lookup address) - (previously seen address from matching entry).
+  // Do explicit zero-extend and subtraction so that we can extract the carry-out bit to determine the sign of the stride.
+  // Note: If we compute a stride of zero (see acquire for same block multiple times), we just count it as a stride mismatch
+  //   to avoid trying to send out prefetches using zero stride.
   val (strideUpper, curStride) = Split(Cat(UInt(0,1),lookupAddr) + ~Cat(UInt(0,1),matchState.prevAddr) + UInt(1), c.windowBits)
   val curStrideSign   = strideUpper(blockIdxBits-c.windowBits)            // MSB from subtraction (sign)
-  val strideMismatch  = ((curStride =/= matchState.stride) || (curStrideSign =/= matchState.strideSign)) && matchState.strideValid
+  val strideMismatch  = ( (curStride =/= matchState.stride) ||            // stride magnitude mismatch
+                          (curStrideSign =/= matchState.strideSign) ||    // stride sign mismatch
+                          (curStride === UInt(0,c.windowBits))            // stride is zero
+                        ) && matchState.strideValid
   
   // ------------------------------------------------------
   // Selection of armed entry and prefetch address generation
@@ -474,6 +484,10 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF, pgIdxBits: Int)(implicit p: Para
   //   whether the L2 possibly missed (this will be an approximation as we don't have a "hit" indication in response)
   // - If response takes longer than a certain number of cycles, assume L2 missed and take this as a hint that we need
   //   to prefetch more aggressively (issue more incremental prefetches)
+  //
+  // Note: If matching SPF entry is in paused state, we don't time the access latency because the prefetching was paused.
+  //   matchState.trained === 0 when entry is in paused state.
+  // - A request that misses the L2 was probably from the next page which we didn't start prefetching from yet.
   increaseAggrVec := c.accessTimeBits.map ({ bits =>
     require( bits > 0, "SPF accessTimeBits must be > 0 if defined")
 
@@ -487,7 +501,7 @@ class SPFModule(c: SPFParamsBase, outer: TLSPF, pgIdxBits: Int)(implicit p: Para
     val SPFIdx  = timerSPFIdx(dSource)
 
     for (i <- 0 until nTimers) {
-      when (lookupValid && !lookupMiss && matchState.trained && (i === aSource) && ctrl.timeEn) {
+      when (lookupValid && !lookupMiss && matchState.trained && !strideMismatch && (i === aSource) && ctrl.timeEn) {
         // Allocate new timer using source field from channel A request
         timerValids(i) := true.B
         timerCounts(i) := UInt(0, bits)
