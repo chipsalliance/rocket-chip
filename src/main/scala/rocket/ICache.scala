@@ -169,7 +169,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     assert(!lineInScratchpad(Cat(v, refill_idx)))
     v
   }
-  
+
   val tag_array = DescribedSRAM(
       name = "tag_array",
       desc = "ICache Tag Array",
