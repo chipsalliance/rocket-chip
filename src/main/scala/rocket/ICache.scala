@@ -169,9 +169,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     assert(!lineInScratchpad(Cat(v, refill_idx)))
     v
   }
-
-  //val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
-
+  
   val tag_array = DescribedSRAM(
       name = "tag_array",
       desc = "ICache Tag Array",
