@@ -43,15 +43,12 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
   val addr = io.req.bits.addr >> rowOffBits
 
-  val size = nSets * refillCycles
   val data_arrays = Seq.fill(rowBytes / wordBytes) {
-    DescribedSRAM.sramMaker(
-      name = "DCache Data Array",
-      desc = "",
-      size = size,
-      addressWidth = log2Ceil(size),
-      channels = nWays * (wordBits / eccBits), // lanes
-      channelDataWidth = encBits
+    DescribedSRAM(
+      name = "data_arrays",
+      desc = "DCache Data Array",
+      size = nSets * refillCycles,
+      data = Vec(nWays * (wordBits / eccBits), UInt(width = encBits))
     )
   }
 
@@ -88,15 +85,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tags
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
- // val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
 
-  val tag_array = DescribedSRAM.sramMaker(
-      name = "DCache Tag Array",
-      desc = "",
+  val tag_array = DescribedSRAM(
+      name = "tag_array",
+      desc = "DCache Tag Array",
       size = nSets,
-      addressWidth = log2Ceil(nSets),
-      channels = nWays, // lanes
-      channelDataWidth = tECC.width(metaArb.io.out.bits.data.getWidth)
+      data = Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth)))
     )
 
   // data

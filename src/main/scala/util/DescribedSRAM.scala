@@ -12,27 +12,30 @@ import freechips.rocketchip.amba.axi4.AXI4RAM
 import scala.math.log10
 
 object DescribedSRAM {
-  def sramMaker(
+  def apply[T <: Data](
     name: String,
     desc: String,
     size: Int, // depth
-    addressWidth: Int,
-    channels: Int, // lanes
-    channelDataWidth: Int
-  ): SyncReadMem[Vec[Chisel.UInt]] = {
+    data: T
+  ): SyncReadMem[T] = {
 
-    val data = Vec(channels, Bits(width = channelDataWidth))
-    val dataWidth = data.size
     val mem = SeqMem(size, data)
+
+    mem.suggestName(name)
+
+    val granWidth = data match {
+      case v: Vec[_] => v.head.getWidth
+      case d => d.getWidth
+    }
 
     Annotated.srams(
       component = mem,
       name = name,
-      address_width = addressWidth,
-      data_width = dataWidth,
+      address_width = log2Ceil(size),
+      data_width = data.getWidth,
       depth = size,
       description = desc,
-      write_mask_granularity = channelDataWidth)
+      write_mask_granularity = granWidth)
 
     mem
   }

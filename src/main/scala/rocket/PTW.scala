@@ -141,7 +141,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val l2_refill = RegNext(false.B)
   io.dpath.perf.l2miss := false
-  val (l2_hit, l2_valid, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
+  val (l2_hit, l2_valid, l2_pte) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE)) else {
     val code = new ParityCode
     require(isPow2(coreParams.nL2TLBEntries))
     val idxBits = log2Ceil(coreParams.nL2TLBEntries)
@@ -160,14 +160,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       override def cloneType = new Entry().asInstanceOf[this.type]
     }
 
-    // val ram = SeqMem(coreParams.nL2TLBEntries, UInt(width = code.width(new Entry().getWidth)))
-    val ram =  DescribedSRAM.sramMaker(
-      name = "PTW",
-      desc = "",
+    val ram =  DescribedSRAM(
+      name = "l2_tlb_ram",
+      desc = "L2 TLB",
       size = coreParams.nL2TLBEntries,
-      addressWidth = log2Ceil(coreParams.nL2TLBEntries),
-      channels = 1,
-      channelDataWidth = code.width(new Entry().getWidth))
+      data = UInt(width = code.width(new Entry().getWidth))
     )
 
     val g = Reg(UInt(width = coreParams.nL2TLBEntries))
@@ -208,7 +205,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     ccover(s2_hit, "L2_TLB_HIT", "L2 TLB hit")
 
-    (s2_hit, s2_valid && s2_valid_bit, s2_pte, Some(ram))
+    (s2_hit, s2_valid && s2_valid_bit, s2_pte)
   }
   
   io.mem.req.valid := state === s_req && !l2_valid
