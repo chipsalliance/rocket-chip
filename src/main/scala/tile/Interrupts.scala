@@ -50,7 +50,7 @@ trait HasExternalInterrupts { this: BaseTile =>
 
   // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the
-  //         per-tile crossbar in subsystem.HasRocketTiles
+  //         per-tile crossbar in subsystem.HasTiles.connectInterrupts
 
   // debug, msip, mtip, meip, seip, lip offsets in CSRs
   def csrIntMap: List[Int] = {
