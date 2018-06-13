@@ -1,12 +1,9 @@
 // See LICENSE.SiFive for license details.
 
-#include <vpi_user.h>
-#include <svdpi.h>
 #include <cstdlib>
 #include "remote_bitbang.h"
 
 remote_bitbang_t* jtag;
-
 extern "C" int jtag_tick
 (
  unsigned char * jtag_TCK,
@@ -17,10 +14,6 @@ extern "C" int jtag_tick
 )
 {
   if (!jtag) {
-    s_vpi_vlog_info info;
-    if (!vpi_get_vlog_info(&info)) {
-      abort();
-    }
     // TODO: Pass in real port number
     jtag = new remote_bitbang_t(0);
   }

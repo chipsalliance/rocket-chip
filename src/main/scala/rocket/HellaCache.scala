@@ -67,7 +67,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   val encWordBits = encBits * (wordBits / eccBits)
   def encDataBits = cacheParams.dataCode.width(coreDataBits) // NBDCache only
   def encRowBits = encDataBits*rowWords
-  def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
+  def lrscCycles = coreParams.lrscCycles // ISA requires 16-insn LRSC sequences to succeed
   def lrscBackoff = 3 // disallow LRSC reacquisition briefly
   def blockProbeAfterGrantCycles = 8 // give the processor some time to issue a request after a grant
   def nIOMSHRs = cacheParams.nMMIOs
@@ -268,7 +268,14 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
+
+  val tag_array = DescribedSRAM(
+    name = "tag_array",
+    desc = "Non-Blocking DCache Tag Array",
+    size = nSets,
+    data = Vec(nWays, UInt(width = metabits))
+  )
+
   val wen = rst || io.write.valid
   when (wen) {
     tag_array.write(waddr, Vec.fill(nWays)(wdata), wmask)

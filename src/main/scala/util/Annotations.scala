@@ -14,6 +14,17 @@ import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+/** Record a sram. */
+case class SRAMAnnotation(target: Named,
+  address_width: Int,
+  name: String,
+  data_width: Int,
+  depth: Int,
+  description: String,
+  write_mask_granularity: Int) extends SingleTargetAnnotation[Named] {
+  def duplicate(n: Named) = this.copy(n)
+}
+
 /** Record a set of interrupts. */
 case class InterruptsPortAnnotation(target: Named, name: String, interruptIndexes: Seq[Int]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
@@ -66,10 +77,10 @@ case class SlaveAddressMapChiselAnnotation(
 
 /** Record information about a top-level port of the design */
 case class TopLevelPortAnnotation(
-    target: ComponentName,
-    protocol: String,
-    tags: Seq[String],
-    mapping: Seq[AddressMapEntry]) extends SingleTargetAnnotation[ComponentName] {
+  target: ComponentName,
+  protocol: String,
+  tags: Seq[String],
+  name: Seq[String]) extends SingleTargetAnnotation[ComponentName] {
   def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
 }
 
@@ -80,6 +91,25 @@ case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends Single
 
 /** Helper object containing methods for applying annotations to targets */
 object Annotated {
+
+  def srams(
+    component: InstanceId,
+    name: String,
+    address_width: Int,
+    data_width: Int,
+    depth: Int,
+    description: String,
+    write_mask_granularity: Int): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = SRAMAnnotation(
+      component.toNamed,
+      address_width = address_width,
+      name = name,
+      data_width = data_width,
+      depth = depth,
+      description = description,
+      write_mask_granularity = write_mask_granularity
+    )})}
+
   def interrupts(component: InstanceId, name: String, interrupts: Seq[Int]): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = InterruptsPortAnnotation(
       component.toNamed,
@@ -108,11 +138,11 @@ object Annotated {
   }
 
   def port[T <: Data](
-      data: T,
-      protocol: String,
-      tags: Seq[String],
-      mapping: Seq[AddressMapEntry]): T = {
-    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, mapping) })
+    data: T,
+    protocol: String,
+    tags: Seq[String],
+    names: Seq[String]): T = {
+    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, names) })
     data
   }
 }

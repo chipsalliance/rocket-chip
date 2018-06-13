@@ -628,7 +628,12 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val resp = Wire(Vec(rowWords, Bits(width = encRowBits)))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (i <- 0 until resp.size) {
-        val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
+        val array = DescribedSRAM(
+          name = "data_array_nbdcache",
+          desc = "Non-blocking DCache Data Array",
+          size = nSets * refillCycles,
+          data = Vec(rowWords, Bits(width=encDataBits))
+        )
         when (wway_en.orR && io.write.valid && io.write.bits.wmask(i)) {
           val data = Vec.fill(rowWords)(io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
           array.write(waddr, data, wway_en.toBools)
@@ -645,7 +650,12 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     }
   } else {
     for (w <- 0 until nWays) {
-      val array = SeqMem(nSets*refillCycles, Vec(rowWords, Bits(width=encDataBits)))
+      val array = DescribedSRAM(
+        name = "data_array_nbdcache",
+        desc = "Non-blocking DCache Data Array",
+        size = nSets * refillCycles,
+        data = Vec(rowWords, Bits(width=encDataBits))
+      )
       when (io.write.bits.way_en(w) && io.write.valid) {
         val data = Vec.tabulate(rowWords)(i => io.write.bits.data(encDataBits*(i+1)-1,encDataBits*i))
         array.write(waddr, data, io.write.bits.wmask.toBools)

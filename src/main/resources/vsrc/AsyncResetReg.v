@@ -52,7 +52,7 @@ module AsyncResetReg (
    // and we want to make sure to properly model
    // that, yet Chisel codebase is absolutely intolerant
    // of Xs.
-   
+`ifndef SYNTHESIS
    initial begin
 `ifdef RANDOMIZE
       integer                    initvar;
@@ -77,6 +77,7 @@ module AsyncResetReg (
  `endif // RANDOMIZE_REG_INIT
 `endif // RANDOMIZE
    end
+`endif // SYNTHESIS
    
    always @(posedge clk or posedge rst) begin
 

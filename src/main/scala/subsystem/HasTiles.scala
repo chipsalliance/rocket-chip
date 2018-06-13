@@ -5,9 +5,12 @@ package freechips.rocketchip.subsystem
 import Chisel._
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.devices.debug.TLDebugModule
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, TLPLIC}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileKey, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
@@ -22,6 +25,102 @@ trait HasTiles { this: BaseSubsystem =>
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
   def sharedMemoryTLEdge = sbus.busView
+
+  private val lookupByHartId = new LookupByHartIdImpl {
+    def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T =
+      PriorityMux(tileParams.collect { case t if f(t).isDefined => (t.hartId.U === hartId) -> f(t).get })
+  }
+
+  protected def augmentedTileParameters(tp: TileParams): Parameters = p.alterPartial {
+    // For legacy reasons, it is convenient to store some state
+    // in the global Parameters about the specific tile being built now
+    case TileKey => tp
+    case SharedMemoryTLEdge => sharedMemoryTLEdge
+    case LookupByHartId => lookupByHartId
+  }
+
+  protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
+    def tileMasterBuffering: TLOutwardNode = tile {
+      crossing.crossingType match {
+        case _: AsynchronousCrossing => tile.masterNode
+        case SynchronousCrossing(b) =>
+          tile.masterNode
+        case RationalCrossing(dir) =>
+          require (dir != SlowToFast, "Misconfiguration? Core slower than fabric")
+          tile.makeMasterBoundaryBuffers :=* tile.masterNode
+      }
+    }
+
+    sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
+        crossing.master.cork
+          .map { u => TLCacheCork(unsafe = u) }
+          .map { _ :=* tile.crossTLOut }
+          .getOrElse { tile.crossTLOut }
+    } :=* tileMasterBuffering
+  }
+
+  protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
+    def tileSlaveBuffering: TLInwardNode = tile {
+      crossing.crossingType match {
+        case RationalCrossing(_) => tile.slaveNode :*= tile.makeSlaveBoundaryBuffers
+        case _ => tile.slaveNode
+      }
+    }
+
+    DisableMonitors { implicit p =>
+      tileSlaveBuffering :*= sbus.control_bus.toTile(tile.tileParams.name) {
+        crossing.slave.blockerCtrlAddr
+          .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
+          .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
+          .map { bbb =>
+            sbus.control_bus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
+            tile.crossTLIn :*= bbb.node
+          } .getOrElse { tile.crossTLIn }
+      }
+    }
+  }
+
+  protected def connectInterrupts(tile: BaseTile, debugOpt: Option[TLDebugModule], clintOpt: Option[CLINT], plicOpt: Option[TLPLIC]) {
+    // Handle all the different types of interrupts crossing to or from the tile:
+    // 1. Debug interrupt is definitely asynchronous in all cases.
+    // 2. The CLINT and PLIC output interrupts are synchronous to the periphery clock,
+    //    so might need to be synchronized depending on the Tile's crossing type.
+    // 3. Local Interrupts are required to already be synchronous to the tile clock.
+    // 4. Interrupts coming out of the tile are sent to the PLIC,
+    //    so might need to be synchronized depending on the Tile's crossing type.
+    // NOTE: The order of calls to := matters! They must match how interrupts
+    //       are decoded from tile.intNode inside the tile.
+
+    // 1. always async crossing for debug
+    debugOpt.foreach { debug =>
+      tile.intInwardNode := tile { IntSyncCrossingSink(3) } := debug.intnode
+    }
+
+    // 2. clint+plic conditionally crossing
+    val periphIntNode = tile.intInwardNode :=* tile.crossIntIn
+    clintOpt.foreach { periphIntNode := _.intnode }    // msip+mtip
+    plicOpt.foreach { plic =>
+      periphIntNode := plic.intnode                    // meip
+      if (tile.tileParams.core.useVM)
+        periphIntNode := plic.intnode                  // seip
+    }
+
+    // 3. local interrupts  never cross
+    // tile.intInwardNode is wired up externally       // lip
+
+    // 4. conditional crossing from core to PLIC
+    plicOpt.foreach { plic =>
+      FlipRendering { implicit p =>
+        plic.intnode :=* tile.crossIntOut :=* tile.intOutwardNode
+      }
+    }
+  }
+
+  protected def perTileOrGlobalSetting[T](in: Seq[T], n: Int): Seq[T] = in.size match {
+    case 1 => List.fill(n)(in.head)
+    case x if x == n => in
+    case _ => throw new Exception("must provide exactly 1 or #tiles of this key")
+  }
 }
 
 trait HasTilesBundle {

@@ -5,8 +5,8 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.subsystem.{RocketTilesKey}
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
+import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -42,7 +42,16 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
   val addr = io.req.bits.addr >> rowOffBits
-  val data_arrays = Seq.fill(rowBytes / wordBytes) { SeqMem(nSets * refillCycles, Vec(nWays * (wordBits / eccBits), UInt(width = encBits))) }
+
+  val data_arrays = Seq.fill(rowBytes / wordBytes) {
+    DescribedSRAM(
+      name = "data_arrays",
+      desc = "DCache Data Array",
+      size = nSets * refillCycles,
+      data = Vec(nWays * (wordBits / eccBits), UInt(width = encBits))
+    )
+  }
+
   val rdata = for ((array, i) <- data_arrays zipWithIndex) yield {
     val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
@@ -76,7 +85,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tags
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
+
+  val tag_array = DescribedSRAM(
+    name = "tag_array",
+    desc = "DCache Tag Array",
+    size = nSets,
+    data = Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth)))
+  )
 
   // data
   val data = Module(new DCacheDataArray)
@@ -175,7 +190,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_victim_way = Wire(init = replacer.way)
   val (s1_hit_way, s1_hit_state, s1_meta, s1_victim_meta) =
     if (usingDataScratchpad) {
-      val baseAddr = GetPropertyByHartId(p(RocketTilesKey), _.dcache.flatMap(_.scratch.map(_.U)), io.hartid)
+      val baseAddr = p(LookupByHartId)(_.dcache.flatMap(_.scratch.map(_.U)), io.hartid)
       val inScratchpad = s1_paddr >= baseAddr && s1_paddr < baseAddr + nSets * cacheBlockBytes
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       val dummyMeta = L1Metadata(UInt(0), ClientMetadata.onReset)
