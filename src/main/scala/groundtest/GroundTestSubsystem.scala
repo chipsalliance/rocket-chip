@@ -48,8 +48,8 @@ class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends
 
 /** Adds a SRAM to the system for testing purposes. */
 trait HasPeripheryTestRAMSlave { this: BaseSubsystem =>
-  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("TestRAM")) { testram.node }
+  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, sbus.control_bus.beatBytes))
+  sbus.control_bus.toVariableWidthSlave(Some("TestRAM")) { testram.node }
 }
 
 /** Adds a fuzzing master to the system for testing purposes. */

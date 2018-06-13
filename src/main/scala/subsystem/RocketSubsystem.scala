@@ -97,12 +97,12 @@ trait HasRocketTiles extends HasTiles
     }
 
     DisableMonitors { implicit p =>
-      tileSlaveBuffering :*= pbus.toTile(tp.name) {
+      tileSlaveBuffering :*= sbus.control_bus.toTile(tp.name) {
         crossing.slave.blockerCtrlAddr
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
-            pbus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
+            sbus.control_bus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
             rocket.crossTLIn :*= bbb.node
           } .getOrElse { rocket.crossTLIn }
       }
