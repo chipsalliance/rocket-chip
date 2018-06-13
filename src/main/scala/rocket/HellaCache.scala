@@ -268,7 +268,13 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = metabits)))
+  val tag_array = DescribedSRAM(
+    name = "tag_array",
+    desc = "Non-Blocking DCache Tag Array",
+    size = nSets,
+    data = Vec(nWays, UInt(width = metabits))
+  )
+
   val wen = rst || io.write.valid
   when (wen) {
     tag_array.write(waddr, Vec.fill(nWays)(wdata), wmask)
