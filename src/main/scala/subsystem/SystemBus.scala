@@ -11,7 +11,9 @@ import freechips.rocketchip.util._
 case class SystemBusParams(
   beatBytes: Int,
   blockBytes: Int,
-  pbusBuffer: BufferParams = BufferParams.none) extends HasTLBusParams
+  pbusBuffer: BufferParams = BufferParams.none,
+  arithmeticAtomics: Boolean = true,
+  bufferAtomics: BufferParams = BufferParams.default) extends HasTLBusParams
 
 case object SystemBusKey extends Field[SystemBusParams]
 
@@ -21,6 +23,17 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
 
+  val cbus_params = new PeripheryBusParams(
+    p(PeripheryBusKey).beatBytes,
+    params.blockBytes,
+    params.arithmeticAtomics,
+    params.bufferAtomics,
+    SynchronousCrossing())
+  val control_bus = LazyModule(new PeripheryBus(cbus_params))
+  control_bus.fromSystemBus {
+    TLFIFOFixer(TLFIFOFixer.all) :*= TLWidthWidget(params.beatBytes) :*= bufferTo(params.pbusBuffer)
+  }
+
   protected def fixFromThenSplit(policy: TLFIFOFixer.Policy, buffer: BufferParams): TLInwardNode =
     master_splitter.node :=* TLBuffer(buffer) :=* TLFIFOFixer(policy)
 
@@ -29,9 +42,9 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   def toPeripheryBus(gen: => TLNode): TLOutwardNode = {
     to("pbus") {
       (gen
-        := TLFIFOFixer(TLFIFOFixer.all)
-        := TLWidthWidget(params.beatBytes)
-        := bufferTo(params.pbusBuffer))
+        :*= TLFIFOFixer(TLFIFOFixer.all)
+        :*= TLWidthWidget(params.beatBytes)
+        :*= bufferTo(params.pbusBuffer))
     }
   }
 
@@ -106,4 +119,5 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
         TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
     from("master" named name) { fixFromThenSplit(TLFIFOFixer.all, buffer) :=* gen }
   }
+
 }

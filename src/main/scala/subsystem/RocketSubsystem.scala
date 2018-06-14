@@ -48,7 +48,7 @@ trait HasRocketTiles extends HasTiles
       .suggestName(tp.name)
 
     connectMasterPortsToSBus(rocket, crossing)
-    connectSlavePortsToPBus(rocket, crossing)
+    connectSlavePortsToCBus(rocket, crossing)
     connectInterrupts(rocket, Some(debug), clintOpt, Some(plic))
 
     rocket
