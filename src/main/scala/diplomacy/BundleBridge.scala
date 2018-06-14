@@ -34,6 +34,8 @@ class BundleBridge[D <: Data, T <: LazyModule](lm: => T { val module: { val io: 
 {
   val child = LazyModule(lm)
   val ioNode = BundleBridgeSource(() => child.module.io.cloneType)
+  override lazy val desiredName = s"BundleBridge_${child.desiredName}"
+
   lazy val module = new LazyModuleImp(this) {
     val (io, _) = ioNode.out(0)
     io <> child.module.io
@@ -42,16 +44,14 @@ class BundleBridge[D <: Data, T <: LazyModule](lm: => T { val module: { val io: 
 
 /* Usage:
  *   // Wrap up SomeDevice's module.io Bundle into an ioNode
- *   val (ioNode, device) = BundleBridge(new SomeDevice) // BundleBridge() replaces LazyModule()
+ *   val deviceBridge = BundleBridge(new SomeDevice) // BundleBridge() replaces LazyModule()
  *   // Somewhere else in the design in LazyModule scope:
- *   val sink = ioNode.sink // creates a sink node of matching type
+ *   val sink = deviceBridge.ioNode.sink // creates a sink node of matching type
  *   // In LazyModuleImp scope:
  *   val io = sink.io // io is a Wire () connected to device.module.io
  */
 object BundleBridge
 {
-  def apply[D <: Data, T <: LazyModule](lm: => T { val module: { val io: D }})(implicit p: Parameters) = {
-    val bridge = LazyModule(new BundleBridge(lm))
-    (bridge.ioNode, bridge.child)
-  }
+  def apply[D <: Data, T <: LazyModule](lm: => T { val module: { val io: D }})(implicit p: Parameters, valName: ValName) =
+    LazyModule(new BundleBridge(lm))
 }
