@@ -4,6 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
     address: AddressSet,
@@ -24,7 +25,12 @@ abstract class DiplomaticSRAM(
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem(size: Int, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
-    val mem = SeqMem(size, Vec(lanes, Bits(width = bits)))
+    val mem =  DescribedSRAM(
+      name = devName.getOrElse("sram"),
+      desc = devName.getOrElse("sram"),
+      size = size,
+      data = Vec(lanes, UInt(width = bits))
+    )
     devName.foreach(n => mem.suggestName(n.split("-").last))
     mem
   }
