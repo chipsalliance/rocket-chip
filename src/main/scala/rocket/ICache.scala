@@ -256,7 +256,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
 
   val s1_clk_en = s1_valid || s1_slaveValid
-  val s2_tag_hit = RegEnable(s1_tag_hit, Vec.fill(nWays)(Bool(false)), s1_clk_en)
+  val s2_tag_hit = RegEnable(s1_tag_hit, s1_clk_en)
   val s2_hit_way = OHToUInt(s2_tag_hit)
   val s2_scratchpad_word_addr = Cat(s2_hit_way, Mux(s2_slaveValid, s1s3_slaveAddr, io.s2_vaddr)(untagBits-1, log2Ceil(wordBits/8)), UInt(0, log2Ceil(wordBits/8)))
   val s2_dout = RegEnable(s1_dout, s1_clk_en)

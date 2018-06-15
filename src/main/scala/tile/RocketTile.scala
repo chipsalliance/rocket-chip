@@ -18,7 +18,7 @@ case class RocketTileParams(
     icache: Option[ICacheParams] = Some(ICacheParams()),
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     btb: Option[BTBParams] = Some(BTBParams()),
-    spf: Option[SPFParams] = Some(SPFParams()),
+    spf: Option[SPFParams] = None,
     dataScratchpadBytes: Int = 0,
     trace: Boolean = false,
     hcfOnUncorrectable: Boolean = false,

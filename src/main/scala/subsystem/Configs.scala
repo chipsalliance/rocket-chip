@@ -40,7 +40,6 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
         mulUnroll = 8,
         mulEarlyOut = true,
         divEarlyOut = true))),
-      spf = Some(SPFParams(address = Some(0x2010000L))),
       dcache = Some(DCacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nMSHRs = 0,
@@ -57,7 +56,6 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
-      spf = None,
       dcache = Some(DCacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
@@ -83,7 +81,6 @@ class With1TinyCore extends Config((site, here, up) => {
         fpu = None,
         mulDiv = Some(MulDivParams(mulUnroll = 8))),
       btb = None,
-      spf = None,
       dcache = Some(DCacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nSets = 256, // 16Kb scratchpad
@@ -206,12 +203,6 @@ class WithRoccExample extends Config((site, here, up) => {
 class WithDefaultBtb extends Config((site, here, up) => {
   case RocketTilesKey => up(RocketTilesKey, site) map { r =>
     r.copy(btb = Some(BTBParams()))
-  }
-})
-
-class WithDefaultSpf extends Config((site, here, up) => {
-  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
-    r.copy(spf = Some(SPFParams()))
   }
 })
 
