@@ -26,8 +26,8 @@ abstract class DiplomaticSRAM(
   def makeSinglePortedByteWriteSeqMem(size: Int, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
     val mem =  DescribedSRAM(
-      name = devName.getOrElse("sram"),
-      desc = devName.getOrElse("sram"),
+      name = devName.getOrElse("mem"),
+      desc = devName.getOrElse("mem"),
       size = size,
       data = Vec(lanes, UInt(width = bits))
     )
