@@ -59,7 +59,7 @@ trait HasTiles { this: BaseSubsystem =>
     } :=* tileMasterBuffering
   }
 
-  protected def connectSlavePortsToPBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
+  protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
     def tileSlaveBuffering: TLInwardNode = tile {
       crossing.crossingType match {
         case RationalCrossing(_) => tile.slaveNode :*= tile.makeSlaveBoundaryBuffers
@@ -68,12 +68,12 @@ trait HasTiles { this: BaseSubsystem =>
     }
 
     DisableMonitors { implicit p =>
-      tileSlaveBuffering :*= pbus.toTile(tile.tileParams.name) {
+      tileSlaveBuffering :*= sbus.control_bus.toTile(tile.tileParams.name) {
         crossing.slave.blockerCtrlAddr
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
-            pbus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
+            sbus.control_bus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
             tile.crossTLIn :*= bbb.node
           } .getOrElse { tile.crossTLIn }
       }
