@@ -300,7 +300,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
-  when ((s2_valid_masked && lrscCount > 0) || io.cpu.invalidate_lr) { lrscCount := 0 }
+  when (s2_valid_masked && lrscCount > 0) { lrscCount := 0 }
 
   // don't perform data correction if it might clobber a recent store
   val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)

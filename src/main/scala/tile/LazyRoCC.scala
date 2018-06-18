@@ -187,7 +187,6 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.req.bits.phys := Bool(false)
-  io.mem.invalidate_lr := Bool(false)
 }
 
 class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes, nPTWPorts = 1) {

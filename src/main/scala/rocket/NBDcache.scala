@@ -814,7 +814,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
       lrsc_count := 0
     }
   }
-  when (io.cpu.invalidate_lr) { lrsc_count := 0 }
 
   val s2_data = Wire(Vec(nWays, Bits(width=encRowBits)))
   for (w <- 0 until nWays) {
