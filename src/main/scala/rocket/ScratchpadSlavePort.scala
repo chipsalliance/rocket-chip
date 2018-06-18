@@ -79,7 +79,6 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     io.dmem.s1_data.mask := acq.mask
     io.dmem.s1_kill := false
     io.dmem.s2_kill := false
-    io.dmem.invalidate_lr := false
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
