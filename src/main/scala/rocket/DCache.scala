@@ -614,12 +614,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
     tl_out_c.bits.address := probe_bits.address
     tl_out_c.bits.data := s2_data_corrected
-    tl_out_c.bits.corrupt := inWriteback && {
-      val accrued = Reg(Bool())
-      val next = writeback_data_uncorrectable || (accrued && !c_first)
-      when (tl_out_c.fire()) { accrued := next }
-      next
-    }
+    tl_out_c.bits.corrupt := inWriteback && writeback_data_uncorrectable
   }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
@@ -774,7 +769,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       c.bits := error_addr
       io.errors.uncorrectable.foreach { u => when (u.valid) { c.valid := false } }
     }
-    io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || !grantIsCached && tl_out.d.bits.corrupt)
+    io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
     io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
 
     ccoverNotScratchpad(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
