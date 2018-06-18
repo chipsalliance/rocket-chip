@@ -3,11 +3,9 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import chisel3.internal.InstanceId
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util._
 
 /** BareSubsystem is the root class for creating a subsystem */
