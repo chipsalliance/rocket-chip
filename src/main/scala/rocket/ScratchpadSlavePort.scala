@@ -36,12 +36,14 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
 
     val (tl_in, edge) = node.in(0)
 
-    val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
+    val s_ready :: s_wait1 :: s_wait2 :: s_replay :: s_grant :: Nil = Enum(UInt(), 5)
     val state = Reg(init = s_ready)
+    val dmem_req_valid = Wire(Bool())
+    when (state === s_wait1) { state := s_wait2 }
     when (io.dmem.resp.valid) { state := s_grant }
     when (tl_in.d.fire()) { state := s_ready }
     when (io.dmem.s2_nack) { state := s_replay }
-    when (io.dmem.req.fire()) { state := s_wait }
+    when (dmem_req_valid && io.dmem.req.ready) { state := s_wait1 }
 
     val acq = Reg(tl_in.a.bits)
     when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data_raw }
@@ -71,20 +73,27 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
       req
     }
 
-    val ready = state === s_ready || tl_in.d.fire()
-    io.dmem.req.valid := (tl_in.a.valid && ready) || state === s_replay
+    // ready_likely assumes that a valid response in s_wait2 is the vastly
+    // common case.  In the uncommon case, we'll erroneously send a request,
+    // then s1_kill it the following cycle.
+    val ready_likely = state === s_ready || state === s_wait2
+    val ready = state === s_ready || state === s_wait2 && io.dmem.resp.valid && tl_in.d.ready
+    dmem_req_valid := (tl_in.a.valid && ready) || state === s_replay
+    val dmem_req_valid_likely = (tl_in.a.valid && ready_likely) || state === s_replay
+
+    io.dmem.req.valid := dmem_req_valid_likely
     tl_in.a.ready := io.dmem.req.ready && ready
     io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
     io.dmem.s1_data.data := acq.data
     io.dmem.s1_data.mask := acq.mask
-    io.dmem.s1_kill := false
+    io.dmem.s1_kill := state =/= s_wait1
     io.dmem.s2_kill := false
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
       edge.AccessAck(acq),
       edge.AccessAck(acq, UInt(0)))
-    tl_in.d.bits.data := Mux(io.dmem.resp.valid, io.dmem.resp.bits.data_raw, acq.data)
+    tl_in.d.bits.data := Mux(state === s_grant, acq.data, io.dmem.resp.bits.data_raw)
 
     // Tie off unused channels
     tl_in.b.valid := Bool(false)
