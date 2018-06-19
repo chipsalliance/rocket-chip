@@ -9,7 +9,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
@@ -170,7 +170,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
+  val tag_array = DescribedSRAM(
+    name = "tag_array",
+    desc = "ICache Tag Array",
+    size = nSets,
+    data = Vec(nWays, UInt(width = tECC.width(1 + tagBits)))
+  )
+
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
   when (refill_done) {
@@ -219,7 +225,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
-  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
+
+  val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
+    i =>
+      DescribedSRAM(
+        name = s"data_arrays_${i}",
+        desc = "ICache Data Array",
+        size = nSets * refillCycles,
+        data = Vec(nWays, UInt(width = dECC.width(wordBits)))
+      )
+  }
+
   for ((data_array, i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
