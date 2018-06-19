@@ -160,7 +160,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       override def cloneType = new Entry().asInstanceOf[this.type]
     }
 
-    val ram = SeqMem(coreParams.nL2TLBEntries, UInt(width = code.width(new Entry().getWidth)))
+    val ram =  DescribedSRAM(
+      name = "l2_tlb_ram",
+      desc = "L2 TLB",
+      size = coreParams.nL2TLBEntries,
+      data = UInt(width = code.width(new Entry().getWidth))
+    )
+
     val g = Reg(UInt(width = coreParams.nL2TLBEntries))
     val valid = RegInit(UInt(0, coreParams.nL2TLBEntries))
     val (r_tag, r_idx) = Split(r_req.addr, idxBits)
