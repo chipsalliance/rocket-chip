@@ -21,6 +21,7 @@ lazy val commonSettings = Seq(
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 lazy val hardfloat  = project.dependsOn(chisel).settings(commonSettings)
+  .settings(crossScalaVersions := Seq("2.11.12", "2.12.4"))
 lazy val macros = (project in file("macros")).settings(commonSettings)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
