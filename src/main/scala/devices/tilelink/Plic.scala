@@ -335,7 +335,7 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
     val plic = LazyModule(new TLPLIC(params, sbus.control_bus.beatBytes))
     sbus.control_bus.toVariableWidthSlave(Some("plic")) { plic.node }
-    plic.intnode := ibus.toPLIC
+    plic.intnode :=* ibus.toPLIC
     plic
   }
 }
