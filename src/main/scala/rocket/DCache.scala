@@ -700,11 +700,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     amoalu.io.cmd := (if (usingAtomicsInCache) pstore1_cmd else M_XWR)
     amoalu.io.lhs := s2_data_word
     amoalu.io.rhs := pstore1_data
-    pstore1_storegen_data := amoalu.io.out
+    pstore1_storegen_data := (if (!usingDataScratchpad) amoalu.io.out else {
+      val mask = FillInterleaved(8, Mux(s2_correct, 0.U, pstore1_mask))
+      amoalu.io.out_unmasked & mask | s2_data_word_corrected & ~mask
+    })
   } else if (!usingAtomics) {
     assert(!(s1_valid_masked && s1_read && s1_write), "unsupported D$ operation")
   }
-  when (s2_correct) { pstore1_storegen_data := s2_data_word_corrected }
 
   // flushes
   val resetting = RegInit(false.B)

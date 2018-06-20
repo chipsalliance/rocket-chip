@@ -56,6 +56,7 @@ class AMOALU(operandBits: Int)(implicit p: Parameters) extends Module {
     val lhs = Bits(INPUT, operandBits)
     val rhs = Bits(INPUT, operandBits)
     val out = Bits(OUTPUT, operandBits)
+    val out_unmasked = Bits(OUTPUT, operandBits)
   }
 
   val max = io.cmd === M_XA_MAX || io.cmd === M_XA_MAXU
@@ -103,4 +104,5 @@ class AMOALU(operandBits: Int)(implicit p: Parameters) extends Module {
 
   val wmask = FillInterleaved(8, io.mask)
   io.out := wmask & out | ~wmask & io.lhs
+  io.out_unmasked := out
 }
