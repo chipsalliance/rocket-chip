@@ -331,7 +331,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 }
 
 /** Trait that will connect a PLIC to a subsystem */
-trait HasPeripheryPLIC { this: BaseSubsystem =>
+trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
     val plic = LazyModule(new TLPLIC(params, sbus.control_bus.beatBytes))
     sbus.control_bus.toVariableWidthSlave(Some("plic")) { plic.node }
