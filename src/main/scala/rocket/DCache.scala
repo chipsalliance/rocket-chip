@@ -96,6 +96,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // data
   val data = Module(new DCacheDataArray)
   val dataArb = Module(new Arbiter(new DCacheDataReq, 4))
+  dataArb.io.in.tail.foreach(_.bits.wdata := dataArb.io.in.head.bits.wdata) // tie off write ports by default
   data.io.req <> dataArb.io.out
   data.io.req.bits.wdata := encodeData(dataArb.io.out.bits.wdata(rowBits-1, 0), dataArb.io.out.bits.poison)
   dataArb.io.out.ready := true
@@ -449,19 +450,24 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // grant
   val (d_first, d_last, d_done, d_address_inc) = edge.addr_inc(tl_out.d)
-  val grantIsCached = {
-    val res = tl_out.d.bits.opcode.isOneOf(Grant, GrantData)
+  val (d_opc, grantIsUncached, grantIsUncachedData) = {
+    val uncachedGrantOpcodesSansData = Seq(AccessAck, HintAck)
+    val uncachedGrantOpcodesWithData = Seq(AccessAckData)
+    val uncachedGrantOpcodes = uncachedGrantOpcodesWithData ++ uncachedGrantOpcodesSansData
+    val whole_opc = tl_out.d.bits.opcode
     if (usingDataScratchpad) {
-      assert(!(tl_out.d.valid && res))
-      false.B
+      assert(!tl_out.d.valid || whole_opc.isOneOf(uncachedGrantOpcodes))
+      // the only valid TL-D messages are uncached, so we can do some pruning
+      val opc = whole_opc(uncachedGrantOpcodes.map(_.getWidth).max - 1, 0)
+      val data = DecodeLogic(opc, uncachedGrantOpcodesWithData, uncachedGrantOpcodesSansData)
+      (opc, true.B, data)
     } else {
-      res
+      (whole_opc, whole_opc.isOneOf(uncachedGrantOpcodes), whole_opc.isOneOf(uncachedGrantOpcodesWithData))
     }
   }
-  val grantIsUncached = tl_out.d.bits.opcode.isOneOf(AccessAck, AccessAckData, HintAck)
-  val grantIsUncachedData = tl_out.d.bits.opcode === AccessAckData
-  val grantIsVoluntary = tl_out.d.bits.opcode === ReleaseAck // Clears a different pending bit
-  val grantIsRefill = tl_out.d.bits.opcode === GrantData     // Writes the data array
+  val grantIsCached = d_opc.isOneOf(Grant, GrantData)
+  val grantIsVoluntary = d_opc === ReleaseAck // Clears a different pending bit
+  val grantIsRefill = d_opc === GrantData     // Writes the data array
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
@@ -513,13 +519,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     tl_out.e.valid := false
     tl_out.d.ready := false
   }
-  dataArb.io.in(1).bits.write := true
-  dataArb.io.in(1).bits.addr :=  s2_req_block_addr | d_address_inc
-  dataArb.io.in(1).bits.way_en := s2_victim_way
-  dataArb.io.in(1).bits.wdata := tl_out.d.bits.data
-  dataArb.io.in(1).bits.poison := tl_out.d.bits.corrupt
-  dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
-  dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
+  if (!usingDataScratchpad) {
+    dataArb.io.in(1).bits.write := true
+    dataArb.io.in(1).bits.addr :=  s2_req_block_addr | d_address_inc
+    dataArb.io.in(1).bits.way_en := s2_victim_way
+    dataArb.io.in(1).bits.wdata := tl_out.d.bits.data
+    dataArb.io.in(1).bits.poison := tl_out.d.bits.corrupt
+    dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
+    dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
+  }
   // tag updates on refill
   // ignore backpressure from metaArb, which can only be caused by tag ECC
   // errors on hit-under-miss.  failing to write the new tag will leave the
