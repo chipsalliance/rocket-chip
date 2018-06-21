@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.TLDebugModule
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, TLPLIC}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, CLINTConsts, TLPLIC}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileKey, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
@@ -89,24 +89,23 @@ trait HasTiles { this: BaseSubsystem =>
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
     // NOTE: The order of calls to := matters! They must match how interrupts
-    //       are decoded from tile.intNode inside the tile.
+    //       are decoded from tile.intNode inside the tile. For this reason,
+    //       we stub out missing interrupts with constant sources here.
 
     // 1. always async crossing for debug
-    debugOpt.foreach { debug =>
-      tile.intInwardNode := tile { IntSyncCrossingSink(3) } := debug.intnode
-    }
+    tile.intInwardNode := debugOpt.map { tile { IntSyncCrossingSink(3) } := _.intnode } .getOrElse { NullIntSource() }
 
     // 2. clint+plic conditionally crossing
-    val periphIntNode = tile.intInwardNode :=* tile.crossIntIn
-    clintOpt.foreach { periphIntNode := _.intnode }    // msip+mtip
-    plicOpt.foreach { plic =>
-      periphIntNode := plic.intnode                    // meip
-      if (tile.tileParams.core.useVM)
-        periphIntNode := plic.intnode                  // seip
-    }
+    tile.intInwardNode := clintOpt.map { tile.crossIntIn := _.intnode } // msip+mtip
+      .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+    tile.intInwardNode := plicOpt.map  { tile.crossIntIn := _.intnode } // meip
+      .getOrElse { NullIntSource() }
+    tile.intInwardNode := (if (tile.tileParams.core.useVM) {            // seip
+        plicOpt.map { tile.crossIntIn := _.intnode } .getOrElse { NullIntSource() }
+    } else { NullIntSource() })
 
-    // 3. local interrupts  never cross
-    // tile.intInwardNode is wired up externally       // lip
+    // 3. local interrupts never cross (lip)
+    // tile.intInwardNode is wired up externally
 
     // 4. conditional crossing from core to PLIC
     plicOpt.foreach { plic =>
