@@ -49,7 +49,9 @@ class LoadGen(typ: UInt, signed: Bool, addr: UInt, dat: UInt, zero: Bool, maxSiz
 }
 
 class AMOALU(operandBits: Int)(implicit p: Parameters) extends Module {
-  require(operandBits == 32 || operandBits == 64)
+  val minXLen = 32
+  val widths = (0 to log2Ceil(operandBits / minXLen)).map(minXLen << _)
+
   val io = new Bundle {
     val mask = UInt(INPUT, operandBits/8)
     val cmd = Bits(INPUT, M_SZ)
@@ -65,32 +67,28 @@ class AMOALU(operandBits: Int)(implicit p: Parameters) extends Module {
   val logic_and = io.cmd === M_XA_OR || io.cmd === M_XA_AND
   val logic_xor = io.cmd === M_XA_XOR || io.cmd === M_XA_OR
 
-  val adder_out =
-    if (operandBits == 32) io.lhs + io.rhs
-    else {
-      val mask = ~UInt(0,64) ^ (!io.mask(3) << 31)
-      (io.lhs & mask) + (io.rhs & mask)
-    }
+  val adder_out = {
+    // partition the carry chain to support sub-xLen addition
+    val mask = ~(UInt(0, operandBits) +: widths.init.map(w => !io.mask(w/8-1) << (w-1))).reduce(_|_)
+    (io.lhs & mask) + (io.rhs & mask)
+  }
 
   val less = {
-    val sgned = {
-      val mask = M_XA_MIN ^ M_XA_MINU
-      (io.cmd & mask) === (M_XA_MIN & mask)
+    // break up the comparator so the lower parts will be CSE'd
+    def isLessUnsigned(x: UInt, y: UInt, n: Int): Bool = {
+      if (n == minXLen) x(n-1, 0) < y(n-1, 0)
+      else x(n-1, n/2) < y(n-1, n/2) || x(n-1, n/2) === y(n-1, n/2) && isLessUnsigned(x, y, n/2)
     }
 
-    if (operandBits == 32) {
-      Mux(io.lhs(31) === io.rhs(31), io.lhs < io.rhs, Mux(sgned, io.lhs(31), io.rhs(31)))
-    } else {
-      val cmp_lhs = Mux(!io.mask(4), io.lhs(31), io.lhs(63))
-      val cmp_rhs = Mux(!io.mask(4), io.rhs(31), io.rhs(63))
-      val lt_lo = io.lhs(31,0) < io.rhs(31,0)
-      val lt_hi = io.lhs(63,32) < io.rhs(63,32)
-      val eq_hi = io.lhs(63,32) === io.rhs(63,32)
-      val lt =
-        Mux(io.mask(4) && io.mask(3), lt_hi || eq_hi && lt_lo,
-        Mux(io.mask(4), lt_hi, lt_lo))
-      Mux(cmp_lhs === cmp_rhs, lt, Mux(sgned, cmp_lhs, cmp_rhs))
+    def isLess(x: UInt, y: UInt, n: Int): Bool = {
+      val signed = {
+        val mask = M_XA_MIN ^ M_XA_MINU
+        (io.cmd & mask) === (M_XA_MIN & mask)
+      }
+      Mux(x(n-1) === y(n-1), isLessUnsigned(x, y, n), Mux(signed, x(n-1), y(n-1)))
     }
+
+    PriorityMux(widths.reverse.map(w => (io.mask(w/8/2), isLess(io.lhs, io.rhs, w))))
   }
 
   val minmax = Mux(Mux(less, min, max), io.lhs, io.rhs)
