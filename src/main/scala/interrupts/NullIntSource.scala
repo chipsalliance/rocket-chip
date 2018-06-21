@@ -12,7 +12,7 @@ class NullIntSource(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: 
   val intnode = IntSourceNode(IntSourcePortSimple(num, ports, sources))
 
   lazy val module = new LazyModuleImp(this) {
-    intnode.out.foreach { case (o, _) => o := UInt(0) }
+    intnode.out.foreach { case (o, _) => o.foreach { _ := false.B } }
   }
 }
 
