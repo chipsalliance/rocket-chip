@@ -213,7 +213,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         .reduce (_|_))
       (s1_meta_hit_way, s1_meta_hit_state, s1_meta, s1_meta_uncorrected(s1_victim_way))
     }
-  val s1_data_way = Wire(init = Mux(inWriteback, releaseWay, s1_hit_way))
+  val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
   val s1_all_data_ways = Vec(data.io.resp :+ dummyEncodeData(tl_out.d.bits.data))
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask)
 
@@ -245,9 +245,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
   val s2_data = {
     val en = s1_valid || inWriteback || tl_out.d.fire()
-    if (cacheParams.pipelineWayMux && nWays > 1) {
+    if (cacheParams.pipelineWayMux) {
       val s2_data_way = RegEnable(s1_data_way, en)
-      val s2_all_data_ways = (0 to nWays).map(i => RegEnable(s1_all_data_ways(i), en && s1_data_way(i)))
+      val s2_all_data_ways = (0 until nWays).map(i => RegEnable(s1_all_data_ways(i), en && s1_data_way(i)))
       Mux1H(s2_data_way, s2_all_data_ways)
     } else {
       RegEnable(Mux1H(s1_data_way, s1_all_data_ways), en)
@@ -493,7 +493,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         }
       }
       when (grantIsUncachedData) {
-        s1_data_way := 1.U << nWays
+        if (!cacheParams.pipelineWayMux)
+          s1_data_way := 1.U << nWays
         s2_req.cmd := M_XRD
         s2_req.typ := req.typ
         s2_req.tag := req.tag
@@ -688,6 +689,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // uncached response
   io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
   val doUncachedResp = Reg(next = io.cpu.replay_next)
+  val s2_uncached_data_beat = RegEnable(tl_out.d.bits.data, io.cpu.replay_next)
   when (doUncachedResp) {
     assert(!s2_valid_hit)
     io.cpu.resp.valid := true
@@ -698,7 +700,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // load data subword mux/sign extension
   val s2_data_word = ((0 until rowBits by wordBits).map(i => s2_data_uncorrected(wordBits+i-1,i)): Seq[UInt])(s2_word_idx)
   val s2_data_word_corrected = ((0 until rowBits by wordBits).map(i => s2_data_corrected(wordBits+i-1,i)): Seq[UInt])(s2_word_idx)
-  val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word, s2_sc, wordBytes)
+  val s2_uncached_data_word = ((0 until cacheDataBits by wordBits).map(i => s2_uncached_data_beat(wordBits+i-1,i)): Seq[UInt])(s2_word_idx)
+  val s2_data_word_possibly_uncached = Mux(cacheParams.pipelineWayMux && doUncachedResp, s2_uncached_data_word, s2_data_word)
+  val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word_possibly_uncached, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.resp.bits.data_raw := s2_data_word
