@@ -47,7 +47,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       DescribedSRAM(
         name = s"data_arrays_${i}",
         desc = "DCache Data Array",
-        size = nSets * refillCycles,
+        size = nSets * cacheBlockBytes / rowBytes,
         data = Vec(nWays * (wordBits / eccBits), UInt(width = encBits))
       )
   }
@@ -497,7 +497,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         s2_req.cmd := M_XRD
         s2_req.typ := req.typ
         s2_req.tag := req.tag
-        s2_req.addr := Cat(s1_paddr >> beatOffBits /* don't-care */, req.addr(beatOffBits-1, 0))
+        s2_req.addr := {
+          require(rowOffBits >= beatOffBits)
+          val dontCareBits = s1_paddr >> rowOffBits << rowOffBits
+          dontCareBits | req.addr(beatOffBits-1, 0)
+        }
         s2_uncached_resp_addr := req.addr
       }
     } .elsewhen (grantIsVoluntary) {
