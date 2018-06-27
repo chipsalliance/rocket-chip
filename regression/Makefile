@@ -79,6 +79,11 @@ CONFIGS += $(CONFIGS_32)
 CONFIGS += $(CONFIGS_64)
 endif
 
+ifeq ($(SUITE), Miscellaneous)
+PROJECT=freechips.rocketchip.system
+CONFIGS=RoccExampleConfig
+endif
+
 # These are the named regression targets.  While it's expected you run them in
 # this order, since there's dependencies for everything it doesn't actually
 # matter.  They're here to make running the various targets from the

@@ -40,13 +40,13 @@ branches:
     - hwacha
     - boom
     - /^hurricane.*$/
-    
+
 # These branches are the only ones that
 # will build when "build branch updates"
 # is set in settings (branches which PR against
-# them are still built). With this set, 
+# them are still built). With this set,
 # the above blacklist is not useful.
-# Adding this allows us to keep "Build Branch Updates" 
+# Adding this allows us to keep "Build Branch Updates"
 # set to 'ON'.
 
 branches:
@@ -100,3 +100,6 @@ jobs:
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
+    - <<: *test
+      script:
+        - make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
