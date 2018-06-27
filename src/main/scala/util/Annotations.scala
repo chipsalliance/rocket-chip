@@ -81,7 +81,8 @@ case class TopLevelPortAnnotation(
   protocol: String,
   tags: Seq[String],
   names: Seq[String],
-  width: Int) extends SingleTargetAnnotation[ComponentName] {
+  width: Int,
+  address: Seq[AddressSet]) extends SingleTargetAnnotation[ComponentName] {
   def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
 }
 
@@ -143,8 +144,9 @@ object Annotated {
     protocol: String,
     tags: Seq[String],
     names: Seq[String],
-    width: Int): T = {
-    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, names, width) })
+    width: Int,
+    address: Seq[AddressSet]): T = {
+    annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, names, width, address) })
     data
   }
 }
