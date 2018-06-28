@@ -79,28 +79,20 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
   nDCachePorts += roccs.size
 }
 
-trait HasLazyRoCCModule[+L <: RocketTile] extends CanHavePTWModule
-    with HasCoreParameters { this: RocketTileModuleImp =>
+trait HasLazyRoCCModule extends CanHavePTWModule
+    with HasCoreParameters { this: RocketTileModuleImp with HasFpuOpt =>
 
-  val roccCore = Wire(new RoCCCoreIO()(outer.p))
-
-  if(outer.roccs.size > 0) {
+  val (respArb, cmdRouter) = if(outer.roccs.size > 0) {
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
-    roccCore.resp <> respArb.io.out
     val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
-    cmdRouter.io.in <> roccCore.cmd
-
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
       ptwPorts ++= rocc.module.io.ptw
       rocc.module.io.cmd <> cmdRouter.io.out(i)
-      rocc.module.io.exception := roccCore.exception
       val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
       dcIF.io.requestor <> rocc.module.io.mem
       dcachePorts += dcIF.io.cache
       respArb.io.in(i) <> Queue(rocc.module.io.resp)
     }
-    roccCore.busy := cmdRouter.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _)
-    roccCore.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
 
     fpuOpt foreach { fpu =>
       val nFPUPorts = outer.roccs.filter(_.usesFPU).size
@@ -118,6 +110,9 @@ trait HasLazyRoCCModule[+L <: RocketTile] extends CanHavePTWModule
         fpu.io.cp_resp.ready := Bool(false)
       }
     }
+    (Some(respArb), Some(cmdRouter))
+  } else {
+    (None, None)
   }
 }
 
