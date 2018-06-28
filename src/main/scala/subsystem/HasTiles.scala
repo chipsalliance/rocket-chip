@@ -82,32 +82,44 @@ trait HasTiles { this: BaseSubsystem =>
 
   protected def connectInterrupts(tile: BaseTile, debugOpt: Option[TLDebugModule], clintOpt: Option[CLINT], plicOpt: Option[TLPLIC]) {
     // Handle all the different types of interrupts crossing to or from the tile:
-    // 1. Debug interrupt is definitely asynchronous in all cases.
-    // 2. The CLINT and PLIC output interrupts are synchronous to the periphery clock,
-    //    so might need to be synchronized depending on the Tile's crossing type.
-    // 3. Local Interrupts are required to already be synchronous to the tile clock.
-    // 4. Interrupts coming out of the tile are sent to the PLIC,
-    //    so might need to be synchronized depending on the Tile's crossing type.
     // NOTE: The order of calls to := matters! They must match how interrupts
-    //       are decoded from tile.intNode inside the tile. For this reason,
+    //       are decoded from tile.intInwardNode inside the tile. For this reason,
     //       we stub out missing interrupts with constant sources here.
 
-    // 1. always async crossing for debug
-    tile.intInwardNode := debugOpt.map { tile { IntSyncCrossingSink(3) } := _.intnode } .getOrElse { NullIntSource() }
+    // 1. Debug interrupt is definitely asynchronous in all cases.
+    tile.intInwardNode :=
+      debugOpt
+        .map { tile { IntSyncCrossingSink(3) } := _.intnode }
+        .getOrElse { NullIntSource() }
 
-    // 2. clint+plic conditionally crossing
-    tile.intInwardNode := clintOpt.map { tile.crossIntIn := _.intnode } // msip+mtip
-      .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
-    tile.intInwardNode := plicOpt.map  { tile.crossIntIn := _.intnode } // meip
-      .getOrElse { NullIntSource() }
-    tile.intInwardNode := (if (tile.tileParams.core.useVM) {            // seip
-        plicOpt.map { tile.crossIntIn := _.intnode } .getOrElse { NullIntSource() }
-    } else { NullIntSource() })
+    // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
+    //    so might need to be synchronized depending on the Tile's crossing type.
 
-    // 3. local interrupts never cross (lip)
-    // tile.intInwardNode is wired up externally
+    //    From CLINT: "msip" and "mtip"
+    tile.intInwardNode :=
+      clintOpt
+        .map { tile.crossIntIn := _.intnode }
+        .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
 
-    // 4. conditional crossing from core to PLIC
+    //    From PLIC: "meip" (TODO: should come from external source if no PLIC)
+    tile.intInwardNode :=
+      plicOpt
+        .map { tile.crossIntIn := _.intnode }
+        .getOrElse { NullIntSource() }
+
+    //    From PLIC: "seip" (only if vm/supervisor mode is enabled)
+    if (tile.tileParams.core.useVM) {
+      tile.intInwardNode :=
+        plicOpt
+          .map { tile.crossIntIn := _.intnode }
+          .getOrElse { NullIntSource() }
+    }
+
+    // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
+    // (they are connected to tile.intInwardNode in a seperate trait)
+
+    // 4. Interrupts coming out of the tile are sent to the PLIC,
+    //    so might need to be synchronized depending on the Tile's crossing type.
     plicOpt.foreach { plic =>
       FlipRendering { implicit p =>
         plic.intnode :=* tile.crossIntOut :=* tile.intOutwardNode
