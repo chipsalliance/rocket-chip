@@ -145,7 +145,7 @@ object Annotated {
     tags: Seq[String],
     names: Seq[String],
     width: Int,
-    address: Seq[AddressSet]): T = {
+    address: Seq[AddressSet] = Nil): T = {
     annotate(new ChiselAnnotation { def toFirrtl = TopLevelPortAnnotation(data.toNamed, protocol, tags, names, width, address) })
     data
   }
