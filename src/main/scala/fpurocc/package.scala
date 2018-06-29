@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.amba
+package freechips.rocketchip.NAMESPACE
 
 import Chisel._
 import freechips.rocketchip.diplomacy._
