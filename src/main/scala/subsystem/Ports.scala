@@ -211,7 +211,7 @@ trait CanHaveSlaveTLPort { this: BaseSubsystem =>
 trait CanHaveSlaveTLPortModuleImp extends LazyModuleImp {
   val outer: CanHaveSlaveTLPort
   val l2_frontend_bus_tl = IO(HeterogeneousBag.fromNode(outer.l2FrontendTLNode.out).flip)
-  (outer.l2FrontendTLNode.in zip l2_frontend_bus_tl) foreach { case ((bundle, _), io) => bundle <> io }
+  (outer.l2FrontendTLNode.out zip l2_frontend_bus_tl) foreach { case ((bundle, _), io) => bundle <> io }
 }
 
 /** Memory with AXI port for use in elaboratable test harnesses. */
