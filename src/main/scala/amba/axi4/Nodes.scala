@@ -54,3 +54,5 @@ case class AXI4AsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(AXI4AsyncImp, AXI4Imp)(
     dFn = { p => p.base },
     uFn = { p => AXI4AsyncSlavePortParameters(depth, p) })
+
+case class AXI4AsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4AsyncImp)()
