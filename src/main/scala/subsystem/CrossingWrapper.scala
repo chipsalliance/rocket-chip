@@ -42,27 +42,28 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
     val sync_xing = parent { LazyModule(new TLBuffer(params)).node }
     crossingCheck(out, sync_xing, sync_xing)
-    sync_xing
+    if (out) parent { TLIdentityNode()(valName) :*=* sync_xing }
+      else   parent { sync_xing :*=* TLIdentityNode()(valName) }
   }
 
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
     lazy val async_xing_source = LazyModule(new TLAsyncCrossingSource(sync))
     lazy val async_xing_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    val source = if (out) parent { async_xing_source } else async_xing_source
-    val sink = if (out) async_xing_sink else parent { async_xing_sink }
-    sink.node :*=* source.node
-    crossingCheck(out, source.node, sink.node)
-    NodeHandle(source.node, sink.node)
+    val source = if (out) parent { TLAsyncIdentityNode()(valName) :*=* async_xing_source.node } else async_xing_source.node
+    val sink = if (out) async_xing_sink.node else parent { async_xing_sink.node :*=* TLAsyncIdentityNode()(valName) }
+    crossingCheck(out, async_xing_source.node, async_xing_sink.node)
+    sink :*=* source
+    NodeHandle(source, sink)
   }
 
   def crossTLRationalInOut(out: Boolean)(direction: RationalDirection)(implicit p: Parameters): TLNode = {
     lazy val rational_xing_source = LazyModule(new TLRationalCrossingSource)
     lazy val rational_xing_sink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
-    val source = if (out) parent { rational_xing_source } else rational_xing_source
-    val sink = if (out) rational_xing_sink else parent { rational_xing_sink }
-    sink.node :*=* source.node
-    crossingCheck(out, source.node, sink.node)
-    NodeHandle(source.node, sink.node)
+    val source = if (out) parent { TLRationalIdentityNode()(valName) :*=* rational_xing_source.node } else rational_xing_source.node
+    val sink = if (out) rational_xing_sink.node else parent { rational_xing_sink.node :*=* TLRationalIdentityNode()(valName) }
+    crossingCheck(out, rational_xing_source.node, rational_xing_sink.node)
+    sink :*=* source
+    NodeHandle(source, sink)
   }
 
   def crossTLSyncIn (params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = crossTLSyncInOut(false)(params)
@@ -89,17 +90,18 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
     val axi4_sync_xing = parent { LazyModule(new AXI4Buffer(params)).node }
     crossingCheck(out, axi4_sync_xing, axi4_sync_xing)
-    axi4_sync_xing
+    if (out) parent { AXI4IdentityNode()(valName) :*=* axi4_sync_xing }
+      else   parent { axi4_sync_xing :*=* AXI4IdentityNode()(valName) }
   }
 
   def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
     lazy val axi4_async_xing_source = LazyModule(new AXI4AsyncCrossingSource(sync))
     lazy val axi4_async_xing_sink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
-    val source = if (out) parent { axi4_async_xing_source } else axi4_async_xing_source
-    val sink = if (out) axi4_async_xing_sink else parent { axi4_async_xing_sink }
-    sink.node :*=* source.node
-    crossingCheck(out, source.node, sink.node)
-    NodeHandle(source.node, sink.node)
+    val source = if (out) parent { AXI4AsyncIdentityNode()(valName) :*=* axi4_async_xing_source.node } else axi4_async_xing_source.node
+    val sink = if (out) axi4_async_xing_sink.node else parent { axi4_async_xing_sink.node :*=* AXI4AsyncIdentityNode()(valName) }
+    crossingCheck(out, axi4_async_xing_source.node, axi4_async_xing_sink.node)
+    sink :*=* source
+    NodeHandle(source, sink)
   }
 
   def crossAXI4SyncIn (params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = crossAXI4SyncInOut(false)(params)
@@ -124,31 +126,31 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   def crossIntSyncInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_sync_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
     lazy val int_sync_xing_sink = LazyModule(new IntSyncCrossingSink(0))
-    val source = if (out) parent { int_sync_xing_source } else int_sync_xing_source
-    val sink = if (out) int_sync_xing_sink else parent { int_sync_xing_sink }
-    sink.node :*=* source.node
-    crossingCheck(out, source.node, sink.node)
-    NodeHandle(source.node, sink.node)
+    val source = if (out) parent { IntSyncIdentityNode()(valName) :*=* int_sync_xing_source.node } else int_sync_xing_source.node
+    val sink = if (out) int_sync_xing_sink.node else parent { int_sync_xing_sink.node :*=* IntSyncIdentityNode()(valName) }
+    crossingCheck(out, int_sync_xing_source.node, int_sync_xing_sink.node)
+    sink :*=* source
+    NodeHandle(source, sink)
   }
 
   def crossIntAsyncInOut(out: Boolean)(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_async_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
     lazy val int_async_xing_sink = LazyModule(new IntSyncCrossingSink(sync))
-    val source = if (out) parent { int_async_xing_source } else int_async_xing_source
-    val sink = if (out) int_async_xing_sink else parent { int_async_xing_sink }
-    sink.node :*=* source.node
-    crossingCheck(out, source.node, sink.node)
-    NodeHandle(source.node, sink.node)
+    val source = if (out) parent {  IntSyncIdentityNode()(valName) :*=* int_async_xing_source.node } else int_async_xing_source.node
+    val sink = if (out) int_async_xing_sink.node else parent { int_async_xing_sink.node :*=* IntSyncIdentityNode()(valName) }
+    crossingCheck(out, int_async_xing_source.node, int_async_xing_sink.node)
+    sink :*=* source
+    NodeHandle(source, sink)
   }
 
   def crossIntRationalInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_rational_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
     lazy val int_rational_xing_sink = LazyModule(new IntSyncCrossingSink(1))
-    val source = if (out) parent { int_rational_xing_source } else int_rational_xing_source
-    val sink = if (out) int_rational_xing_sink else parent { int_rational_xing_sink }
-    sink.node :*=* source.node
-    crossingCheck(out, source.node, sink.node)
-    NodeHandle(source.node, sink.node)
+    val source = if (out) parent { IntSyncIdentityNode()(valName) :*=* int_rational_xing_source.node } else int_rational_xing_source.node
+    val sink = if (out) int_rational_xing_sink.node else parent {  int_rational_xing_sink.node :*=* IntSyncIdentityNode()(valName) }
+    crossingCheck(out, int_rational_xing_source.node, int_rational_xing_sink.node)
+    sink :*=* source
+    NodeHandle(source, sink)
   }
 
   def crossIntSyncIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntSyncInOut(false)(alreadyRegistered)
