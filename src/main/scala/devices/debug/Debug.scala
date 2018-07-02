@@ -443,7 +443,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
   lazy val module = new LazyModuleImp(this){
     val nComponents = getNComponents()
-    annotated.params(this, cfg)
+    Annotated.params(this, cfg)
 
     val io = IO(new Bundle {
       val dmactive = Bool(INPUT)
@@ -1037,9 +1037,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }.otherwise {
       ctrlStateReg := ctrlStateNxt
     }
+    assert ((!hartExceptionWrEn || ctrlStateReg === CtrlState(Exec)),
+      "Unexpected EXCEPTION write: should only get it in Debug Module EXEC state")
   }
 }
-
 
 // Wrapper around TL Debug Module Inner and an Async DMI Sink interface.
 // Handles the synchronization of dmactive, which is used as a synchronous reset

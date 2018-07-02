@@ -29,6 +29,7 @@ class AXI4Xbar(
     slaveFn = { seq =>
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
+        wcorrupt = seq.exists(_.wcorrupt),
         slaves = seq.flatMap { port =>
           require (port.beatBytes == seq(0).beatBytes,
             s"Xbar data widths don't match: ${port.slaves.map(_.name)} has ${port.beatBytes}B vs ${seq(0).slaves.map(_.name)} has ${seq(0).beatBytes}B")

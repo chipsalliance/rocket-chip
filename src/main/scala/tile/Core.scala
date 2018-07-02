@@ -32,6 +32,7 @@ trait CoreParams {
   val nBreakpoints: Int
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
+  val haveFSDirty: Boolean
   val misaWritable: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
@@ -40,6 +41,7 @@ trait CoreParams {
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
+  def lrscCycles: Int
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -78,6 +80,7 @@ trait HasCoreParameters extends HasTileParameters {
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
+
 }
 
 abstract class CoreModule(implicit val p: Parameters) extends Module

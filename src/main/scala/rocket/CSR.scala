@@ -200,6 +200,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
+  val set_fs_dirty = coreParams.haveFSDirty.option(Bool(INPUT))
   val rocc_interrupt = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
@@ -469,12 +470,15 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
     val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
+    val counter_addr = io_dec.csr(log2Ceil(reg_mcounteren.getWidth)-1, 0)
+    val allow_counter = (reg_mstatus.prv > PRV.S || reg_mcounteren(counter_addr)) &&
+      (reg_mstatus.prv >= PRV.S || reg_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       !decodeAny(read_mapping) ||
       io_dec.csr === CSRs.sptbr && !allow_sfence_vma ||
-      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && reg_mstatus.prv <= PRV.S && hpm_mask(io_dec.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
+      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
       Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
       Bool(usingFPU) && decodeAny(fp_csrs) && io_dec.fp_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
@@ -612,9 +616,18 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
   }})
 
+  val set_fs_dirty = Wire(init = io.set_fs_dirty.getOrElse(false.B))
+  if (coreParams.haveFSDirty) {
+    when (set_fs_dirty) {
+      assert(reg_mstatus.fs > 0)
+      reg_mstatus.fs := 3
+    }
+  }
+
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
     reg_fflags := reg_fflags | io.fcsr_flags.bits
+    set_fs_dirty := true
   }
 
   when (io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)) {
@@ -625,7 +638,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
       if (usingUser) {
         reg_mstatus.mprv := new_mstatus.mprv
-        reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
+        reg_mstatus.mpp := legalizePrivilege(new_mstatus.mpp)
         if (usingVM) {
           reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.sum := new_mstatus.sum
@@ -638,7 +651,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         }
       }
 
-      if (usingVM || usingFPU) reg_mstatus.fs := Fill(2, new_mstatus.fs.orR)
+      if (usingVM || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
     when (decoded_addr(CSRs.misa)) {
@@ -680,9 +693,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
 
     if (usingFPU) {
-      when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
-      when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
-      when (decoded_addr(CSRs.fcsr))   { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+      when (decoded_addr(CSRs.fflags)) { set_fs_dirty := true; reg_fflags := wdata }
+      when (decoded_addr(CSRs.frm))    { set_fs_dirty := true; reg_frm := wdata }
+      when (decoded_addr(CSRs.fcsr))   { set_fs_dirty := true; reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
     }
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
@@ -691,7 +704,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_dcsr.ebreakm := new_dcsr.ebreakm
         if (usingVM) reg_dcsr.ebreaks := new_dcsr.ebreaks
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
-        if (usingUser) reg_dcsr.prv := trimPrivilege(new_dcsr.prv)
+        if (usingUser) reg_dcsr.prv := legalizePrivilege(new_dcsr.prv)
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
@@ -704,7 +717,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_mstatus.spp := new_sstatus.spp
         reg_mstatus.mxr := new_sstatus.mxr
         reg_mstatus.sum := new_sstatus.sum
-        reg_mstatus.fs := Fill(2, new_sstatus.fs.orR) // even without an FPU
+        reg_mstatus.fs := formFS(new_sstatus.fs)
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
@@ -851,4 +864,5 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def readEPC(x: UInt) = ~(~x | Mux(reg_misa('c' - 'a'), 1.U, 3.U))
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
+  def formFS(fs: UInt) = if (coreParams.haveFSDirty) fs else Fill(2, fs.orR)
 }

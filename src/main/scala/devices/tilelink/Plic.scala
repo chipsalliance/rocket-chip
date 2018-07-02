@@ -60,7 +60,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
   def address = AddressSet(baseAddress, PLICConsts.size-1)
 }
 
-case object PLICKey extends Field(PLICParams())
+case object PLICKey extends Field[Option[PLICParams]](None)
 
 /** Platform-Level Interrupt Controller */
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
@@ -112,7 +112,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 
   lazy val module = new LazyModuleImp(this) {
-    annotated.params(this, params)
+    Annotated.params(this, params)
 
     val (io_devices, edgesIn) = intnode.in.unzip
     val (io_harts, _) = intnode.out.unzip
@@ -331,8 +331,11 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 }
 
 /** Trait that will connect a PLIC to a subsystem */
-trait HasPeripheryPLIC { this: BaseSubsystem =>
-  val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("plic")) { plic.node }
-  plic.intnode := ibus.toPLIC
+trait CanHavePeripheryPLIC { this: BaseSubsystem =>
+  val plicOpt  = p(PLICKey).map { params =>
+    val plic = LazyModule(new TLPLIC(params, sbus.control_bus.beatBytes))
+    sbus.control_bus.toVariableWidthSlave(Some("plic")) { plic.node }
+    plic.intnode :=* ibus.toPLIC
+    plic
+  }
 }

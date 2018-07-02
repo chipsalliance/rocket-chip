@@ -12,7 +12,8 @@ class AXI4RAM(
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil)
+    errors: Seq[AddressSet] = Nil,
+    wcorrupt: Boolean = false)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
@@ -25,11 +26,13 @@ class AXI4RAM(
       supportsWrite = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
     beatBytes  = beatBytes,
+    wcorrupt   = wcorrupt,
     minLatency = 1)))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
     val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
     val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
@@ -54,6 +57,7 @@ class AXI4RAM(
     val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
     when (in.aw.fire() && w_sel0) {
       mem.write(w_addr, wdata, in.w.bits.strb.toBools)
+      corrupt.foreach { _.write(w_addr, in.w.bits.corrupt.get.asUInt) }
     }
 
     in. b.valid := w_full
@@ -79,12 +83,13 @@ class AXI4RAM(
 
     val ren = in.ar.fire()
     val rdata = mem.readAndHold(r_addr, ren)
+    val rcorrupt = corrupt.map(_.readAndHold(r_addr, ren)(0)).getOrElse(Bool(false))
 
     in. r.valid := r_full
     in.ar.ready := in.r.ready || !r_full
 
     in.r.bits.id   := r_id
-    in.r.bits.resp := Mux(r_sel1, AXI4Parameters.RESP_OKAY, AXI4Parameters.RESP_DECERR)
+    in.r.bits.resp := Mux(r_sel1, Mux(rcorrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY), AXI4Parameters.RESP_DECERR)
     in.r.bits.data := Cat(rdata.reverse)
     in.r.bits.user.foreach { _ := r_user }
     in.r.bits.last := Bool(true)

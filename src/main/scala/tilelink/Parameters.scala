@@ -240,6 +240,14 @@ case class TLClientPortParameters(
   def endSourceId = clients.map(_.sourceId.end).max
   def maxTransfer = clients.map(_.maxTransfer).max
 
+  // The unused sources < endSourceId
+  def unusedSources: Seq[Int] = {
+    val usedSources = clients.map(_.sourceId).sortBy(_.start)
+    ((Seq(0) ++ usedSources.map(_.end)) zip usedSources.map(_.start)) flatMap { case (end, start) =>
+      end until start
+    }
+  }
+
   // Operation sizes supported by all inward Clients
   val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
   val allSupportArithmetic = clients.map(_.supportsArithmetic).reduce(_ intersect _)

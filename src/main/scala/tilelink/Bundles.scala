@@ -41,6 +41,9 @@ object TLMessages
   def isB(x: UInt) = x <= Probe
   def isC(x: UInt) = x <= ReleaseData
   def isD(x: UInt) = x <= ReleaseAck
+
+  def adResponse = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
+  def bcResponse = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, ProbeAck, ProbeAck)
 }
 
 /**

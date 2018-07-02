@@ -17,7 +17,7 @@ trait HasPeripheryMaskROMSlave { this: BaseSubsystem =>
   val maskROMParams = p(PeripheryMaskROMKey)
   val maskROMs = maskROMParams map { params =>
     val maskROM = LazyModule(new TLMaskROM(params))
-    pbus.toFixedWidthSingleBeatSlave(maskROM.beatBytes, Some("MaskROM")) { maskROM.node }
+    sbus.control_bus.toFixedWidthSingleBeatSlave(maskROM.beatBytes, Some("MaskROM")) { maskROM.node }
     maskROM
   }
 }

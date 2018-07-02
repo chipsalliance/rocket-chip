@@ -6,7 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util._
 
 /** BareSubsystem is the root class for creating a subsystem */
@@ -99,11 +98,13 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
 
 
 abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
-  private val mapping: Seq[AddressMapEntry] = annotated.addressMapping(this, {
+  private val mapping: Seq[AddressMapEntry] = Annotated.addressMapping(this, {
     outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
     }.sortBy(_.range)
   })
+
+  Annotated.addressMapping(this, mapping)
 
   println("Generated Address Map")
   mapping.map(entry => println(entry.toString((outer.sbus.busView.bundle.addressBits-1)/4 + 1)))

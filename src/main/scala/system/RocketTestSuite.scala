@@ -153,7 +153,7 @@ object DefaultTestSuites {
   val rv64siNames = rv32siNames
   val rv64si = new AssemblyTestSuite("rv64si", rv64siNames)(_)
 
-  val rv64miNames = rv32miNames + "breakpoint"
+  val rv64miNames = rv32miNames + "breakpoint" + "access"
   val rv64mi = new AssemblyTestSuite("rv64mi", rv64miNames)(_)
 
   val groundtestNames = LinkedHashSet("simple")

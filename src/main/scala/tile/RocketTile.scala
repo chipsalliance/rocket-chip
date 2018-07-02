@@ -92,13 +92,23 @@ class RocketTile(
   }
 
   override lazy val module = new RocketTileModuleImp(this)
+
+  override def makeMasterBoundaryBuffers(implicit p: Parameters) = {
+    if (!rocketParams.boundaryBuffers) super.makeMasterBoundaryBuffers
+    else TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
+  }
+
+  override def makeSlaveBoundaryBuffers(implicit p: Parameters) = {
+    if (!rocketParams.boundaryBuffers) super.makeSlaveBoundaryBuffers
+    else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
+  }
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
-    with HasLazyRoCCModule[RocketTile]
-    with HasHellaCacheModule
+    with HasFpuOpt
+    with HasLazyRoCCModule
     with HasICacheFrontendModule {
-  annotated.params(this, outer.rocketParams)
+  Annotated.params(this, outer.rocketParams)
 
   val core = Module(p(BuildCore)(outer.p))
 
@@ -122,11 +132,14 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
   core.io.ptw <> ptw.io.dpath
-  roccCore.cmd <> core.io.rocc.cmd
-  roccCore.exception := core.io.rocc.exception
-  core.io.rocc.resp <> roccCore.resp
-  core.io.rocc.busy := roccCore.busy
-  core.io.rocc.interrupt := roccCore.interrupt
+
+  if (outer.roccs.size > 0) {
+    cmdRouter.get.io.in <> core.io.rocc.cmd
+    outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
+    core.io.rocc.resp <> respArb.get.io.out
+    core.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
+    core.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+  }
 
   // Rocket has higher priority to DTIM than other TileLink clients
   outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
@@ -147,4 +160,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // TODO figure out how to move the below into their respective mix-ins
   dcacheArb.io.requestor <> dcachePorts
   ptw.io.requestor <> ptwPorts
+}
+
+trait HasFpuOpt { this: RocketTileModuleImp =>
+  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
 }

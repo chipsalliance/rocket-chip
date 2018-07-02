@@ -70,10 +70,9 @@ remote_bitbang_t::remote_bitbang_t(uint16_t port) :
   trstn = 1;
   quit = 0;
 
-  printf ("This emulator compiled with JTAG Remote Bitbang client. To enable, use +jtag_rbb_enable=1.\n");
-  printf("Listening on port %d\n",
+  fprintf(stderr, "This emulator compiled with JTAG Remote Bitbang client. To enable, use +jtag_rbb_enable=1.\n");
+  fprintf(stderr, "Listening on port %d\n",
          ntohs(addr.sin_port));
-  fflush(stdout);
 }
 
 void remote_bitbang_t::accept()

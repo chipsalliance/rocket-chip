@@ -313,17 +313,19 @@ trait HasFPUParameters {
   }
 
   // generate a NaN box from an FU result
-  def box(x: UInt, tag: UInt): UInt = {
-    def helper(y: UInt, yt: FType): UInt = {
-      if (yt == maxType) {
-        y
-      } else {
-        val nt = floatTypes(typeTag(yt) + 1)
-        val bigger = box(UInt((BigInt(1) << nt.recodedWidth)-1), nt, y, yt)
-        bigger | UInt((BigInt(1) << maxType.recodedWidth) - (BigInt(1) << nt.recodedWidth))
-      }
+  def box(x: UInt, t: FType): UInt = {
+    if (t == maxType) {
+      x
+    } else {
+      val nt = floatTypes(typeTag(t) + 1)
+      val bigger = box(UInt((BigInt(1) << nt.recodedWidth)-1), nt, x, t)
+      bigger | UInt((BigInt(1) << maxType.recodedWidth) - (BigInt(1) << nt.recodedWidth))
     }
-    val opts = floatTypes.map(t => helper(x, t))
+  }
+
+  // generate a NaN box from an FU result
+  def box(x: UInt, tag: UInt): UInt = {
+    val opts = floatTypes.map(t => box(x, t))
     opts(tag)
   }
 

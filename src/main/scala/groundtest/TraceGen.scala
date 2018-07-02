@@ -68,6 +68,7 @@ case class TraceGenParams(
   val hartId = 0
   val trace = false
   val blockerCtrlAddr = None
+  val name = None
 }
 
 trait HasTraceGenParams {
@@ -510,7 +511,6 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.bits.typ  := UInt(log2Ceil(numBytesInWord))
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
-  io.mem.invalidate_lr := Bool(false)
 
   // On cycle when request is actually sent, print it
   when (io.mem.req.fire()) {
