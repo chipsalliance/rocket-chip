@@ -11,6 +11,7 @@ lazy val commonSettings = Seq(
   organization := "berkeley",
   version      := "1.2",
   scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.12.4", "2.11.12"),
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
