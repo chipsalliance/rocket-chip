@@ -159,10 +159,10 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val sboard_clra = UInt(OUTPUT, 5)
 }
 
-class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
-  val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
-  val cp_resp = Decoupled(new FPResult())
-}
+//class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
+  //val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
+  //val cp_resp = Decoupled(new FPResult())
+//}
 
 class FPResult(implicit p: Parameters) extends CoreBundle()(p) {
   val data = Bits(width = fLen+1)
@@ -654,8 +654,26 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   io.out := Pipe(fma.io.validout, res, (latency-3) max 0)
 }
 
-class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
-  val io = new FPUIO
+class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) {
+	val node = new NAMESPACESinkNode(lcfg)
+	lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
+		val cfg = lcfg
+		val p = p
+		val rocc = IO(node.in(0)._1)
+	}
+}
+
+class FPU(val cfg: FPUParams)(implicit val p: Parameters)
+	extends FPUModule()(p)
+	with HasFPUImplementation {
+		val rocc = IO(new NAMESPACEBundle(cfg))
+	}
+
+trait HasFPUImplementation {
+  implicit val p: Parameters
+  val cfg: FPUParams 
+
+  val io = new FPUCoreIO
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
   val req_valid = ex_reg_valid || io.cp_req.valid

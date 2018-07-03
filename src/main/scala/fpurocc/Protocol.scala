@@ -1,8 +1,9 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.amba.ahb
+package freechips.rocketchip.NAMESPACE
 
 import Chisel._
+import freechips.rocketchip.tile._ 
 
 object NAMESPACEParameters
 {
