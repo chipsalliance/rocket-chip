@@ -1,21 +1,21 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.amba.ahb
+package freechips.rocketchip.NAMESPACE
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.util.GenericParameterizedBundle
-import freechips.rocketchip.tile.{FPInput, FPResult}
+import freechips.rocketchip.tile.{FPConstants, FPInput, FPResult}
 
-abstract class NAMESPACEBundleBase(params: NAMESPACEBundleParameters) extends GenericParameterizedBundle(params)
+//abstract class NAMESPACEBundleBase(params: NAMESPACESinkParameters) extends GenericParameterizedBundle(params)
 
 // Signal directions are from the master's point-of-view
-class NAMESPACEBundle(params: NAMESPACEBundleParameters) extends NAMESPACEBundleBase(params)
+class NAMESPACEBundle(params: NAMESPACESinkParameters) extends GenericParameterizedBundle
 {
-	val fpu_req = Decoupled(new FPInput()).flip
-	val fpu_resp = Decoupled(new FPResult())
+	val fpu_req = new FPInput()(p.alter{})
+	val fpu_resp = new FPResult()(p.alter{})
 }
 
 object NAMESPACEBundle
 {
-	def apply(params: NAMESPACEBundleParameters) = new NAMESPACEBundle(params)
+	def apply(params: NAMESPACESinkParameters) = new NAMESPACEBundle(params)
 }

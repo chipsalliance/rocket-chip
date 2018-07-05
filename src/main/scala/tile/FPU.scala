@@ -13,12 +13,13 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 
-case class FPUParams(
+
+case class FPUParams (
   fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
   dfmaLatency: Int = 4
-)
+) 
 
 object FPConstants
 {
@@ -655,7 +656,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 }
 
 class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) {
-	val node = new NAMESPACESinkNode(lcfg)
+	val node = new NAMESPACESinkNode(NAMESPACESinkParameters(lcfg.fLen, lcfg.divSqrt))
 	lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
 		val cfg = lcfg
 		val p = p
@@ -674,11 +675,12 @@ trait HasFPUImplementation {
   val cfg: FPUParams 
 
   val io = new FPUCoreIO
+  val rocc : NAMESPACEBundle
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
-  val req_valid = ex_reg_valid || io.cp_req.valid
+  val req_valid = ex_reg_valid || rocc.cp_req.valid
   val ex_reg_inst = RegEnable(io.inst, io.valid)
-  val ex_cp_valid = io.cp_req.fire()
+  val ex_cp_valid = rocc.cp_req.fire()
   val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
   val wb_cp_valid = Reg(next=mem_cp_valid, init=Bool(false))
   val mem_reg_valid = RegInit(false.B)
@@ -695,9 +697,9 @@ trait HasFPUImplementation {
   fp_decoder.io.inst := io.inst
 
   val cp_ctrl = Wire(new FPUCtrlSigs)
-  cp_ctrl <> io.cp_req.bits
-  io.cp_resp.valid := Bool(false)
-  io.cp_resp.bits.data := UInt(0)
+  cp_ctrl <> rocc.cp_req.bits
+  rocc.cp_resp.valid := Bool(false)
+  rocc.cp_resp.bits.data := UInt(0)
 
   val id_ctrl = fp_decoder.io.sigs
   val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, RegEnable(id_ctrl, io.valid))
@@ -746,14 +748,14 @@ trait HasFPUImplementation {
   io.store_data := fpiu.io.out.bits.store
   io.toint_data := fpiu.io.out.bits.toint
   when(fpiu.io.out.valid && mem_cp_valid && mem_ctrl.toint){
-    io.cp_resp.bits.data := fpiu.io.out.bits.toint
-    io.cp_resp.valid := Bool(true)
+    rocc.cp_resp.bits.data := fpiu.io.out.bits.toint
+    rocc.cp_resp.valid := Bool(true)
   }
 
   val ifpu = Module(new IntToFP(2))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
   ifpu.io.in.bits := fpiu.io.in.bits
-  ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
+  ifpu.io.in.bits.in1 := Mux(ex_cp_valid, rocc.cp_req.bits.in1, io.fromint_data)
 
   val fpmu = Module(new FPToFP(2))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
@@ -831,10 +833,10 @@ trait HasFPUImplementation {
     }
   }
   when (wbInfo(0).cp && wen(0)) {
-    io.cp_resp.bits.data := wdata
-    io.cp_resp.valid := Bool(true)
+    rocc.cp_resp.bits.data := wdata
+    rocc.cp_resp.valid := Bool(true)
   }
-  io.cp_req.ready := !ex_reg_valid
+  rocc.cp_req.ready := !ex_reg_valid
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
@@ -901,10 +903,10 @@ trait HasFPUImplementation {
     req.typ := ex_reg_inst(21,20)
     req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
     when (ex_cp_valid) {
-      req := io.cp_req.bits
-      when (io.cp_req.bits.swap23) {
-        req.in2 := io.cp_req.bits.in3
-        req.in3 := io.cp_req.bits.in2
+      req := rocc.cp_req.bits
+      when (rocc.cp_req.bits.swap23) {
+        req.in2 := rocc.cp_req.bits.in3
+        req.in3 := rocc.cp_req.bits.in2
       }
     }
     req

@@ -2,12 +2,12 @@
 
 package freechips.rocketchip.NAMESPACE
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.diplomacy._
 
 package object NAMESPACE
 {
-  type NAMESPACEOutwardNode = OutwardNodeHandle[NAMESPACEMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBBundle]
-  type NAMESPACEInwardNode = InwardNodeHandle[NAMESPACEMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBBundle]
-  type NAMESPACENode = SimpleNodeHandle[NAMESPACEMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBBundle]
+  type NAMESPACEOutwardNode = OutwardNodeHandle[NAMESPACENullParameters, NAMESPACESinkParameters, NAMESPACESinkParameters, NAMESPACEBundle]
+  type NAMESPACEInwardNode = InwardNodeHandle[NAMESPACENullParameters, NAMESPACESinkParameters, NAMESPACESinkParameters, NAMESPACEBundle]
+  type NAMESPACENode = SimpleNodeHandle[NAMESPACENullParameters, NAMESPACESinkParameters, NAMESPACESinkParameters, NAMESPACEBundle]
 }

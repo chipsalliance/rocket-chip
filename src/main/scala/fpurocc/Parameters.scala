@@ -1,16 +1,18 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.tile.NAMESAPCE
+package freechips.rocketchip.NAMESAPCE
 
-import Chisel._
+import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile
 import scala.math.max
 
+
 case class NAMESPACESinkParameters(
-	fLen: Int
+	fLen: Int,
+	divSqrt: Boolean
 )
 
 //case class NAMESPACESinkPortParameters(
@@ -36,49 +38,21 @@ case class NAMESPACESinkParameters(
 //  }
 //}
 
-case class NAMESPACESourceParameters(
-  name:     String,
-  nodePath: Seq[BaseNode] = Seq())
+case class NAMESPACENullParameters()
 
-case class NAMESPACESourcePortParameters(
-  masters: Seq[NAMESPACESourceParameters])
+//case class NAMESPACESourcePortParameters(
+//  masters: Seq[NAMESPACESourceParameters])
 
-case class NAMESPACEBundleParameters(
-  addrBits: Int,
-  dataBits: Int)
-{
-  require (dataBits >= 8)
-  require (addrBits >= 1)
-  require (isPow2(dataBits))
+//case class NAMESPACEBundleParameters()
 
-  // Bring the globals into scope
-  val transBits = NAMESPACEParameters.transBits
-  val burstBits = NAMESPACEParameters.burstBits
-  val protBits  = NAMESPACEParameters.protBits
-  val sizeBits  = NAMESPACEParameters.sizeBits
+//object NAMESPACEBundleParameters
 
-  def union(x: NAMESPACEBundleParameters) =
-    NAMESPACEBundleParameters(
-      max(addrBits, x.addrBits),
-      max(dataBits, x.dataBits))
-}
+//  val emptyBundleParams = NAMESPACEBundleParameters(addrBits = 1, dataBits = 8)
+//  def union(x: Seq[NAMESPACEBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+//
+//  def apply(master: NAMESPACESourcePortParameters, slave: NAMESPACESinkPortParameters) =
+//    new NAMESPACEBundleParameters(
+//      addrBits = log2Up(slave.maxAddress+1),
+//      dataBits = slave.beatBytes * 8)
 
-object NAMESPACEBundleParameters
-{
-  val emptyBundleParams = NAMESPACEBundleParameters(addrBits = 1, dataBits = 8)
-  def union(x: Seq[NAMESPACEBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
-  def apply(master: NAMESPACESourcePortParameters, slave: NAMESPACESinkPortParameters) =
-    new NAMESPACEBundleParameters(
-      addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8)
-}
-
-case class NAMESPACEEdgeParameters(
-  master: NAMESPACESourcePortParameters,
-  slave:  NAMESPACESinkPortParameters,
-  params: Parameters,
-  sourceInfo: SourceInfo)
-{
-  val bundle = NAMESPACEBundleParameters(master, slave)
-}
