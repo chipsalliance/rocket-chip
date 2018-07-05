@@ -333,4 +333,11 @@ object ResourceAnchors
         "#size-cells"    -> Seq(ResourceInt(0))))
     }
   }
+
+  val aliases = new Device {
+    def describe(resources: ResourceBindings): Description =
+      Description("aliases", Map() ++
+        resources("uart").zipWithIndex.map { case (Binding(_, value), i) =>
+          (s"serial${i}" -> Seq(value))})
+  }
 }
