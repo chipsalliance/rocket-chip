@@ -70,10 +70,9 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
     mbus
   }
 
-  // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
-  lazy val topManagers = Some(ManagerUnification(sbus.busView.manager.managers))
+  lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
   ResourceBinding {
-    val managers = topManagers.get
+    val managers = topManagers
     val max = managers.flatMap(_.address).map(_.max).max
     val width = ResourceInt((log2Ceil(max)+31) / 32)
     val model = p(DTSModel)
@@ -114,7 +113,7 @@ abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends Ba
 
   // Confirm that all of memory was described by DTS
   private val dtsRanges = AddressRange.unify(mapping.map(_.range))
-  private val allRanges = AddressRange.unify(outer.topManagers.get.flatMap { m => AddressRange.fromSets(m.address) })
+  private val allRanges = AddressRange.unify(outer.topManagers.flatMap { m => AddressRange.fromSets(m.address) })
 
   if (dtsRanges != allRanges) {
     println("Address map described by DTS differs from physical implementation:")
