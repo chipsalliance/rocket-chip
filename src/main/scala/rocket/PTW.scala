@@ -78,6 +78,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val s_ready :: s_req :: s_wait1 :: s_wait2 :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
+  val invalidated = Reg(Bool())
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
@@ -124,7 +125,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
-    when (io.mem.resp.valid && traverse && !hit) {
+    when (io.mem.resp.valid && traverse && !hit && !invalidated) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
       tags(r) := pte_addr
@@ -170,7 +171,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val g = Reg(UInt(width = coreParams.nL2TLBEntries))
     val valid = RegInit(UInt(0, coreParams.nL2TLBEntries))
     val (r_tag, r_idx) = Split(r_req.addr, idxBits)
-    when (l2_refill) {
+    when (l2_refill && !invalidated) {
       val entry = Wire(new Entry)
       entry := r_pte
       entry.tag := r_tag
@@ -207,6 +208,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     (s2_hit, s2_valid && s2_valid_bit, s2_pte, Some(ram))
   }
+
+  // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
+  invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
   
   io.mem.req.valid := state === s_req && !l2_valid
   io.mem.req.bits.phys := Bool(true)
