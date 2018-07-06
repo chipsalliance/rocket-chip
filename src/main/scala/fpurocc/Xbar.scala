@@ -12,16 +12,24 @@ import scala.math.{min,max}
 
 class NAMESPACEFanout()(implicit p: Parameters) extends LazyModule {
 	val node = NAMESPACENexusNode(
-		sourceFn = { case Seq(m) => m },
-		sinkFn  = { seq => seq(0).copy(sinks = seq.flatMap(_.sinks)) }<)
+		Seq(NAMESPACENullParameters) => NAMESPACENullParameters },
+		sinkFn  = { seq => seq(0).copy(sinks = seq.flatMap(_.sinks)) })
 	
 	lazy val module = new LazyModuleImp(this) {
+		require (node.edges.in.size >= 0, "NAMESPACEFanout requires at least one source")
 		if (node.edges.in.size >= 1) {
-		require (node.edges.in.size > 0, "NAMESPACEFanout requires at least one source")
-		require (node.edges.out.size > 0, "NAMESPACEFanout requires at least one sink")
+			require (node.edges.out.size == 1, "NAMESPACEFanout requires at least one sink")
 	
-		val fpArb = Module(InOrderArbiter(new FPInput()(p), new FPResult()(p), node.edge.in.size) 
-	
+			val fpArb = Module(InOrderArbiter(new FPInput()(p), new FPResult()(p), node.edge.in.size))
+			val (out, _) = node.out(0)
+			val (inputs, _)= node.in.unzip
+			fpArb.io.in_req <> inputs.map(_.fpu_req)
+			(inputs.map(_.fpu_resp) zip fpArb.io.in_resp) foreach {
+				case (out, in) => out <> in
+			}
+			fpArb.io.out_resp <> out.fpu_resp
+			inputs.map(_.fpu_req) <> fbArb.io.out_req
+			
 		}
 	}
 }
