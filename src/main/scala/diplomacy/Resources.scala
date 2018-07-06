@@ -95,6 +95,20 @@ trait DeviceInterrupts
   def int = Seq(Resource(this, "int"))
 }
 
+/** A trait for devices that have an exposed clock. */
+trait DeviceClocks
+{
+  this: Device =>
+
+  /** The number of clocks this device must have; default to 0-1 */
+  val requiredClocks = 0 to 1
+  def describeClocks(resources: ResourceBindings): Map[String, Seq[ResourceValue]] = {
+    val clocks = resources("clocks").map(_.value)
+    require (requiredClocks.contains(clocks.size))
+    if (!clocks.isEmpty) Map("clocks" -> clocks) else Map()
+  }
+}
+
 /** A trait for resolving the name of a device. */
 trait DeviceRegName
 {
@@ -130,11 +144,15 @@ trait DeviceRegName
   * @param devname      the base device named used in device name generation.
   * @param devcompat    a list of compatible devices. See device tree property "compatible".
   */
-class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with DeviceInterrupts with DeviceRegName
+class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
+  with DeviceInterrupts
+  with DeviceClocks
+  with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
     val int = describeInterrupts(resources)      // interrupt description
+    val clocks = describeClocks(resources)
 
     def optDef(x: String, seq: Seq[ResourceValue]) = if (seq.isEmpty) None else Some(x -> seq)
     val compat = optDef("compatible", devcompat.map(ResourceString(_))) // describe the list of compatiable devices
@@ -153,7 +171,7 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device with 
     val names = optDef("reg-names", named.map(x => ResourceString(regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
 
-    Description(name, ListMap() ++ compat ++ int ++ names ++ regs)
+    Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
   }
 }
 
