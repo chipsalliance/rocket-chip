@@ -35,6 +35,7 @@ final case class ResourceString(value: String) extends ResourceValue
   * @param value        the label (String) of the device.
   */
 final case class ResourceReference(value: String) extends ResourceValue
+final case class ResourceAlias(value: String) extends ResourceValue
 final case class ResourceMap(value: Map[String, Seq[ResourceValue]], labels: Seq[String] = Nil) extends ResourceValue
 
 /* If device is None, the value is global */
@@ -183,7 +184,7 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
 class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) extends SimpleDevice(devname, devcompat ++ Seq("simple-bus"))
 {
   override def describe(resources: ResourceBindings): Description = {
-    val ranges = resources("ranges").map {
+    val ranges = resources("ranges").collect {
       case Binding(_, a: ResourceAddress) => ResourceMapping(a.address, offset, a.permissions)
     }
     require (!ranges.isEmpty, s"SimpleBus $devname must set ranges")
