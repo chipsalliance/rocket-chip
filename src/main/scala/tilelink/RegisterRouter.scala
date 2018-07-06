@@ -110,11 +110,18 @@ case class TLRegisterNode(
 }
 
 // register mapped device from a totally abstract register mapped device.
-// See GPIO.scala in this directory for an example
 
 abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
-  val device = new SimpleDevice(devname, devcompat)
+  // Allow devices to extend the DTS mapping
+  def extraResources(resources: ResourceBindings) = Map[String, Seq[ResourceValue]]()
+  val device = new SimpleDevice(devname, devcompat) {
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ extraResources(resources))
+    }
+  }
+
   val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
