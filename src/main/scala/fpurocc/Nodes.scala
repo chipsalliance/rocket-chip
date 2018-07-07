@@ -20,11 +20,11 @@ object NAMESPACEImp extends SimpleNodeImp[NAMESPACENullParameters, NAMESPACESink
 }
 
 // Nodes implemented inside modules
-case class NAMESPACESourceNode(])(implicit valName: ValName) extends SourceNode(NAMESPACEImp)(Seq(NAMESPACENullParameters))
+case class NAMESPACESourceNode()(implicit valName: ValName) extends SourceNode(NAMESPACEImp)(Seq(NAMESPACENullParameters))
 case class NAMESPACESinkNode(portParams: Seq[NAMESPACESinkParameters])(implicit valName: ValName) extends SinkNode(NAMESPACEImp)(portParams)
 case class NAMESPACENexusNode(
   sinkFn:        Seq[NAMESPACESinkParameters]  => NAMESPACESinkParameters)(
   implicit valName: ValName)
-  extends NexusNode(NAMESPACEImp)((Seq[NAMESPACENullParameters]) => NAMESPACENullParameters(), sinkFn)
+  extends NexusNode(NAMESPACEImp)({case (Seq[NAMESPACENullParameters]) => NAMESPACENullParameters()}, sinkFn)
 
 //case class NAMESPACEIdentityNode()(implicit valName: ValName) extends IdentityNode(NAMESPACEImp)()

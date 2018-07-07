@@ -10,9 +10,9 @@ import freechips.rocketchip.util.InOrderArbiter
 import freechips.rocketchip.tile.{FPInput, FPResult}
 import scala.math.{min,max}
 
-class NAMESPACEFanout()(implicit p: Parameters) extends LazyModule {
+class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
 	val node = NAMESPACENexusNode(
-		Seq(NAMESPACENullParameters) => NAMESPACENullParameters },
+	{case Seq(NAMESPACENullParameters) => NAMESPACENullParameters },
 		sinkFn  = { seq => seq(0).copy(sinks = seq.flatMap(_.sinks)) })
 	
 	lazy val module = new LazyModuleImp(this) {
@@ -28,8 +28,13 @@ class NAMESPACEFanout()(implicit p: Parameters) extends LazyModule {
 				case (out, in) => out <> in
 			}
 			fpArb.io.out_resp <> out.fpu_resp
-			inputs.map(_.fpu_req) <> fbArb.io.out_req
+			out.fpu_req <> fbArb.io.out_req
 			
 		}
+		else {
+			node.out(0)._1.fpu_req.valid := Bool(false)
+			node.out(0)._1.fpu_resp.ready := Bool(false)
+		}
 	}
+	
 }

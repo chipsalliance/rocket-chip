@@ -176,7 +176,7 @@ class IntToFPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCt
   val in1 = Bits(width = xLen)
 }
 
-class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSigs {
+class FPInput(fLen: Int) extends Bundle with HasFPUCtrlSigs {
   val rm = Bits(width = FPConstants.RM_SZ)
   val fmaCmd = Bits(width = 2)
   val typ = Bits(width = 2)
@@ -184,7 +184,7 @@ class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSig
   val in2 = Bits(width = fLen+1)
   val in3 = Bits(width = fLen+1)
 
-  override def cloneType = new FPInput().asInstanceOf[this.type]
+  //override def cloneType = new FPInput().asInstanceOf[this.type]
 }
 
 case class FType(exp: Int, sig: Int) {
@@ -377,7 +377,7 @@ abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with Ha
 
 class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   class Output extends Bundle {
-    val in = new FPInput
+    val in = new FPInput(fLen)
     val lt = Bool()
     val store = Bits(width = fLen)
     val toint = Bits(width = xLen)
@@ -385,7 +385,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     override def cloneType = new Output().asInstanceOf[this.type]
   }
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Valid(new FPInput(fLen)).flip
     val out = Valid(new Output)
   }
 
@@ -497,7 +497,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
 
 class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Valid(new FPInput(fLen)).flip
     val out = Valid(new FPResult)
     val lt = Bool(INPUT) // from FPToInt
   }
@@ -623,12 +623,12 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   require(latency>0)
 
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Valid(new FPInput(fLen)).flip
     val out = Valid(new FPResult)
   }
 
   val valid = Reg(next=io.in.valid)
-  val in = Reg(new FPInput)
+  val in = Reg(new FPInput(fLen))
   when (io.in.valid) {
     val one = UInt(1) << (t.sig + t.exp - 1)
     val zero = (io.in.bits.in1 ^ io.in.bits.in2) & (UInt(1) << (t.sig + t.exp))
@@ -893,7 +893,7 @@ trait HasFPUImplementation {
   }
 
   def fuInput(minT: Option[FType]): FPInput = {
-    val req = Wire(new FPInput)
+    val req = Wire(new FPInput(fLen))
     val tag = !ex_ctrl.singleIn // TODO typeTag
     req := ex_ctrl
     req.rm := ex_rm
