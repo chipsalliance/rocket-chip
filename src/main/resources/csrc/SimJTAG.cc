@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include "remote_bitbang.h"
 
-remote_bitbang_t* jtag;
 extern "C" int jtag_tick
 (
  unsigned char * jtag_TCK,
@@ -13,6 +12,7 @@ extern "C" int jtag_tick
  unsigned char jtag_TDO
 )
 {
+  static remote_bitbang_t* jtag;
   if (!jtag) {
     // TODO: Pass in real port number
     jtag = new remote_bitbang_t(0);
