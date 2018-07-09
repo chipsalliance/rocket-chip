@@ -47,7 +47,7 @@ package object diplomacy
     def asProperty: Seq[ResourceValue] = Seq(ResourceString(x))
   }
 
-  implicit class DeviceToPeroperty(x: Device) {
+  implicit class DeviceToProperty(x: Device) {
     def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
   }
 

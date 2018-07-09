@@ -35,6 +35,7 @@ object JSON
     case ResourceInt(value) => Seq(value.toString)
     case ResourceString(value) => Seq("\"" + value + "\"")
     case ResourceReference(value) => Seq("\"&" + path(value) + "\"")
+    case ResourceAlias(value) => Seq("\"&" + path(value) + "\"")
     case ResourceMap(value, _) => {
       Seq(value.map {
         case (key, Seq(v: ResourceMap)) => s""""${key}":${helper(v).mkString}"""
