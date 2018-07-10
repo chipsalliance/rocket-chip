@@ -137,7 +137,6 @@ trait DeviceClocks
 trait DeviceRegName
 {
   this: Device =>
-  val prefix = "soc/" // nearly everything on-chip belongs here
   def describeName(devname: String, resources: ResourceBindings): String = {
     val reg = resources.map.filterKeys(regFilter)
     if (reg.isEmpty) {
@@ -147,7 +146,7 @@ trait DeviceRegName
       val mainreg = reg.find(x => regName(x._1) == "control").getOrElse(reg.head)._2
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
-        case x: ResourceAddress => s"${prefix}${devname}@${x.address.head.base.toString(16)}"
+        case x: ResourceAddress => s"${devname}@${x.address.head.base.toString(16)}"
         case _ => require(false, "Device has the wrong type of 'reg' property (${reg.head})"); ""
       }
     }
@@ -173,6 +172,7 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
   with DeviceClocks
   with DeviceRegName
 {
+  override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
     val int = describeInterrupts(resources)      // interrupt description
@@ -224,7 +224,7 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
       "ranges"           -> ranges)
 
     val Description(_, mapping) = super.describe(resources)
-    Description(s"${prefix}${devname}@${minBase.toString(16)}", mapping ++ extra)
+    Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra)
   }
 
   def ranges = Seq(Resource(this, "ranges"))
@@ -233,7 +233,6 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
 /** A generic memory block. */
 class MemoryDevice extends Device with DeviceRegName
 {
-  override val prefix = ""
   def describe(resources: ResourceBindings): Description = {
     Description(describeName("memory", resources), ListMap(
       "reg"         -> resources("reg").map(_.value),
