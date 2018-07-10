@@ -8,7 +8,7 @@ class FixedClockResource(val name: String, val freqMHz: Double, val prefix: Stri
     def describe(resources: ResourceBindings) =
       Description(prefix + name, Map(
         "#clock-cells"       -> Seq(ResourceInt(0)),
-        "clock-frequency"    -> Seq(ResourceInt(BigDecimal(freqMHz * 1000000).setScale(0, BigDecimal.RoundingMode.HALF_UP).toBigInt)),
+        "clock-frequency"    -> Seq(ResourceInt(freqMHz * 1000000)),
         "clock-output-names" -> Seq(ResourceString(name)),
         "compatible"         -> Seq(ResourceString("fixed-clock"))))
   }
