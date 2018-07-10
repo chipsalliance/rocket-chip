@@ -85,7 +85,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tags
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth))))
+
+  val tag_array = DescribedSRAM(
+    name = "tag_array",
+    desc = "DCache Tag Array",
+    size = nSets,
+    data = Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth)))
+  )
 
   // data
   val data = Module(new DCacheDataArray)
