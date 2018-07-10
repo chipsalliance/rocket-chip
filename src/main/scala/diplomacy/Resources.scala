@@ -28,8 +28,13 @@ final case class ResourceAddress(address: Seq[AddressSet], permissions: Resource
   * @param permissions  the permission attributes of this space. See [[freechips.rocketchip.diplomacy.ResourcePermissions]].
   */
 final case class ResourceMapping(address: Seq[AddressSet], offset: BigInt, permissions: ResourcePermissions) extends ResourceValue
-final case class ResourceInt(value: BigInt) extends ResourceValue
 final case class ResourceString(value: String) extends ResourceValue
+final case class ResourceInt(value: BigInt) extends ResourceValue {
+  def this(x: Double) = this(BigDecimal(x).setScale(0, BigDecimal.RoundingMode.HALF_UP).toBigInt)
+}
+object ResourceInt {
+  def apply(x: Double) = new ResourceInt(x)
+}
 
 /** A reference pointing to another device in DTS (eg: interrupt to interrupt controller).
   * @param value        the label (String) of the device.
