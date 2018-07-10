@@ -257,7 +257,7 @@ trait BindingScope
     val keys = keys_p.groupBy(_.path.head).toList.map { case (key, seq) =>
       (key -> makeTree(seq.map { x => x.copy(path = x.path.tail) }))
     }
-    if (keys.isEmpty) values else ResourceMap(SortedMap(keys:_*), labels) +: values
+    if (labels.isEmpty && keys.isEmpty) values else ResourceMap(SortedMap(keys:_*), labels) +: values
   }
 
   private def expand(path: Seq[String], values: Seq[ResourceValue]): Seq[ExpandedValue] = {
