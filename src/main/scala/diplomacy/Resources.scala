@@ -292,13 +292,39 @@ trait BindingScope
     }
   }
 
-  private def collect(path: List[String], value: ResourceValue): List[(String, ResourceAddress)] = {
-    value match {
-      case r: ResourceAddress => List((path(1), r))
-      case b: ResourceMapping => List((path(1), ResourceAddress(b.address, b.permissions)))
-      case ResourceMap(value, _) => value.toList.flatMap { case (key, seq) => seq.flatMap(r => collect(key :: path, r)) }
-      case _ => Nil
+  private def collect(skipRoot: Int, path: List[String], offset: BigInt, map: ResourceMap): List[(String, ResourceAddress)] = {
+    // Translate local addresses to global addresses
+    val name = path.headOption.getOrElse("/")
+    def shift(x: Seq[AddressSet]) = x.map(a => a.copy(base = a.base + offset))
+    val addresses: List[(String, ResourceAddress)] = map.value.toList.flatMap { case (_, seq) => seq.collect {
+      case y: ResourceAddress => (name -> y.copy(address = shift(y.address)))
+    } }
+    // Recursively handle children only if they use addresses
+    val haveChildAddresses = map.value.values.exists(_.exists {
+      case x: ResourceMap => x.value.contains("reg") || x.value.contains("ranges")
+      case _ => false
+    })
+    def mapChildren(offset: BigInt) = map.value.toList.flatMap { case (key, seq) => seq.collect {
+      case map: ResourceMap => collect(skipRoot, key :: path, offset, map)
+    }.flatten }
+    // How do we handle this node?
+    val childAddresses = map.value.lift("ranges") match {
+      // root typically is missing ranges; probe children anyway
+      case None if path.size < skipRoot => mapChildren(offset)
+      // no ranges -> don't probe children
+      case None => Nil
+      // ranges; -> probe children at same offset
+      case Some(Nil) => mapChildren(offset)
+      // ranges x; + no children -> report ranges as addressable regions
+      case Some(seq) if !haveChildAddresses => seq.collect {
+        case ResourceMapping(addr, _, perm) => (name -> ResourceAddress(shift(addr), perm))
+      }
+      // children + single ranges -> probe children at displaced offset
+      case Some(Seq(ResourceMapping(addr, delta, perm))) => mapChildren(offset+delta)
+      // multiple ranges + children -> don't know how to handle this
+      case x => { require(false, s"Unexpected value in ranges key: ${x}"); Nil }
     }
+    addresses ++ childAddresses
   }
 
   /** Generate the device tree. */
@@ -331,7 +357,7 @@ trait BindingScope
   }
 
   /** Collect resource addresses from tree. */
-  def collectResourceAddresses = collect(Nil, bindingTree)
+  def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
 }
 
 object BindingScope
