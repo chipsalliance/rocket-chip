@@ -22,6 +22,13 @@ case class ResourcePermissions(r: Boolean, w: Boolean, x: Boolean, c: Boolean, a
   * @param permissions  the permission attributes of this space. See [[freechips.rocketchip.diplomacy.ResourcePermissions]].
   */
 final case class ResourceAddress(address: Seq[AddressSet], permissions: ResourcePermissions) extends ResourceValue
+{
+  /* For things like SPI which uses simple integer addressing */
+  def this(x: Int) = this(Seq(AddressSet(x, 0)), ResourcePermissions(false, false, false, false, false))
+}
+object ResourceAddress {
+  def apply(x: Int) = new ResourceAddress(x)
+}
 
 /** A mapped address space (eg: when map a device to a bus).
   * @param address      the address space.
