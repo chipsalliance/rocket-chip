@@ -163,18 +163,12 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
     else Some("next-level-cache" -> outer.map(l => ResourceReference(l)).toList)
   }
 
-  def toDescription(resources: ResourceBindings)(compat: String, extraProperties: PropertyMap = Nil): Description = {
-    val cpuProperties: PropertyMap = Map(
-        "reg"                  -> resources("reg").map(_.value),
-        "device_type"          -> "cpu".asProperty,
-        "compatible"           -> Seq(ResourceString(compat), ResourceString("riscv")),
-        "status"               -> "okay".asProperty,
-        "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
-        "riscv,isa"            -> isaDTS.asProperty,
-        "timebase-frequency"   -> p(DTSTimebase).asProperty)
-
-    Description(s"cpus/cpu@${hartId}", (cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ extraProperties).toMap)
-  }
+  def cpuProperties: PropertyMap = Map(
+      "device_type"          -> "cpu".asProperty,
+      "status"               -> "okay".asProperty,
+      "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
+      "riscv,isa"            -> isaDTS.asProperty,
+      "timebase-frequency"   -> p(DTSTimebase).asProperty)
 
   // The boundary buffering needed to cut feed-through paths is
   // microarchitecture specific, so these may need to be overridden
