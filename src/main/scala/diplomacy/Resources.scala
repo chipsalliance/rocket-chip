@@ -65,6 +65,14 @@ abstract class Device
   Device.index = Device.index + 1
 }
 
+abstract class DeviceSnippet extends Device
+{
+  final def describe(resources: ResourceBindings) = describe()
+  def describe(): Description
+
+  ResourceBinding { Resource(this, "exists").bind(ResourceString("yes")) }
+}
+
 object Device
 {
   private var index: Int = 0
