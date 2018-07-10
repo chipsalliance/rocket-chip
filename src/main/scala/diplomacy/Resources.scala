@@ -4,6 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel.log2Ceil
 import scala.collection.immutable.{ListMap,SortedMap}
+import scala.collection.mutable.HashMap
 
 sealed trait ResourceValue
 
@@ -45,7 +46,7 @@ final case class ResourceMap(value: Map[String, Seq[ResourceValue]], labels: Seq
 
 /* If device is None, the value is global */
 case class Binding(device: Option[Device], value: ResourceValue)
-case class ResourceBindings(map: Map[String, Seq[Binding]])
+case class ResourceBindings(map: Map[String, Seq[Binding]] = Map.empty)
 {
   def apply(key: String): Seq[Binding] = map.getOrElse(key, Nil)
 }
@@ -59,6 +60,8 @@ case class Description(name: String, mapping: Map[String, Seq[ResourceValue]])
 abstract class Device
 {
   def describe(resources: ResourceBindings): Description
+  /* This can be overriden to make one device relative to another */
+  def parent: Option[Device] = None
 
   /** make sure all derived devices have an unique label */
   val label = "L" + Device.index.toString
@@ -298,8 +301,24 @@ trait BindingScope
     val map: Map[Device, ResourceBindings] =
       resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
         seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct)))
-    val tree = makeTree(map.toList.flatMap { case (d, m) =>
-      val Description(name, mapping) = d.describe(m)
+    val descs: HashMap[Device, Description] = HashMap.empty
+    def getDesc(dev: Device): Description = {
+      if (descs.contains(dev)) {
+        descs(dev)
+      } else {
+        val bindings = map.lift(dev).getOrElse(ResourceBindings())
+        val Description(name, mapping) = dev.describe(bindings)
+        val fullName = dev.parent match {
+          case None => name
+          case Some(parent) => getDesc(parent).name + "/" + name
+        }
+        val desc = Description(fullName, mapping)
+        descs += ((dev, desc))
+        desc
+      }
+    }
+    map.keys.foreach(getDesc)
+    val tree = makeTree(descs.toList.flatMap { case (d, Description(name, mapping)) =>
       val tokens = name.split("/").toList
       expand(tokens, Seq(ResourceMap(mapping, Seq(d.label)))) })
     ResourceMap(SortedMap("/" -> tree))
