@@ -221,7 +221,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid = s2_valid_pre_xcpt && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
-  val s2_valid_masked = s2_valid && Reg(next = !s1_nack) && !io.cpu.s2_kill
+  val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
+  val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
   val s2_req_block_addr = (s2_req.addr >> idxLSB) << idxLSB
   val s2_uncached = Reg(Bool())
@@ -316,13 +317,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
-  when (s2_valid_masked && lrscCount > 0) { lrscCount := 0 }
+  when (s2_valid_not_killed && lrscCount > 0) { lrscCount := 0 }
 
   // don't perform data correction if it might clobber a recent store
   val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
   // pending store buffer
-  val s2_valid_correct = s2_valid_hit_pre_data_ecc && s2_correct
-  val s2_store_valid = s2_valid_hit && s2_write && !s2_sc_fail
+  val s2_valid_correct = s2_valid_hit_pre_data_ecc && s2_correct && !io.cpu.s2_kill
+  def s2_store_valid_pre_kill = s2_valid_hit && s2_write && !s2_sc_fail
+  def s2_store_valid = s2_store_valid_pre_kill && !io.cpu.s2_kill
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
   val pstore1_addr = RegEnable(s1_paddr, s1_valid_not_nacked && s1_write)
   val pstore1_data = RegEnable(io.cpu.s1_data.data, s1_valid_not_nacked && s1_write)
@@ -330,25 +332,30 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_mask = RegEnable(s1_mask, s1_valid_not_nacked && s1_write)
   val pstore1_storegen_data = Wire(init = pstore1_data)
   val pstore1_rmw = Bool(usingRMW) && RegEnable(needsRead(s1_req), s1_valid_not_nacked && s1_write)
-  val pstore1_valid = Wire(Bool())
+  val pstore1_merge_likely = s2_valid && s2_write && s2_store_merge
   val pstore1_merge = s2_store_valid && s2_store_merge
   val pstore2_valid = Reg(Bool())
-  any_pstore_valid := pstore1_valid || pstore2_valid
-  val pstore_drain_structural = pstore1_valid && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
   val pstore_drain_opportunistic = !(io.cpu.req.valid && s0_needsRead)
-  val pstore_drain_on_miss = releaseInFlight || (s2_valid && !s2_valid_hit && !s2_valid_uncached_pending)
+  val pstore_drain_on_miss = releaseInFlight
+  val pstore1_held = Reg(Bool())
+  val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
+  val pstore1_valid_pre_kill = s2_store_valid_pre_kill || pstore1_held
+  def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && (!s2_waw_hazard || s2_store_merge) && s2_write && !s2_sc_fail && !s2_kill || pstore1_held
+  val pstore1_valid = s2_store_valid || pstore1_held
+  any_pstore_valid := pstore1_valid_pre_kill || pstore2_valid
+  val pstore_drain_structural = pstore1_valid_likely && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
+  assert(pstore1_rmw || pstore1_valid_not_rmw(io.cpu.s2_kill) === pstore1_valid)
   ccover(pstore_drain_structural, "STORE_STRUCTURAL_HAZARD", "D$ read-modify-write structural hazard")
   ccover(pstore1_valid && pstore_drain_on_miss, "STORE_DRAIN_ON_MISS", "D$ store buffer drain on miss")
   ccover(s1_valid_not_nacked && s1_waw_hazard, "WAW_HAZARD", "D$ write-after-write hazard")
-  val pstore_drain = !pstore1_merge &&
+  def should_pstore_drain(truly: Bool) = {
+    val s2_kill = truly && io.cpu.s2_kill
+    !pstore1_merge_likely &&
     (Bool(usingRMW) && pstore_drain_structural ||
-     (((pstore1_valid && !pstore1_rmw) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss)))
-  pstore1_valid := {
-    val pstore1_held = Reg(Bool())
-    assert(!s2_store_valid || !pstore1_held)
-    pstore1_held := (s2_store_valid && !s2_store_merge || pstore1_held) && pstore2_valid && !pstore_drain
-    s2_store_valid || pstore1_held
+      (((pstore1_valid_not_rmw(s2_kill) && !pstore1_rmw) || pstore2_valid) && (pstore_drain_opportunistic || pstore_drain_on_miss)))
   }
+  val pstore_drain = should_pstore_drain(true)
+  pstore1_held := (s2_store_valid && !s2_store_merge || pstore1_held) && pstore2_valid && !pstore_drain
   val advance_pstore1 = (pstore1_valid || s2_valid_correct) && (pstore2_valid === pstore_drain)
   pstore2_valid := pstore2_valid && !pstore_drain || advance_pstore1
   val pstore2_addr = RegEnable(Mux(s2_correct, s2_req.addr, pstore1_addr), advance_pstore1)
@@ -374,8 +381,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     val tagMatch = (s2_hit_way & pstore2_way).orR
     pstore2_valid && wordMatch && idxMatch && tagMatch
   })
-  dataArb.io.in(0).valid := pstore_drain
-  dataArb.io.in(0).bits.write := true
+  dataArb.io.in(0).valid := should_pstore_drain(false)
+  dataArb.io.in(0).bits.write := pstore_drain
   dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
   dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
   dataArb.io.in(0).bits.wdata := Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_data))
@@ -388,7 +395,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     addr(idxMSB, wordOffBits) === s1_req.addr(idxMSB, wordOffBits) &&
     Mux(s1_write, (eccByteMask(mask) & eccByteMask(s1_mask)).orR, (mask & s1_mask).orR)
   val s1_hazard =
-    (pstore1_valid && s1Depends(pstore1_addr, pstore1_mask)) ||
+    (pstore1_valid_pre_kill && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
   val s1_raw_hazard = s1_read && s1_hazard
   s1_waw_hazard := (if (eccBytes == 1) false.B else {
@@ -430,7 +437,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Wire(new TLBundleA(edge.bundle))
   }
 
-  tl_out_a.valid := (s2_valid_cached_miss && (Bool(cacheParams.acquireBeforeRelease) || !s2_victim_dirty)) || s2_valid_uncached_pending
+  tl_out_a.valid := !io.cpu.s2_kill && ((s2_valid_cached_miss && (Bool(cacheParams.acquireBeforeRelease) || !s2_victim_dirty)) || s2_valid_uncached_pending)
   tl_out_a.bits := Mux(!s2_uncached, acquire, Mux(!s2_write, get, Mux(!s2_read, put, atomics)))
 
   // Set pending bits for outstanding TileLink transaction
@@ -737,7 +744,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
     io.cpu.s2_nack := !flushed
     when (!flushed) {
-      flushing := !release_ack_wait && !uncachedInFlight.asUInt.orR
+      flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
     }
   }
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
