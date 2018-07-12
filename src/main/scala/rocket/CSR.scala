@@ -115,11 +115,17 @@ object CSR
   val SZ = 3
   def X = BitPat.dontCare(SZ)
   def N = UInt(0,SZ)
-  def W = UInt(1,SZ)
-  def S = UInt(2,SZ)
-  def C = UInt(3,SZ)
+  def R = UInt(2,SZ)
   def I = UInt(4,SZ)
-  def R = UInt(5,SZ)
+  def W = UInt(5,SZ)
+  def S = UInt(6,SZ)
+  def C = UInt(7,SZ)
+
+  // mask a CSR cmd with a valid bit
+  def maskCmd(valid: Bool, cmd: UInt): UInt = {
+    // all commands less than CSR.I are treated by CSRFile as NOPs
+    cmd & ~Mux(valid, 0.U, CSR.I)
+  }
 
   val ADDRSZ = 12
   def busErrorIntCause = 128
@@ -842,8 +848,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     (any, which)
   }
 
-  def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) =
-    (Mux(cmd.isOneOf(CSR.S, CSR.C), rdata, UInt(0)) | wdata) & ~Mux(cmd === CSR.C, wdata, UInt(0))
+  def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) = {
+    (Mux(cmd(1), rdata, UInt(0)) | wdata) & ~Mux(cmd(1,0).andR, wdata, UInt(0))
+  }
 
   def legalizePrivilege(priv: UInt): UInt =
     if (usingVM) Mux(priv === PRV.H, PRV.U, priv)
