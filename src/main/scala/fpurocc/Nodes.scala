@@ -9,9 +9,9 @@ import freechips.rocketchip.diplomacy._
 
 object NAMESPACEImp extends SimpleNodeImp[NAMESPACENullParameters, NAMESPACESinkParameters, NAMESPACESinkParameters, NAMESPACEBundle]
 {
-  def edge(pd: NAMESPACENullParameters, pu: NAMESPACESinkParameters, p: Parameters, sourceInfo: SourceInfo) = NAMESPACESinkParameters(pd, pu, p, sourceInfo)
-  def bundle(e: NAMESPACESinkParameters) = NAMESPACEBundle(e.bundle)
-  def render(e: NAMESPACESinkParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.sink.beatBytes * 8).toString)
+  def edge(pd: NAMESPACENullParameters, pu: NAMESPACESinkParameters, p: Parameters, sourceInfo: SourceInfo) = pu
+  def bundle(e: NAMESPACESinkParameters) = NAMESPACEBundle(e)
+  def render(e: NAMESPACESinkParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.fLen).toString)
 
   //override def mixO(pd: NAMESPACESourcePortParameters, node: OutwardNode[NAMESPACESourcePortParameters, NAMESPACESinkPortParameters, NAMESPACEBundle]): NAMESPACESourcePortParameters  =
   // pd.copy(sources = pd.sources.map  { c => c.copy (nodePath = node +: c.nodePath) })
@@ -20,11 +20,14 @@ object NAMESPACEImp extends SimpleNodeImp[NAMESPACENullParameters, NAMESPACESink
 }
 
 // Nodes implemented inside modules
-case class NAMESPACESourceNode()(implicit valName: ValName) extends SourceNode(NAMESPACEImp)(Seq(NAMESPACENullParameters))
-case class NAMESPACESinkNode(portParams: Seq[NAMESPACESinkParameters])(implicit valName: ValName) extends SinkNode(NAMESPACEImp)(portParams)
+case class NAMESPACESourceNode()(implicit valName: ValName) extends SourceNode(NAMESPACEImp)(Seq(NAMESPACENullParameters()))
+case class NAMESPACESinkNode(portParams: NAMESPACESinkParameters)(implicit valName: ValName) extends SinkNode(NAMESPACEImp)(Seq(portParams))
 case class NAMESPACENexusNode(
   sinkFn:        Seq[NAMESPACESinkParameters]  => NAMESPACESinkParameters)(
   implicit valName: ValName)
-  extends NexusNode(NAMESPACEImp)({case (Seq[NAMESPACENullParameters]) => NAMESPACENullParameters()}, sinkFn)
+  extends NexusNode(NAMESPACEImp)(
+	{ _: Seq[NAMESPACENullParameters] => NAMESPACENullParameters()},
+	sinkFn
+  )
 
 //case class NAMESPACEIdentityNode()(implicit valName: ValName) extends IdentityNode(NAMESPACEImp)()

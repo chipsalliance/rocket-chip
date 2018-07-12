@@ -48,8 +48,8 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p) {
   val ptw = Vec(nPTWPorts, new TLBPTWIO)
-  val fpu_req = Decoupled(new FPInput)
-  val fpu_resp = Decoupled(new FPResult).flip
+  //val fpu_req = Decoupled(new FPInput)
+  //val fpu_resp = Decoupled(new FPResult).flip
 }
 
 /** Base classes for Diplomatic TL2 RoCC units **/
@@ -74,7 +74,7 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile with HasFpuOpt =>
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
-  fpuOpt foreach { fpu => fpu.node := NAMESPACEFanIn.node }}
+  fpuOpt foreach { fpu => fpu.node := NAMESPACEFanIn.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
   nDCachePorts += roccs.size

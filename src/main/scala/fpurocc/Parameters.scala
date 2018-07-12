@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.NAMESAPCE
+package freechips.rocketchip.NAMESPACE
 
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo

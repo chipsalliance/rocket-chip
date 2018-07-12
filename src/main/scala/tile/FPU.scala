@@ -12,7 +12,8 @@ import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.NAMESPACE._
 
 case class FPUParams (
   fLen: Int = 64,
@@ -165,7 +166,7 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   //val cp_resp = Decoupled(new FPResult())
 //}
 
-class FPResult(implicit p: Parameters) extends CoreBundle()(p) {
+class FPResult(fLen: Int)/*(implicit p: Parameters)*/ extends Bundle {
   val data = Bits(width = fLen+1)
   val exc = Bits(width = FPConstants.FLAGS_SZ)
 }
@@ -453,13 +454,13 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
 class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
     val in = Valid(new IntToFPInput).flip
-    val out = Valid(new FPResult)
+    val out = Valid(new FPResult(fLen))
   }
 
   val in = Pipe(io.in)
   val tag = !in.bits.singleIn // TODO typeTag
 
-  val mux = Wire(new FPResult)
+  val mux = Wire(new FPResult(fLen))
   mux.exc := Bits(0)
   mux.data := recode(in.bits.in1, !in.bits.singleIn)
 
@@ -498,7 +499,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
 class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
     val in = Valid(new FPInput(fLen)).flip
-    val out = Valid(new FPResult)
+    val out = Valid(new FPResult(fLen))
     val lt = Bool(INPUT) // from FPToInt
   }
 
@@ -507,7 +508,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
   val signNum = Mux(in.bits.rm(1), in.bits.in1 ^ in.bits.in2, Mux(in.bits.rm(0), ~in.bits.in2, in.bits.in2))
   val fsgnj = Cat(signNum(fLen), in.bits.in1(fLen-1, 0))
 
-  val fsgnjMux = Wire(new FPResult)
+  val fsgnjMux = Wire(new FPResult(fLen))
   fsgnjMux.exc := UInt(0)
   fsgnjMux.data := fsgnj
 
@@ -624,7 +625,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 
   val io = new Bundle {
     val in = Valid(new FPInput(fLen)).flip
-    val out = Valid(new FPResult)
+    val out = Valid(new FPResult(fLen))
   }
 
   val valid = Reg(next=io.in.valid)
@@ -648,7 +649,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   fma.io.b := in.in2
   fma.io.c := in.in3
 
-  val res = Wire(new FPResult)
+  val res = Wire(new FPResult(fLen))
   res.data := sanitizeNaN(fma.io.out, t)
   res.exc := fma.io.exceptionFlags
 
@@ -658,16 +659,19 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) {
 	val node = new NAMESPACESinkNode(NAMESPACESinkParameters(lcfg.fLen, lcfg.divSqrt))
 	lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
-		val cfg = lcfg
-		val p = p
-		val rocc = IO(node.in(0)._1)
+		val cfg : FPUParams = lcfg
+		implicit val p : Parameters  = p
+		val rocc : NAMESPACEBundle = IO(node.in(0)._1)
 	}
 }
 
 class FPU(val cfg: FPUParams)(implicit val p: Parameters)
 	extends FPUModule()(p)
 	with HasFPUImplementation {
-		val rocc = IO(new NAMESPACEBundle(cfg))
+		val internal_cfg = NAMESPACESinkParameters(fLen, cfg.divSqrt)
+		val rocc : NAMESPACEBundle = IO(new NAMESPACEBundle(internal_cfg))
+		//implicit val p : Parameters = p
+		//val cfg : FPUParams = cfg
 	}
 
 trait HasFPUImplementation {
@@ -713,7 +717,7 @@ trait HasFPUImplementation {
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
   // regfile
-  val regfile = Mem(32, Bits(width = fLen+1))
+  val regfile = Mem(32, Bits(width = cfg.fLen+1))
   when (load_wb) {
     val wdata = recode(load_wb_data, load_wb_double)
     regfile(load_wb_tag) := wdata
@@ -766,7 +770,7 @@ trait HasFPUImplementation {
   val divSqrt_inFlight = Wire(init = false.B)
   val divSqrt_waddr = Reg(UInt(width = 5))
   val divSqrt_typeTag = Wire(UInt(width = log2Up(floatTypes.size)))
-  val divSqrt_wdata = Wire(UInt(width = fLen+1))
+  val divSqrt_wdata = Wire(UInt(width = cfg.fLen+1))
   val divSqrt_flags = Wire(UInt(width = FPConstants.FLAGS_SZ))
 
   // writeback arbitration
@@ -775,7 +779,7 @@ trait HasFPUImplementation {
     Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits),
     Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits),
     Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.singleOut, sfma.io.out.bits)) ++
-    (fLen > 32).option({
+    (cfg.fLen > 32).option({
           val dfma = Module(new FPUFMAPipe(cfg.dfmaLatency, FType.D))
           dfma.io.in.valid := req_valid && ex_ctrl.fma && !ex_ctrl.singleOut
           dfma.io.in.bits := fuInput(Some(dfma.t))
@@ -893,7 +897,7 @@ trait HasFPUImplementation {
   }
 
   def fuInput(minT: Option[FType]): FPInput = {
-    val req = Wire(new FPInput(fLen))
+    val req = Wire(new FPInput(cfg.fLen))
     val tag = !ex_ctrl.singleIn // TODO typeTag
     req := ex_ctrl
     req.rm := ex_rm
