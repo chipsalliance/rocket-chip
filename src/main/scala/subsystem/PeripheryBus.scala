@@ -21,9 +21,10 @@ case object PeripheryBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams)
                   (implicit p: Parameters) extends TLBusWrapper(params, "periphery_bus")
-    with HasTLXbarPhy
-    with HasCrossing {
-  val crossing = params.sbusCrossingType
+    with HasTLXbarPhy {
+
+  protected val sbus_xing = new CrossingHelper(this, params.sbusCrossingType)
+  def crossTLIn(implicit p: Parameters): TLNode  = sbus_xing.crossTLIn
 
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)

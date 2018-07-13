@@ -22,7 +22,7 @@ case class SynchronousCrossing(params: BufferParams = BufferParams.default) exte
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends SubsystemClockCrossing
 case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends SubsystemClockCrossing
 
-class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValName) {
+class CrossingHelper(parent: LazyModule with LazyScope, arg: SubsystemClockCrossing)(implicit valName: ValName) {
 
   // Detect incorrect crossing connectivity
   private def crossingCheck(out: Boolean, source: BaseNode, sink: BaseNode) {
@@ -40,10 +40,10 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   // TileLink
 
   def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
-    val sync_xing = parent { LazyModule(new TLBuffer(params)).node }
-    crossingCheck(out, sync_xing, sync_xing)
-    if (out) parent { TLIdentityNode()(valName) :*=* sync_xing }
-      else   parent { sync_xing :*=* TLIdentityNode()(valName) }
+    lazy val sync_xing = LazyModule(new TLBuffer(params))
+    crossingCheck(out, sync_xing.node, sync_xing.node)
+    if (!out) parent { TLIdentityNode()(valName) :*=* sync_xing.node }
+    else      parent { sync_xing.node :*=* TLIdentityNode()(valName) }
   }
 
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
@@ -73,13 +73,13 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   def crossTLRationalIn (direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(false)(direction)
   def crossTLRationalOut(direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(true )(direction)
 
-  def crossTLIn(arg: SubsystemClockCrossing)(implicit p: Parameters): TLNode = arg match {
+  def crossTLIn(implicit p: Parameters): TLNode = arg match {
     case x: SynchronousCrossing  => crossTLSyncIn(x.params)
     case x: AsynchronousCrossing => crossTLAsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalIn(x.direction)
   }
 
-  def crossTLOut(arg: SubsystemClockCrossing)(implicit p: Parameters): TLNode = arg match {
+  def crossTLOut(implicit p: Parameters): TLNode = arg match {
     case x: SynchronousCrossing  => crossTLSyncOut(x.params)
     case x: AsynchronousCrossing => crossTLAsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalOut(x.direction)
@@ -88,10 +88,10 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   // AXI4
 
   def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
-    val axi4_sync_xing = parent { LazyModule(new AXI4Buffer(params)).node }
-    crossingCheck(out, axi4_sync_xing, axi4_sync_xing)
-    if (out) parent { AXI4IdentityNode()(valName) :*=* axi4_sync_xing }
-      else   parent { axi4_sync_xing :*=* AXI4IdentityNode()(valName) }
+    val axi4_sync_xing = LazyModule(new AXI4Buffer(params))
+    crossingCheck(out, axi4_sync_xing.node, axi4_sync_xing.node)
+    if (!out) parent { AXI4IdentityNode()(valName) :*=* axi4_sync_xing.node }
+    else      parent { axi4_sync_xing.node :*=* AXI4IdentityNode()(valName) }
   }
 
   def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
@@ -109,13 +109,13 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   def crossAXI4AsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(false)(depth, sync)
   def crossAXI4AsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(true )(depth, sync)
 
-  def crossAXI4In(arg: SubsystemClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+  def crossAXI4In(implicit p: Parameters): AXI4Node = arg match {
     case x: SynchronousCrossing  => crossAXI4SyncIn(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
   }
 
-  def crossAXI4Out(arg: SubsystemClockCrossing)(implicit p: Parameters): AXI4Node = arg match {
+  def crossAXI4Out(implicit p: Parameters): AXI4Node = arg match {
     case x: SynchronousCrossing  => crossAXI4SyncOut(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
@@ -160,20 +160,20 @@ class CrossingHelper(parent: LazyModule with LazyScope)(implicit valName: ValNam
   def crossIntRationalIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(false)(alreadyRegistered)
   def crossIntRationalOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(true )(alreadyRegistered)
 
-  def crossIntIn(arg: SubsystemClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
+  def crossIntIn(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
     case x: SynchronousCrossing  => crossIntSyncIn(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncIn(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalIn(alreadyRegistered)
   }
 
-  def crossIntOut(arg: SubsystemClockCrossing, alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
+  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = arg match {
     case x: SynchronousCrossing  => crossIntSyncOut(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncOut(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalOut(alreadyRegistered)
   }
 
-  def crossIntIn (arg: SubsystemClockCrossing)(implicit p: Parameters): IntNode = crossIntIn (arg, false)
-  def crossIntOut(arg: SubsystemClockCrossing)(implicit p: Parameters): IntNode = crossIntOut(arg, false)
+  def crossIntIn (implicit p: Parameters): IntNode = crossIntIn (false)
+  def crossIntOut(implicit p: Parameters): IntNode = crossIntOut(false)
 }
 
 
@@ -181,19 +181,18 @@ trait HasCrossing extends LazyScope
 {
   this: LazyModule =>
 
-  val xing = new CrossingHelper(this)
+  def crossing: SubsystemClockCrossing
+  protected val xing = new CrossingHelper(this, crossing)
 
-  val crossing: SubsystemClockCrossing
+  def crossTLIn   (implicit p: Parameters): TLNode  = xing.crossTLIn
+  def crossTLOut  (implicit p: Parameters): TLNode  = xing.crossTLOut
+  def crossAXI4In (implicit p: Parameters): AXI4Node= xing.crossAXI4In
+  def crossAXI4Out(implicit p: Parameters): AXI4Node= xing.crossAXI4Out
+  def crossIntIn  (implicit p: Parameters): IntNode = xing.crossIntIn
+  def crossIntOut (implicit p: Parameters): IntNode = xing.crossIntOut
 
-  def crossTLIn   (implicit p: Parameters): TLNode  = xing.crossTLIn   (crossing)
-  def crossTLOut  (implicit p: Parameters): TLNode  = xing.crossTLOut  (crossing)
-  def crossAXI4In (implicit p: Parameters): AXI4Node= xing.crossAXI4In (crossing)
-  def crossAXI4Out(implicit p: Parameters): AXI4Node= xing.crossAXI4Out(crossing)
-  def crossIntIn  (implicit p: Parameters): IntNode = xing.crossIntIn  (crossing)
-  def crossIntOut (implicit p: Parameters): IntNode = xing.crossIntOut (crossing)
-
-  def crossIntIn (alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = xing.crossIntIn (crossing, alreadyRegistered)
-  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = xing.crossIntOut(crossing, alreadyRegistered)
+  def crossIntIn (alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = xing.crossIntIn (alreadyRegistered)
+  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = xing.crossIntOut(alreadyRegistered)
 }
 
 class CrossingWrapper(val crossing: SubsystemClockCrossing)(implicit p: Parameters) extends SimpleLazyModule with HasCrossing

@@ -18,9 +18,10 @@ case object FrontBusKey extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams)
               (implicit p: Parameters) extends TLBusWrapper(params, "front_bus")
-    with HasTLXbarPhy
-    with HasCrossing {
-  val crossing = params.sbusCrossing
+    with HasTLXbarPhy {
+
+  protected val sbus_xing = new CrossingHelper(this, params.sbusCrossing)
+  def crossTLOut(implicit p: Parameters): TLNode  = sbus_xing.crossTLOut
 
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
