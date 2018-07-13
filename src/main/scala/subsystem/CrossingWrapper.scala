@@ -182,7 +182,7 @@ trait HasCrossing extends LazyScope
   this: LazyModule =>
 
   def crossing: SubsystemClockCrossing
-  protected val xing = new CrossingHelper(this, crossing)
+  protected lazy val xing = new CrossingHelper(this, crossing)
 
   def crossTLIn   (implicit p: Parameters): TLNode  = xing.crossTLIn
   def crossTLOut  (implicit p: Parameters): TLNode  = xing.crossTLOut
