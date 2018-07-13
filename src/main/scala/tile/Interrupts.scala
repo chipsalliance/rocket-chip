@@ -21,7 +21,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 // Use diplomatic interrupts to external interrupts from the subsystem into the tile
 trait HasExternalInterrupts { this: BaseTile =>
 
-  val intInwardNode = intXbar.intnode
+  val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
   protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
 
