@@ -42,8 +42,8 @@ class CrossingHelper(parent: LazyModule with LazyScope, arg: SubsystemClockCross
   def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
     lazy val sync_xing = LazyModule(new TLBuffer(params))
     crossingCheck(out, sync_xing.node, sync_xing.node)
-    if (!out) parent { TLIdentityNode()(valName) :*=* sync_xing.node }
-    else      parent { sync_xing.node :*=* TLIdentityNode()(valName) }
+    if (!out) parent { TLNameNode(valName) :*=* sync_xing.node }
+    else      parent { sync_xing.node :*=* TLNameNode(valName) }
   }
 
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {

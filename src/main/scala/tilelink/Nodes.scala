@@ -44,8 +44,9 @@ case class TLAdapterNode(
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)()
 
 object TLNameNode {
-  def apply(name: String) : TLNode = apply(Some(name))
-  def apply(name: Option[String]) : TLNode =
+  def apply(name: ValName) = TLIdentityNode()(name)
+  def apply(name: String): TLIdentityNode = apply(Some(name))
+  def apply(name: Option[String]) =
     TLIdentityNode()(ValName(name.getOrElse("with_no_name")))
 }
 
