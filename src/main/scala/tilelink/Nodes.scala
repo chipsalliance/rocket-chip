@@ -43,6 +43,12 @@ case class TLAdapterNode(
 
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)()
 
+object TLNameNode {
+  def apply(name: String) : TLNode = apply(Some(name))
+  def apply(name: Option[String]) : TLNode =
+    TLIdentityNode()(ValName(name.getOrElse("with_no_name")))
+}
+
 case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
   managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters)(
