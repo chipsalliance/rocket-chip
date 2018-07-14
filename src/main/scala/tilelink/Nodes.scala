@@ -45,9 +45,8 @@ case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLIm
 
 object TLNameNode {
   def apply(name: ValName) = TLIdentityNode()(name)
+  def apply(name: Option[String]): TLIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
   def apply(name: String): TLIdentityNode = apply(Some(name))
-  def apply(name: Option[String]) =
-    TLIdentityNode()(ValName(name.getOrElse("with_no_name")))
 }
 
 case class TLNexusNode(
@@ -81,6 +80,12 @@ case class TLAsyncAdapterNode(
 
 case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)()
 
+object TLAsyncNameNode {
+  def apply(name: ValName) = TLAsyncIdentityNode()(name)
+  def apply(name: Option[String]): TLAsyncIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
+  def apply(name: String): TLAsyncIdentityNode = apply(Some(name))
+}
+
 case class TLAsyncSourceNode(sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
@@ -112,6 +117,12 @@ case class TLRationalAdapterNode(
   extends AdapterNode(TLRationalImp)(clientFn, managerFn)
 
 case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)()
+
+object TLRationalNameNode {
+  def apply(name: ValName) = TLRationalIdentityNode()(name)
+  def apply(name: Option[String]): TLRationalIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
+  def apply(name: String): TLRationalIdentityNode = apply(Some(name))
+}
 
 case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(

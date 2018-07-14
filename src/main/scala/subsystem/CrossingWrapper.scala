@@ -49,8 +49,8 @@ class CrossingHelper(parent: LazyModule with LazyScope, arg: SubsystemClockCross
   def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
     lazy val async_xing_source = LazyModule(new TLAsyncCrossingSource(sync))
     lazy val async_xing_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
-    val source = if (out) parent { TLAsyncIdentityNode()(valName) :*=* async_xing_source.node } else async_xing_source.node
-    val sink = if (out) async_xing_sink.node else parent { async_xing_sink.node :*=* TLAsyncIdentityNode()(valName) }
+    val source = if (out) parent { TLAsyncNameNode(valName) :*=* async_xing_source.node } else async_xing_source.node
+    val sink = if (out) async_xing_sink.node else parent { async_xing_sink.node :*=* TLAsyncNameNode(valName) }
     crossingCheck(out, async_xing_source.node, async_xing_sink.node)
     sink :*=* source
     NodeHandle(source, sink)
@@ -59,8 +59,8 @@ class CrossingHelper(parent: LazyModule with LazyScope, arg: SubsystemClockCross
   def crossTLRationalInOut(out: Boolean)(direction: RationalDirection)(implicit p: Parameters): TLNode = {
     lazy val rational_xing_source = LazyModule(new TLRationalCrossingSource)
     lazy val rational_xing_sink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
-    val source = if (out) parent { TLRationalIdentityNode()(valName) :*=* rational_xing_source.node } else rational_xing_source.node
-    val sink = if (out) rational_xing_sink.node else parent { rational_xing_sink.node :*=* TLRationalIdentityNode()(valName) }
+    val source = if (out) parent { TLRationalNameNode(valName) :*=* rational_xing_source.node } else rational_xing_source.node
+    val sink = if (out) rational_xing_sink.node else parent { rational_xing_sink.node :*=* TLRationalNameNode(valName) }
     crossingCheck(out, rational_xing_source.node, rational_xing_sink.node)
     sink :*=* source
     NodeHandle(source, sink)
