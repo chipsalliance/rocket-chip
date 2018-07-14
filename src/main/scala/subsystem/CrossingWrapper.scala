@@ -90,15 +90,15 @@ class CrossingHelper(parent: LazyModule with LazyScope, arg: SubsystemClockCross
   def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
     val axi4_sync_xing = LazyModule(new AXI4Buffer(params))
     crossingCheck(out, axi4_sync_xing.node, axi4_sync_xing.node)
-    if (!out) parent { AXI4IdentityNode()(valName) :*=* axi4_sync_xing.node }
-    else      parent { axi4_sync_xing.node :*=* AXI4IdentityNode()(valName) }
+    if (!out) parent { AXI4NameNode(valName) :*=* axi4_sync_xing.node }
+    else      parent { axi4_sync_xing.node :*=* AXI4NameNode(valName) }
   }
 
   def crossAXI4AsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = {
     lazy val axi4_async_xing_source = LazyModule(new AXI4AsyncCrossingSource(sync))
     lazy val axi4_async_xing_sink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
-    val source = if (out) parent { AXI4AsyncIdentityNode()(valName) :*=* axi4_async_xing_source.node } else axi4_async_xing_source.node
-    val sink = if (out) axi4_async_xing_sink.node else parent { axi4_async_xing_sink.node :*=* AXI4AsyncIdentityNode()(valName) }
+    val source = if (out) parent { AXI4AsyncNameNode(valName) :*=* axi4_async_xing_source.node } else axi4_async_xing_source.node
+    val sink = if (out) axi4_async_xing_sink.node else parent { axi4_async_xing_sink.node :*=* AXI4AsyncNameNode(valName) }
     crossingCheck(out, axi4_async_xing_source.node, axi4_async_xing_sink.node)
     sink :*=* source
     NodeHandle(source, sink)
