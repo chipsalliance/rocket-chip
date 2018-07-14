@@ -138,13 +138,13 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
   def intInwardNode: IntInwardNode
   def intOutwardNode: IntOutwardNode
 
-  protected val tl_master_xing = new CrossingHelper(this,crossing)
-  protected val tl_slave_xing = new CrossingHelper(this,crossing)
-  protected val int_xing = new CrossingHelper(this,crossing)
-  def crossTLOut  (implicit p: Parameters): TLNode  = tl_master_xing.crossTLOut
-  def crossTLIn   (implicit p: Parameters): TLNode  = tl_slave_xing.crossTLIn
-  def crossIntIn  (implicit p: Parameters): IntNode = int_xing.crossIntIn
-  def crossIntOut (implicit p: Parameters): IntNode = int_xing.crossIntOut
+  protected val tlMasterXing = new CrossingHelper(this, crossing, "tl_master_xing")
+  protected val tlSlaveXing = new CrossingHelper(this, crossing, "tl_slave_xing")
+  protected val intXing = new CrossingHelper(this, crossing, "int_xing")
+  def crossTLOut (implicit p: Parameters): TLNode  = tlMasterXing.crossTLOut
+  def crossTLIn  (implicit p: Parameters): TLNode  = tlSlaveXing.crossTLIn
+  def crossIntIn (implicit p: Parameters): IntNode = intXing.crossIntIn
+  def crossIntOut(implicit p: Parameters): IntNode = intXing.crossIntOut
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)
