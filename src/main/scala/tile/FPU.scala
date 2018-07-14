@@ -656,16 +656,16 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   io.out := Pipe(fma.io.validout, res, (latency-3) max 0)
 }
 
-class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) {
+class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) extends LazyModule {
 	val node = new NAMESPACESinkNode(NAMESPACESinkParameters(lcfg.fLen, lcfg.divSqrt))
 	lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
 		val cfg : FPUParams = lcfg
-		implicit val p : Parameters  = p
+		//implicit val p : Parameters  = p
 		val rocc : NAMESPACEBundle = IO(node.in(0)._1)
 	}
 }
 
-class FPU(val cfg: FPUParams)(implicit val p: Parameters)
+class FPU(val cfg: FPUParams)(implicit p: Parameters)
 	extends FPUModule()(p)
 	with HasFPUImplementation {
 		val internal_cfg = NAMESPACESinkParameters(fLen, cfg.divSqrt)
@@ -674,7 +674,8 @@ class FPU(val cfg: FPUParams)(implicit val p: Parameters)
 		//val cfg : FPUParams = cfg
 	}
 
-trait HasFPUImplementation {
+trait HasFPUImplementation extends HasFPUParameters
+	with HasCoreParameters {
   implicit val p: Parameters
   val cfg: FPUParams 
 

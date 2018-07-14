@@ -10,7 +10,7 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.InOrderArbiter
+import freechips.rocketchip.NAMESPACE._
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 
@@ -61,6 +61,7 @@ abstract class LazyRoCC(
   val module: LazyRoCCModuleImp
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
+  val NAMESPACENode : Option[NAMESPACESourceNode] = (if (usesFPU) Some(NAMESPACESourceNode()) else None)
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
@@ -69,19 +70,23 @@ class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
 
 /** Mixins for including RoCC **/
 
-trait HasLazyRoCC extends CanHavePTW { this: BaseTile with HasFpuOpt =>
+trait HasLazyRoCC extends CanHavePTW 
+	with HasFpuOpt { this: RocketTile =>
   val roccs = p(BuildRoCC).map(_(p))
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
-  fpuOpt foreach { fpu => fpu.node := NAMESPACEFanIn.node }
+  roccs.map(_.NAMESPACENode).foreach { _.foreach { namespace => NAMESPACEXbar.node := namespace }}
+  fpuOpt foreach 
+	{ fpu => fpu.node := 
+			NAMESPACEXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
   nDCachePorts += roccs.size
 }
 
 trait HasLazyRoCCModule extends CanHavePTWModule
-    with HasCoreParameters { this: RocketTileModuleImp with HasFpuOpt =>
+    with HasCoreParameters { this: RocketTileModuleImp /*with HasFpuOpt*/ =>
 
   val (respArb, cmdRouter) = if(outer.roccs.size > 0) {
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
