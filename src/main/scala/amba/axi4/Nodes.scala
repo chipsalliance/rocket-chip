@@ -33,6 +33,12 @@ case class AXI4AdapterNode(
   extends AdapterNode(AXI4Imp)(masterFn, slaveFn)
 case class AXI4IdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4Imp)()
 
+object AXI4NameNode {
+  def apply(name: ValName) = AXI4IdentityNode()(name)
+  def apply(name: Option[String]): AXI4IdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): AXI4IdentityNode = apply(Some(name))
+}
+
 object AXI4AsyncImp extends SimpleNodeImp[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncEdgeParameters, AXI4AsyncBundle]
 {
   def edge(pd: AXI4AsyncMasterPortParameters, pu: AXI4AsyncSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXI4AsyncEdgeParameters(pd, pu, p, sourceInfo)
@@ -54,3 +60,11 @@ case class AXI4AsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(AXI4AsyncImp, AXI4Imp)(
     dFn = { p => p.base },
     uFn = { p => AXI4AsyncSlavePortParameters(depth, p) })
+
+case class AXI4AsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4AsyncImp)()
+
+object AXI4AsyncNameNode {
+  def apply(name: ValName) = AXI4AsyncIdentityNode()(name)
+  def apply(name: Option[String]): AXI4AsyncIdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): AXI4AsyncIdentityNode = apply(Some(name))
+}

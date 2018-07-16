@@ -18,14 +18,14 @@ case object FrontBusKey extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams)
               (implicit p: Parameters) extends TLBusWrapper(params, "front_bus")
-    with HasTLXbarPhy
-    with HasCrossing {
-  val crossing = params.sbusCrossing
+    with HasTLXbarPhy {
+
+  val sbusXing = new CrossingHelper(this, params.sbusCrossing, "sbus_xing")
 
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
     from("port" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
   }
 
@@ -38,7 +38,7 @@ class FrontBus(params: FrontBusParams)
   def fromMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
     from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
   }
 

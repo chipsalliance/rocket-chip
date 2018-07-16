@@ -21,14 +21,14 @@ case object PeripheryBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams)
                   (implicit p: Parameters) extends TLBusWrapper(params, "periphery_bus")
-    with HasTLXbarPhy
-    with HasCrossing {
-  val crossing = params.sbusCrossingType
+    with HasTLXbarPhy {
+
+  val sbusXing = new CrossingHelper(this, params.sbusCrossingType, "sbus_xing")
 
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= bufferTo(buffer) }
   }
 
@@ -41,7 +41,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def toVariableWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fragmentTo(buffer) }
   }
 
@@ -52,7 +52,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def toFixedWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fixedWidthTo(buffer) }
   }
 
@@ -67,7 +67,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def toFixedWidthSingleBeatSlave[D,U,E,B <: Data]
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
       gen :*= TLFragmenter(widthBytes, params.blockBytes) :*= fixedWidthTo(buffer)
     }
@@ -76,7 +76,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def toLargeBurstSlave[D,U,E,B <: Data]
       (maxXferBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
       gen :*= fragmentTo(params.beatBytes, maxXferBytes, buffer)
     }
@@ -85,7 +85,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def toFixedWidthPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("port" named name) { gen := fixedWidthTo(buffer) }
   }
 
@@ -102,7 +102,7 @@ class PeripheryBus(params: PeripheryBusParams)
   def fromOtherMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
     from("master" named name) { bufferFrom(buffer) :=* gen }
   }
 

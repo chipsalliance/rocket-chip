@@ -51,10 +51,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     val delayProb = p(TLBusDelayProbability)
     if (delayProb > 0.0) {
       TLDelayer(delayProb) :*=* TLBuffer(BufferParams.flow) :*=* TLDelayer(delayProb)
-    } else {
-      val nodelay = TLIdentityNode()
-      nodelay
-    }
+    } else { TLNameNode("no_delay") }
   }
 
   protected def to[T](name: String)(body: => T): T = {
@@ -71,11 +68,4 @@ trait HasTLXbarPhy { this: TLBusWrapper =>
 
   protected def inwardNode: TLInwardNode = xbar.node
   protected def outwardNode: TLOutwardNode = xbar.node
-}
-
-object TLIdentity {
-  def gen: TLNode = {
-    val passthru = TLIdentityNode()
-    passthru
-  }
 }

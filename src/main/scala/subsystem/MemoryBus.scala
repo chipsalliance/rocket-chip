@@ -55,21 +55,21 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWr
   def toDRAMController[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("memory_controller" named name) { gen := bufferTo(buffer) }
   }
 
   def toVariableWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fragmentTo(buffer) }
   }
 
   def toFixedWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) { gen :*= fixedWidthTo(buffer) }
   }
 
