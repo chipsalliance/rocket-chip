@@ -12,8 +12,8 @@ import scala.math.{min,max}
 
 class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
 	val node = NAMESPACENexusNode(
-		sinkFn  = { seq => seq(0) })
-	
+		sinkFn  = { seq => seq(0) }
+	)
 	lazy val module = new LazyModuleImp(this) {
 		require (node.edges.in.size >= 0, "NAMESPACEFanout requires at least one source")
 		if (node.edges.in.size >= 1) {

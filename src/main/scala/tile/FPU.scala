@@ -166,7 +166,7 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   //val cp_resp = Decoupled(new FPResult())
 //}
 
-class FPResult(fLen: Int)/*(implicit p: Parameters)*/ extends Bundle {
+class FPResult(val fLen: Int)/*(implicit p: Parameters)*/ extends Bundle {
   val data = Bits(width = fLen+1)
   val exc = Bits(width = FPConstants.FLAGS_SZ)
 }
@@ -177,7 +177,7 @@ class IntToFPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCt
   val in1 = Bits(width = xLen)
 }
 
-class FPInput(fLen: Int) extends Bundle with HasFPUCtrlSigs {
+class FPInput(val fLen: Int) extends Bundle with HasFPUCtrlSigs {
   val rm = Bits(width = FPConstants.RM_SZ)
   val fmaCmd = Bits(width = 2)
   val typ = Bits(width = 2)
@@ -242,8 +242,8 @@ object FType {
 }
 
 trait HasFPUParameters {
-  require(fLen == 32 || fLen == 64)
-  val fLen: Int
+  require(fLen == 32 || fLen == 64, s"fLen is $fLen")
+  def fLen: Int
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
@@ -659,9 +659,10 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) extends LazyModule {
 	val node = new NAMESPACESinkNode(NAMESPACESinkParameters(lcfg.fLen, lcfg.divSqrt))
 	lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
-		val cfg : FPUParams = lcfg
+		def cfg : FPUParams = lcfg
 		//implicit val p : Parameters  = p
-		val rocc : NAMESPACEBundle = IO(node.in(0)._1)
+		def getRoccBundle : NAMESPACEBundle = node.in(0)._1
+		override def fLen = lcfg.fLen
 	}
 }
 
@@ -669,18 +670,16 @@ class FPU(val cfg: FPUParams)(implicit p: Parameters)
 	extends FPUModule()(p)
 	with HasFPUImplementation {
 		val internal_cfg = NAMESPACESinkParameters(fLen, cfg.divSqrt)
-		val rocc : NAMESPACEBundle = IO(new NAMESPACEBundle(internal_cfg))
-		//implicit val p : Parameters = p
-		//val cfg : FPUParams = cfg
+		def getRoccBundle : NAMESPACEBundle = IO(new NAMESPACEBundle(internal_cfg))
 	}
 
 trait HasFPUImplementation extends HasFPUParameters
-	with HasCoreParameters {
+	with HasCoreParameters { 
   implicit val p: Parameters
-  val cfg: FPUParams 
-
-  val io = new FPUCoreIO
-  val rocc : NAMESPACEBundle
+  def cfg: FPUParams 
+  def getRoccBundle: NAMESPACEBundle
+  val io = chisel3.experimental.IO(new FPUCoreIO)
+  val rocc = getRoccBundle
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
   val req_valid = ex_reg_valid || rocc.cp_req.valid

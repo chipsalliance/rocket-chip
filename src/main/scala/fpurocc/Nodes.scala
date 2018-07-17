@@ -27,7 +27,8 @@ case class NAMESPACENexusNode(
   implicit valName: ValName)
   extends NexusNode(NAMESPACEImp)(
 	{ _: Seq[NAMESPACENullParameters] => NAMESPACENullParameters()},
-	sinkFn
+	sinkFn,
+	outputRequiresInput = false
   )
 
 //case class NAMESPACEIdentityNode()(implicit valName: ValName) extends IdentityNode(NAMESPACEImp)()

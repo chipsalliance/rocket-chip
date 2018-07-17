@@ -71,14 +71,15 @@ class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
 /** Mixins for including RoCC **/
 
 trait HasLazyRoCC extends CanHavePTW 
-	with HasFpuOpt { this: RocketTile =>
+	{ this: RocketTile =>
   val roccs = p(BuildRoCC).map(_(p))
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
   roccs.map(_.NAMESPACENode).foreach { _.foreach { namespace => NAMESPACEXbar.node := namespace }}
   fpuOpt foreach 
-	{ fpu => fpu.node := 
+	{ fpu =>
+		fpu.node := 
 			NAMESPACEXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
