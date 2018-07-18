@@ -23,6 +23,7 @@ case class RationalCrossing(direction: RationalDirection = FastToSlow) extends S
 case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends SubsystemClockCrossing
 
 class CrossingHelper(parent: LazyModule with LazyScope, arg: SubsystemClockCrossing, name: String) {
+  def this(parent: LazyModule with LazyScope, arg: SubsystemClockCrossing)(implicit valName: ValName) = this(parent, arg, valName.name)
 
   // Detect incorrect crossing connectivity
   private def crossingCheck(out: Boolean, source: BaseNode, sink: BaseNode) {
