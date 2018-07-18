@@ -95,6 +95,7 @@ abstract class BaseNode(implicit val valName: ValName)
 
   protected[diplomacy] val sinkCard: Int
   protected[diplomacy] val sourceCard: Int
+  protected[diplomacy] val flexes: Seq[BaseNode]
 }
 
 object BaseNode
@@ -229,16 +230,17 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   protected[diplomacy] lazy val sinkCard   = oBindings.count(_._3 == BIND_QUERY) + iBindings.count(_._3 == BIND_STAR)
   protected[diplomacy] lazy val sourceCard = iBindings.count(_._3 == BIND_QUERY) + oBindings.count(_._3 == BIND_STAR)
+  protected[diplomacy] lazy val flexes     = oBindings.filter(_._3 == BIND_FLEX).map(_._2) ++
+                                             iBindings.filter(_._3 == BIND_FLEX).map(_._2)
   protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
-    def DFS(v: BaseNode, visited: Set[BaseNode]): Set[BaseNode] = {
-      if (visited.contains(v)) {
+    def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
+      if (visited.contains(v.serial)) {
         visited
       } else {
-        val flexes = oBindings.filter(_._3 == BIND_FLEX).map(_._2) ++ iBindings.filter(_._3 == BIND_FLEX).map(_._2)
-        flexes.foldLeft(visited + v)((sum, n) => DFS(n, sum))
+        v.flexes.foldLeft(visited + (v.serial -> v))((sum, n) => DFS(n, sum))
       }
     }
-    val flexSet = DFS(this, Set())
+    val flexSet = DFS(this, Map()).values
     val allSink   = flexSet.map(_.sinkCard).sum
     val allSource = flexSet.map(_.sourceCard).sum
     require (flexSet.size == 1 || allSink == 0 || allSource == 0,
