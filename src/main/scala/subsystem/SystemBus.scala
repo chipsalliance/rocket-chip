@@ -49,7 +49,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters) extends TLBusWr
   }
 
   def toMemoryBus(gen: => TLInwardNode) {
-    to("mbus") { gen := delayNode := outwardNode }
+    to("mbus") { gen := outwardNode }
   }
 
   def toSlave[D,U,E,B <: Data]

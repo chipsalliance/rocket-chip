@@ -3,10 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-
-case object TLBusDelayProbability extends Field[Double](0.0)
 
 /** Specifies widths of various attachement points in the SoC */
 trait HasTLBusParams {
@@ -36,7 +34,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(policy)
 
   protected def bufferTo(buffer: BufferParams): TLOutwardNode =
-    TLBuffer(buffer) :*= delayNode :*= outwardNode
+    TLBuffer(buffer) :*= outwardNode
 
   protected def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
     TLWidthWidget(beatBytes) :*= bufferTo(buffer)
@@ -46,13 +44,6 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   protected def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
     TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
-
-  protected def delayNode(implicit p: Parameters): TLNode = {
-    val delayProb = p(TLBusDelayProbability)
-    if (delayProb > 0.0) {
-      TLDelayer(delayProb) :*=* TLBuffer(BufferParams.flow) :*=* TLDelayer(delayProb)
-    } else { TLNameNode("no_delay") }
-  }
 
   def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }
