@@ -31,7 +31,10 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     SynchronousCrossing())
   val control_bus = LazyModule(new PeripheryBus(cbus_params))
   control_bus.fromSystemBus {
-    TLFIFOFixer(TLFIFOFixer.all) :*= TLWidthWidget(params.beatBytes) :*= bufferTo(params.pbusBuffer)
+    (TLFIFOFixer(TLFIFOFixer.all)
+      :*= TLWidthWidget(params.beatBytes)
+      :*= TLBuffer(params.pbusBuffer)
+      :*= outwardNode)
   }
 
   private val master_splitter = LazyModule(new TLSplitter)

@@ -9,8 +9,8 @@ import freechips.rocketchip.util._
 
 /** Specifies widths of various attachement points in the SoC */
 trait HasTLBusParams {
-  val beatBytes: Int
-  val blockBytes: Int
+  def beatBytes: Int
+  def blockBytes: Int
 
   def beatBits: Int = beatBytes * 8
   def blockBits: Int = blockBytes * 8
@@ -23,30 +23,12 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     with LazyScope
     with HasTLBusParams {
 
-  val beatBytes = params.beatBytes
-  val blockBytes = params.blockBytes
+  def beatBytes = params.beatBytes
+  def blockBytes = params.blockBytes
   require(blockBytes % beatBytes == 0)
 
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
-
-  protected def bufferFrom(buffer: BufferParams): TLInwardNode =
-    inwardNode :=* TLBuffer(buffer)
-
-  protected def fixFrom(policy: TLFIFOFixer.Policy, buffer: BufferParams): TLInwardNode =
-    inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(policy)
-
-  protected def bufferTo(buffer: BufferParams): TLOutwardNode =
-    TLBuffer(buffer) :*= outwardNode
-
-  protected def fixedWidthTo(buffer: BufferParams): TLOutwardNode =
-    TLWidthWidget(beatBytes) :*= bufferTo(buffer)
-
-  protected def fragmentTo(buffer: BufferParams): TLOutwardNode =
-    TLFragmenter(beatBytes, blockBytes) :*= bufferTo(buffer)
-
-  protected def fragmentTo(minSize: Int, maxSize: Int, buffer: BufferParams): TLOutwardNode =
-    TLFragmenter(minSize, maxSize) :*= bufferTo(buffer)
 
   def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }
@@ -57,12 +39,12 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   }
 }
 
-trait CanAttachTLSlaves { this: TLBusWrapper =>
+trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= bufferTo(buffer) }
+    to("slave" named name) { gen :*= TLBuffer(buffer) :*= outwardNode }
   }
 
   def toVariableWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: TLInwardNode) {
@@ -70,32 +52,36 @@ trait CanAttachTLSlaves { this: TLBusWrapper =>
   }
 
   def toVariableWidthSlaveNodeOption(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: Option[TLInwardNode]) {
-    node foreach { n => to("slave" named name) { n :*= fragmentTo(buffer) } }
+    node foreach { n => to("slave" named name) {
+      n :*= TLFragmenter(beatBytes, blockBytes) :*= TLBuffer(buffer) :*= outwardNode
+    }}
   }
 
   def toVariableWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= fragmentTo(buffer) }
+    to("slave" named name) {
+      gen :*= TLFragmenter(beatBytes, blockBytes) :*= TLBuffer(buffer) :*= outwardNode
+    }
   }
 
   def toFixedWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(gen: TLInwardNode) {
-    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
+    to("slave" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
   def toFixedWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
+    to("slave" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
   def toFixedWidthSingleBeatSlaveNode
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: TLInwardNode) {
     to("slave" named name) {
-      gen :*= TLFragmenter(widthBytes, blockBytes) :*= fixedWidthTo(buffer)
+      gen :*= TLFragmenter(widthBytes, blockBytes) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }
   }
 
@@ -104,7 +90,7 @@ trait CanAttachTLSlaves { this: TLBusWrapper =>
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
-      gen :*= TLFragmenter(widthBytes, blockBytes) :*= fixedWidthTo(buffer)
+      gen :*= TLFragmenter(widthBytes, blockBytes) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }
   }
 
@@ -113,7 +99,7 @@ trait CanAttachTLSlaves { this: TLBusWrapper =>
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
-      gen :*= fragmentTo(beatBytes, maxXferBytes, buffer)
+      gen :*= TLFragmenter(beatBytes, maxXferBytes) :*= TLBuffer(buffer) :*= outwardNode
     }
   }
 
@@ -121,36 +107,46 @@ trait CanAttachTLSlaves { this: TLBusWrapper =>
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("port" named name) { gen := fixedWidthTo(buffer) }
+    to("port" named name) {
+      gen := TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
+    }
   }
 }
 
-trait CanAttachTLMasters { this: TLBusWrapper =>
+trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
   def fromMasterNode
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: TLOutwardNode) {
-    from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
+    from("master" named name) {
+      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.all) :=* gen
+    }
   }
 
   def fromMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
-    from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
+    from("master" named name) {
+      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.all) :=* gen
+    }
   }
 
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
-    from("port" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
+    from("port" named name) {
+      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.all) :=* gen
+    }
   }
 
   def fromCoherentMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
         TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
-    from("coherent_master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
+    from("coherent_master" named name) {
+      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.all) :=* gen
+    }
   }
 }
 
