@@ -45,9 +45,3 @@ class AXI4CrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockC
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
   }
 }
-
-class AXI4CrossingWrapper(val crossing: ClockCrossingType)(implicit p: Parameters) extends SimpleLazyModule with LazyScope {
-  protected lazy val axi4_xing = new AXI4CrossingHelper(this, crossing)
-  def crossAXI4In (implicit p: Parameters): AXI4Node= axi4_xing.crossAXI4In
-  def crossAXI4Out(implicit p: Parameters): AXI4Node= axi4_xing.crossAXI4Out
-}

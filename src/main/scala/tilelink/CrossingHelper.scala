@@ -58,9 +58,3 @@ class TLCrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockCro
     case x: RationalCrossing     => crossTLRationalOut(x.direction)
   }
 }
-
-class TLCrossingWrapper(val crossing: ClockCrossingType)(implicit p: Parameters) extends SimpleLazyModule with LazyScope {
-  protected lazy val tl_xing = new TLCrossingHelper(this, crossing)
-  def crossTLIn (implicit p: Parameters): TLNode= tl_xing.crossTLIn
-  def crossTLOut(implicit p: Parameters): TLNode= tl_xing.crossTLOut
-}
