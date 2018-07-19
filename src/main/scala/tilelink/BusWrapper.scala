@@ -26,8 +26,8 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   val blockBytes = params.blockBytes
   require(blockBytes % beatBytes == 0)
 
-  protected def inwardNode: TLInwardNode
-  protected def outwardNode: TLOutwardNode
+  def inwardNode: TLInwardNode
+  def outwardNode: TLOutwardNode
 
   protected def bufferFrom(buffer: BufferParams): TLInwardNode =
     inwardNode :=* TLBuffer(buffer)
@@ -54,11 +54,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     } else { TLNameNode("no_delay") }
   }
 
-  protected def to[T](name: String)(body: => T): T = {
+  def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }
   }
 
-  protected def from[T](name: String)(body: => T): T = {
+  def from[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_from_${name}") { body } }
   }
 }
@@ -66,6 +66,6 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 trait HasTLXbarPhy { this: TLBusWrapper =>
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
 
-  protected def inwardNode: TLInwardNode = xbar.node
-  protected def outwardNode: TLOutwardNode = xbar.node
+  def inwardNode: TLInwardNode = xbar.node
+  def outwardNode: TLOutwardNode = xbar.node
 }
