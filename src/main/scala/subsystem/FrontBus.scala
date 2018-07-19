@@ -16,31 +16,12 @@ case class FrontBusParams(
 
 case object FrontBusKey extends Field[FrontBusParams]
 
-class FrontBus(params: FrontBusParams)
-              (implicit p: Parameters) extends TLBusWrapper(params, "front_bus")
+class FrontBus(params: FrontBusParams)(implicit p: Parameters)
+    extends TLBusWrapper(params, "front_bus")
+    with CanAttachTLMasters
     with HasTLXbarPhy {
 
   val sbusXing = new CrossingHelper(this, params.sbusCrossing)
-
-  def fromPort[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
-    from("port" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
-  }
-
-  def fromMasterNode
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: TLOutwardNode) {
-    from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
-  }
-
-  def fromMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
-    from("master" named name) { fixFrom(TLFIFOFixer.all, buffer) :=* gen }
-  }
 
   def fromCoherentChip(gen: => TLNode): TLInwardNode = {
     from("coherent_subsystem") { inwardNode :=* gen }
