@@ -13,7 +13,7 @@ case class PeripheryBusParams(
   blockBytes: Int,
   arithmeticAtomics: Boolean = true,
   bufferAtomics: BufferParams = BufferParams.default,
-  sbusCrossingType: SubsystemClockCrossing = SynchronousCrossing(), // relative to sbus
+  sbusCrossingType: ClockCrossingType = SynchronousCrossing(), // relative to sbus
   frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
 ) extends HasTLBusParams
 
@@ -24,7 +24,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     with CanAttachTLSlaves
     with HasTLXbarPhy {
 
-  val sbusXing = new CrossingHelper(this, params.sbusCrossingType)
+  val sbusXing = new TLCrossingHelper(this, params.sbusCrossingType)
 
   def fromSystemBus(gen: => TLOutwardNode) {
     from("sbus") {

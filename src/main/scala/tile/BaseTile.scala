@@ -129,7 +129,7 @@ trait HasTileParameters {
 }
 
 /** Base class for all Tiles that use TileLink */
-abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCrossing)
+abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
                        (implicit p: Parameters)
     extends LazyModule with LazyScope with HasTileParameters {
   def module: BaseTileModuleImp[BaseTile]
@@ -138,9 +138,9 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
   def intInwardNode: IntInwardNode
   def intOutwardNode: IntOutwardNode
 
-  protected val tlMasterXing = new CrossingHelper(this, crossing)
-  protected val tlSlaveXing = new CrossingHelper(this, crossing)
-  protected val intXing = new CrossingHelper(this, crossing)
+  protected val tlMasterXing = new TLCrossingHelper(this, crossing)
+  protected val tlSlaveXing = new TLCrossingHelper(this, crossing)
+  protected val intXing = new IntCrossingHelper(this, crossing)
   def crossTLOut (implicit p: Parameters): TLNode  = tlMasterXing.crossTLOut
   def crossTLIn  (implicit p: Parameters): TLNode  = tlSlaveXing.crossTLIn
   def crossIntIn (implicit p: Parameters): IntNode = intXing.crossIntIn

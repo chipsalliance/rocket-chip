@@ -5,7 +5,6 @@ package freechips.rocketchip.tile
 
 import Chisel._
 import freechips.rocketchip.config._
-import freechips.rocketchip.subsystem.SubsystemClockCrossing
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -32,7 +31,7 @@ case class RocketTileParams(
 
 class RocketTile(
     val rocketParams: RocketTileParams,
-    crossing: SubsystemClockCrossing)
+    crossing: ClockCrossingType)
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache

@@ -11,7 +11,7 @@ import freechips.rocketchip.util._
 case class FrontBusParams(
   beatBytes: Int,
   blockBytes: Int,
-  sbusCrossing: SubsystemClockCrossing = SynchronousCrossing(),
+  sbusCrossing: ClockCrossingType = SynchronousCrossing(),
   sbusBuffer: BufferParams = BufferParams.none) extends HasTLBusParams
 
 case object FrontBusKey extends Field[FrontBusParams]
@@ -21,7 +21,7 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters)
     with CanAttachTLMasters
     with HasTLXbarPhy {
 
-  val sbusXing = new CrossingHelper(this, params.sbusCrossing)
+  val sbusXing = new TLCrossingHelper(this, params.sbusCrossing)
 
   def fromCoherentChip(gen: => TLNode): TLInwardNode = {
     from("coherent_subsystem") { inwardNode :=* gen }

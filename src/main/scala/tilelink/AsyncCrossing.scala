@@ -7,7 +7,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import freechips.rocketchip.subsystem.{CrossingWrapper, AsynchronousCrossing}
 
 class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
@@ -124,7 +123,7 @@ import freechips.rocketchip.unittest._
 class TLRAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
   val model = LazyModule(new TLRAMModel("AsyncCrossing"))
   val fuzz = LazyModule(new TLFuzzer(txns))
-  val island = LazyModule(new CrossingWrapper(AsynchronousCrossing(8)))
+  val island = LazyModule(new TLCrossingWrapper(AsynchronousCrossing(8)))
   val ram  = island { LazyModule(new TLRAM(AddressSet(0x0, 0x3ff))) }
 
   ram.node := island.crossTLIn := TLFragmenter(4, 256) := TLDelayer(0.1) := model.node := fuzz.node
