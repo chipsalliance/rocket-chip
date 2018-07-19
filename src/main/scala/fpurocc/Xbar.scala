@@ -31,8 +31,8 @@ class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
 			
 		}
 		else {
-			node.out(0)._1.cp_req.valid := Bool(false)
-			node.out(0)._1.cp_resp.ready := Bool(false)
+			node.out(0)._1.cp_req.valid := false.B
+			node.out(0)._1.cp_resp.ready := false.B
 		}
 	}
 	

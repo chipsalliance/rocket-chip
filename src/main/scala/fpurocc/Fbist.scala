@@ -13,6 +13,7 @@ import freechips.rocketchip.NAMESPACE._
 class Fbist(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes) {
 	override lazy val module = new FbistModuleImp(this)
 	override val usesFPU = true
+	val passed = Output(Bool())
 }
 
 
@@ -25,8 +26,8 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 		val next_out_counter = out_counter
 
 		val count_compare = Bool()
-		val req = node.edges.in.head._1.cp_req
-		val resp = node.edges.in.head._1.cp_resp
+		val req = outer.NAMESPACENode.get.out.head._1.cp_req
+		val resp = outer.NAMESPACENode.get.out.head._1.cp_resp
 		//val lsfr = RegInit(0.U(fLen.W))
 		//val next_lsfr = (lsfr << 1) ^ lsfr
 		//val result = RegInit(0.U(fLen.W))
@@ -37,30 +38,30 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 		//val next_rand_operand = (rand_operand << 1) ^ rand_operand
 		//rand_operand := next_rand_operand
 
-		req.ldst := false.B
-		req.swap12 := false.B
-		req.swap23 := false.B
-		req.fromint := false.B
-		req.toint := false.B
-		req.singleIn := false.B
-		req.singleOut := false.B
-		req.fastpipe := false.B
-		req.fma := false.B
-		req.div := false.B
-		req.sqrt := false.B
-		req.wflags := false.B
+		req.bits.ldst := false.B
+		req.bits.swap12 := false.B
+		req.bits.swap23 := false.B
+		req.bits.fromint := false.B
+		req.bits.toint := false.B
+		req.bits.singleIn := false.B
+		req.bits.singleOut := false.B
+		req.bits.fastpipe := false.B
+		req.bits.fma := false.B
+		req.bits.div := false.B
+		req.bits.sqrt := false.B
+		req.bits.wflags := false.B
 
-		req.wen := false.B
-		req.ren1 := false.B
-		req.ren2 := false.B
-		req.ren3 := false.B
+		req.bits.wen := false.B
+		req.bits.ren1 := false.B
+		req.bits.ren2 := false.B
+		req.bits.ren3 := false.B
 
-		req.rm := 0.U
-		req.fmaCmd := 0.U
-		req.typ := 0.U
-		req.in1 := 0.U
-		req.in2 := 0.U
-		req.in3 := 0.U
+		req.bits.rm := 0.U
+		req.bits.fmaCmd := 0.U
+		req.bits.typ := 0.U
+		req.bits.in1 := 0.U
+		req.bits.in2 := 0.U
+		req.bits.in3 := 0.U
 
 		req.valid := false.B
 		resp.ready := false.B
@@ -70,7 +71,7 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 				timer := 1.U
 				out_counter := next_out_counter + 1.U
 			}
-		} .else {
+		} .otherwise {
 			resp.ready := true.B
 			when (resp.valid === true.B) {
 				timer := 0.U
@@ -79,6 +80,9 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 		}
 		count_compare := in_counter === out_counter
 
+		when ((in_counter >= 3.U) && count_compare) {
+			outer.passed := true.B
+		}
 }
 
 //nothing can extend an object

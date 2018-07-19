@@ -13,7 +13,7 @@ import freechips.rocketchip.tile.{FPConstants, FPInput, FPResult}
 // Signal directions are from the master's point-of-view
 class NAMESPACEBundle(val params: NAMESPACESinkParameters) extends Bundle
 {
-	val cp_req = Decoupled(new FPInput(params.fLen)).flip
+	val cp_req = Flipped(Decoupled(new FPInput(params.fLen)))
 	val cp_resp = Decoupled(new FPResult(params.fLen))
 }
 
