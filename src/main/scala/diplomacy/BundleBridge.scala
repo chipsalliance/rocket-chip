@@ -22,7 +22,7 @@ case class BundleBridgeSink[T <: Data]()(implicit valName: ValName) extends Sink
   def bundle: T = in(0)._1
 
   def makeIO()(implicit valName: ValName): T = {
-    val io = IO(Output(bundle.cloneType))
+    val io = IO(bundle.cloneType)
     io.suggestName(valName.name)
     io <> bundle
     io
@@ -34,7 +34,7 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
   def bundle: T = out(0)._1
 
   def makeIO()(implicit valName: ValName): T = {
-    val io = IO(Input(bundle.cloneType))
+    val io = IO(Flipped(bundle.cloneType))
     io.suggestName(valName.name)
     bundle <> io
     io

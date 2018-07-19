@@ -23,7 +23,7 @@ class PeripheryBus(params: PeripheryBusParams)
                   (implicit p: Parameters) extends TLBusWrapper(params, "periphery_bus")
     with HasTLXbarPhy {
 
-  val sbusXing = new CrossingHelper(this, params.sbusCrossingType, "sbus_xing")
+  val sbusXing = new CrossingHelper(this, params.sbusCrossingType)
 
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)

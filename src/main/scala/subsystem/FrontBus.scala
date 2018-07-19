@@ -20,7 +20,7 @@ class FrontBus(params: FrontBusParams)
               (implicit p: Parameters) extends TLBusWrapper(params, "front_bus")
     with HasTLXbarPhy {
 
-  val sbusXing = new CrossingHelper(this, params.sbusCrossing, "sbus_xing")
+  val sbusXing = new CrossingHelper(this, params.sbusCrossing)
 
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
