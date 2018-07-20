@@ -31,7 +31,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     SynchronousCrossing())
   val control_bus = LazyModule(new PeripheryBus(cbus_params))
   control_bus.from(name) {
-    (TLFIFOFixer(TLFIFOFixer.all)
+    (control_bus.inwardNode
+      :*= TLFIFOFixer(TLFIFOFixer.all)
       :*= TLWidthWidget(params.beatBytes)
       :*= TLBuffer(params.pbusBuffer)
       :*= outwardNode)

@@ -10,14 +10,14 @@ class TLCrossingHelper(parent: LazyModule with LazyScope, name: String) extends 
 {
   def this(parent: LazyModule with LazyScope)(implicit valName: ValName) = this(parent, valName.name)
 
-  def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
+  def crossSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
     lazy val sync_xing = LazyModule(new TLBuffer(params))
     crossingCheck(out, sync_xing.node, sync_xing.node)
     if (!out) parent { TLNameNode(name) :*=* sync_xing.node }
     else      parent { sync_xing.node :*=* TLNameNode(name) }
   }
 
-  def crossTLAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
+  def crossAsyncInOut(out: Boolean)(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = {
     lazy val async_xing_source = LazyModule(new TLAsyncCrossingSource(sync))
     lazy val async_xing_sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
     val source = if (out) parent { TLAsyncNameNode(name) :*=* async_xing_source.node } else async_xing_source.node
@@ -27,7 +27,7 @@ class TLCrossingHelper(parent: LazyModule with LazyScope, name: String) extends 
     NodeHandle(source, sink)
   }
 
-  def crossTLRationalInOut(out: Boolean)(direction: RationalDirection)(implicit p: Parameters): TLNode = {
+  def crossRationalInOut(out: Boolean)(direction: RationalDirection)(implicit p: Parameters): TLNode = {
     lazy val rational_xing_source = LazyModule(new TLRationalCrossingSource)
     lazy val rational_xing_sink = LazyModule(new TLRationalCrossingSink(if (out) direction else direction.flip))
     val source = if (out) parent { TLRationalNameNode(name) :*=* rational_xing_source.node } else rational_xing_source.node
@@ -37,22 +37,22 @@ class TLCrossingHelper(parent: LazyModule with LazyScope, name: String) extends 
     NodeHandle(source, sink)
   }
 
-  def crossTLSyncIn (params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = crossTLSyncInOut(false)(params)
-  def crossTLSyncOut(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = crossTLSyncInOut(true )(params)
-  def crossTLAsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = crossTLAsyncInOut(false)(depth, sync)
-  def crossTLAsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = crossTLAsyncInOut(true )(depth, sync)
-  def crossTLRationalIn (direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(false)(direction)
-  def crossTLRationalOut(direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(true )(direction)
+  def crossSyncIn (params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = crossSyncInOut(false)(params)
+  def crossSyncOut(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = crossSyncInOut(true )(params)
+  def crossAsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = crossAsyncInOut(false)(depth, sync)
+  def crossAsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): TLNode = crossAsyncInOut(true )(depth, sync)
+  def crossRationalIn (direction: RationalDirection)(implicit p: Parameters): TLNode = crossRationalInOut(false)(direction)
+  def crossRationalOut(direction: RationalDirection)(implicit p: Parameters): TLNode = crossRationalInOut(true )(direction)
 
-  def crossTLIn(crossingType: ClockCrossingType)(implicit p: Parameters): TLNode = crossingType match {
-    case x: SynchronousCrossing  => crossTLSyncIn(x.params)
-    case x: AsynchronousCrossing => crossTLAsyncIn(x.depth, x.sync)
-    case x: RationalCrossing     => crossTLRationalIn(x.direction)
+  def crossIn(crossingType: ClockCrossingType)(implicit p: Parameters): TLNode = crossingType match {
+    case x: SynchronousCrossing  => crossSyncIn(x.params)
+    case x: AsynchronousCrossing => crossAsyncIn(x.depth, x.sync)
+    case x: RationalCrossing     => crossRationalIn(x.direction)
   }
 
-  def crossTLOut(crossingType: ClockCrossingType)(implicit p: Parameters): TLNode = crossingType match {
-    case x: SynchronousCrossing  => crossTLSyncOut(x.params)
-    case x: AsynchronousCrossing => crossTLAsyncOut(x.depth, x.sync)
-    case x: RationalCrossing     => crossTLRationalOut(x.direction)
+  def crossOut(crossingType: ClockCrossingType)(implicit p: Parameters): TLNode = crossingType match {
+    case x: SynchronousCrossing  => crossSyncOut(x.params)
+    case x: AsynchronousCrossing => crossAsyncOut(x.depth, x.sync)
+    case x: RationalCrossing     => crossRationalOut(x.direction)
   }
 }

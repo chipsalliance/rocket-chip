@@ -21,14 +21,14 @@ trait HasCrossing extends LazyScope { this: LazyModule =>
   val axi4Xing = new AXI4CrossingHelper(this)
   val intXing = new IntCrossingHelper(this)
 
-  def crossTLIn   (implicit p: Parameters): TLNode   = tlXing.crossTLIn(crossing)
-  def crossTLOut  (implicit p: Parameters): TLNode   = tlXing.crossTLOut(crossing)
-  def crossAXI4In (implicit p: Parameters): AXI4Node = axi4Xing.crossAXI4In(crossing)
-  def crossAXI4Out(implicit p: Parameters): AXI4Node = axi4Xing.crossAXI4Out(crossing)
-  def crossIntIn  (implicit p: Parameters): IntNode  = intXing.crossIntIn(crossing)
-  def crossIntOut (implicit p: Parameters): IntNode  = intXing.crossIntOut(crossing)
-  def crossIntIn (alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = intXing.crossIntIn (alreadyRegistered, crossing)
-  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = intXing.crossIntOut(alreadyRegistered, crossing)
+  def crossTLIn   (implicit p: Parameters): TLNode   = tlXing.crossIn(crossing)
+  def crossTLOut  (implicit p: Parameters): TLNode   = tlXing.crossOut(crossing)
+  def crossAXI4In (implicit p: Parameters): AXI4Node = axi4Xing.crossIn(crossing)
+  def crossAXI4Out(implicit p: Parameters): AXI4Node = axi4Xing.crossOut(crossing)
+  def crossIntIn  (implicit p: Parameters): IntNode  = intXing.crossIn(crossing)
+  def crossIntOut (implicit p: Parameters): IntNode  = intXing.crossOut(crossing)
+  def crossIntIn (alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = intXing.crossIn (alreadyRegistered, crossing)
+  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = intXing.crossOut(alreadyRegistered, crossing)
 }
 
 /** A convenient way of creating a LazyScope with a particular uniform clock relationship */

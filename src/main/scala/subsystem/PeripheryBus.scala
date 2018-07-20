@@ -30,7 +30,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
       (inwardNode
         :*= TLBuffer(params.bufferAtomics)
         :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics)
-        :*= gen(sbusXing.crossTLIn(params.sbusCrossingType)))
+        :*= gen(sbusXing.crossIn(params.sbusCrossingType)))
     }
   }
 

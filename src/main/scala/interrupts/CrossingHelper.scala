@@ -9,7 +9,7 @@ class IntCrossingHelper(parent: LazyModule with LazyScope, name: String) extends
 {
   def this(parent: LazyModule with LazyScope)(implicit valName: ValName) = this(parent, valName.name)
 
-  def crossIntSyncInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
+  def crossSyncInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_sync_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
     lazy val int_sync_xing_sink = LazyModule(new IntSyncCrossingSink(0))
     val source = if (out) parent { IntSyncNameNode(name) :*=* int_sync_xing_source.node } else int_sync_xing_source.node
@@ -19,7 +19,7 @@ class IntCrossingHelper(parent: LazyModule with LazyScope, name: String) extends
     NodeHandle(source, sink)
   }
 
-  def crossIntAsyncInOut(out: Boolean)(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
+  def crossAsyncInOut(out: Boolean)(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_async_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
     lazy val int_async_xing_sink = LazyModule(new IntSyncCrossingSink(sync))
     val source = if (out) parent {  IntSyncNameNode(name) :*=* int_async_xing_source.node } else int_async_xing_source.node
@@ -29,7 +29,7 @@ class IntCrossingHelper(parent: LazyModule with LazyScope, name: String) extends
     NodeHandle(source, sink)
   }
 
-  def crossIntRationalInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
+  def crossRationalInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_rational_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
     lazy val int_rational_xing_sink = LazyModule(new IntSyncCrossingSink(1))
     val source = if (out) parent { IntSyncNameNode(name) :*=* int_rational_xing_source.node } else int_rational_xing_source.node
@@ -39,25 +39,25 @@ class IntCrossingHelper(parent: LazyModule with LazyScope, name: String) extends
     NodeHandle(source, sink)
   }
 
-  def crossIntSyncIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntSyncInOut(false)(alreadyRegistered)
-  def crossIntSyncOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntSyncInOut(true )(alreadyRegistered)
-  def crossIntAsyncIn (sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntAsyncInOut(false)(sync, alreadyRegistered)
-  def crossIntAsyncOut(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntAsyncInOut(true )(sync, alreadyRegistered)
-  def crossIntRationalIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(false)(alreadyRegistered)
-  def crossIntRationalOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(true )(alreadyRegistered)
+  def crossSyncIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossSyncInOut(false)(alreadyRegistered)
+  def crossSyncOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossSyncInOut(true )(alreadyRegistered)
+  def crossAsyncIn (sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossAsyncInOut(false)(sync, alreadyRegistered)
+  def crossAsyncOut(sync: Int = 3, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossAsyncInOut(true )(sync, alreadyRegistered)
+  def crossRationalIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossRationalInOut(false)(alreadyRegistered)
+  def crossRationalOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossRationalInOut(true )(alreadyRegistered)
 
-  def crossIntIn(alreadyRegistered: Boolean, crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossingType match {
-    case x: SynchronousCrossing  => crossIntSyncIn(alreadyRegistered)
-    case x: AsynchronousCrossing => crossIntAsyncIn(x.sync, alreadyRegistered)
-    case x: RationalCrossing     => crossIntRationalIn(alreadyRegistered)
+  def crossIn(alreadyRegistered: Boolean, crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossingType match {
+    case x: SynchronousCrossing  => crossSyncIn(alreadyRegistered)
+    case x: AsynchronousCrossing => crossAsyncIn(x.sync, alreadyRegistered)
+    case x: RationalCrossing     => crossRationalIn(alreadyRegistered)
   }
 
-  def crossIntOut(alreadyRegistered: Boolean, crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossingType match {
-    case x: SynchronousCrossing  => crossIntSyncOut(alreadyRegistered)
-    case x: AsynchronousCrossing => crossIntAsyncOut(x.sync, alreadyRegistered)
-    case x: RationalCrossing     => crossIntRationalOut(alreadyRegistered)
+  def crossOut(alreadyRegistered: Boolean, crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossingType match {
+    case x: SynchronousCrossing  => crossSyncOut(alreadyRegistered)
+    case x: AsynchronousCrossing => crossAsyncOut(x.sync, alreadyRegistered)
+    case x: RationalCrossing     => crossRationalOut(alreadyRegistered)
   }
 
-  def crossIntIn (crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossIntIn (false, crossingType)
-  def crossIntOut(crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossIntOut(false, crossingType)
+  def crossIn (crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossIn (false, crossingType)
+  def crossOut(crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossOut(false, crossingType)
 }
