@@ -267,3 +267,4 @@ sealed trait ClockCrossingType
 case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends ClockCrossingType
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends ClockCrossingType
 case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends ClockCrossingType
+case object NoCrossing // converts to SynchronousCrossing(BufferParams.none) via implicit def in package
