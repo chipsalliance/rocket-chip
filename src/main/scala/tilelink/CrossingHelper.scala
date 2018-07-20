@@ -6,11 +6,9 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.RationalDirection
 
-class TLCrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockCrossingType, name: String)
-    extends CrossingHelper(parent, name)
+class TLCrossingHelper(parent: LazyModule with LazyScope, name: String) extends CrossingHelper(parent, name)
 {
-  def this(parent: LazyModule with LazyScope, crossingType: ClockCrossingType)
-          (implicit valName: ValName) = this(parent, crossingType, valName.name)
+  def this(parent: LazyModule with LazyScope)(implicit valName: ValName) = this(parent, valName.name)
 
   def crossTLSyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): TLNode = {
     lazy val sync_xing = LazyModule(new TLBuffer(params))
@@ -46,13 +44,13 @@ class TLCrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockCro
   def crossTLRationalIn (direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(false)(direction)
   def crossTLRationalOut(direction: RationalDirection)(implicit p: Parameters): TLNode = crossTLRationalInOut(true )(direction)
 
-  def crossTLIn(implicit p: Parameters): TLNode = crossingType match {
+  def crossTLIn(crossingType: ClockCrossingType)(implicit p: Parameters): TLNode = crossingType match {
     case x: SynchronousCrossing  => crossTLSyncIn(x.params)
     case x: AsynchronousCrossing => crossTLAsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalIn(x.direction)
   }
 
-  def crossTLOut(implicit p: Parameters): TLNode = crossingType match {
+  def crossTLOut(crossingType: ClockCrossingType)(implicit p: Parameters): TLNode = crossingType match {
     case x: SynchronousCrossing  => crossTLSyncOut(x.params)
     case x: AsynchronousCrossing => crossTLAsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => crossTLRationalOut(x.direction)

@@ -21,13 +21,16 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters)
     with CanAttachTLMasters
     with HasTLXbarPhy {
 
-  val sbusXing = new TLCrossingHelper(this, params.sbusCrossing)
-
   def fromCoherentChip(gen: => TLNode): TLInwardNode = {
     from("coherent_subsystem") { inwardNode :=* gen }
   }
 
-  def toSystemBus(gen: => TLInwardNode) {
-    to("sbus") { gen :=* TLBuffer(params.sbusBuffer) :=* outwardNode }
+  protected val sbusXing = new TLCrossingHelper(this)
+  def crossToSystemBus(gen: (=> TLNode) => TLInwardNode) {
+    to("sbus") {
+      (gen(sbusXing.crossTLOut(params.sbusCrossing))
+        :=* TLBuffer(params.sbusBuffer)
+        :=* outwardNode)
+    }
   }
 }

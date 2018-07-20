@@ -5,11 +5,9 @@ package freechips.rocketchip.amba.axi4
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-class AXI4CrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockCrossingType, name: String)
-    extends CrossingHelper(parent, name)
+class AXI4CrossingHelper(parent: LazyModule with LazyScope, name: String) extends CrossingHelper(parent, name)
 {
-  def this(parent: LazyModule with LazyScope, crossingType: ClockCrossingType)
-          (implicit valName: ValName) = this(parent, crossingType, valName.name)
+  def this(parent: LazyModule with LazyScope)(implicit valName: ValName) = this(parent, valName.name)
 
   def crossAXI4SyncInOut(out: Boolean)(params: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node = {
     val axi4_sync_xing = LazyModule(new AXI4Buffer(params))
@@ -33,13 +31,13 @@ class AXI4CrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockC
   def crossAXI4AsyncIn (depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(false)(depth, sync)
   def crossAXI4AsyncOut(depth: Int = 8, sync: Int = 3)(implicit p: Parameters): AXI4Node = crossAXI4AsyncInOut(true )(depth, sync)
 
-  def crossAXI4In(implicit p: Parameters): AXI4Node = crossingType match {
+  def crossAXI4In(crossingType: ClockCrossingType)(implicit p: Parameters): AXI4Node = crossingType match {
     case x: SynchronousCrossing  => crossAXI4SyncIn(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncIn(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
   }
 
-  def crossAXI4Out(implicit p: Parameters): AXI4Node = crossingType match {
+  def crossAXI4Out(crossingType: ClockCrossingType)(implicit p: Parameters): AXI4Node = crossingType match {
     case x: SynchronousCrossing  => crossAXI4SyncOut(x.params)
     case x: AsynchronousCrossing => crossAXI4AsyncOut(x.depth, x.sync)
     case x: RationalCrossing     => throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")

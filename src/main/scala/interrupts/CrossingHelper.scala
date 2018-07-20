@@ -5,11 +5,9 @@ package freechips.rocketchip.interrupts
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-class IntCrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockCrossingType, name: String)
-    extends CrossingHelper(parent, name)
+class IntCrossingHelper(parent: LazyModule with LazyScope, name: String) extends CrossingHelper(parent, name)
 {
-  def this(parent: LazyModule with LazyScope, crossingType: ClockCrossingType)
-          (implicit valName: ValName) = this(parent, crossingType, valName.name)
+  def this(parent: LazyModule with LazyScope)(implicit valName: ValName) = this(parent, valName.name)
 
   def crossIntSyncInOut(out: Boolean)(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = {
     lazy val int_sync_xing_source = LazyModule(new IntSyncCrossingSource(alreadyRegistered))
@@ -48,18 +46,18 @@ class IntCrossingHelper(parent: LazyModule with LazyScope, crossingType: ClockCr
   def crossIntRationalIn (alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(false)(alreadyRegistered)
   def crossIntRationalOut(alreadyRegistered: Boolean = false)(implicit p: Parameters): IntNode = crossIntRationalInOut(true )(alreadyRegistered)
 
-  def crossIntIn(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = crossingType match {
+  def crossIntIn(alreadyRegistered: Boolean, crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossingType match {
     case x: SynchronousCrossing  => crossIntSyncIn(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncIn(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalIn(alreadyRegistered)
   }
 
-  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = crossingType match {
+  def crossIntOut(alreadyRegistered: Boolean, crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossingType match {
     case x: SynchronousCrossing  => crossIntSyncOut(alreadyRegistered)
     case x: AsynchronousCrossing => crossIntAsyncOut(x.sync, alreadyRegistered)
     case x: RationalCrossing     => crossIntRationalOut(alreadyRegistered)
   }
 
-  def crossIntIn (implicit p: Parameters): IntNode = crossIntIn (false)
-  def crossIntOut(implicit p: Parameters): IntNode = crossIntOut(false)
+  def crossIntIn (crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossIntIn (false, crossingType)
+  def crossIntOut(crossingType: ClockCrossingType)(implicit p: Parameters): IntNode = crossIntOut(false, crossingType)
 }

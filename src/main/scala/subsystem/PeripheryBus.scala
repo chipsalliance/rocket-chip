@@ -24,14 +24,13 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     with CanAttachTLSlaves
     with HasTLXbarPhy {
 
-  val sbusXing = new TLCrossingHelper(this, params.sbusCrossingType)
-
-  def fromSystemBus(gen: => TLOutwardNode) {
+  protected val sbusXing = new TLCrossingHelper(this)
+  def crossFromSystemBus(gen: (=> TLNode) => TLOutwardNode) {
     from("sbus") {
       (inwardNode
         :*= TLBuffer(params.bufferAtomics)
         :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics)
-        :*= gen)
+        :*= gen(sbusXing.crossTLIn(params.sbusCrossingType)))
     }
   }
 
