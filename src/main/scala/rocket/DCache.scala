@@ -651,13 +651,17 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.resp.bits <> s2_req
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false
-  io.cpu.ordered := !(s1_valid || s2_valid || cached_grant_wait || uncachedInFlight.asUInt.orR)
+
+  // report whether there are any outstanding accesses.  disregard any
+  // slave-port accesses, since they don't affect local memory ordering.
+  val s1_isSlavePortAccess = usingDataScratchpad && s1_req.phys
+  val s2_isSlavePortAccess = usingDataScratchpad && s2_req.phys
+  io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
   val s1_xcpt = tlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
 
-  val s2_isSlavePortAccess = s2_req.phys
   if (usingDataScratchpad) {
     require(!usingVM) // therefore, req.phys means this is a slave-port access
     when (s2_isSlavePortAccess) {
