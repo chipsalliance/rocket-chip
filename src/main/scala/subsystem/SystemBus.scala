@@ -43,7 +43,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
 
   def busView = master_splitter.node.edges.in.head
 
-  val toPeripheryBus: (=> TLNode) => TLOutwardNode =
+  val toPeripheryBus: (=> TLInwardNode) => NoHandle =
     gen => to("pbus") {
       (gen
         :*= TLFIFOFixer(TLFIFOFixer.all)
@@ -52,7 +52,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
         :*= outwardNode)
     }
 
-  val fromFrontBus: (=> TLNode) => TLInwardNode =
+  val fromFrontBus: (=> TLOutwardNode) => NoHandle =
     gen => from("front_bus") { master_splitter.node :=* gen }
 
   def toMemoryBus(gen: => TLInwardNode) {
@@ -68,7 +68,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
 
   def fromTile
       (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
-      (gen: => TLNode): TLInwardNode = {
+      (gen: => TLOutwardNode): NoHandle = {
     from("tile" named name) {
       master_splitter.node :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allUncacheable) :=* gen
     }

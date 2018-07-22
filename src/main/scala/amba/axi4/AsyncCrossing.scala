@@ -93,7 +93,7 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
 
   model.node := fuzz.node
   toaxi.node := model.node
-  ram.node := island.crossAXI4In := toaxi.node
+  island.crossAXI4In(ram.node) := toaxi.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

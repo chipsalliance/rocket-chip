@@ -10,30 +10,47 @@ import freechips.rocketchip.interrupts._
 
 
 @deprecated("Only use this trait if you are confident you island will only ever be crossed to a single clock", "rocket-chip 1.3")
-trait HasCrossing extends CrossingToOnlyOneClock { this: LazyModule => }
+trait HasCrossing extends CrossesToOnlyOneClockDomain { this: LazyModule => }
 
 /** Given a constant crossing type, define a bunch of helper methods for
   * crossing to all the procotols.
   * Note: only use this if you don't care that all signals of a given protocol
-  *       type will have the same name!
+  *       type will have the same name prefixes (e.g. "tl_in_xing_*").
   */
-trait CrossingToOnlyOneClock extends LazyScope { this: LazyModule =>
+trait CrossesToOnlyOneClockDomain extends HasClockDomainCrossing { this: LazyModule =>
 
   def crossing: ClockCrossingType
 
-  val tlXing = new TLCrossingHelper(this)
-  val axi4Xing = new AXI4CrossingHelper(this)
-  val intXing = new IntCrossingHelper(this)
+  def crossTLIn(n: TLInwardNode)(implicit p: Parameters): TLInwardNode = {
+    val tlInXing = this.crossIn(n)
+    tlInXing(crossing)
+  }
+  
+  def crossTLOut(n: TLOutwardNode)(implicit p: Parameters): TLOutwardNode = {
+    val tlOutXing = this.crossOut(n)
+    tlOutXing(crossing)
+  }
 
-  def crossTLIn   (implicit p: Parameters): TLNode   = tlXing.crossIn(crossing)
-  def crossTLOut  (implicit p: Parameters): TLNode   = tlXing.crossOut(crossing)
-  def crossAXI4In (implicit p: Parameters): AXI4Node = axi4Xing.crossIn(crossing)
-  def crossAXI4Out(implicit p: Parameters): AXI4Node = axi4Xing.crossOut(crossing)
-  def crossIntIn  (implicit p: Parameters): IntNode  = intXing.crossIn(crossing)
-  def crossIntOut (implicit p: Parameters): IntNode  = intXing.crossOut(crossing)
-  def crossIntIn (alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = intXing.crossIn (alreadyRegistered, crossing)
-  def crossIntOut(alreadyRegistered: Boolean)(implicit p: Parameters): IntNode = intXing.crossOut(alreadyRegistered, crossing)
+  def crossAXI4In(n: AXI4InwardNode)(implicit p: Parameters): AXI4InwardNode = {
+    val axi4InXing = this.crossIn(n)
+    axi4InXing(crossing)
+  }
+
+  def crossAXI4Out(n: AXI4OutwardNode)(implicit p: Parameters): AXI4OutwardNode = {
+    val axi4OutXing = this.crossOut(n)
+    axi4OutXing(crossing)
+  }
+
+  def crossIntIn(n: IntInwardNode)(implicit p: Parameters): IntInwardNode = {
+    val intInXing = this.crossIn(n)
+    intInXing(crossing)
+  }
+
+  def crossIntOut(n: IntOutwardNode)(implicit p: Parameters): IntOutwardNode = {
+    val intOutXing = this.crossOut(n)
+    intOutXing(crossing)
+  }
 }
 
 /** A convenient way of creating a LazyScope with a particular uniform clock relationship */
-class CrossingWrapper(val crossing: ClockCrossingType)(implicit p: Parameters) extends SimpleLazyModule with CrossingToOnlyOneClock
+class CrossingWrapper(val crossing: ClockCrossingType)(implicit p: Parameters) extends SimpleLazyModule with CrossesToOnlyOneClockDomain

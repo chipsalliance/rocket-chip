@@ -21,16 +21,18 @@ case object PeripheryBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")
+    with HasClockDomainCrossing
     with CanAttachTLSlaves
     with HasTLXbarPhy {
 
-  protected val sbusXing = new TLCrossingHelper(this)
-  def crossFromSystemBus(gen: (=> TLNode) => TLOutwardNode) {
+  def crossFromSystemBus(gen: (=> TLInwardNode) => NoHandle) {
     from("sbus") {
-      (inwardNode
-        :*= TLBuffer(params.bufferAtomics)
-        :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics)
-        :*= gen(sbusXing.crossIn(params.sbusCrossingType)))
+      gen(this.crossIn
+        (inwardNode
+          :*= TLBuffer(params.bufferAtomics)
+          :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics))
+        (ValName("from_sbus"))
+        (params.sbusCrossingType))
     }
   }
 
@@ -45,7 +47,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
 
   def toTile
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => TLNode): TLOutwardNode = {
+      (gen: => TLInwardNode): NoHandle = {
     to("tile" named name) { FlipRendering { implicit p =>
       gen :*= TLBuffer(buffer) :*= outwardNode
     }}

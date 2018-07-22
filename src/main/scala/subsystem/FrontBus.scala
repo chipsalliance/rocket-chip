@@ -18,6 +18,7 @@ case object FrontBusKey extends Field[FrontBusParams]
 
 class FrontBus(params: FrontBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "front_bus")
+    with HasClockDomainCrossing
     with CanAttachTLMasters
     with HasTLXbarPhy {
 
@@ -25,12 +26,9 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters)
     from("coherent_subsystem") { inwardNode :=* gen }
   }
 
-  protected val sbusXing = new TLCrossingHelper(this)
-  def crossToSystemBus(gen: (=> TLNode) => TLInwardNode) {
+  def crossToSystemBus(gen: (=> TLOutwardNode) => NoHandle) {
     to("sbus") {
-      (gen(sbusXing.crossOut(params.sbusCrossing))
-        :=* TLBuffer(params.sbusBuffer)
-        :=* outwardNode)
+      gen(this.crossOut(TLBuffer(params.sbusBuffer) :=* outwardNode)(ValName("to_sbus"))(params.sbusCrossing))
     }
   }
 }

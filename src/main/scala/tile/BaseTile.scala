@@ -131,20 +131,12 @@ trait HasTileParameters {
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
                        (implicit p: Parameters)
-    extends LazyModule with LazyScope with HasTileParameters {
+    extends LazyModule with CrossesToOnlyOneClockDomain with HasTileParameters {
   def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
   def intInwardNode: IntInwardNode
   def intOutwardNode: IntOutwardNode
-
-  protected val tlMasterXing = new TLCrossingHelper(this)
-  protected val tlSlaveXing = new TLCrossingHelper(this)
-  protected val intXing = new IntCrossingHelper(this)
-  def crossTLOut (implicit p: Parameters): TLNode  = tlMasterXing.crossOut(crossing)
-  def crossTLIn  (implicit p: Parameters): TLNode  = tlSlaveXing.crossIn(crossing)
-  def crossIntIn (implicit p: Parameters): IntNode = intXing.crossIn(crossing)
-  def crossIntOut(implicit p: Parameters): IntNode = intXing.crossOut(crossing)
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)
@@ -180,8 +172,26 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
 
   // The boundary buffering needed to cut feed-through paths is
   // microarchitecture specific, so these may need to be overridden
-  def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
-  def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  protected def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def crossMasterPort(): TLOutwardNode = {
+    val tlMasterXing = this.crossOut(crossing match {
+      case RationalCrossing(_) => makeMasterBoundaryBuffers :=* masterNode
+      case _ => masterNode
+    })
+    tlMasterXing(crossing)
+  }
+
+  protected def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def crossSlavePort(): TLInwardNode = {
+    val tlSlaveXing = this.crossIn(crossing match {
+      case RationalCrossing(_) => slaveNode :*= makeSlaveBoundaryBuffers
+      case _ => slaveNode
+    })
+    tlSlaveXing(crossing)
+  }
+
+  def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
+  def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
 }
 
 abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
