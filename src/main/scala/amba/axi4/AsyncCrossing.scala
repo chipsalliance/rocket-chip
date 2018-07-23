@@ -6,8 +6,8 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
-import freechips.rocketchip.subsystem.{CrossingWrapper, AsynchronousCrossing}
 
 class AXI4AsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
@@ -93,7 +93,7 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
 
   model.node := fuzz.node
   toaxi.node := model.node
-  ram.node := island.crossAXI4In := toaxi.node
+  island.crossAXI4In(ram.node) := toaxi.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

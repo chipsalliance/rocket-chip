@@ -36,11 +36,11 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
 
   // The sbus masters the pbus; here we convert TL-UH -> TL-UL
-  pbus.fromSystemBus { sbus.toPeripheryBus { pbus.sbusXing.crossTLIn } }
+  pbus.crossFromSystemBus { sbus.toPeripheryBus }
 
   // The fbus masters the sbus; both are TL-UH or TL-C
   FlipRendering { implicit p =>
-    fbus.toSystemBus { sbus.fromFrontBus { fbus.sbusXing.crossTLOut } }
+    fbus.crossToSystemBus { sbus.fromFrontBus }
   }
 
   // The sbus masters the mbus; here we convert TL-C -> TL-UH

@@ -41,36 +41,21 @@ case class MemoryBusParams(beatBytes: Int, blockBytes: Int) extends HasTLBusPara
 case object MemoryBusKey extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
-class MemoryBus(params: MemoryBusParams)(implicit p: Parameters) extends TLBusWrapper(params, "memory_bus")(p)
+class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
+    extends TLBusWrapper(params, "memory_bus")(p)
+    with CanAttachTLSlaves
     with HasTLXbarPhy {
 
   def fromCoherenceManager
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => TLNode): TLInwardNode = {
-    from("coherence_manager" named name) {
-      inwardNode := TLBuffer(buffer) := gen
-    }
+    from("coherence_manager" named name) { inwardNode := TLBuffer(buffer) := gen }
   }
 
   def toDRAMController[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("memory_controller" named name) { gen := bufferTo(buffer) }
+    to("memory_controller" named name) { gen := TLBuffer(buffer) := outwardNode }
   }
-
-  def toVariableWidthSlave[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= fragmentTo(buffer) }
-  }
-
-  def toFixedWidthSlave[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
-  }
-
 }
