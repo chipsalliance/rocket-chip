@@ -275,7 +275,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && can_acquire_before_release
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   dontTouch(s2_valid_cached_miss)
-  val s2_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
+  val s2_want_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
+  val s2_cannot_victimize = !s2_flush_valid && io.cpu.s2_kill
+  val s2_victimize = s2_want_victimize && !s2_cannot_victimize
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
   val s2_victim_way = Mux(s2_hit_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
   val s2_victim_tag = Mux(s2_valid_data_error, s2_req.addr >> untagBits, RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
@@ -297,8 +299,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s2_meta_error_uncorrectable) { metaArb.io.in(1).bits.data.coh := ClientMetadata.onReset }
 
   // tag updates on hit/miss
-  metaArb.io.in(2).valid := (s2_valid_hit && s2_update_meta) || (s2_victimize && !s2_victim_dirty)
-  metaArb.io.in(2).bits.write := true
+  metaArb.io.in(2).valid := (s2_valid_hit && s2_update_meta) || (s2_want_victimize && !s2_victim_dirty)
+  metaArb.io.in(2).bits.write := !s2_cannot_victimize
   metaArb.io.in(2).bits.way_en := s2_victim_way
   metaArb.io.in(2).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_req.addr(idxMSB, 0))
   metaArb.io.in(2).bits.data.coh := Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)
