@@ -11,6 +11,8 @@ import freechips.rocketchip.subsystem.{BaseSubsystemConfig}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.NAMESPACE._
+import freechips.rocketchip.system._
 
 case object TestDurationMultiplier extends Field[Int]
 
@@ -101,8 +103,22 @@ class WithECCTests extends Config((site, here, up) => {
       Module(new ECCTest(8)) ) }
 })
 
+class WithNAMESPACEUnitTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    implicit val p = q
+    val timeout = 50000 * site(TestDurationMultiplier)
+    Seq(
+      Module(new NAMESPACETest(timeout=timeout))
+    ) }
+} )
+
+
+
 class AMBAUnitTestConfig extends Config(new WithAMBAUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class ECCUnitTestConfig extends Config(new WithECCTests)
+
+class NAMESPACEUnitTestConfig extends Config (new WithNAMESPACEUnitTests ++ new WithTestDuration(10) ++ new RoccExampleConfig)
+
