@@ -37,6 +37,10 @@ case class MulDivParams(
 )
 
 class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
+  private def minDivLatency = (cfg.divUnroll > 0).option(if (cfg.divEarlyOut) 3 else 1 + w/cfg.divUnroll)
+  private def minMulLatency = (cfg.mulUnroll > 0).option(if (cfg.mulEarlyOut) 2 else w/cfg.mulUnroll)
+  def minLatency: Int = (minDivLatency ++ minMulLatency).min
+
   val io = new MultiplierIO(width, log2Up(nXpr))
   val w = io.req.bits.in1.getWidth
   val mulw = if (cfg.mulUnroll == 0) w else (w + cfg.mulUnroll - 1) / cfg.mulUnroll * cfg.mulUnroll
