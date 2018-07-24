@@ -18,7 +18,7 @@ case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
 case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
 
 case class RocketCrossingParams(
-    crossingType: SubsystemClockCrossing = SynchronousCrossing(),
+    crossingType: ClockCrossingType = SynchronousCrossing(),
     master: TileMasterPortParams = TileMasterPortParams(),
     slave: TileSlavePortParams = TileSlavePortParams()) {
   def knownRatio: Option[Int] = crossingType match {
