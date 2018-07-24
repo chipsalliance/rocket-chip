@@ -46,7 +46,6 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     when (dmem_req_valid && io.dmem.req.ready) { state := s_wait1 }
 
     val acq = Reg(tl_in.a.bits)
-    when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data_raw }
     when (tl_in.a.fire()) { acq := tl_in.a.bits }
 
     def formCacheReq(a: TLBundleA) = {
@@ -93,7 +92,7 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
       edge.AccessAck(acq),
       edge.AccessAck(acq, UInt(0)))
-    tl_in.d.bits.data := Mux(state === s_grant, acq.data, io.dmem.resp.bits.data_raw)
+    tl_in.d.bits.data := io.dmem.resp.bits.data_raw.holdUnless(state === s_wait2)
 
     // Tie off unused channels
     tl_in.b.valid := Bool(false)
