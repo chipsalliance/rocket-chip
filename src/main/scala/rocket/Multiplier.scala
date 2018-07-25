@@ -33,7 +33,8 @@ case class MulDivParams(
   mulUnroll: Int = 1,
   divUnroll: Int = 1,
   mulEarlyOut: Boolean = false,
-  divEarlyOut: Boolean = false
+  divEarlyOut: Boolean = false,
+  divEarlyOutGranularity: Int = 1
 )
 
 class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
@@ -144,16 +145,15 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
 
     val divby0 = count === 0 && !subtractor(w)
     if (cfg.divEarlyOut) {
-      val divisorMSB = Log2(divisor(w-1,0), w)
-      val dividendMSB = Log2(remainder(w-1,0), w)
-      val eOutPos = UInt(w-1) + divisorMSB - dividendMSB
-      val eOutZero = divisorMSB > dividendMSB
-      val eOut = count === 0 && !divby0 && (eOutPos >= cfg.divUnroll || eOutZero)
+      val align = 1 << log2Floor(cfg.divUnroll max cfg.divEarlyOutGranularity)
+      val alignMask = ~UInt(align-1, log2Ceil(w))
+      val divisorMSB = Log2(divisor(w-1,0), w) & alignMask
+      val dividendMSB = Log2(remainder(w-1,0), w) | ~alignMask
+      val eOutPos = ~(dividendMSB - divisorMSB)
+      val eOut = count === 0 && !divby0 && eOutPos >= align
       when (eOut) {
-        val inc = Mux(eOutZero, UInt(w-1), eOutPos) >> log2Floor(cfg.divUnroll)
-        val shift = inc << log2Floor(cfg.divUnroll)
-        remainder := remainder(w-1,0) << shift
-        count := inc
+        remainder := remainder(w-1,0) << eOutPos
+        count := eOutPos >> log2Floor(cfg.divUnroll)
       }
     }
     when (divby0 && !isHi) { neg_out := false }
