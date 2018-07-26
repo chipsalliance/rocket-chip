@@ -63,6 +63,11 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       val a_sel    = a.valid && RegNext(!in.d.valid || in.d.ready)
       val a_write  = edgeIn.hasData(a.bits)
 
+      val enable_d = a_sel && !a_enable
+      val d_write  = RegEnable(a_write,       enable_d)
+      val d_source = RegEnable(a.bits.source, enable_d)
+      val d_size   = RegEnable(a.bits.size,   enable_d)
+
       when (a_sel)    { a_enable := Bool(true) }
       when (d.fire()) { a_enable := Bool(false) }
 
@@ -78,10 +83,14 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       d.valid := a_enable && out.pready
       assert (!d.valid || d.ready)
 
-      d.bits := edgeIn.AccessAck(a.bits, out.prdata)
-      d.bits.opcode  := Mux(a_write, TLMessages.AccessAck, TLMessages.AccessAckData)
-      d.bits.denied  :=  a_write && out.pslverr
-      d.bits.corrupt := !a_write && out.pslverr
+      d.bits.opcode  := Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData)
+      d.bits.param   := UInt(0)
+      d.bits.size    := d_size
+      d.bits.source  := d_source
+      d.bits.sink    := UInt(0)
+      d.bits.denied  :=  d_write && out.pslverr
+      d.bits.data    := out.prdata
+      d.bits.corrupt := !d_write && out.pslverr
     }
   }
 }
