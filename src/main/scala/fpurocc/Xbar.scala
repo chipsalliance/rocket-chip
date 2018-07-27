@@ -3,6 +3,7 @@
 package freechips.rocketchip.NAMESPACE
 
 import chisel3._
+import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -14,6 +15,7 @@ class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
 	val node = NAMESPACENexusNode(
 		sinkFn  = { seq => seq(0) }
 	)
+	//val dummy = node.edges.in.size
 	lazy val module = new LazyModuleImp(this) {
 		require (node.edges.in.size >= 0, "NAMESPACEFanout requires at least one source")
 		if (node.edges.in.size >= 1) {
@@ -26,9 +28,13 @@ class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
 			(inputs.map(_.cp_resp) zip fpArb.io.in_resp) foreach {
 				case (out, in) => out <> in
 			}
+	
+			//dontTouch(out)
+			//dontTouch(inputs.head)
 			fpArb.io.out_resp <> out.cp_resp
+
 			out.cp_req <> fpArb.io.out_req
-			
+
 		}
 		else {
 			node.out(0)._1.cp_req.valid := false.B

@@ -670,7 +670,7 @@ class FPU(val cfg: FPUParams)(implicit p: Parameters)
 	extends FPUModule()(p)
 	with HasFPUImplementation {
 		val internal_cfg = NAMESPACESinkParameters(fLen, cfg.divSqrt)
-		def getRoccBundle : NAMESPACEBundle = IO(new NAMESPACEBundle(internal_cfg))
+		def getRoccBundle : NAMESPACEBundle = IO(Flipped(new NAMESPACEBundle(internal_cfg)))
 	}
 
 trait HasFPUImplementation extends HasFPUParameters
