@@ -165,3 +165,21 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 }
 
 // !!! eliminate third trait
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
+trait HasTLControlRegMap { this: RegisterRouter[_] =>
+  protected val controlNode = TLRegisterNode(
+    address = address,
+    device = device,
+    deviceKey = "reg/control",
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Externally, this helper should be used to connect the register control port to a bus
+  val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+}
