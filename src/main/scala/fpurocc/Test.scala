@@ -32,7 +32,7 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 		val count_compare = Wire(Bool())
 		val req = outer.NAMESPACENode.get.out.head._1.cp_req
 		val resp = outer.NAMESPACENode.get.out.head._1.cp_resp
-		val saved_result = RegNext(resp..bits.data, 123.U)
+		val saved_result = RegNext(resp.bits.data, 123.U)
 		//val saved_result = RegNext(resp.data, 123.U)
 		//println(s"resp elements are ${resp.elements}")
 		//println(s"resp is $resp")
