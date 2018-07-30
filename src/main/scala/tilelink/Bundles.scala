@@ -141,14 +141,14 @@ final class TLBundleA(params: TLBundleParameters)
   def opcodePrint()
   {
     switch (opcode) {
-      is(0.U) {printf("OP: PutFullData")} 
-      is(1.U) {printf("OP: PutPartialData")}
-      is(2.U) {printf("OP: ArithmeticData")} 
-      is(3.U) {printf("OP: LogicalData")} 
-      is(4.U) {printf("OP: Get")}
-      is(5.U) {printf("OP: Hint")}
-      is(6.U) {printf("OP: AcquireBlock")}
-      is(7.U) {printf("OP: AcquirePerm")}
+      is(0.U) {printf("OP: PutFullData    ")} 
+      is(1.U) {printf("OP: PutPartialData ")}
+      is(2.U) {printf("OP: ArithmeticData ")} 
+      is(3.U) {printf("OP: LogicalData    ")} 
+      is(4.U) {printf("OP: Get            ")}
+      is(5.U) {printf("OP: Hint           ")}
+      is(6.U) {printf("OP: AcquireBlock   ")}
+      is(7.U) {printf("OP: AcquirePerm    ")}
     }
   }
   
@@ -157,36 +157,36 @@ final class TLBundleA(params: TLBundleParameters)
     when(opcode === 2.U) 
     {
       switch (param) {
-        is(0.U) {printf(" P: MIN")}
-        is(1.U) {printf(" P: MAX")}
-        is(2.U) {printf(" P: MINU")}
-        is(3.U) {printf(" P: MAXU")}
-        is(4.U) {printf(" P: ADD")}
+        is(0.U) {printf(" P: MIN           ")}
+        is(1.U) {printf(" P: MAX           ")}
+        is(2.U) {printf(" P: MINU          ")}
+        is(3.U) {printf(" P: MAXU          ")}
+        is(4.U) {printf(" P: ADD           ")}
       }
     }
     .elsewhen(opcode === 3.U) 
     {
       switch (param) {
-        is(0.U) {printf(" P: XOR")}
-        is(1.U) {printf(" P: OR")}
-        is(2.U) {printf(" P: AND")}
-        is(3.U) {printf(" P: SWAP")}
+        is(0.U) {printf(" P: XOR            ")}
+        is(1.U) {printf(" P: OR             ")}
+        is(2.U) {printf(" P: AND            ")}
+        is(3.U) {printf(" P: SWAP           ")}
       }
     }
     .elsewhen(opcode === 5.U) 
     {
       switch (param) {
-        is(0.U) {printf(" P: PrefetchRead")}
-        is(1.U) {printf(" P: PrefetchWrite")}
+        is(0.U) {printf(" P: PrefetchRead   ")}
+        is(1.U) {printf(" P: PrefetchWrite  ")}
       }
     }
     .elsewhen(opcode === 6.U) 
     {
-      printf(" P: Permission Transfer: Grow")
+      printf(" P: Permission Transfer: Grow ")
     }
     .otherwise
     {
-      printf(" P: Reserved")
+      printf(" P: Reserved                  ")
     }
   }
 }
@@ -208,13 +208,13 @@ final class TLBundleB(params: TLBundleParameters)
   def opcodePrint()
   {
     switch (opcode) {
-      is(0.U) {printf("OP: PutFullData")} 
-      is(1.U) {printf("OP: PutPartialData")}
-      is(2.U) {printf("OP: ArithmeticData")} 
-      is(3.U) {printf("OP: LogicalData")} 
-      is(4.U) {printf("OP: Get")}
-      is(5.U) {printf("OP: Hint")}
-      is(6.U) {printf("OP: Probe")}
+      is(0.U) {printf("OP: PutFullData      ")} 
+      is(1.U) {printf("OP: PutPartialData   ")}
+      is(2.U) {printf("OP: ArithmeticData   ")} 
+      is(3.U) {printf("OP: LogicalData      ")} 
+      is(4.U) {printf("OP: Get              ")}
+      is(5.U) {printf("OP: Hint             ")}
+      is(6.U) {printf("OP: Probe            ")}
     }
   }
 
@@ -222,11 +222,11 @@ final class TLBundleB(params: TLBundleParameters)
   {
     when(opcode === 6.U) 
     {
-      printf(" P: Permission Transfer: Cap")
+      printf(" P: Permission Transfer: Cap  ")
     }
     .otherwise
     {
-      printf(" P: Reserved")
+      printf(" P: Reserved                  ")
     }
   }
 }
@@ -247,24 +247,24 @@ final class TLBundleC(params: TLBundleParameters)
   def opcodePrint()
   {
     switch (opcode) {
-      is(0.U) {printf("OP: AccessAck")} 
-      is(1.U) {printf("OP: AccessAckData")}
-      is(2.U) {printf("OP: HintAck")} 
-      is(4.U) {printf("OP: ProbeAck")}
-      is(5.U) {printf("OP: ProbeAckData")}
-      is(6.U) {printf("OP: Release")}
-      is(7.U) {printf("OP: ReleaseData")}
+      is(0.U) {printf("OP: AccessAck        ")} 
+      is(1.U) {printf("OP: AccessAckData    ")}
+      is(2.U) {printf("OP: HintAck          ")} 
+      is(4.U) {printf("OP: ProbeAck         ")}
+      is(5.U) {printf("OP: ProbeAckData     ")}
+      is(6.U) {printf("OP: Release          ")}
+      is(7.U) {printf("OP: ReleaseData      ")}
     }
   }
   def paramPrint()
   {
     when((opcode === 4.U) && (opcode === 5.U))
     {
-      printf(" P: Permission Transfer: Shrink or Report")
+      printf(" P: Permission Transfer:Report")
     }
     .otherwise
     {
-      printf(" P: Reserved")
+      printf(" P: Reserved                  ")
     }
   }
 }
@@ -285,23 +285,23 @@ final class TLBundleD(params: TLBundleParameters)
   val corrupt = Bool() // only applies to *Data messages
   def opcodePrint(){
     switch (opcode) {
-      is(0.U) {printf("OP: AccessAck")} 
-      is(1.U) {printf("OP: AccessAckData")}
-      is(2.U) {printf("OP: HintAck")} 
-      is(4.U) {printf("OP: Grant")}
-      is(5.U) {printf("OP: GrantData")}
-      is(6.U) {printf("OP: ReleaseAck")}
+      is(0.U) {printf("OP: AccessAck        ")} 
+      is(1.U) {printf("OP: AccessAckData    ")}
+      is(2.U) {printf("OP: HintAck          ")} 
+      is(4.U) {printf("OP: Grant            ")}
+      is(5.U) {printf("OP: GrantData        ")}
+      is(6.U) {printf("OP: ReleaseAck       ")}
     }
   }
   def paramPrint()
   {
     when(opcode === 4.U) 
     {
-      printf(" P: Permission Transfer: Cap")
+      printf(" P: Permission Transfer: Cap  ")
     }
     .otherwise
     {
-      printf(" P: Reserved")
+      printf(" P: Reserved                  ")
     }
   }
 }
@@ -312,11 +312,11 @@ final class TLBundleE(params: TLBundleParameters)
   val channelName = "'E' channel"
   val sink = UInt(width = params.sinkBits) // to
   def opcodePrint(){
-    printf("OP: Sink")
+    printf("OP: Sink                        ")
   }
   def paramPrint()
   {
-    printf(" P: Reserved")
+    printf(" P: Reserved                    ")
   }
 }
 
