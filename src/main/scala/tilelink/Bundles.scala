@@ -141,14 +141,14 @@ final class TLBundleA(params: TLBundleParameters)
   def opcodePrint()
   {
     switch (opcode) {
-      is(0.U) {printf("OP: PutFullData    ")} 
-      is(1.U) {printf("OP: PutPartialData ")}
-      is(2.U) {printf("OP: ArithmeticData ")} 
-      is(3.U) {printf("OP: LogicalData    ")} 
-      is(4.U) {printf("OP: Get            ")}
-      is(5.U) {printf("OP: Hint           ")}
-      is(6.U) {printf("OP: AcquireBlock   ")}
-      is(7.U) {printf("OP: AcquirePerm    ")}
+      is(0.U) {printf("OP: PutFullData      ")} 
+      is(1.U) {printf("OP: PutPartialData   ")}
+      is(2.U) {printf("OP: ArithmeticData   ")} 
+      is(3.U) {printf("OP: LogicalData      ")} 
+      is(4.U) {printf("OP: Get              ")}
+      is(5.U) {printf("OP: Hint             ")}
+      is(6.U) {printf("OP: AcquireBlock     ")}
+      is(7.U) {printf("OP: AcquirePerm      ")}
     }
   }
   
@@ -157,11 +157,11 @@ final class TLBundleA(params: TLBundleParameters)
     when(opcode === 2.U) 
     {
       switch (param) {
-        is(0.U) {printf(" P: MIN           ")}
-        is(1.U) {printf(" P: MAX           ")}
-        is(2.U) {printf(" P: MINU          ")}
-        is(3.U) {printf(" P: MAXU          ")}
-        is(4.U) {printf(" P: ADD           ")}
+        is(0.U) {printf(" P: MIN            ")}
+        is(1.U) {printf(" P: MAX            ")}
+        is(2.U) {printf(" P: MINU           ")}
+        is(3.U) {printf(" P: MAXU           ")}
+        is(4.U) {printf(" P: ADD            ")}
       }
     }
     .elsewhen(opcode === 3.U) 
