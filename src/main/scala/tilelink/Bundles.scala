@@ -116,8 +116,6 @@ object TLHints
 
 sealed trait TLChannel extends TLBundleBase {
   val channelName: String
-  def opcodePrint()
-  def paramPrint()
 }
 
 sealed trait TLDataChannel extends TLChannel
@@ -138,57 +136,44 @@ final class TLBundleA(params: TLBundleParameters)
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
 
-  def opcodePrint()
-  {
-    switch (opcode) {
-      is(0.U) {printf("OP: PutFullData      ")} 
-      is(1.U) {printf("OP: PutPartialData   ")}
-      is(2.U) {printf("OP: ArithmeticData   ")} 
-      is(3.U) {printf("OP: LogicalData      ")} 
-      is(4.U) {printf("OP: Get              ")}
-      is(5.U) {printf("OP: Hint             ")}
-      is(6.U) {printf("OP: AcquireBlock     ")}
-      is(7.U) {printf("OP: AcquirePerm      ")}
-    }
-  }
-  
-  def paramPrint()
-  {
-    when(opcode === 2.U) 
-    {
-      switch (param) {
-        is(0.U) {printf(" P: MIN            ")}
-        is(1.U) {printf(" P: MAX            ")}
-        is(2.U) {printf(" P: MINU           ")}
-        is(3.U) {printf(" P: MAXU           ")}
-        is(4.U) {printf(" P: ADD            ")}
-      }
-    }
-    .elsewhen(opcode === 3.U) 
-    {
-      switch (param) {
-        is(0.U) {printf(" P: XOR            ")}
-        is(1.U) {printf(" P: OR             ")}
-        is(2.U) {printf(" P: AND            ")}
-        is(3.U) {printf(" P: SWAP           ")}
-      }
-    }
-    .elsewhen(opcode === 5.U) 
-    {
-      switch (param) {
-        is(0.U) {printf(" P: PrefetchRead   ")}
-        is(1.U) {printf(" P: PrefetchWrite  ")}
-      }
-    }
-    .elsewhen(opcode === 6.U) 
-    {
-      printf(" P: Permission Transfer: Grow ")
-    }
-    .otherwise
-    {
-      printf(" P: Reserved                  ")
-    }
-  }
+  val OpcodeMsg:Map[Int, String] = Map(0 -> "PutFullData    ",
+                                       1 -> "PutPartialData ",
+                                       2 -> "ArithmeticData ",
+                                       3 -> "LogicalData    ",
+                                       4 -> "Get            ", 
+                                       5 -> "Hint           ",
+                                       6 -> "AcquireBlock   ",
+                                       7 -> "AcquirePerm    ")
+
+  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "MIN                       ",
+                                         1.U -> "MAX                       ",
+                                         2.U -> "MINU                      ",
+                                         3.U -> "MAXU                      ",
+                                         4.U -> "ADD                       ")
+
+  val ParamMsg3:Map[UInt, String] = Map( 0.U -> "XOR                       ",
+                                         1.U -> "OR                        ",
+                                         2.U -> "AND                       ",
+                                         3.U -> "SWAP                      ")
+
+  val ParamMsg4:Map[UInt, String] = Map( 0.U -> "PrefetchRead              ",
+                                         1.U -> "PrefetchWrite             ")
+
+  val ParamMsg5:Map[UInt, String] = Map( 0.U -> "Permission Transfer: Grow ",
+                                         1.U -> "Permission Transfer: Grow ",
+                                         2.U -> "Permission Transfer: Grow ", 
+                                         3.U -> "Permission Transfer: Grow ")
+
+  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
+
+  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
+                                                   1.U -> ParamMsg1, 
+                                                   2.U -> ParamMsg2, 
+                                                   3.U -> ParamMsg3,  
+                                                   4.U -> ParamMsg1,
+                                                   5.U -> ParamMsg4, 
+                                                   6.U -> ParamMsg5,  
+                                                   7.U -> ParamMsg1)
 }
 final class TLBundleB(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
@@ -205,30 +190,29 @@ final class TLBundleB(params: TLBundleParameters)
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
 
-  def opcodePrint()
-  {
-    switch (opcode) {
-      is(0.U) {printf("OP: PutFullData      ")} 
-      is(1.U) {printf("OP: PutPartialData   ")}
-      is(2.U) {printf("OP: ArithmeticData   ")} 
-      is(3.U) {printf("OP: LogicalData      ")} 
-      is(4.U) {printf("OP: Get              ")}
-      is(5.U) {printf("OP: Hint             ")}
-      is(6.U) {printf("OP: Probe            ")}
-    }
-  }
+  val OpcodeMsg:Map[Int, String] = Map(0 -> "PutFullData    ",
+                                       1 -> "PutPartialData ",
+                                       2 -> "ArithmeticData ",
+                                       3 -> "LogicalData    ",
+                                       4 -> "Get            ",
+                                       5 -> "Hint           ",
+                                       6 -> "Probe          ")
 
-  def paramPrint()
-  {
-    when(opcode === 6.U) 
-    {
-      printf(" P: Permission Transfer: Cap  ")
-    }
-    .otherwise
-    {
-      printf(" P: Reserved                  ")
-    }
-  }
+  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "Permission Transfer: Cap  ",
+                                         1.U -> "Permission Transfer: Cap  ",
+                                         2.U -> "Permission Transfer: Cap  ")
+    
+  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
+
+  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
+                                                   1.U -> ParamMsg1, 
+                                                   2.U -> ParamMsg1, 
+                                                   3.U -> ParamMsg1,  
+                                                   4.U -> ParamMsg1,
+                                                   5.U -> ParamMsg1, 
+                                                   6.U -> ParamMsg2,  
+                                                   7.U -> ParamMsg1)
+
 }
 
 final class TLBundleC(params: TLBundleParameters)
@@ -244,29 +228,32 @@ final class TLBundleC(params: TLBundleParameters)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
-  def opcodePrint()
-  {
-    switch (opcode) {
-      is(0.U) {printf("OP: AccessAck        ")} 
-      is(1.U) {printf("OP: AccessAckData    ")}
-      is(2.U) {printf("OP: HintAck          ")} 
-      is(4.U) {printf("OP: ProbeAck         ")}
-      is(5.U) {printf("OP: ProbeAckData     ")}
-      is(6.U) {printf("OP: Release          ")}
-      is(7.U) {printf("OP: ReleaseData      ")}
-    }
-  }
-  def paramPrint()
-  {
-    when((opcode === 4.U) && (opcode === 5.U))
-    {
-      printf(" P: Permission Transfer:Report")
-    }
-    .otherwise
-    {
-      printf(" P: Reserved                  ")
-    }
-  }
+  val OpcodeMsg:Map[Int, String] = Map(0 -> "AccessAck      ", 
+                                       1 -> "AccessAckData  ",
+                                       3 -> "HintAck        ",
+                                       4 -> "ProbeAck       ",
+                                       5 -> "ProbeAckData   ",
+                                       6 -> "Release        ",
+                                       7 -> "ReleaseData    ")
+
+  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "Permission Transfer:Report",
+                                         1.U -> "Permission Transfer:Report",
+                                         2.U -> "Permission Transfer:Report",
+                                         3.U -> "Permission Transfer:Report",
+                                         4.U -> "Permission Transfer:Report",
+                                         5.U -> "Permission Transfer:Report")
+ 
+  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
+
+  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
+                                                   1.U -> ParamMsg1, 
+                                                   2.U -> ParamMsg1, 
+                                                   3.U -> ParamMsg1,  
+                                                   4.U -> ParamMsg2,
+                                                   5.U -> ParamMsg2, 
+                                                   6.U -> ParamMsg1,  
+                                                   7.U -> ParamMsg1)
+
 }
 
 final class TLBundleD(params: TLBundleParameters)
@@ -283,41 +270,36 @@ final class TLBundleD(params: TLBundleParameters)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
-  def opcodePrint(){
-    switch (opcode) {
-      is(0.U) {printf("OP: AccessAck        ")} 
-      is(1.U) {printf("OP: AccessAckData    ")}
-      is(2.U) {printf("OP: HintAck          ")} 
-      is(4.U) {printf("OP: Grant            ")}
-      is(5.U) {printf("OP: GrantData        ")}
-      is(6.U) {printf("OP: ReleaseAck       ")}
-    }
-  }
-  def paramPrint()
-  {
-    when(opcode === 4.U) 
-    {
-      printf(" P: Permission Transfer: Cap  ")
-    }
-    .otherwise
-    {
-      printf(" P: Reserved                  ")
-    }
-  }
+
+  val OpcodeMsg:Map[Int, String]  = Map(0 -> "AccessAck     ", 
+                                        1 -> "AccessAckData ", 
+                                        2 -> "HintAck       ", 
+                                        4 -> "Grant         ", 
+                                        5 -> "GrantData     ",
+                                        6 -> "ReleaseAck    ")
+
+  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "Permission Transfer: Cap  ",
+                                         1.U -> "Permission Transfer: Cap  ",
+                                         2.U -> "Permission Transfer: Cap  ")
+    
+  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
+
+  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
+                                                   1.U -> ParamMsg1, 
+                                                   2.U -> ParamMsg1, 
+                                                   3.U -> ParamMsg1,  
+                                                   4.U -> ParamMsg2,
+                                                   5.U -> ParamMsg1, 
+                                                   6.U -> ParamMsg1,  
+                                                   7.U -> ParamMsg1)
+
 }
 
 final class TLBundleE(params: TLBundleParameters)
   extends TLBundleBase(params) with TLChannel
 {
   val channelName = "'E' channel"
-  val sink = UInt(width = params.sinkBits) // to
-  def opcodePrint(){
-    printf("OP: Sink                        ")
-  }
-  def paramPrint()
-  {
-    printf(" P: Reserved                    ")
-  }
+  val sink = UInt(width = params.sinkBits) // to  
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
