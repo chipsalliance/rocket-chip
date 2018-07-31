@@ -13,7 +13,8 @@ case class SystemBusParams(
   blockBytes: Int,
   pbusBuffer: BufferParams = BufferParams.none,
   arithmeticAtomics: Boolean = true,
-  bufferAtomics: BufferParams = BufferParams.default) extends HasTLBusParams
+  bufferAtomics: BufferParams = BufferParams.default,
+  policy: TLArbiter.Policy = TLArbiter.roundRobin) extends HasTLBusParams
 
 case object SystemBusKey extends Field[SystemBusParams]
 
