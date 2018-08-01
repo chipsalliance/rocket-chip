@@ -31,11 +31,12 @@ class ClockDivider3 extends BlackBox with HasBlackBoxResource {
   setResource("/vsrc/ClockDivider3.v")
 }
 
-/** Divide the clock by power of 2 times.
- *  @param pow2 divides the clock 2 ^ pow2 times */
-class Pow2ClockDivider(pow2: Int) extends Module {
+/** Divide an input clock by power of 2 times.
+ *  @param pow2 divides the input clock 2 ^ pow2 times */
+class Pow2ClockDividerExplicitInput(pow2: Int) extends Module {
   val io = new Bundle {
     val clock_out = Clock(OUTPUT)
+    val clock_in = Clock(INPUT)
   }
 
   if (pow2 == 0) {
@@ -47,7 +48,16 @@ class Pow2ClockDivider(pow2: Int) extends Module {
       next.io.clk_in := last.io.clk_out
     }
 
-    dividers.head.io.clk_in := clock
+    dividers.head.io.clk_in := io.clock_in
     io.clock_out := dividers.last.io.clk_out
   }
+}
+
+class Pow2ClockDivider(pow2: Int) extends Module {
+  val io = new Bundle {
+    val clock_out = Clock(OUTPUT)
+  }
+  val div = Module(new Pow2ClockDividerExplicitInput(pow2))
+  div.io.clock_in := clock
+  io.clock_out := div.io.clock_out
 }
