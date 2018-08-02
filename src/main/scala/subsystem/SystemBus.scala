@@ -29,23 +29,17 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     params.blockBytes,
     params.arithmeticAtomics,
     params.bufferAtomics,
-    SynchronousCrossing())
+    NoCrossing)
   val control_bus = LazyModule(new PeripheryBus(cbus_params))
-  control_bus.from(name) {
-    (control_bus.inwardNode
-      :*= TLFIFOFixer(TLFIFOFixer.all)
-      :*= TLWidthWidget(params.beatBytes)
-      :*= TLBuffer(params.pbusBuffer)
-      :*= outwardNode)
-  }
+  control_bus.crossFromSystemBus { this.toSlaveBus("cbus") }
 
   private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
 
   def busView = master_splitter.node.edges.in.head
 
-  val toPeripheryBus: (=> TLInwardNode) => NoHandle =
-    gen => to("pbus") {
+  def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
+    gen => to(s"bus_named_$name") {
       (gen
         :*= TLFIFOFixer(TLFIFOFixer.all)
         :*= TLWidthWidget(params.beatBytes)
@@ -53,8 +47,8 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
         :*= outwardNode)
     }
 
-  val fromFrontBus: (=> TLOutwardNode) => NoHandle =
-    gen => from("front_bus") { master_splitter.node :=* gen }
+  def fromMasterBus(name: String): (=> TLOutwardNode) => NoHandle =
+    gen => from(s"bus_named_$name") { master_splitter.node :=* gen }
 
   def toMemoryBus(gen: => TLInwardNode) {
     to("mbus") { gen := outwardNode }
