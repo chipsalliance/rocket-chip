@@ -27,12 +27,11 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
 
   def crossFromSystemBus(gen: (=> TLInwardNode) => NoHandle) {
     from("sbus") {
-      gen(this.crossIn
-        (inwardNode
+      val from_sbus =
+        this.crossIn(inwardNode
           :*= TLBuffer(params.bufferAtomics)
           :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics))
-        (ValName("from_sbus"))
-        (params.sbusCrossingType))
+      gen(from_sbus(params.sbusCrossingType))
     }
   }
 
