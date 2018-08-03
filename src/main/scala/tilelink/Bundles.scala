@@ -44,6 +44,41 @@ object TLMessages
 
   def adResponse = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
   def bcResponse = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, ProbeAck, ProbeAck)
+  
+  def a = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
+               ("PutPartialData",TLPermissions.PermMsgReserved),
+               ("ArithmeticData",TLAtomics.ArithMsg),
+               ("LogicalData",TLAtomics.LogicMsg),
+               ("Get",TLPermissions.PermMsgReserved),
+               ("Hint",TLHints.HintsMsg),
+               ("AcquireBlock",TLPermissions.PermMsgGrow),
+               ("AcquirePerm",TLPermissions.PermMsgReserved))
+
+  def b = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
+               ("PutPartialData",TLPermissions.PermMsgReserved),
+               ("ArithmeticData",TLPermissions.PermMsgReserved),
+               ("LogicalData",TLPermissions.PermMsgReserved),
+               ("Get",TLPermissions.PermMsgReserved),
+               ("Hint",TLPermissions.PermMsgCap),
+               ("Probe",TLPermissions.PermMsgReserved))
+
+  def c = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
+               ("AccessAckData",TLPermissions.PermMsgReserved),
+               ("HintAck",TLPermissions.PermMsgReserved),
+               ("Invalid Opcode",TLPermissions.PermMsgReserved),
+               ("ProbeAck",TLPermissions.PermMsgReport),
+               ("ProbeAckData",TLPermissions.PermMsgReport),
+               ("Release",TLPermissions.PermMsgReserved),
+               ("ReleaseData",TLPermissions.PermMsgReserved))
+
+  def d = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
+               ("AccessAckData",TLPermissions.PermMsgReserved),
+               ("HintAck",TLPermissions.PermMsgReserved),
+               ("Invalid Opcode",TLPermissions.PermMsgReserved),
+               ("Grant",TLPermissions.PermMsgCap),
+               ("GrantData",TLPermissions.PermMsgReserved),
+               ("ReleaseAck",TLPermissions.PermMsgReserved))
+
 }
 
 /**
@@ -84,6 +119,11 @@ object TLPermissions
   def BtoB = UInt(4, cWidth)
   def NtoN = UInt(5, cWidth)
   def isReport(x: UInt) = x <= NtoN
+
+  def PermMsgGrow:Seq[String] = Seq("Grow NtoB", "Grow NtoT", "Grow BtoT")
+  def PermMsgCap:Seq[String] = Seq("Cap toT", "Cap toB", "Cap toN")
+  def PermMsgReport:Seq[String] = Seq("Shrink TtoB", "Shrink TtoN", "Shrink BtoN", "Report TotT", "Report BtoB", "Report NtoN")
+  def PermMsgReserved:Seq[String] = Seq("Reserved") 
 }
 
 object TLAtomics
@@ -104,7 +144,11 @@ object TLAtomics
   def AND  = UInt(2, width)
   def SWAP = UInt(3, width)
   def isLogical(x: UInt) = x <= SWAP
+
+  def ArithMsg:Seq[String] = Seq("MIN", "MAX", "MIN", "MAXU", "ADD")
+  def LogicMsg:Seq[String] = Seq("XOR", "OR", "AND", "SWAP")
 }
+ 
 
 object TLHints
 {
@@ -112,6 +156,8 @@ object TLHints
 
   def PREFETCH_READ  = UInt(0, width)
   def PREFETCH_WRITE = UInt(1, width)
+
+  def HintsMsg:Seq[String] = Seq("PrefetchRead", "PrefetchWrite")
 }
 
 sealed trait TLChannel extends TLBundleBase {
@@ -135,45 +181,6 @@ final class TLBundleA(params: TLBundleParameters)
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
-
-  val OpcodeMsg:Map[Int, String] = Map(0 -> "PutFullData    ",
-                                       1 -> "PutPartialData ",
-                                       2 -> "ArithmeticData ",
-                                       3 -> "LogicalData    ",
-                                       4 -> "Get            ", 
-                                       5 -> "Hint           ",
-                                       6 -> "AcquireBlock   ",
-                                       7 -> "AcquirePerm    ")
-
-  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "MIN                       ",
-                                         1.U -> "MAX                       ",
-                                         2.U -> "MINU                      ",
-                                         3.U -> "MAXU                      ",
-                                         4.U -> "ADD                       ")
-
-  val ParamMsg3:Map[UInt, String] = Map( 0.U -> "XOR                       ",
-                                         1.U -> "OR                        ",
-                                         2.U -> "AND                       ",
-                                         3.U -> "SWAP                      ")
-
-  val ParamMsg4:Map[UInt, String] = Map( 0.U -> "PrefetchRead              ",
-                                         1.U -> "PrefetchWrite             ")
-
-  val ParamMsg5:Map[UInt, String] = Map( 0.U -> "Permission Transfer: Grow ",
-                                         1.U -> "Permission Transfer: Grow ",
-                                         2.U -> "Permission Transfer: Grow ", 
-                                         3.U -> "Permission Transfer: Grow ")
-
-  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
-
-  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
-                                                   1.U -> ParamMsg1, 
-                                                   2.U -> ParamMsg2, 
-                                                   3.U -> ParamMsg3,  
-                                                   4.U -> ParamMsg1,
-                                                   5.U -> ParamMsg4, 
-                                                   6.U -> ParamMsg5,  
-                                                   7.U -> ParamMsg1)
 }
 final class TLBundleB(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
@@ -189,30 +196,6 @@ final class TLBundleB(params: TLBundleParameters)
   val mask    = UInt(width = params.dataBits/8)
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
-
-  val OpcodeMsg:Map[Int, String] = Map(0 -> "PutFullData    ",
-                                       1 -> "PutPartialData ",
-                                       2 -> "ArithmeticData ",
-                                       3 -> "LogicalData    ",
-                                       4 -> "Get            ",
-                                       5 -> "Hint           ",
-                                       6 -> "Probe          ")
-
-  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "Permission Transfer: Cap  ",
-                                         1.U -> "Permission Transfer: Cap  ",
-                                         2.U -> "Permission Transfer: Cap  ")
-    
-  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
-
-  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
-                                                   1.U -> ParamMsg1, 
-                                                   2.U -> ParamMsg1, 
-                                                   3.U -> ParamMsg1,  
-                                                   4.U -> ParamMsg1,
-                                                   5.U -> ParamMsg1, 
-                                                   6.U -> ParamMsg2,  
-                                                   7.U -> ParamMsg1)
-
 }
 
 final class TLBundleC(params: TLBundleParameters)
@@ -228,32 +211,6 @@ final class TLBundleC(params: TLBundleParameters)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
-  val OpcodeMsg:Map[Int, String] = Map(0 -> "AccessAck      ", 
-                                       1 -> "AccessAckData  ",
-                                       3 -> "HintAck        ",
-                                       4 -> "ProbeAck       ",
-                                       5 -> "ProbeAckData   ",
-                                       6 -> "Release        ",
-                                       7 -> "ReleaseData    ")
-
-  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "Permission Transfer:Report",
-                                         1.U -> "Permission Transfer:Report",
-                                         2.U -> "Permission Transfer:Report",
-                                         3.U -> "Permission Transfer:Report",
-                                         4.U -> "Permission Transfer:Report",
-                                         5.U -> "Permission Transfer:Report")
- 
-  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
-
-  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
-                                                   1.U -> ParamMsg1, 
-                                                   2.U -> ParamMsg1, 
-                                                   3.U -> ParamMsg1,  
-                                                   4.U -> ParamMsg2,
-                                                   5.U -> ParamMsg2, 
-                                                   6.U -> ParamMsg1,  
-                                                   7.U -> ParamMsg1)
-
 }
 
 final class TLBundleD(params: TLBundleParameters)
@@ -270,29 +227,6 @@ final class TLBundleD(params: TLBundleParameters)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
-
-  val OpcodeMsg:Map[Int, String]  = Map(0 -> "AccessAck     ", 
-                                        1 -> "AccessAckData ", 
-                                        2 -> "HintAck       ", 
-                                        4 -> "Grant         ", 
-                                        5 -> "GrantData     ",
-                                        6 -> "ReleaseAck    ")
-
-  val ParamMsg2:Map[UInt, String] = Map( 0.U -> "Permission Transfer: Cap  ",
-                                         1.U -> "Permission Transfer: Cap  ",
-                                         2.U -> "Permission Transfer: Cap  ")
-    
-  val ParamMsg1:Map[UInt, String] = Map( 0.U -> "Reserved                  ")
-
-  val ParamMsg:Map[UInt, Map[UInt, String]] = Map( 0.U -> ParamMsg1, 
-                                                   1.U -> ParamMsg1, 
-                                                   2.U -> ParamMsg1, 
-                                                   3.U -> ParamMsg1,  
-                                                   4.U -> ParamMsg2,
-                                                   5.U -> ParamMsg1, 
-                                                   6.U -> ParamMsg1,  
-                                                   7.U -> ParamMsg1)
-
 }
 
 final class TLBundleE(params: TLBundleParameters)
