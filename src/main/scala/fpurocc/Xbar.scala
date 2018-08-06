@@ -17,9 +17,10 @@ class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
 	)
 	//val dummy = node.edges.in.size
 	lazy val module = new LazyModuleImp(this) {
-		require (node.edges.in.size >= 0, "NAMESPACEFanout requires at least one source")
+		require (node.edges.in.size >= 0, "NAMESPACEFanin requires at least one source")
 		if (node.edges.in.size >= 1) {
-			require (node.edges.out.size == 1, "NAMESPACEFanout requires at least one sink")
+			require (node.edges.out.size == 1, "NAMESPACEFanin requires at least one sink")
+			require (node.in.forall (_._2.fLen == node.out.head._2.fLen)  , "Source and Sink must have equivalent fLen")
 			val fLen = node.edges.out.head.fLen
 			val fpArb = Module(new InOrderArbiter(new FPInput(fLen), new FPResult(fLen), node.edges.in.size))
 			val (out, _) = node.out(0)
