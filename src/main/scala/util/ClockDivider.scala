@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import Chisel._
 import chisel3.util.HasBlackBoxResource
+import chisel3.experimental.withClock
 
 /** This black-boxes a Clock Divider by 2.
   * The output clock is phase-aligned to the input clock.
@@ -50,4 +51,9 @@ class Pow2ClockDivider(pow2: Int) extends Module {
     dividers.head.io.clk_in := clock
     io.clock_out := dividers.last.io.clk_out
   }
+}
+
+object Pow2ClockDivider {
+  def apply(pow2: Int): Clock = Module(new Pow2ClockDivider(pow2)).io.clock_out
+  def apply(clock_in: Clock, pow2: Int): Clock = withClock(clock_in) { apply(pow2) }
 }
