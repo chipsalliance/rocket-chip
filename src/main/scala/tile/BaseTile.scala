@@ -177,20 +177,20 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   protected def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
   def crossMasterPort(): TLOutwardNode = {
     val tlMasterXing = this.crossOut(crossing match {
-      case RationalCrossing(_) => makeMasterBoundaryBuffers :=* masterNode
+      case RationalCrossing(_) => this { makeMasterBoundaryBuffers } :=* masterNode
       case _ => masterNode
     })
     tlMasterXing(crossing)
   }
 
   protected def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
-  def crossSlavePort(): TLInwardNode = {
+  def crossSlavePort(): TLInwardNode = { DisableMonitors { implicit p =>
     val tlSlaveXing = this.crossIn(crossing match {
-      case RationalCrossing(_) => slaveNode :*= makeSlaveBoundaryBuffers
+      case RationalCrossing(_) => slaveNode :*= this { makeSlaveBoundaryBuffers }
       case _ => slaveNode
     })
     tlSlaveXing(crossing)
-  }
+  } }
 
   def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
   def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
