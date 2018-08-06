@@ -56,11 +56,11 @@ object TLMessages
 
   def b = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
                ("PutPartialData",TLPermissions.PermMsgReserved),
-               ("ArithmeticData",TLPermissions.PermMsgReserved),
-               ("LogicalData",TLPermissions.PermMsgReserved),
+               ("ArithmeticData",TLAtomics.ArithMsg),
+               ("LogicalData",TLAtomics.LogicMsg),
                ("Get",TLPermissions.PermMsgReserved),
-               ("Hint",TLPermissions.PermMsgCap),
-               ("Probe",TLPermissions.PermMsgReserved))
+               ("Hint",TLHints.HintsMsg),
+               ("Probe",TLPermissions.PermMsgCap))
 
   def c = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
                ("AccessAckData",TLPermissions.PermMsgReserved),
@@ -68,15 +68,15 @@ object TLMessages
                ("Invalid Opcode",TLPermissions.PermMsgReserved),
                ("ProbeAck",TLPermissions.PermMsgReport),
                ("ProbeAckData",TLPermissions.PermMsgReport),
-               ("Release",TLPermissions.PermMsgReserved),
-               ("ReleaseData",TLPermissions.PermMsgReserved))
+               ("Release",TLPermissions.PermMsgReport),
+               ("ReleaseData",TLPermissions.PermMsgReport))
 
   def d = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
                ("AccessAckData",TLPermissions.PermMsgReserved),
                ("HintAck",TLPermissions.PermMsgReserved),
                ("Invalid Opcode",TLPermissions.PermMsgReserved),
                ("Grant",TLPermissions.PermMsgCap),
-               ("GrantData",TLPermissions.PermMsgReserved),
+               ("GrantData",TLPermissions.PermMsgCap),
                ("ReleaseAck",TLPermissions.PermMsgReserved))
 
 }
