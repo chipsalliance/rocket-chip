@@ -52,7 +52,7 @@ object TLMessages
                ("Get",TLPermissions.PermMsgReserved),
                ("Hint",TLHints.HintsMsg),
                ("AcquireBlock",TLPermissions.PermMsgGrow),
-               ("AcquirePerm",TLPermissions.PermMsgReserved))
+               ("AcquirePerm",TLPermissions.PermMsgGrow))
 
   def b = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
                ("PutPartialData",TLPermissions.PermMsgReserved),
