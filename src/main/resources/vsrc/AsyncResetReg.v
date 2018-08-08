@@ -55,28 +55,19 @@ input  wire rst;
    // of Xs.
 `ifndef SYNTHESIS
    initial begin
-`ifdef RANDOMIZE
       integer                    initvar;
       reg [31:0]                 _RAND;
       _RAND = {1{$random}};
-`endif // RANDOMIZE
-      if (rst) begin
-        q = RESET_VALUE;
-      end 
-`ifdef RANDOMIZE
- `ifdef RANDOMIZE_REG_INIT
-      else begin
-  `ifndef verilator
-         #0.002 begin end
-  `endif // verilator
-         // We have to check for rst again
-         // otherwise we initialize this
-         // even though rst is asserted.
-         if (~rst)
-           q = _RAND[0];
-      end
- `endif // RANDOMIZE_REG_INIT
-`endif // RANDOMIZE
+`ifdef verilator
+      q = RESET_VALUE;
+`else
+ `ifdef RANDOMIZE
+   `ifdef RANDOMIZE_REG_INIT
+      #0.002 begin end
+      q = _RAND[0];
+   `endif // RANDOMIZE_REG_INIT
+ `endif // RANDOMIZE
+`endif // verilator
    end
 `endif // SYNTHESIS
    
