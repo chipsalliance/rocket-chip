@@ -710,7 +710,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   // check for unsupported operations
   assert(!s1_valid || !s1_req.cmd.isOneOf(M_PWR))
 
-  val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
+  val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)))
   io.ptw <> dtlb.io.ptw
   dtlb.io.kill := io.cpu.s2_kill
   dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_readwrite

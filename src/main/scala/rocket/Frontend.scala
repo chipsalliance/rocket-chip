@@ -77,7 +77,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 
-  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), nTLBEntries))
+  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBEntries)))
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 5, flow = true)) }
 
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
