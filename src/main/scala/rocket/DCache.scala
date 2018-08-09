@@ -245,13 +245,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_meta_error = (s2_meta_uncorrectable_errors | s2_meta_correctable_errors).orR
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
   val s2_data = {
-    val en = s1_valid || inWriteback || tl_out.d.fire()
+    val en = s1_valid || inWriteback
     if (cacheParams.pipelineWayMux) {
       val s2_data_way = RegEnable(s1_data_way, en)
-      val s2_all_data_ways = (0 until nWays).map(i => RegEnable(s1_all_data_ways(i), en && s1_data_way(i)))
+      val s2_all_data_ways = (0 until nWays).map(i => RegEnable(s1_all_data_ways(i), en))
       Mux1H(s2_data_way, s2_all_data_ways)
     } else {
-      RegEnable(Mux1H(s1_data_way, s1_all_data_ways), en)
+      RegEnable(Mux1H(s1_data_way, s1_all_data_ways), en || tl_out.d.fire())
     }
   }
   val s2_probe_way = RegEnable(s1_hit_way, s1_probe)
@@ -280,7 +280,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_victimize = s2_want_victimize && !s2_cannot_victimize
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
   val s2_victim_way = Mux(s2_hit_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
-  val s2_victim_tag = Mux(s2_valid_data_error, s2_req.addr >> untagBits, RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
+  val s2_victim_tag = Mux(s2_valid_data_error, s2_req.addr(paddrBits-1, untagBits), RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
   val s2_victim_state = Mux(s2_hit_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
 
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
@@ -568,9 +568,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   ccover(tl_out.d.valid && !tl_out.d.ready, "BLOCK_D", "D$ D-channel blocked")
 
   // Handle an incoming TileLink Probe message
-  val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid || (s2_valid_hit && s2_lr)
+  val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid || (s2_valid && s2_lr)
   metaArb.io.in(6).valid := tl_out.b.valid && !block_probe
-  tl_out.b.ready := metaArb.io.in(6).ready && !block_probe && !s1_valid && (!s2_valid || s2_valid_hit)
+  tl_out.b.ready := metaArb.io.in(6).ready && !block_probe && !s1_valid && !s2_valid
   metaArb.io.in(6).bits.write := false
   metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, tl_out.b.bits.address)
   metaArb.io.in(6).bits.way_en := ~UInt(0, nWays)
