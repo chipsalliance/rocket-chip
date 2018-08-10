@@ -28,8 +28,8 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters)
 
   def crossToSystemBus(gen: (=> TLOutwardNode) => NoHandle) {
     to("sbus") {
-      val to_sbus = this.crossOut(TLBuffer(params.sbusBuffer) :=* outwardNode)
-      gen(to_sbus(params.sbusCrossing))
+      val tl_xing = this.crossOut(TLBuffer(params.sbusBuffer) :=* outwardNode)
+      gen(tl_xing(params.sbusCrossing))
     }
   }
 }
