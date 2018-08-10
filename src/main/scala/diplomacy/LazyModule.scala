@@ -220,10 +220,12 @@ trait LazyScope
 
 object LazyScope
 {
-  def apply[T](name: String)(body: => T)(implicit p: Parameters) = {
+  def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
     val scope = LazyModule(new SimpleLazyModule with LazyScope)
-    scope.suggestName(name)
     scope { body }
+  }
+  def apply[T](name: String)(body: => T)(implicit p: Parameters): T = {
+    apply(body)(ValName(name), p)
   }
 }
 
