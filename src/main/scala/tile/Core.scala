@@ -98,7 +98,7 @@ trait HasCoreIO extends HasTileParameters {
   val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
     val interrupts = new CoreInterrupts().asInput
     val imem  = new FrontendIO
-    val dmem = new HellaCacheIO
+    //val dmem = new HellaCacheIO
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip

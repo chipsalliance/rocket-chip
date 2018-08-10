@@ -76,7 +76,7 @@ class RocketTile(
     finalNode.get.address(0)
   }
 
-  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
+  //nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
 
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
