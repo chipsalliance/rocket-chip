@@ -235,7 +235,7 @@ class MemoryDevice extends Device with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
     Description(describeName("memory", resources), ListMap(
-      "reg"         -> resources("reg").map(_.value),
+      "reg"         -> resources.map.filterKeys(regFilter).flatMap(_._2).map(_.value).toList,
       "device_type" -> Seq(ResourceString("memory"))))
   }
 }
