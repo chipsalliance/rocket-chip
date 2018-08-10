@@ -18,7 +18,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
   case MaxHartIdBits => log2Up(site(RocketTilesKey).size)
-  case BuildCore => (p: Parameters) => new Rocket()(p)
+  //case BuildCore => (p: Parameters) => new Rocket()(p)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case PeripheryBusKey => PeripheryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
