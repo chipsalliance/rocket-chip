@@ -614,7 +614,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     fp_sboard.clear(dmem_resp_replay && dmem_resp_fpu, dmem_resp_waddr)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
-    id_csr_en && !io.fpu.fcsr_rdy || checkHazards(fp_hazard_targets, fp_sboard.read _)
+    checkHazards(fp_hazard_targets, fp_sboard.read _)
   } else Bool(false)
 
   val dcache_blocked = Reg(Bool())
@@ -625,6 +625,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     csr.io.singleStep && (ex_reg_valid || mem_reg_valid || wb_reg_valid) ||
+    id_csr_en && csr.io.decode(0).fp_csr && !io.fpu.fcsr_rdy ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
