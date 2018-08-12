@@ -5,7 +5,9 @@ package freechips.rocketchip.util
 import Chisel._
 import chisel3.util.HasBlackBoxResource
 
-case class PlusArgInfo(default: Int, docstring: String)
+sealed trait PlusArgInfo
+case class PlusArgInfoInteger(default: Int, docstring: String) extends PlusArgInfo
+case class PlusArgInfoTest(docstring: String) extends PlusArgInfo
 
 class plusarg_reader(val format: String, val default: Int, val docstring: String) extends BlackBox(Map(
     "FORMAT"  -> chisel3.core.StringParam(format),
@@ -15,6 +17,15 @@ class plusarg_reader(val format: String, val default: Int, val docstring: String
   }
 
   setResource("/vsrc/plusarg_reader.v")
+}
+
+class plusarg_test(val format: String, val docstring: String) extends BlackBox(Map(
+    "PLUSARG"  -> chisel3.core.StringParam(format))) with HasBlackBoxResource {
+  val io = new Bundle {
+    val out = Bool(OUTPUT)
+  }
+
+  setResource("/vsrc/plusarg_test.v")
 }
 
 /* This wrapper class has no outputs, making it clear it is a simulation-only construct */
@@ -52,19 +63,36 @@ object PlusArg
   }
 }
 
+object PlusArgTest
+{
+  def apply(name: String, docstring: String = ""): Bool = {
+    PlusArgArtefacts.append(name, docstring)
+    Module(new plusarg_test(name, docstring)).io.out
+  }
+}
+
 object PlusArgArtefacts {
   private var artefacts: Map[String, PlusArgInfo] = Map.empty
 
   /* Add a new PlusArg */
   def append(name: String, default: Int, docstring: String): Unit =
-    artefacts = artefacts ++ Map(name -> PlusArgInfo(default, docstring))
+    artefacts = artefacts ++ Map(name -> PlusArgInfoInteger(default, docstring))
+
+  def append(name: String, docstring: String): Unit =
+    artefacts = artefacts ++ Map(name -> PlusArgInfoTest(docstring))
 
   /* From plus args, generate help text */
   private def serializeHelp_cHeader(tab: String = ""): String = artefacts
-    .map{ case(arg, PlusArgInfo(default, docstring)) =>
-      s"""|$tab+$arg=INT\\n\\
-          |$tab${" "*20}$docstring\\n\\
-          |$tab${" "*22}(default=$default)""".stripMargin }.toSeq
+    .map{
+      case(arg, PlusArgInfoInteger(default, docstring)) =>
+        s"""|$tab+$arg=INT\\n\\
+            |$tab${" "*20}$docstring\\n\\
+            |$tab${" "*22}(default=$default)""".stripMargin
+      case(arg, PlusArgInfoTest(docstring)) =>
+        s"""|$tab+$arg\\n\\
+            |$tab${" "*20}$docstring\\n\\
+            |$tab${" "*22}""".stripMargin
+    }.toSeq
     .mkString("\\n\\\n") ++ "\""
 
   /* From plus args, generate a char array of their names */
