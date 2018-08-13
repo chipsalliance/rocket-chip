@@ -142,8 +142,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val send_hint = RegInit(false.B)
   val refill_fire = tl_out.a.fire() && !send_hint
   val hint_outstanding = RegInit(false.B)
-  val s2_miss = s2_valid && !s2_hit && !io.s2_kill && !RegNext(refill_valid)
-  val refill_addr = RegEnable(io.s1_paddr, s1_valid && !(refill_valid || s2_miss))
+  val s2_miss = s2_valid && !s2_hit && !io.s2_kill
+  val s1_can_request_refill = !(s2_miss || refill_valid)
+  val s2_request_refill = s2_miss && RegNext(s1_can_request_refill)
+  val refill_addr = RegEnable(io.s1_paddr, s1_valid && s1_can_request_refill)
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
   val refill_idx = refill_addr(untagBits-1,blockOffBits)
   val refill_one_beat = tl_out.d.fire() && edge_out.hasData(tl_out.d.bits)
@@ -370,7 +372,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       }
   }
 
-  tl_out.a.valid := s2_miss && !refill_valid
+  tl_out.a.valid := s2_request_refill
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
                     toAddress = (refill_addr >> blockOffBits) << blockOffBits,
