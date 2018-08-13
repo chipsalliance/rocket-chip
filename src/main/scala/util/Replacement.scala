@@ -50,7 +50,7 @@ class PseudoLRU(n: Int)
       next_state = next_state.bitSet(idx, !bit)
       idx = Cat(idx, bit)
     }
-    next_state(n-1, 1)
+    next_state.extract(n-1, 1)
   }
   def replace = get_replace_way(state_reg)
   def get_replace_way(state: UInt) = {
