@@ -171,6 +171,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       predicted_taken := Bool(true)
     }
 
+    val force_taken = io.ptw.customCSRs.bpmStatic
+    when (io.ptw.customCSRs.flushBTB) { btb.io.flush := true }
+    when (force_taken) { btb.io.bht_update.valid := false }
+
     val s2_base_pc = ~(~s2_pc | (fetchBytes-1))
     val taken_idx = Wire(UInt())
     val after_idx = Wire(UInt())
@@ -198,12 +202,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rvcJALR = bits === Instructions.C_ADD && bits(6,2) === 0
       val rvcCall = rvcJAL || rvcJALR
       val rviImm = Mux(rviBits(3), ImmGen(IMM_UJ, rviBits), ImmGen(IMM_SB, rviBits))
+      val predict_taken = s2_btb_resp_bits.bht.taken || force_taken
       val taken =
-        prevRVI && (rviJump || rviJALR || rviBranch && s2_btb_resp_bits.bht.taken) ||
-        valid && (rvcJump || rvcJALR || rvcJR || rvcBranch && s2_btb_resp_bits.bht.taken)
+        prevRVI && (rviJump || rviJALR || rviBranch && predict_taken) ||
+        valid && (rvcJump || rvcJALR || rvcJR || rvcBranch && predict_taken)
       val predictReturn = btb.io.ras_head.valid && (prevRVI && rviReturn || valid && rvcReturn)
       val predictJump = prevRVI && rviJump || valid && rvcJump
-      val predictBranch = s2_btb_resp_bits.bht.taken && (prevRVI && rviBranch || valid && rvcBranch)
+      val predictBranch = predict_taken && (prevRVI && rviBranch || valid && rvcBranch)
 
       when (s2_valid && s2_btb_resp_valid && s2_btb_resp_bits.bridx === idx && valid && !rvc) {
         // The BTB has predicted that the middle of an RVI instruction is
@@ -220,7 +225,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         btb.io.ras_update.valid := fq.io.enq.fire() && !wrong_path && (prevRVI && (rviCall || rviReturn) || valid && (rvcCall || rvcReturn))
         btb.io.ras_update.bits.cfiType := Mux(Mux(prevRVI, rviReturn, rvcReturn), CFIType.ret,
                                           Mux(Mux(prevRVI, rviCall, rvcCall), CFIType.call,
-                                          Mux(Mux(prevRVI, rviBranch, rvcBranch), CFIType.branch,
+                                          Mux(Mux(prevRVI, rviBranch, rvcBranch) && !force_taken, CFIType.branch,
                                           CFIType.jump)))
 
         when (!s2_btb_taken) {

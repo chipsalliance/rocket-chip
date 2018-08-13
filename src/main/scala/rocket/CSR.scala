@@ -219,9 +219,22 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
 }
 
-class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Parameters) extends CoreModule()(p)
+case class CustomCSR(id: Int, mask: BigInt, init: Option[BigInt])
+
+class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
+  val wen = Bool()
+  val wdata = UInt(xLen.W)
+  val value = UInt(xLen.W)
+}
+
+class CSRFile(
+  perfEventSets: EventSets = new EventSets(Seq()),
+  customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
+    extends CoreModule()(p)
     with HasCoreParameters {
-  val io = new CSRFileIO
+  val io = new CSRFileIO {
+    val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO).asOutput
+  }
 
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))
   reset_mstatus.mpp := PRV.M
@@ -357,9 +370,6 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     CSRs.tselect -> reg_tselect,
     CSRs.tdata1 -> reg_bp(reg_tselect).control.asUInt,
     CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
-    CSRs.mimpid -> UInt(0),
-    CSRs.marchid -> UInt(0),
-    CSRs.mvendorid -> UInt(0),
     CSRs.misa -> reg_misa,
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> reg_mtvec,
@@ -457,6 +467,18 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     for ((pmp, i) <- read_pmp zipWithIndex)
       read_mapping += (CSRs.pmpaddr0 + i) -> pmp.readAddr
   }
+
+  // implementation-defined CSRs
+  val reg_custom = customCSRs.map { csr =>
+    require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
+    require(!read_mapping.contains(csr.id))
+    val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
+    read_mapping += csr.id -> reg
+    reg
+  }
+
+  // mimpid, marchid, and mvendorid are 0 unless overridden by customCSRs
+  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
   val wdata = readModifyWriteCSR(io.rw.cmd, io.rw.rdata, io.rw.wdata)
@@ -617,6 +639,12 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   io.time := reg_cycle
   io.csr_stall := reg_wfi
+
+  for ((io, reg) <- io.customCSRs zip reg_custom) {
+    io.wen := false
+    io.wdata := wdata
+    io.value := reg
+  }
 
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
@@ -784,6 +812,13 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       }
       when (decoded_addr(CSRs.pmpaddr0 + i) && !pmp.addrLocked(next)) {
         pmp.addr := wdata
+      }
+    }
+    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+      val mask = csr.mask.U(xLen.W)
+      when (decoded_addr(csr.id)) {
+        reg := (wdata & mask) | (reg & ~mask)
+        io.wen := true
       }
     }
   }
