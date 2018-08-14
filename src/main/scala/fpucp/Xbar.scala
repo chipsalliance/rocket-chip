@@ -38,8 +38,10 @@ class FPUCPFanin()(implicit p: Parameters) extends LazyModule {
 
 		}
 		else {
-			node.out(0)._1.cp_req.valid := false.B
-			node.out(0)._1.cp_resp.ready := false.B
+			if(node.out.size > 0) {
+				node.out(0)._1.cp_req.valid := false.B
+				node.out(0)._1.cp_resp.ready := false.B
+			}
 		}
 	}
 	
