@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.NAMESPACE
+package freechips.rocketchip.tile.fpucp
 
 import chisel3._
 import chisel3.experimental.dontTouch
@@ -11,15 +11,15 @@ import freechips.rocketchip.util.InOrderArbiter
 import freechips.rocketchip.tile.{FPInput, FPResult}
 import scala.math.{min,max}
 
-class NAMESPACEFanin()(implicit p: Parameters) extends LazyModule {
-	val node = NAMESPACENexusNode(
+class FPUCPFanin()(implicit p: Parameters) extends LazyModule {
+	val node = FPUCPNexusNode(
 		sinkFn  = { seq => seq(0) }
 	)
 	//val dummy = node.edges.in.size
 	lazy val module = new LazyModuleImp(this) {
-		require (node.edges.in.size >= 0, "NAMESPACEFanin requires at least one source")
+		require (node.edges.in.size >= 0, "FPUCPFanin requires at least one source")
 		if (node.edges.in.size >= 1) {
-			require (node.edges.out.size == 1, "NAMESPACEFanin requires at least one sink")
+			require (node.edges.out.size == 1, "FPUCPFanin requires at least one sink")
 			require (node.in.forall (_._2.fLen == node.out.head._2.fLen)  , "Source and Sink must have equivalent fLen")
 			val fLen = node.edges.out.head.fLen
 			val fpArb = Module(new InOrderArbiter(new FPInput(fLen), new FPResult(fLen), node.edges.in.size))

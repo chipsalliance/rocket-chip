@@ -1,4 +1,4 @@
-package freechips.rocketchip.NAMESPACE
+package freechips.rocketchip.tile.fpucp
 
 import chisel3._
 import chisel3.internal.sourceinfo.{SourceLine, SourceInfo}
@@ -30,8 +30,8 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 		val next_out_counter = out_counter
 
 		val count_compare = Wire(Bool())
-		val req = outer.NAMESPACENode.get.out.head._1.cp_req
-		val resp = outer.NAMESPACENode.get.out.head._1.cp_resp
+		val req = outer.FPUCPNode.get.out.head._1.cp_req
+		val resp = outer.FPUCPNode.get.out.head._1.cp_resp
 		val saved_result = RegNext(resp.bits.data, 123.U)
 		//val saved_result = RegNext(resp.data, 123.U)
 		//println(s"resp elements are ${resp.elements}")
@@ -101,7 +101,7 @@ class FbistModuleImp(outer: Fbist)(implicit p: Parameters) extends LazyRoCCModul
 //classes can extend one other class and any number of traits
 //traits can extend any other traits
 
-class NAMESPACEGateway()(implicit p: Parameters, sourceInfo: SourceInfo) extends LazyModule {
+class FPUCPGateway()(implicit p: Parameters, sourceInfo: SourceInfo) extends LazyModule {
 
 	//ONLY ADDING THESE THINGS TO GET A TLEdgeOut which is needed because of implicit p
 	val manager1_addr = List(AddressSet(0x10000, 0x0F0FF), AddressSet(0x30000, 0x0F0FF))
@@ -195,12 +195,12 @@ class NAMESPACEGateway()(implicit p: Parameters, sourceInfo: SourceInfo) extends
 		LazyModule(new Fbist()(p.alter((site, here, up) => {case TileKey => site(RocketTilesKey).head 
 		case SharedMemoryTLEdge => sharedMemoryTLEdge})))
 	)
-	val xbar = LazyModule(new NAMESPACEFanin)
+	val xbar = LazyModule(new FPUCPFanin)
 	val fpu = LazyModule(new LazyFPU(new FPUParams)(p.alter((site, here, up) => {case TileKey => site(RocketTilesKey).head 
 		case SharedMemoryTLEdge => sharedMemoryTLEdge}))
 	)
 
-	rocc.map(_.NAMESPACENode).foreach { _.foreach { dip_node => xbar.node := dip_node}}
+	rocc.map(_.FPUCPNode).foreach { _.foreach { dip_node => xbar.node := dip_node}}
 	fpu.node := xbar.node
 	lazy val module = new LazyModuleImp(this) with UnitTestModule {
 		fpu.module.io.valid := false.B //turning off inputs from the core
@@ -209,8 +209,8 @@ class NAMESPACEGateway()(implicit p: Parameters, sourceInfo: SourceInfo) extends
 
 }
 
-class NAMESPACETest(timeout: Int = 50000)(implicit p: Parameters) extends UnitTest(timeout) {
-	val dut = Module(LazyModule(new NAMESPACEGateway()).module)
+class FPUCPTest(timeout: Int = 50000)(implicit p: Parameters) extends UnitTest(timeout) {
+	val dut = Module(LazyModule(new FPUCPGateway()).module)
 	io.finished := dut.io.finished
 	dut.io.start := DontCare
 }

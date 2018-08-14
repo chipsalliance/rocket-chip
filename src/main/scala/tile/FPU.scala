@@ -13,7 +13,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.NAMESPACE._
+import freechips.rocketchip.tile.fpucp._
 
 case class FPUParams (
   fLen: Int = 64,
@@ -657,11 +657,11 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 }
 
 class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) extends LazyModule {
-	val node = new NAMESPACESinkNode(NAMESPACESinkParameters(lcfg.fLen, lcfg.divSqrt))
+	val node = new FPUCPSinkNode(FPUCPSinkParameters(lcfg.fLen, lcfg.divSqrt))
 	lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
 		def cfg : FPUParams = lcfg
 		//implicit val p : Parameters  = p
-		def getRoccBundle : NAMESPACEBundle = node.in(0)._1
+		def getRoccBundle : FPUCPBundle = node.in(0)._1
 		override def fLen = lcfg.fLen
 	}
 }
@@ -669,15 +669,15 @@ class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) extends LazyModule {
 class FPU(val cfg: FPUParams)(implicit p: Parameters)
 	extends FPUModule()(p)
 	with HasFPUImplementation {
-		val internal_cfg = NAMESPACESinkParameters(fLen, cfg.divSqrt)
-		def getRoccBundle : NAMESPACEBundle = IO(Flipped(new NAMESPACEBundle(internal_cfg)))
+		val internal_cfg = FPUCPSinkParameters(fLen, cfg.divSqrt)
+		def getRoccBundle : FPUCPBundle = IO(Flipped(new FPUCPBundle(internal_cfg)))
 	}
 
 trait HasFPUImplementation extends HasFPUParameters
 	with HasCoreParameters { 
   implicit val p: Parameters
   def cfg: FPUParams 
-  def getRoccBundle: NAMESPACEBundle
+  def getRoccBundle: FPUCPBundle
   val io = chisel3.experimental.IO(new FPUCoreIO)
   val rocc = getRoccBundle
 

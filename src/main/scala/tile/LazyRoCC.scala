@@ -10,7 +10,7 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.NAMESPACE._
+import freechips.rocketchip.tile.fpucp._
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 
@@ -61,7 +61,7 @@ abstract class LazyRoCC(
   val module: LazyRoCCModuleImp
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
-  val NAMESPACENode : Option[NAMESPACESourceNode] = (if (usesFPU) Some(NAMESPACESourceNode()) else None)
+  val FPUCPNode : Option[FPUCPSourceNode] = (if (usesFPU) Some(FPUCPSourceNode()) else None)
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
@@ -76,11 +76,11 @@ trait HasLazyRoCC extends CanHavePTW
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
-  roccs.map(_.NAMESPACENode).foreach { _.foreach { namespace => NAMESPACEXbar.node := namespace }}
+  roccs.map(_.FPUCPNode).foreach { _.foreach { namespace => FPUCPXbar.node := namespace }}
   fpuOpt foreach 
 	{ fpu =>
 		fpu.node := 
-			NAMESPACEXbar.node }
+			FPUCPXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
   nDCachePorts += roccs.size
