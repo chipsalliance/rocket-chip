@@ -316,14 +316,19 @@ class LazyPTWImplementation(n: Int, outer: LazyPTW)(implicit edge: TLEdgeOut, p:
 /** Mix-ins for constructing tiles that might have a PTW */
 trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
-  var nPTWPorts = 1
-  nDCachePorts += usingPTW.toInt
+  //TODO: someone should put a lazy wrapper on all things connected via the TLBPTWIO
+  //              ICache   DCache  Roccs
+  val nPTWPorts = 1      + 1     + p(BuildRoCC).size
+  val ptw = LazyModule(new LazyPTW(nPTWPorts)(dcache.node.edges.out(0), p))
+  hcXbar.node := ptw.hcNode
+
+  //nDCachePorts += usingPTW.toInt
 }
 
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
+  //val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
   //if (outer.usingPTW)
   //  dcachePorts += ptw.inner_mem
 }

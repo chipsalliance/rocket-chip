@@ -62,7 +62,7 @@ abstract class LazyRoCC(
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
   val NAMESPACENode : Option[NAMESPACESourceNode] = (if (usesFPU) Some(NAMESPACESourceNode()) else None)
-  val hcNode: HellaCacheIdentityNode
+  val hcNode: HellaCacheSourceNode
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
@@ -78,10 +78,10 @@ trait HasLazyRoCC extends CanHavePTW
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
   roccs.map(_.NAMESPACENode).foreach { _.foreach { namespace => NAMESPACEXbar.node := namespace }}
-  fpuOpt foreach 
-	{ fpu =>
-		fpu.node := 
-			NAMESPACEXbar.node }
+
+  roccs.map(_.hcNode).foreach { hc => hcXbar.node := hc } 
+
+  fpuOpt foreach { fpu => fpu.node := NAMESPACEXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
   //nDCachePorts += roccs.size

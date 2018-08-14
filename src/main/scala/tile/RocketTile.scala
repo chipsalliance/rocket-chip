@@ -43,6 +43,10 @@ class RocketTile(
   val intOutwardNode = IntIdentityNode()
   val slaveNode = TLIdentityNode()
   val masterNode = TLIdentityNode()
+
+  val core = LazyModule(new LazyRocket)
+
+  hcXbar.node := core.hcNode
   //TODO
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map(s =>
@@ -76,7 +80,6 @@ class RocketTile(
     finalNode.get.address(0)
   }
 
-  //nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
 
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
@@ -110,12 +113,10 @@ class RocketTile(
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
-    //with HasFpuOpt
     with HasLazyRoCCModule
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
-  val core = Module(new Rocket()(outer.p))
 
   val uncorrectable = RegInit(Bool(false))
   val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))
@@ -125,25 +126,24 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     lm.module.io.errors.icache := outer.frontend.module.io.errors
   }
 
-  outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
-  outer.bus_error_unit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
-  core.io.hartid := constants.hartid // Pass through the hartid
-  trace.foreach { _ := core.io.trace }
+  outer.decodeCoreInterrupts(outer.core.module.io.interrupts) // Decode the interrupt vector
+  outer.bus_error_unit.foreach { beu => outer.core.module.io.interrupts.buserror.get := beu.module.io.interrupt }
+  outer.core.module.io.hartid := constants.hartid // Pass through the hartid
+  trace.foreach { _ := outer.core.module.io.trace }
   halt_and_catch_fire.foreach { _ := uncorrectable }
-  outer.frontend.module.io.cpu <> core.io.imem
+  outer.frontend.module.io.cpu <> outer.core.module.io.imem
   outer.frontend.module.io.reset_vector := constants.reset_vector
   outer.frontend.module.io.hartid := constants.hartid
   outer.dcache.module.io.hartid := constants.hartid
-  dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  outer.fpuOpt foreach { fpu => core.io.fpu <> fpu.module.io }
-  core.io.ptw <> ptw.io.dpath
+  outer.fpuOpt foreach { fpu => outer.core.module.io.fpu <> fpu.module.io }
+  outer.core.module.io.ptw <> ptw.io.dpath
 
   if (outer.roccs.size > 0) {
-    cmdRouter.get.io.in <> core.io.rocc.cmd
-    outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
-    core.io.rocc.resp <> respArb.get.io.out
-    core.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
-    core.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+    cmdRouter.get.io.in <> outer.core.module.io.rocc.cmd
+    outer.roccs.foreach(_.module.io.exception := outer.core.module.io.rocc.exception)
+    outer.core.module.io.rocc.resp <> respArb.get.io.out
+    outer.core.module.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
+    outer.core.module.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
   }
 
   // Rocket has higher priority to DTIM than other TileLink clients
@@ -156,14 +156,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
       .getOrElse(false.B)
   }
 
-  // TODO eliminate this redundancy
-  val h = dcachePorts.size
-  val c = core.dcacheArbPorts
-  val o = outer.nDCachePorts
-  require(h == c, s"port list size was $h, core expected $c")
-  require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
-  dcacheArb.io.requestor <> dcachePorts
   ptw.io.requestor <> ptwPorts
 }
 
