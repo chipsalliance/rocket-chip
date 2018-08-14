@@ -58,16 +58,14 @@ input  wire rst;
       integer                    initvar;
       reg [31:0]                 _RAND;
       _RAND = {1{$random}};
-`ifdef verilator
-      q = RESET_VALUE;
-`else
  `ifdef RANDOMIZE
    `ifdef RANDOMIZE_REG_INIT
+    `ifndef verilator
       #0.002 begin end
+    `endif
       q = _RAND[0];
    `endif // RANDOMIZE_REG_INIT
  `endif // RANDOMIZE
-`endif // verilator
    end
 `endif // SYNTHESIS
    
