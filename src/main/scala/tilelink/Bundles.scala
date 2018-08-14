@@ -44,6 +44,41 @@ object TLMessages
 
   def adResponse = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
   def bcResponse = Vec(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, ProbeAck, ProbeAck)
+  
+  def a = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
+               ("PutPartialData",TLPermissions.PermMsgReserved),
+               ("ArithmeticData",TLAtomics.ArithMsg),
+               ("LogicalData",TLAtomics.LogicMsg),
+               ("Get",TLPermissions.PermMsgReserved),
+               ("Hint",TLHints.HintsMsg),
+               ("AcquireBlock",TLPermissions.PermMsgGrow),
+               ("AcquirePerm",TLPermissions.PermMsgGrow))
+
+  def b = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
+               ("PutPartialData",TLPermissions.PermMsgReserved),
+               ("ArithmeticData",TLAtomics.ArithMsg),
+               ("LogicalData",TLAtomics.LogicMsg),
+               ("Get",TLPermissions.PermMsgReserved),
+               ("Hint",TLHints.HintsMsg),
+               ("Probe",TLPermissions.PermMsgCap))
+
+  def c = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
+               ("AccessAckData",TLPermissions.PermMsgReserved),
+               ("HintAck",TLPermissions.PermMsgReserved),
+               ("Invalid Opcode",TLPermissions.PermMsgReserved),
+               ("ProbeAck",TLPermissions.PermMsgReport),
+               ("ProbeAckData",TLPermissions.PermMsgReport),
+               ("Release",TLPermissions.PermMsgReport),
+               ("ReleaseData",TLPermissions.PermMsgReport))
+
+  def d = Seq( ("AccessAck",TLPermissions.PermMsgReserved),
+               ("AccessAckData",TLPermissions.PermMsgReserved),
+               ("HintAck",TLPermissions.PermMsgReserved),
+               ("Invalid Opcode",TLPermissions.PermMsgReserved),
+               ("Grant",TLPermissions.PermMsgCap),
+               ("GrantData",TLPermissions.PermMsgCap),
+               ("ReleaseAck",TLPermissions.PermMsgReserved))
+
 }
 
 /**
@@ -84,6 +119,11 @@ object TLPermissions
   def BtoB = UInt(4, cWidth)
   def NtoN = UInt(5, cWidth)
   def isReport(x: UInt) = x <= NtoN
+
+  def PermMsgGrow:Seq[String] = Seq("Grow NtoB", "Grow NtoT", "Grow BtoT")
+  def PermMsgCap:Seq[String] = Seq("Cap toT", "Cap toB", "Cap toN")
+  def PermMsgReport:Seq[String] = Seq("Shrink TtoB", "Shrink TtoN", "Shrink BtoN", "Report TotT", "Report BtoB", "Report NtoN")
+  def PermMsgReserved:Seq[String] = Seq("Reserved") 
 }
 
 object TLAtomics
@@ -104,7 +144,11 @@ object TLAtomics
   def AND  = UInt(2, width)
   def SWAP = UInt(3, width)
   def isLogical(x: UInt) = x <= SWAP
+
+  def ArithMsg:Seq[String] = Seq("MIN", "MAX", "MIN", "MAXU", "ADD")
+  def LogicMsg:Seq[String] = Seq("XOR", "OR", "AND", "SWAP")
 }
+ 
 
 object TLHints
 {
@@ -112,11 +156,14 @@ object TLHints
 
   def PREFETCH_READ  = UInt(0, width)
   def PREFETCH_WRITE = UInt(1, width)
+
+  def HintsMsg:Seq[String] = Seq("PrefetchRead", "PrefetchWrite")
 }
 
 sealed trait TLChannel extends TLBundleBase {
   val channelName: String
 }
+
 sealed trait TLDataChannel extends TLChannel
 sealed trait TLAddrChannel extends TLDataChannel
 
@@ -135,7 +182,6 @@ final class TLBundleA(params: TLBundleParameters)
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
 }
-
 final class TLBundleB(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
 {
@@ -187,7 +233,7 @@ final class TLBundleE(params: TLBundleParameters)
   extends TLBundleBase(params) with TLChannel
 {
   val channelName = "'E' channel"
-  val sink = UInt(width = params.sinkBits) // to
+  val sink = UInt(width = params.sinkBits) // to  
 }
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)

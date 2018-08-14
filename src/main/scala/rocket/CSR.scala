@@ -165,6 +165,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
 class CSRDecodeIO extends Bundle {
   val csr = UInt(INPUT, CSR.ADDRSZ)
   val fp_illegal = Bool(OUTPUT)
+  val fp_csr = Bool(OUTPUT)
   val rocc_illegal = Bool(OUTPUT)
   val read_illegal = Bool(OUTPUT)
   val write_illegal = Bool(OUTPUT)
@@ -474,13 +475,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     val allow_counter = (reg_mstatus.prv > PRV.S || reg_mcounteren(counter_addr)) &&
       (reg_mstatus.prv >= PRV.S || reg_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
+    io_dec.fp_csr := Bool(usingFPU) && DecodeLogic(io_dec.csr, fp_csrs.keys.toList.map(_.U), (read_mapping -- fp_csrs.keys.toList).keys.toList.map(_.U))
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       !decodeAny(read_mapping) ||
       io_dec.csr === CSRs.sptbr && !allow_sfence_vma ||
       (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
       Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
-      Bool(usingFPU) && decodeAny(fp_csrs) && io_dec.fp_illegal
+      io_dec.fp_csr && io_dec.fp_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
     io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mbadaddr || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.sbadaddr)
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||

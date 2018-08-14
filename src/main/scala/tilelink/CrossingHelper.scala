@@ -10,11 +10,11 @@ case class TLInwardCrossingHelper(name: String, scope: LazyScope, node: TLInward
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLInwardNode = {
     xing match {
       case AsynchronousCrossing(depth, sync) =>
-        node :*=* scope { TLAsyncCrossingSink(depth, sync) :*=* TLAsyncNameNode(name) } :*=* TLAsyncCrossingSource(sync)
+        node :*=* scope { TLAsyncCrossingSink(depth, sync) :*=* TLAsyncNameNode(name) } :*=* TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(sync)
       case RationalCrossing(direction) =>
-        node :*=* scope { TLRationalCrossingSink(direction.flip) :*=* TLRationalNameNode(name) } :*=* TLRationalCrossingSource()
+        node :*=* scope { TLRationalCrossingSink(direction.flip) :*=* TLRationalNameNode(name) } :*=* TLRationalNameNode(name) :*=* TLRationalCrossingSource()
       case SynchronousCrossing(buffer) =>
-        node :*=* scope { TLBuffer(buffer) :*=* TLNameNode(name) }
+        node :*=* scope { TLBuffer(buffer) :*=* TLNameNode(name) } :*=* TLNameNode(name)
     }
   }
 }
@@ -23,11 +23,11 @@ case class TLOutwardCrossingHelper(name: String, scope: LazyScope, node: TLOutwa
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLOutwardNode = {
     xing match {
       case AsynchronousCrossing(depth, sync) =>
-        TLAsyncCrossingSink(depth, sync) :*=* scope { TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(sync) } :*=* node
+        TLAsyncCrossingSink(depth, sync) :*=* TLAsyncNameNode(name) :*=* scope { TLAsyncNameNode(name) :*=* TLAsyncCrossingSource(sync) } :*=* node
       case RationalCrossing(direction) =>
-        TLRationalCrossingSink(direction) :*=* scope { TLRationalNameNode(name) :*=* TLRationalCrossingSource() } :*=* node
+        TLRationalCrossingSink(direction) :*=* TLRationalNameNode(name) :*=* scope { TLRationalNameNode(name) :*=* TLRationalCrossingSource() } :*=* node
       case SynchronousCrossing(buffer) =>
-        scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
+        TLNameNode(name) :*=* scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
     }
   }
 }

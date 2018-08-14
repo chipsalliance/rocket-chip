@@ -86,6 +86,7 @@ abstract class DeviceSnippet extends Device
 object Device
 {
   private var index: Int = 0
+  def skipIndexes(x: Int) { index += x }
 }
 
 /** A trait for devices that generate interrupts. */
@@ -235,7 +236,7 @@ class MemoryDevice extends Device with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
     Description(describeName("memory", resources), ListMap(
-      "reg"         -> resources("reg").map(_.value),
+      "reg"         -> resources.map.filterKeys(regFilter).flatMap(_._2).map(_.value).toList,
       "device_type" -> Seq(ResourceString("memory"))))
   }
 }
