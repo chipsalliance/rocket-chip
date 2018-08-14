@@ -147,7 +147,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   }
 
   // Rocket has higher priority to DTIM than other TileLink clients
-  outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
+  //outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
 
   when(!uncorrectable) { uncorrectable :=
     List(outer.frontend.module.io.errors, outer.dcache.module.io.errors)
