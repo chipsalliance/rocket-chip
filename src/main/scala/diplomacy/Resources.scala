@@ -86,6 +86,7 @@ abstract class DeviceSnippet extends Device
 object Device
 {
   private var index: Int = 0
+  def skipIndexes(x: Int) { index += x }
 }
 
 /** A trait for devices that generate interrupts. */

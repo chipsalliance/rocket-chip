@@ -624,7 +624,7 @@ class LazyRocketImplementation(outer: LazyRocket)(implicit p: Parameters) extend
     fp_sboard.clear(dmem_resp_replay && dmem_resp_fpu, dmem_resp_waddr)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
-    id_csr_en && !io.fpu.fcsr_rdy || checkHazards(fp_hazard_targets, fp_sboard.read _)
+    checkHazards(fp_hazard_targets, fp_sboard.read _)
   } else Bool(false)
 
   val dcache_blocked = Reg(Bool())
@@ -635,6 +635,7 @@ class LazyRocketImplementation(outer: LazyRocket)(implicit p: Parameters) extend
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     csr.io.singleStep && (ex_reg_valid || mem_reg_valid || wb_reg_valid) ||
+    id_csr_en && csr.io.decode(0).fp_csr && !io.fpu.fcsr_rdy ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
@@ -711,6 +712,36 @@ class LazyRocketImplementation(outer: LazyRocket)(implicit p: Parameters) extend
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
+  val coreMonitorBundle = Wire(new Bundle {
+    val hartid = UInt(width = hartIdLen)
+    val time = UInt(width = 32)
+    val valid = Bool()
+    val pc = UInt(width = vaddrBitsExtended)
+    val wrdst = UInt(width = 5)
+    val wrdata = UInt(width = xLen)
+    val wren = Bool()
+    val rd0src = UInt(width = 5)
+    val rd0val = UInt(width = xLen)
+    val rd1src = UInt(width = 5)
+    val rd1val = UInt(width = xLen)
+    val inst = UInt(width = 32)
+  })
+
+  coreMonitorBundle.hartid := io.hartid
+  coreMonitorBundle.time := csr.io.time(31,0)
+  coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
+  coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0)
+  coreMonitorBundle.wrdst := Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0))
+  coreMonitorBundle.wrdata := rf_wdata
+  coreMonitorBundle.wren := rf_wen
+  coreMonitorBundle.rd0src := wb_reg_inst(19,15)
+  coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
+  coreMonitorBundle.rd1src := wb_reg_inst(24,20)
+  coreMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)))
+  coreMonitorBundle.inst := csr.io.trace(0).insn
+
+  p(BundleMonitorKey).foreach { _ ("rocket_core_monitor", coreMonitorBundle) }
+
   if (enableCommitLog) {
     val t = csr.io.trace(0)
     val rd = wb_waddr
@@ -739,12 +770,12 @@ class LazyRocketImplementation(outer: LazyRocket)(implicit p: Parameters) extend
   }
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.hartid, csr.io.time(31,0), csr.io.trace(0).valid && !csr.io.trace(0).exception,
-         csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0),
-         Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0)), rf_wdata, rf_wen,
-         wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
-         wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
-         csr.io.trace(0).insn, csr.io.trace(0).insn)
+         coreMonitorBundle.hartid, coreMonitorBundle.time, coreMonitorBundle.valid,
+         coreMonitorBundle.pc,
+         coreMonitorBundle.wrdst, coreMonitorBundle.wrdata, coreMonitorBundle.wren,
+         coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
+         coreMonitorBundle.rd1src, coreMonitorBundle.rd1val,
+         coreMonitorBundle.inst, coreMonitorBundle.inst)
   }
 
   PlusArg.timeout(
