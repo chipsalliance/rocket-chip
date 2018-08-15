@@ -22,6 +22,7 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae = Bool()
   val pte = new PTE
   val level = UInt(width = log2Ceil(pgLevels))
+  val fragmented_superpage = Bool()
   val homogeneous = Bool()
 }
 
@@ -76,13 +77,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val dpath = new DatapathPTWIO
   }
 
-  val s_ready :: s_req :: s_wait1 :: s_wait2 :: Nil = Enum(UInt(), 4)
+  val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val count = Reg(UInt(width = log2Up(pgLevels)))
   val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
   val resp_ae = Reg(Bool())
+  val resp_fragmented_superpage = Reg(Bool())
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
@@ -125,9 +127,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
-    when (io.mem.resp.valid && traverse && !hit && !invalidated) {
+    when ((state === s_wait2 || state === s_wait3) && traverse && !hit && !invalidated) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
-      valid := valid | UIntToOH(r)
+      valid := Mux(io.mem.resp.valid, valid | UIntToOH(r), valid & ~UIntToOH(r))
       tags(r) := pte_addr
       data(r) := pte.ppn
     }
@@ -219,12 +221,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.addr := pte_addr
   io.mem.s1_kill := s1_kill || l2_hit
   io.mem.s2_kill := Bool(false)
-  
+
+  val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>
     TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(pte_addr >> pgIdxBits << pgIdxBits).homogeneous
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
   val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(pte_addr >> pgIdxBits << pgIdxBits, count)
+  val homogeneous = pmaHomogeneous && pmpHomogeneous
 
   for (i <- 0 until io.requestor.size) {
     io.requestor(i).resp.valid := resp_valid(i)
@@ -232,7 +236,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.pte := r_pte
     io.requestor(i).resp.bits.level := count
     io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
-    io.requestor(i).resp.bits.homogeneous := pmpHomogeneous && pmaHomogeneous
+    io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
+    io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).status := io.dpath.status
     io.requestor(i).pmp := io.dpath.pmp
@@ -244,42 +249,42 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (arb.io.out.fire()) {
         state := s_req
       }
+      resp_fragmented_superpage := false
       count := UInt(0)
     }
     is (s_req) {
       when (pte_cache_hit) {
         s1_kill := true
         count := count + 1
-        r_pte.ppn := pte_cache_data
-      }.elsewhen (io.mem.req.fire()) {
-        state := s_wait1
+      }.elsewhen (io.mem.req.valid) {
+        state := Mux(io.mem.req.ready, s_wait1, s_req)
       }
     }
     is (s_wait1) {
       state := s_wait2
     }
     is (s_wait2) {
-      when (io.mem.s2_nack) {
-        state := s_req
-      }
-      when (io.mem.resp.valid) {
-        r_pte := pte
-        when (traverse) {
-          state := s_req
-          count := count + 1
-        }.otherwise {
-          l2_refill := pte.v && !invalid_paddr && count === pgLevels-1
-          resp_ae := pte.v && invalid_paddr
-          state := s_ready
-          resp_valid(r_req_dest) := true
-        }
-      }
+      state := s_wait3
       when (io.mem.s2_xcpt.ae.ld) {
         resp_ae := true
         state := s_ready
         resp_valid(r_req_dest) := true
       }
     }
+    is (s_fragment_superpage) {
+      state := s_ready
+      resp_valid(r_req_dest) := true
+      when (!pmaPgLevelHomogeneous(pgLevels-1)) {
+        resp_ae := true
+      }
+      when (!homogeneous) {
+        count := pgLevels-1
+        resp_fragmented_superpage := true
+      }
+    }
+  }
+  when (state === s_req && pte_cache_hit) {
+    r_pte.ppn := pte_cache_data
   }
   when (l2_hit) {
     state := s_ready
@@ -287,6 +292,27 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     resp_ae := false
     r_pte := l2_pte
     count := pgLevels-1
+  }
+  when (io.mem.s2_nack) {
+    assert(state === s_wait2)
+    state := s_req
+  }
+  when (io.mem.resp.valid) {
+    assert(state === s_wait2 || state === s_wait3)
+    r_pte := pte
+    when (traverse) {
+      state := s_req
+      count := count + 1
+    }.otherwise {
+      l2_refill := pte.v && !invalid_paddr && count === pgLevels-1
+      resp_ae := pte.v && invalid_paddr
+      when (pageGranularityPMPs && count =/= pgLevels-1) {
+        state := s_fragment_superpage
+      }.otherwise {
+        state := s_ready
+        resp_valid(r_req_dest) := true
+      }
+    }
   }
 
   for (i <- 0 until pgLevels) {
