@@ -17,7 +17,6 @@ class FPUCPFanin()(implicit p: Parameters) extends LazyModule {
 	)
 	//val dummy = node.edges.in.size
 	lazy val module = new LazyModuleImp(this) {
-		require (node.edges.in.size >= 0, "FPUCPFanin requires at least one source")
 		if (node.edges.in.size >= 1) {
 			require (node.edges.out.size == 1, "FPUCPFanin requires at least one sink")
 			require (node.in.forall (_._2.fLen == node.out.head._2.fLen)  , "Source and Sink must have equivalent fLen")
