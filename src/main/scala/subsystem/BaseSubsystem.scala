@@ -67,7 +67,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
     for (bank <- 0 until nBanksPerChannel) {
       val offset = (bank * nMemoryChannels) + channel
       ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) } := out
+      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.mSelectIntersect(AddressSet(offset * memBusBlockBytes, mask))) } := out
     }
     mbus
   }
