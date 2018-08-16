@@ -153,15 +153,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val uncachedReqs = Seq.fill(maxUncachedInFlight) { Reg(new HellaCacheReq) }
 
   // hit initiation path
-  val s0_needsRead = needsRead(io.cpu.req.bits)
   val s0_read = isRead(io.cpu.req.bits.cmd)
-  dataArb.io.in(3).valid := io.cpu.req.valid && s0_needsRead
+  dataArb.io.in(3).valid := io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)
   dataArb.io.in(3).bits.write := false
   dataArb.io.in(3).bits.addr := io.cpu.req.bits.addr
   dataArb.io.in(3).bits.wordMask := UIntToOH(io.cpu.req.bits.addr.extract(rowOffBits-1,offsetlsb))
   dataArb.io.in(3).bits.way_en := ~UInt(0, nWays)
   when (!dataArb.io.in(3).ready && s0_read) { io.cpu.req.ready := false }
-  val s1_did_read = RegEnable(dataArb.io.in(3).fire(), s0_clk_en)
+  val s1_did_read = RegEnable(dataArb.io.in(3).ready && (io.cpu.req.valid && needsRead(io.cpu.req.bits)), s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
@@ -337,7 +336,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_merge_likely = s2_valid && s2_write && s2_store_merge
   val pstore1_merge = s2_store_valid && s2_store_merge
   val pstore2_valid = Reg(Bool())
-  val pstore_drain_opportunistic = !(io.cpu.req.valid && s0_needsRead)
+  val pstore_drain_opportunistic = !(io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits))
   val pstore_drain_on_miss = releaseInFlight
   val pstore1_held = Reg(Bool())
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
@@ -828,6 +827,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   def eccMask(byteMask: UInt) = byteMask.grouped(eccBytes).map(_.orR).asUInt
   def eccByteMask(byteMask: UInt) = FillInterleaved(eccBytes, eccMask(byteMask))
 
+  def likelyNeedsRead(req: HellaCacheReq) = {
+    val res = !req.cmd.isOneOf(M_XWR, M_PFW) || mtSize(req.typ) < log2Ceil(eccBytes)
+    assert(!needsRead(req) || res)
+    res
+  }
   def needsRead(req: HellaCacheReq) =
     isRead(req.cmd) ||
     (isWrite(req.cmd) && (req.cmd === M_PWR || mtSize(req.typ) < log2Ceil(eccBytes)))
