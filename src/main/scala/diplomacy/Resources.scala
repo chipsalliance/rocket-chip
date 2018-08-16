@@ -148,7 +148,7 @@ trait DeviceRegName
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
         case x: ResourceAddress => s"${devname}@${x.address.head.base.toString(16)}"
-        case _ => require(false, "Device has the wrong type of 'reg' property (${reg.head})"); ""
+        case _ => require(false, s"Device has the wrong type of 'reg' property (${reg.head})"); ""
       }
     }
   }
