@@ -11,7 +11,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
-import freechips.rocketchip.tile.fpucp._
+import freechips.rocketchip.rocket.fpucp._
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -35,7 +35,7 @@ class RocketTile(
     crossing: ClockCrossingType)
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
-	with HasFpuOpt //putting this here for now
+    with HasFpuOpt //the fpu is now part of the RocketTile instead of BaseTile
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasHellaCache
     with HasICacheFrontend {

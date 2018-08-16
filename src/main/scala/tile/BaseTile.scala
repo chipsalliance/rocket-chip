@@ -11,7 +11,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.tile.fpucp._
+import freechips.rocketchip.rocket.fpucp._
 
 case object SharedMemoryTLEdge extends Field[TLEdgeOut]
 case object TileKey extends Field[TileParams]

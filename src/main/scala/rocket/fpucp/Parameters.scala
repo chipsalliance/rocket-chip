@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.tile.fpucp
+package freechips.rocketchip.rocket.fpucp
 
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
@@ -11,8 +11,8 @@ import scala.math.max
 
 
 case class FPUCPSinkParameters(
-	fLen: Int,
-	divSqrt: Boolean
+  fLen: Int,
+  divSqrt: Boolean
 )
 
 
