@@ -35,6 +35,13 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     }
   }
 
+  def crossFromControlBus(gen: (=> TLInwardNode) => NoHandle) {
+    from("cbus") {
+      val from_cbus = this.crossIn(inwardNode)
+      gen(from_cbus(params.sbusCrossingType))
+    }
+  }
+
   def fromOtherMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
@@ -51,4 +58,11 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
       gen :*= TLBuffer(buffer) :*= outwardNode
     }}
   }
+
+  def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
+    gen => to(s"bus_named_$name") {
+      (gen
+        :*= TLWidthWidget(params.beatBytes)
+        :*= outwardNode)
+    }
 }
