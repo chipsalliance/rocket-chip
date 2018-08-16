@@ -260,7 +260,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, nEntries: Int)(implicit edge: TL
 
     when (sfence) {
       assert(!io.sfence.bits.rs1 || (io.sfence.bits.addr >> pgIdxBits) === vpn)
-      valid := Mux(io.sfence.bits.rs1, valid & ~hits(totalEntries-1, 0),
+      valid := Mux(io.sfence.bits.rs1 && vm_enabled, valid & ~hits(totalEntries-1, 0),
                Mux(io.sfence.bits.rs2, valid & entries.map(_.g).asUInt, 0))
     }
     when (multipleHits) {
