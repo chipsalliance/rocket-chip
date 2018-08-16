@@ -68,7 +68,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val write = Bool()
   val addr = UInt(width = vaddrBitsExtended)
   val way_en = UInt(width = nWays)
-  val data = new L1Metadata
+  val data = UInt(width = cacheParams.tagCode.width(new L1Metadata().getWidth))
 }
 
 class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
@@ -90,7 +90,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     name = "tag_array",
     desc = "DCache Tag Array",
     size = nSets,
-    data = Vec(nWays, UInt(width = tECC.width(metaArb.io.out.bits.data.getWidth)))
+    data = Vec(nWays, metaArb.io.out.bits.data)
   )
 
   // data
@@ -199,9 +199,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       val metaReq = metaArb.io.out
       val metaIdx = metaReq.bits.addr(idxMSB, idxLSB)
       when (metaReq.valid && metaReq.bits.write) {
-        val wdata = tECC.encode(metaReq.bits.data.asUInt)
         val wmask = if (nWays == 1) Seq(true.B) else metaReq.bits.way_en.toBools
-        tag_array.write(metaIdx, Vec.fill(nWays)(wdata), wmask)
+        tag_array.write(metaIdx, Vec.fill(nWays)(metaReq.bits.data), wmask)
       }
       val s1_meta = tag_array.read(metaIdx, metaReq.valid && !metaReq.bits.write)
       val s1_meta_uncorrected = s1_meta.map(tECC.decode(_).uncorrected.asTypeOf(new L1Metadata))
@@ -290,20 +289,28 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
 
   // tag updates on ECC errors
+  val s2_first_meta_corrected = PriorityMux(s2_meta_correctable_errors, s2_meta_corrected)
   metaArb.io.in(1).valid := s2_meta_error && (s2_valid_masked || s2_flush_valid_pre_tag_ecc || s2_probe)
   metaArb.io.in(1).bits.write := true
   metaArb.io.in(1).bits.way_en := s2_meta_uncorrectable_errors | Mux(s2_meta_error_uncorrectable, 0.U, PriorityEncoderOH(s2_meta_correctable_errors))
   metaArb.io.in(1).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, Mux(s2_probe, probe_bits.address, s2_req.addr)(idxMSB, 0))
-  metaArb.io.in(1).bits.data := PriorityMux(s2_meta_correctable_errors, s2_meta_corrected)
-  when (s2_meta_error_uncorrectable) { metaArb.io.in(1).bits.data.coh := ClientMetadata.onReset }
+  metaArb.io.in(1).bits.data := tECC.encode {
+    val new_meta = Wire(init = s2_first_meta_corrected)
+    when (s2_meta_error_uncorrectable) { new_meta.coh := ClientMetadata.onReset }
+    new_meta.asUInt
+  }
 
   // tag updates on hit/miss
   metaArb.io.in(2).valid := (s2_valid_hit && s2_update_meta) || (s2_want_victimize && !s2_victim_dirty)
   metaArb.io.in(2).bits.write := !s2_cannot_victimize
   metaArb.io.in(2).bits.way_en := s2_victim_way
   metaArb.io.in(2).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_req.addr(idxMSB, 0))
-  metaArb.io.in(2).bits.data.coh := Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)
-  metaArb.io.in(2).bits.data.tag := s2_req.addr >> untagBits
+  metaArb.io.in(2).bits.data := tECC.encode {
+    val new_meta = Wire(new L1Metadata)
+    new_meta.coh := Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)
+    new_meta.tag := s2_req.addr >> untagBits
+    new_meta.asUInt
+  }
 
   // load reservations and TL error reporting
   val s2_lr = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XLR
@@ -549,8 +556,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(3).bits.write := true
   metaArb.io.in(3).bits.way_en := s2_victim_way
   metaArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_req.addr(idxMSB, 0))
-  metaArb.io.in(3).bits.data.coh := s2_hit_state.onGrant(s2_req.cmd, tl_out.d.bits.param)
-  metaArb.io.in(3).bits.data.tag := s2_req.addr >> untagBits
+  metaArb.io.in(3).bits.data := tECC.encode {
+    val new_meta = Wire(new L1Metadata)
+    new_meta.coh := s2_hit_state.onGrant(s2_req.cmd, tl_out.d.bits.param)
+    new_meta.tag := s2_req.addr >> untagBits
+    new_meta.asUInt
+  }
+
   // don't accept uncached grants if there's a structural hazard on s2_data...
   val blockUncachedGrant = Reg(Bool())
   blockUncachedGrant := dataArb.io.out.valid
@@ -663,8 +675,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(4).bits.write := true
   metaArb.io.in(4).bits.way_en := releaseWay
   metaArb.io.in(4).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, tl_out_c.bits.address(idxMSB, 0))
-  metaArb.io.in(4).bits.data.coh := newCoh
-  metaArb.io.in(4).bits.data.tag := tl_out_c.bits.address >> untagBits
+  metaArb.io.in(4).bits.data := tECC.encode {
+    val new_meta = Wire(new L1Metadata)
+    new_meta.coh := newCoh
+    new_meta.tag := tl_out_c.bits.address >> untagBits
+    new_meta.asUInt
+  }
   when (metaArb.io.in(4).fire()) { release_state := s_ready }
 
   // cached response
@@ -779,8 +795,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(0).bits.addr := metaArb.io.in(5).bits.addr
   metaArb.io.in(0).bits.write := true
   metaArb.io.in(0).bits.way_en := ~UInt(0, nWays)
-  metaArb.io.in(0).bits.data.coh := ClientMetadata.onReset
-  metaArb.io.in(0).bits.data.tag := s2_req.addr >> untagBits
+  metaArb.io.in(0).bits.data := tECC.encode {
+    val new_meta = Wire(new L1Metadata)
+    new_meta.coh := ClientMetadata.onReset
+    new_meta.tag := s2_req.addr >> untagBits
+    new_meta.asUInt
+  }
   when (resetting) {
     flushCounter := flushCounterNext
     when (flushDone) {
@@ -803,7 +823,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   {
     val error_addr =
-      Mux(metaArb.io.in(1).valid, Cat(metaArb.io.in(1).bits.data.tag, metaArb.io.in(1).bits.addr(untagBits-1, idxLSB)),
+      Mux(metaArb.io.in(1).valid, Cat(s2_first_meta_corrected.tag, metaArb.io.in(1).bits.addr(untagBits-1, idxLSB)),
           data_error_addr >> idxLSB) << idxLSB
     io.errors.uncorrectable.foreach { u =>
       u.valid := metaArb.io.in(1).valid && s2_meta_error_uncorrectable || data_error && data_error_uncorrectable
