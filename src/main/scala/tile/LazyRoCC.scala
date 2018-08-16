@@ -11,6 +11,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.NAMESPACE._
+import freechips.rocketchip.rocket.hellacache._
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 
@@ -62,7 +63,7 @@ abstract class LazyRoCC(
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
   val NAMESPACENode : Option[NAMESPACESourceNode] = (if (usesFPU) Some(NAMESPACESourceNode()) else None)
-  val hcNode: HellaCacheSourceNode
+  val hcNode: HellaCacheSourceNode = HellaCacheSourceNode()
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {

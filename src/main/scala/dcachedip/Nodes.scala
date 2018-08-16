@@ -19,37 +19,35 @@ package object hellacache {
 
 //Bundles
 // Signal directions are from the master's point-of-view
-class HellaCacheDiplomaticBundle()(implicit val p: Parameters) extends HellaCacheIO(p) 
+class HellaCacheDiplomaticBundle(unused: HellaCacheNullParameters)(implicit p: Parameters) extends HellaCacheIO()(p) 
 
 object HellaCacheDiplomaticBundle {
-	def apply()(implicit p: Parameters) = new HellaCacheDiplomaticBundle
+	def apply(e: HellaCacheNullParameters)(implicit p: Parameters) = new HellaCacheDiplomaticBundle(e)
 }
 
 //Parameters
-case class HellaCacheNullParameters() //dummy parameters,
-                                      //everything is from core parameters in this case
+case class HellaCacheNullParameters()(implicit val p: Parameters) 
+	                                  
+
 
 //Nodes
-object HellaCacheImp extends SimpleNodeImp[HellaCacheNullParameters, HellaCacheNullParameters, HellaCacheEdgeParameters, HellaCacheDiplomaticBundle] {
-	def edge(pd: HellaCacheNullParameters, pu: HellaCacheNullParameters, p: Parameters, sourceInfo: SourceInfo) = HellaCacheNullParameters
+object HellaCacheImp extends SimpleNodeImp[HellaCacheNullParameters, HellaCacheNullParameters, HellaCacheNullParameters, HellaCacheDiplomaticBundle] {
+	def edge(pd: HellaCacheNullParameters, pu: HellaCacheNullParameters, p: Parameters, sourceInfo: SourceInfo) = HellaCacheNullParameters()(p)
 	//def bundle(e: HellaCacheEdgeParameters) = HellaCacheDiplomaticBundle(e.bundle)
-	def bundle(implicit p: Parameters) = HellaCacheDiplomaticBundle
-	def render(e: HellaCacheEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = s("HellaCache")
+	def bundle(e: HellaCacheNullParameters) = HellaCacheDiplomaticBundle(e)(e.p)
+	def render(e: HellaCacheNullParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = "HellaCache")
 }
 
 // Nodes implemented inside modules
-case class HellaCacheSourceNode(portParams: Seq[HellaCacheNullParameters])(implicit valName: ValName) extends SourceNode(HellaCacheImp)(portParams)
-case class HellaCacheSinkNode(portParams: Seq[HellaCacheNullParameters])(implicit valName: ValName) extends SinkNode(HellaCacheImp)(portParams)
-case class HellaCacheNexusNode()(
-	//sourceFn:       Seq[HellaCacheNullParameters] => HellaCacheNullParameters,
-	//sinkFn:        Seq[HellaCacheNullParameters]  => HellaCacheNullParameters)(
-	implicit valName: ValName)
+case class HellaCacheSourceNode()(implicit valName: ValName, p: Parameters) extends SourceNode(HellaCacheImp)(List(HellaCacheNullParameters()))
+case class HellaCacheSinkNode()(implicit valName: ValName, p: Parameters) extends SinkNode(HellaCacheImp)(List(HellaCacheNullParameters()))
+case class HellaCacheNexusNode()(implicit valName: ValName, p: Parameters)
 	extends NexusNode(HellaCacheImp)(
 		{_: Seq[HellaCacheNullParameters] => HellaCacheNullParameters()},
 		{_: Seq[HellaCacheNullParameters] => HellaCacheNullParameters()})
 
 //Xbar
-class HellaCacheFanin()(implicit val p: Parameters) extends LazyModule {
+class HellaCacheFanin()(implicit p: Parameters) extends LazyModule()(p) {
 	val node = HellaCacheNexusNode()
 
 	lazy val module = new LazyModuleImp(this) {
@@ -59,43 +57,8 @@ class HellaCacheFanin()(implicit val p: Parameters) extends LazyModule {
 		
 		val dcacheArb = new HellaCacheArbiter(numPorts)
 
-		in <> dcacheArb.io.requestor
+		in.zip(dcacheArb.io.requestor).foreach { case (in, req) => in <> req }
 		dcacheArb.io.mem <> out
 	}
 }
 
-//ToTL Adapter Node
-case class HellaCacheToTLNode()(implicit valName: ValName) extends MixedAdapterNode(HellaCacheImp, TLImp)(
-	dFn = { case HellaCacheSourcePortParameters(masters) =>
-		TLClientPortParameters(clients = masters.map { m =>
-			TLClientParameters(name = m.name, nodePath = m.nodePath)
-		})
-	},
-	uFn = { mp => HellaCacheSinkPortParameters(
-		slaves = mp.managers.map { m =>
-			def adjust(x: TransferSizes) = {
-				if (x.contains(mp.beatBytes)) {
-					TransferSizes(x.min, m.minAlignment.min(mp.beatBytes * HellaCacheParameters.maxTransfer).toInt)
-				} else { // larger than beatBytes requires beatBytes if misaligned
-					x.intersect(TransferSizes(1, mp.beatBytes))
-				}
-			}
-		}
-	)
-)
-
-class HellaCacheToTL()(implicit p: Parameters) extends LazyModule {
-	val node = HellaCacheToTLNode()
-	lazy val module = new LazyModuleImp(this) {
-		(node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-		
-		}
-	}
-}
-
-object HellaCacheToTL {
-	def apply()(implicit p: Parameters) = {
-		val hc2tl = LazyModule(new HellaCacheToTL)
-		hc2tl.node
-	}
-}

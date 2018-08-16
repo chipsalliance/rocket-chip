@@ -13,6 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
 import scala.math.max
+import freechips.rocketchip.rocket.hellacache._
 
 case class DCacheParams(
     nSets: Int = 64,

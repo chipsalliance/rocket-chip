@@ -12,6 +12,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 import freechips.rocketchip.NAMESPACE._
+import freechips.rocketchip.rocket.hellacache._
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -36,8 +37,8 @@ class RocketTile(
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
 	with HasFpuOpt //putting this here for now
-    with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasHellaCache
+    with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasICacheFrontend {
 
   val intOutwardNode = IntIdentityNode()
@@ -53,6 +54,9 @@ class RocketTile(
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
   }
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, xBytes))
+  // Rocket has higher priority to DTIM than other TileLink clients
+  dtim_adapter.foreach(lm => hcXbar.node := lm.hcNode)
+
 
   val bus_error_unit = tileParams.core.tileControlAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
@@ -136,7 +140,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.frontend.module.io.hartid := constants.hartid
   outer.dcache.module.io.hartid := constants.hartid
   outer.fpuOpt foreach { fpu => outer.core.module.io.fpu <> fpu.module.io }
-  outer.core.module.io.ptw <> ptw.io.dpath
+  //NOTE: CHANGED PTW TO LAZY SO WE HAVE TO CALL OUTER
+  outer.core.module.io.ptw <> outer.ptw.module.io.dpath
 
   if (outer.roccs.size > 0) {
     cmdRouter.get.io.in <> outer.core.module.io.rocc.cmd
@@ -157,7 +162,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   }
 
   // TODO figure out how to move the below into their respective mix-ins
-  ptw.io.requestor <> ptwPorts
+  outer.ptw.module.io.requestor <> ptwPorts
 }
 
 trait HasFpuOpt { this: RocketTile =>

@@ -12,6 +12,8 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.hellacache._
 
 case class RocketCoreParams(
   bootFreqHz: BigInt = 0,

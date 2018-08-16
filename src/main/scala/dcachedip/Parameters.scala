@@ -8,4 +8,4 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.max
 
-case class HellaCacheNullParameters()
+//case class HellaCacheNullParameters()

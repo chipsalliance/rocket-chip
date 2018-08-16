@@ -12,6 +12,7 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.NAMESPACE._
+import freechips.rocketchip.rocket.hellacache._
 
 case object SharedMemoryTLEdge extends Field[TLEdgeOut]
 case object TileKey extends Field[TileParams]
@@ -144,7 +145,7 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
   protected val NAMESPACEXbar = LazyModule(new NAMESPACEFanin)
-  protected val hcXbar = LazyModule(new HellaCacheXbar)
+  protected val hcXbar = LazyModule(new HellaCacheFanin)
 
   def connectTLSlave(node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>

@@ -590,7 +590,7 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
   outer.dcacheOpt foreach { dcache =>
     val dcacheIF = Module(new SimpleHellaCacheIF())
     dcacheIF.io.requestor <> tracegen.io.mem
-    dcache.module.io.cpu <> dcacheIF.io.cache
+    dcache.hcNode.in.head._1 <> dcacheIF.io.cache
   }
 
   status.finished := tracegen.io.finished

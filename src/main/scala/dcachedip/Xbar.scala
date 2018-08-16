@@ -74,7 +74,7 @@ class HellaCacheFanin() extends LazyModule {
 		}
 	}
 }
-*/
+
 
 class HellaCacheFanin()(implicit val p: Parameters) extends LazyModule {
 	val node = HellaCacheNexusNode()
@@ -90,3 +90,4 @@ class HellaCacheFanin()(implicit val p: Parameters) extends LazyModule {
 		dcacheArb.io.mem <> out
 	}
 }
+*/
