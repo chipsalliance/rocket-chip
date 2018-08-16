@@ -81,10 +81,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
   val count = Reg(UInt(width = log2Up(pgLevels)))
-  val s1_kill = Reg(next = Bool(false))
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
-  val resp_ae = Reg(Bool())
-  val resp_fragmented_superpage = Reg(Bool())
+  val resp_ae = RegNext(false.B)
+  val resp_fragmented_superpage = RegNext(false.B)
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
@@ -95,8 +94,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   arb.io.out.ready := state === s_ready
 
   val (pte, invalid_paddr) = {
-    val tmp = new PTE().fromBits(io.mem.resp.bits.data)
-    val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data))
+    val tmp = new PTE().fromBits(io.mem.resp.bits.data_word_bypass)
+    val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data_word_bypass))
     res.ppn := tmp.ppn(ppnBits-1, 0)
     when (tmp.r || tmp.w || tmp.x) {
       // for superpage mappings, make sure PPN LSBs are zero
@@ -115,13 +114,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
     r_req_dest := arb.io.chosen
-    r_pte.ppn := io.dpath.ptbr.ppn
   }
 
   val (pte_cache_hit, pte_cache_data) = {
     val size = 1 << log2Up(pgLevels * 2)
     val plru = new PseudoLRU(size)
-    val valid = Reg(init = UInt(0, size))
+    val invalid = RegInit(true.B)
+    val reg_valid = Reg(UInt(size.W))
+    val valid = Mux(invalid, 0.U, reg_valid)
     val tags = Reg(Vec(size, UInt(width = paddrBits)))
     val data = Reg(Vec(size, UInt(width = ppnBits)))
 
@@ -129,12 +129,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val hit = hits.orR
     when ((state === s_wait2 || state === s_wait3) && traverse && !hit && !invalidated) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
-      valid := Mux(io.mem.resp.valid, valid | UIntToOH(r), valid & ~UIntToOH(r))
+      invalid := false
+      reg_valid := Mux(io.mem.resp.valid, valid | UIntToOH(r), valid & ~UIntToOH(r))
       tags(r) := pte_addr
       data(r) := pte.ppn
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
-    when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0 }
+    when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { invalid := true }
 
     for (i <- 0 until pgLevels-1)
       ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
@@ -214,12 +215,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
   invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
   
-  io.mem.req.valid := state === s_req && !l2_valid
+  io.mem.req.valid := state === s_req || state === s_dummy1
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
   io.mem.req.bits.typ  := log2Ceil(xLen/8)
   io.mem.req.bits.addr := pte_addr
-  io.mem.s1_kill := s1_kill || l2_hit
+  io.mem.s1_kill := l2_hit || state =/= s_wait1
   io.mem.s2_kill := Bool(false)
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
@@ -244,72 +245,80 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   // control state machine
+  val next_state = Wire(init = state)
+  state := OptimizationBarrier(next_state)
+
   switch (state) {
     is (s_ready) {
       when (arb.io.out.fire()) {
-        state := s_req
+        next_state := s_req
       }
-      resp_fragmented_superpage := false
       count := UInt(0)
     }
     is (s_req) {
       when (pte_cache_hit) {
-        s1_kill := true
         count := count + 1
-      }.elsewhen (io.mem.req.valid) {
-        state := Mux(io.mem.req.ready, s_wait1, s_req)
+      }.otherwise {
+        next_state := Mux(io.mem.req.ready, s_wait1, s_req)
       }
     }
     is (s_wait1) {
-      state := s_wait2
+      next_state := s_wait2
     }
     is (s_wait2) {
-      state := s_wait3
+      next_state := s_wait3
       when (io.mem.s2_xcpt.ae.ld) {
         resp_ae := true
-        state := s_ready
+        next_state := s_ready
         resp_valid(r_req_dest) := true
       }
     }
     is (s_fragment_superpage) {
-      state := s_ready
+      next_state := s_ready
       resp_valid(r_req_dest) := true
-      when (!pmaPgLevelHomogeneous(pgLevels-1)) {
-        resp_ae := true
-      }
+      resp_ae := !pmaPgLevelHomogeneous(pgLevels-1)
       when (!homogeneous) {
         count := pgLevels-1
         resp_fragmented_superpage := true
       }
     }
   }
-  when (state === s_req && pte_cache_hit) {
-    r_pte.ppn := pte_cache_data
+
+  private def makePTE(ppn: UInt, default: PTE) = {
+    val pte = Wire(init = default)
+    pte.ppn := ppn
+    pte
   }
+  r_pte := OptimizationBarrier(
+    Mux(io.mem.resp.valid, pte,
+    Mux(l2_hit, l2_pte,
+    Mux(state === s_req && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
+    Mux(arb.io.out.fire(), makePTE(io.dpath.ptbr.ppn, l2_pte), r_pte)))))
+
   when (l2_hit) {
-    state := s_ready
+    assert(state === s_req || state === s_wait1)
+    next_state := s_ready
     resp_valid(r_req_dest) := true
     resp_ae := false
-    r_pte := l2_pte
     count := pgLevels-1
   }
   when (io.mem.s2_nack) {
     assert(state === s_wait2)
-    state := s_req
+    next_state := s_req
   }
   when (io.mem.resp.valid) {
     assert(state === s_wait2 || state === s_wait3)
-    r_pte := pte
     when (traverse) {
-      state := s_req
+      next_state := s_req
       count := count + 1
     }.otherwise {
       l2_refill := pte.v && !invalid_paddr && count === pgLevels-1
-      resp_ae := pte.v && invalid_paddr
-      when (pageGranularityPMPs && count =/= pgLevels-1) {
-        state := s_fragment_superpage
+      val ae = pte.v && invalid_paddr
+      resp_ae := ae
+      when (pageGranularityPMPs && count =/= pgLevels-1 && !ae) {
+        next_state := s_fragment_superpage
       }.otherwise {
-        state := s_ready
+        next_state := s_ready
         resp_valid(r_req_dest) := true
       }
     }
@@ -319,9 +328,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val leaf = io.mem.resp.valid && !traverse && count === i
     ccover(leaf && pte.v && !invalid_paddr, s"L$i", s"successful page-table access, level $i")
     ccover(leaf && pte.v && invalid_paddr, s"L${i}_BAD_PPN_MSB", s"PPN too large, level $i")
-    ccover(leaf && !io.mem.resp.bits.data(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
+    ccover(leaf && !io.mem.resp.bits.data_word_bypass(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
     if (i != pgLevels-1)
-      ccover(leaf && !pte.v && io.mem.resp.bits.data(0), s"L${i}_BAD_PPN_LSB", s"PPN LSBs not zero, level $i")
+      ccover(leaf && !pte.v && io.mem.resp.bits.data_word_bypass(0), s"L${i}_BAD_PPN_LSB", s"PPN LSBs not zero, level $i")
   }
   ccover(io.mem.resp.valid && count === pgLevels-1 && pte.table(), s"TOO_DEEP", s"page table too deep")
   ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
