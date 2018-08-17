@@ -115,7 +115,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
     with HasCoreParameters {
   val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
   outer.hcNode.out.head._1 <> dcIF.io.cache //
-  val inner_mem = new HellaCacheIO
+  val inner_mem = Wire(new HellaCacheIO)
   dcIF.io.requestor <> inner_mem
 
   val regfile = Mem(outer.n, UInt(width = xLen))
@@ -188,7 +188,7 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
     with HasCoreParameters {
   val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
   outer.hcNode.out.head._1 <> dcIF.io.cache //
-  val inner_mem = new HellaCacheIO
+  val inner_mem = Wire(new HellaCacheIO)
   dcIF.io.requestor <> inner_mem
   
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
@@ -241,7 +241,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
   with HasL1CacheParameters {
   val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
   outer.hcNode.out.head._1 <> dcIF.io.cache //
-  val inner_mem = new HellaCacheIO
+  val inner_mem = Wire(new HellaCacheIO)
   dcIF.io.requestor <> inner_mem
 
   val cacheParams = tileParams.icache.get

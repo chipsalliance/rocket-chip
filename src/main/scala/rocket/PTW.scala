@@ -71,14 +71,15 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   def sx(dummy: Int = 0) = leaf() && x
 }
 
-class LazyPTW(n: Int, val edge: () => TLEdgeOut)(implicit p: Parameters) extends LazyModule {
+class LazyPTW(val n: () => Int, val edge: () => TLEdgeOut)(implicit p: Parameters) extends LazyModule {
 	val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
-	lazy val module = new LazyPTWImplementation(n, this)
+	lazy val module = new LazyPTWImplementation(this)
 	
 }
 
-class LazyPTWImplementation(n: Int, outer: LazyPTW)(implicit p: Parameters) extends LazyModuleImp(outer) 
+class LazyPTWImplementation(outer: LazyPTW)(implicit p: Parameters) extends LazyModuleImp(outer) 
     with HasCoreParameters {
+  val n = outer.n()
   val io = IO(new Bundle {
     val requestor = Vec(n, new TLBPTWIO).flip
     val dpath = new DatapathPTWIO
@@ -320,9 +321,8 @@ class LazyPTWImplementation(n: Int, outer: LazyPTW)(implicit p: Parameters) exte
 trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
   //TODO: someone should put a lazy wrapper on all things connected via the TLBPTWIO
-  //              ICache   DCache  Roccs
-  var nPTWPorts = 1      + 1     + p(BuildRoCC).size
-  val ptw = LazyModule(new LazyPTW(nPTWPorts, (() => dcache.node.edges.out(0))))
+  var nPTWPorts = 1 
+  val ptw = LazyModule(new LazyPTW(() => nPTWPorts, (() => dcache.node.edges.out(0))))
   hcXbar.node := ptw.hcNode
 
 }
