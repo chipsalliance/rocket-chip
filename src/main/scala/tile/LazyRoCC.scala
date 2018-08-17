@@ -111,7 +111,7 @@ class  AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parame
 class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
   val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
-  outer.hcNode.in.head._1 <> dcIF.io.cache //
+  outer.hcNode.out.head._1 <> dcIF.io.cache //
   val inner_mem = new HellaCacheIO
   dcIF.io.requestor <> inner_mem
 
@@ -184,7 +184,7 @@ class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends Laz
 class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
   val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
-  outer.hcNode.in.head._1 <> dcIF.io.cache //
+  outer.hcNode.out.head._1 <> dcIF.io.cache //
   val inner_mem = new HellaCacheIO
   dcIF.io.requestor <> inner_mem
   
@@ -237,7 +237,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
   with HasCoreParameters
   with HasL1CacheParameters {
   val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
-  outer.hcNode.in.head._1 <> dcIF.io.cache //
+  outer.hcNode.out.head._1 <> dcIF.io.cache //
   val inner_mem = new HellaCacheIO
   dcIF.io.requestor <> inner_mem
 
