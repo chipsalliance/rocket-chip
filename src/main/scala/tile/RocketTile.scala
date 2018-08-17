@@ -37,7 +37,6 @@ class RocketTile(
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
     with HasFpuOpt //the fpu is now part of the RocketTile instead of BaseTile
-    with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasHellaCache
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasICacheFrontend {

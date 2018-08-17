@@ -75,7 +75,6 @@ trait HasLazyRoCC extends CanHavePTW
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
-  roccs.map(_.NAMESPACENode).foreach { _.foreach { namespace => NAMESPACEXbar.node := namespace }}
 
   roccs.map(_.hcNode).foreach { hc => hcXbar.node := hc } 
 
