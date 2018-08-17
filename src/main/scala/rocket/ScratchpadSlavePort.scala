@@ -12,7 +12,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.rocket.hellacache._
 
-/* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
+/* This adapter converts between diplomatic TileLink and internal HellaCache Diplomatic Nodes */
 class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
   val node = TLManagerNode(Seq(TLManagerPortParameters(
@@ -32,9 +32,6 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
   val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
 
   lazy val module = new LazyModuleImp(this) {
-    //val io = IO(new Bundle {
-    //  val dmem = new HellaCacheIO
-    //})
 	val inner_dmem = hcNode.out.head._1
 
     val (tl_in, edge) = node.in(0)

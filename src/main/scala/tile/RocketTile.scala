@@ -151,9 +151,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     outer.core.module.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
   }
 
-  // Rocket has higher priority to DTIM than other TileLink clients
-  //outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
-
   when(!uncorrectable) { uncorrectable :=
     List(outer.frontend.module.io.errors, outer.dcache.module.io.errors)
       .flatMap { e => e.uncorrectable.map(_.valid) }
@@ -161,7 +158,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
       .getOrElse(false.B)
   }
 
-  // TODO figure out how to move the below into their respective mix-ins
+  // TODO figure out how to move the ptw below into its respective mix-in
   outer.ptw.module.io.requestor <> ptwPorts
 }
 

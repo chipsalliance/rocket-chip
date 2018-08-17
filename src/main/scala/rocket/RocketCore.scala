@@ -59,18 +59,22 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   require(!fastLoadByte || fastLoadWord)
 }
 
-class LazyRocket(implicit p: Parameters) extends LazyModule 
-	with HasRocketCoreParameters {
-	val hcNode: HellaCacheSinkNode = new HellaCacheSinkNode
-	override lazy val module = new LazyRocketImplementation(this)
+class LazyRocket(implicit p: Parameters) extends LazyModule {
+	val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
+	lazy val module = new LazyRocketImplementation(this)
 }
-
-//class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
 class LazyRocketImplementation(outer: LazyRocket)(implicit p: Parameters) extends LazyModuleImp(outer)
 	with HasCoreParameters
-	with HasRocketCoreParameters
-	with HasCoreIO {
+	with HasRocketCoreParameters {
+  val io = IO(new CoreBundle()(p) with HasExternallyDrivenTileConstants {
+    val interrupts = new CoreInterrupts().asInput
+    val imem  = new FrontendIO
+    val ptw = new DatapathPTWIO().flip
+    val fpu = new FPUCoreIO().flip
+    val rocc = new RoCCCoreIO().flip
+    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+  })
 
   val inner_dmem = outer.hcNode.out.head._1
   // performance counters

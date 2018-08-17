@@ -92,15 +92,3 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
   val buserror = coreParams.tileControlAddr.map(a => Bool())
 }
 
-trait HasCoreIO extends HasTileParameters {
-  implicit val p: Parameters
-  val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
-    val interrupts = new CoreInterrupts().asInput
-    val imem  = new FrontendIO
-    //val dmem = new HellaCacheIO
-    val ptw = new DatapathPTWIO().flip
-    val fpu = new FPUCoreIO().flip
-    val rocc = new RoCCCoreIO().flip
-    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
-  }
-}

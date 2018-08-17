@@ -71,21 +71,19 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   def sx(dummy: Int = 0) = leaf() && x
 }
 
-class LazyPTW(n: Int, edge: () => TLEdgeOut)(implicit p: Parameters) extends LazyModule {
+class LazyPTW(n: Int, val edge: () => TLEdgeOut)(implicit p: Parameters) extends LazyModule {
 	val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
-	val module = new LazyPTWImplementation(n, edge, this)
+	lazy val module = new LazyPTWImplementation(n, this)
 	
 }
-//class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) 
 
-
-class LazyPTWImplementation(n: Int, edge: () => TLEdgeOut, outer: LazyPTW)(implicit p: Parameters) extends LazyModuleImp(outer) 
+class LazyPTWImplementation(n: Int, outer: LazyPTW)(implicit p: Parameters) extends LazyModuleImp(outer) 
     with HasCoreParameters {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val requestor = Vec(n, new TLBPTWIO).flip
-    //val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
-  }
+  })
+  val edge = outer.edge()
   val inner_mem = outer.hcNode.out.head._1
   val s_ready :: s_req :: s_wait1 :: s_wait2 :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
@@ -143,7 +141,9 @@ class LazyPTWImplementation(n: Int, edge: () => TLEdgeOut, outer: LazyPTW)(impli
       data(r) := pte.ppn
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
-    when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0 }
+    when (io.dpath.sfence.valid && 
+		!io.dpath.sfence.bits.rs1) 
+		{ valid := 0 }
 
     for (i <- 0 until pgLevels-1)
       ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
@@ -322,18 +322,12 @@ trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =
   //TODO: someone should put a lazy wrapper on all things connected via the TLBPTWIO
   //              ICache   DCache  Roccs
   var nPTWPorts = 1      + 1     + p(BuildRoCC).size
-  val ptw = LazyModule(new LazyPTW(
-	  nPTWPorts, (() =>
-		  dcache.node.edges.out(0))))
+  val ptw = LazyModule(new LazyPTW(nPTWPorts, (() => dcache.node.edges.out(0))))
   hcXbar.node := ptw.hcNode
 
-  //nDCachePorts += usingPTW.toInt
 }
 
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  //val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
-  //if (outer.usingPTW)
-  //  dcachePorts += ptw.inner_mem
 }

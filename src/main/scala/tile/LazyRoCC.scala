@@ -41,7 +41,6 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
 class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
-  //val mem = new HellaCacheIO
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
   val exception = Bool(INPUT)
@@ -49,8 +48,6 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p) {
   val ptw = Vec(nPTWPorts, new TLBPTWIO)
-  //val fpu_req = Decoupled(new FPInput)
-  //val fpu_resp = Decoupled(new FPResult).flip
 }
 
 /** Base classes for Diplomatic TL2 RoCC units **/
@@ -97,28 +94,8 @@ trait HasLazyRoCCModule extends CanHavePTWModule
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
       ptwPorts ++= rocc.module.io.ptw
       rocc.module.io.cmd <> cmdRouter.io.out(i)
-      //val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
-      //dcIF.io.requestor <> rocc.module.io.mem
-	  //dcIF.io.requestor <> rocc.hcNode.in.head._1 //connecting existing port to adapter node
-      //dcachePorts += dcIF.io.cache
       respArb.io.in(i) <> Queue(rocc.module.io.resp)
     }
-
-    //  val nFPUPorts = outer.roccs.filter(_.usesFPU).size
-    //  if (usingFPU && nFPUPorts > 0) {
-    //    val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
-    //    val fp_rocc_ios = outer.roccs.filter(_.usesFPU).map(_.module.io)
-    //    fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
-    //    fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
-    //      case (rocc, arb) => rocc.fpu_resp <> arb
-    //    }
-    //    fpu.io.cp_req <> fpArb.io.out_req
-    //    fpArb.io.out_resp <> fpu.io.cp_resp
-    //  } else {
-    //    fpu.io.cp_req.valid := Bool(false)
-    //    fpu.io.cp_resp.ready := Bool(false)
-    //  }
-    //}
     (Some(respArb), Some(cmdRouter))
   } else {
     (None, None)

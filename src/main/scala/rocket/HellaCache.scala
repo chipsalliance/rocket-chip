@@ -185,7 +185,6 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
   val hartid = UInt(INPUT, hartIdLen)
-  //val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
 }
@@ -213,21 +212,17 @@ trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
-  //var nDCachePorts = 0
   val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
       new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
     } else { new NonBlockingDCache(hartId) })
 
-  hcXbar.node := dcache.hcNode
+  dcache.hcNode := hcXbar.node
   tlMasterXbar.node := dcache.node
 }
 
 trait HasHellaCacheModule {
   val outer: HasHellaCache
-  //val dcachePorts = ListBuffer[HellaCacheIO]()
-  //val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
-  //outer.dcache.module.io.cpu <> dcacheArb.io.mem
 }
 
 /** Metadata array used for all HellaCaches */
