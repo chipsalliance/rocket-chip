@@ -214,6 +214,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val bp = Vec(nBreakpoints, new BP).asOutput
   val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
+  val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
 }
@@ -638,7 +639,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     set_fs_dirty := true
   }
 
-  when (io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)) {
+  val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
+  io.csrw_counter := Mux(coreParams.haveBasicCounters && csr_wen && (io.rw.addr.inRange(CSRs.mcycle, CSRs.mcycle + CSR.nCtr) || io.rw.addr.inRange(CSRs.mcycleh, CSRs.mcycleh + CSR.nCtr)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
+  when (csr_wen) {
     when (decoded_addr(CSRs.mstatus)) {
       val new_mstatus = new MStatus().fromBits(wdata)
       reg_mstatus.mie := new_mstatus.mie
