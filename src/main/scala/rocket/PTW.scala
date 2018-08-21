@@ -13,6 +13,8 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import scala.collection.mutable.ListBuffer
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.hellacache._
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
@@ -69,13 +71,21 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   def sx(dummy: Int = 0) = leaf() && x
 }
 
-class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val requestor = Vec(n, new TLBPTWIO).flip
-    val mem = new HellaCacheIO
-    val dpath = new DatapathPTWIO
-  }
+class LazyPTW(val n: () => Int, val edge: () => TLEdgeOut)(implicit p: Parameters) extends LazyModule {
+	val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
+	lazy val module = new LazyPTWImplementation(this)
+	
+}
 
+class LazyPTWImplementation(outer: LazyPTW)(implicit p: Parameters) extends LazyModuleImp(outer) 
+    with HasCoreParameters {
+  val n = outer.n()
+  val io = IO(new Bundle {
+    val requestor = Vec(n, new TLBPTWIO).flip
+    val dpath = new DatapathPTWIO
+  })
+  val edge = outer.edge()
+  val inner_mem = outer.hcNode.out.head._1
   val s_ready :: s_req :: s_wait1 :: s_wait2 :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
   val invalidated = Reg(Bool())
@@ -93,8 +103,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   arb.io.out.ready := state === s_ready
 
   val (pte, invalid_paddr) = {
-    val tmp = new PTE().fromBits(io.mem.resp.bits.data)
-    val res = Wire(init = new PTE().fromBits(io.mem.resp.bits.data))
+    val tmp = new PTE().fromBits(inner_mem.resp.bits.data)
+    val res = Wire(init = new PTE().fromBits(inner_mem.resp.bits.data))
     res.ppn := tmp.ppn(ppnBits-1, 0)
     when (tmp.r || tmp.w || tmp.x) {
       // for superpage mappings, make sure PPN LSBs are zero
@@ -125,14 +135,16 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
-    when (io.mem.resp.valid && traverse && !hit && !invalidated) {
+    when (inner_mem.resp.valid && traverse && !hit && !invalidated) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
       tags(r) := pte_addr
       data(r) := pte.ppn
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
-    when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0 }
+    when (io.dpath.sfence.valid && 
+		!io.dpath.sfence.bits.rs1) 
+		{ valid := 0 }
 
     for (i <- 0 until pgLevels-1)
       ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
@@ -212,13 +224,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
   invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
   
-  io.mem.req.valid := state === s_req && !l2_valid
-  io.mem.req.bits.phys := Bool(true)
-  io.mem.req.bits.cmd  := M_XRD
-  io.mem.req.bits.typ  := log2Ceil(xLen/8)
-  io.mem.req.bits.addr := pte_addr
-  io.mem.s1_kill := s1_kill || l2_hit
-  io.mem.s2_kill := Bool(false)
+  inner_mem.req.valid := state === s_req && !l2_valid
+  inner_mem.req.bits.phys := Bool(true)
+  inner_mem.req.bits.cmd  := M_XRD
+  inner_mem.req.bits.typ  := log2Ceil(xLen/8)
+  inner_mem.req.bits.addr := pte_addr
+  inner_mem.s1_kill := s1_kill || l2_hit
+  inner_mem.s2_kill := Bool(false)
   
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>
     TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(pte_addr >> pgIdxBits << pgIdxBits).homogeneous
@@ -251,7 +263,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         s1_kill := true
         count := count + 1
         r_pte.ppn := pte_cache_data
-      }.elsewhen (io.mem.req.fire()) {
+      }.elsewhen (inner_mem.req.fire()) {
         state := s_wait1
       }
     }
@@ -259,10 +271,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       state := s_wait2
     }
     is (s_wait2) {
-      when (io.mem.s2_nack) {
+      when (inner_mem.s2_nack) {
         state := s_req
       }
-      when (io.mem.resp.valid) {
+      when (inner_mem.resp.valid) {
         r_pte := pte
         when (traverse) {
           state := s_req
@@ -274,7 +286,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           resp_valid(r_req_dest) := true
         }
       }
-      when (io.mem.s2_xcpt.ae.ld) {
+      when (inner_mem.s2_xcpt.ae.ld) {
         resp_ae := true
         state := s_ready
         resp_valid(r_req_dest) := true
@@ -290,16 +302,16 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   for (i <- 0 until pgLevels) {
-    val leaf = io.mem.resp.valid && !traverse && count === i
+    val leaf = inner_mem.resp.valid && !traverse && count === i
     ccover(leaf && pte.v && !invalid_paddr, s"L$i", s"successful page-table access, level $i")
     ccover(leaf && pte.v && invalid_paddr, s"L${i}_BAD_PPN_MSB", s"PPN too large, level $i")
-    ccover(leaf && !io.mem.resp.bits.data(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
+    ccover(leaf && !inner_mem.resp.bits.data(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
     if (i != pgLevels-1)
-      ccover(leaf && !pte.v && io.mem.resp.bits.data(0), s"L${i}_BAD_PPN_LSB", s"PPN LSBs not zero, level $i")
+      ccover(leaf && !pte.v && inner_mem.resp.bits.data(0), s"L${i}_BAD_PPN_LSB", s"PPN LSBs not zero, level $i")
   }
-  ccover(io.mem.resp.valid && count === pgLevels-1 && pte.table(), s"TOO_DEEP", s"page table too deep")
-  ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
-  ccover(state === s_wait2 && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
+  ccover(inner_mem.resp.valid && count === pgLevels-1 && pte.table(), s"TOO_DEEP", s"page table too deep")
+  ccover(inner_mem.s2_nack, "NACK", "D$ nacked page-table access")
+  ccover(state === s_wait2 && inner_mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     if (usingVM) cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
@@ -308,14 +320,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 /** Mix-ins for constructing tiles that might have a PTW */
 trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
-  var nPTWPorts = 1
-  nDCachePorts += usingPTW.toInt
+  //TODO: someone should put a lazy wrapper on all things connected via the TLBPTWIO
+  var nPTWPorts = 1 
+  val ptw = LazyModule(new LazyPTW(() => nPTWPorts, (() => dcache.node.edges.out(0))))
+  hcXbar.node := ptw.hcNode
+
 }
 
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
-  if (outer.usingPTW)
-    dcachePorts += ptw.io.mem
 }

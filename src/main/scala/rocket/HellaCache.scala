@@ -13,6 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
 import scala.math.max
+import freechips.rocketchip.rocket.hellacache._
 
 case class DCacheParams(
     nSets: Int = 64,
@@ -178,12 +179,12 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
         requestFifo   = true))
     },
     minLatency = 1)))
+  val hcNode: HellaCacheSinkNode = new HellaCacheSinkNode
   val module: HellaCacheModule
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
   val hartid = UInt(INPUT, hartIdLen)
-  val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
 }
@@ -193,8 +194,10 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
-  dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
-  dontTouch(io.cpu.s1_data)
+  //setting the hcnode alias for HellaCacheIO
+  val inner_mem = outer.hcNode.in.head._1
+  dontTouch(inner_mem.resp) // Users like to monitor these fields even if the core ignores some signals
+  dontTouch(inner_mem.s1_data)
 
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
   fifoManagers.foreach { m =>
@@ -209,20 +212,17 @@ trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
-  var nDCachePorts = 0
   val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
       new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
     } else { new NonBlockingDCache(hartId) })
 
+  dcache.hcNode := hcXbar.node
   tlMasterXbar.node := dcache.node
 }
 
 trait HasHellaCacheModule {
   val outer: HasHellaCache
-  val dcachePorts = ListBuffer[HellaCacheIO]()
-  val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
-  outer.dcache.module.io.cpu <> dcacheArb.io.mem
 }
 
 /** Metadata array used for all HellaCaches */

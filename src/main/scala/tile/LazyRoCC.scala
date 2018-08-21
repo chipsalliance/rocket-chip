@@ -10,7 +10,8 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.InOrderArbiter
+import freechips.rocketchip.rocket.hellacache._
+import freechips.rocketchip.rocket.fpucp._
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 
@@ -40,7 +41,6 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
 class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Decoupled(new RoCCCommand).flip
   val resp = Decoupled(new RoCCResponse)
-  val mem = new HellaCacheIO
   val busy = Bool(OUTPUT)
   val interrupt = Bool(OUTPUT)
   val exception = Bool(INPUT)
@@ -48,8 +48,6 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p) {
   val ptw = Vec(nPTWPorts, new TLBPTWIO)
-  val fpu_req = Decoupled(new FPInput)
-  val fpu_resp = Decoupled(new FPResult).flip
 }
 
 /** Base classes for Diplomatic TL2 RoCC units **/
@@ -61,6 +59,8 @@ abstract class LazyRoCC(
   val module: LazyRoCCModuleImp
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
+  val hcNode: HellaCacheSourceNode = HellaCacheSourceNode()
+  val FPUCPNode : Option[FPUCPSourceNode] = (if (usesFPU) Some(FPUCPSourceNode()) else None)
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
@@ -69,18 +69,27 @@ class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
 
 /** Mixins for including RoCC **/
 
-trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
+trait HasLazyRoCC extends CanHavePTW 
+  { this: RocketTile =>
   val roccs = p(BuildRoCC).map(_(p))
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
 
+  roccs.map(_.hcNode).foreach { hc => hcXbar.node := hc } 
+
+  roccs.map(_.FPUCPNode).foreach { _.foreach { namespace => FPUCPXbar.node := namespace }}
+  fpuOpt foreach 
+  { fpu =>
+    fpu.node := 
+      FPUCPXbar.node }
+
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
-  nDCachePorts += roccs.size
+  //nDCachePorts += roccs.size
 }
 
 trait HasLazyRoCCModule extends CanHavePTWModule
-    with HasCoreParameters { this: RocketTileModuleImp with HasFpuOpt =>
+    with HasCoreParameters { this: RocketTileModuleImp /*with HasFpuOpt*/ =>
 
   val (respArb, cmdRouter) = if(outer.roccs.size > 0) {
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
@@ -88,33 +97,15 @@ trait HasLazyRoCCModule extends CanHavePTWModule
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
       ptwPorts ++= rocc.module.io.ptw
       rocc.module.io.cmd <> cmdRouter.io.out(i)
-      val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
-      dcIF.io.requestor <> rocc.module.io.mem
-      dcachePorts += dcIF.io.cache
       respArb.io.in(i) <> Queue(rocc.module.io.resp)
-    }
-
-    fpuOpt foreach { fpu =>
-      val nFPUPorts = outer.roccs.filter(_.usesFPU).size
-      if (usingFPU && nFPUPorts > 0) {
-        val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
-        val fp_rocc_ios = outer.roccs.filter(_.usesFPU).map(_.module.io)
-        fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
-        fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
-          case (rocc, arb) => rocc.fpu_resp <> arb
-        }
-        fpu.io.cp_req <> fpArb.io.out_req
-        fpArb.io.out_resp <> fpu.io.cp_resp
-      } else {
-        fpu.io.cp_req.valid := Bool(false)
-        fpu.io.cp_resp.ready := Bool(false)
-      }
     }
     (Some(respArb), Some(cmdRouter))
   } else {
     (None, None)
   }
 }
+// Moving SimpleHellaCacheIF into the specific module implementation of the RoCCs instead of having it in the LazyRoCC template
+// Keeping the L1 interface in LazyRoCC at all is due to legacy reasons, people should AVOID using the L1 Cache for RoCC because of size and exception anyways
 
 class  AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new AccumulatorExampleModuleImp(this)
@@ -122,6 +113,11 @@ class  AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parame
 
 class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
+  val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
+  outer.hcNode.out.head._1 <> dcIF.io.cache //
+  val inner_mem = Wire(new HellaCacheIO)
+  dcIF.io.requestor <> inner_mem
+
   val regfile = Mem(outer.n, UInt(width = xLen))
   val busy = Reg(init = Vec.fill(outer.n){Bool(false)})
 
@@ -132,7 +128,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   val doRead = funct === UInt(1)
   val doLoad = funct === UInt(2)
   val doAccum = funct === UInt(3)
-  val memRespTag = io.mem.resp.bits.tag(log2Up(outer.n)-1,0)
+  val memRespTag = inner_mem.resp.bits.tag(log2Up(outer.n)-1,0)
 
   // datapath
   val addend = cmd.bits.rs1
@@ -143,19 +139,19 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
     regfile(addr) := wdata
   }
 
-  when (io.mem.resp.valid) {
-    regfile(memRespTag) := io.mem.resp.bits.data
+  when (inner_mem.resp.valid) {
+    regfile(memRespTag) := inner_mem.resp.bits.data
     busy(memRespTag) := Bool(false)
   }
 
   // control
-  when (io.mem.req.fire()) {
+  when (inner_mem.req.fire()) {
     busy(addr) := Bool(true)
   }
 
   val doResp = cmd.bits.inst.xd
   val stallReg = busy(addr)
-  val stallLoad = doLoad && !io.mem.req.ready
+  val stallLoad = doLoad && !inner_mem.req.ready
   val stallResp = doResp && !io.resp.ready
 
   cmd.ready := !stallReg && !stallLoad && !stallResp
@@ -175,13 +171,13 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
     // Set this true to trigger an interrupt on the processor (please refer to supervisor documentation)
 
   // MEMORY REQUEST INTERFACE
-  io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
-  io.mem.req.bits.addr := addend
-  io.mem.req.bits.tag := addr
-  io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
-  io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
-  io.mem.req.bits.data := Bits(0) // we're not performing any stores...
-  io.mem.req.bits.phys := Bool(false)
+  inner_mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
+  inner_mem.req.bits.addr := addend
+  inner_mem.req.bits.tag := addr
+  inner_mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
+  inner_mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
+  inner_mem.req.bits.data := Bits(0) // we're not performing any stores...
+  inner_mem.req.bits.phys := Bool(false)
 }
 
 class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes, nPTWPorts = 1) {
@@ -190,6 +186,11 @@ class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends Laz
 
 class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
+  val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
+  outer.hcNode.out.head._1 <> dcIF.io.cache //
+  val inner_mem = Wire(new HellaCacheIO)
+  dcIF.io.requestor <> inner_mem
+  
   val req_addr = Reg(UInt(width = coreMaxAddrBits))
   val req_rd = Reg(io.resp.bits.rd)
   val req_offset = req_addr(pgIdxBits - 1, 0)
@@ -227,7 +228,7 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
 
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
-  io.mem.req.valid := Bool(false)
+  inner_mem.req.valid := Bool(false)
 }
 
 class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes) {
@@ -238,6 +239,11 @@ class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
   with HasCoreParameters
   with HasL1CacheParameters {
+  val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
+  outer.hcNode.out.head._1 <> dcIF.io.cache //
+  val inner_mem = Wire(new HellaCacheIO)
+  dcIF.io.requestor <> inner_mem
+
   val cacheParams = tileParams.icache.get
 
   private val blockOffset = blockOffBits
@@ -318,7 +324,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
 
   io.busy := (state =/= s_idle)
   io.interrupt := Bool(false)
-  io.mem.req.valid := Bool(false)
+  inner_mem.req.valid := Bool(false)
   // Tie off unused channels
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)

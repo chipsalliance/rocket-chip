@@ -10,8 +10,9 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.rocket.hellacache._
 
-/* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
+/* This adapter converts between diplomatic TileLink and internal HellaCache Diplomatic Nodes */
 class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
   val node = TLManagerNode(Seq(TLManagerPortParameters(
@@ -28,23 +29,22 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
       fifoId             = Some(0))), // requests handled in FIFO order
     beatBytes = coreDataBytes,
     minLatency = 1)))
+  val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
 
   lazy val module = new LazyModuleImp(this) {
-    val io = IO(new Bundle {
-      val dmem = new HellaCacheIO
-    })
+	val inner_dmem = hcNode.out.head._1
 
     val (tl_in, edge) = node.in(0)
 
     val s_ready :: s_wait :: s_replay :: s_grant :: Nil = Enum(UInt(), 4)
     val state = Reg(init = s_ready)
-    when (io.dmem.resp.valid) { state := s_grant }
+    when (inner_dmem.resp.valid) { state := s_grant }
     when (tl_in.d.fire()) { state := s_ready }
-    when (io.dmem.s2_nack) { state := s_replay }
-    when (io.dmem.req.fire()) { state := s_wait }
+    when (inner_dmem.s2_nack) { state := s_replay }
+    when (inner_dmem.req.fire()) { state := s_wait }
 
     val acq = Reg(tl_in.a.bits)
-    when (io.dmem.resp.valid) { acq.data := io.dmem.resp.bits.data_raw }
+    when (inner_dmem.resp.valid) { acq.data := inner_dmem.resp.bits.data_raw }
     when (tl_in.a.fire()) { acq := tl_in.a.bits }
 
     def formCacheReq(a: TLBundleA) = {
@@ -72,19 +72,19 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
     }
 
     val ready = state === s_ready || tl_in.d.fire()
-    io.dmem.req.valid := (tl_in.a.valid && ready) || state === s_replay
-    tl_in.a.ready := io.dmem.req.ready && ready
-    io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
-    io.dmem.s1_data.data := acq.data
-    io.dmem.s1_data.mask := acq.mask
-    io.dmem.s1_kill := false
-    io.dmem.s2_kill := false
+    inner_dmem.req.valid := (tl_in.a.valid && ready) || state === s_replay
+    tl_in.a.ready := inner_dmem.req.ready && ready
+    inner_dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
+    inner_dmem.s1_data.data := acq.data
+    inner_dmem.s1_data.mask := acq.mask
+    inner_dmem.s1_kill := false
+    inner_dmem.s2_kill := false
 
-    tl_in.d.valid := io.dmem.resp.valid || state === s_grant
+    tl_in.d.valid := inner_dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
       edge.AccessAck(acq),
       edge.AccessAck(acq, UInt(0)))
-    tl_in.d.bits.data := Mux(io.dmem.resp.valid, io.dmem.resp.bits.data_raw, acq.data)
+    tl_in.d.bits.data := Mux(inner_dmem.resp.valid, inner_dmem.resp.bits.data_raw, acq.data)
 
     // Tie off unused channels
     tl_in.b.valid := Bool(false)

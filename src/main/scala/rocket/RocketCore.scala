@@ -12,6 +12,8 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.hellacache._
 
 case class RocketCoreParams(
   bootFreqHz: BigInt = 0,
@@ -57,10 +59,24 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   require(!fastLoadByte || fastLoadWord)
 }
 
-class Rocket(implicit p: Parameters) extends CoreModule()(p)
-    with HasRocketCoreParameters
-    with HasCoreIO {
+class LazyRocket(implicit p: Parameters) extends LazyModule {
+	val hcNode: HellaCacheSourceNode = new HellaCacheSourceNode
+	lazy val module = new LazyRocketImplementation(this)
+}
 
+class LazyRocketImplementation(outer: LazyRocket)(implicit p: Parameters) extends LazyModuleImp(outer)
+	with HasCoreParameters
+	with HasRocketCoreParameters {
+  val io = IO(new CoreBundle()(p) with HasExternallyDrivenTileConstants {
+    val interrupts = new CoreInterrupts().asInput
+    val imem  = new FrontendIO
+    val ptw = new DatapathPTWIO().flip
+    val fpu = new FPUCoreIO().flip
+    val rocc = new RoCCCoreIO().flip
+    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+  })
+
+  val inner_dmem = outer.hcNode.out.head._1
   // performance counters
   def pipelineIDToWB[T <: Data](x: T): T =
     RegEnable(RegEnable(RegEnable(x, !ctrl_killd), ex_pc_valid), mem_pc_valid)
@@ -102,10 +118,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
         ("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu)))),
     new EventSet((mask, hits) => (mask & hits).orR, Seq(
       ("I$ miss", () => io.imem.perf.acquire),
-      ("D$ miss", () => io.dmem.perf.acquire),
-      ("D$ release", () => io.dmem.perf.release),
+      ("D$ miss", () => inner_dmem.perf.acquire),
+      ("D$ release", () => inner_dmem.perf.release),
       ("ITLB miss", () => io.imem.perf.tlbMiss),
-      ("DTLB miss", () => io.dmem.perf.tlbMiss),
+      ("DTLB miss", () => inner_dmem.perf.tlbMiss),
       ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
 
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
@@ -218,7 +234,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
   val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_aq
-  val id_mem_busy = !io.dmem.ordered || io.dmem.req.valid
+  val id_mem_busy = !inner_dmem.ordered || inner_dmem.req.valid
   when (!id_mem_busy) { id_reg_fence := false }
   val id_rocc_busy = Bool(usingRoCC) &&
     (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
@@ -254,8 +270,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   coverExceptions(id_xcpt, id_cause, "DECODE", idCoverCauses)
 
   val dcache_bypass_data =
-    if (fastLoadByte) io.dmem.resp.bits.data(xLen-1, 0)
-    else if (fastLoadWord) io.dmem.resp.bits.data_word_bypass(xLen-1, 0)
+    if (fastLoadByte) inner_dmem.resp.bits.data(xLen-1, 0)
+    else if (fastLoadWord) inner_dmem.resp.bits.data_word_bypass(xLen-1, 0)
     else wb_reg_wdata
 
   // detect bypass opportunities
@@ -364,8 +380,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   // replay inst in ex stage?
   val ex_pc_valid = ex_reg_valid || ex_reg_replay || ex_reg_xcpt_interrupt
-  val wb_dcache_miss = wb_ctrl.mem && !io.dmem.resp.valid
-  val replay_ex_structural = ex_ctrl.mem && !io.dmem.req.ready ||
+  val wb_dcache_miss = wb_ctrl.mem && !inner_dmem.resp.valid
+  val replay_ex_structural = ex_ctrl.mem && !inner_dmem.req.ready ||
                              ex_ctrl.div && !div.io.req.ready
   val replay_ex_load_use = wb_dcache_miss && ex_reg_load_use
   val replay_ex = ex_reg_replay || (ex_reg_valid && (replay_ex_structural || replay_ex_load_use))
@@ -453,7 +469,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   )).distinct
   coverExceptions(mem_xcpt, mem_cause, "MEMORY", memCoverCauses)
 
-  val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
+  val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && inner_dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
@@ -480,12 +496,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val (wb_xcpt, wb_cause) = checkExceptions(List(
     (wb_reg_xcpt,  wb_reg_cause),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.st, UInt(Causes.misaligned_store)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.ld, UInt(Causes.misaligned_load)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.pf.st, UInt(Causes.store_page_fault)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.pf.ld, UInt(Causes.load_page_fault)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.st, UInt(Causes.store_access)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.ld, UInt(Causes.load_access))
+    (wb_reg_valid && wb_ctrl.mem && inner_dmem.s2_xcpt.ma.st, UInt(Causes.misaligned_store)),
+    (wb_reg_valid && wb_ctrl.mem && inner_dmem.s2_xcpt.ma.ld, UInt(Causes.misaligned_load)),
+    (wb_reg_valid && wb_ctrl.mem && inner_dmem.s2_xcpt.pf.st, UInt(Causes.store_page_fault)),
+    (wb_reg_valid && wb_ctrl.mem && inner_dmem.s2_xcpt.pf.ld, UInt(Causes.load_page_fault)),
+    (wb_reg_valid && wb_ctrl.mem && inner_dmem.s2_xcpt.ae.st, UInt(Causes.store_access)),
+    (wb_reg_valid && wb_ctrl.mem && inner_dmem.s2_xcpt.ae.ld, UInt(Causes.load_access))
   ))
 
   val wbCoverCauses = List(
@@ -500,17 +516,17 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
-  val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
+  val replay_wb_common = inner_dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val replay_wb = replay_wb_common || replay_wb_rocc
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
-  val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
-  val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).toBool
-  val dmem_resp_waddr = io.dmem.resp.bits.tag(5, 1)
-  val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
-  val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
+  val dmem_resp_xpu = !inner_dmem.resp.bits.tag(0).toBool
+  val dmem_resp_fpu =  inner_dmem.resp.bits.tag(0).toBool
+  val dmem_resp_waddr = inner_dmem.resp.bits.tag(5, 1)
+  val dmem_resp_valid = inner_dmem.resp.valid && inner_dmem.resp.bits.has_data
+  val dmem_resp_replay = dmem_resp_valid && inner_dmem.resp.bits.replay
 
   div.io.resp.ready := !wb_wxd
   val ll_wdata = Wire(init = div.io.resp.bits.data)
@@ -537,7 +553,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val wb_wen = wb_valid && wb_ctrl.wxd
   val rf_wen = wb_wen || ll_wen
   val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
-  val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, io.dmem.resp.bits.data(xLen-1, 0),
+  val rf_wdata = Mux(dmem_resp_valid && dmem_resp_xpu, inner_dmem.resp.bits.data(xLen-1, 0),
                  Mux(ll_wen, ll_wdata,
                  Mux(wb_ctrl.csr =/= CSR.N, csr.io.rw.rdata,
                  Mux(wb_ctrl.mul, mul.map(_.io.resp.bits.data).getOrElse(wb_reg_wdata),
@@ -618,7 +634,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   } else Bool(false)
 
   val dcache_blocked = Reg(Bool())
-  dcache_blocked := !io.dmem.req.ready && (io.dmem.req.valid || dcache_blocked)
+  dcache_blocked := !inner_dmem.req.ready && (inner_dmem.req.valid || dcache_blocked)
   val rocc_blocked = Reg(Bool())
   rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
 
@@ -640,7 +656,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Mux(wb_xcpt || csr.io.eret, csr.io.evec, // exception or [m|s]ret
     Mux(replay_wb,              wb_reg_pc,   // replay
                                 mem_npc))    // flush or branch misprediction
-  io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !io.dmem.s2_nack
+  io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !inner_dmem.s2_nack
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
   io.imem.sfence.bits.rs1 := wb_ctrl.mem_type(0)
   io.imem.sfence.bits.rs2 := wb_ctrl.mem_type(1)
@@ -675,21 +691,21 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.inst := id_inst(0)
   io.fpu.fromint_data := ex_rs(0)
   io.fpu.dmem_resp_val := dmem_resp_valid && dmem_resp_fpu
-  io.fpu.dmem_resp_data := io.dmem.resp.bits.data_word_bypass
-  io.fpu.dmem_resp_type := io.dmem.resp.bits.typ
+  io.fpu.dmem_resp_data := inner_dmem.resp.bits.data_word_bypass
+  io.fpu.dmem_resp_type := inner_dmem.resp.bits.typ
   io.fpu.dmem_resp_tag := dmem_resp_waddr
 
-  io.dmem.req.valid     := ex_reg_valid && ex_ctrl.mem
+  inner_dmem.req.valid     := ex_reg_valid && ex_ctrl.mem
   val ex_dcache_tag = Cat(ex_waddr, ex_ctrl.fp)
   require(coreDCacheReqTagBits >= ex_dcache_tag.getWidth)
-  io.dmem.req.bits.tag  := ex_dcache_tag
-  io.dmem.req.bits.cmd  := ex_ctrl.mem_cmd
-  io.dmem.req.bits.typ  := ex_ctrl.mem_type
-  io.dmem.req.bits.phys := Bool(false)
-  io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
-  io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
-  io.dmem.s1_kill := killm_common || mem_ldst_xcpt
-  io.dmem.s2_kill := false
+  inner_dmem.req.bits.tag  := ex_dcache_tag
+  inner_dmem.req.bits.cmd  := ex_ctrl.mem_cmd
+  inner_dmem.req.bits.typ  := ex_ctrl.mem_type
+  inner_dmem.req.bits.phys := Bool(false)
+  inner_dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
+  inner_dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
+  inner_dmem.s1_kill := killm_common || mem_ldst_xcpt
+  inner_dmem.s2_kill := false
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR

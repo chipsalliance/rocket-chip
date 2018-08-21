@@ -9,6 +9,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.rocket.hellacache._
 
 trait HasMissInfo extends HasL1HellaCacheParameters {
   val tag_match = Bool()
@@ -685,22 +686,22 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val prober = Module(new ProbeUnit)
   val mshrs = Module(new MSHRFile)
 
-  io.cpu.req.ready := Bool(true)
-  val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
-  val s1_req = Reg(io.cpu.req.bits)
-  val s1_valid_masked = s1_valid && !io.cpu.s1_kill
+  inner_mem.req.ready := Bool(true)
+  val s1_valid = Reg(next=inner_mem.req.fire(), init=Bool(false))
+  val s1_req = Reg(inner_mem.req.bits)
+  val s1_valid_masked = s1_valid && !inner_mem.s1_kill
   val s1_replay = Reg(init=Bool(false))
   val s1_clk_en = Reg(Bool())
   val s1_sfence = s1_req.cmd === M_SFENCE
 
-  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
-  val s2_req = Reg(io.cpu.req.bits)
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !inner_mem.s2_xcpt.asUInt.orR
+  val s2_req = Reg(inner_mem.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_FLUSH_ALL
   val s2_recycle = Wire(Bool())
   val s2_valid_masked = Wire(Bool())
 
   val s3_valid = Reg(init=Bool(false))
-  val s3_req = Reg(io.cpu.req.bits)
+  val s3_req = Reg(inner_mem.req.bits)
   val s3_way = Reg(Bits())
 
   val s1_recycled = RegEnable(s2_recycle, Bool(false), s1_clk_en)
@@ -712,22 +713,22 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   val dtlb = Module(new TLB(false, log2Ceil(coreDataBytes), nTLBEntries))
   io.ptw <> dtlb.io.ptw
-  dtlb.io.kill := io.cpu.s2_kill
-  dtlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_readwrite
+  dtlb.io.kill := inner_mem.s2_kill
+  dtlb.io.req.valid := s1_valid && !inner_mem.s1_kill && s1_readwrite
   dtlb.io.req.bits.passthrough := s1_req.phys
   dtlb.io.req.bits.vaddr := s1_req.addr
   dtlb.io.req.bits.size := s1_req.typ
   dtlb.io.req.bits.cmd := s1_req.cmd
-  when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
+  when (!dtlb.io.req.ready && !inner_mem.req.bits.phys) { inner_mem.req.ready := Bool(false) }
 
-  dtlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
+  dtlb.io.sfence.valid := s1_valid && !inner_mem.s1_kill && s1_sfence
   dtlb.io.sfence.bits.rs1 := s1_req.typ(0)
   dtlb.io.sfence.bits.rs2 := s1_req.typ(1)
   dtlb.io.sfence.bits.addr := s1_req.addr
-  dtlb.io.sfence.bits.asid := io.cpu.s1_data.data
+  dtlb.io.sfence.bits.asid := inner_mem.s1_data.data
   
-  when (io.cpu.req.valid) {
-    s1_req := io.cpu.req.bits
+  when (inner_mem.req.valid) {
+    s1_req := inner_mem.req.bits
   }
   when (wb.io.meta_read.valid) {
     s1_req.addr := Cat(wb.io.meta_read.bits.tag, wb.io.meta_read.bits.idx) << blockOffBits
@@ -750,7 +751,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     s2_req.phys := s1_req.phys
     s2_req.addr := s1_addr
     when (s1_write) {
-      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, io.cpu.s1_data.data)
+      s2_req.data := Mux(s1_replay, mshrs.io.replay.bits.data, inner_mem.s1_data.data)
     }
     when (s1_recycled) { s2_req.data := s1_req.data }
     s2_req.tag := s1_req.tag
@@ -776,15 +777,15 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   data.io.write.bits.data := wdata_encoded.asUInt
 
   // tag read for new requests
-  metaReadArb.io.in(4).valid := io.cpu.req.valid
-  metaReadArb.io.in(4).bits.idx := io.cpu.req.bits.addr >> blockOffBits
-  when (!metaReadArb.io.in(4).ready) { io.cpu.req.ready := Bool(false) }
+  metaReadArb.io.in(4).valid := inner_mem.req.valid
+  metaReadArb.io.in(4).bits.idx := inner_mem.req.bits.addr >> blockOffBits
+  when (!metaReadArb.io.in(4).ready) { inner_mem.req.ready := Bool(false) }
 
   // data read for new requests
-  readArb.io.in(3).valid := io.cpu.req.valid
-  readArb.io.in(3).bits.addr := io.cpu.req.bits.addr
+  readArb.io.in(3).valid := inner_mem.req.valid
+  readArb.io.in(3).bits.addr := inner_mem.req.bits.addr
   readArb.io.in(3).bits.way_en := ~UInt(0, nWays)
-  when (!readArb.io.in(3).ready) { io.cpu.req.ready := Bool(false) }
+  when (!readArb.io.in(3).ready) { inner_mem.req.ready := Bool(false) }
 
   // recycled requests
   metaReadArb.io.in(0).valid := s2_recycle
@@ -954,7 +955,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_nack_victim = s2_hit && mshrs.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshrs.io.req.ready
   val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss
-  s2_valid_masked := s2_valid && !s2_nack && !io.cpu.s2_kill
+  s2_valid_masked := s2_valid && !s2_nack && !inner_mem.s2_kill
 
   val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
   val s2_recycle_next = Reg(init=Bool(false))
@@ -965,7 +966,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val block_miss = Reg(init=Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
   when (block_miss) {
-    io.cpu.req.ready := Bool(false)
+    inner_mem.req.ready := Bool(false)
   }
 
   val cache_resp = Wire(Valid(new HellaCacheResp))
@@ -981,19 +982,19 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   uncache_resp.valid := mshrs.io.resp.valid
   mshrs.io.resp.ready := Reg(next= !(s1_valid || s1_replay))
 
-  io.cpu.s2_nack := s2_valid && s2_nack
-  io.cpu.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
-  io.cpu.resp.bits.data_word_bypass := loadgen.wordData
-  io.cpu.resp.bits.data_raw := s2_data_word
-  io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
-  io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
+  inner_mem.s2_nack := s2_valid && s2_nack
+  inner_mem.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
+  inner_mem.resp.bits.data_word_bypass := loadgen.wordData
+  inner_mem.resp.bits.data_raw := s2_data_word
+  inner_mem.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
+  inner_mem.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 
   val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack
   val s1_xcpt = dtlb.io.resp
-  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
+  inner_mem.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
 
   // performance events
-  io.cpu.perf.acquire := edge.done(tl_out.a)
-  io.cpu.perf.release := edge.done(tl_out.c)
-  io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  inner_mem.perf.acquire := edge.done(tl_out.a)
+  inner_mem.perf.release := edge.done(tl_out.c)
+  inner_mem.perf.tlbMiss := io.ptw.req.fire()
 }
