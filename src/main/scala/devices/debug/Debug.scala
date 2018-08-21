@@ -965,7 +965,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }.getOrElse(false.B)
 
     when (commandRegIsAccessRegister) {
-      when (accessRegIsCustom && accessRegisterCommandReg.transfer) {
+      when (accessRegIsCustom && accessRegisterCommandReg.transfer && accessRegisterCommandReg.write === false.B) {
         commandRegIsUnsupported := false.B
       }.elsewhen (!accessRegisterCommandReg.transfer || accessRegIsGPR) {
         commandRegIsUnsupported := false.B
