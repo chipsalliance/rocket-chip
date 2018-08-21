@@ -104,7 +104,7 @@ def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
     combinational.append('reg [%d:0] %srandom;' % (((width-1)//32+1)*32-1, prefix))
     combinational.append('`ifdef RANDOMIZE_MEM_INIT')
     combinational.append('  initial begin')
-    combinational.append('    #0.002 begin end')
+    combinational.append('    #`RANDOMIZE_DELAY begin end')
     combinational.append('    %srandom = {%s};' % (prefix, ', '.join(['$random'] * ((width-1)//32+1))))
     combinational.append('    reg_%sren = %srandom[0];' % (prefix, prefix))
     combinational.append('  end')
@@ -139,7 +139,7 @@ def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
   decl.append('`ifdef RANDOMIZE_MEM_INIT')
   decl.append('  integer initvar;')
   decl.append('  initial begin')
-  decl.append('    #0.002 begin end')
+  decl.append('    #`RANDOMIZE_DELAY begin end')
   decl.append('    for (initvar = 0; initvar < %d; initvar = initvar+1)' % depth)
   decl.append('      ram[initvar] = {%d {$random}};' % ((width-1)//32+1))
   for idx in range(nr):
