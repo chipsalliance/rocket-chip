@@ -11,9 +11,8 @@ import freechips.rocketchip.util._
 case class SystemBusParams(
   beatBytes: Int,
   blockBytes: Int,
+  atomics: Option[BusAtomics] = Some(BusAtomics()),
   pbusBuffer: BufferParams = BufferParams.none,
-  arithmeticAtomics: Boolean = true,
-  bufferAtomics: BufferParams = BufferParams.default,
   policy: TLArbiter.Policy = TLArbiter.roundRobin) extends HasTLBusParams
 
 case object SystemBusKey extends Field[SystemBusParams]
@@ -27,8 +26,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   val cbus_params = new PeripheryBusParams(
     p(PeripheryBusKey).beatBytes,
     params.blockBytes,
-    params.arithmeticAtomics,
-    params.bufferAtomics,
+    params.atomics,
     NoCrossing)
   val control_bus = LazyModule(new PeripheryBus(cbus_params))
   control_bus.crossFromSystemBus { this.toSlaveBus("cbus") }
