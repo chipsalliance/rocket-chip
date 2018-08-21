@@ -8,11 +8,15 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case class BusAtomics(
+  arithmetic: Boolean = true,
+  buffer: BufferParams = BufferParams.default
+)
+
 case class PeripheryBusParams(
   beatBytes: Int,
   blockBytes: Int,
-  arithmeticAtomics: Boolean = true,
-  bufferAtomics: BufferParams = BufferParams.default,
+  atomics: Option[BusAtomics] = Some(BusAtomics()),
   sbusCrossingType: ClockCrossingType = SynchronousCrossing(), // relative to sbus
   frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
 ) extends HasTLBusParams
@@ -27,10 +31,10 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
 
   def crossFromSystemBus(gen: (=> TLInwardNode) => NoHandle) {
     from("sbus") {
-      val from_sbus =
-        this.crossIn(inwardNode
-          :*= TLBuffer(params.bufferAtomics)
-          :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics))
+      val atomics = params.atomics.map { pa =>
+        TLBuffer(pa.buffer) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
+      }.getOrElse(TLNameNode("no_atomics"))
+      val from_sbus = this.crossIn(inwardNode :*= atomics)
       gen(from_sbus(params.sbusCrossingType))
     }
   }
