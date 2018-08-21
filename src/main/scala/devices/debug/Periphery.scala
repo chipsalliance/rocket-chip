@@ -31,7 +31,8 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
 trait HasPeripheryDebug { this: BaseSubsystem =>
   val debug = LazyModule(new TLDebugModule(sbus.control_bus.beatBytes))
   sbus.control_bus.toVariableWidthSlave(Some("debug")){ debug.node }
-
+  val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
+  debug.dmInner.dmInner.customNode := debugCustomXbar.node
 
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
     fbus.fromPort(Some("debug_sb")){ TLWidthWidget(1) := sb2tl.node }

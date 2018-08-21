@@ -393,6 +393,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
   val sb2tlOpt = cfg.hasBusMaster.option(LazyModule(new SBToTL()))
 
+  // If we want to support custom registers read through Abstract Commands,
+  // provide a place to bring them into the debug module. What this connects
+  // to is up to the implementation.
+  val customNode = new DebugCustomSink()
+
   lazy val module = new LazyModuleImp(this){
     val nComponents = getNComponents()
     Annotated.params(this, cfg)
@@ -715,9 +720,24 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_SBADDRESS3 << 2) -> sbAddrFields(3) 
     )
 
+    // Abstract data mem is written by both the tile link interface and DMI...
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
       when (dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
         x := abstractDataNxt(i)
+      }
+    }
+    // ... and also by custom register read (if implemented)
+    val (customs, customParams) = customNode.in.unzip
+    val needCustom = (customs.size > 0) && (customParams.head.addrs.size > 0)
+    if (needCustom) {
+      val (custom, customP) = customNode.in.head
+      require(customP.width % 8 == 0, s"Debug Custom width must be divisible by 8, not ${customP.width}")
+      val custom_data = custom.data.toBools
+      val custom_bytes =  Seq.tabulate(customP.width/8){i => custom_data.slice(i*8, (i+1)*8).asUInt}
+      when (custom.ready && custom.valid) {
+        (abstractDataMem zip custom_bytes).zipWithIndex.foreach {case ((a, b), i) =>
+          a := b
+        }
       }
     }
 
@@ -733,6 +753,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val goReg        = Reg(Bool())
     val goAbstract   = Wire(init = false.B)
+    val goCustom     = Wire(init = false.B)
     val jalAbstract  = Wire(init = (new GeneratedUJ()).fromBits(Instructions.JAL.value.U))
     jalAbstract.setImm(ABSTRACT(cfg) - WHERETO)
 
@@ -848,6 +869,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     //--------------------------------------------------------------
+    // Drive Custom Access
+    //--------------------------------------------------------------
+    if (needCustom) {
+      val (custom, customP) = customNode.in.head
+      custom.addr  := accessRegisterCommandReg.regno
+      custom.valid := goCustom
+    }
+    //--------------------------------------------------------------
     // Hart Bus Access
     //--------------------------------------------------------------
 
@@ -890,7 +919,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     object CtrlState extends scala.Enumeration {
       type CtrlState = Value
-      val Waiting, CheckGenerate, Exec = Value
+      val Waiting, CheckGenerate, Exec, Custom = Value
 
       def apply( t : Value) : UInt = {
         t.id.U(log2Up(values.size).W)
@@ -929,8 +958,19 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
+
+    // We only support abstract commands for GPRs and any custom registers, if specified.
+    val accessRegIsGPR = (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)
+    val accessRegIsCustom = if (needCustom) {
+      val (custom, customP) = customNode.in.head
+      customP.addrs.foldLeft(false.B){
+        (result, current) => result || (current.U === accessRegisterCommandReg.regno)}
+    } else false.B
+
     when (commandRegIsAccessRegister) {
-      when (!accessRegisterCommandReg.transfer || (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
+      when (accessRegIsCustom && accessRegisterCommandReg.transfer && accessRegisterCommandReg.write === false.B) {
+        commandRegIsUnsupported := false.B
+      }.elsewhen (!accessRegisterCommandReg.transfer || accessRegIsGPR) {
         commandRegIsUnsupported := false.B
         commandRegBadHaltResume := ~hartHalted
       }
@@ -965,10 +1005,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         errorHaltResume := true.B
         ctrlStateNxt := CtrlState(Waiting)
       }.otherwise {
-        ctrlStateNxt := CtrlState(Exec)
-        goAbstract := true.B
+        when(accessRegIsCustom) {
+          ctrlStateNxt := CtrlState(Custom)
+        }.otherwise {
+          ctrlStateNxt := CtrlState(Exec)
+          goAbstract := true.B
+        }
       }
-    
     }.elsewhen (ctrlStateReg === CtrlState(Exec)) {
 
       // We can't just look at 'hartHalted' here, because
@@ -981,6 +1024,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         assert(hartExceptionId === 0.U, "Unexpected 'EXCEPTION' hart")//Chisel3 #540, %x, expected %x", hartExceptionId, 0.U)
           ctrlStateNxt := CtrlState(Waiting)
         errorException := true.B
+      }
+    }.elsewhen (ctrlStateReg === CtrlState(Custom)) {
+      assert(needCustom.B, "Should not be in custom state unless we need it.")
+      goCustom := true.B
+      val (custom, customP) = customNode.in.head
+      when (custom.ready && custom.valid) {
+        ctrlStateNxt := CtrlState(Waiting)
       }
     }
 
