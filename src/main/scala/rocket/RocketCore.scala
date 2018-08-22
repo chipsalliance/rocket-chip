@@ -199,7 +199,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   val csr = Module(new CSRFile(perfEvents))
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
-  val id_system_insn = id_ctrl.csr >= CSR.I
+  val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
   val id_csr = Mux(id_csr_ren, CSR.R, id_ctrl.csr)
   val id_sfence = id_ctrl.mem && id_ctrl.mem_cmd === M_SFENCE
@@ -565,7 +565,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.ptw.status := csr.io.status
   io.ptw.pmp := csr.io.pmp
   csr.io.rw.addr := wb_reg_inst(31,20)
-  csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
+  csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
   io.trace := csr.io.trace
 

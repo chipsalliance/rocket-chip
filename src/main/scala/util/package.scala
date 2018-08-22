@@ -172,4 +172,7 @@ package object util {
       if (s >= stop) x else helper(s+s, x | (x >> s))
     helper(1, x)(width-1, 0)
   }
+
+  def OptimizationBarrier(x: UInt): UInt = ~(~x)
+  def OptimizationBarrier[T <: Data](x: T): T = OptimizationBarrier(x.asUInt).asTypeOf(x)
 }
