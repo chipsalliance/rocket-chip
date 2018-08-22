@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.AsyncQueueParams
 import scala.math.max
 
 case class AXI4SlaveParameters(
@@ -136,11 +137,11 @@ case class AXI4EdgeParameters(
   val bundle = AXI4BundleParameters(master, slave)
 }
 
-case class AXI4AsyncSlavePortParameters(depth: Int, base: AXI4SlavePortParameters) { require(isPow2(depth)) }
+case class AXI4AsyncSlavePortParameters(async: AsyncQueueParams, base: AXI4SlavePortParameters)
 case class AXI4AsyncMasterPortParameters(base: AXI4MasterPortParameters)
 
-case class AXI4AsyncBundleParameters(depth: Int, base: AXI4BundleParameters) { require (isPow2(depth)) }
+case class AXI4AsyncBundleParameters(async: AsyncQueueParams, base: AXI4BundleParameters)
 case class AXI4AsyncEdgeParameters(master: AXI4AsyncMasterPortParameters, slave: AXI4AsyncSlavePortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
-  val bundle = AXI4AsyncBundleParameters(slave.depth, AXI4BundleParameters(master.base, slave.base))
+  val bundle = AXI4AsyncBundleParameters(slave.async, AXI4BundleParameters(master.base, slave.base))
 }

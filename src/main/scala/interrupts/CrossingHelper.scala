@@ -8,8 +8,8 @@ import freechips.rocketchip.diplomacy._
 case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwardNode) {
   def apply(xing: ClockCrossingType = NoCrossing, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntInwardNode = {
     xing match {
-      case AsynchronousCrossing(_, sync) =>
-        node :*=* scope { IntSyncCrossingSink(sync) :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
+      case x: AsynchronousCrossing =>
+        node :*=* scope { IntSyncCrossingSink(x.sinkSync) :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
       case RationalCrossing(_) =>
         node :*=* scope { IntSyncCrossingSink(1) :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
       case SynchronousCrossing(_) =>
@@ -21,8 +21,8 @@ case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwa
 case class IntOutwardCrossingHelper(name: String, scope: LazyScope, node: IntOutwardNode) {
   def apply(xing: ClockCrossingType = NoCrossing, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntOutwardNode = {
     xing match {
-      case AsynchronousCrossing(_, sync) =>
-        IntSyncCrossingSink(sync) :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
+      case x: AsynchronousCrossing =>
+        IntSyncCrossingSink(x.sinkSync) :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
       case RationalCrossing(_) =>
         IntSyncCrossingSink(1) :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
       case SynchronousCrossing(buffer) =>

@@ -9,25 +9,28 @@ import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 
-class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
+class TLAsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends LazyModule
 {
+  def this(x: Int)(implicit p: Parameters) = this(Some(x))
+  def this()(implicit p: Parameters) = this(None)
+
   val node = TLAsyncSourceNode(sync)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val sink_reset_n = out.a.sink_reset_n
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
-      val depth = edgeOut.manager.depth
+      val psync = sync.getOrElse(edgeOut.manager.async.sync)
+      val params = edgeOut.manager.async.copy(sync = psync)
 
-      out.a <> ToAsyncBundle(in.a, depth, sync)
-      in.d <> FromAsyncBundle(out.d, sync)
+      out.a <> ToAsyncBundle(in.a, params)
+      in.d <> FromAsyncBundle(out.d, psync)
       cover(in.a, "TL_ASYNC_CROSSING_SOURCE_A", "MemorySystem;;TLAsyncCrossingSource Channel A")
       cover(in.d, "TL_ASYNC_CROSSING_SOURCE_D", "MemorySystem;;TLAsyncCrossingSource Channel D")
 
       if (bce) {
-        in.b <> FromAsyncBundle(out.b, sync)
-        out.c <> ToAsyncBundle(in.c, depth, sync)
-        out.e <> ToAsyncBundle(in.e, depth, sync)
+        in.b <> FromAsyncBundle(out.b, psync)
+        out.c <> ToAsyncBundle(in.c, params)
+        out.e <> ToAsyncBundle(in.e, params)
         cover(in.b, "TL_ASYNC_CROSSING_SOURCE_B", "MemorySystem;;TLAsyncCrossingSource Channel B")
         cover(in.c, "TL_ASYNC_CROSSING_SOURCE_C", "MemorySystem;;TLAsyncCrossingSource Channel C")
         cover(in.e, "TL_ASYNC_CROSSING_SOURCE_E", "MemorySystem;;TLAsyncCrossingSource Channel E")
@@ -43,24 +46,23 @@ class TLAsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyM
   }
 }
 
-class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
+class TLAsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAsyncSinkNode(depth, sync)
+  val node = TLAsyncSinkNode(params)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val source_reset_n = in.a.source_reset_n
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
 
-      out.a <> FromAsyncBundle(in.a, sync)
-      in.d <> ToAsyncBundle(out.d, depth, sync)
+      out.a <> FromAsyncBundle(in.a, params.sync)
+      in.d <> ToAsyncBundle(out.d, params)
       cover(out.a, "TL_ASYNC_CROSSING_SINK_A", "MemorySystem;;TLAsyncCrossingSink Channel A")
       cover(out.d, "TL_ASYNC_CROSSING_SINK_D", "MemorySystem;;TLAsyncCrossingSink Channel D")
 
       if (bce) {
-        in.b <> ToAsyncBundle(out.b, depth, sync)
-        out.c <> FromAsyncBundle(in.c, sync)
-        out.e <> FromAsyncBundle(in.e, sync)
+        in.b <> ToAsyncBundle(out.b, params)
+        out.c <> FromAsyncBundle(in.c, params.sync)
+        out.e <> FromAsyncBundle(in.e, params.sync)
         cover(out.b, "TL_ASYNC_CROSSING_SINK_B", "MemorySystem;;TLAsyncCrossingSinkChannel B")
         cover(out.c, "TL_ASYNC_CROSSING_SINK_C", "MemorySystem;;TLAsyncCrossingSink Channel C")
         cover(out.e, "TL_ASYNC_CROSSING_SINK_E", "MemorySystem;;TLAsyncCrossingSink Channel E")
@@ -78,7 +80,9 @@ class TLAsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters)
 
 object TLAsyncCrossingSource
 {
-  def apply(sync: Int = 3)(implicit p: Parameters) =
+  def apply()(implicit p: Parameters): TLAsyncSourceNode = apply(None)
+  def apply(sync: Int)(implicit p: Parameters): TLAsyncSourceNode = apply(Some(sync))
+  def apply(sync: Option[Int])(implicit p: Parameters): TLAsyncSourceNode =
   {
     val asource = LazyModule(new TLAsyncCrossingSource(sync))
     asource.node
@@ -87,18 +91,18 @@ object TLAsyncCrossingSource
 
 object TLAsyncCrossingSink
 {
-  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) =
+  def apply(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) =
   {
-    val asink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+    val asink = LazyModule(new TLAsyncCrossingSink(params))
     asink.node
   }
 }
 
 @deprecated("TLAsyncCrossing is fragile. Use TLAsyncCrossingSource and TLAsyncCrossingSink", "rocket-chip 1.2")
-class TLAsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
+class TLAsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) extends LazyModule
 {
-  val source = LazyModule(new TLAsyncCrossingSource(sync))
-  val sink = LazyModule(new TLAsyncCrossingSink(depth, sync))
+  val source = LazyModule(new TLAsyncCrossingSource())
+  val sink = LazyModule(new TLAsyncCrossingSink(params))
   val node = NodeHandle(source.node, sink.node)
 
   sink.node := source.node

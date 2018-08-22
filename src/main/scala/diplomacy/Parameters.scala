@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow}
+import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
 
 /** Options for memory regions */
 object RegionType {
@@ -264,7 +264,10 @@ sealed trait ClockCrossingType
   }
 }
 
+case object NoCrossing // converts to SynchronousCrossing(BufferParams.none) via implicit def in package
 case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends ClockCrossingType
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends ClockCrossingType
-case class AsynchronousCrossing(depth: Int, sync: Int = 3) extends ClockCrossingType
-case object NoCrossing // converts to SynchronousCrossing(BufferParams.none) via implicit def in package
+case class AsynchronousCrossing(depth: Int = 8, sourceSync: Int = 3, sinkSync: Int = 3, safe: Boolean = true, narrow: Boolean = false) extends ClockCrossingType
+{
+  def asSinkParams = AsyncQueueParams(depth, sinkSync, safe, narrow)
+}

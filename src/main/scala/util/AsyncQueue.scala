@@ -25,15 +25,11 @@ case class AsyncQueueParams(
 
 object AsyncQueueParams {
   // When there is only one entry, we don't need safety or narrow.
-  def singleton(sync: Int) = AsyncQueueParams(1, sync, false, false)
+  def singleton(sync: Int = 3) = AsyncQueueParams(1, sync, false, false)
 }
 
-final class AsyncBundle[T <: Data](gen: T, val params: AsyncQueueParams = AsyncQueueParams()) extends Bundle
+final class AsyncBundle[T <: Data](private val gen: T, val params: AsyncQueueParams = AsyncQueueParams()) extends Bundle
 {
-  // deprecated
-  @deprecated("Use of old AsyncBundle constructor", "rocket-chip 1.2")
-  def this(depth: Int, gen: T) = this(gen, AsyncQueueParams(depth = depth))
-
   // Data-path synchronization
   val mem  = Vec(params.wires, gen)
   val index = params.narrow.option(UInt(width = params.bits))
@@ -45,8 +41,6 @@ final class AsyncBundle[T <: Data](gen: T, val params: AsyncQueueParams = AsyncQ
   val widx_valid = Bool()
   val source_reset_n = Bool()
   val sink_reset_n = Bool().flip
-
-  override def cloneType: this.type = new AsyncBundle(gen, params).asInstanceOf[this.type]
 }
 
 object GrayCounter {
@@ -182,10 +176,10 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
 
 object FromAsyncBundle
 {
-  @deprecated("Use of old FromAsyncBundle", "rocket-chip 1.2")
-  def apply[T <: Data](x: AsyncBundle[T], sync: Int): DecoupledIO[T] = apply(x)
-  def apply[T <: Data](x: AsyncBundle[T]): DecoupledIO[T] = {
-    val sink = Module(new AsyncQueueSink(x.mem(0), x.params))
+  // Sometimes it makes sense for the sink to have different sync than the source
+  def apply[T <: Data](x: AsyncBundle[T]): DecoupledIO[T] = apply(x, x.params.sync)
+  def apply[T <: Data](x: AsyncBundle[T], sync: Int): DecoupledIO[T] = {
+    val sink = Module(new AsyncQueueSink(x.mem(0).cloneType, x.params.copy(sync = sync)))
     sink.io.async <> x
     sink.io.deq
   }
@@ -193,10 +187,7 @@ object FromAsyncBundle
 
 object ToAsyncBundle
 {
-  @deprecated("Use of old ToAsyncBundle", "rocket-chip 1.2")
-  def apply[T <: Data](x: ReadyValidIO[T], depth: Int, sync: Int = 3): AsyncBundle[T] = apply(x, AsyncQueueParams(depth, sync))
-  def apply[T <: Data](x: ReadyValidIO[T]): AsyncBundle[T] = apply(x, AsyncQueueParams())
-  def apply[T <: Data](x: ReadyValidIO[T], params: AsyncQueueParams): AsyncBundle[T] = {
+  def apply[T <: Data](x: ReadyValidIO[T], params: AsyncQueueParams = AsyncQueueParams()): AsyncBundle[T] = {
     val source = Module(new AsyncQueueSource(x.bits, params))
     source.io.enq <> x
     source.io.async
