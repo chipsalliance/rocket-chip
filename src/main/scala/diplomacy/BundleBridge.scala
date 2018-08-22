@@ -40,6 +40,18 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
     io
   }
 
+  def splice(f: (T, T) => Unit)(implicit p: Parameters): BundleBridgeSource[T] = {
+    val oldSink = makeSink()
+    val newSource = BundleBridgeSource(gen)
+    InModuleBody {
+      val in = oldSink.bundle
+      val out = newSource.bundle
+      out <> in
+      f(out, in)
+    }
+    newSource
+  }
+
   private var doneSink = false
   def makeSink()(implicit p: Parameters) = {
     require (!doneSink, "Can only call makeSink() once")
