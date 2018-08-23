@@ -25,6 +25,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       x.mem            := ISOo(y.mem)
       x.widx           := ISOo(y.widx)
       y.ridx           := ISOi(x.ridx)
+      (x.index zip y.index) foreach { case (x, y) => y := ISOi(x) }
       (x.safe zip y.safe) foreach { case (x, y) =>
         x.widx_valid     := ISOo(y.widx_valid)
         x.source_reset_n := ISOo(y.source_reset_n)
@@ -37,6 +38,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       x.mem            := ISOi(y.mem)
       x.widx           := ISOi(y.widx)
       y.ridx           := ISOo(x.ridx)
+      (x.index zip y.index) foreach { case (x, y) => y := ISOo(x) }
       (x.safe zip y.safe) foreach { case (x, y) =>
         x.widx_valid     := ISOi(y.widx_valid)
         x.source_reset_n := ISOi(y.source_reset_n)
@@ -48,6 +50,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
     def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
       x.widx           := UInt(0)
       y.ridx           := UInt(0)
+      (x.index zip y.index) foreach { case (_, y) => y := UInt(0) }
       (x.safe zip y.safe) foreach { case (x, y) =>
         x.widx_valid     := Bool(false)
         x.source_reset_n := Bool(false)
