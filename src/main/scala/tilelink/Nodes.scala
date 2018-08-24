@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.RationalDirection
+import freechips.rocketchip.util.{AsyncQueueParams,RationalDirection}
 import scala.collection.mutable.ListBuffer
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => new TLMonitor(args))
@@ -64,7 +64,7 @@ object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncMana
 {
   def edge(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: TLAsyncEdgeParameters) = new TLAsyncBundle(e.bundle)
-  def render(e: TLAsyncEdgeParameters) = RenderedEdge(colour = "#ff0000" /* red */, label = e.manager.depth.toString)
+  def render(e: TLAsyncEdgeParameters) = RenderedEdge(colour = "#ff0000" /* red */, label = e.manager.async.depth.toString)
 
   override def mixO(pd: TLAsyncClientPortParameters, node: OutwardNode[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncBundle]): TLAsyncClientPortParameters  =
    pd.copy(base = pd.base.copy(clients  = pd.base.clients.map  { c => c.copy (nodePath = node +: c.nodePath) }))
@@ -86,15 +86,15 @@ object TLAsyncNameNode {
   def apply(name: String): TLAsyncIdentityNode = apply(Some(name))
 }
 
-case class TLAsyncSourceNode(sync: Int)(implicit valName: ValName)
+case class TLAsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
-    uFn = { p => p.base.copy(minLatency = sync+1) }) // discard cycles in other clock domain
+    uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) // discard cycles in other clock domain
 
-case class TLAsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
+case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
   extends MixedAdapterNode(TLAsyncImp, TLImp)(
-    dFn = { p => p.base.copy(minLatency = sync+1) },
-    uFn = { p => TLAsyncManagerPortParameters(depth, p) })
+    dFn = { p => p.base.copy(minLatency = p.base.minLatency + async.sync) },
+    uFn = { p => TLAsyncManagerPortParameters(async, p) })
 
 // Rationally related crossings
 

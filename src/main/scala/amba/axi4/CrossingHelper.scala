@@ -8,8 +8,8 @@ import freechips.rocketchip.diplomacy._
 case class AXI4InwardCrossingHelper(name: String, scope: LazyScope, node: AXI4InwardNode) {
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): AXI4InwardNode = {
     xing match {
-      case AsynchronousCrossing(depth, sync) =>
-        node :*=* scope { AXI4AsyncCrossingSink(depth, sync) :*=* AXI4AsyncNameNode(name) } :*=* AXI4AsyncNameNode(name) :*=* AXI4AsyncCrossingSource(sync)
+      case x: AsynchronousCrossing =>
+        node :*=* scope { AXI4AsyncCrossingSink(x.asSinkParams) :*=* AXI4AsyncNameNode(name) } :*=* AXI4AsyncNameNode(name) :*=* AXI4AsyncCrossingSource(x.sourceSync)
       case RationalCrossing(direction) =>
         throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
       case SynchronousCrossing(buffer) =>
@@ -21,8 +21,8 @@ case class AXI4InwardCrossingHelper(name: String, scope: LazyScope, node: AXI4In
 case class AXI4OutwardCrossingHelper(name: String, scope: LazyScope, node: AXI4OutwardNode) {
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): AXI4OutwardNode = {
     xing match {
-      case AsynchronousCrossing(depth, sync) =>
-        AXI4AsyncCrossingSink(depth, sync) :*=* AXI4AsyncNameNode(name) :*=* scope { AXI4AsyncNameNode(name) :*=* AXI4AsyncCrossingSource(sync) } :*=* node
+      case x: AsynchronousCrossing =>
+        AXI4AsyncCrossingSink(x.asSinkParams) :*=* AXI4AsyncNameNode(name) :*=* scope { AXI4AsyncNameNode(name) :*=* AXI4AsyncCrossingSource(x.sourceSync) } :*=* node
       case RationalCrossing(direction) =>
         throw new IllegalArgumentException("AXI4 Rational crossing unimplemented")
       case SynchronousCrossing(buffer) =>

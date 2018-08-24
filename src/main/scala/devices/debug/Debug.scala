@@ -359,13 +359,13 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     val io = IO(new Bundle {
       val dmi   = new DMIIO()(p).flip()
       val ctrl = new DebugCtrlBundle(nComponents)
-      val innerCtrl = new AsyncBundle(depth=1, new DebugInternalBundle())
+      val innerCtrl = new AsyncBundle(new DebugInternalBundle(), AsyncQueueParams.singleton())
     })
 
     dmi2tl.module.io.dmi <> io.dmi
 
     io.ctrl <> dmOuter.module.io.ctrl
-    io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, depth=1)
+    io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
 
   }
 }
@@ -1001,7 +1001,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule{
 
   val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents, beatBytes))
-  val dmiXing = LazyModule(new TLAsyncCrossingSink(depth=1))
+  val dmiXing = LazyModule(new TLAsyncCrossingSink(AsyncQueueParams.singleton()))
   val dmiNode = dmiXing.node
   val tlNode = dmInner.tlNode
 
@@ -1012,7 +1012,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
     val io = IO(new Bundle {
       // These are all asynchronous and come from Outer
       val dmactive = Bool(INPUT)
-      val innerCtrl = new AsyncBundle(1, new DebugInternalBundle()).flip
+      val innerCtrl = new AsyncBundle(new DebugInternalBundle(), AsyncQueueParams.singleton()).flip
       // This comes from tlClk domain.
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
       val psd = new PSDTestMode().asInput

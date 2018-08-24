@@ -9,41 +9,46 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
 
-class AXI4AsyncCrossingSource(sync: Int = 3)(implicit p: Parameters) extends LazyModule
+class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends LazyModule
 {
+  def this(x: Int)(implicit p: Parameters) = this(Some(x))
+  def this()(implicit p: Parameters) = this(None)
+
   val node = AXI4AsyncSourceNode(sync)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val depth = edgeOut.slave.depth
-
-      out.ar <> ToAsyncBundle(in.ar, depth, sync)
-      out.aw <> ToAsyncBundle(in.aw, depth, sync)
-      out. w <> ToAsyncBundle(in. w, depth, sync)
-      in .r  <> FromAsyncBundle(out.r, sync)
-      in .b  <> FromAsyncBundle(out.b, sync)
+      val psync = sync.getOrElse(edgeOut.slave.async.sync)
+      val params = edgeOut.slave.async.copy(sync = psync)
+      out.ar <> ToAsyncBundle(in.ar, params)
+      out.aw <> ToAsyncBundle(in.aw, params)
+      out. w <> ToAsyncBundle(in. w, params)
+      in .r  <> FromAsyncBundle(out.r, psync)
+      in .b  <> FromAsyncBundle(out.b, psync)
     }
   }
 }
 
-class AXI4AsyncCrossingSink(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
+class AXI4AsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) extends LazyModule
 {
-  val node = AXI4AsyncSinkNode(depth, sync)
+  val node = AXI4AsyncSinkNode(params)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out.ar <> FromAsyncBundle(in.ar, sync)
-      out.aw <> FromAsyncBundle(in.aw, sync)
-      out. w <> FromAsyncBundle(in. w, sync)
-      in .r  <> ToAsyncBundle(out.r, depth, sync)
-      in .b  <> ToAsyncBundle(out.b, depth, sync)
+      out.ar <> FromAsyncBundle(in.ar, params.sync)
+      out.aw <> FromAsyncBundle(in.aw, params.sync)
+      out. w <> FromAsyncBundle(in. w, params.sync)
+      in .r  <> ToAsyncBundle(out.r, params)
+      in .b  <> ToAsyncBundle(out.b, params)
     }
   }
 }
 
 object AXI4AsyncCrossingSource
 {
-  def apply(sync: Int = 3)(implicit p: Parameters) = {
+  def apply()(implicit p: Parameters): AXI4AsyncSourceNode = apply(None)
+  def apply(sync: Int)(implicit p: Parameters): AXI4AsyncSourceNode = apply(Some(sync))
+  def apply(sync: Option[Int])(implicit p: Parameters): AXI4AsyncSourceNode = {
     val axi4asource = LazyModule(new AXI4AsyncCrossingSource(sync))
     axi4asource.node
   }
@@ -51,17 +56,17 @@ object AXI4AsyncCrossingSource
 
 object AXI4AsyncCrossingSink
 {
-  def apply(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) = {
-    val axi4asink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
+  def apply(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) = {
+    val axi4asink = LazyModule(new AXI4AsyncCrossingSink(params))
     axi4asink.node
   }
 }
 
 @deprecated("AXI4AsyncCrossing is fragile. Use AXI4AsyncCrossingSource and AXI4AsyncCrossingSink", "rocket-chip 1.2")
-class AXI4AsyncCrossing(depth: Int = 8, sync: Int = 3)(implicit p: Parameters) extends LazyModule
+class AXI4AsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) extends LazyModule
 {
-  val source = LazyModule(new AXI4AsyncCrossingSource(sync))
-  val sink = LazyModule(new AXI4AsyncCrossingSink(depth, sync))
+  val source = LazyModule(new AXI4AsyncCrossingSource())
+  val sink = LazyModule(new AXI4AsyncCrossingSink(params))
   val node = NodeHandle(source.node, sink.node)
 
   sink.node := source.node
@@ -88,7 +93,7 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
   val model = LazyModule(new TLRAMModel("AsyncCrossing"))
   val fuzz = LazyModule(new TLFuzzer(txns))
   val toaxi = LazyModule(new TLToAXI4)
-  val island = LazyModule(new CrossingWrapper(AsynchronousCrossing(8)))
+  val island = LazyModule(new CrossingWrapper(AsynchronousCrossing()))
   val ram  = island { LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff))) }
 
   model.node := fuzz.node

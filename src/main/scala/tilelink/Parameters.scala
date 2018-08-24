@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.RationalDirection
+import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams}
 import scala.math.max
 
 case class TLManagerParameters(
@@ -353,26 +353,12 @@ case class TLEdgeParameters(
   val bundle = TLBundleParameters(client, manager)
 }
 
-case class TLAsyncManagerPortParameters(depth: Int, base: TLManagerPortParameters) { require (isPow2(depth)) }
+case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters)
 case class TLAsyncClientPortParameters(base: TLClientPortParameters)
-
-case class TLAsyncBundleParameters(depth: Int, base: TLBundleParameters)
-{
-  require (isPow2(depth))
-  def union(x: TLAsyncBundleParameters) = TLAsyncBundleParameters(
-    depth = max(depth, x.depth),
-    base  = base.union(x.base))
-}
-
-object TLAsyncBundleParameters
-{
-  val emptyBundleParams = TLAsyncBundleParameters(depth = 1, base = TLBundleParameters.emptyBundleParams)
-  def union(x: Seq[TLAsyncBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
-}
-
+case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
-  val bundle = TLAsyncBundleParameters(manager.depth, TLBundleParameters(client.base, manager.base))
+  val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
 }
 
 case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters)

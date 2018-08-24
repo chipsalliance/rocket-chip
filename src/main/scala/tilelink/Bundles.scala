@@ -315,11 +315,11 @@ class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParamete
 
 class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
 {
-  val a = new AsyncBundle(params.depth, new TLBundleA(params.base))
-  val b = new AsyncBundle(params.depth, new TLBundleB(params.base)).flip
-  val c = new AsyncBundle(params.depth, new TLBundleC(params.base))
-  val d = new AsyncBundle(params.depth, new TLBundleD(params.base)).flip
-  val e = new AsyncBundle(params.depth, new TLBundleE(params.base))
+  val a = new AsyncBundle(new TLBundleA(params.base), params.async)
+  val b = new AsyncBundle(new TLBundleB(params.base), params.async).flip
+  val c = new AsyncBundle(new TLBundleC(params.base), params.async)
+  val d = new AsyncBundle(new TLBundleD(params.base), params.async).flip
+  val e = new AsyncBundle(new TLBundleE(params.base), params.async)
 }
 
 class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
