@@ -100,7 +100,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
       }
     }
 
-    when (cause =/= 0 && cause_wen) {
+    when (cause === 0 && cause_wen) {
       cause := OptimizationBarrier(new_cause)
       value := OptimizationBarrier(new_value)
     }
