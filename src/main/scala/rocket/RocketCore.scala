@@ -32,6 +32,7 @@ case class RocketCoreParams(
   mtvecWritable: Boolean = true,
   fastLoadWord: Boolean = true,
   fastLoadByte: Boolean = false,
+  branchPredictionModeCSR: Boolean = false,
   tileControlAddr: Option[BigInt] = None,
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
@@ -55,6 +56,20 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
   require(!fastLoadByte || fastLoadWord)
+}
+
+class CustomCSRs(implicit p: Parameters) extends CoreBundle {
+  private val rocketParams = coreParams.asInstanceOf[RocketCoreParams]
+  private val bpmCSR = rocketParams.branchPredictionModeCSR.option(CustomCSR(0x7c0, BigInt(1), Some(BigInt(0))))
+
+  val decls = bpmCSR.toSeq
+  val csrs = Vec(decls.size, new CustomCSRIO)
+
+  def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
+  def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
+
+  private def getOrElse[T](csr: Option[CustomCSR], f: CustomCSRIO => T, alt: T): T =
+    csr.map(c => f(csrs(decls.indexOf(c)))).getOrElse(alt)
 }
 
 class Rocket(implicit p: Parameters) extends CoreModule()(p)
@@ -197,7 +212,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents))
+  val csr = Module(new CSRFile(perfEvents, io.ptw.customCSRs.decls))
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
   val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
@@ -562,6 +577,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
   csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
   io.ptw.ptbr := csr.io.ptbr
+  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
   io.ptw.status := csr.io.status
   io.ptw.pmp := csr.io.pmp
   csr.io.rw.addr := wb_reg_inst(31,20)
