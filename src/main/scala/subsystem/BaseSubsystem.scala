@@ -38,7 +38,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
 
   // The sbus masters the pbus; here we convert TL-UH -> TL-UL
-  pbus.crossFromSystemBus { sbus.toSlaveBus("pbus") }
+  pbus.crossFromControlBus { sbus.control_bus.toSlaveBus("pbus") }
 
   // The fbus masters the sbus; both are TL-UH or TL-C
   FlipRendering { implicit p =>
@@ -67,7 +67,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
     for (bank <- 0 until nBanksPerChannel) {
       val offset = (bank * nMemoryChannels) + channel
       ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) } := out
+      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.mSelectIntersect(AddressSet(offset * memBusBlockBytes, mask))) } := out
     }
     mbus
   }

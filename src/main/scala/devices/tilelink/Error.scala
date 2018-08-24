@@ -3,8 +3,7 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -14,8 +13,6 @@ case class ErrorParams(address: Seq[AddressSet], maxAtomic: Int, maxTransfer: In
 {
   require (1 <= maxAtomic && maxAtomic <= maxTransfer && maxTransfer <= 4096)
 }
-
-case object ErrorParams extends Field[ErrorParams]
 
 abstract class DevNullDevice(params: ErrorParams, beatBytes: Int = 4)
                             (device: SimpleDevice)
@@ -126,10 +123,4 @@ class DeadlockDevice(params: ErrorParams, beatBytes: Int = 4)(implicit p: Parame
     in.d.valid := Bool(false)
     in.e.ready := Bool(false)
   }
-}
-
-trait HasSystemErrorSlave { this: BaseSubsystem =>
-  private val params = p(ErrorParams)
-  val error = LazyModule(new TLError(params, sbus.beatBytes))
-  sbus.toSlave(Some("Error")){ error.node }
 }

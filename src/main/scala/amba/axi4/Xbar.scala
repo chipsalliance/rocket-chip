@@ -286,7 +286,7 @@ class AXI4XbarFuzzTest(name: String, txns: Int, nMasters: Int, nSlaves: Int)(imp
   val xbar = AXI4Xbar()
   val slaveSize = 0x1000
   val masterBandSize = slaveSize >> log2Ceil(nMasters)
-  def filter(i: Int) = TLFilter.Mmask(AddressSet(i * masterBandSize, ~BigInt(slaveSize - masterBandSize)))
+  def filter(i: Int) = TLFilter.mSelectIntersect(AddressSet(i * masterBandSize, ~BigInt(slaveSize - masterBandSize)))
 
   val slaves = Seq.tabulate(nSlaves) { i => LazyModule(new AXI4RAM(AddressSet(slaveSize * i, slaveSize-1))) }
   slaves.foreach { s => (s.node
