@@ -24,8 +24,8 @@ case class AsyncQueueParams(
 }
 
 object AsyncQueueParams {
-  // When there is only one entry, we don't need safety or narrow.
-  def singleton(sync: Int = 3) = AsyncQueueParams(1, sync, false, false)
+  // When there is only one entry, we don't need narrow.
+  def singleton(sync: Int = 3, safe: Boolean = true) = AsyncQueueParams(1, sync, safe, false)
 }
 
 class AsyncBundleSafety extends Bundle {
