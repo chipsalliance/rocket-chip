@@ -28,6 +28,7 @@ case class TLManagerParameters(
   mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
   mayDenyPut:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
                                        // ReleaseAck may NEVER be denied
+  alwaysGrantsT:      Boolean = false, // typically only true for CacheCork'd read-write devices
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   fifoId:             Option[Int] = None)
@@ -42,6 +43,7 @@ case class TLManagerParameters(
   require (supportsGet.contains(supportsArithmetic),     s"Get($supportsGet) < Arithmetic($supportsArithmetic)")
   require (supportsGet.contains(supportsLogical),        s"Get($supportsGet) < Logical($supportsLogical)")
   require (supportsAcquireB.contains(supportsAcquireT),  s"AcquireB($supportsAcquireB) < AcquireT($supportsAcquireT)")
+  require (!alwaysGrantsT || supportsAcquireT, s"Must supportAcquireT if promising to always grantT")
 
   // Make sure that the regionType agrees with the capabilities
   require (!supportsAcquireB || regionType >= RegionType.UNCACHED) // acquire -> uncached, tracked, cached

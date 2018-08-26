@@ -89,8 +89,9 @@ case class PhysicalFilterParams(
 class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(managerFn = { mp => mp.copy(
-    endSinkId  = if (mp.endSinkId == 0) { 0 } else { mp.endSinkId+1 },
-    minLatency = 1 min mp.minLatency)})
+    managers      = mp.managers.map(_.copy(alwaysGrantsT = false)),
+    endSinkId     = if (mp.endSinkId == 0) { 0 } else { mp.endSinkId+1 },
+    minLatency    = 1 min mp.minLatency)})
 
   val device = new SimpleDevice("physical-filter", Seq("sifive,physical-filter-v0"))
   val controlNode = TLRegisterNode(
