@@ -110,6 +110,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val vpn_idx = vpn_idxs(count)
     Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
   }
+  val fragmented_superpage_ppn = {
+    val choices = (pgLevels-1 until 0 by -1).map(i => Cat(r_pte.ppn >> (pgLevels*i), r_req.addr(pgLevels*i-1, 0)))
+    choices(count)
+  }
 
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits
@@ -236,7 +240,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.ae := resp_ae
     io.requestor(i).resp.bits.pte := r_pte
     io.requestor(i).resp.bits.level := count
-    io.requestor(i).resp.bits.pte.ppn := pte_addr >> pgIdxBits
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).ptbr := io.dpath.ptbr
@@ -292,8 +295,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   r_pte := OptimizationBarrier(
     Mux(io.mem.resp.valid, pte,
     Mux(l2_hit, l2_pte,
+    Mux(state === s_fragment_superpage && !homogeneous, makePTE(fragmented_superpage_ppn, r_pte),
     Mux(state === s_req && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
-    Mux(arb.io.out.fire(), makePTE(io.dpath.ptbr.ppn, l2_pte), r_pte)))))
+    Mux(arb.io.out.fire(), makePTE(io.dpath.ptbr.ppn, r_pte),
+    r_pte))))))
 
   when (l2_hit) {
     assert(state === s_req || state === s_wait1)

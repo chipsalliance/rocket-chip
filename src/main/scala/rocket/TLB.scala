@@ -159,7 +159,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val sectored_entries = Reg(Vec(cfg.nEntries / cfg.nSectors, new Entry(cfg.nSectors, false, false)))
   val superpage_entries = Reg(Vec(cfg.nSuperpageEntries, new Entry(1, true, true)))
   val special_entry = (!pageGranularityPMPs).option(Reg(new Entry(1, true, false)))
-  def all_entries = sectored_entries ++ superpage_entries ++ special_entry
+  def ordinary_entries = sectored_entries ++ superpage_entries
+  def all_entries = ordinary_entries ++ special_entry
 
   val s_ready :: s_request :: s_wait :: s_wait_invalidate :: Nil = Enum(UInt(), 4)
   val state = Reg(init=s_ready)
@@ -242,20 +243,22 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   }
 
   val entries = all_entries.map(_.getData(vpn))
+  val normal_entries = ordinary_entries.map(_.getData(vpn))
+  val nPhysicalEntries = 1 + special_entry.size
   val ptw_ae_array = Cat(false.B, entries.map(_.ae).asUInt)
   val priv_rw_ok = Mux(!priv_s || io.ptw.status.sum, entries.map(_.u).asUInt, 0.U) | Mux(priv_s, ~entries.map(_.u).asUInt, 0.U)
   val priv_x_ok = Mux(priv_s, ~entries.map(_.u).asUInt, entries.map(_.u).asUInt)
   val r_array = Cat(true.B, priv_rw_ok & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.sx).asUInt, UInt(0))))
   val w_array = Cat(true.B, priv_rw_ok & entries.map(_.sw).asUInt)
   val x_array = Cat(true.B, priv_x_ok & entries.map(_.sx).asUInt)
-  val pr_array = Cat(Fill(2, prot_r), entries.init.map(_.pr).asUInt) | ptw_ae_array
-  val pw_array = Cat(Fill(2, prot_w), entries.init.map(_.pw).asUInt) | ptw_ae_array
-  val px_array = Cat(Fill(2, prot_x), entries.init.map(_.px).asUInt) | ptw_ae_array
-  val paa_array = Cat(Fill(2, prot_aa), entries.init.map(_.paa).asUInt)
-  val pal_array = Cat(Fill(2, prot_al), entries.init.map(_.pal).asUInt)
-  val eff_array = Cat(Fill(2, prot_eff), entries.init.map(_.eff).asUInt)
-  val c_array = Cat(Fill(2, cacheable), entries.init.map(_.c).asUInt)
-  val prefetchable_array = Cat(cacheable && homogeneous, false.B, entries.init.map(_.c).asUInt)
+  val pr_array = Cat(Fill(nPhysicalEntries, prot_r), normal_entries.map(_.pr).asUInt) | ptw_ae_array
+  val pw_array = Cat(Fill(nPhysicalEntries, prot_w), normal_entries.map(_.pw).asUInt) | ptw_ae_array
+  val px_array = Cat(Fill(nPhysicalEntries, prot_x), normal_entries.map(_.px).asUInt) | ptw_ae_array
+  val paa_array = Cat(Fill(nPhysicalEntries, prot_aa), normal_entries.map(_.paa).asUInt)
+  val pal_array = Cat(Fill(nPhysicalEntries, prot_al), normal_entries.map(_.pal).asUInt)
+  val eff_array = Cat(Fill(nPhysicalEntries, prot_eff), normal_entries.map(_.eff).asUInt)
+  val c_array = Cat(Fill(nPhysicalEntries, cacheable), normal_entries.map(_.c).asUInt)
+  val prefetchable_array = Cat((cacheable && homogeneous) << (nPhysicalEntries-1), normal_entries.map(_.c).asUInt)
 
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
   val bad_va = vm_enabled &&
