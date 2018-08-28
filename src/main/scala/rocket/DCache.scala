@@ -818,9 +818,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // report errors
   val (data_error, data_error_uncorrectable, data_error_addr) =
     if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
-      (tl_out_c.fire() && inWriteback && writeback_data_error,
-        writeback_data_uncorrectable,
-        tl_out_c.bits.address)
+      (RegNext(tl_out_c.fire() && inWriteback && writeback_data_error),
+        RegNext(writeback_data_uncorrectable),
+        probe_bits.address) // This is stable for a cycle after tl_out_c.fire, so don't need a register
     }
   {
     val error_addr =
