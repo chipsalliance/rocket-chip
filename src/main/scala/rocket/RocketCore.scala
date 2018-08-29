@@ -32,15 +32,19 @@ case class RocketCoreParams(
   mtvecWritable: Boolean = true,
   fastLoadWord: Boolean = true,
   fastLoadByte: Boolean = false,
+  branchPredictionModeCSR: Boolean = false,
   tileControlAddr: Option[BigInt] = None,
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {
+  val haveFSDirty = false
+  val pmpGranularity: Int = 4
   val fetchWidth: Int = if (useCompressed) 2 else 1
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
   val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
+  val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
@@ -52,6 +56,20 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
   require(!fastLoadByte || fastLoadWord)
+}
+
+class CustomCSRs(implicit p: Parameters) extends CoreBundle {
+  private val rocketParams = coreParams.asInstanceOf[RocketCoreParams]
+  private val bpmCSR = rocketParams.branchPredictionModeCSR.option(CustomCSR(0x7c0, BigInt(1), Some(BigInt(0))))
+
+  val decls = bpmCSR.toSeq
+  val csrs = Vec(decls.size, new CustomCSRIO)
+
+  def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
+  def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
+
+  private def getOrElse[T](csr: Option[CustomCSR], f: CustomCSRIO => T, alt: T): T =
+    csr.map(c => f(csrs(decls.indexOf(c)))).getOrElse(alt)
 }
 
 class Rocket(implicit p: Parameters) extends CoreModule()(p)
@@ -112,7 +130,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     (if (fLen >= 32) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
     (if (fLen >= 64) new DDecode +: (xLen > 32).option(new D64Decode).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
-    ((xLen > 32).option(new I64Decode)) ++:
+    (if (xLen == 32) new I32Decode else new I64Decode) +:
     (usingVM.option(new SDecode)) ++:
     (usingDebug.option(new DebugDecode)) ++:
     Seq(new IDecode)
@@ -194,9 +212,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents))
+  val csr = Module(new CSRFile(perfEvents, io.imem.customCSRs.decls))
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
-  val id_system_insn = id_ctrl.csr >= CSR.I
+  val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
   val id_csr = Mux(id_csr_ren, CSR.R, id_ctrl.csr)
   val id_sfence = id_ctrl.mem && id_ctrl.mem_cmd === M_SFENCE
@@ -559,10 +577,11 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
   csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
   io.ptw.ptbr := csr.io.ptbr
+  (io.imem.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
   io.ptw.status := csr.io.status
   io.ptw.pmp := csr.io.pmp
   csr.io.rw.addr := wb_reg_inst(31,20)
-  csr.io.rw.cmd := Mux(wb_reg_valid, wb_ctrl.csr, CSR.N)
+  csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
   io.trace := csr.io.trace
 
@@ -611,7 +630,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     fp_sboard.clear(dmem_resp_replay && dmem_resp_fpu, dmem_resp_waddr)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
-    id_csr_en && !io.fpu.fcsr_rdy || checkHazards(fp_hazard_targets, fp_sboard.read _)
+    checkHazards(fp_hazard_targets, fp_sboard.read _)
   } else Bool(false)
 
   val dcache_blocked = Reg(Bool())
@@ -622,6 +641,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     csr.io.singleStep && (ex_reg_valid || mem_reg_valid || wb_reg_valid) ||
+    id_csr_en && csr.io.decode(0).fp_csr && !io.fpu.fcsr_rdy ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
@@ -683,9 +703,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.typ  := ex_ctrl.mem_type
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
-  io.dmem.invalidate_lr := wb_xcpt
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt
+  io.dmem.s2_kill := false
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
@@ -697,6 +717,36 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   // evaluate performance counters
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
+
+  val coreMonitorBundle = Wire(new Bundle {
+    val hartid = UInt(width = hartIdLen)
+    val time = UInt(width = 32)
+    val valid = Bool()
+    val pc = UInt(width = vaddrBitsExtended)
+    val wrdst = UInt(width = 5)
+    val wrdata = UInt(width = xLen)
+    val wren = Bool()
+    val rd0src = UInt(width = 5)
+    val rd0val = UInt(width = xLen)
+    val rd1src = UInt(width = 5)
+    val rd1val = UInt(width = xLen)
+    val inst = UInt(width = 32)
+  })
+
+  coreMonitorBundle.hartid := io.hartid
+  coreMonitorBundle.time := csr.io.time(31,0)
+  coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
+  coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0)
+  coreMonitorBundle.wrdst := Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0))
+  coreMonitorBundle.wrdata := rf_wdata
+  coreMonitorBundle.wren := rf_wen
+  coreMonitorBundle.rd0src := wb_reg_inst(19,15)
+  coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
+  coreMonitorBundle.rd1src := wb_reg_inst(24,20)
+  coreMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)))
+  coreMonitorBundle.inst := csr.io.trace(0).insn
+
+  p(BundleMonitorKey).foreach { _ ("rocket_core_monitor", coreMonitorBundle) }
 
   if (enableCommitLog) {
     val t = csr.io.trace(0)
@@ -726,12 +776,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   }
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.hartid, csr.io.time(31,0), csr.io.trace(0).valid && !csr.io.trace(0).exception,
-         csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0),
-         Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0)), rf_wdata, rf_wen,
-         wb_reg_inst(19,15), Reg(next=Reg(next=ex_rs(0))),
-         wb_reg_inst(24,20), Reg(next=Reg(next=ex_rs(1))),
-         csr.io.trace(0).insn, csr.io.trace(0).insn)
+         coreMonitorBundle.hartid, coreMonitorBundle.time, coreMonitorBundle.valid,
+         coreMonitorBundle.pc,
+         coreMonitorBundle.wrdst, coreMonitorBundle.wrdata, coreMonitorBundle.wren,
+         coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
+         coreMonitorBundle.rd1src, coreMonitorBundle.rd1val,
+         coreMonitorBundle.inst, coreMonitorBundle.inst)
   }
 
   PlusArg.timeout(

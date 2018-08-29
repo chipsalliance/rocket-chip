@@ -66,7 +66,9 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
         supportsGet        = s.supportsRead,
         supportsPutFull    = s.supportsWrite,
         supportsPutPartial = s.supportsWrite,
-        fifoId             = Some(0))},
+        fifoId             = Some(0),
+        mayDenyPut         = true,
+        mayDenyGet         = true)},
       beatBytes = p.beatBytes,
       minLatency = p.minLatency)
   })
@@ -90,7 +92,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
 
-      map.mapping.foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
+      Annotated.idMapping(this, map.mapping).foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
         for (i <- 0 until tlId.size) {
           val id = axi4Id.start + (if (fifo) 0 else (i >> stripBits))
           sourceStall(tlId.start + i) := idStall(id)
@@ -179,6 +181,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       out_w.bits.data := in.a.bits.data
       out_w.bits.strb := in.a.bits.mask
       out_w.bits.last := a_last
+      out_w.bits.corrupt.foreach { _ := in.a.bits.corrupt }
 
       // R and B => D arbitration
       val r_holds_d = RegInit(Bool(false))
@@ -190,14 +193,17 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       out.b.ready := in.d.ready && !r_wins
       in.d.valid := Mux(r_wins, out.r.valid, out.b.valid)
 
-      val r_error = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
-      val b_error = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
+      // If the first beat of the AXI RRESP is RESP_DECERR, treat this as a denied
+      // request. We must pulse extend this value as AXI is allowed to change the
+      // value of RRESP on every beat, and ChipLink may not.
+      val r_first = RegInit(Bool(true))
+      when (out.r.fire()) { r_first := out.r.bits.last }
+      val r_denied  = out.r.bits.resp === AXI4Parameters.RESP_DECERR holdUnless r_first
+      val r_corrupt = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
+      val b_denied  = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
 
-      val reg_error = RegInit(Bool(false))
-      when (out.r.fire()) { reg_error := !out.r.bits.last && (reg_error || r_error) }
-
-      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), reg_error || r_error)
-      val b_d = edgeIn.AccessAck(b_source, b_size, b_error)
+      val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), denied = r_denied, corrupt = r_corrupt || r_denied)
+      val b_d = edgeIn.AccessAck(b_source, b_size, denied = b_denied)
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux

@@ -16,6 +16,9 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
 
+  // code snippets from 'InModuleBody' injection
+  protected[diplomacy] var inModuleBody = List[() => Unit]()
+
   def parents: Seq[LazyModule] = parent match {
     case None => Nil
     case Some(x) => x +: x.parents
@@ -49,7 +52,6 @@ abstract class LazyModule()(implicit val p: Parameters)
   lazy val pathName = module.pathName
   lazy val instanceName = pathName.split('.').last // The final Verilog instance name
 
-  def instantiate() { } // a hook for running things in module scope (after children exist, but before dangles+auto exists)
   def module: LazyModuleImpLike
 
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
@@ -136,7 +138,7 @@ object LazyModule
   }
 }
 
-sealed trait LazyModuleImpLike extends BaseModule
+sealed trait LazyModuleImpLike extends RawModule
 {
   val wrapper: LazyModule
   val auto: AutoBundle
@@ -171,7 +173,7 @@ sealed trait LazyModuleImpLike extends BaseModule
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.suggestedName + "_" + d.name)
     }
-    wrapper.instantiate()
+    wrapper.inModuleBody.reverse.foreach { _() }
     (auto, dangles)
   }
 
@@ -185,7 +187,14 @@ class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModu
 }
 
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
-  val (auto, dangles) = withClockAndReset(Bool(false).asClock, Bool(true)) {
+  // These wires are the default clock+reset for all LazyModule children
+  // It is recommended to drive these even if you manually shove most of your children
+  // Otherwise, anonymous children (Monitors for example) will not be clocked
+  val childClock = Wire(Clock())
+  val childReset = Wire(Bool())
+  childClock := Bool(false).asClock
+  childReset := Bool(true)
+  val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
   }
 }
@@ -198,7 +207,7 @@ class SimpleLazyModule(implicit p: Parameters) extends LazyModule
 trait LazyScope
 {
   this: LazyModule =>
-  def apply[T](body: => T)(implicit p: Parameters) = {
+  def apply[T](body: => T) = {
     val saved = LazyModule.scope
     LazyModule.scope = Some(this)
     val out = body
@@ -211,10 +220,12 @@ trait LazyScope
 
 object LazyScope
 {
-  def apply[T](name: String)(body: => T)(implicit p: Parameters) = {
+  def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
     val scope = LazyModule(new SimpleLazyModule with LazyScope)
-    scope.suggestName(name)
     scope { body }
+  }
+  def apply[T](name: String)(body: => T)(implicit p: Parameters): T = {
+    apply(body)(ValName(name), p)
   }
 }
 
@@ -241,4 +252,27 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   }
 
   override def cloneType = (new AutoBundle(elts:_*)).asInstanceOf[this.type]
+}
+
+trait ModuleValue[T]
+{
+  def getWrappedValue: T
+}
+
+object InModuleBody
+{
+  def apply[T](body: => T): ModuleValue[T] = {
+    require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
+    val scope = LazyModule.scope.get
+    val out = new ModuleValue[T] {
+      var result: Option[T] = None
+      def execute() { result = Some(body) }
+      def getWrappedValue = {
+        require (result.isDefined, s"InModuleBody contents were requested before module was evaluated!")
+        result.get
+      }
+    }
+    scope.inModuleBody = (out.execute _) +: scope.inModuleBody
+    out
+  }
 }

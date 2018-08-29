@@ -35,6 +35,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
               regionType         = RegionType.TRACKED,
               supportsAcquireB   = TransferSizes(lowerBound, lineBytes),
               supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, lineBytes) else TransferSizes.none,
+              alwaysGrantsT      = false,
               // truncate supported accesses to lineBytes (we only ever probe for one line)
               supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, lineBytes)),
               supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, lineBytes)),
@@ -299,6 +300,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   io.out_a.bits.address := address
   io.out_a.bits.mask    := o_data.bits.mask
   io.out_a.bits.data    := o_data.bits.data
+  io.out_a.bits.corrupt := Bool(false)
 }
 
 object TLBroadcastConstants

@@ -84,7 +84,7 @@ object AsyncResetShiftReg {
     apply (in, depth, init.litValue.toInt, None)
 }
 
-// Note that it is important to ovveride "name" in order to ensure that the Chisel dedup does
+// Note that it is important to override "name" in order to ensure that the Chisel dedup does
 // not try to merge instances of this with instances of the superclass.
 class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) extends AsyncResetShiftReg(w, depth = sync, init, name = "sync") {
   require(sync > 0, "Sync must be greater than 0.")

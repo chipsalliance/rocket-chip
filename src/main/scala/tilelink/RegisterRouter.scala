@@ -3,12 +3,15 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.experimental.RawModule
+import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{HeterogeneousBag, ElaborationArtefacts}
-import scala.math.{min,max}
+import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescsAnno, HeterogeneousBag}
+
+import scala.math.{max, min}
 
 case class TLRegisterNode(
     address:     Seq[AddressSet],
@@ -81,25 +84,44 @@ case class TLRegisterNode(
     bundleIn.c.ready := Bool(true)
     bundleIn.e.ready := Bool(true)
 
+    genRegDescsJson(mapping:_*)
+  }
+
+
+  def genRegDescsJson(mapping: RegField.Map*) {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
     val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
-    val json = RegMappingAnnotation.serialize(base, name, mapping:_*)
+    val json = GenRegDescsAnno.serialize(base, name, mapping:_*)
     var suffix = 0
-    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")){
+    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
       suffix = suffix + 1
     }
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
+
+    val module = Module.currentModule.get.asInstanceOf[RawModule]
+    GenRegDescsAnno.anno(
+      module,
+      base,
+      mapping:_*)
+
   }
 }
 
 // register mapped device from a totally abstract register mapped device.
-// See GPIO.scala in this directory for an example
 
 abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
-  val device = new SimpleDevice(devname, devcompat)
+  // Allow devices to extend the DTS mapping
+  def extraResources(resources: ResourceBindings) = Map[String, Seq[ResourceValue]]()
+  val device = new SimpleDevice(devname, devcompat) {
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ extraResources(resources))
+    }
+  }
+
   val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
@@ -143,3 +165,21 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 }
 
 // !!! eliminate third trait
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
+trait HasTLControlRegMap { this: RegisterRouter[_] =>
+  protected val controlNode = TLRegisterNode(
+    address = address,
+    device = device,
+    deviceKey = "reg/control",
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Externally, this helper should be used to connect the register control port to a bus
+  val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+}

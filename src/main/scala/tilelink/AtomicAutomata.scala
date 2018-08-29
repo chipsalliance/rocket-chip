@@ -23,7 +23,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       require (!m.supportsPutFull || !m.supportsGet || canDoit, s"${m.name} has $ourSupport, needed PutFull(${m.supportsPutFull}) or Get(${m.supportsGet})")
       m.copy(
         supportsArithmetic = if (!arithmetic || !canDoit) m.supportsArithmetic else widen(m.supportsArithmetic),
-        supportsLogical    = if (!logical    || !canDoit) m.supportsLogical    else widen(m.supportsLogical))
+        supportsLogical    = if (!logical    || !canDoit) m.supportsLogical    else widen(m.supportsLogical),
+        mayDenyGet         = m.mayDenyGet || m.mayDenyPut)
     })})
 
   lazy val module = new LazyModuleImp(this) {
@@ -155,7 +156,12 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         // Potentially take the message from the CAM
         val source_c = Wire(in.a)
         source_c.valid := a_cam_any_put
-        source_c.bits := edgeOut.Put(a_cam_a.bits.source, edgeIn.address(a_cam_a.bits), a_cam_a.bits.size, amo_data)._2
+        source_c.bits := edgeOut.Put(
+          fromSource = a_cam_a.bits.source,
+          toAddress  = edgeIn.address(a_cam_a.bits),
+          lgSize     = a_cam_a.bits.size,
+          data       = amo_data,
+          corrupt    = a_cam_a.bits.corrupt || a_cam_d.corrupt)._2
 
         // Finishing an AMO from the CAM has highest priority
         TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(0), source_c), (edgeOut.numBeats1(in.a.bits), source_i))
@@ -194,7 +200,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val d_cam_sel_raw = cam_a.map(_.bits.source === in.d.bits.source)
         val d_cam_sel_match = (d_cam_sel_raw zip cam_dmatch) map { case (a,b) => a&&b }
         val d_cam_data = Mux1H(d_cam_sel_match, cam_d.map(_.data))
-        val d_cam_error = Mux1H(d_cam_sel_match, cam_d.map(_.error))
+        val d_cam_denied = Mux1H(d_cam_sel_match, cam_d.map(_.denied))
+        val d_cam_corrupt = Mux1H(d_cam_sel_match, cam_d.map(_.corrupt))
         val d_cam_sel_bypass = if (edgeOut.manager.minLatency > 0) Bool(false) else
                                out.d.bits.source === in.a.bits.source && in.a.valid && !a_isSupported
         val d_cam_sel = (a_cam_sel_free zip d_cam_sel_match) map { case (a,d) => Mux(d_cam_sel_bypass, a, d) }
@@ -206,7 +213,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           (d_cam_sel zip cam_d) foreach { case (en, r) =>
             when (en && d_ackd) {
               r.data := out.d.bits.data
-              r.error := out.d.bits.error
+              r.denied := out.d.bits.denied
+              r.corrupt := out.d.bits.corrupt
             }
           }
           (d_cam_sel zip cam_s) foreach { case (en, r) =>
@@ -227,7 +235,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         when (d_replace) { // minimal muxes
           in.d.bits.opcode := TLMessages.AccessAckData
           in.d.bits.data := d_cam_data
-          in.d.bits.error := d_cam_error || out.d.bits.error
+          in.d.bits.corrupt := d_cam_corrupt || out.d.bits.denied
+          in.d.bits.denied  := d_cam_denied  || out.d.bits.denied
         }
       } else {
         out.a.valid := in.a.valid
@@ -282,8 +291,9 @@ object TLAtomicAutomata
     val lut     = UInt(width = 4)
   }
   class CAM_D(params: CAMParams) extends GenericParameterizedBundle(params) {
-    val data  = UInt(width = params.a.dataBits)
-    val error = Bool()
+    val data    = UInt(width = params.a.dataBits)
+    val denied  = Bool()
+    val corrupt = Bool()
   }
 }
 

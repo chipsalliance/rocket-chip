@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.AsyncQueueParams
 
 object AXI4Imp extends SimpleNodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4EdgeParameters, AXI4Bundle]
 {
@@ -33,11 +34,17 @@ case class AXI4AdapterNode(
   extends AdapterNode(AXI4Imp)(masterFn, slaveFn)
 case class AXI4IdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4Imp)()
 
+object AXI4NameNode {
+  def apply(name: ValName) = AXI4IdentityNode()(name)
+  def apply(name: Option[String]): AXI4IdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): AXI4IdentityNode = apply(Some(name))
+}
+
 object AXI4AsyncImp extends SimpleNodeImp[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncEdgeParameters, AXI4AsyncBundle]
 {
   def edge(pd: AXI4AsyncMasterPortParameters, pu: AXI4AsyncSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXI4AsyncEdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: AXI4AsyncEdgeParameters) = new AXI4AsyncBundle(e.bundle)
-  def render(e: AXI4AsyncEdgeParameters) = RenderedEdge(colour = "#ff0000" /* red */, label  = e.slave.depth.toString)
+  def render(e: AXI4AsyncEdgeParameters) = RenderedEdge(colour = "#ff0000" /* red */, label = e.slave.async.depth.toString)
 
   override def mixO(pd: AXI4AsyncMasterPortParameters, node: OutwardNode[AXI4AsyncMasterPortParameters, AXI4AsyncSlavePortParameters, AXI4AsyncBundle]): AXI4AsyncMasterPortParameters  =
    pd.copy(base = pd.base.copy(masters = pd.base.masters.map  { c => c.copy (nodePath = node +: c.nodePath) }))
@@ -45,12 +52,20 @@ object AXI4AsyncImp extends SimpleNodeImp[AXI4AsyncMasterPortParameters, AXI4Asy
    pu.copy(base = pu.base.copy(slaves  = pu.base.slaves.map { m => m.copy (nodePath = node +: m.nodePath) }))
 }
 
-case class AXI4AsyncSourceNode(sync: Int)(implicit valName: ValName)
+case class AXI4AsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
   extends MixedAdapterNode(AXI4Imp, AXI4AsyncImp)(
     dFn = { p => AXI4AsyncMasterPortParameters(p) },
-    uFn = { p => p.base.copy(minLatency = sync+1) }) // discard cycles in other clock domain
+    uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) })
 
-case class AXI4AsyncSinkNode(depth: Int, sync: Int)(implicit valName: ValName)
+case class AXI4AsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
   extends MixedAdapterNode(AXI4AsyncImp, AXI4Imp)(
     dFn = { p => p.base },
-    uFn = { p => AXI4AsyncSlavePortParameters(depth, p) })
+    uFn = { p => AXI4AsyncSlavePortParameters(async, p) })
+
+case class AXI4AsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4AsyncImp)()
+
+object AXI4AsyncNameNode {
+  def apply(name: ValName) = AXI4AsyncIdentityNode()(name)
+  def apply(name: Option[String]): AXI4AsyncIdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): AXI4AsyncIdentityNode = apply(Some(name))
+}

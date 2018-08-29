@@ -6,11 +6,10 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
@@ -100,13 +99,6 @@ class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   val perf = new ICachePerfEvents().asOutput
 }
 
-// get a tile-specific property without breaking deduplication
-object GetPropertyByHartId {
-  def apply[T <: Data](tiles: Seq[RocketTileParams], f: RocketTileParams => Option[T], hartId: UInt): T = {
-    PriorityMux(tiles.collect { case t if f(t).isDefined => (t.hartId === hartId) -> f(t).get })
-  }
-}
-
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   override val cacheParams = outer.icacheParams // Use the local parameters
@@ -126,7 +118,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
   def lineInScratchpad(line: UInt) = scratchpadMax.map(scratchpadOn && line <= _).getOrElse(false.B)
   val scratchpadBase = outer.icacheParams.itimAddr.map { dummy =>
-    GetPropertyByHartId(p(RocketTilesKey), _.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
+    p(LookupByHartId)(_.icache.flatMap(_.itimAddr.map(_.U)), io.hartid)
   }
   def addrMaybeInScratchpad(addr: UInt) = scratchpadBase.map(base => addr >= base && addr < base + outer.size).getOrElse(false.B)
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))
@@ -150,8 +142,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val send_hint = RegInit(false.B)
   val refill_fire = tl_out.a.fire() && !send_hint
   val hint_outstanding = RegInit(false.B)
-  val s2_miss = s2_valid && !s2_hit && !io.s2_kill && !RegNext(refill_valid)
-  val refill_addr = RegEnable(io.s1_paddr, s1_valid && !(refill_valid || s2_miss))
+  val s2_miss = s2_valid && !s2_hit && !io.s2_kill
+  val s1_can_request_refill = !(s2_miss || refill_valid)
+  val s2_request_refill = s2_miss && RegNext(s1_can_request_refill)
+  val refill_addr = RegEnable(io.s1_paddr, s1_valid && s1_can_request_refill)
   val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
   val refill_idx = refill_addr(untagBits-1,blockOffBits)
   val refill_one_beat = tl_out.d.fire() && edge_out.hasData(tl_out.d.bits)
@@ -178,14 +172,21 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = SeqMem(nSets, Vec(nWays, UInt(width = tECC.width(1 + tagBits))))
+  val tag_array = DescribedSRAM(
+    name = "tag_array",
+    desc = "ICache Tag Array",
+    size = nSets,
+    data = Vec(nWays, UInt(width = tECC.width(1 + tagBits)))
+  )
+
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
   when (refill_done) {
-    val enc_tag = tECC.encode(Cat(tl_out.d.bits.error, refill_tag))
+    // For AccessAckData, denied => corrupt
+    val enc_tag = tECC.encode(Cat(tl_out.d.bits.corrupt, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
 
-    ccover(tl_out.d.bits.error, "D_ERROR", "I$ D-channel error")
+    ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
   }
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
@@ -226,7 +227,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
-  val data_arrays = Seq.fill(tl_out.d.bits.data.getWidth / wordBits) { SeqMem(nSets * refillCycles, Vec(nWays, UInt(width = dECC.width(wordBits)))) }
+
+  val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
+    i =>
+      DescribedSRAM(
+        name = s"data_arrays_${i}",
+        desc = "ICache Data Array",
+        size = nSets * refillCycles,
+        data = Vec(nWays, UInt(width = dECC.width(wordBits)))
+      )
+  }
+
   for ((data_array, i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
@@ -346,9 +357,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         tl.d.valid := respValid
         tl.d.bits := Mux(edge_in.get.hasData(s1_a),
           edge_in.get.AccessAck(s1_a),
-          edge_in.get.AccessAck(s1_a, UInt(0)))
+          edge_in.get.AccessAck(s1_a, UInt(0), denied = Bool(false), corrupt = respError))
         tl.d.bits.data := s1s3_slaveData
-        tl.d.bits.error := respError
 
         // Tie off unused channels
         tl.b.valid := false
@@ -362,7 +372,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       }
   }
 
-  tl_out.a.valid := s2_miss && !refill_valid
+  tl_out.a.valid := s2_request_refill
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
                     toAddress = (refill_addr >> blockOffBits) << blockOffBits,

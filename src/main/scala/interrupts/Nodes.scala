@@ -28,6 +28,12 @@ case class IntAdapterNode(
   extends AdapterNode(IntImp)(sourceFn, sinkFn)
 case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)()
 
+object IntNameNode {
+  def apply(name: ValName) = IntIdentityNode()(name)
+  def apply(name: Option[String]): IntIdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): IntIdentityNode = apply(Some(name))
+}
+
 case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
   sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
@@ -49,6 +55,12 @@ object IntSyncImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortPara
 }
 
 case class IntSyncIdentityNode()(implicit valName: ValName) extends IdentityNode(IntSyncImp)()
+
+object IntSyncNameNode {
+  def apply(name: ValName) = IntSyncIdentityNode()(name)
+  def apply(name: Option[String]): IntSyncIdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): IntSyncIdentityNode = apply(Some(name))
+}
 
 case class IntSyncSourceNode(alreadyRegistered: Boolean)(implicit valName: ValName)
   extends MixedAdapterNode(IntImp, IntSyncImp)(

@@ -37,45 +37,44 @@
 `define RANDOMIZE
 `endif
 
-module AsyncResetReg (
-                      input      d,
-                      output reg q,
-                      input      en,
+module AsyncResetReg (d, q, en, clk, rst);
+parameter RESET_VALUE = 0;
 
-                      input      clk,
-                      input      rst);
-   
-   initial begin
-`ifdef RANDOMIZE
-      integer                       initvar;
-      reg [31:0]                    _RAND;
-      _RAND = {1{$random}};
+input  wire d;
+output reg  q;
+input  wire en;
+input  wire clk;
+input  wire rst;
+
+   // There is a lot of initialization
+   // here you don't normally find in Verilog
+   // async registers because of scenarios in which reset
+   // is not actually asserted cleanly at time 0,
+   // and we want to make sure to properly model
+   // that, yet Chisel codebase is absolutely intolerant
+   // of Xs.
+`ifndef SYNTHESIS
+  initial begin
+    `ifdef RANDOMIZE
+    integer    initvar;
+    reg [31:0] _RAND;
+    _RAND = {1{$random}};
+    q = _RAND[0];
+    `endif // RANDOMIZE
+    if (rst) begin
+      q = RESET_VALUE;
+    end 
+  end
 `endif
-      if (rst) begin
-`ifdef verilator
-      q = 1'b0;
-`endif
-      end 
-`ifdef RANDOMIZE
- `ifndef verilator
- `endif
- `ifdef RANDOMIZE_REG_INIT
-      else begin
-         #0.002 begin end
-         q = _RAND[0];
-      end
- `endif
-`endif //  `ifdef RANDOMIZE   
-   end
-   
+
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
-         q <= 1'b0;
+         q <= RESET_VALUE;
       end else if (en) begin
          q <= d;
       end
    end
-
+ 
 endmodule // AsyncResetReg
 

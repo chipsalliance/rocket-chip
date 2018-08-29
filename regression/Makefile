@@ -63,10 +63,25 @@ endif
 
 ifeq ($(SUITE), JtagDtmSuite)
 PROJECT=freechips.rocketchip.system
+
+export JTAG_DTM_ENABLE_SBA ?= off
+ifeq ($(JTAG_DTM_ENABLE_SBA), off)
 CONFIGS_32=WithJtagDTMSystem_DefaultRV32Config
 CONFIGS_64=WithJtagDTMSystem_DefaultConfig
+endif
+
+ifeq ($(JTAG_DTM_ENABLE_SBA), on)
+CONFIGS_32=WithJtagDTMSystem_WithDebugSBASystem_DefaultRV32Config
+CONFIGS_64=WithJtagDTMSystem_WithDebugSBASystem_DefaultConfig
+endif
+
 CONFIGS += $(CONFIGS_32)
 CONFIGS += $(CONFIGS_64)
+endif
+
+ifeq ($(SUITE), Miscellaneous)
+PROJECT=freechips.rocketchip.system
+CONFIGS=RoccExampleConfig
 endif
 
 # These are the named regression targets.  While it's expected you run them in
@@ -251,8 +266,8 @@ stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFF
 stamps/%/vsim-jtag-dtm-64-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) $(GDBSERVER) \
 	--sim_cmd="$(abspath $(TOP))/vsim/simv-$(PROJECT)-$*$(JTAG_DEBUG_SUFFIX) $(JTAG_DTM_SIM_ARGS) $(VSIM_JTAG_VCDPLUS_64)" \
-	--server_cmd="$(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/bin/openocd $(OPENOCD_DEBUG) \
-	-s $(OPENOCD_INSTALL)_$(OPENOCD_VERSION)/share/openocd/scripts" \
+	--server_cmd="$(RISCV)/bin/openocd $(OPENOCD_DEBUG) \
+	-s $(RISCV)/share/openocd/scripts" \
 	--64 \
 	$(abspath $(TOP))/scripts/RocketSim64.py \
 	$(JTAG_DTM_TEST)

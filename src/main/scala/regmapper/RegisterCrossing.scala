@@ -5,7 +5,7 @@ package freechips.rocketchip.regmapper
 import Chisel._
 import chisel3.util.{Irrevocable}
 
-import freechips.rocketchip.util.{AsyncQueue,AsyncResetRegVec}
+import freechips.rocketchip.util.{AsyncQueue,AsyncQueueParams,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing extends Module {
@@ -94,7 +94,7 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   val io = new RegisterWriteCrossingIO(gen)
   // The crossing must only allow one item inflight at a time
   val control = Module(new BusyRegisterCrossing)
-  val crossing = Module(new AsyncQueue(gen, 1, sync, safe=false))
+  val crossing = Module(new AsyncQueue(gen, AsyncQueueParams.singleton(sync)))
 
   control.clock := io.master_clock
   control.reset := io.master_reset
@@ -149,7 +149,7 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   val io = new RegisterReadCrossingIO(gen)
   // The crossing must only allow one item inflight at a time
   val control = Module(new BusyRegisterCrossing)
-  val crossing = Module(new AsyncQueue(gen, 1, sync, safe=false))
+  val crossing = Module(new AsyncQueue(gen, AsyncQueueParams.singleton(sync)))
 
   control.clock := io.master_clock
   control.reset := io.master_reset
@@ -197,7 +197,8 @@ object AsyncRWSlaveRegField {
     width:  Int,
     init: Int,
     name: Option[String] = None,
-    master_bypass: Bool = Bool(true)
+    master_bypass: Bool = Bool(true),
+    desc: Option[RegFieldDesc] = None
   ): (UInt, RegField) = {
 
     val async_slave_reg = Module(new AsyncResetRegVec(width, init))
@@ -228,6 +229,6 @@ object AsyncRWSlaveRegField {
 
     rd_crossing.io.slave_register := async_slave_reg.io.q
 
-    (async_slave_reg.io.q, RegField(width, rd_crossing.io.master_port, wr_crossing.io.master_port))
+    (async_slave_reg.io.q, RegField(width, rd_crossing.io.master_port, wr_crossing.io.master_port, desc))
   }
 }

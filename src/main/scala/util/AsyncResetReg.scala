@@ -3,6 +3,8 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.util.HasBlackBoxResource
+import chisel3.core.IntParam
 
 /** This black-boxes an Async Reset
   *  (or Set)
@@ -30,7 +32,9 @@ import Chisel._
   *  
   */
 
-class AsyncResetReg extends BlackBox {
+class AsyncResetReg(resetValue: Int = 0)
+  extends BlackBox(Map("RESET_VALUE" -> IntParam(resetValue))) with HasBlackBoxResource
+{
   val io = new Bundle {
     val d = Bool(INPUT)
     val q = Bool(OUTPUT)
@@ -39,6 +43,8 @@ class AsyncResetReg extends BlackBox {
     val clk = Clock(INPUT)
     val rst = Bool(INPUT)
   }
+
+  setResource("/vsrc/AsyncResetReg.v")
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{
@@ -50,16 +56,18 @@ class SimpleRegIO(val w: Int) extends Bundle{
 class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
   val io = new SimpleRegIO(w)
 
-  val async_regs = List.fill(w)(Module(new AsyncResetReg))
+  val async_regs = List.tabulate(w) { idx =>
+    val on = if (init.testBit(idx)) 1 else 0
+    Module(new AsyncResetReg(on))
+  }
 
   val q = for ((reg, idx) <- async_regs.zipWithIndex) yield {
-    def maybeInvert(x: Bool) = if (((init >> idx) & 1) == 1) !x else x
     reg.io.clk := clock
     reg.io.rst := reset
-    reg.io.d   := maybeInvert(io.d(idx))
+    reg.io.d   := io.d(idx)
     reg.io.en  := io.en
     reg.suggestName(s"reg_$idx")
-    maybeInvert(reg.io.q)
+    reg.io.q
   }
 
   io.q := q.asUInt
@@ -71,14 +79,13 @@ class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
 object AsyncResetReg {
   // Create Single Registers
   def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean, name: Option[String]): Bool = {
-    def maybeInvert(x: Bool) = if (init) !x else x
-    val reg = Module(new AsyncResetReg)
-    reg.io.d := maybeInvert(d)
+    val reg = Module(new AsyncResetReg(if (init) 1 else 0))
+    reg.io.d := d
     reg.io.clk := clk
     reg.io.rst := rst
     reg.io.en  := Bool(true)
     name.foreach(reg.suggestName(_))
-    maybeInvert(reg.io.q)
+    reg.io.q
   }
 
   def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false, None)

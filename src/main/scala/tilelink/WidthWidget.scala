@@ -33,9 +33,17 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val last   = count === limit || !hasData
       val enable = Seq.tabulate(ratio) { i => !((count ^ UInt(i)) & limit).orR }
 
+      val corrupt_reg = RegInit(Bool(false))
+      val corrupt_in = edgeIn.corrupt(in.bits)
+      val corrupt_out = corrupt_in || corrupt_reg
+
       when (in.fire()) {
         count := count + UInt(1)
-        when (last) { count := UInt(0) }
+        corrupt_reg := corrupt_out
+        when (last) {
+          count := UInt(0)
+          corrupt_reg := Bool(false)
+        }
       }
 
       def helper(idata: UInt): UInt = {
@@ -55,11 +63,12 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
 
       // Don't put down hardware if we never carry data
       edgeOut.data(out.bits) := (if (edgeIn.staticHasData(in.bits) == Some(false)) UInt(0) else helper(edgeIn.data(in.bits)))
+      edgeOut.corrupt(out.bits) := corrupt_out
 
       (out.bits, in.bits) match {
         case (o: TLBundleA, i: TLBundleA) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
         case (o: TLBundleB, i: TLBundleB) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~UInt(0, width=outBytes))
-        case (o: TLBundleC, i: TLBundleC) => () // monotone errors: last beat's error taken combinationally is ok
+        case (o: TLBundleC, i: TLBundleC) => ()
         case (o: TLBundleD, i: TLBundleD) => ()
         case _ => require(false, "Impossible bundle combination in WidthWidget")
       }
@@ -112,7 +121,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       (out.bits, in.bits) match {
         case (o: TLBundleA, i: TLBundleA) => o.mask := helper(i.mask, 1)
         case (o: TLBundleB, i: TLBundleB) => o.mask := helper(i.mask, 1)
-        case (o: TLBundleC, i: TLBundleC) => () // monotone errors: replicating error to all beats is ok
+        case (o: TLBundleC, i: TLBundleC) => () // replicating corrupt to all beats is ok
         case (o: TLBundleD, i: TLBundleD) => ()
         case _ => require(false, "Impossbile bundle combination in WidthWidget")
       }
@@ -159,7 +168,11 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         when (in.a.fire()) {
           sources(in.a.bits.source) := a_sel
         }
-        val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.fire() && in.a.bits.source === source
+
+        // depopulate unused source registers:
+        edgeIn.client.unusedSources.foreach { id => sources(id) := UInt(0) }
+
+        val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.valid && in.a.bits.source === source
         Mux(bypass, a_sel, sources(source))
       }
 

@@ -16,11 +16,12 @@ CXX ?= g++
 CXXFLAGS := -O1
 JVM_MEMORY ?= 2G
 
-SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar ++2.12.4
 SHELL := /bin/bash
 
+ROCKET_CLASSES ?= "$(base_dir)/target/scala-2.12/classes:$(base_dir)/chisel3/target/scala-2.12/*"
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
-FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp $(FIRRTL_JAR) firrtl.Driver
+FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp "$(FIRRTL_JAR)":"$(ROCKET_CLASSES)" firrtl.Driver
 
 # Build firrtl.jar and put it where chisel3 can find it.
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
@@ -33,6 +34,9 @@ $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
 
 src_path := src/main/scala
+resources := $(base_dir)/src/main/resources
+csrc := $(resources)/csrc
+vsrc := $(resources)/vsrc
 default_submodules := . hardfloat chisel3
 chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
 

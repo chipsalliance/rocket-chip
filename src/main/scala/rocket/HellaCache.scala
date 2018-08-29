@@ -67,7 +67,7 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   val encWordBits = encBits * (wordBits / eccBits)
   def encDataBits = cacheParams.dataCode.width(coreDataBits) // NBDCache only
   def encRowBits = encDataBits*rowWords
-  def lrscCycles = 32 // ISA requires 16-insn LRSC sequences to succeed
+  def lrscCycles = coreParams.lrscCycles // ISA requires 16-insn LRSC sequences to succeed
   def lrscBackoff = 3 // disallow LRSC reacquisition briefly
   def blockProbeAfterGrantCycles = 8 // give the processor some time to issue a request after a grant
   def nIOMSHRs = cacheParams.nMMIOs
@@ -75,8 +75,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def dataScratchpadSize = cacheParams.dataScratchpadBytes
 
   require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
-  // TODO should rowBits even be seperably specifiable?
-  require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)") 
+  if (!usingDataScratchpad)
+    require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)")
   // would need offset addr for puts if data width < xlen
   require(xLen <= cacheDataBits, s"xLen($xLen) > cacheDataBits($cacheDataBits)")
   require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
@@ -136,6 +136,7 @@ class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) {
 class HellaCachePerfEvents extends Bundle {
   val acquire = Bool()
   val release = Bool()
+  val grant = Bool()
   val tlbMiss = Bool()
 }
 
@@ -145,11 +146,12 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s1_kill = Bool(OUTPUT) // kill previous cycle's req
   val s1_data = new HellaCacheWriteData().asOutput // data for previous cycle's req
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
+  val s2_nack_cause_raw = Bool(INPUT) // reason for nack is store-load RAW hazard (performance hint)
+  val s2_kill = Bool(OUTPUT) // kill req from two cycles ago
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val s2_xcpt = (new HellaCacheExceptions).asInput
-  val invalidate_lr = Bool(OUTPUT)
   val ordered = Bool(INPUT)
   val perf = new HellaCachePerfEvents().asInput
 }

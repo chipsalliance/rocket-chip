@@ -47,8 +47,7 @@ case class RegFieldDesc (
   // TODO: testable?
   reset: Option[BigInt] = None,
   enumerations: Map[BigInt, (String, String)] = Map()
-){
-}
+)
 
 object RegFieldDesc {
   def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))

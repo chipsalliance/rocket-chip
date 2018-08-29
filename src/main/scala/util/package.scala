@@ -18,7 +18,7 @@ package object util {
 
   implicit class SeqToAugmentedSeq[T <: Data](val x: Seq[T]) extends AnyVal {
     def apply(idx: UInt): T = {
-      if (x.size == 1) {
+      if (x.size <= 1) {
         x.head
       } else if (!isPow2(x.size)) {
         // For non-power-of-2 seqs, reflect elements to simplify decoder
@@ -33,6 +33,29 @@ package object util {
     }
 
     def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
+
+    def rotate(n: Int): Seq[T] = x.drop(n) ++ x.take(n)
+
+    def rotate(n: UInt): Seq[T] = {
+      require(isPow2(x.size))
+      val amt = n.padTo(log2Ceil(x.size))
+      (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+    }
+  }
+
+  // allow bitwise ops on Seq[Bool] just like UInt
+  implicit class SeqBoolBitwiseOps(val x: Seq[Bool]) extends AnyVal {
+    def & (y: Seq[Bool]): Seq[Bool] = (x zip y).map { case (a, b) => a && b }
+    def | (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a || b }
+    def ^ (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a ^ b }
+    def << (n: Int): Seq[Bool] = Seq.fill(n)(false.B) ++ x
+    def >> (n: Int): Seq[Bool] = x drop n
+    def unary_~(): Seq[Bool] = x.map(!_)
+    def andR: Bool = if (x.isEmpty) true.B else x.reduce(_&&_)
+    def orR: Bool = if (x.isEmpty) false.B else x.reduce(_||_)
+    def xorR: Bool = if (x.isEmpty) false.B else x.reduce(_^_)
+
+    private def padZip(y: Seq[Bool], z: Seq[Bool]): Seq[(Bool, Bool)] = y.padTo(z.size, false.B) zip z.padTo(y.size, false.B)
   }
 
   implicit class DataToAugmentedData[T <: Data](val x: T) extends AnyVal {
@@ -86,6 +109,25 @@ package object util {
       else x(hi, lo)
     }
 
+    def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
+
+    def rotateRight(n: UInt): UInt = {
+      val amt = n.padTo(log2Ceil(x.getWidth))
+      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+    }
+
+    // compute (this + y) % n, given (this < n) and (y < n)
+    def addWrap(y: UInt, n: Int): UInt = {
+      val z = x +& y
+      if (isPow2(n)) z(n.log2-1, 0) else Mux(z >= n.U, z - n.U, z)(log2Ceil(n)-1, 0)
+    }
+
+    // compute (this - y) % n, given (this < n) and (y < n)
+    def subWrap(y: UInt, n: Int): UInt = {
+      val z = x -& y
+      if (isPow2(n)) z(n.log2-1, 0) else Mux(z(z.getWidth-1), z + n.U, z)(log2Ceil(n)-1, 0)
+    }
+
     def grouped(width: Int): Seq[UInt] =
       (0 until x.getWidth by width).map(base => x(base + width - 1, base))
 
@@ -97,6 +139,14 @@ package object util {
 
     // this one's snagged from scalaz
     def option[T](z: => T): Option[T] = if (x) Some(z) else None
+  }
+
+  implicit class IntToAugmentedInt(val x: Int) extends AnyVal {
+    // exact log2
+    def log2: Int = {
+      require(isPow2(x))
+      log2Ceil(x)
+    }
   }
 
   def OH1ToOH(x: UInt): UInt = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
@@ -122,4 +172,7 @@ package object util {
       if (s >= stop) x else helper(s+s, x | (x >> s))
     helper(1, x)(width-1, 0)
   }
+
+  def OptimizationBarrier(x: UInt): UInt = ~(~x)
+  def OptimizationBarrier[T <: Data](x: T): T = OptimizationBarrier(x.asUInt).asTypeOf(x)
 }
