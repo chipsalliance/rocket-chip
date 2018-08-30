@@ -760,7 +760,7 @@ class CSRFile(
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
-        val new_sip = new MIP().fromBits(wdata)
+        val new_sip = new MIP().fromBits((read_mip & ~reg_mideleg) | (wdata & reg_mideleg))
         reg_mip.ssip := new_sip.ssip
       }
       when (decoded_addr(CSRs.sptbr)) {
