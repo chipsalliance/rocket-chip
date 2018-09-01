@@ -155,6 +155,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // hit initiation path
   val s0_read = isRead(io.cpu.req.bits.cmd)
   dataArb.io.in(3).valid := io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)
+  dataArb.io.in(3).bits := dataArb.io.in(1).bits
   dataArb.io.in(3).bits.write := false
   dataArb.io.in(3).bits.addr := io.cpu.req.bits.addr
   dataArb.io.in(3).bits.wordMask := UIntToOH(io.cpu.req.bits.addr.extract(rowOffBits-1,offsetlsb))
@@ -164,7 +165,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
-  metaArb.io.in(7).bits.way_en := ~UInt(0, nWays)
+  metaArb.io.in(7).bits.way_en := metaArb.io.in(4).bits.way_en
   metaArb.io.in(7).bits.data := metaArb.io.in(4).bits.data
   when (!metaArb.io.in(7).ready) { io.cpu.req.ready := false }
 
@@ -547,7 +548,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     dataArb.io.in(1).bits.poison := tl_out.d.bits.corrupt
     dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
     dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
+  } else {
+    dataArb.io.in(1).bits := dataArb.io.in(0).bits
   }
+
   // tag updates on refill
   // ignore backpressure from metaArb, which can only be caused by tag ECC
   // errors on hit-under-miss.  failing to write the new tag will leave the
@@ -584,7 +588,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out.b.ready := metaArb.io.in(6).ready && !block_probe && !s1_valid && !s2_valid
   metaArb.io.in(6).bits.write := false
   metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, tl_out.b.bits.address)
-  metaArb.io.in(6).bits.way_en := ~UInt(0, nWays)
+  metaArb.io.in(6).bits.way_en := metaArb.io.in(4).bits.way_en
   metaArb.io.in(6).bits.data := metaArb.io.in(4).bits.data
 
   // release
@@ -666,6 +670,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
+  dataArb.io.in(2).bits := dataArb.io.in(1).bits
   dataArb.io.in(2).bits.write := false
   dataArb.io.in(2).bits.addr := tl_out_c.bits.address | (releaseDataBeat(log2Up(refillCycles)-1,0) << rowOffBits)
   dataArb.io.in(2).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
@@ -770,7 +775,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).valid := flushing
   metaArb.io.in(5).bits.write := false
   metaArb.io.in(5).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, flushCounter(idxBits-1, 0) << blockOffBits)
-  metaArb.io.in(5).bits.way_en := ~UInt(0, nWays)
+  metaArb.io.in(5).bits.way_en := metaArb.io.in(4).bits.way_en
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
 
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.

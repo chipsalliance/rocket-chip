@@ -531,7 +531,10 @@ class CSRFile(
   val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
   val mtvecBaseAlign = 2
-  val mtvecInterruptAlign = log2Ceil(new MIP().getWidth)
+  val mtvecInterruptAlign = {
+    require(reg_mip.getWidth <= xLen)
+    log2Ceil(xLen)
+  }
   val notDebugTVec = {
     val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
     val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
@@ -760,7 +763,7 @@ class CSRFile(
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
-        val new_sip = new MIP().fromBits(wdata)
+        val new_sip = new MIP().fromBits((read_mip & ~reg_mideleg) | (wdata & reg_mideleg))
         reg_mip.ssip := new_sip.ssip
       }
       when (decoded_addr(CSRs.sptbr)) {
