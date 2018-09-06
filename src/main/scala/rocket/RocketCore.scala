@@ -831,6 +831,7 @@ object RVFIMonitor {
     val intr = UInt(width=1)
     val trap = UInt(width=1)
     val halt = UInt(width=1)
+    val mode = UInt(width=2)
     val rs1_addr = UInt(width=5)
     val rs2_addr = UInt(width=5)
     val rs1_rdata = UInt(width=xlen)
@@ -855,6 +856,9 @@ object RVFIMonitor {
     val retire_wdata = UInt(INPUT, log2Up(1+retireWidth))
     val retire_wmask = UInt(INPUT, log2Up(1+retireWidth))
 
+    val misa = UInt(width=xlen)
+    val misa_wdata = UInt(width=xlen)
+    val misa_wmask = UInt(width=xlen)
     override def cloneType: this.type = new RVFI_Base(xlen).asInstanceOf[this.type]
   }
 
@@ -880,6 +884,7 @@ class RVFIMonitor(implicit p: Parameters) extends BlackBox {
     val rvfi_intr = UInt(INPUT, width=nret)
     val rvfi_trap = UInt(INPUT, width=nret)
     val rvfi_halt = UInt(INPUT, width=nret)
+    val rvfi_mode = UInt(INPUT, width=2*nret)
     val rvfi_rs1_addr = UInt(INPUT, width=5*nret)
     val rvfi_rs2_addr = UInt(INPUT, width=5*nret)
     val rvfi_rs1_rdata = UInt(INPUT, width=nret*xlen)
@@ -904,6 +909,10 @@ class RVFIMonitor(implicit p: Parameters) extends BlackBox {
     val rvfi_csr_instret_wdata =  UInt(INPUT, width=nret*(log2Up(1+retireWidth)))
     val rvfi_csr_instret_rmask =  UInt(INPUT, width=nret*(log2Up(1+retireWidth)))
     val rvfi_csr_instret_wmask =  UInt(INPUT, width=nret*(log2Up(1+retireWidth)))
+    val rvfi_csr_misa_rdata = UInt(INPUT, width=nret*xlen)
+    val rvfi_csr_misa_wdata = UInt(INPUT, width=nret*xlen)
+    val rvfi_csr_misa_rmask = UInt(INPUT, width=nret*xlen)
+    val rvfi_csr_misa_wmask = UInt(INPUT, width=nret*xlen)
     val errcode = UInt(OUTPUT, width=16)
   })
 
@@ -916,6 +925,7 @@ class RVFIMonitor(implicit p: Parameters) extends BlackBox {
     io.rvfi_intr := content.map(_.intr).asUInt
     io.rvfi_trap := content.map(_.trap).asUInt
     io.rvfi_halt := content.map(_.halt).asUInt
+    io.rvfi_mode := content.map(_.mode).asUInt
     io.rvfi_rs1_addr := content.map(_.rs1_addr).asUInt
     io.rvfi_rs2_addr := content.map(_.rs2_addr).asUInt
     io.rvfi_rs1_rdata := content.map(_.rs1_rdata).asUInt
@@ -932,13 +942,17 @@ class RVFIMonitor(implicit p: Parameters) extends BlackBox {
     io.rvfi_mem_wdata := content.map(_.mem_wdata).asUInt
 
     io.rvfi_csr_mcycle_rdata := content.map(_.mcycle).asUInt
-    io.rvfi_csr_mcycle_rmask := SInt(-1, width=xlen).asUInt
+    io.rvfi_csr_mcycle_rmask := SInt(-1, width=nret*xlen).asUInt
     io.rvfi_csr_mcycle_wdata := content.map(_.mcycle_wdata).asUInt
     io.rvfi_csr_mcycle_wmask := content.map(_.mcycle_wmask).asUInt
     io.rvfi_csr_instret_rdata := content.map(_.retire).asUInt
-    io.rvfi_csr_instret_rmask := SInt(-1, width=log2Up(1+retireWidth)).asUInt
+    io.rvfi_csr_instret_rmask := SInt(-1, width=nret*log2Up(1+retireWidth)).asUInt
     io.rvfi_csr_instret_wdata := content.map(_.retire_wdata).asUInt
     io.rvfi_csr_instret_wmask := content.map(_.retire_wmask).asUInt
+    io.rvfi_csr_misa_rdata := content.map(_.misa).asUInt
+    io.rvfi_csr_misa_rmask := SInt(-1, width=nret*xlen).asUInt
+    io.rvfi_csr_misa_wdata := content.map(_.misa_wdata).asUInt
+    io.rvfi_csr_misa_wmask := content.map(_.misa_wmask).asUInt
   }
 }
 
@@ -1021,6 +1035,7 @@ class RocketWithRVFI(implicit p: Parameters) extends Rocket()(p) {
   // Trap occurs on an instruction fault
   inst_commit.trap := t.exception
   inst_commit.halt := UInt(0)
+  inst_commit.mode := t.priv
   inst_commit.rs1_addr := Mux(Reg(next=Reg(next=ex_ctrl.rxs1)), wb_reg_inst(19,15), UInt(0))
   inst_commit.rs2_addr := Mux(Reg(next=Reg(next=ex_ctrl.rxs2)), wb_reg_inst(24,20), UInt(0))
   inst_commit.rs1_rdata := Mux(Reg(next=Reg(next=ex_ctrl.rxs1)), Reg(next=Reg(next=ex_rs(0))), UInt(0))
@@ -1030,12 +1045,17 @@ class RocketWithRVFI(implicit p: Parameters) extends Rocket()(p) {
   inst_commit.mem_rmask := Fill(p(XLen)/8, dmem_resp_valid)
   inst_commit.mem_wdata := Reg(next=io.dmem.s1_data.data)
 
+  val csr_wdata = csr.readModifyWriteCSR(csr.io.rw.cmd, csr.io.rw.rdata, csr.io.rw.wdata)
+//  val csr_wdata = csr.wdata
   inst_commit.mcycle := csr.io.time
-  inst_commit.mcycle_wdata := csr.io.rw.wdata
-  inst_commit.mcycle_wmask := Mux(csr.io.rw.cmd===CSR.W && csr.io.rw.addr===CSRs.mcycle, SInt(-1, width=p(XLen)).asUInt, UInt(0))
+  inst_commit.mcycle_wdata := csr_wdata
+  inst_commit.mcycle_wmask := Mux(csr.io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W) && csr.io.rw.addr===CSRs.mcycle, SInt(-1, width=p(XLen)).asUInt, UInt(0))
   inst_commit.retire := csr.io.retire
-  inst_commit.retire_wdata := csr.io.rw.wdata
-  inst_commit.retire_wmask := Mux(csr.io.rw.cmd===CSR.W && csr.io.rw.addr===CSRs.instret, SInt(-1, width=log2Up(1+retireWidth)).asUInt, UInt(0, width=log2Up(1+retireWidth)))
+  inst_commit.retire_wdata := csr_wdata
+  inst_commit.retire_wmask := Mux(csr.io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W) && csr.io.rw.addr===CSRs.instret, SInt(-1, width=log2Up(1+retireWidth)).asUInt, UInt(0, width=log2Up(1+retireWidth)))
+  inst_commit.misa := csr.io.status.isa
+  inst_commit.misa_wdata := csr_wdata
+  inst_commit.misa_wmask := Mux(csr.io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W) && csr.io.rw.addr===CSRs.misa, SInt(-1, width=p(XLen)).asUInt, UInt(0))
 
   val mem_wvalid = Reg(next=Reg(next=io.dmem.req.valid)) && !Reg(next=io.dmem.s1_kill) && !io.dmem.s2_nack && Reg(next=Reg(next=isWrite(io.dmem.req.bits.cmd)))
   when(mem_wvalid) {
