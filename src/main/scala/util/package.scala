@@ -116,6 +116,13 @@ package object util {
       (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
     }
 
+    def rotateLeft(n: Int): UInt = if (n == 0) x else Cat(x(x.getWidth-1-n,0), x(x.getWidth-1,x.getWidth-n))
+
+    def rotateLeft(n: UInt): UInt = {
+      val amt = n.padTo(log2Ceil(x.getWidth))
+      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
+    }
+
     // compute (this + y) % n, given (this < n) and (y < n)
     def addWrap(y: UInt, n: Int): UInt = {
       val z = x +& y
