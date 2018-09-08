@@ -41,6 +41,14 @@ package object util {
       val amt = n.padTo(log2Ceil(x.size))
       (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
     }
+
+    def rotateRight(n: Int): Seq[T] = x.takeRight(n) ++ x.dropRight(n)
+
+    def rotateRight(n: UInt): Seq[T] = {
+      require(isPow2(x.size))
+      val amt = n.padTo(log2Ceil(x.size))
+      (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotateRight(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+    }
   }
 
   // allow bitwise ops on Seq[Bool] just like UInt
@@ -114,6 +122,13 @@ package object util {
     def rotateRight(n: UInt): UInt = {
       val amt = n.padTo(log2Ceil(x.getWidth))
       (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+    }
+
+    def rotateLeft(n: Int): UInt = if (n == 0) x else Cat(x(x.getWidth-1-n,0), x(x.getWidth-1,x.getWidth-n))
+
+    def rotateLeft(n: UInt): UInt = {
+      val amt = n.padTo(log2Ceil(x.getWidth))
+      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
     }
 
     // compute (this + y) % n, given (this < n) and (y < n)
