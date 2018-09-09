@@ -229,7 +229,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>
-    TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(pte_addr >> pgIdxBits << pgIdxBits).homogeneous
+    val pgSize = BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits))
+    if (pageGranularityPMPs && i == pgLevels - 1) {
+      require(TLBPageLookup.homogeneous(edge.manager.managers, pgSize), s"All memory regions must be $pgSize-byte aligned")
+      true.B
+    } else {
+      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize)(pte_addr).homogeneous
+    }
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
   val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(pte_addr >> pgIdxBits << pgIdxBits, count)
@@ -279,7 +285,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_fragment_superpage) {
       next_state := s_ready
       resp_valid(r_req_dest) := true
-      resp_ae := !pmaPgLevelHomogeneous(pgLevels-1)
+      resp_ae := false
       when (!homogeneous) {
         count := pgLevels-1
         resp_fragmented_superpage := true
