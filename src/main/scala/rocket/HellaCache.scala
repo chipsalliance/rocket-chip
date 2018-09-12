@@ -12,7 +12,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
-import scala.math.max
 
 case class DCacheParams(
     nSets: Int = 64,
@@ -80,7 +79,6 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
     require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)")
   // would need offset addr for puts if data width < xlen
   require(xLen <= cacheDataBits, s"xLen($xLen) > cacheDataBits($cacheDataBits)")
-  require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -163,26 +161,24 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 /** Base classes for Diplomatic TL2 HellaCaches */
 
 abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule {
-  private val cfg = p(TileKey).dcache.get
-  val firstMMIO = max(1, cfg.nMSHRs)
+  protected val cfg = p(TileKey).dcache.get
+
+  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters(
+    name          = s"Core ${hartid} DCache",
+    sourceId      = IdRange(0, 1 max cfg.nMSHRs),
+    supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
+
+  protected def mmioClientParameters = Seq(TLClientParameters(
+    name          = s"Core ${hartid} DCache MMIO",
+    sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
+    requestFifo   = true))
+
+  def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
   val node = TLClientNode(Seq(TLClientPortParameters(
-    clients = cfg.scratch.map { _ => Seq(
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache MMIO",
-        sourceId      = IdRange(0, cfg.nMMIOs),
-        requestFifo   = true))
-    } getOrElse { Seq(
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache",
-         sourceId      = IdRange(0, firstMMIO),
-         supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes)),
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache MMIO",
-        sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
-        requestFifo   = true))
-    },
+    cacheClientParameters ++ mmioClientParameters,
     minLatency = 1)))
+
   val module: HellaCacheModule
 }
 
