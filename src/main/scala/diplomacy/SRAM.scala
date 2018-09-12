@@ -35,3 +35,20 @@ abstract class DiplomaticSRAM(
     mem
   }
 }
+
+abstract class DiplomaticDRAM(
+    address: AddressSet,
+    beatBytes: Int,
+    devName: Option[String])(implicit p: Parameters) extends LazyModule
+{
+  val device = devName
+    .map(new SimpleDevice(_, Seq("sifive,sram0")))
+    .getOrElse(new MemoryDevice())
+
+  val resources = device.reg("mem")
+
+  def bigBits(x: BigInt, tail: List[Boolean] = Nil): List[Boolean] =
+    if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
+
+  def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
+}

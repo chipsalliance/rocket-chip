@@ -17,7 +17,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
 
   dut.dontTouchPorts()
   dut.tieOffInterrupts()
-  dut.connectSimAXIMem()
+  dut.connectSimAXIDDR()
   dut.connectSimAXIMMIO()
   dut.l2_frontend_bus_axi4.foreach(_.tieoff)
   Debug.connectDebug(dut.debug, clock, reset, io.success)

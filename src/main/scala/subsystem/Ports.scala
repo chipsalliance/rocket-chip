@@ -60,6 +60,43 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
   }
 }
 
+/** Adds a port to the system intended to master an AXI4 DRAM controller. */
+trait CanHaveMasterAXI4DDRPort { this: BaseSubsystem =>
+  val module: CanHaveMasterAXI4DDRPortModuleImp
+  val nMemoryChannels: Int
+  private val memPortParamsOpt = p(ExtMem)
+  private val portName = "axi4"
+  private val device = new MemoryDevice
+
+  require(nMemoryChannels == 0 || memPortParamsOpt.isDefined,
+    s"Cannot have $nMemoryChannels with no memory port!")
+
+  val memAXI4Node = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
+    val params = memPortParamsOpt.get
+    val base = AddressSet(params.base, params.size-1)
+    val filter = AddressSet(channel * cacheBlockBytes, ~((nMemoryChannels-1) * cacheBlockBytes))
+
+    AXI4SlavePortParameters(
+      slaves = Seq(AXI4SlaveParameters(
+        address       = base.intersect(filter).toList,
+        resources     = device.reg,
+        regionType    = RegionType.UNCACHED, // cacheable
+        executable    = true,
+        supportsWrite = TransferSizes(1, cacheBlockBytes),
+        supportsRead  = TransferSizes(1, cacheBlockBytes),
+        interleavedId = Some(0))), // slave does not interleave read responses
+      beatBytes = params.beatBytes)
+  })
+
+  memPortParamsOpt.foreach { params =>
+    memBuses.map { m =>
+       memAXI4Node := m.toDRAMController(Some(portName)) {
+        (AXI4UserYanker() := AXI4IdIndexer(params.idBits) := TLToAXI4())
+      }
+    }
+  }
+}
+
 /** Actually generates the corresponding IO in the concrete Module */
 trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
   val outer: CanHaveMasterAXI4MemPort
@@ -79,6 +116,20 @@ trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
   }
 }
 
+/** Actually generates the corresponding IO in the concrete Module */
+trait CanHaveMasterAXI4DDRPortModuleImp extends LazyModuleImp {
+  val outer: CanHaveMasterAXI4DDRPort
+
+  val mem_axi4 = IO(HeterogeneousBag.fromNode(outer.memAXI4Node.in))
+  (mem_axi4 zip outer.memAXI4Node.in).foreach { case (io, (bundle, _)) => io <> bundle }
+
+  def connectSimAXIDDR() {
+    (mem_axi4 zip outer.memAXI4Node.in).foreach { case (io, (_, edge)) =>
+      val mem = LazyModule(new SimAXIDDR(edge, size = p(ExtMem).get.size))
+      Module(mem.module).io.axi4.head <> io
+    }
+  }
+}
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
 trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
   private val mmioPortParamsOpt = p(ExtBus)
@@ -220,6 +271,19 @@ class SimAXIMem(edge: AXI4EdgeParameters, size: BigInt)(implicit p: Parameters) 
 
   val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = edge.bundle.dataBits/8))
   sram.node := AXI4Buffer() := AXI4Fragmenter() := node
+
+  lazy val module = new LazyModuleImp(this) {
+    val io = IO(new Bundle { val axi4 = HeterogeneousBag.fromNode(node.out).flip })
+    (node.out zip io.axi4) foreach { case ((bundle, _), io) => bundle <> io }
+  }
+}
+
+/** Memory with AXI port for use in elaboratable test harnesses. */
+class SimAXIDDR(edge: AXI4EdgeParameters, size: BigInt)(implicit p: Parameters) extends LazyModule {
+  val node = AXI4MasterNode(List(edge.master))
+
+  val dram = LazyModule(new AXI4DDR(AddressSet(0, size-1), beatBytes = edge.bundle.dataBits/8))
+  dram.node := AXI4Buffer() := AXI4Fragmenter() := node
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle { val axi4 = HeterogeneousBag.fromNode(node.out).flip })
