@@ -24,6 +24,7 @@ object DecoupledHelper {
 
 class DecoupledHelper(val rvs: Seq[Bool]) {
   def fire(exclude: Bool, includes: Bool*) = {
+    require(rvs.contains(exclude), "Excluded Bool not present in DecoupledHelper! Note that DecoupledHelper uses referential equality for exclusion!")
     (rvs.filter(_ ne exclude) ++ includes).reduce(_ && _)
   }
 }
