@@ -33,8 +33,8 @@ case class TLManagerParameters(
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   fifoId:             Option[Int] = None)
 {
-  require (!address.isEmpty)
-  address.foreach { a => require (a.finite) }
+  require (!address.isEmpty, "Address cannot be empty")
+  address.foreach { a => require (a.finite, "Address must be finite") }
 
   address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
   require (supportsPutFull.contains(supportsPutPartial), s"PutFull($supportsPutFull) < PutPartial($supportsPutPartial)")
@@ -88,10 +88,10 @@ case class TLManagerPortParameters(
   endSinkId:  Int = 0,
   minLatency: Int = 0)
 {
-  require (!managers.isEmpty)
-  require (isPow2(beatBytes))
-  require (endSinkId >= 0)
-  require (minLatency >= 0)
+  require (!managers.isEmpty, "Manager ports must have managers")
+  require (isPow2(beatBytes), "Data channel width must be a power of 2")
+  require (endSinkId >= 0, "Sink ids cannot be negative")
+  require (minLatency >= 0, "Minimum required latency cannot be negative")
 
   def requireFifo() = managers.foreach { m =>
     require(m.fifoId == Some(0), s"${m.name} had fifoId ${m.fifoId}, which was not 0 (${managers.map(s => (s.name, s.fifoId))}) ")
