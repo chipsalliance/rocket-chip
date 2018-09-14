@@ -29,6 +29,7 @@ case class DCacheParams(
     blockBytes: Int = 64,
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
+    clockGate: Boolean = false,
     scratch: Option[BigInt] = None) extends L1CacheParams {
 
   def tagCode: Code = Code.fromString(tagECC)
@@ -154,6 +155,9 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_xcpt = (new HellaCacheExceptions).asInput
   val ordered = Bool(INPUT)
   val perf = new HellaCachePerfEvents().asInput
+
+  val keep_clock_enabled = Bool(OUTPUT) // should D$ avoid clock-gating itself?
+  val clock_enabled = Bool(INPUT) // is D$ currently being clocked?
 }
 
 /** Base classes for Diplomatic TL2 HellaCaches */
@@ -187,6 +191,9 @@ class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends Co
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
+
+  val ungated_clock = tileParams.dcache.get.clockGate.option(Clock().asInput)
+  val clock_en = tileParams.dcache.get.clockGate.option(Bool().asOutput)
 }
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
@@ -220,10 +227,16 @@ trait HasHellaCache { this: BaseTile =>
 }
 
 trait HasHellaCacheModule {
-  val outer: HasHellaCache
+  val outer: HasHellaCache with HasTileParameters
+  implicit val p: Parameters
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
+
+  outer.dcache.module.io.ungated_clock.foreach { ungated_clock =>
+    ungated_clock := Module.clock
+    outer.dcache.module.clock := ClockGate(Module.clock, outer.dcache.module.io.cpu.clock_enabled, "dcache_clock_gate")
+  }
 }
 
 /** Metadata array used for all HellaCaches */

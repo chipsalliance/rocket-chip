@@ -996,4 +996,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.perf.acquire := edge.done(tl_out.a)
   io.cpu.perf.release := edge.done(tl_out.c)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+
+  // no clock-gating support
+  io.cpu.clock_enabled := true
+  require(!cacheParams.clockGate)
 }

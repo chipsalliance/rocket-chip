@@ -11,7 +11,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.dontTouch
+import chisel3.experimental._
 import TLMessages._
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
@@ -76,6 +76,12 @@ class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, va
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
+  // Most of this module is clocked by the implicit clock, which is gated by
+  // clock_en_reg.  ungated() denotes registers that aren't so gated.
+  protected def ungated[T](block: => T): T = io.ungated_clock.map(c => withClock(c)(block)).getOrElse(block)
+  val clock_en_reg = ungated(RegInit(true.B))
+  io.cpu.clock_enabled := clock_en_reg
+
   val tECC = cacheParams.tagCode
   val dECC = cacheParams.dataCode
   require(isPow2(eccBytes) && eccBytes <= wordBytes)
@@ -100,7 +106,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   data.io.req <> dataArb.io.out
   data.io.req.bits.wdata := encodeData(dataArb.io.out.bits.wdata(rowBits-1, 0), dataArb.io.out.bits.poison)
   dataArb.io.out.ready := true
-  metaArb.io.out.ready := true
+  metaArb.io.out.ready := clock_en_reg
 
   val tl_out_a = Wire(tl_out.a)
   tl_out.a <> outer.bufferUncachedRequests
@@ -812,6 +818,20 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       resetting := false
       if (!isPow2(nWays)) flushCounter := flushCounterWrap
     }
+  }
+
+  // gate the clock
+  if (cacheParams.clockGate) {
+    clock_en_reg := io.cpu.keep_clock_enabled ||
+      metaArb.io.out.valid || // subsumes resetting || flushing
+      s1_probe || s2_probe ||
+      s1_valid || s2_valid_pre_xcpt ||
+      pstore1_held || pstore2_valid ||
+      release_state =/= s_ready ||
+      release_ack_wait || !release_queue_empty ||
+      !tlb.io.req.ready ||
+      cached_grant_wait || uncachedInFlight.asUInt.orR ||
+      lrscCount > 0 || blockProbeAfterGrantCount > 0
   }
 
   // performance events
