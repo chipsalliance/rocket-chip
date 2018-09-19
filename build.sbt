@@ -5,6 +5,7 @@ import sbt.complete.DefaultParsers._
 import xerial.sbt.pack._
 import sys.process._
 
+enablePlugins(SiteScaladocPlugin)
 enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
