@@ -214,7 +214,7 @@ trait HasHellaCache { this: BaseTile =>
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcache: HellaCache = LazyModule(
+  lazy val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
       new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
     } else { new NonBlockingDCache(hartId) })
