@@ -326,6 +326,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_sc = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XSC
   val lrscCount = Reg(init=UInt(0))
   val lrscValid = lrscCount > lrscBackoff
+  val lrscBackingOff = lrscCount > 0 && !lrscValid
   val lrscAddr = Reg(UInt())
   val lrscAddrMatch = lrscAddr === (s2_req.addr >> blockOffBits)
   val s2_sc_fail = s2_sc && !(lrscValid && lrscAddrMatch)
@@ -334,7 +335,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     lrscAddr := s2_req.addr >> blockOffBits
   }
   when (lrscCount > 0) { lrscCount := lrscCount - 1 }
-  when (s2_valid_not_killed && lrscCount > 0 || s1_probe) { lrscCount := 0 }
+  when (s2_valid_not_killed && lrscValid) { lrscCount := lrscBackoff }
+  when (s1_probe) { lrscCount := 0 }
 
   // don't perform data correction if it might clobber a recent store
   val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
@@ -583,7 +585,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // Handle an incoming TileLink Probe message
   val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid
-  metaArb.io.in(6).valid := tl_out.b.valid && !block_probe
+  metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe || lrscBackingOff)
   tl_out.b.ready := metaArb.io.in(6).ready && !block_probe && !s1_valid && !s2_valid
   metaArb.io.in(6).bits.write := false
   metaArb.io.in(6).bits.idx := probeIdx(tl_out.b.bits)
