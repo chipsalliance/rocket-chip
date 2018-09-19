@@ -5,8 +5,19 @@ package freechips.rocketchip.diplomacy
 import Chisel.log2Ceil
 import scala.math.{max,min}
 
+import freechips.rocketchip.util.CacheCompute
+
 object AddressDecoder
 {
+  private def time[R](name: String)(block: => R): R = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    val timeMillis = (t1 - t0) / 1000000.0
+    println(s" ***** $name took $timeMillis ms *****")
+    result
+  }
+
   type Port = Seq[AddressSet]
   type Ports = Seq[Port]
   type Partition = Ports
@@ -30,12 +41,16 @@ object AddressDecoder
           require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
         } }
       }
-
+      CacheCompute((ports, givenBits), applyImpl(ports, givenBits))
+    }
+  }
+  def applyImpl(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = {
+    val nonEmptyPorts = ports.filter(_.nonEmpty)
       val maxBits = log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
       val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
       val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
       val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
-      val selected = recurse(givenPartitions, bitsToTry.reverse.toSeq)
+      val selected = time("recurse")(recurse(givenPartitions, bitsToTry.reverse.toSeq))
       val output = selected.reduceLeft(_ | _) | givenBits
 
       // Modify the AddressSets to allow the new wider match functions
@@ -46,9 +61,9 @@ object AddressDecoder
           require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
         } }
       }
+      //System.exit(0)
 
       output
-    }
   }
 
   // A simpler version that works for a Seq[Int]
@@ -132,4 +147,52 @@ object AddressDecoder
       bestBit +: recurse(bestPartitions, bits.filter(_ != bestBit))
     }
   }
+}
+
+object JackTest extends App {
+  val xs = List(List(AddressSet(0x10000L, 0x7fffL), AddressSet(0x1000L, 0xfffL),
+    AddressSet(0x20000000L, 0xfffffffL), AddressSet(0x30000000L, 0xfffffffL)),
+    List(AddressSet(0x100b8000L, 0xfffL), AddressSet(0x2010000L, 0xfffL),
+    AddressSet(0xc000000L, 0x3ffffffL), AddressSet(0x2000000L, 0xffffL),
+    AddressSet(0x0L, 0xfffL), AddressSet(0x1800000L, 0x3fffL),
+    AddressSet(0x1000000L, 0x1fffL),
+    AddressSet(0x1700000L, 0xfffL), AddressSet(0x1808000L, 0x7fffL),
+    AddressSet(0x1701000L, 0xfffL), AddressSet(0x1810000L, 0x7fffL),
+    AddressSet(0x1702000L, 0xfffL), AddressSet(0x1818000L, 0x7fffL),
+    AddressSet(0x1703000L, 0xfffL), AddressSet(0x1820000L, 0x7fffL),
+    AddressSet(0x1704000L, 0xfffL), AddressSet(0x4000L, 0xfffL),
+    AddressSet(0x3000000L, 0xfffffL),
+    AddressSet(0x100b0000L, 0x3fffL), AddressSet(0x100c0000L, 0xfffL),
+    AddressSet(0x10100000L, 0xfffL), AddressSet(0x2020000L, 0xfffL),
+    AddressSet(0x10070000L, 0xfffL), AddressSet(0x10000000L, 0xfffL),
+    AddressSet(0x10090000L, 0x1fffL), AddressSet(0x100a0000L, 0xfffL),
+    AddressSet(0x10080000L, 0xfffL), AddressSet(0x10010000L, 0xfffL),
+    AddressSet(0x10011000L, 0xfffL), AddressSet(0x10050000L, 0xfffL),
+    AddressSet(0x10060000L, 0xfffL), AddressSet(0x10020000L, 0xfffL),
+    AddressSet(0x10021000L, 0xfffL), AddressSet(0x10030000L, 0xfffL),
+    AddressSet(0x10040000L, 0xfffL), AddressSet(0x10041000L, 0xfffL),
+    AddressSet(0x8000000L, 0x1fffffL), AddressSet(0xa000000L, 0x1ffff3fL),
+    AddressSet(0x80000000L, 0x7fffff3fL), AddressSet(0x100000000L, 0xffffff3fL),
+    AddressSet(0x200000000L, 0x1ffffff3fL), AddressSet(0x400000000L, 0x3ffffff3fL),
+    AddressSet(0x800000000L, 0x7ffffff3fL), AddressSet(0x1000000000L, 0xfffffff3fL),
+    AddressSet(0x60000000L, 0x1fffff3fL), AddressSet(0x3000000000L, 0xfffffff3fL),
+    AddressSet(0xa000040L, 0x1ffff3fL), AddressSet(0x80000040L, 0x7fffff3fL),
+    AddressSet(0x100000040L, 0xffffff3fL), AddressSet(0x200000040L, 0x1ffffff3fL),
+    AddressSet(0x400000040L, 0x3ffffff3fL), AddressSet(0x800000040L, 0x7ffffff3fL),
+    AddressSet(0x1000000040L, 0xfffffff3fL), AddressSet(0x60000040L, 0x1fffff3fL),
+    AddressSet(0x3000000040L, 0xfffffff3fL), AddressSet(0xa000080L, 0x1ffff3fL),
+    AddressSet(0x80000080L, 0x7fffff3fL), AddressSet(0x100000080L, 0xffffff3fL),
+    AddressSet(0x200000080L, 0x1ffffff3fL), AddressSet(0x400000080L, 0x3ffffff3fL),
+    AddressSet(0x800000080L, 0x7ffffff3fL), AddressSet(0x1000000080L, 0xfffffff3fL),
+    AddressSet(0x60000080L, 0x1fffff3fL), AddressSet(0x3000000080L, 0xfffffff3fL),
+    AddressSet(0xa0000c0L, 0x1ffff3fL), AddressSet(0x800000c0L, 0x7fffff3fL),
+    AddressSet(0x1000000c0L, 0xffffff3fL), AddressSet(0x2000000c0L, 0x1ffffff3fL),
+    AddressSet(0x4000000c0L, 0x3ffffff3fL), AddressSet(0x8000000c0L, 0x7ffffff3fL),
+    AddressSet(0x10000000c0L, 0xfffffff3fL), AddressSet(0x600000c0L, 0x1fffff3fL),
+    AddressSet(0x30000000c0L, 0xfffffff3fL), AddressSet(0x18000000L, 0x7ffffffL),
+    AddressSet(0x40000000L, 0x1fffffffL), AddressSet(0x2000000000L, 0xfffffffffL))
+  )
+  CacheCompute(xs, AddressDecoder(xs))
+  CacheCompute(xs, AddressDecoder(xs))
+  CacheCompute(xs, AddressDecoder(xs))
 }
