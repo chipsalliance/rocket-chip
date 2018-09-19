@@ -110,11 +110,18 @@ case class TLRegisterNode(
 }
 
 // register mapped device from a totally abstract register mapped device.
-// See GPIO.scala in this directory for an example
 
 abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
-  val device = new SimpleDevice(devname, devcompat)
+  // Allow devices to extend the DTS mapping
+  def extraResources(resources: ResourceBindings) = Map[String, Seq[ResourceValue]]()
+  val device = new SimpleDevice(devname, devcompat) {
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ extraResources(resources))
+    }
+  }
+
   val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
@@ -158,3 +165,21 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 }
 
 // !!! eliminate third trait
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
+trait HasTLControlRegMap { this: RegisterRouter[_] =>
+  protected val controlNode = TLRegisterNode(
+    address = address,
+    device = device,
+    deviceKey = "reg/control",
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Externally, this helper should be used to connect the register control port to a bus
+  val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+}

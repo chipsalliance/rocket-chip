@@ -24,30 +24,39 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
     def ABo[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
       x.mem            := ISOo(y.mem)
       x.widx           := ISOo(y.widx)
-      x.widx_valid     := ISOo(y.widx_valid)
-      x.source_reset_n := ISOo(y.source_reset_n)
       y.ridx           := ISOi(x.ridx)
-      y.ridx_valid     := ISOi(x.ridx_valid)
-      y.sink_reset_n   := ISOi(x.sink_reset_n)
+      (x.index zip y.index) foreach { case (x, y) => y := ISOi(x) }
+      (x.safe zip y.safe) foreach { case (x, y) =>
+        x.widx_valid     := ISOo(y.widx_valid)
+        x.source_reset_n := ISOo(y.source_reset_n)
+        y.ridx_valid     := ISOi(x.ridx_valid)
+        y.sink_reset_n   := ISOi(x.sink_reset_n)
+      }
     }
 
     def ABi[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
       x.mem            := ISOi(y.mem)
       x.widx           := ISOi(y.widx)
-      x.widx_valid     := ISOi(y.widx_valid)
-      x.source_reset_n := ISOi(y.source_reset_n)
       y.ridx           := ISOo(x.ridx)
-      y.ridx_valid     := ISOo(x.ridx_valid)
-      y.sink_reset_n   := ISOo(x.sink_reset_n)
+      (x.index zip y.index) foreach { case (x, y) => y := ISOo(x) }
+      (x.safe zip y.safe) foreach { case (x, y) =>
+        x.widx_valid     := ISOi(y.widx_valid)
+        x.source_reset_n := ISOi(y.source_reset_n)
+        y.ridx_valid     := ISOo(x.ridx_valid)
+        y.sink_reset_n   := ISOo(x.sink_reset_n)
+      }
     }
 
     def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
       x.widx           := UInt(0)
-      x.widx_valid     := Bool(false)
-      x.source_reset_n := Bool(false)
       y.ridx           := UInt(0)
-      y.ridx_valid     := Bool(false)
-      y.sink_reset_n   := Bool(false)
+      (x.index zip y.index) foreach { case (_, y) => y := UInt(0) }
+      (x.safe zip y.safe) foreach { case (x, y) =>
+        x.widx_valid     := Bool(false)
+        x.source_reset_n := Bool(false)
+        y.ridx_valid     := Bool(false)
+        y.sink_reset_n   := Bool(false)
+      }
     }
 
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>

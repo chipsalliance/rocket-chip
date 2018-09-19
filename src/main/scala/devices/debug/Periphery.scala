@@ -31,37 +31,15 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
 trait HasPeripheryDebug { this: BaseSubsystem =>
   val debug = LazyModule(new TLDebugModule(sbus.control_bus.beatBytes))
   sbus.control_bus.toVariableWidthSlave(Some("debug")){ debug.node }
-
+  val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
+  debug.dmInner.dmInner.customNode := debugCustomXbar.node
 
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
     fbus.fromPort(Some("debug_sb")){ TLWidthWidget(1) := sb2tl.node }
   }
 }
 
-trait HasPeripheryDebugBundle {
-  implicit val p: Parameters
-
-  val debug: DebugIO
-
-  def connectDebug(c: Clock,
-    r: Bool,
-    out: Bool,
-    tckHalfPeriod: Int = 2,
-    cmdDelay: Int = 2,
-    psd: PSDTestMode = new PSDTestMode().fromBits(0.U)): Unit =  {
-    debug.clockeddmi.foreach { d =>
-      val dtm = Module(new SimDTM).connect(c, r, d, out)
-    }
-    debug.systemjtag.foreach { sj =>
-      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
-      sj.reset := r
-      sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
-    }
-    debug.psd.foreach { _ <> psd }
-  }
-}
-
-trait HasPeripheryDebugModuleImp extends LazyModuleImp with HasPeripheryDebugBundle {
+trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val outer: HasPeripheryDebug
 
   val debug = IO(new DebugIO)
@@ -155,3 +133,44 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
   setResource("/csrc/remote_bitbang.cc")
 }
 
+object Debug {
+  def connectDebug(
+      debug: DebugIO,
+      c: Clock,
+      r: Bool,
+      out: Bool,
+      tckHalfPeriod: Int = 2,
+      cmdDelay: Int = 2,
+      psd: PSDTestMode = new PSDTestMode().fromBits(0.U))
+      (implicit p: Parameters): Unit =  {
+    debug.clockeddmi.foreach { d =>
+      val dtm = Module(new SimDTM).connect(c, r, d, out)
+    }
+    debug.systemjtag.foreach { sj =>
+      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
+      sj.reset := r
+      sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
+    }
+    debug.psd.foreach { _ <> psd }
+  }
+
+  def tieoffDebug(debug: DebugIO): Bool = {
+    debug.systemjtag.foreach { sj =>
+      sj.jtag.TCK := Bool(true).asClock
+      sj.jtag.TMS := Bool(true)
+      sj.jtag.TDI := Bool(true)
+      sj.jtag.TRSTn.foreach { r => r := Bool(true) }
+      sj.reset := Bool(true)
+      sj.mfr_id := 0.U
+    }
+
+    debug.clockeddmi.foreach { d =>
+      d.dmi.req.valid := Bool(false)
+      d.dmi.resp.ready := Bool(true)
+      d.dmiClock := Bool(false).asClock
+      d.dmiReset := Bool(true)
+    }
+    debug.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)}
+    debug.ndreset
+  }
+}

@@ -75,8 +75,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def dataScratchpadSize = cacheParams.dataScratchpadBytes
 
   require(rowBits >= coreDataBits, s"rowBits($rowBits) < coreDataBits($coreDataBits)")
-  // TODO should rowBits even be seperably specifiable?
-  require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)") 
+  if (!usingDataScratchpad)
+    require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)")
   // would need offset addr for puts if data width < xlen
   require(xLen <= cacheDataBits, s"xLen($xLen) > cacheDataBits($cacheDataBits)")
   require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
@@ -136,6 +136,7 @@ class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) {
 class HellaCachePerfEvents extends Bundle {
   val acquire = Bool()
   val release = Bool()
+  val grant = Bool()
   val tlbMiss = Bool()
 }
 

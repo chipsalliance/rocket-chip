@@ -8,13 +8,13 @@ import freechips.rocketchip.diplomacy._
 import scala.math.{min,max}
 
 class TLFilter(
-  Mfilter: TLManagerParameters => Option[TLManagerParameters] = TLFilter.Midentity,
-  Cfilter: TLClientParameters  => Option[TLClientParameters]  = TLFilter.Cidentity
+  mfilter: TLFilter.ManagerFilter = TLFilter.mIdentity,
+  cfilter: TLFilter.ClientFilter  = TLFilter.cIdentity
   )(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
     clientFn  = { cp => cp.copy(clients = cp.clients.flatMap { c =>
-      val out = Cfilter(c)
+      val out = cfilter(c)
       out.map { o => // Confirm the filter only REMOVES capability
         require (c.sourceId.contains(o.sourceId))
         require (c.supportsProbe.contains(o.supportsProbe))
@@ -30,7 +30,7 @@ class TLFilter(
     })},
     managerFn = { mp =>
       val managers = mp.managers.flatMap { m =>
-        val out = Mfilter(m)
+        val out = mfilter(m)
         out.map { o => // Confirm the filter only REMOVES capability
           o.address.foreach { a => require (m.address.map(_.contains(a)).reduce(_||_)) }
           require (o.regionType <= m.regionType)
@@ -70,9 +70,15 @@ class TLFilter(
 
 object TLFilter
 {
-  def Midentity: TLManagerParameters => Option[TLManagerParameters] = { m => Some(m) }
-  def Cidentity: TLClientParameters => Option[TLClientParameters] = { c => Some(c) }
-  def Mmask(select: AddressSet): TLManagerParameters => Option[TLManagerParameters] = { m =>
+  type ManagerFilter = TLManagerParameters => Option[TLManagerParameters]
+  type ClientFilter = TLClientParameters => Option[TLClientParameters]
+
+  // preserve manager visibility
+  def mIdentity: ManagerFilter = { m => Some(m) }
+  // preserve client visibility
+  def cIdentity: ClientFilter = { c => Some(c) }
+  // make only the intersected address sets visible
+  def mSelectIntersect(select: AddressSet): ManagerFilter = { m =>
     val filtered = m.address.map(_.intersect(select)).flatten
     val alignment = select.alignment /* alignment 0 means 'select' selected everything */
     val maxTransfer = 1 << 30
@@ -91,23 +97,55 @@ object TLFilter
         supportsHint       = m.supportsHint      .intersect(cap)))
     }
   }
-  def Mnocache: TLManagerParameters => Option[TLManagerParameters] = { m =>
+  // hide any fully contained address sets
+  def mHideContained(containedBy: AddressSet): ManagerFilter = { m =>
+    val filtered = m.address.filterNot(containedBy.contains(_))
+    if (filtered.isEmpty) None else Some(m.copy(address = filtered))
+  }
+  // hide all cacheable managers
+  def mHideCacheable: ManagerFilter = { m =>
     if (m.supportsAcquireB) None else Some(m)
   }
-  def Mcache: TLManagerParameters => Option[TLManagerParameters] = { m =>
+  // make visible only cacheable managers
+  def mSelectCacheable: ManagerFilter = { m =>
     if (m.supportsAcquireB) Some(m) else None
   }
-  def Cnocache: TLClientParameters => Option[TLClientParameters] = { c =>
+  // cacheable managers cannot be acquired from
+  def mMaskCacheable: ManagerFilter = { m =>
+    if (m.supportsAcquireB) {
+      Some(m.copy(
+        regionType       = RegionType.UNCACHED,
+        supportsAcquireB = TransferSizes.none,
+        supportsAcquireT = TransferSizes.none,
+        alwaysGrantsT    = false))
+    } else { Some(m) }
+  }
+  // only cacheable managers are visible, but cannot be acquired from
+  def mSelectAndMaskCacheable: ManagerFilter = { m =>
+    if (m.supportsAcquireB) {
+      Some(m.copy(
+        regionType       = RegionType.UNCACHED,
+        supportsAcquireB = TransferSizes.none,
+        supportsAcquireT = TransferSizes.none,
+        alwaysGrantsT    = false))
+    } else { None }
+  }
+  // hide all caching clients
+  def cHideCaching: ClientFilter = { c =>
     if (c.supportsProbe) None else Some(c)
   }
+  // onyl caching clients are visible
+  def cSelectCaching: ClientFilter = { c =>
+    if (c.supportsProbe) Some(c) else None
+  }
 
-  // applied to the TL source node; y.node := TLBuffer(x.node)
+  // default application applies neither type of filter unless overridden
   def apply(
-    Mfilter: TLManagerParameters => Option[TLManagerParameters] = TLFilter.Midentity,
-    Cfilter: TLClientParameters  => Option[TLClientParameters]  = TLFilter.Cidentity
+    mfilter: ManagerFilter = TLFilter.mIdentity,
+    cfilter: ClientFilter  = TLFilter.cIdentity
     )(implicit p: Parameters): TLNode =
   {
-    val filter = LazyModule(new TLFilter(Mfilter, Cfilter))
+    val filter = LazyModule(new TLFilter(mfilter, cfilter))
     filter.node
   }
 }

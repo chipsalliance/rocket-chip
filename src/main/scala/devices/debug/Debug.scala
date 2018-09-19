@@ -13,27 +13,6 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 
-/** Constant values used by both Debug Bus Response & Request
-  */
-
-object DMIConsts{
-
-  def dmiDataSize = 32
-
-  def dmiOpSize = 2
-  def dmi_OP_NONE            = "b00".U
-  def dmi_OP_READ            = "b01".U
-  def dmi_OP_WRITE           = "b10".U
-
-  def dmiRespSize = 2
-  def dmi_RESP_SUCCESS     = "b00".U
-  def dmi_RESP_FAILURE     = "b01".U
-  def dmi_RESP_HW_FAILURE  = "b10".U
-  // This is used outside this block
-  // to indicate 'busy'.
-  def dmi_RESP_RESERVED    = "b11".U
-}
-
 object DsbBusConsts {
   def sbAddrWidth = 12
   def sbIdWidth   = 10 
@@ -166,33 +145,6 @@ case object DebugModuleHartSelKey extends Field(DebugModuleHartSelFuncs())
 // Module Interfaces
 // 
 // *****************************************
-
-/** Structure to define the contents of a Debug Bus Request
-  */
-class DMIReq(addrBits : Int) extends Bundle {
-  val addr = UInt(addrBits.W)
-  val data = UInt(DMIConsts.dmiDataSize.W)
-  val op   = UInt(DMIConsts.dmiOpSize.W)
-
-  override def cloneType = new DMIReq(addrBits).asInstanceOf[this.type]
-}
-
-/** Structure to define the contents of a Debug Bus Response
-  */
-class DMIResp( ) extends Bundle {
-  val data = UInt(DMIConsts.dmiDataSize.W)
-  val resp = UInt(DMIConsts.dmiRespSize.W)
-}
-
-/** Structure to define the top-level DMI interface 
-  *  of DebugModule.
-  *  DebugModule is the consumer of this interface.
-  *  Therefore it has the 'flipped' version of this.
-  */
-class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val req = new  DecoupledIO(new DMIReq(p(DebugModuleParams).nDMIAddrSize))
-  val resp = new DecoupledIO(new DMIResp).flip()
-}
 
 /* structure for passing hartsel between the "Outer" and "Inner"
  */
@@ -407,13 +359,13 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     val io = IO(new Bundle {
       val dmi   = new DMIIO()(p).flip()
       val ctrl = new DebugCtrlBundle(nComponents)
-      val innerCtrl = new AsyncBundle(depth=1, new DebugInternalBundle())
+      val innerCtrl = new AsyncBundle(new DebugInternalBundle(), AsyncQueueParams.singleton())
     })
 
     dmi2tl.module.io.dmi <> io.dmi
 
     io.ctrl <> dmOuter.module.io.ctrl
-    io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, depth=1)
+    io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
 
   }
 }
@@ -440,6 +392,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   )
 
   val sb2tlOpt = cfg.hasBusMaster.option(LazyModule(new SBToTL()))
+
+  // If we want to support custom registers read through Abstract Commands,
+  // provide a place to bring them into the debug module. What this connects
+  // to is up to the implementation.
+  val customNode = new DebugCustomSink()
 
   lazy val module = new LazyModuleImp(this){
     val nComponents = getNComponents()
@@ -763,9 +720,24 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_SBADDRESS3 << 2) -> sbAddrFields(3) 
     )
 
+    // Abstract data mem is written by both the tile link interface and DMI...
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
       when (dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
         x := abstractDataNxt(i)
+      }
+    }
+    // ... and also by custom register read (if implemented)
+    val (customs, customParams) = customNode.in.unzip
+    val needCustom = (customs.size > 0) && (customParams.head.addrs.size > 0)
+    if (needCustom) {
+      val (custom, customP) = customNode.in.head
+      require(customP.width % 8 == 0, s"Debug Custom width must be divisible by 8, not ${customP.width}")
+      val custom_data = custom.data.toBools
+      val custom_bytes =  Seq.tabulate(customP.width/8){i => custom_data.slice(i*8, (i+1)*8).asUInt}
+      when (custom.ready && custom.valid) {
+        (abstractDataMem zip custom_bytes).zipWithIndex.foreach {case ((a, b), i) =>
+          a := b
+        }
       }
     }
 
@@ -781,6 +753,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val goReg        = Reg(Bool())
     val goAbstract   = Wire(init = false.B)
+    val goCustom     = Wire(init = false.B)
     val jalAbstract  = Wire(init = (new GeneratedUJ()).fromBits(Instructions.JAL.value.U))
     jalAbstract.setImm(ABSTRACT(cfg) - WHERETO)
 
@@ -896,6 +869,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     //--------------------------------------------------------------
+    // Drive Custom Access
+    //--------------------------------------------------------------
+    if (needCustom) {
+      val (custom, customP) = customNode.in.head
+      custom.addr  := accessRegisterCommandReg.regno
+      custom.valid := goCustom
+    }
+    //--------------------------------------------------------------
     // Hart Bus Access
     //--------------------------------------------------------------
 
@@ -938,7 +919,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     object CtrlState extends scala.Enumeration {
       type CtrlState = Value
-      val Waiting, CheckGenerate, Exec = Value
+      val Waiting, CheckGenerate, Exec, Custom = Value
 
       def apply( t : Value) : UInt = {
         t.id.U(log2Up(values.size).W)
@@ -977,8 +958,19 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val commandRegIsUnsupported = Wire(init = true.B)
     val commandRegBadHaltResume = Wire(init = false.B)
+
+    // We only support abstract commands for GPRs and any custom registers, if specified.
+    val accessRegIsGPR = (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)
+    val accessRegIsCustom = if (needCustom) {
+      val (custom, customP) = customNode.in.head
+      customP.addrs.foldLeft(false.B){
+        (result, current) => result || (current.U === accessRegisterCommandReg.regno)}
+    } else false.B
+
     when (commandRegIsAccessRegister) {
-      when (!accessRegisterCommandReg.transfer || (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)){
+      when (accessRegIsCustom && accessRegisterCommandReg.transfer && accessRegisterCommandReg.write === false.B) {
+        commandRegIsUnsupported := false.B
+      }.elsewhen (!accessRegisterCommandReg.transfer || accessRegIsGPR) {
         commandRegIsUnsupported := false.B
         commandRegBadHaltResume := ~hartHalted
       }
@@ -1013,10 +1005,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         errorHaltResume := true.B
         ctrlStateNxt := CtrlState(Waiting)
       }.otherwise {
-        ctrlStateNxt := CtrlState(Exec)
-        goAbstract := true.B
+        when(accessRegIsCustom) {
+          ctrlStateNxt := CtrlState(Custom)
+        }.otherwise {
+          ctrlStateNxt := CtrlState(Exec)
+          goAbstract := true.B
+        }
       }
-    
     }.elsewhen (ctrlStateReg === CtrlState(Exec)) {
 
       // We can't just look at 'hartHalted' here, because
@@ -1029,6 +1024,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         assert(hartExceptionId === 0.U, "Unexpected 'EXCEPTION' hart")//Chisel3 #540, %x, expected %x", hartExceptionId, 0.U)
           ctrlStateNxt := CtrlState(Waiting)
         errorException := true.B
+      }
+    }.elsewhen (ctrlStateReg === CtrlState(Custom)) {
+      assert(needCustom.B, "Should not be in custom state unless we need it.")
+      goCustom := true.B
+      val (custom, customP) = customNode.in.head
+      when (custom.ready && custom.valid) {
+        ctrlStateNxt := CtrlState(Waiting)
       }
     }
 
@@ -1049,7 +1051,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule{
 
   val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents, beatBytes))
-  val dmiXing = LazyModule(new TLAsyncCrossingSink(depth=1))
+  val dmiXing = LazyModule(new TLAsyncCrossingSink(AsyncQueueParams.singleton()))
   val dmiNode = dmiXing.node
   val tlNode = dmInner.tlNode
 
@@ -1060,7 +1062,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
     val io = IO(new Bundle {
       // These are all asynchronous and come from Outer
       val dmactive = Bool(INPUT)
-      val innerCtrl = new AsyncBundle(1, new DebugInternalBundle()).flip
+      val innerCtrl = new AsyncBundle(new DebugInternalBundle(), AsyncQueueParams.singleton()).flip
       // This comes from tlClk domain.
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
       val psd = new PSDTestMode().asInput
@@ -1111,68 +1113,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     dmInner.module.io.psd <> io.psd
 
     io.ctrl <> dmOuter.module.io.ctrl
-
-  }
-}
-
-/** This includes the clock and reset as these are passed through the
-  *  hierarchy until the Debug Module is actually instantiated. 
-  *  
-  */
-
-class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
-  val dmi      = new DMIIO()(p)
-  val dmiClock = Clock(OUTPUT)
-  val dmiReset = Bool(OUTPUT)
-}
-
-/** Convert DMI to TL. Avoids using special DMI synchronizers and register accesses
-  *  
-  */
-
-class DMIToTL(implicit p: Parameters) extends LazyModule {
-
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
-
-  lazy val module = new LazyModuleImp(this) {
-    val io = IO(new Bundle {
-      val dmi = new DMIIO()(p).flip()
-    })
-
-    val (tl, edge) = node.out(0)
-
-    val src  = Wire(init = 0.U)
-    val addr = Wire(init = (io.dmi.req.bits.addr << 2))
-    val size = (log2Ceil(DMIConsts.dmiDataSize / 8)).U
-
-    val (_,  gbits) = edge.Get(src, addr, size)
-    val (_, pfbits) = edge.Put(src, addr, size, io.dmi.req.bits.data)
-
-    // We force DMI NOPs to go to CONTROL register because
-    // Inner  may be in reset / not have a clock,
-    // so we force address to be the one that goes to Outer.
-    // Therefore for a NOP we don't really need to pay the penalty to go
-    // across the CDC.
-
-    val (_, nbits)  = edge.Put(src, toAddress = (DMI_RegAddrs.DMI_DMCONTROL << 2).U, size, data=0.U, mask = 0.U)
-
-    when (io.dmi.req.bits.op === DMIConsts.dmi_OP_WRITE)       { tl.a.bits := pfbits
-    }.elsewhen  (io.dmi.req.bits.op === DMIConsts.dmi_OP_READ) { tl.a.bits := gbits
-    }.otherwise {                                                tl.a.bits := nbits
-    }
-
-    tl.a.valid       := io.dmi.req.valid
-    io.dmi.req.ready := tl.a.ready
-
-    io.dmi.resp.valid      := tl.d.valid
-    tl.d.ready             := io.dmi.resp.ready
-    io.dmi.resp.bits.resp  := Mux(tl.d.bits.corrupt || tl.d.bits.denied, DMIConsts.dmi_RESP_FAILURE, DMIConsts.dmi_RESP_SUCCESS)
-    io.dmi.resp.bits.data  := tl.d.bits.data
-
-    // Tie off unused channels
-    tl.b.ready := false.B
-    tl.c.valid := false.B
-    tl.e.valid := false.B
 
   }
 }

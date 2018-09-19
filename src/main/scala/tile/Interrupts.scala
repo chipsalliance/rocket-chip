@@ -21,13 +21,15 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 // Use diplomatic interrupts to external interrupts from the subsystem into the tile
 trait HasExternalInterrupts { this: BaseTile =>
 
-  val intInwardNode = intXbar.intnode
+  val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
   protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
 
-  val intcDevice = new Device {
-    def describe(resources: ResourceBindings): Description = {
-      Description(s"cpus/cpu@$hartId/interrupt-controller", Map(
+  def cpuDevice: Device
+  val intcDevice = new DeviceSnippet {
+    override def parent = Some(cpuDevice)
+    def describe(): Description = {
+      Description("interrupt-controller", Map(
         "compatible"           -> "riscv,cpu-intc".asProperty,
         "interrupt-controller" -> Nil,
         "#interrupt-cells"     -> 1.asProperty))
@@ -35,8 +37,6 @@ trait HasExternalInterrupts { this: BaseTile =>
   }
 
   ResourceBinding {
-    Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartId)))
-
     intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
        csrIntMap.lift(i).foreach { j =>

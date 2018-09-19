@@ -5,7 +5,6 @@ package freechips.rocketchip.tile
 
 import Chisel._
 import freechips.rocketchip.config._
-import freechips.rocketchip.subsystem.SubsystemClockCrossing
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -32,7 +31,7 @@ case class RocketTileParams(
 
 class RocketTile(
     val rocketParams: RocketTileParams,
-    crossing: SubsystemClockCrossing)
+    crossing: ClockCrossingType)
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
@@ -82,13 +81,16 @@ class RocketTile(
   val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
     "sifive,itim" -> frontend.icache.device.asProperty))).getOrElse(Nil)
 
-  val cpuDevice = new Device {
-    def describe(resources: ResourceBindings): Description =
-      toDescription(resources)("sifive,rocket0", dtimProperty ++ itimProperty)
+  val cpuDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
+    override def parent = Some(ResourceAnchors.cpus)
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
+    }
   }
 
   ResourceBinding {
-    Resource(cpuDevice, "reg").bind(ResourceInt(BigInt(hartId)))
+    Resource(cpuDevice, "reg").bind(ResourceAddress(hartId))
   }
 
   override lazy val module = new RocketTileModuleImp(this)
@@ -110,7 +112,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
-  val core = Module(p(BuildCore)(outer.p))
+  val core = Module(new Rocket()(outer.p))
 
   val uncorrectable = RegInit(Bool(false))
   val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))

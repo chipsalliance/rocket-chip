@@ -29,24 +29,8 @@ object TLBPageLookup
     val useful = r || w || x || c || a || l
   }
 
-  // Unmapped memory is considered to be inhomogeneous
-  def apply(managers: Seq[TLManagerParameters], xLen: Int, cacheBlockBytes: Int, pageSize: BigInt): UInt => TLBPermissions = {
-    require (isPow2(xLen) && xLen >= 8)
-    require (isPow2(cacheBlockBytes) && cacheBlockBytes >= xLen/8)
-    require (isPow2(pageSize) && pageSize >= cacheBlockBytes)
-
-    val xferSizes = TransferSizes(cacheBlockBytes, cacheBlockBytes)
-    val allSizes = TransferSizes(1, cacheBlockBytes)
-    val amoSizes = TransferSizes(4, xLen/8)
-
+  private def groupRegions(managers: Seq[TLManagerParameters]): Map[TLBFixedPermissions, Seq[AddressSet]] = {
     val permissions = managers.map { m =>
-      require (!m.supportsGet        || m.supportsGet       .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsGet} Get, but must support ${allSizes}")
-      require (!m.supportsPutFull    || m.supportsPutFull   .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsPutFull} PutFull, but must support ${allSizes}")
-      require (!m.supportsAcquireB   || m.supportsAcquireB  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireB} AcquireB, but must support ${xferSizes}")
-      require (!m.supportsAcquireT   || m.supportsAcquireT  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireT} AcquireT, but must support ${xferSizes}")
-      require (!m.supportsLogical    || m.supportsLogical   .contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
-      require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
-
       (m.address, TLBFixedPermissions(
         e = Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains m.regionType,
         r = m.supportsGet     || m.supportsAcquireB, // if cached, never uses Get
@@ -57,12 +41,34 @@ object TLBPageLookup
         l = m.supportsLogical))
     }
 
-    val grouped: Map[TLBFixedPermissions, Seq[AddressSet]] = permissions
+    permissions
       .filter(_._2.useful) // get rid of no-permission devices
       .groupBy(_._2) // group by permission type
-      .mapValues(seq => 
-        AddressSet.unify(seq.flatMap(_._1)) // coalesce same-permission regions
-        .filter(_.alignment >= pageSize)) // discard any region that's not big enough
+      .mapValues(seq =>
+        AddressSet.unify(seq.flatMap(_._1))) // coalesce same-permission regions
+  }
+
+  // Unmapped memory is considered to be inhomogeneous
+  def apply(managers: Seq[TLManagerParameters], xLen: Int, cacheBlockBytes: Int, pageSize: BigInt): UInt => TLBPermissions = {
+    require (isPow2(xLen) && xLen >= 8)
+    require (isPow2(cacheBlockBytes) && cacheBlockBytes >= xLen/8)
+    require (isPow2(pageSize) && pageSize >= cacheBlockBytes)
+
+    val xferSizes = TransferSizes(cacheBlockBytes, cacheBlockBytes)
+    val allSizes = TransferSizes(1, cacheBlockBytes)
+    val amoSizes = TransferSizes(4, xLen/8)
+
+    val permissions = managers.foreach { m =>
+      require (!m.supportsGet        || m.supportsGet       .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsGet} Get, but must support ${allSizes}")
+      require (!m.supportsPutFull    || m.supportsPutFull   .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsPutFull} PutFull, but must support ${allSizes}")
+      require (!m.supportsAcquireB   || m.supportsAcquireB  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireB} AcquireB, but must support ${xferSizes}")
+      require (!m.supportsAcquireT   || m.supportsAcquireT  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireT} AcquireT, but must support ${xferSizes}")
+      require (!m.supportsLogical    || m.supportsLogical   .contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
+      require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
+    }
+
+    val grouped = groupRegions(managers)
+      .mapValues(_.filter(_.alignment >= pageSize)) // discard any region that's not big enough
 
     def lowCostProperty(prop: TLBFixedPermissions => Boolean): UInt => Bool = {
       val (yesm, nom) = grouped.partition { case (k, eq) => prop(k) }
@@ -95,5 +101,10 @@ object TLBPageLookup
       c = cfn(x),
       a = afn(x),
       l = lfn(x))
+  }
+
+  // Are all pageSize intervals of mapped regions homogeneous?
+  def homogeneous(managers: Seq[TLManagerParameters], pageSize: BigInt): Boolean = {
+    groupRegions(managers).values.forall(_.forall(_.alignment >= pageSize))
   }
 }

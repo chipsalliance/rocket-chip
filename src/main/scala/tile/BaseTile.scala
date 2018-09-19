@@ -86,7 +86,7 @@ trait HasTileParameters {
     val m = if (tileParams.core.mulDiv.nonEmpty) "m" else ""
     val a = if (tileParams.core.useAtomics) "a" else ""
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
-    val d = if (tileParams.core.fpu.nonEmpty && p(XLen) > 32) "d" else ""
+    val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
     s"rv${p(XLen)}i$m$a$f$d$c"
   }
@@ -129,9 +129,9 @@ trait HasTileParameters {
 }
 
 /** Base class for all Tiles that use TileLink */
-abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCrossing)
-                       (implicit p: Parameters) extends LazyModule with HasTileParameters with HasCrossing
-{
+abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
+                       (implicit p: Parameters)
+    extends LazyModule with CrossesToOnlyOneClockDomain with HasTileParameters {
   def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
@@ -163,23 +163,35 @@ abstract class BaseTile(tileParams: TileParams, val crossing: SubsystemClockCros
     else Some("next-level-cache" -> outer.map(l => ResourceReference(l)).toList)
   }
 
-  def toDescription(resources: ResourceBindings)(compat: String, extraProperties: PropertyMap = Nil): Description = {
-    val cpuProperties: PropertyMap = Map(
-        "reg"                  -> resources("reg").map(_.value),
-        "device_type"          -> "cpu".asProperty,
-        "compatible"           -> Seq(ResourceString(compat), ResourceString("riscv")),
-        "status"               -> "okay".asProperty,
-        "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
-        "riscv,isa"            -> isaDTS.asProperty,
-        "timebase-frequency"   -> p(DTSTimebase).asProperty)
-
-    Description(s"cpus/cpu@${hartId}", (cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ extraProperties).toMap)
-  }
+  def cpuProperties: PropertyMap = Map(
+      "device_type"          -> "cpu".asProperty,
+      "status"               -> "okay".asProperty,
+      "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
+      "riscv,isa"            -> isaDTS.asProperty,
+      "timebase-frequency"   -> p(DTSTimebase).asProperty)
 
   // The boundary buffering needed to cut feed-through paths is
   // microarchitecture specific, so these may need to be overridden
-  def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
-  def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  protected def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def crossMasterPort(): TLOutwardNode = {
+    val tlMasterXing = this.crossOut(crossing match {
+      case RationalCrossing(_) => this { makeMasterBoundaryBuffers } :=* masterNode
+      case _ => masterNode
+    })
+    tlMasterXing(crossing)
+  }
+
+  protected def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def crossSlavePort(): TLInwardNode = { DisableMonitors { implicit p =>
+    val tlSlaveXing = this.crossIn(crossing match {
+      case RationalCrossing(_) => slaveNode :*= this { makeSlaveBoundaryBuffers }
+      case _ => slaveNode
+    })
+    tlSlaveXing(crossing)
+  } }
+
+  def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
+  def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
 }
 
 abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {

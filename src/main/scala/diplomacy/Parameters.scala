@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import freechips.rocketchip.util.ShiftQueue
+import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
 
 /** Options for memory regions */
 object RegionType {
@@ -253,4 +253,21 @@ object TriStateValue
 {
   implicit def apply(value: Boolean): TriStateValue = TriStateValue(value, true)
   def unset = TriStateValue(false, false)
+}
+
+/** Enumerates the types of clock crossings generally supported by Diplomatic bus protocols  */
+sealed trait ClockCrossingType
+{
+  def sameClock = this match {
+    case _: SynchronousCrossing => true
+    case _ => false
+  }
+}
+
+case object NoCrossing // converts to SynchronousCrossing(BufferParams.none) via implicit def in package
+case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends ClockCrossingType
+case class RationalCrossing(direction: RationalDirection = FastToSlow) extends ClockCrossingType
+case class AsynchronousCrossing(depth: Int = 8, sourceSync: Int = 3, sinkSync: Int = 3, safe: Boolean = true, narrow: Boolean = false) extends ClockCrossingType
+{
+  def asSinkParams = AsyncQueueParams(depth, sinkSync, safe, narrow)
 }
