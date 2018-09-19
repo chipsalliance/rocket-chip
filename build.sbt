@@ -6,6 +6,7 @@ import xerial.sbt.pack._
 import sys.process._
 
 enablePlugins(SiteScaladocPlugin)
+
 enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
@@ -29,6 +30,15 @@ lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(chisel, hardfloat, macros)
   .aggregate(chisel, hardfloat, macros) // <-- means the running task on rocketchip is also run by aggregate tasks
+  .settings(
+    scalacOptions in Compile in doc ++= Seq(
+      "-diagrams",
+      "-diagrams-max-classes", "25",
+      "-doc-version", version.value,
+      "-doc-title", name.value,
+      "-doc-root-content", baseDirectory.value+"/root-doc.txt"
+    )
+  )
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
