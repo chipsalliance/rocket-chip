@@ -76,18 +76,22 @@ class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, va
   override lazy val module = new DCacheModule(this) 
 }
 
+@chiselName
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  // Most of this module is clocked by the implicit clock, which is gated by
-  // clock_en_reg.  ungated() denotes registers that aren't so gated.
-  protected def ungated[T](block: => T): T = io.ungated_clock.map(c => withClock(c)(block)).getOrElse(block)
-  val clock_en_reg = ungated(RegInit(true.B))
-  io.cpu.clock_enabled := clock_en_reg
-
   val tECC = cacheParams.tagCode
   val dECC = cacheParams.dataCode
   require(isPow2(eccBytes) && eccBytes <= wordBytes)
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
+  val mmioOffset = outer.firstMMIO
+
+  val clock_en_reg = RegInit(true.B)
+  io.cpu.clock_enabled := clock_en_reg
+
+  val gated_clock =
+    if (!cacheParams.clockGate) clock
+    else ClockGate(clock, clock_en_reg, "dcache_clock_gate")
+  withClock (gated_clock) { // entering gated-clock domain
 
   // tags
   val replacer = cacheParams.replacement
@@ -155,7 +159,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
 
   // I/O MSHRs
-  val mmioOffset = outer.firstMMIO
   val uncachedInFlight = Seq.fill(maxUncachedInFlight) { RegInit(Bool(false)) }
   val uncachedReqs = Seq.fill(maxUncachedInFlight) { Reg(new HellaCacheReq) }
 
@@ -852,40 +855,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")
   }
 
-  def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
-  def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt
-  def decodeData(x: UInt) = x.grouped(dECC.width(eccBits)).map(dECC.decode(_))
-  def eccMask(byteMask: UInt) = byteMask.grouped(eccBytes).map(_.orR).asUInt
-  def eccByteMask(byteMask: UInt) = FillInterleaved(eccBytes, eccMask(byteMask))
-
-  def likelyNeedsRead(req: HellaCacheReq) = {
-    val res = !req.cmd.isOneOf(M_XWR, M_PFW) || mtSize(req.typ) < log2Ceil(eccBytes)
-    assert(!needsRead(req) || res)
-    res
-  }
-  def needsRead(req: HellaCacheReq) =
-    isRead(req.cmd) ||
-    (isWrite(req.cmd) && (req.cmd === M_PWR || mtSize(req.typ) < log2Ceil(eccBytes)))
-
-  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)
-  def ccoverNotScratchpad(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    if (!usingDataScratchpad) ccover(cond, label, desc)
-
-  require(!usingVM || tagLSB <= pgIdxBits)
-  def tagLSB: Int = untagBits
-  def probeIdx(b: TLBundleB): UInt = b.address(idxMSB, idxLSB)
-  def addressToProbe(vaddr: UInt, paddr: UInt): TLBundleB = {
-    val res = Wire(new TLBundleB(edge.bundle))
-    res.address := paddr
-    res.source := mmioOffset - 1
-    res
-  }
-  def acquire(vaddr: UInt, paddr: UInt, param: UInt): TLBundleA = {
-    if (!edge.manager.anySupportAcquireT) Wire(new TLBundleA(edge.bundle))
-    else edge.AcquireBlock(UInt(0), paddr >> lgCacheBlockBytes << lgCacheBlockBytes, lgCacheBlockBytes, param)._2
-  }
-
   if (usingDataScratchpad) {
     val data_error_cover = Seq(
       CoverBoolean(!data_error, Seq("no_data_error")),
@@ -924,4 +893,41 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       Seq(),
       "MemorySystem;;Cache Memory Bit Flip Cross Covers"))
   }
+
+  } // leaving gated-clock domain
+
+  def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
+  def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt
+  def decodeData(x: UInt) = x.grouped(dECC.width(eccBits)).map(dECC.decode(_))
+  def eccMask(byteMask: UInt) = byteMask.grouped(eccBytes).map(_.orR).asUInt
+  def eccByteMask(byteMask: UInt) = FillInterleaved(eccBytes, eccMask(byteMask))
+
+  def likelyNeedsRead(req: HellaCacheReq) = {
+    val res = !req.cmd.isOneOf(M_XWR, M_PFW) || mtSize(req.typ) < log2Ceil(eccBytes)
+    assert(!needsRead(req) || res)
+    res
+  }
+  def needsRead(req: HellaCacheReq) =
+    isRead(req.cmd) ||
+    (isWrite(req.cmd) && (req.cmd === M_PWR || mtSize(req.typ) < log2Ceil(eccBytes)))
+
+  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)
+  def ccoverNotScratchpad(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+    if (!usingDataScratchpad) ccover(cond, label, desc)
+
+  require(!usingVM || tagLSB <= pgIdxBits)
+  def tagLSB: Int = untagBits
+  def probeIdx(b: TLBundleB): UInt = b.address(idxMSB, idxLSB)
+  def addressToProbe(vaddr: UInt, paddr: UInt): TLBundleB = {
+    val res = Wire(new TLBundleB(edge.bundle))
+    res.address := paddr
+    res.source := mmioOffset - 1
+    res
+  }
+  def acquire(vaddr: UInt, paddr: UInt, param: UInt): TLBundleA = {
+    if (!edge.manager.anySupportAcquireT) Wire(new TLBundleA(edge.bundle))
+    else edge.AcquireBlock(UInt(0), paddr >> lgCacheBlockBytes << lgCacheBlockBytes, lgCacheBlockBytes, param)._2
+  }
+
 }

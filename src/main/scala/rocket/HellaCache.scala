@@ -187,9 +187,6 @@ class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends Co
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
-
-  val ungated_clock = tileParams.dcache.get.clockGate.option(Clock().asInput)
-  val clock_en = tileParams.dcache.get.clockGate.option(Bool().asOutput)
 }
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
@@ -228,11 +225,6 @@ trait HasHellaCacheModule {
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
-
-  outer.dcache.module.io.ungated_clock.foreach { ungated_clock =>
-    ungated_clock := Module.clock
-    outer.dcache.module.clock := ClockGate(Module.clock, outer.dcache.module.io.cpu.clock_enabled, "dcache_clock_gate")
-  }
 }
 
 /** Metadata array used for all HellaCaches */

@@ -1000,5 +1000,4 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // no clock-gating support
   io.cpu.clock_enabled := true
-  require(!cacheParams.clockGate)
 }
