@@ -92,8 +92,22 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
   val buserror = coreParams.tileControlAddr.map(a => Bool())
 }
 
+/**
+ * Rocket Core IO
+ */
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
+  /**
+   * IO Interface
+   * - '''interrupts''': interrupt inputs
+   * - '''imem''': instruction fetch interface with the instruction cache
+   * - '''dmem''': data interface with the data cache / scratchpad
+   * - '''ptw''': interface with page table walker
+   * - '''fpu''':  interface with floating point unit
+   * - '''rocc''': interface with the Rocket custom coprocessor
+   * - '''trace''': instruction trace interface
+   *
+   */
   val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
     val interrupts = new CoreInterrupts().asInput
     val imem  = new FrontendIO
