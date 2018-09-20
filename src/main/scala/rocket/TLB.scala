@@ -312,9 +312,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
 
-  io.ptw.req.valid := state === s_request && !io.kill
-  io.ptw.req.bits <> io.ptw.status
-  io.ptw.req.bits.addr := r_refill_tag
+  io.ptw.req.valid := state === s_request
+  io.ptw.req.bits.valid := !io.kill
+  io.ptw.req.bits.bits.addr := r_refill_tag
 
   if (usingVM) {
     val sfence = io.sfence.valid

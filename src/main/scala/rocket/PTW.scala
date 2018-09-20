@@ -28,7 +28,7 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
-  val req = Decoupled(new PTWReq)
+  val req = Decoupled(Valid(new PTWReq))
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
   val status = new MStatus().asInput
@@ -89,7 +89,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
 
-  val arb = Module(new RRArbiter(new PTWReq, n))
+  val arb = Module(new RRArbiter(Valid(new PTWReq), n))
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := state === s_ready
 
@@ -116,7 +116,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   when (arb.io.out.fire()) {
-    r_req := arb.io.out.bits
+    r_req := arb.io.out.bits.bits
     r_req_dest := arb.io.chosen
   }
 
@@ -195,9 +195,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
 
     val s0_valid = !l2_refill && arb.io.out.fire()
-    val s1_valid = RegNext(s0_valid)
+    val s1_valid = RegNext(s0_valid && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
-    val s1_rdata = ram.read(arb.io.out.bits.addr(idxBits-1, 0), s0_valid)
+    val s1_rdata = ram.read(arb.io.out.bits.bits.addr(idxBits-1, 0), s0_valid)
     val s2_rdata = code.decode(RegEnable(s1_rdata, s1_valid))
     val s2_valid_bit = RegEnable(valid(r_idx), s1_valid)
     val s2_g = RegEnable(g(r_idx), s1_valid)
@@ -260,7 +260,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   switch (state) {
     is (s_ready) {
       when (arb.io.out.fire()) {
-        next_state := s_req
+        next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
       }
       count := UInt(0)
     }
