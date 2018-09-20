@@ -12,6 +12,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental._
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -70,6 +71,7 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   def sx(dummy: Int = 0) = leaf() && x
 }
 
+@chiselName
 class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val requestor = Vec(n, new TLBPTWIO).flip
@@ -79,19 +81,27 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
+
+  val arb = Module(new RRArbiter(Valid(new PTWReq), n))
+  arb.io.in <> io.requestor.map(_.req)
+  arb.io.out.ready := state === s_ready
+
+  val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
+
+  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || RegNext(reset)
+  val gated_clock =
+    if (!usingVM || !tileParams.dcache.get.clockGate) clock
+    else ClockGate(clock, clock_en, "ptw_clock_gate")
+  withClock (gated_clock) { // entering gated-clock domain
+
   val invalidated = Reg(Bool())
   val count = Reg(UInt(width = log2Up(pgLevels)))
-  val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
   val resp_ae = RegNext(false.B)
   val resp_fragmented_superpage = RegNext(false.B)
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
-
-  val arb = Module(new RRArbiter(Valid(new PTWReq), n))
-  arb.io.in <> io.requestor.map(_.req)
-  arb.io.out.ready := state === s_ready
 
   val (pte, invalid_paddr) = {
     val tmp = new PTE().fromBits(io.mem.resp.bits.data_word_bypass)
@@ -293,7 +303,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
   }
 
-  private def makePTE(ppn: UInt, default: PTE) = {
+  def makePTE(ppn: UInt, default: PTE) = {
     val pte = Wire(init = default)
     pte.ppn := ppn
     pte
@@ -347,7 +357,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
   ccover(state === s_wait2 && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
 
-  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+  } // leaving gated-clock domain
+
+  private def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     if (usingVM) cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
 }
 
