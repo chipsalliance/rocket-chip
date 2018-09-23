@@ -634,7 +634,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   } else Bool(false)
 
   val dcache_blocked = Reg(Bool())
-  dcache_blocked := !io.dmem.req.ready && (io.dmem.req.valid || dcache_blocked)
+  dcache_blocked := !io.dmem.req.ready && io.dmem.clock_enabled && (io.dmem.req.valid || dcache_blocked)
   val rocc_blocked = Reg(Bool())
   rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
 
@@ -706,6 +706,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
   io.dmem.s2_kill := false
+  // don't let D$ go to sleep if we're probably going to use it soon
+  io.dmem.keep_clock_enabled := ibuf.io.inst(0).valid && id_ctrl.mem
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR

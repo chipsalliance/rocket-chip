@@ -19,6 +19,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
     val s1_id = Reg(UInt())
     val s2_id = Reg(next=s1_id)
 
+    io.mem.keep_clock_enabled := io.requestor.map(_.keep_clock_enabled).reduce(_||_)
+
     io.mem.req.valid := io.requestor.map(_.req.valid).reduce(_||_)
     io.requestor(0).req.ready := io.mem.req.ready
     for (i <- 1 until n)
