@@ -62,6 +62,10 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   override def bpmCSR = {
     rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(1), Some(BigInt(0))))
   }
+
+  def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
+
+  override def decls = super.decls :+ marchid
 }
 
 class CustomCSRs(implicit p: Parameters) extends CoreBundle {

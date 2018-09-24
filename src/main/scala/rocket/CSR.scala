@@ -221,6 +221,10 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
 
 case class CustomCSR(id: Int, mask: BigInt, init: Option[BigInt])
 
+object CustomCSR {
+  def constant(id: Int, value: BigInt): CustomCSR = CustomCSR(id, BigInt(0), Some(value))
+}
+
 class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
   val wen = Bool()
   val wdata = UInt(xLen.W)
