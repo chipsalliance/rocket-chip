@@ -48,7 +48,7 @@ case class RocketCoreParams(
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
-  val rocketParams: RocketCoreParams = tileParams.core.asInstanceOf[RocketCoreParams]
+  lazy val rocketParams: RocketCoreParams = tileParams.core.asInstanceOf[RocketCoreParams]
 
   val fastLoadWord = rocketParams.fastLoadWord
   val fastLoadByte = rocketParams.fastLoadByte
@@ -58,18 +58,30 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   require(!fastLoadByte || fastLoadWord)
 }
 
-class CustomCSRs(implicit p: Parameters) extends CoreBundle {
-  private val rocketParams = coreParams.asInstanceOf[RocketCoreParams]
-  private val bpmCSR = rocketParams.branchPredictionModeCSR.option(CustomCSR(0x7c0, BigInt(1), Some(BigInt(0))))
+class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
+  override def bpmCSR = {
+    rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(1), Some(BigInt(0))))
+  }
+}
 
-  val decls = bpmCSR.toSeq
+class CustomCSRs(implicit p: Parameters) extends CoreBundle {
+  protected def bpmCSRId = 0x7c0
+  protected def bpmCSR: Option[CustomCSR] = None
+
+  def decls: Seq[CustomCSR] = bpmCSR.toSeq
+
   val csrs = Vec(decls.size, new CustomCSRIO)
 
   def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
   def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
 
-  private def getOrElse[T](csr: Option[CustomCSR], f: CustomCSRIO => T, alt: T): T =
-    csr.map(c => f(csrs(decls.indexOf(c)))).getOrElse(alt)
+  protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
+    val idx = decls.indexWhere(_.id == id)
+    if (idx < 0) alt else f(csrs(idx))
+  }
+
+  protected def getOrElse[T](csr: Option[CustomCSR], f: CustomCSRIO => T, alt: T): T =
+    csr.map(c => getByIdOrElse(c.id, f, alt)).getOrElse(alt)
 }
 
 class Rocket(implicit p: Parameters) extends CoreModule()(p)

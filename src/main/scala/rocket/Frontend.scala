@@ -53,7 +53,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
   val perf = new FrontendPerfEvents().asInput
-  val customCSRs = new CustomCSRs().asOutput
+  val customCSRs = new RocketCustomCSRs().asOutput
 }
 
 class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
