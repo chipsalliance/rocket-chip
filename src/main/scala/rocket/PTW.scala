@@ -34,6 +34,7 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val ptbr = new PTBR().asInput
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
+  val customCSRs = coreParams.customCSRs.asInput
 }
 
 class PTWPerfEvents extends Bundle {
@@ -47,6 +48,7 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
   val perf = new PTWPerfEvents().asOutput
+  val customCSRs = coreParams.customCSRs.asInput
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -259,6 +261,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).ptbr := io.dpath.ptbr
+    io.requestor(i).customCSRs := io.dpath.customCSRs
     io.requestor(i).status := io.dpath.status
     io.requestor(i).pmp := io.dpath.pmp
   }

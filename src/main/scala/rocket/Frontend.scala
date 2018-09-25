@@ -53,7 +53,6 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
   val perf = new FrontendPerfEvents().asInput
-  val customCSRs = new RocketCustomCSRs().asOutput
 }
 
 class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
@@ -172,8 +171,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       predicted_taken := Bool(true)
     }
 
-    val force_taken = io.cpu.customCSRs.bpmStatic
-    when (io.cpu.customCSRs.flushBTB) { btb.io.flush := true }
+    val force_taken = io.ptw.customCSRs.bpmStatic
+    when (io.ptw.customCSRs.flushBTB) { btb.io.flush := true }
     when (force_taken) { btb.io.bht_update.valid := false }
 
     val s2_base_pc = ~(~s2_pc | (fetchBytes-1))

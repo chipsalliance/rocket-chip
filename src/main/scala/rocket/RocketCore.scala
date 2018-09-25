@@ -45,6 +45,7 @@ case class RocketCoreParams(
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
+  override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
@@ -66,26 +67,6 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
 
   override def decls = super.decls :+ marchid
-}
-
-class CustomCSRs(implicit p: Parameters) extends CoreBundle {
-  protected def bpmCSRId = 0x7c0
-  protected def bpmCSR: Option[CustomCSR] = None
-
-  def decls: Seq[CustomCSR] = bpmCSR.toSeq
-
-  val csrs = Vec(decls.size, new CustomCSRIO)
-
-  def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
-  def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
-
-  protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
-    val idx = decls.indexWhere(_.id == id)
-    if (idx < 0) alt else f(csrs(idx))
-  }
-
-  protected def getOrElse[T](csr: Option[CustomCSR], f: CustomCSRIO => T, alt: T): T =
-    csr.map(c => getByIdOrElse(c.id, f, alt)).getOrElse(alt)
 }
 
 class Rocket(implicit p: Parameters) extends CoreModule()(p)
@@ -228,7 +209,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents, io.imem.customCSRs.decls))
+  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls))
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
   val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
@@ -593,7 +574,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Causes.load_page_fault, Causes.store_page_fault, Causes.fetch_page_fault)
   csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
   io.ptw.ptbr := csr.io.ptbr
-  (io.imem.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
+  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
   io.ptw.status := csr.io.status
   io.ptw.pmp := csr.io.pmp
   csr.io.rw.addr := wb_reg_inst(31,20)

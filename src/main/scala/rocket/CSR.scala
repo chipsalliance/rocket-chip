@@ -219,18 +219,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
 }
 
-case class CustomCSR(id: Int, mask: BigInt, init: Option[BigInt])
-
-object CustomCSR {
-  def constant(id: Int, value: BigInt): CustomCSR = CustomCSR(id, BigInt(0), Some(value))
-}
-
-class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
-  val wen = Bool()
-  val wdata = UInt(xLen.W)
-  val value = UInt(xLen.W)
-}
-
 class CSRFile(
   perfEventSets: EventSets = new EventSets(Seq()),
   customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
