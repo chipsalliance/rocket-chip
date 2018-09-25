@@ -24,13 +24,17 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
   protected def bpmCSRId = 0x7c0
   protected def bpmCSR: Option[CustomCSR] = None
 
+  protected def chickenCSRId = 0x7c1
+  protected def chickenCSR: Option[CustomCSR] = None
+
   // If you override this, you'll want to concatenate super.decls
-  def decls: Seq[CustomCSR] = bpmCSR.toSeq
+  def decls: Seq[CustomCSR] = bpmCSR.toSeq ++ chickenCSR
 
   val csrs = Vec(decls.size, new CustomCSRIO)
 
   def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
   def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
+  def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), true.B)
 
   protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
     val idx = decls.indexWhere(_.id == id)

@@ -90,7 +90,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
 
-  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || RegNext(reset)
+  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
     else ClockGate(clock, clock_en, "ptw_clock_gate")

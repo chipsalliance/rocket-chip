@@ -64,6 +64,11 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
     rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(1), Some(BigInt(0))))
   }
 
+  override def chickenCSR = {
+    val mask = BigInt(tileParams.dcache.get.clockGate.toInt << 0)
+    Some(CustomCSR(chickenCSRId, mask, Some(mask)))
+  }
+
   def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
 
   override def decls = super.decls :+ marchid
