@@ -37,6 +37,7 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val tileControlAddr: Option[BigInt]
+  def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes

@@ -85,7 +85,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
   val mmioOffset = outer.firstMMIO
 
-  val clock_en_reg = RegInit(true.B)
+  val clock_en_reg = Reg(Bool())
   io.cpu.clock_enabled := clock_en_reg
 
   val gated_clock =
@@ -811,18 +811,17 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // gate the clock
-  if (cacheParams.clockGate) {
-    clock_en_reg := io.cpu.keep_clock_enabled ||
-      metaArb.io.out.valid || // subsumes resetting || flushing
-      s1_probe || s2_probe ||
-      s1_valid || s2_valid_pre_xcpt ||
-      pstore1_held || pstore2_valid ||
-      release_state =/= s_ready ||
-      release_ack_wait || !release_queue_empty ||
-      !tlb.io.req.ready ||
-      cached_grant_wait || uncachedInFlight.asUInt.orR ||
-      lrscCount > 0 || blockProbeAfterGrantCount > 0
-  }
+  clock_en_reg := io.ptw.customCSRs.disableDCacheClockGate ||
+    io.cpu.keep_clock_enabled ||
+    metaArb.io.out.valid || // subsumes resetting || flushing
+    s1_probe || s2_probe ||
+    s1_valid || s2_valid_pre_xcpt ||
+    pstore1_held || pstore2_valid ||
+    release_state =/= s_ready ||
+    release_ack_wait || !release_queue_empty ||
+    !tlb.io.req.ready ||
+    cached_grant_wait || uncachedInFlight.asUInt.orR ||
+    lrscCount > 0 || blockProbeAfterGrantCount > 0
 
   // performance events
   io.cpu.perf.acquire := edge.done(tl_out_a)

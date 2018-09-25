@@ -34,6 +34,7 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val ptbr = new PTBR().asInput
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
+  val customCSRs = coreParams.customCSRs.asInput
 }
 
 class PTWPerfEvents extends Bundle {
@@ -47,6 +48,7 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
   val perf = new PTWPerfEvents().asOutput
+  val customCSRs = coreParams.customCSRs.asInput
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -88,7 +90,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
 
-  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || RegNext(reset)
+  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
     else ClockGate(clock, clock_en, "ptw_clock_gate")
@@ -228,7 +230,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
   invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
-  
+
   io.mem.req.valid := state === s_req || state === s_dummy1
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
@@ -259,6 +261,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).ptbr := io.dpath.ptbr
+    io.requestor(i).customCSRs := io.dpath.customCSRs
     io.requestor(i).status := io.dpath.status
     io.requestor(i).pmp := io.dpath.pmp
   }
