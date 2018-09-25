@@ -336,7 +336,7 @@ done_processing:
   }
   else if (verbose || print_cycles)
   {
-    fprintf(stderr, "Completed after %ld cycles\n", trace_count);
+    fprintf(stderr, "*** PASSED *** Completed after %ld cycles\n", trace_count);
   }
 
   if (dtm) delete dtm;

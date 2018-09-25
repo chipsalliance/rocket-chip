@@ -139,7 +139,7 @@ module TestDriver;
       if (success)
       begin
         if (verbose)
-          $fdisplay(stderr, "Completed after %d simulation cycles", trace_count);
+          $fdisplay(stderr, "*** PASSED *** Completed after %d simulation cycles", trace_count);
         `VCDPLUSCLOSE
 `ifdef TESTBENCH_IN_UVM
         finish_request = 1;
