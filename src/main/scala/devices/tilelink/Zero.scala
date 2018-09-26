@@ -19,6 +19,8 @@ class TLZero(address: AddressSet, resources: Seq[Resource], executable: Boolean 
       supportsGet        = TransferSizes(1, beatBytes),
       supportsPutPartial = TransferSizes(1, beatBytes),
       supportsPutFull    = TransferSizes(1, beatBytes),
+      supportsArithmetic = TransferSizes(1, beatBytes),
+      supportsLogical    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
     minLatency = 1))) // no bypass needed for this device
@@ -27,12 +29,11 @@ class TLZero(address: AddressSet, resources: Seq[Resource], executable: Boolean 
     val (in, edge) = node.in(0)
 
     val a = Queue(in.a, 2)
-    val hasData = edge.hasData(a.bits)
 
     a.ready := in.d.ready
     in.d.valid := a.valid
     in.d.bits := edge.AccessAck(a.bits)
-    in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
+    in.d.bits.opcode := TLMessages.adResponse(edge.opcode(a.bits))
 
     // Tie off unused channels
     in.b.valid := Bool(false)
