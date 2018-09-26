@@ -569,3 +569,39 @@ class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[di
     dangles
   }
 }
+
+
+class MixedHierarchicalNode[DI, UI, EI, BI <: Data, DM, UM, EM, BM <: Data, DO, UO, EO, BO <: Data]
+(
+  lhs: MixedNode[DI, UI, EI, BI, DM, UM, EM, BM],
+  rhs: MixedNode[DM, UM, EM, BM, DO, UO, EO, BO]
+)(implicit valName: ValName) extends MixedNode(lhs.inner, rhs.outer) {
+  override def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    (0, 0)
+  }
+  override def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
+    rhs.mapParamsD(n, lhs.mapParamsD(n, p))
+  }
+  override def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = {
+    lhs.mapParamsU(n, rhs.mapParamsU(n, p))
+  }
+}
+
+class HierarchicalNode[D, U, E, B <: Data]
+(
+  lhs: MixedNode[D, U, E, B, D, U, E, B],
+  rhs: MixedNode[D, U, E, B, D, U, E, B]
+)(implicit valName: ValName) extends MixedHierarchicalNode(lhs, rhs) {
+  override val inward = lhs
+  override val outward = rhs
+}
+
+object HierarchicalNode {
+  def apply[D, U, E, B <: Data](lhs: MixedNode[D, U, E, B, D, U, E, B], rhs: MixedNode[D, U, E, B, D, U, E, B])(implicit valName: ValName): HierarchicalNode[D, U, E, B] = {
+    new HierarchicalNode(lhs, rhs)
+  }
+  def apply[D, U, E, B <: Data](nodes: Seq[MixedNode[D, U, E, B, D, U, E, B]])(implicit valName: ValName): MixedNode[D, U, E, B, D, U, E, B] = {
+    nodes.reduce({ (lhs, rhs) => HierarchicalNode(lhs, rhs) })
+  }
+}
+
