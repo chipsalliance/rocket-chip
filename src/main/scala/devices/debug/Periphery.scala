@@ -13,14 +13,15 @@ import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink._
 
-/** A knob selecting one of the two possible debug interfaces */
-case object IncludeJtagDTM extends Field[Boolean](false)
+/** Options for possible debug interfaces */
+case object ExportDebugDMI extends Field[Boolean](true)
+case object ExportDebugJTAG extends Field[Boolean](false)
 
 /** A wrapper bundle containing one of the two possible debug interfaces */
 
 class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
-  val clockeddmi = (!p(IncludeJtagDTM)).option(new ClockedDMIIO().flip)
-  val systemjtag = (p(IncludeJtagDTM)).option(new SystemJTAGIO)
+  val clockeddmi = (p(ExportDebugDMI)).option(new ClockedDMIIO().flip)
+  val systemjtag = (p(ExportDebugJTAG)).option(new SystemJTAGIO)
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
 }
@@ -43,6 +44,9 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val outer: HasPeripheryDebug
 
   val debug = IO(new DebugIO)
+
+  require(!(debug.dlockeddmi.isDefined && debug.systemjtag.isDefined),
+    "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
 
   debug.clockeddmi.foreach { dbg => outer.debug.module.io.dmi <> dbg }
 

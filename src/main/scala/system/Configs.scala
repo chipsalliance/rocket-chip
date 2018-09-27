@@ -6,7 +6,6 @@ package freechips.rocketchip.system
 import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.devices.debug.{IncludeJtagDTM, JtagDTMKey}
 import freechips.rocketchip.diplomacy._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM

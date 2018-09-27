@@ -263,7 +263,8 @@ class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
 })
 
 class WithJtagDTM extends Config ((site, here, up) => {
-  case IncludeJtagDTM => true
+  case ExportDebugDMI => false
+  case ExportDebugJTAG => true
 })
 
 class WithDebugSBA extends Config ((site, here, up) => {
