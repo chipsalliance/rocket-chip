@@ -730,6 +730,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.dmem_resp_data := io.dmem.resp.bits.data_word_bypass
   io.fpu.dmem_resp_type := io.dmem.resp.bits.typ
   io.fpu.dmem_resp_tag := dmem_resp_waddr
+  io.fpu.keep_clock_enabled := io.ptw.customCSRs.disableCoreClockGate
 
   io.dmem.req.valid     := ex_reg_valid && ex_ctrl.mem
   val ex_dcache_tag = Cat(ex_waddr, ex_ctrl.fp)
