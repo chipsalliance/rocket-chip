@@ -13,6 +13,7 @@ _start:
 _hang:
   csrr a0, mhartid
   la a1, _dtb
+  csrwi mie, 0
 1:
   wfi
   j 1b
