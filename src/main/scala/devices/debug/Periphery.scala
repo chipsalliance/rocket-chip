@@ -20,8 +20,8 @@ case object ExportDebugJTAG extends Field[Boolean](false)
 /** A wrapper bundle containing one of the two possible debug interfaces */
 
 class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
-  val clockeddmi = (p(ExportDebugDMI)).option(new ClockedDMIIO().flip)
-  val systemjtag = (p(ExportDebugJTAG)).option(new SystemJTAGIO)
+  val clockeddmi = p(ExportDebugDMI).option(new ClockedDMIIO().flip)
+  val systemjtag = p(ExportDebugJTAG).option(new SystemJTAGIO)
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
 }
@@ -45,12 +45,20 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
 
   val debug = IO(new DebugIO)
 
-  require(!(debug.dlockeddmi.isDefined && debug.systemjtag.isDefined),
+  require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
     "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
 
   debug.clockeddmi.foreach { dbg => outer.debug.module.io.dmi <> dbg }
 
-  val dtm = debug.systemjtag.map { sj =>
+  val dtm = debug.systemjtag.map { instantiateJtagDTM(_) }
+
+  debug.ndreset  := outer.debug.module.io.ctrl.ndreset
+  debug.dmactive := outer.debug.module.io.ctrl.dmactive
+
+  // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
+  outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
+
+  def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
     dtm.io.jtag <> sj.jtag
@@ -68,12 +76,6 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
     dtm
   }
-
-  debug.ndreset  := outer.debug.module.io.ctrl.ndreset
-  debug.dmactive := outer.debug.module.io.ctrl.dmactive
-
-  // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
-  outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 }
 
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
