@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.core.withReset
+import chisel3.experimental._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -36,6 +36,7 @@ case class RocketCoreParams(
   fastLoadByte: Boolean = false,
   branchPredictionModeCSR: Boolean = false,
   tileControlAddr: Option[BigInt] = None,
+  clockGate: Boolean = false,
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {
@@ -67,7 +68,10 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   }
 
   override def chickenCSR = {
-    val mask = BigInt(tileParams.dcache.get.clockGate.toInt << 0)
+    val mask = BigInt(
+      tileParams.dcache.get.clockGate.toInt << 0 |
+      rocketParams.clockGate.toInt << 1
+    )
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
   }
 
@@ -76,9 +80,18 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   override def decls = super.decls :+ marchid
 }
 
+@chiselName
 class Rocket(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
+
+  val clock_en_reg = RegInit(true.B)
+  val clock_en = Wire(init=true.B)
+  val gated_clock =
+    if (!rocketParams.clockGate) clock
+    else ClockGate(clock, clock_en, "rocket_clock_gate")
+
+  @chiselName class RocketImpl { // entering gated-clock domain
 
   // performance counters
   def pipelineIDToWB[T <: Data](x: T): T =
@@ -534,6 +547,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   )
   coverExceptions(wb_xcpt, wb_cause, "WRITEBACK", wbCoverCauses)
 
+  val wb_pc_valid = wb_reg_valid || wb_reg_replay || wb_reg_xcpt
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
@@ -667,6 +681,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
     id_ctrl.div && (!(div.io.req.ready || (div.io.resp.valid && !wb_wxd)) || div.io.req.valid) || // reduce odds of replay
+    !clock_en ||
     id_do_fence ||
     csr.io.csr_stall
   ctrl_killd := !ibuf.io.inst(0).valid || ibuf.io.inst(0).bits.replay || take_pc_mem_wb || ctrl_stalld || csr.io.interrupt
@@ -737,11 +752,23 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
+  // gate the clock
+  if (rocketParams.clockGate) {
+    clock_en := clock_en_reg || Mux(csr.io.csr_stall, false.B, io.imem.resp.valid)
+    clock_en_reg :=
+      io.ptw.customCSRs.disableCoreClockGate ||
+      ex_pc_valid || mem_pc_valid || wb_pc_valid || // instruction in flight
+      !div.io.req.ready || // mul/div in flight
+      usingFPU && !io.fpu.fcsr_rdy || // long-latency FPU in flight
+      io.dmem.replay_next || // long-latency load replaying
+      (csr.io.any_enabled_interrupt_pending && (ibuf.io.inst(0).valid || io.imem.resp.valid)) // instruction pending
+  }
+
   // evaluate performance counters
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
-  val coreMonitorBundle = Wire(new Bundle {
+  class CoreMonitorBundle extends Bundle {
     val hartid = UInt(width = hartIdLen)
     val time = UInt(width = 32)
     val valid = Bool()
@@ -754,7 +781,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     val rd1src = UInt(width = 5)
     val rd1val = UInt(width = xLen)
     val inst = UInt(width = 32)
-  })
+  }
+  val coreMonitorBundle = Wire(new CoreMonitorBundle)
 
   coreMonitorBundle.hartid := io.hartid
   coreMonitorBundle.time := csr.io.time(31,0)
@@ -811,6 +839,9 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     name = "max_core_cycles",
     docstring = "Kill the emulation after INT rdtime cycles. Off if 0."
   )(csr.io.time)
+
+  } // leaving gated-clock domain
+  withClock (gated_clock) { new RocketImpl }
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))

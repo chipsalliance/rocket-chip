@@ -211,6 +211,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val rocc_interrupt = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
+  val any_enabled_interrupt_pending = Bool(OUTPUT)
   val bp = Vec(nBreakpoints, new BP).asOutput
   val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
@@ -340,6 +341,7 @@ class CSRFile(
   val interruptCause = UInt(interruptMSB) + whichInterrupt
   io.interrupt := (anyInterrupt && !io.singleStep || reg_singleStepped) && !reg_debug
   io.interrupt_cause := interruptCause
+  io.any_enabled_interrupt_pending := pending_interrupts.orR || io.interrupts.debug
   io.bp := reg_bp take nBreakpoints
   io.pmp := reg_pmp.map(PMP(_))
 
@@ -552,7 +554,7 @@ class CSRFile(
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
-  when (pending_interrupts.orR || exception || io.interrupts.debug) { reg_wfi := false }
+  when (io.any_enabled_interrupt_pending || exception) { reg_wfi := false }
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }
