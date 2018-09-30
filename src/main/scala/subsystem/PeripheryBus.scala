@@ -4,6 +4,7 @@ package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -18,7 +19,8 @@ case class PeripheryBusParams(
   blockBytes: Int,
   atomics: Option[BusAtomics] = Some(BusAtomics()),
   sbusCrossingType: ClockCrossingType = SynchronousCrossing(), // relative to sbus
-  frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
+  frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
+  errorDevice: Option[DevNullParams] = None
 ) extends HasTLBusParams
 
 case object PeripheryBusKey extends Field[PeripheryBusParams]
@@ -38,6 +40,11 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
 
   def inwardNode: TLInwardNode = in_xbar.node
   def outwardNode: TLOutwardNode = out_xbar.node
+
+  params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
+    val error = LazyModule(new TLError(params = dnp, beatBytes = params.beatBytes))
+    error.node := outwardNode
+  }}
 
   def crossFromSystemBus(gen: (=> TLInwardNode) => NoHandle) {
     from("sbus") {
