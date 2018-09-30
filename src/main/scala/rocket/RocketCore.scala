@@ -597,6 +597,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
 
   // hook up control/status regfile
+  csr.io.ungated_clock := clock
   csr.io.decode(0).csr := id_raw_inst(0)(31,20)
   csr.io.exception := wb_xcpt
   csr.io.cause := wb_cause
@@ -761,14 +762,14 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   // gate the clock
   if (rocketParams.clockGate) {
-    clock_en := clock_en_reg || Mux(csr.io.csr_stall, false.B, io.imem.resp.valid)
+    clock_en := clock_en_reg || (!csr.io.csr_stall && io.imem.resp.valid)
     clock_en_reg :=
       ex_pc_valid || mem_pc_valid || wb_pc_valid || // instruction in flight
       io.ptw.customCSRs.disableCoreClockGate || // chicken bit
       !div.io.req.ready || // mul/div in flight
       usingFPU && !io.fpu.fcsr_rdy || // long-latency FPU in flight
       io.dmem.replay_next || // long-latency load replaying
-      (csr.io.any_enabled_interrupt_pending && (ibuf.io.inst(0).valid || io.imem.resp.valid)) // instruction pending
+      (!csr.io.csr_stall && (ibuf.io.inst(0).valid || io.imem.resp.valid)) // instruction pending
   }
 
   // evaluate performance counters
