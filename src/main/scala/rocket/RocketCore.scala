@@ -70,7 +70,8 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   override def chickenCSR = {
     val mask = BigInt(
       tileParams.dcache.get.clockGate.toInt << 0 |
-      rocketParams.clockGate.toInt << 1
+      rocketParams.clockGate.toInt << 1 |
+      rocketParams.clockGate.toInt << 2
     )
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
   }
@@ -86,6 +87,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     with HasCoreIO {
 
   val clock_en_reg = RegInit(true.B)
+  val imem_might_request_reg = Reg(Bool())
   val clock_en = Wire(init=true.B)
   val gated_clock =
     if (!rocketParams.clockGate) clock
@@ -693,6 +695,10 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     Mux(replay_wb,              wb_reg_pc,   // replay
                                 mem_npc))    // flush or branch misprediction
   io.imem.flush_icache := wb_reg_valid && wb_ctrl.fence_i && !io.dmem.s2_nack
+  io.imem.might_request := {
+    imem_might_request_reg := ex_pc_valid || mem_pc_valid || io.ptw.customCSRs.disableICacheClockGate
+    imem_might_request_reg
+  }
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
   io.imem.sfence.bits.rs1 := wb_ctrl.mem_type(0)
   io.imem.sfence.bits.rs2 := wb_ctrl.mem_type(1)
@@ -757,8 +763,8 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   if (rocketParams.clockGate) {
     clock_en := clock_en_reg || Mux(csr.io.csr_stall, false.B, io.imem.resp.valid)
     clock_en_reg :=
-      io.ptw.customCSRs.disableCoreClockGate ||
       ex_pc_valid || mem_pc_valid || wb_pc_valid || // instruction in flight
+      io.ptw.customCSRs.disableCoreClockGate || // chicken bit
       !div.io.req.ready || // mul/div in flight
       usingFPU && !io.fpu.fcsr_rdy || // long-latency FPU in flight
       io.dmem.replay_next || // long-latency load replaying

@@ -35,7 +35,8 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
   def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
   def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
   def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), true.B)
-  def disableCoreClockGate = getOrElse(chickenCSR, _.value(1), true.B)
+  def disableICacheClockGate = getOrElse(chickenCSR, _.value(1), true.B)
+  def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), true.B)
 
   protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
     val idx = decls.indexWhere(_.id == id)
