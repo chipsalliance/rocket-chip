@@ -159,8 +159,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
 
   // I/O MSHRs
-  val uncachedInFlight = Seq.fill(maxUncachedInFlight) { RegInit(Bool(false)) }
-  val uncachedReqs = Seq.fill(maxUncachedInFlight) { Reg(new HellaCacheReq) }
+  val uncachedInFlight = RegInit(Vec.fill(maxUncachedInFlight)(false.B))
+  val uncachedReqs = Reg(Vec(maxUncachedInFlight, new HellaCacheReq))
 
   // hit initiation path
   val s0_read = isRead(io.cpu.req.bits.cmd)
