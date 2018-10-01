@@ -21,7 +21,7 @@ object CLINTConsts
   def timecmpBytes = 8
   def size = 0x10000
   def timeWidth = 64
-  def ipiWidth = 32
+  def ipiWidth = 1
   def ints = 2
 }
 
