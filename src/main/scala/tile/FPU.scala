@@ -12,13 +12,15 @@ import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.fpucp._
 
-case class FPUParams(
+case class FPUParams (
   fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
   dfmaLatency: Int = 4
-)
+) 
 
 object FPConstants
 {
@@ -159,12 +161,12 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val sboard_clra = UInt(OUTPUT, 5)
 }
 
-class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
-  val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
-  val cp_resp = Decoupled(new FPResult())
-}
+//class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
+  //val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
+  //val cp_resp = Decoupled(new FPResult())
+//}
 
-class FPResult(implicit p: Parameters) extends CoreBundle()(p) {
+class FPResult(val fLen: Int)/*(implicit p: Parameters)*/ extends Bundle {
   val data = Bits(width = fLen+1)
   val exc = Bits(width = FPConstants.FLAGS_SZ)
 }
@@ -175,7 +177,7 @@ class IntToFPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCt
   val in1 = Bits(width = xLen)
 }
 
-class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSigs {
+class FPInput(val fLen: Int) extends Bundle with HasFPUCtrlSigs {
   val rm = Bits(width = FPConstants.RM_SZ)
   val fmaCmd = Bits(width = 2)
   val typ = Bits(width = 2)
@@ -183,7 +185,7 @@ class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSig
   val in2 = Bits(width = fLen+1)
   val in3 = Bits(width = fLen+1)
 
-  override def cloneType = new FPInput().asInstanceOf[this.type]
+  //override def cloneType = new FPInput().asInstanceOf[this.type]
 }
 
 case class FType(exp: Int, sig: Int) {
@@ -240,8 +242,8 @@ object FType {
 }
 
 trait HasFPUParameters {
-  require(fLen == 32 || fLen == 64)
-  val fLen: Int
+  require(fLen == 32 || fLen == 64, s"fLen is $fLen")
+  def fLen: Int
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
@@ -376,7 +378,7 @@ abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with Ha
 
 class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   class Output extends Bundle {
-    val in = new FPInput
+    val in = new FPInput(fLen)
     val lt = Bool()
     val store = Bits(width = fLen)
     val toint = Bits(width = xLen)
@@ -384,7 +386,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     override def cloneType = new Output().asInstanceOf[this.type]
   }
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Valid(new FPInput(fLen)).flip
     val out = Valid(new Output)
   }
 
@@ -452,13 +454,13 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
 class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
     val in = Valid(new IntToFPInput).flip
-    val out = Valid(new FPResult)
+    val out = Valid(new FPResult(fLen))
   }
 
   val in = Pipe(io.in)
   val tag = !in.bits.singleIn // TODO typeTag
 
-  val mux = Wire(new FPResult)
+  val mux = Wire(new FPResult(fLen))
   mux.exc := Bits(0)
   mux.data := recode(in.bits.in1, !in.bits.singleIn)
 
@@ -496,8 +498,8 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
 
 class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
-    val out = Valid(new FPResult)
+    val in = Valid(new FPInput(fLen)).flip
+    val out = Valid(new FPResult(fLen))
     val lt = Bool(INPUT) // from FPToInt
   }
 
@@ -506,7 +508,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
   val signNum = Mux(in.bits.rm(1), in.bits.in1 ^ in.bits.in2, Mux(in.bits.rm(0), ~in.bits.in2, in.bits.in2))
   val fsgnj = Cat(signNum(fLen), in.bits.in1(fLen-1, 0))
 
-  val fsgnjMux = Wire(new FPResult)
+  val fsgnjMux = Wire(new FPResult(fLen))
   fsgnjMux.exc := UInt(0)
   fsgnjMux.data := fsgnj
 
@@ -622,12 +624,12 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   require(latency>0)
 
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
-    val out = Valid(new FPResult)
+    val in = Valid(new FPInput(fLen)).flip
+    val out = Valid(new FPResult(fLen))
   }
 
   val valid = Reg(next=io.in.valid)
-  val in = Reg(new FPInput)
+  val in = Reg(new FPInput(fLen))
   when (io.in.valid) {
     val one = UInt(1) << (t.sig + t.exp - 1)
     val zero = (io.in.bits.in1 ^ io.in.bits.in2) & (UInt(1) << (t.sig + t.exp))
@@ -647,20 +649,41 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   fma.io.b := in.in2
   fma.io.c := in.in3
 
-  val res = Wire(new FPResult)
+  val res = Wire(new FPResult(fLen))
   res.data := sanitizeNaN(fma.io.out, t)
   res.exc := fma.io.exceptionFlags
 
   io.out := Pipe(fma.io.validout, res, (latency-3) max 0)
 }
 
-class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
-  val io = new FPUIO
+class LazyFPU (lcfg: FPUParams)(implicit p: Parameters) extends LazyModule {
+  val node = new FPUCPSinkNode(FPUCPSinkParameters(lcfg.fLen, lcfg.divSqrt))
+  lazy val module = new LazyModuleImp(this) with HasFPUImplementation {
+    def cfg : FPUParams = lcfg
+    def getRoccBundle : FPUCPBundle = node.in(0)._1
+    override def fLen = lcfg.fLen
+  }
+}
+
+class FPU(val cfg: FPUParams)(implicit p: Parameters)
+  extends FPUModule()(p)
+  with HasFPUImplementation {
+    val internal_cfg = FPUCPSinkParameters(fLen, cfg.divSqrt)
+    def getRoccBundle : FPUCPBundle = IO(Flipped(new FPUCPBundle(internal_cfg)))
+  }
+
+trait HasFPUImplementation extends HasFPUParameters
+  with HasCoreParameters { 
+  implicit val p: Parameters
+  def cfg: FPUParams 
+  def getRoccBundle: FPUCPBundle
+  val io = chisel3.experimental.IO(new FPUCoreIO)
+  val rocc = getRoccBundle
 
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
-  val req_valid = ex_reg_valid || io.cp_req.valid
+  val req_valid = ex_reg_valid || rocc.cp_req.valid
   val ex_reg_inst = RegEnable(io.inst, io.valid)
-  val ex_cp_valid = io.cp_req.fire()
+  val ex_cp_valid = rocc.cp_req.fire()
   val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
   val wb_cp_valid = Reg(next=mem_cp_valid, init=Bool(false))
   val mem_reg_valid = RegInit(false.B)
@@ -677,9 +700,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   fp_decoder.io.inst := io.inst
 
   val cp_ctrl = Wire(new FPUCtrlSigs)
-  cp_ctrl <> io.cp_req.bits
-  io.cp_resp.valid := Bool(false)
-  io.cp_resp.bits.data := UInt(0)
+  cp_ctrl <> rocc.cp_req.bits
+  rocc.cp_resp.valid := Bool(false)
+  rocc.cp_resp.bits.data := UInt(0)
 
   val id_ctrl = fp_decoder.io.sigs
   val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, RegEnable(id_ctrl, io.valid))
@@ -693,7 +716,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
   // regfile
-  val regfile = Mem(32, Bits(width = fLen+1))
+  val regfile = Mem(32, Bits(width = cfg.fLen+1))
   when (load_wb) {
     val wdata = recode(load_wb_data, load_wb_double)
     regfile(load_wb_tag) := wdata
@@ -728,14 +751,14 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   io.store_data := fpiu.io.out.bits.store
   io.toint_data := fpiu.io.out.bits.toint
   when(fpiu.io.out.valid && mem_cp_valid && mem_ctrl.toint){
-    io.cp_resp.bits.data := fpiu.io.out.bits.toint
-    io.cp_resp.valid := Bool(true)
+    rocc.cp_resp.bits.data := fpiu.io.out.bits.toint
+    rocc.cp_resp.valid := Bool(true)
   }
 
   val ifpu = Module(new IntToFP(2))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
   ifpu.io.in.bits := fpiu.io.in.bits
-  ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
+  ifpu.io.in.bits.in1 := Mux(ex_cp_valid, rocc.cp_req.bits.in1, io.fromint_data)
 
   val fpmu = Module(new FPToFP(2))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
@@ -746,7 +769,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_inFlight = Wire(init = false.B)
   val divSqrt_waddr = Reg(UInt(width = 5))
   val divSqrt_typeTag = Wire(UInt(width = log2Up(floatTypes.size)))
-  val divSqrt_wdata = Wire(UInt(width = fLen+1))
+  val divSqrt_wdata = Wire(UInt(width = cfg.fLen+1))
   val divSqrt_flags = Wire(UInt(width = FPConstants.FLAGS_SZ))
 
   // writeback arbitration
@@ -755,7 +778,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     Pipe(fpmu, fpmu.latency, (c: FPUCtrlSigs) => c.fastpipe, fpmu.io.out.bits),
     Pipe(ifpu, ifpu.latency, (c: FPUCtrlSigs) => c.fromint, ifpu.io.out.bits),
     Pipe(sfma, sfma.latency, (c: FPUCtrlSigs) => c.fma && c.singleOut, sfma.io.out.bits)) ++
-    (fLen > 32).option({
+    (cfg.fLen > 32).option({
           val dfma = Module(new FPUFMAPipe(cfg.dfmaLatency, FType.D))
           dfma.io.in.valid := req_valid && ex_ctrl.fma && !ex_ctrl.singleOut
           dfma.io.in.bits := fuInput(Some(dfma.t))
@@ -813,10 +836,10 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     }
   }
   when (wbInfo(0).cp && wen(0)) {
-    io.cp_resp.bits.data := wdata
-    io.cp_resp.valid := Bool(true)
+    rocc.cp_resp.bits.data := wdata
+    rocc.cp_resp.valid := Bool(true)
   }
-  io.cp_req.ready := !ex_reg_valid
+  rocc.cp_req.ready := !ex_reg_valid
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
@@ -873,7 +896,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   def fuInput(minT: Option[FType]): FPInput = {
-    val req = Wire(new FPInput)
+    val req = Wire(new FPInput(cfg.fLen))
     val tag = !ex_ctrl.singleIn // TODO typeTag
     req := ex_ctrl
     req.rm := ex_rm
@@ -883,10 +906,10 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     req.typ := ex_reg_inst(21,20)
     req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
     when (ex_cp_valid) {
-      req := io.cp_req.bits
-      when (io.cp_req.bits.swap23) {
-        req.in2 := io.cp_req.bits.in3
-        req.in3 := io.cp_req.bits.in2
+      req := rocc.cp_req.bits
+      when (rocc.cp_req.bits.swap23) {
+        req.in2 := rocc.cp_req.bits.in3
+        req.in3 := rocc.cp_req.bits.in2
       }
     }
     req

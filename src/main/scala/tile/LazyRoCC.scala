@@ -10,7 +10,7 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.InOrderArbiter
+import freechips.rocketchip.rocket.fpucp._
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 
@@ -48,8 +48,8 @@ class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p) {
   val ptw = Vec(nPTWPorts, new TLBPTWIO)
-  val fpu_req = Decoupled(new FPInput)
-  val fpu_resp = Decoupled(new FPResult).flip
+  //val fpu_req = Decoupled(new FPInput)
+  //val fpu_resp = Decoupled(new FPResult).flip
 }
 
 /** Base classes for Diplomatic TL2 RoCC units **/
@@ -61,6 +61,7 @@ abstract class LazyRoCC(
   val module: LazyRoCCModuleImp
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
+  val FPUCPNode : Option[FPUCPSourceNode] = (if (usesFPU) Some(FPUCPSourceNode()) else None)
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
@@ -69,18 +70,24 @@ class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
 
 /** Mixins for including RoCC **/
 
-trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
+trait HasLazyRoCC extends CanHavePTW 
+  { this: RocketTile =>
   val roccs = p(BuildRoCC).map(_(p))
 
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
+  roccs.map(_.FPUCPNode).foreach { _.foreach { namespace => FPUCPXbar.node := namespace }}
+  fpuOpt foreach 
+  { fpu =>
+    fpu.node := 
+      FPUCPXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
   nDCachePorts += roccs.size
 }
 
 trait HasLazyRoCCModule extends CanHavePTWModule
-    with HasCoreParameters { this: RocketTileModuleImp with HasFpuOpt =>
+    with HasCoreParameters { this: RocketTileModuleImp /*with HasFpuOpt*/ =>
 
   val (respArb, cmdRouter) = if(outer.roccs.size > 0) {
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
@@ -92,23 +99,6 @@ trait HasLazyRoCCModule extends CanHavePTWModule
       dcIF.io.requestor <> rocc.module.io.mem
       dcachePorts += dcIF.io.cache
       respArb.io.in(i) <> Queue(rocc.module.io.resp)
-    }
-
-    fpuOpt foreach { fpu =>
-      val nFPUPorts = outer.roccs.filter(_.usesFPU).size
-      if (usingFPU && nFPUPorts > 0) {
-        val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
-        val fp_rocc_ios = outer.roccs.filter(_.usesFPU).map(_.module.io)
-        fpArb.io.in_req <> fp_rocc_ios.map(_.fpu_req)
-        fp_rocc_ios.zip(fpArb.io.in_resp).foreach {
-          case (rocc, arb) => rocc.fpu_resp <> arb
-        }
-        fpu.io.cp_req <> fpArb.io.out_req
-        fpArb.io.out_resp <> fpu.io.cp_resp
-      } else {
-        fpu.io.cp_req.valid := Bool(false)
-        fpu.io.cp_resp.ready := Bool(false)
-      }
     }
     (Some(respArb), Some(cmdRouter))
   } else {

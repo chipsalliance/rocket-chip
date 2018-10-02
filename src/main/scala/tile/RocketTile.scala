@@ -11,6 +11,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
+import freechips.rocketchip.rocket.fpucp._
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -34,6 +35,7 @@ class RocketTile(
     crossing: ClockCrossingType)
   (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
     with HasExternalInterrupts
+    with HasFpuOpt //the fpu is now part of the RocketTile instead of BaseTile
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasHellaCache
     with HasICacheFrontend {
@@ -41,6 +43,7 @@ class RocketTile(
   val intOutwardNode = IntIdentityNode()
   val slaveNode = TLIdentityNode()
   val masterNode = TLIdentityNode()
+  //TODO
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
@@ -107,7 +110,7 @@ class RocketTile(
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
-    with HasFpuOpt
+    //with HasFpuOpt
     with HasLazyRoCCModule
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
@@ -132,7 +135,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.frontend.module.io.hartid := constants.hartid
   outer.dcache.module.io.hartid := constants.hartid
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
+  outer.fpuOpt foreach { fpu => core.io.fpu <> fpu.module.io }
   core.io.ptw <> ptw.io.dpath
 
   if (outer.roccs.size > 0) {
@@ -164,6 +167,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   ptw.io.requestor <> ptwPorts
 }
 
-trait HasFpuOpt { this: RocketTileModuleImp =>
-  val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
+trait HasFpuOpt { this: RocketTile =>
+  val fpuOpt: Option[LazyFPU] = tileParams.core.fpu.map(params => LazyModule(new LazyFPU(params)(p)))
 }

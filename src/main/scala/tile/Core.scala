@@ -47,7 +47,7 @@ trait CoreParams {
 trait HasCoreParameters extends HasTileParameters {
   val coreParams: CoreParams = tileParams.core
 
-  val fLen = coreParams.fpu.map(_.fLen).getOrElse(0)
+  def fLen = coreParams.fpu.map(_.fLen).getOrElse(0)
 
   val usingMulDiv = coreParams.mulDiv.nonEmpty
   val usingFPU = coreParams.fpu.nonEmpty
