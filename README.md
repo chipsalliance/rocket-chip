@@ -475,7 +475,7 @@ By default the emulator is generated under the name `emulator-freechips.rocketch
 
 ### 2) Compiling and executing a custom program using the emulator
 
-We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests).
+We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests). Note that `test.ld` loads the program at 0x80000000 so you will need to use `-mcmodel=medany` otherwise you will get relocation errors. See [All Aboard, Part 4: The RISC-V Code Models](https://www.sifive.com/blog/2017/09/11/all-aboard-part-4-risc-v-code-models/) for more details.
 
 In our case we will use the following example:
 
