@@ -87,6 +87,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     with HasCoreIO {
 
   val clock_en_reg = RegInit(true.B)
+  val long_latency_stall = Reg(Bool())
   val imem_might_request_reg = Reg(Bool())
   val clock_en = Wire(init=true.B)
   val gated_clock =
@@ -671,8 +672,12 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
     checkHazards(fp_hazard_targets, fp_sboard.read _)
   } else Bool(false)
 
-  val dcache_blocked = Reg(Bool())
-  dcache_blocked := !io.dmem.req.ready && io.dmem.clock_enabled && (io.dmem.req.valid || dcache_blocked)
+  val dcache_blocked = {
+    // speculate that a blocked D$ will unblock the cycle after a Grant
+    val blocked = Reg(Bool())
+    blocked := !io.dmem.req.ready && io.dmem.clock_enabled && !io.dmem.perf.grant && (blocked || io.dmem.req.valid || io.dmem.s2_nack)
+    blocked && !io.dmem.perf.grant
+  }
   val rocc_blocked = Reg(Bool())
   rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
 
@@ -762,14 +767,15 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
 
   // gate the clock
   if (rocketParams.clockGate) {
-    clock_en := clock_en_reg || (!csr.io.csr_stall && io.imem.resp.valid)
+    long_latency_stall := csr.io.csr_stall || io.dmem.perf.blocked
+    clock_en := clock_en_reg || (!long_latency_stall && io.imem.resp.valid)
     clock_en_reg :=
       ex_pc_valid || mem_pc_valid || wb_pc_valid || // instruction in flight
       io.ptw.customCSRs.disableCoreClockGate || // chicken bit
       !div.io.req.ready || // mul/div in flight
       usingFPU && !io.fpu.fcsr_rdy || // long-latency FPU in flight
       io.dmem.replay_next || // long-latency load replaying
-      (!csr.io.csr_stall && (ibuf.io.inst(0).valid || io.imem.resp.valid)) // instruction pending
+      (!long_latency_stall && (ibuf.io.inst(0).valid || io.imem.resp.valid)) // instruction pending
   }
 
   // evaluate performance counters

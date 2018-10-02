@@ -828,6 +828,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.grant := d_done
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  io.cpu.perf.blocked := {
+    // stop reporting blocked just before unblocking to avoid overly conservative stalling
+    val cycles = outer.bufferUncachedRequests.map(n => if (n > 1) 1 else 2).getOrElse(2)
+    cached_grant_wait && d_address_inc < ((cacheBlockBytes - cycles * beatBytes) max 0)
+  }
 
   // report errors
   val (data_error, data_error_uncorrectable, data_error_addr) =
