@@ -46,6 +46,7 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),
       Module(new TLRAMZeroDelayTest(4,     txns=15*txns, timeout=timeout)),
+      Module(new TLRAMHintHandlerTest(     txns=15*txns, timeout=timeout)),
       Module(new TLFuzzRAMTest(            txns= 3*txns, timeout=timeout)),
       Module(new TLRR0Test(                txns= 3*txns, timeout=timeout)),
       Module(new TLRR1Test(                txns= 3*txns, timeout=timeout)),
