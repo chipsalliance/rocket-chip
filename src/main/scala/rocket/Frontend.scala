@@ -83,7 +83,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   val clock_en_reg = Reg(Bool())
   val clock_en = clock_en_reg || io.cpu.might_request
-  assert(!io.cpu.req.valid || io.cpu.might_request)
+  assert(!(io.cpu.req.valid || io.cpu.sfence.valid || io.cpu.flush_icache || io.cpu.bht_update.valid || io.cpu.btb_update.valid) || io.cpu.might_request)
   val gated_clock =
     if (!rocketParams.clockGate) clock
     else ClockGate(clock, clock_en, "icache_clock_gate")
@@ -137,7 +137,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   }
 
   io.ptw <> tlb.io.ptw
-  tlb.io.req.valid := !s2_replay
+  tlb.io.req.valid := s1_valid && !s2_replay
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
