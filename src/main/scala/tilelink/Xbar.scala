@@ -242,7 +242,7 @@ object TLXbar
     val filtered = Wire(Vec(select.size, input))
     for (i <- 0 until select.size) {
       filtered(i).bits := (if (force.lift(i).getOrElse(false)) IdentityModule(input.bits) else input.bits)
-      filtered(i).valid := input.valid && select(i)
+      filtered(i).valid := input.valid && (select(i) || Bool(select.size == 1))
     }
     input.ready := Mux1H(select, filtered.map(_.ready))
     filtered
