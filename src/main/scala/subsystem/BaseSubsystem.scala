@@ -48,7 +48,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   // The sbus masters the mbus; here we convert TL-C -> TL-UH
   private val mbusParams = p(MemoryBusKey)
   private val l2Params = p(BankedL2Key)
-  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes, _, _) = mbusParams
+  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes) = mbusParams
   val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
   val nBanks = l2Params.nBanks
   val cacheBlockBytes = memBusBlockBytes
@@ -61,13 +61,13 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   require (isPow2(nBanksPerChannel))
   require (isPow2(memBusBlockBytes))
 
+  private val mask = ~BigInt((nBanks-1) * memBusBlockBytes)
   val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
-    val mbus = LazyModule(new MemoryBus(mbusParams, channel, nMemoryChannels, nBanks)(p))
+    val mbus = LazyModule(new MemoryBus(mbusParams)(p))
     for (bank <- 0 until nBanksPerChannel) {
+      val offset = (bank * nMemoryChannels) + channel
       ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.coupleFrom(s"coherence_manager_bank_$bank") {
-        _ := TLFilter(TLFilter.mSelectIntersect(mbus.bankFilter(bank))) := out
-      }
+      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.mSelectIntersect(AddressSet(offset * memBusBlockBytes, mask))) } := out
     }
     mbus
   }
