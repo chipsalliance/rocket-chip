@@ -7,6 +7,7 @@ import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.Repeater
+import freechips.rocketchip.devices.tilelink.TLROM
 import scala.math.min
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
@@ -18,21 +19,36 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
         sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
     managerFn = { mp =>
       mp.copy(managers = mp.managers.map { m => m.copy(
-        supportsHint = if (m.supportsHint && passthrough) m.supportsHint else m.supportsPutPartial)})})
+        supportsHint =
+          if (m.supportsHint && passthrough) m.supportsHint
+          else if (m.supportsPutPartial) m.supportsPutPartial
+          else if (m.regionType != RegionType.GET_EFFECTS) m.supportsGet
+          else TransferSizes.none)})})
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
-      // Does the HintHandler help with this message?
-      val help = in.a.bits.opcode === TLMessages.Hint && (!passthrough.B ||
-        edgeOut.manager.fastProperty(in.a.bits.address, _.supportsHint.none, (b:Boolean) => b.B))
-      val mapPP = WireInit(help)
+      // Confirm we have added Hint support
+      edgeIn.manager.managers.foreach { m =>
+        require (m.supportsHint, s"No legal way to implement Hints for ${m.name}")
+      }
 
-      // To handle multi-beat Hints, we need to extend the Hint when creating a PutPartial
+      val isHint = in.a.bits.opcode === TLMessages.Hint
+      def usePP (m: TLManagerParameters) = !(passthrough && m.supportsHint) && m.supportsPutPartial
+      def useGet(m: TLManagerParameters) = !(passthrough && m.supportsHint) && !m.supportsPutPartial
+
+      // Does the HintHandler help using PutPartial with this message?
+      val helpPP = isHint && edgeOut.manager.fastProperty(in.a.bits.address, usePP, (b:Boolean) => b.B)
+      val mapPP = WireInit(helpPP)
+
+      // What about Get?
+      val mapGet = isHint && edgeOut.manager.fastProperty(in.a.bits.address, useGet, (b:Boolean) => b.B)
+
+      // To handle multi-beat Hints using PutPartial, we need to extend the Hint when transforming A
       // However, when used between a device (SRAM/RegisterRouter/etc) and a Fragmenter, this is not needed
-      val needRepeater = (edgeIn.manager.managers zip edgeOut.manager.managers) exists { case (in, out) =>
-        !(out.supportsHint && passthrough) && out.supportsPutPartial.max > edgeOut.manager.beatBytes
+      val needRepeater = edgeOut.manager.managers.exists { m =>
+        !(passthrough && m.supportsHint) && m.supportsPutPartial.max > edgeOut.manager.beatBytes
       }
 
       val a = if (!needRepeater) in.a else {
@@ -59,19 +75,34 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
         mux.valid := repeater.io.deq.valid
         repeater.io.deq.ready := mux.ready
 
-        mapPP := repeater.io.full || help
+        mapPP := repeater.io.full || helpPP
         mux
       }
 
       // Transform Hint to PutPartialData
-      out.a.bits.opcode := Mux(mapPP, TLMessages.PutPartialData, a.bits.opcode)
-      out.a.bits.param  := Mux(mapPP, 0.U, a.bits.param)
+      out.a.bits.opcode := Mux(mapPP, TLMessages.PutPartialData, Mux(mapGet, TLMessages.Get, a.bits.opcode))
+      out.a.bits.param  := Mux(mapPP | mapGet, 0.U, a.bits.param)
       out.a.bits.mask   := Mux(mapPP, 0.U, a.bits.mask)
-      out.a.bits.source := a.bits.source << 1 | mapPP
+      out.a.bits.source := a.bits.source << 1 | (mapPP|mapGet)
 
-      // Transform AccessAck to HintAck
+      // To handle multi-beat Hints using Get, we need to drop the AccessAckData when transforming D
+      val needsDrop = edgeOut.manager.managers.exists { m =>
+        !(passthrough && m.supportsHint) && !m.supportsPutPartial &&
+        m.supportsGet.max > edgeOut.manager.beatBytes
+      }
+
+      val transform = out.d.bits.source(0)
+      val drop = if (!needsDrop) false.B else {
+        // We don't need to care about if it was a Get or PP; last works for both
+        val last = edgeOut.last(out.d)
+        !last && transform
+      }
+
+      // Transform AccessAck[Data] to HintAck
       in.d.bits.source := out.d.bits.source >> 1
-      in.d.bits.opcode := Mux(out.d.bits.source(0), TLMessages.HintAck, out.d.bits.opcode)
+      in.d.bits.opcode := Mux(transform, TLMessages.HintAck, out.d.bits.opcode)
+      in.d.valid := out.d.valid && !drop
+      out.d.ready := in.d.ready ||  drop
 
       if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
         in.b.bits.source := out.b.bits.source >> 1
@@ -98,12 +129,29 @@ import freechips.rocketchip.unittest._
 class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("HintHandler"))
-  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
+  val ram1  = LazyModule(new TLRAM(AddressSet(0x0,   0x3ff)))
+  val ram2  = LazyModule(new TLRAM(AddressSet(0x400, 0x3ff)))
+  val rom   = LazyModule(new TLROM(0x800, 0x400, Seq.fill(128) { 0 }))
+  val xbar  = LazyModule(new TLXbar)
 
-  (ram.node
-    := TLFragmenter(4, 256)
+  (ram1.node
     := TLDelayer(0.1)
-    := TLHintHandler()
+    := TLHintHandler() // should have no state (not multi-beat)
+    := TLDelayer(0.1)
+    := TLHintHandler() // should have no logic
+    := TLDelayer(0.1)
+    := TLFragmenter(4, 64)
+    := xbar.node)
+  (ram2.node
+    := TLFragmenter(4, 64) // should cause HintHandler to use multi-beat Put
+    := TLDelayer(0.1)
+    := xbar.node)
+  (rom.node
+    := TLFragmenter(4, 64) // should cause HintHandler to use multi-beat Get
+    := xbar.node)
+  (xbar.node
+    := TLDelayer(0.1)
+    := TLHintHandler() // multi-beat with Get, PutPartial, and passthrough
     := TLDelayer(0.1)
     := model.node
     := fuzz.node)
