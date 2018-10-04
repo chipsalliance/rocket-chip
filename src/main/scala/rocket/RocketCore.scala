@@ -37,6 +37,7 @@ case class RocketCoreParams(
   branchPredictionModeCSR: Boolean = false,
   tileControlAddr: Option[BigInt] = None,
   clockGate: Boolean = false,
+  mvendorid: Int = 0, // 0 means non-commercial implementation
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {
@@ -77,6 +78,8 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   }
 
   def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
+
+  def mvendorid = CustomCSR.constant(CSRs.mvendorid, BigInt(rocketParams.mvendorid))
 
   override def decls = super.decls :+ marchid
 }
