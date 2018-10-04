@@ -82,10 +82,10 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       reg := next
 
       // hreadyout, but progresses hints during idle bus
-      val progress = Wire(Bool())
+      val a_flow = Wire(Bool())
 
       // Advance the FSM based on the result of this AHB beat
-      when (send.send && !progress) /* retry AHB */ {
+      when (send.send && !a_flow) /* retry AHB */ {
         step.full  := Bool(true)
         step.send  := Bool(true)
       } .elsewhen (send.full && !send.send) /* retry beat */ {
@@ -177,26 +177,28 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
       val d_valid   = RegInit(Bool(false))
       val d_denied  = Reg(Bool())
-      val d_hint    = RegEnable(send.hint,   progress)
-      val d_write   = RegEnable(send.write,  progress)
-      val d_source  = RegEnable(send.source, progress)
-      val d_size    = RegEnable(send.size,   progress)
+      val d_hint    = RegEnable(send.hint,   a_flow && send.send)
+      val d_write   = RegEnable(send.write,  a_flow && send.send)
+      val d_source  = RegEnable(send.source, a_flow && send.send)
+      val d_size    = RegEnable(send.size,   a_flow && send.send)
 
-      when (progress) {
+      when (out.hreadyout) {
         d_valid := send.send && (send.last || !send.write)
         when (out.hresp)  { d_denied := Bool(true) }
         when (send.first) { d_denied := Bool(false) }
+      } .elsewhen (d_hint) {
+        d_valid := Bool(false)
       }
 
-      d.valid := d_valid && progress
+      d.valid := d_valid && (out.hreadyout || d_hint)
       d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata)
       d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
       d.bits.denied  := (out.hresp || d_denied) && d_write && !d_hint
       d.bits.corrupt := out.hresp && !d_write && !d_hint
 
       // If the only operations in the pipe are Hints, don't stall based on hreadyout
-      val skip = Bool(supportHints) && (!send.send || send.hint) && (!d_valid || d_hint)
-      progress := out.hreadyout || skip
+      val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)
+      a_flow := out.hreadyout || skip
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)
