@@ -81,7 +81,11 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
 
   def mvendorid = CustomCSR.constant(CSRs.mvendorid, BigInt(rocketParams.mvendorid))
 
-  override def decls = super.decls :+ marchid
+  // mimpid encodes a release version in the form of a BCD-encoded datestamp.
+  // Past releases: <none>
+  def mimpid = CustomCSR.constant(CSRs.mimpid, BigInt(0x20181004))
+
+  override def decls = super.decls :+ marchid :+ mvendorid :+ mimpid
 }
 
 @chiselName
