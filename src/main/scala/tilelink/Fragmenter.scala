@@ -34,9 +34,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   val toggleBits = 1
   val addedBits = fragmentBits + toggleBits + fullBits
 
-  def expandTransfer(x: TransferSizes, op: String) = if (!x) x else {
+  def expandTransfer(x: TransferSizes) = if (!x) x else {
     // validate that we can apply the fragmenter correctly
-    require (x.max >= minSize, s"TLFragmenter (with parent $parent) max transfer size $op(${x.max}) must be >= min transfer size (${minSize})")
+    require (x.max >= minSize, s"max transfer size (${x.max}) must be >= min transfer size (${minSize})")
     TransferSizes(x.min, maxSize)
   }
   def shrinkTransfer(x: TransferSizes) =
@@ -46,10 +46,10 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   def mapManager(m: TLManagerParameters) = m.copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = shrinkTransfer(m.supportsLogical),
-    supportsGet        = expandTransfer(m.supportsGet, "Get"),
-    supportsPutFull    = expandTransfer(m.supportsPutFull, "PutFull"),
-    supportsPutPartial = expandTransfer(m.supportsPutPartial, "PutParital"),
-    supportsHint       = expandTransfer(m.supportsHint, "Hint"))
+    supportsGet        = expandTransfer(m.supportsGet),
+    supportsPutFull    = expandTransfer(m.supportsPutFull),
+    supportsPutPartial = expandTransfer(m.supportsPutPartial),
+    supportsHint       = expandTransfer(m.supportsHint))
 
   val node = TLAdapterNode(
     // We require that all the responses are mutually FIFO
@@ -70,11 +70,11 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
       require (!manager.anySupportAcquireB)
 
-      require (minSize >= beatBytes, s"TLFragmenter (with parent $parent) can't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
+      require (minSize >= beatBytes, s"We don't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
       // We can't support devices which are cached on both sides of us
       require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)
       // We can't support denied because we reassemble fragments
-      require (!edgeOut.manager.mayDenyGet || holdFirstDeny, s"TLFragmenter (with parent $parent) can't support denials without holdFirstDeny=true")
+      require (!edgeOut.manager.mayDenyGet || holdFirstDeny)
       require (!edgeOut.manager.mayDenyPut || earlyAck == EarlyAck.None)
 
       /* The Fragmenter is a bit tricky, because there are 5 sizes in play:

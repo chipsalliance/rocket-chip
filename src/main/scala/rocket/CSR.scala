@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import chisel3.experimental._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -181,6 +182,7 @@ class CSRDecodeIO extends Bundle {
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
+  val ungated_clock = Clock().asInput
   val interrupts = new CoreInterrupts().asInput
   val hartid = UInt(INPUT, hartIdLen)
   val rw = new Bundle {
@@ -309,13 +311,13 @@ class CSRFile(
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
   val reg_sptbr = Reg(new PTBR)
-  val reg_wfi = Reg(init=Bool(false))
+  val reg_wfi = withClock(io.ungated_clock) { Reg(init=Bool(false)) }
 
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
   val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
+  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !reg_wfi) }
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
   (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
   val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
@@ -552,7 +554,7 @@ class CSRFile(
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
-  when (pending_interrupts.orR || exception || io.interrupts.debug) { reg_wfi := false }
+  when (pending_interrupts.orR || io.interrupts.debug || exception) { reg_wfi := false }
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }

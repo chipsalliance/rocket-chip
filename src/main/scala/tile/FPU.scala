@@ -12,6 +12,7 @@ import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental._
 
 case class FPUParams(
   fLen: Int = 64,
@@ -157,6 +158,8 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val sboard_set = Bool(OUTPUT)
   val sboard_clr = Bool(OUTPUT)
   val sboard_clra = UInt(OUTPUT, 5)
+
+  val keep_clock_enabled = Bool(INPUT)
 }
 
 class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
@@ -654,12 +657,32 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   io.out := Pipe(fma.io.validout, res, (latency-3) max 0)
 }
 
+@chiselName
 class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val io = new FPUIO
 
+  val useClockGating = coreParams match {
+    case r: RocketCoreParams => r.clockGate
+    case _ => false
+  }
+  val clock_en_reg = Reg(Bool())
+  val clock_en = clock_en_reg || io.cp_req.valid
+  val gated_clock =
+    if (!useClockGating) clock
+    else ClockGate(clock, clock_en, "fpu_clock_gate")
+
+  val fp_decoder = Module(new FPUDecoder)
+  fp_decoder.io.inst := io.inst
+  val id_ctrl = fp_decoder.io.sigs
+
   val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
-  val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_reg_inst = RegEnable(io.inst, io.valid)
+  val ex_reg_ctrl = RegEnable(id_ctrl, io.valid)
+  val ex_ra = List.fill(3)(Reg(UInt()))
+
+  withClock (gated_clock) { // entering gated-clock domain
+
+  val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_cp_valid = io.cp_req.fire()
   val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
   val wb_cp_valid = Reg(next=mem_cp_valid, init=Bool(false))
@@ -673,16 +696,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
   val wb_reg_valid = Reg(next=mem_reg_valid && (!killm || mem_cp_valid), init=Bool(false))
 
-  val fp_decoder = Module(new FPUDecoder)
-  fp_decoder.io.inst := io.inst
-
   val cp_ctrl = Wire(new FPUCtrlSigs)
   cp_ctrl <> io.cp_req.bits
   io.cp_resp.valid := Bool(false)
   io.cp_resp.bits.data := UInt(0)
 
-  val id_ctrl = fp_decoder.io.sigs
-  val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, RegEnable(id_ctrl, io.valid))
+  val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, ex_reg_ctrl)
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
@@ -702,7 +721,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
       printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
   }
 
-  val ex_ra = List.fill(3)(Reg(UInt()))
   val ex_rs = ex_ra.map(a => regfile(a))
   when (io.valid) {
     when (id_ctrl.ren1) {
@@ -717,6 +735,26 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     when (id_ctrl.ren3) { ex_ra(2) := io.inst(31,27) }
   }
   val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.fcsr_rm, ex_reg_inst(14,12))
+
+  def fuInput(minT: Option[FType]): FPInput = {
+    val req = Wire(new FPInput)
+    val tag = !ex_ctrl.singleIn // TODO typeTag
+    req := ex_ctrl
+    req.rm := ex_rm
+    req.in1 := unbox(ex_rs(0), tag, minT)
+    req.in2 := unbox(ex_rs(1), tag, minT)
+    req.in3 := unbox(ex_rs(2), tag, minT)
+    req.typ := ex_reg_inst(21,20)
+    req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
+    when (ex_cp_valid) {
+      req := io.cp_req.bits
+      when (io.cp_req.bits.swap23) {
+        req.in2 := io.cp_req.bits.in3
+        req.in3 := io.cp_req.bits.in2
+      }
+    }
+    req
+  }
 
   val sfma = Module(new FPUFMAPipe(cfg.sfmaLatency, FType.S))
   sfma.io.in.valid := req_valid && ex_ctrl.fma && ex_ctrl.singleOut
@@ -872,25 +910,17 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     when (id_ctrl.div || id_ctrl.sqrt) { io.illegal_rm := true }
   }
 
-  def fuInput(minT: Option[FType]): FPInput = {
-    val req = Wire(new FPInput)
-    val tag = !ex_ctrl.singleIn // TODO typeTag
-    req := ex_ctrl
-    req.rm := ex_rm
-    req.in1 := unbox(ex_rs(0), tag, minT)
-    req.in2 := unbox(ex_rs(1), tag, minT)
-    req.in3 := unbox(ex_rs(2), tag, minT)
-    req.typ := ex_reg_inst(21,20)
-    req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
-    when (ex_cp_valid) {
-      req := io.cp_req.bits
-      when (io.cp_req.bits.swap23) {
-        req.in2 := io.cp_req.bits.in3
-        req.in3 := io.cp_req.bits.in2
-      }
-    }
-    req
-  }
+  // gate the clock
+  clock_en_reg :=
+    io.keep_clock_enabled || // chicken bit
+    io.valid || // ID stage
+    req_valid || // EX stage
+    mem_reg_valid || mem_cp_valid || // MEM stage
+    wb_reg_valid || wb_cp_valid || // WB stage
+    wen.orR || divSqrt_inFlight || // post-WB stage
+    io.dmem_resp_val // load writeback
+
+  } // leaving gated-clock domain
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"FPU_$label", "Core;;" + desc)

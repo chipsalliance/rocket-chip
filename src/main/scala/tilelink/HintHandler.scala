@@ -2,111 +2,88 @@
 
 package freechips.rocketchip.tilelink
 
-import chisel3._
-import chisel3.util._
+import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.Repeater
-import freechips.rocketchip.devices.tilelink.TLROM
 import scala.math.min
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
-class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule
+class TLHintHandler(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn = { cp =>
-      cp.copy(clients = cp.clients.map { c => c.copy(
-        sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
-    managerFn = { mp =>
-      mp.copy(managers = mp.managers.map { m => m.copy(
-        supportsHint =
-          if (m.supportsHint && passthrough) m.supportsHint
-          else if (m.supportsPutPartial) m.supportsPutPartial
-          else if (m.regionType != RegionType.GET_EFFECTS) m.supportsGet
-          else TransferSizes.none)})})
+    clientFn  = { c => if (!supportClients)  c else c.copy(minLatency = min(1, c.minLatency), clients  = c.clients .map(_.copy(supportsHint = TransferSizes(1, c.maxTransfer)))) },
+    managerFn = { m => if (!supportManagers) m else m.copy(minLatency = min(1, m.minLatency), managers = m.managers.map(_.copy(supportsHint = TransferSizes(1, m.maxTransfer)))) })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out <> in
+      // Don't add support for clients if there is no BCE channel
+      val bce = edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
+      require (!supportClients || bce)
 
-      // Confirm we have added Hint support
-      edgeIn.manager.managers.foreach { m =>
-        require (m.supportsHint, s"No legal way to implement Hints for ${m.name}")
+      // Does it even make sense to add the HintHandler?
+      val smartClients = edgeIn.client.clients.map(_.supportsHint.max == edgeIn.client.maxTransfer).reduce(_&&_)
+      val smartManagers = edgeOut.manager.managers.map(_.supportsHint.max == edgeOut.manager.maxTransfer).reduce(_&&_)
+
+      if (supportManagers && !(passthrough && smartManagers)) {
+        val address = edgeIn.address(in.a.bits)
+        val handleA = if (passthrough) !edgeOut.manager.supportsHintFast(address, edgeIn.size(in.a.bits)) else Bool(true)
+        val hintBitsAtA = handleA && in.a.bits.opcode === TLMessages.Hint
+        val hint = Wire(out.d)
+
+        hint.valid  := in.a.valid &&  hintBitsAtA
+        out.a.valid := in.a.valid && !hintBitsAtA
+        in.a.ready := Mux(hintBitsAtA, hint.ready, out.a.ready)
+
+        hint.bits := edgeIn.HintAck(in.a.bits)
+        out.a.bits := in.a.bits
+
+        TLArbiter(TLArbiter.lowestIndexFirst)(in.d, (edgeOut.numBeats1(out.d.bits), out.d), (UInt(0), Queue(hint, 1)))
+      } else {
+        out.a.valid := in.a.valid
+        in.a.ready := out.a.ready
+        out.a.bits := in.a.bits
+
+        in.d.valid := out.d.valid
+        out.d.ready := in.d.ready
+        in.d.bits := out.d.bits
       }
 
-      val isHint = in.a.bits.opcode === TLMessages.Hint
-      def usePP (m: TLManagerParameters) = !(passthrough && m.supportsHint) && m.supportsPutPartial
-      def useGet(m: TLManagerParameters) = !(passthrough && m.supportsHint) && !m.supportsPutPartial
+      if (supportClients && !(passthrough && smartClients)) {
+        val handleB = if (passthrough) !edgeIn.client.supportsHint(out.b.bits.source, edgeOut.size(out.b.bits)) else Bool(true)
+        val hintBitsAtB = handleB && out.b.bits.opcode === TLMessages.Hint
+        val hint = Wire(in.c)
 
-      // Does the HintHandler help using PutPartial with this message?
-      val helpPP = isHint && edgeOut.manager.fastProperty(in.a.bits.address, usePP, (b:Boolean) => b.B)
-      val mapPP = WireInit(helpPP)
+        hint.valid := out.b.valid &&  hintBitsAtB
+        in.b.valid := out.b.valid && !hintBitsAtB
+        out.b.ready := Mux(hintBitsAtB, hint.ready, in.b.ready)
 
-      // What about Get?
-      val mapGet = isHint && edgeOut.manager.fastProperty(in.a.bits.address, useGet, (b:Boolean) => b.B)
+        hint.bits := edgeOut.HintAck(out.b.bits)
+        in.b.bits := out.b.bits
 
-      // To handle multi-beat Hints using PutPartial, we need to extend the Hint when transforming A
-      // However, when used between a device (SRAM/RegisterRouter/etc) and a Fragmenter, this is not needed
-      val needRepeater = edgeOut.manager.managers.exists { m =>
-        !(passthrough && m.supportsHint) && m.supportsPutPartial.max > edgeOut.manager.beatBytes
+        TLArbiter(TLArbiter.lowestIndexFirst)(out.c, (edgeIn.numBeats1(in.c.bits), in.c), (UInt(0), Queue(hint, 1)))
+      } else if (bce) {
+        in.b.valid := out.b.valid
+        out.b.ready := in.b.ready
+        in.b.bits := out.b.bits
+
+        out.c.valid := in.c.valid
+        in.c.ready := out.c.ready
+        out.c.bits := in.c.bits
+      } else {
+        in.b.valid := Bool(false)
+        in.c.ready := Bool(true)
+        out.b.ready := Bool(true)
+        out.c.valid := Bool(false)
       }
 
-      val a = if (!needRepeater) in.a else {
-        val repeater = Module(new Repeater(in.a.bits))
-        val mux = Wire(chiselTypeOf(in.a))
-
-        repeater.io.repeat := mapPP && !edgeIn.last(out.a)
-        repeater.io.enq <> in.a
-        // Work-around broken chisel3 <>
-        out.a.bits := mux.bits
-        out.a.valid := mux.valid
-        mux.ready := out.a.ready
-
-        // Only some signals need to be repeated
-        mux.bits.opcode  := in.a.bits.opcode  // ignored when full
-        mux.bits.param   := in.a.bits.param   // ignored when full
-        mux.bits.size    := repeater.io.deq.bits.size
-        mux.bits.source  := repeater.io.deq.bits.source
-        mux.bits.address := repeater.io.deq.bits.address
-        mux.bits.data    := in.a.bits.data    // irrelevant when full (mask = 0)
-        mux.bits.mask    := in.a.bits.mask    // ignored when full
-        mux.bits.corrupt := in.a.bits.corrupt // irrelevant when full (mask = 0)
-
-        mux.valid := repeater.io.deq.valid
-        repeater.io.deq.ready := mux.ready
-
-        mapPP := repeater.io.full || helpPP
-        mux
-      }
-
-      // Transform Hint to PutPartialData
-      out.a.bits.opcode := Mux(mapPP, TLMessages.PutPartialData, Mux(mapGet, TLMessages.Get, a.bits.opcode))
-      out.a.bits.param  := Mux(mapPP | mapGet, 0.U, a.bits.param)
-      out.a.bits.mask   := Mux(mapPP, 0.U, a.bits.mask)
-      out.a.bits.source := a.bits.source << 1 | (mapPP|mapGet)
-
-      // To handle multi-beat Hints using Get, we need to drop the AccessAckData when transforming D
-      val needsDrop = edgeOut.manager.managers.exists { m =>
-        !(passthrough && m.supportsHint) && !m.supportsPutPartial &&
-        m.supportsGet.max > edgeOut.manager.beatBytes
-      }
-
-      val transform = out.d.bits.source(0)
-      val drop = if (!needsDrop) false.B else {
-        // We don't need to care about if it was a Get or PP; last works for both
-        val last = edgeOut.last(out.d)
-        !last && transform
-      }
-
-      // Transform AccessAck[Data] to HintAck
-      in.d.bits.source := out.d.bits.source >> 1
-      in.d.bits.opcode := Mux(transform, TLMessages.HintAck, out.d.bits.opcode)
-      in.d.valid := out.d.valid && !drop
-      out.d.ready := in.d.ready ||  drop
-
-      if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
-        in.b.bits.source := out.b.bits.source >> 1
-        out.c.bits.source := in.c.bits.source << 1
+      if (bce) {
+        // Pass E through unchanged
+        out.e.valid := in.e.valid
+        in.e.ready := out.e.ready
+        out.e.bits := in.e.bits
+      } else {
+        in.e.ready := Bool(true)
+        out.e.valid := Bool(false)
       }
     }
   }
@@ -114,9 +91,9 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
 
 object TLHintHandler
 {
-  def apply(passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+  def apply(supportManagers: Boolean = true, supportClients: Boolean = false, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
   {
-    val hints = LazyModule(new TLHintHandler(passthrough))
+    val hints = LazyModule(new TLHintHandler(supportManagers, supportClients, passthrough))
     hints.node
   }
 }
@@ -129,29 +106,12 @@ import freechips.rocketchip.unittest._
 class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("HintHandler"))
-  val ram1  = LazyModule(new TLRAM(AddressSet(0x0,   0x3ff)))
-  val ram2  = LazyModule(new TLRAM(AddressSet(0x400, 0x3ff)))
-  val rom   = LazyModule(new TLROM(0x800, 0x400, Seq.fill(128) { 0 }))
-  val xbar  = LazyModule(new TLXbar)
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff)))
 
-  (ram1.node
+  (ram.node
+    := TLFragmenter(4, 256)
     := TLDelayer(0.1)
-    := TLHintHandler() // should have no state (not multi-beat)
-    := TLDelayer(0.1)
-    := TLHintHandler() // should have no logic
-    := TLDelayer(0.1)
-    := TLFragmenter(4, 64)
-    := xbar.node)
-  (ram2.node
-    := TLFragmenter(4, 64) // should cause HintHandler to use multi-beat Put
-    := TLDelayer(0.1)
-    := xbar.node)
-  (rom.node
-    := TLFragmenter(4, 64) // should cause HintHandler to use multi-beat Get
-    := xbar.node)
-  (xbar.node
-    := TLDelayer(0.1)
-    := TLHintHandler() // multi-beat with Get, PutPartial, and passthrough
+    := TLHintHandler()
     := TLDelayer(0.1)
     := model.node
     := fuzz.node)
@@ -163,5 +123,5 @@ class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
 
 class TLRAMHintHandlerTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new TLRAMHintHandler(txns)).module)
-  io <> dut.io
+  io.finished := dut.io.finished
 }

@@ -21,7 +21,7 @@ object CLINTConsts
   def timecmpBytes = 8
   def size = 0x10000
   def timeWidth = 64
-  def ipiWidth = 1
+  def ipiWidth = 32
   def ints = 2
 }
 
@@ -83,8 +83,8 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
      */
 
     node.regmap(
-      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.map{ case (r, i) =>
-        RegField(ipiWidth, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0)))}),
+      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.flatMap{ case (r, i) =>
+        RegField(1, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0))) :: RegField(ipiWidth - 1) :: Nil }),
       timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) => RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"),
           RegField.bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset=None))))},
       timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"),

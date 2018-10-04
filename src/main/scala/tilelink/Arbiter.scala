@@ -42,8 +42,6 @@ object TLArbiter
   def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*) {
     if (sources.isEmpty) {
       sink.valid := Bool(false)
-    } else if (sources.size == 1) {
-      sink <> sources.head._2
     } else {
       val pairs = sources.toList
       val beatsIn = pairs.map(_._1)
@@ -79,10 +77,15 @@ object TLArbiter
       val muxState = Mux(idle, winner, state)
       state := muxState
 
-      val allowed = Mux(idle, readys, state)
-      (sourcesIn zip allowed) foreach { case (s, r) =>
-        s.ready := sink.ready && r
+      if (sources.size > 1) {
+        val allowed = Mux(idle, readys, state)
+        (sourcesIn zip allowed) foreach { case (s, r) =>
+          s.ready := sink.ready && r
+        }
+      } else {
+        sourcesIn(0).ready := sink.ready
       }
+
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
       sink.bits := Mux1H(muxState, sourcesIn.map(_.bits))
     }

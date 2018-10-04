@@ -159,8 +159,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
 
   // I/O MSHRs
-  val uncachedInFlight = Seq.fill(maxUncachedInFlight) { RegInit(Bool(false)) }
-  val uncachedReqs = Seq.fill(maxUncachedInFlight) { Reg(new HellaCacheReq) }
+  val uncachedInFlight = RegInit(Vec.fill(maxUncachedInFlight)(false.B))
+  val uncachedReqs = Reg(Vec(maxUncachedInFlight, new HellaCacheReq))
 
   // hit initiation path
   val s0_read = isRead(io.cpu.req.bits.cmd)
@@ -828,6 +828,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.grant := d_done
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  io.cpu.perf.blocked := {
+    // stop reporting blocked just before unblocking to avoid overly conservative stalling
+    val cycles = outer.bufferUncachedRequests.map(n => if (n > 1) 1 else 2).getOrElse(2)
+    cached_grant_wait && d_address_inc < ((cacheBlockBytes - cycles * beatBytes) max 0)
+  }
 
   // report errors
   val (data_error, data_error_uncorrectable, data_error_addr) =
