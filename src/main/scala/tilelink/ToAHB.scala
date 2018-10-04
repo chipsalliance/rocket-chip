@@ -10,7 +10,7 @@ import freechips.rocketchip.util._
 import scala.math.{min, max}
 import AHBParameters._
 
-case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
+case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
   dFn = { case TLClientPortParameters(clients, minLatency) =>
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
     AHBMasterPortParameters(masters)
@@ -25,6 +25,10 @@ case class TLToAHBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
         nodePath           = s.nodePath,
         supportsGet        = s.supportsRead,
         supportsPutFull    = s.supportsWrite, // but not PutPartial
+        supportsHint       = if (!supportHints) TransferSizes.none else
+                             if (s.supportsRead) s.supportsRead    else
+                             if (s.supportsWrite) s.supportsWrite  else
+                             TransferSizes(1, beatBytes),
         fifoId             = Some(0),
         mayDenyPut         = true)
     }
@@ -37,6 +41,7 @@ class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params
   val send   = Bool() // => full+data
   val first  = Bool()
   val last   = Bool()
+  val hint   = Bool()
   val write  = Bool()
   val size   = UInt(width = params.bundle.sizeBits)
   val source = UInt(width = params.bundle.sourceBits)
@@ -48,9 +53,9 @@ class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
 // The output side always has a flow queue
-class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyModule
+class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLToAHBNode()
+  val node = TLToAHBNode(supportHints)
 
   lazy val module = new LazyModuleImp(this) {
    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -76,8 +81,11 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
       val next = Wire(init = step)
       reg := next
 
+      // hreadyout, but progresses hints during idle bus
+      val progress = Wire(Bool())
+
       // Advance the FSM based on the result of this AHB beat
-      when (send.send && !out.hreadyout) /* retry AHB */ {
+      when (send.send && !progress) /* retry AHB */ {
         step.full  := Bool(true)
         step.send  := Bool(true)
       } .elsewhen (send.full && !send.send) /* retry beat */ {
@@ -102,7 +110,8 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
       // Transform TL size into AHB hsize+hburst
       val a_sizeDelta = Cat(UInt(0, width = 1), in.a.bits.size) - UInt(lgBytes+1)
-      val a_singleBeat = Bool(lgBytes >= lgMax) || a_sizeDelta(edgeIn.bundle.sizeBits)
+      val a_hint = in.a.bits.opcode === TLMessages.Hint && Bool(supportHints)
+      val a_singleBeat = a_hint || Bool(lgBytes >= lgMax) || a_sizeDelta(edgeIn.bundle.sizeBits)
       val a_logBeats1 = a_sizeDelta(edgeIn.bundle.sizeBits-1, 0)
 
       // Pulse this every time we commit to sending an AHB request
@@ -124,9 +133,12 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
           post.full  := Bool(true)
           post.send  := Bool(true)
           post.last  := a_singleBeat
-          post.write := edgeIn.hasData(in.a.bits)
+          post.hint  := a_hint
           post.size  := in.a.bits.size
           post.source:= in.a.bits.source
+        }
+        when (in.a.fire() && !a_hint) {
+          post.write := edgeIn.hasData(in.a.bits)
           post.hsize := Mux(a_singleBeat, in.a.bits.size, UInt(lgBytes))
           post.hburst:= Mux(a_singleBeat, BURST_SINGLE, (a_logBeats1<<1) | UInt(1))
           post.addr  := in.a.bits.address
@@ -135,8 +147,10 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
       }
 
       out.hmastlock := Bool(false) // for now
-      out.htrans    := Mux(send.send, Mux(send.first, TRANS_NONSEQ, TRANS_SEQ), Mux(send.first, TRANS_IDLE, TRANS_BUSY))
-      out.hsel      := send.send || !send.first
+      out.htrans    := Mux(send.send && !send.hint,
+                         Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
+                         Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
+      out.hsel      := (send.send && !send.hint) || !send.first
       out.hready    := out.hreadyout
       out.hwrite    := send.write
       out.haddr     := send.addr
@@ -163,21 +177,26 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
       val d_valid   = RegInit(Bool(false))
       val d_denied  = Reg(Bool())
-      val d_write   = RegEnable(send.write,  out.hreadyout)
-      val d_source  = RegEnable(send.source, out.hreadyout)
-      val d_size    = RegEnable(send.size,   out.hreadyout)
+      val d_hint    = RegEnable(send.hint,   progress)
+      val d_write   = RegEnable(send.write,  progress)
+      val d_source  = RegEnable(send.source, progress)
+      val d_size    = RegEnable(send.size,   progress)
 
-      when (out.hreadyout) {
+      when (progress) {
         d_valid := send.send && (send.last || !send.write)
         when (out.hresp)  { d_denied := Bool(true) }
         when (send.first) { d_denied := Bool(false) }
       }
 
-      d.valid := d_valid && out.hreadyout
+      d.valid := d_valid && progress
       d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata)
-      d.bits.opcode := Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData)
-      d.bits.denied  := (out.hresp || d_denied) && d_write
-      d.bits.corrupt := out.hresp && !d_write
+      d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
+      d.bits.denied  := (out.hresp || d_denied) && d_write && !d_hint
+      d.bits.corrupt := out.hresp && !d_write && !d_hint
+
+      // If the only operations in the pipe are Hints, don't stall based on hreadyout
+      val skip = Bool(supportHints) && (!send.send || send.hint) && (!d_valid || d_hint)
+      progress := out.hreadyout || skip
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)
@@ -189,9 +208,9 @@ class TLToAHB(val aFlow: Boolean = false)(implicit p: Parameters) extends LazyMo
 
 object TLToAHB
 {
-  def apply(aFlow: Boolean = true)(implicit p: Parameters) =
+  def apply(aFlow: Boolean = true, supportHints: Boolean = true)(implicit p: Parameters) =
   {
-    val tl2ahb = LazyModule(new TLToAHB(aFlow))
+    val tl2ahb = LazyModule(new TLToAHB(aFlow, supportHints))
     tl2ahb.node
   }
 }
