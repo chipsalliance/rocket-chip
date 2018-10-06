@@ -61,7 +61,8 @@ class TLErrorEvaluator(test: RequestPattern, testOn: Boolean, testOff: Boolean, 
       val d_detect = (!d_first && r_detect) || (Bool(!deny) && out.d.bits.corrupt) || out.d.bits.denied
       when (out.d.fire()) { r_detect := d_detect }
 
-      assert (Bool(!testOn)  || !out.d.fire() || !d_last || !d_inject ||  d_detect, "Denied/Corrupt flag was not set!")
+      val d_hint = out.d.bits.opcode === TLMessages.HintAck // even illegal hints can succeed
+      assert (Bool(!testOn)  || !out.d.fire() || !d_last || !d_inject ||  d_detect || d_hint, "Denied/Corrupt flag was not set!")
       assert (Bool(!testOff) || !out.d.fire() || !d_last ||  d_inject || !d_detect, "Denied/Corrupt flag was set!")
     }
   }
