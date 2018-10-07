@@ -4,6 +4,7 @@ package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError, TLZero}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -13,7 +14,8 @@ case class SystemBusParams(
   blockBytes: Int,
   atomics: Option[BusAtomics] = Some(BusAtomics()),
   pbusBuffer: BufferParams = BufferParams.none,
-  policy: TLArbiter.Policy = TLArbiter.roundRobin) extends HasTLBusParams
+  policy: TLArbiter.Policy = TLArbiter.roundRobin,
+  errorDevice: Option[DevNullParams] = None) extends HasTLBusParams
 
 case object SystemBusKey extends Field[SystemBusParams]
 
@@ -34,6 +36,10 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
 
+  params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
+    val error = LazyModule(new TLError(params = dnp, beatBytes = params.beatBytes))
+    error.node := TLBuffer() := outwardNode
+  }}
   def busView = master_splitter.node.edges.in.head
 
   def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
