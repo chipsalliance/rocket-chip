@@ -49,3 +49,12 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
     sink
   }
 }
+
+// BundleBridgeIdentityNode can apply a tranform to the bundle being bridged
+class BundleBridgeIdentityNode[T <: Data](f: T => T = identity[T](_))(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()(valName) {
+  override protected[diplomacy] def instantiate() = {
+    val dangles = super.instantiate()
+    (out zip in) map { case ((o, _), (i, _)) => o <> f(i) }
+    dangles
+  }
+}
