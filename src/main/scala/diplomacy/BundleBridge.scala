@@ -42,7 +42,7 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
 
   private var doneSink = false
   def makeSink()(implicit p: Parameters) = {
-    require (!doneSink, "Can only call makeSink() once")
+    require (!doneSink, "Can only call makeSink() once; use a BundleBridgeBroadcast node")
     doneSink = true
     val sink = BundleBridgeSink[T]()
     sink := this
@@ -50,11 +50,38 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
   }
 }
 
-// BundleBridgeIdentityNode can apply a tranform to the bundle being bridged
-class BundleBridgeIdentityNode[T <: Data](f: T => T = identity[T](_))(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()(valName) {
+// BundleBridgeTransform can apply a transform to the bundle being bridged
+class BundleBridgeTransform[T <: Data](f: T => T = identity[T](_))(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()(valName) {
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
     (out zip in) map { case ((o, _), (i, _)) => o <> f(i) }
+    dangles
+  }
+}
+
+// BundleBridgeTap allows the bridged wire to be tapped
+class BundleBridgeTap[T <: Data]()(implicit valName: ValName) extends BundleBridgeTransform[T]()(valName) {
+  def bundle: T = out(0)._1
+}
+
+class BundleBridgeBroadcast[T <: Data](
+    inputRequiresOutput: Boolean = true,
+    outputRequiresInput: Boolean = true)(
+    implicit valName: ValName)
+  extends CustomNode(new BundleBridgeImp[T])
+{
+  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (!outputRequiresInput || oKnown == 0 || iStars + iKnown != 0, s"$name $location has $oKnown required outputs and no possible inputs")
+    require (!inputRequiresOutput || iKnown == 0 || oStars + oKnown != 0, s"$name $location has $iKnown required inputs and no possible outputs")
+    require (iKnown == 0 || iKnown == 1, s"$name $location must have 0 or 1 input")
+    if (iKnown == 0 && oKnown == 0) (0, 0) else (1, 1)
+  }
+  def mapParamsD(n: Int, p: Seq[BundleBridgeParams[T]]): Seq[BundleBridgeParams[T]] = { if (n > 0) { Seq.fill(n)(p.head) } else Nil }
+  def mapParamsU(n: Int, p: Seq[BundleBridgeNull]): Seq[BundleBridgeNull] = { if (n > 0) { Seq(BundleBridgeNull()) } else Nil }
+
+  override protected[diplomacy] def instantiate() = {
+    val dangles = super.instantiate()
+    out.map { case (o, _) => o := in.head._1 }
     dangles
   }
 }
