@@ -40,13 +40,21 @@ class ProbePicker(implicit p: Parameters) extends LazyModule
       out <> in
 
       // Based on address, adjust source to route to the correct bank
-      in.b.bits.source := Mux1H(
-        edgeOut.client.clients.map(_.sourceId contains out.b.bits.source),
-        edgeOut.client.clients.map { c =>
-          val banks = edgeIn.client.clients.filter(c.sourceId contains _.sourceId)
-          Mux1H(
-            banks.map(_.visibility.map(_ contains out.b.bits.address).reduce(_ || _)),
-            banks.map(_.sourceId.start.U)) })
+      if (edgeIn.client.clients.size != edgeOut.client.clients.size) {
+        in.b.bits.source := Mux1H(
+          edgeOut.client.clients.map(_.sourceId contains out.b.bits.source),
+          edgeOut.client.clients.map { c =>
+            val banks = edgeIn.client.clients.filter(c.sourceId contains _.sourceId)
+            if (banks.size == 1) {
+              out.b.bits.source // allow sharing the value between single-bank cases
+            } else {
+              Mux1H(
+                banks.map(_.visibility.map(_ contains out.b.bits.address).reduce(_ || _)),
+                banks.map(_.sourceId.start.U))
+            }
+          }
+        )
+      }
     }
   }
 }
