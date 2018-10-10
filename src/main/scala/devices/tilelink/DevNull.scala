@@ -33,7 +33,7 @@ abstract class DevNullDevice(params: DevNullParams, beatBytes: Int, device: Simp
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = params.address,
-      resources          = device.reg("mem"),
+      resources          = device.reg,
       regionType         = params.region,
       executable         = params.executable,
       supportsAcquireT   = if (params.acquire) xfer else TransferSizes.none,

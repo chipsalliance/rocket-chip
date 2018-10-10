@@ -150,6 +150,16 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
     }
   }
 
+  def subtract(x: AddressSet): Seq[AddressSet] = {
+    if (!overlaps(x)) {
+      Seq(this)
+    } else {
+      val new_inflex = ~x.mask & mask
+      val fracture = AddressSet.enumerateMask(new_inflex).flatMap(m => intersect(AddressSet(m, ~new_inflex)))
+      fracture.filter(!_.overlaps(x))
+    }
+  }
+
   // AddressSets have one natural Ordering (the containment order, if contiguous)
   def compare(x: AddressSet) = {
     val primary   = (this.base - x.base).signum // smallest address first
@@ -210,6 +220,24 @@ object AddressSet
     }}
     val out = (array zip filter) flatMap { case (a, f) => if (f) None else Some(a) }
     if (out.size != n) unify(out) else out.toList
+  }
+
+  def enumerateMask(mask: BigInt): Seq[BigInt] = {
+    def helper(id: BigInt): Seq[BigInt] =
+      if (id == mask) Seq(id) else id +: helper(((~mask | id) + 1) & mask)
+    helper(0)
+  }
+
+  def enumerateBits(mask: BigInt): Seq[BigInt] = {
+    def helper(x: BigInt): Seq[BigInt] = {
+      if (x == 0) {
+        Nil
+      } else {
+        val bit = x & (-x)
+        bit +: helper(x & ~bit)
+      }
+    }
+    helper(mask)
   }
 }
 

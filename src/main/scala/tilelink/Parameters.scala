@@ -70,7 +70,7 @@ case class TLManagerParameters(
       r = supportsAcquireB || supportsGet,
       w = supportsAcquireT || supportsPutFull,
       x = executable,
-      c = regionType >= RegionType.UNCACHED,
+      c = supportsAcquireB,
       a = supportsArithmetic && supportsLogical))
   }
 
@@ -94,7 +94,7 @@ case class TLManagerPortParameters(
   require (minLatency >= 0, "Minimum required latency cannot be negative")
 
   def requireFifo() = managers.foreach { m =>
-    require(m.fifoId == Some(0), s"${m.name} had fifoId ${m.fifoId}, which was not 0 (${managers.map(s => (s.name, s.fifoId))}) ")
+    require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
   }
 
   // Bounds on required sizes
