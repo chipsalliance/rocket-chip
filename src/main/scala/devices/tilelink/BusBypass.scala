@@ -23,7 +23,7 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implic
     })
   }))
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
-  protected val params = DevNullParams(everything, maxAtomic=16, maxTransfer=4096)
+  protected val params = DevNullParams(everything, maxAtomic=16, maxTransfer=4096, region=RegionType.TRACKED)
   protected val error = if (deadlock) LazyModule(new TLDeadlock(params, beatBytes))
                         else LazyModule(new TLError(params, beatBytes))
 
