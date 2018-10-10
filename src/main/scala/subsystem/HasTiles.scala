@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.TLDebugModule
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, CLINTConsts, TLPLIC}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, CLINTConsts, TLPLIC, PLICKey}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileKey, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
@@ -25,6 +25,10 @@ trait HasTiles { this: BaseSubsystem =>
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
   def sharedMemoryTLEdge = sbus.busView
+  val meipNode = p(PLICKey) match {
+    case Some(_) => None
+    case None    => Some(IntSourceNode(IntSourcePortSimple(num = 1, ports = 1, sources = 1)))
+  }
 
   private val lookupByHartId = new LookupByHartIdImpl {
     def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T =
@@ -83,10 +87,10 @@ trait HasTiles { this: BaseSubsystem =>
       clintOpt.map { _.intnode }
         .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
 
-    //    From PLIC: "meip" (TODO: should come from external source if no PLIC)
+    //    From PLIC: "meip"
     tile.crossIntIn() :=
       plicOpt .map { _.intnode }
-        .getOrElse { NullIntSource() }
+        .getOrElse { meipNode.get }
 
     //    From PLIC: "seip" (only if vm/supervisor mode is enabled)
     if (tile.tileParams.core.useVM) {
@@ -141,5 +145,7 @@ trait HasTilesModuleImp extends LazyModuleImp
     tile.constants.hartid := wire.hartid
     tile.constants.reset_vector := wire.reset_vector
   }
-}
 
+  val meip = if(outer.meipNode.isDefined) Some(IO(Bool(INPUT))) else None
+  meip.foreach { (outer.meipNode.get.out(0)._1)(0) := _ }
+}
