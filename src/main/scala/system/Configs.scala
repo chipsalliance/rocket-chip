@@ -31,13 +31,13 @@ class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
-  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
+  new WithNBanks(2) ++ new BaseConfig)
 
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new BaseConfig)
 
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
-  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
+  new WithNBanks(4) ++ new BaseConfig)
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 

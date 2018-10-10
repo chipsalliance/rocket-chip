@@ -21,8 +21,7 @@ case object BroadcastKey extends Field(BroadcastParams())
 
 /** L2 memory subsystem configuration */
 case class BankedL2Params(
-  nMemoryChannels:  Int = 1,
-  nBanksPerChannel: Int = 1,
+  nBanks: Int = 1,
   coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { subsystem =>
     implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
@@ -31,7 +30,6 @@ case class BankedL2Params(
     ww.node :*= bh.node
     (bh.node, ww.node, () => None)
   }) {
-  val nBanks = nMemoryChannels*nBanksPerChannel
 }
 
 case object BankedL2Key extends Field(BankedL2Params())
@@ -46,29 +44,24 @@ case class MemoryBusParams(
 case object MemoryBusKey extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
-class MemoryBus(params: MemoryBusParams, channel: Int, nChannels: Int, nBanks: Int)(implicit p: Parameters)
+class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "memory_bus")(p)
-    with CanAttachTLSlaves
-    with HasTLXbarPhy {
+    with CanAttachTLSlaves {
 
-  def channelFilter = AddressSet(
-    base = channel * params.blockBytes,
-    mask = ~BigInt((nChannels-1) * params.blockBytes))
-
-  def bankFilter(bank: Int) = AddressSet(
-    base = (bank * nChannels + channel) * params.blockBytes,
-    mask = ~BigInt((nBanks-1) * params.blockBytes))
+  private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
+  def inwardNode: TLInwardNode = xbar.node
+  def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
 
   params.zeroDevice.foreach { addr => LazyScope("wrapped_zero_device") {
     val zero = LazyModule(new TLZero(
-      address = addr.intersect(channelFilter).get,
+      address = addr,
       beatBytes = params.beatBytes))
     zero.node := TLFragmenter(params.beatBytes, params.blockBytes) := TLBuffer() := outwardNode
   }}
 
   params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
     val error = LazyModule(new TLError(
-      params = dnp.copy(address = dnp.address.map(_.intersect(channelFilter).get)),
+      params = dnp,
       beatBytes = params.beatBytes))
     error.node := TLBuffer() := outwardNode
   }}

@@ -54,10 +54,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   def fromMasterBus(name: String): (=> TLOutwardNode) => NoHandle =
     gen => from(s"bus_named_$name") { master_splitter.node :=* gen }
 
-  def toMemoryBus(gen: => TLInwardNode) {
-    to("mbus") { gen := outwardNode }
-  }
-
   def toSplitSlave[D,U,E,B <: Data]
       (name: Option[String] = None)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =

@@ -103,8 +103,8 @@ class With1TinyCore extends Config((site, here, up) => {
   ))
 })
 
-class WithNBanksPerMemChannel(n: Int) extends Config((site, here, up) => {
-  case BankedL2Key => up(BankedL2Key, site).copy(nBanksPerChannel = n)
+class WithNBanks(n: Int) extends Config((site, here, up) => {
+  case BankedL2Key => up(BankedL2Key, site).copy(nBanks = n)
 })
 
 class WithNTrackersPerBank(n: Int) extends Config((site, here, up) => {
@@ -282,11 +282,11 @@ class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
 })
 
 class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
-  case BankedL2Key => up(BankedL2Key, site).copy(nMemoryChannels = n)
+  case ExtMem => up(ExtMem, site).map(_.copy(nMemoryChannels = n))
 })
 
 class WithExtMemSize(n: Long) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).map(_.copy(size = n))
+  case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
 })
 
 class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
@@ -299,11 +299,11 @@ class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
 })
 
 class WithDefaultMemPort extends Config((site, here, up) => {
-  case ExtMem => Some(MasterPortParams(
+  case ExtMem => Some(MemoryPortParams(MasterPortParams(
                       base = x"8000_0000",
                       size = x"1000_0000",
                       beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4))
+                      idBits = 4), 1))
 })
 
 class WithNoMemPort extends Config((site, here, up) => {
