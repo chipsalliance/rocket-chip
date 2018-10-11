@@ -8,6 +8,8 @@ import freechips.rocketchip.diplomacy._
 
 case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCustomNode
 {
+  private val bit = mask & -mask
+  val maxXfer = TransferSizes(1, if (bit == 0 || bit > 4096) 4096 else bit.toInt)
   val ids = AddressSet.enumerateMask(mask)
 
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
@@ -20,12 +22,27 @@ case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCus
   }
 
   def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] =
-    (p zip ids) map { case (cp, id) => cp.copy(clients = cp.clients.map { c => c.copy(visibility = c.visibility.flatMap { a =>
-      a.intersect(AddressSet(id, ~mask))})})}
+    (p zip ids) map { case (cp, id) => cp.copy(clients = cp.clients.map { c => c.copy(
+      visibility         = c.visibility.flatMap { a => a.intersect(AddressSet(id, ~mask))},
+      supportsProbe      = c.supportsProbe      intersect maxXfer,
+      supportsArithmetic = c.supportsArithmetic intersect maxXfer,
+      supportsLogical    = c.supportsLogical    intersect maxXfer,
+      supportsGet        = c.supportsGet        intersect maxXfer,
+      supportsPutFull    = c.supportsPutFull    intersect maxXfer,
+      supportsPutPartial = c.supportsPutPartial intersect maxXfer,
+      supportsHint       = c.supportsHint       intersect maxXfer)})}
 
   def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] =
-    (p zip ids) map { case (mp, id) => mp.copy(managers = mp.managers.map { m => m.copy(address = m.address.flatMap { a =>
-      a.intersect(AddressSet(id, ~mask))})})}
+    (p zip ids) map { case (mp, id) => mp.copy(managers = mp.managers.map { m => m.copy(
+      address            = m.address.flatMap { a => a.intersect(AddressSet(id, ~mask))},
+      supportsAcquireT   = m.supportsAcquireT   intersect maxXfer,
+      supportsAcquireB   = m.supportsAcquireB   intersect maxXfer,
+      supportsArithmetic = m.supportsArithmetic intersect maxXfer,
+      supportsLogical    = m.supportsLogical    intersect maxXfer,
+      supportsGet        = m.supportsGet        intersect maxXfer,
+      supportsPutFull    = m.supportsPutFull    intersect maxXfer,
+      supportsPutPartial = m.supportsPutPartial intersect maxXfer,
+      supportsHint       = m.supportsHint       intersect maxXfer)})}
 }
 
 /* A BankBinder is used to divide contiguous memory regions into banks, suitable for a cache  */
