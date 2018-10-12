@@ -59,7 +59,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
    *  - '''in2''': operand 2
    *  - '''in1''': operand 1
    *  - '''out''': ALU output
-   *  - '''adder_out''': address for DCache
+   *  - '''adder_out''': adder result
    *  - '''cmp_out''': compare result
    *
    */
