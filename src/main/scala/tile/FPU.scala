@@ -681,6 +681,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val ex_ra = List.fill(3)(Reg(UInt()))
 
   @chiselName class FPUImpl { // entering gated-clock domain
+
   val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_cp_valid = io.cp_req.fire()
   val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
@@ -921,7 +922,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   } // leaving gated-clock domain
   val fpuImpl = withClock (gated_clock) { new FPUImpl }
-
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"FPU_$label", "Core;;" + desc)
