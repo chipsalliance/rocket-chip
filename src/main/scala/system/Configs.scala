@@ -59,6 +59,7 @@ class DualCoreConfig extends Config(
 class TinyConfig extends Config(
   new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
+  new WithNBanks(0) ++
   new With1TinyCore ++
   new BaseConfig)
 
@@ -72,6 +73,7 @@ class MMIOPortOnlyConfig extends Config(
   new WithNoSlavePort ++
   new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
+  new WithNBanks(0) ++
   new WithIncoherentTiles ++
   new WithScratchpadsOnly ++
   new DefaultConfig

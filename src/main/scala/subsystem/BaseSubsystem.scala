@@ -56,12 +56,14 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   private val (in, out, halt) = coherenceManager(this)
   def memBusCanCauseHalt: () => Option[Bool] = halt
 
-  require (isPow2(nBanks))
+  require (isPow2(nBanks) || nBanks == 0)
   require (isPow2(memBusBlockBytes))
 
   val mbus = LazyModule(new MemoryBus(mbusParams))
-  sbus.coupleTo("mbus") { in :*= _ }
-  mbus.coupleFrom(s"coherence_manager") { _ :=* BankBinder(cacheBlockBytes * (nBanks-1)) :*= out }
+  if (nBanks != 0) {
+    sbus.coupleTo("mbus") { in :*= _ }
+    mbus.coupleFrom(s"coherence_manager") { _ :=* BankBinder(cacheBlockBytes * (nBanks-1)) :*= out }
+  }
 
   lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
   ResourceBinding {
