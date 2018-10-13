@@ -103,8 +103,25 @@ class WithECCTests extends Config((site, here, up) => {
       Module(new ECCTest(8)) ) }
 })
 
+class WithScatterGather extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    Seq(
+      Module(new GatherTest(1)),
+      Module(new GatherTest(2)),
+      Module(new GatherTest(3)),
+      Module(new GatherTest(7)),
+      Module(new GatherTest(8)),
+      Module(new GatherTest(9)),
+      Module(new ScatterTest(1)),
+      Module(new ScatterTest(2)),
+      Module(new ScatterTest(3)),
+      Module(new ScatterTest(7)),
+      Module(new ScatterTest(8)),
+      Module(new ScatterTest(9)))}})
+
 class AMBAUnitTestConfig extends Config(new WithAMBAUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class ECCUnitTestConfig extends Config(new WithECCTests)
+class ScatterGatherTestConfig extends Config(new WithScatterGather)
