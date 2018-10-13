@@ -75,7 +75,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       }.toVector}.toVector
     val probeIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
       (edgesOut zip reachableO).map { case (mp, reachable) =>
-        reachable && cp.client.anySupportProbe && mp.manager.managers.exists(_.regionType <= RegionType.TRACKED)
+        reachable && cp.client.anySupportProbe && mp.manager.managers.exists(_.regionType >= RegionType.TRACKED)
       }.toVector}.toVector
     val releaseIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
       (edgesOut zip reachableO).map { case (mp, reachable) =>
