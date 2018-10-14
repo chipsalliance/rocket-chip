@@ -49,27 +49,20 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   private val mbusParams = p(MemoryBusKey)
   private val l2Params = p(BankedL2Key)
   val MemoryBusParams(memBusBeatBytes, memBusBlockBytes, _, _) = mbusParams
-  val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
-  val nBanks = l2Params.nBanks
+  val BankedL2Params(nBanks, coherenceManager) = l2Params
   val cacheBlockBytes = memBusBlockBytes
   // TODO: the below call to coherenceManager should be wrapped in a LazyScope here,
   //       but plumbing halt is too annoying for now.
   private val (in, out, halt) = coherenceManager(this)
   def memBusCanCauseHalt: () => Option[Bool] = halt
 
-  require (isPow2(nMemoryChannels) || nMemoryChannels == 0)
-  require (isPow2(nBanksPerChannel))
+  require (isPow2(nBanks) || nBanks == 0)
   require (isPow2(memBusBlockBytes))
 
-  val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
-    val mbus = LazyModule(new MemoryBus(mbusParams, channel, nMemoryChannels, nBanks)(p))
-    for (bank <- 0 until nBanksPerChannel) {
-      ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.coupleFrom(s"coherence_manager_bank_$bank") {
-        _ := TLFilter(TLFilter.mSelectIntersect(mbus.bankFilter(bank))) := out
-      }
-    }
-    mbus
+  val mbus = LazyModule(new MemoryBus(mbusParams))
+  if (nBanks != 0) {
+    sbus.coupleTo("mbus") { in :*= _ }
+    mbus.coupleFrom(s"coherence_manager") { _ :=* BankBinder(cacheBlockBytes * (nBanks-1)) :*= out }
   }
 
   lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)

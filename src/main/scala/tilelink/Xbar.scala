@@ -67,35 +67,37 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     val (io_in, edgesIn) = node.in.unzip
     val (io_out, edgesOut) = node.out.unzip
 
+    // Not every master need connect to every slave on every channel; determine which connections are necessary
+    val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
+      cp.client.clients.exists { c => mp.manager.managers.exists { m =>
+        c.visibility.exists { ca => m.address.exists { ma =>
+          ca.overlaps(ma)}}}}
+      }.toVector}.toVector
+    val probeIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
+      (edgesOut zip reachableO).map { case (mp, reachable) =>
+        reachable && cp.client.anySupportProbe && mp.manager.managers.exists(_.regionType >= RegionType.TRACKED)
+      }.toVector}.toVector
+    val releaseIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
+      (edgesOut zip reachableO).map { case (mp, reachable) =>
+        reachable && cp.client.anySupportProbe && mp.manager.anySupportAcquireB
+      }.toVector}.toVector
+
+    val connectAIO = reachableIO
+    val connectBIO = probeIO
+    val connectCIO = releaseIO
+    val connectDIO = reachableIO
+    val connectEIO = releaseIO
+
+    def transpose[T](x: Seq[Seq[T]]) = if (x.isEmpty) Nil else Vector.tabulate(x(0).size) { i => Vector.tabulate(x.size) { j => x(j)(i) } }
+    val connectAOI = transpose(connectAIO)
+    val connectBOI = transpose(connectBIO)
+    val connectCOI = transpose(connectCIO)
+    val connectDOI = transpose(connectDIO)
+    val connectEOI = transpose(connectEIO)
+
     // Grab the port ID mapping
     val inputIdRanges = TLXbar.mapInputIds(edgesIn.map(_.client))
     val outputIdRanges = TLXbar.mapOutputIds(edgesOut.map(_.manager))
-
-    // Find a good mask for address decoding
-    val port_addrs = edgesOut.map(_.manager.managers.map(_.address).flatten)
-    val routingMask = AddressDecoder(port_addrs)
-    val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
-    val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
-
-    // Print the address mapping
-    if (false) {
-      println("Xbar mapping:")
-      route_addrs.foreach { p =>
-        print(" ")
-        p.foreach { a => print(s" ${a}") }
-        println("")
-      }
-      println("--")
-    }
-
-    // Print the ID mapping
-    if (false) {
-      println(s"XBar ${name} mapping:")
-      (edgesIn zip inputIdRanges).zipWithIndex.foreach { case ((edge, id), i) =>
-        println(s"\t$i assigned ${id} for ${edge.client.clients.map(_.name).mkString(", ")}")
-      }
-      println("")
-    }
 
     // We need an intermediate size of bundle with the widest possible identifiers
     val wide_bundle = TLBundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))
@@ -108,56 +110,128 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     for (i <- 0 until in.size) {
       val r = inputIdRanges(i)
 
-      in(i).a <> io_in(i).a
-      io_in(i).d <> in(i).d
-      in(i).a.bits.source := io_in(i).a.bits.source | UInt(r.start)
-      io_in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
+      if (connectAIO(i).exists(x=>x)) {
+        in(i).a <> io_in(i).a
+        in(i).a.bits.source := io_in(i).a.bits.source | UInt(r.start)
+      } else {
+        in(i).a.valid := Bool(false)
+        io_in(i).a.ready := Bool(true)
+      }
 
-      if (edgesIn(i).client.anySupportProbe && edgesOut.exists(_.manager.anySupportAcquireB)) {
-        in(i).c <> io_in(i).c
-        in(i).e <> io_in(i).e
+      if (connectBIO(i).exists(x=>x)) {
         io_in(i).b <> in(i).b
-        in(i).c.bits.source := io_in(i).c.bits.source | UInt(r.start)
         io_in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
       } else {
-        in(i).c.valid := Bool(false)
-        in(i).e.valid := Bool(false)
-        in(i).b.ready := Bool(false)
-        io_in(i).c.ready := Bool(true)
-        io_in(i).e.ready := Bool(true)
+        in(i).b.ready := Bool(true)
         io_in(i).b.valid := Bool(false)
+      }
+
+      if (connectCIO(i).exists(x=>x)) {
+        in(i).c <> io_in(i).c
+        in(i).c.bits.source := io_in(i).c.bits.source | UInt(r.start)
+      } else {
+        in(i).c.valid := Bool(false)
+        io_in(i).c.ready := Bool(true)
+      }
+
+      if (connectDIO(i).exists(x=>x)) {
+        io_in(i).d <> in(i).d
+        io_in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
+      } else {
+        in(i).d.ready := Bool(true)
+        io_in(i).d.valid := Bool(false)
+      }
+
+      if (connectEIO(i).exists(x=>x)) {
+        in(i).e <> io_in(i).e
+      } else {
+        in(i).e.valid := Bool(false)
+        io_in(i).e.ready := Bool(true)
       }
     }
 
     // Transform output bundle sinks (sources use global namespace on both sides)
     val out = Wire(Vec(io_out.size, TLBundle(wide_bundle)))
-    for (i <- 0 until out.size) {
-      val r = outputIdRanges(i)
+    for (o <- 0 until out.size) {
+      val r = outputIdRanges(o)
 
-      io_out(i).a <> out(i).a
-      out(i).d <> io_out(i).d
-      out(i).d.bits.sink := io_out(i).d.bits.sink | UInt(r.start)
-
-      if (edgesOut(i).manager.anySupportAcquireB && edgesIn.exists(_.client.anySupportProbe)) {
-        io_out(i).c <> out(i).c
-        io_out(i).e <> out(i).e
-        out(i).b <> io_out(i).b
-        io_out(i).e.bits.sink := trim(out(i).e.bits.sink, r.size)
+      if (connectAOI(o).exists(x=>x)) {
+        io_out(o).a <> out(o).a
       } else {
-        out(i).c.ready := Bool(false)
-        out(i).e.ready := Bool(false)
-        out(i).b.valid := Bool(false)
-        io_out(i).c.valid := Bool(false)
-        io_out(i).e.valid := Bool(false)
-        io_out(i).b.ready := Bool(true)
+        out(o).a.ready := Bool(true)
+        io_out(o).a.valid := Bool(false)
       }
+
+      if (connectBOI(o).exists(x=>x)) {
+        out(o).b <> io_out(o).b
+      } else {
+        out(o).b.valid := Bool(false)
+        io_out(o).b.ready := Bool(true)
+      }
+
+      if (connectCOI(o).exists(x=>x)) {
+        io_out(o).c <> out(o).c
+      } else {
+        out(o).c.ready := Bool(true)
+        io_out(o).c.valid := Bool(false)
+      }
+
+      if (connectDOI(o).exists(x=>x)) {
+        out(o).d <> io_out(o).d
+        out(o).d.bits.sink := io_out(o).d.bits.sink | UInt(r.start)
+      } else {
+        out(o).d.valid := Bool(false)
+        io_out(o).d.ready := Bool(true)
+      }
+
+      if (connectEOI(o).exists(x=>x)) {
+        io_out(o).e <> out(o).e
+        io_out(o).e.bits.sink := trim(out(o).e.bits.sink, r.size)
+      } else {
+        out(o).e.ready := Bool(true)
+        io_out(o).e.valid := Bool(false)
+      }
+    }
+
+    // Filter a list to only those elements selected
+    def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
+
+    // Based on input=>output connectivity, create per-input minimal address decode circuits
+    val requiredAC = (connectAIO ++ connectCIO).distinct
+    val outputPortFns: Map[Vector[Boolean], Seq[UInt => Bool]] = requiredAC.map { connectO =>
+      val port_addrs = edgesOut.map(_.manager.managers.flatMap(_.address))
+      val routingMask = AddressDecoder(filter(port_addrs, connectO))
+      val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
+
+      // Print the address mapping
+      if (false) {
+        println("Xbar mapping:")
+        route_addrs.foreach { p =>
+          print(" ")
+          p.foreach { a => print(s" ${a}") }
+          println("")
+        }
+        println("--")
+      }
+
+      (connectO, route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _)))
+    }.toMap
+
+    // Print the ID mapping
+    if (false) {
+      println(s"XBar ${name} mapping:")
+      (edgesIn zip inputIdRanges).zipWithIndex.foreach { case ((edge, id), i) =>
+        println(s"\t$i assigned ${id} for ${edge.client.clients.map(_.name).mkString(", ")}")
+      }
+      println("")
     }
 
     val addressA = (in zip edgesIn) map { case (i, e) => e.address(i.a.bits) }
     val addressC = (in zip edgesIn) map { case (i, e) => e.address(i.c.bits) }
 
-    val requestAIO = addressA.map { i => outputPorts.map { o => o(i) } }
-    val requestCIO = addressC.map { i => outputPorts.map { o => o(i) } }
+    def unique(x: Vector[Boolean]) = Bool(x.filter(x=>x).size <= 1)
+    val requestAIO = (connectAIO zip addressA) map { case (c, i) => outputPortFns(c).map { o => unique(c) || o(i) } }
+    val requestCIO = (connectCIO zip addressC) map { case (c, i) => outputPortFns(c).map { o => unique(c) || o(i) } }
     val requestBOI = out.map { o => inputIdRanges.map  { i => i.contains(o.b.bits.source) } }
     val requestDOI = out.map { o => inputIdRanges.map  { i => i.contains(o.d.bits.source) } }
     val requestEIO = in.map  { i => outputIdRanges.map { o => o.contains(i.e.bits.sink) } }
@@ -168,10 +242,6 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     val beatsDO = (out zip edgesOut) map { case (o, e) => e.numBeats1(o.d.bits) }
     val beatsEI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) }
 
-    // Which pairs support support transfers
-    def transpose[T](x: Seq[Seq[T]]) = if (x.isEmpty) Nil else Seq.tabulate(x(0).size) { i => Seq.tabulate(x.size) { j => x(j)(i) } }
-    def filter[T](data: Seq[T], mask: Seq[Boolean]) = (data zip mask).filter(_._2).map(_._1)
-
     // Fanout the input sources to the output sinks
     val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar.fanout(i.a, r, edgesOut.map(_.params(ForceFanoutKey).a)) })
     val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar.fanout(o.b, r, edgesIn .map(_.params(ForceFanoutKey).b)) })
@@ -181,22 +251,14 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 
     // Arbitrate amongst the sources
     for (o <- 0 until out.size) {
-      val allowI = Seq.tabulate(in.size) { i =>
-        edgesIn(i).client.anySupportProbe &&
-        edgesOut(o).manager.anySupportAcquireB
-      }
-      TLArbiter(policy)(out(o).a,       (beatsAI zip portsAOI(o)        ):_*)
-      TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), allowI):_*)
-      TLArbiter(policy)(out(o).e, filter(beatsEI zip portsEOI(o), allowI):_*)
+      TLArbiter(policy)(out(o).a, filter(beatsAI zip portsAOI(o), connectAOI(o)):_*)
+      TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), connectCOI(o)):_*)
+      TLArbiter(policy)(out(o).e, filter(beatsEI zip portsEOI(o), connectEOI(o)):_*)
     }
 
     for (i <- 0 until in.size) {
-      val allowO = Seq.tabulate(out.size) { o =>
-        edgesIn(i).client.anySupportProbe &&
-        edgesOut(o).manager.anySupportAcquireB
-      }
-      TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), allowO):_*)
-      TLArbiter(policy)(in(i).d,       (beatsDO zip portsDIO(i)        ):_*)
+      TLArbiter(policy)(in(i).b, filter(beatsBO zip portsBIO(i), connectBIO(i)):_*)
+      TLArbiter(policy)(in(i).d, filter(beatsDO zip portsDIO(i), connectDIO(i)):_*)
     }
   }
 }
@@ -238,7 +300,7 @@ object TLXbar
   }
 
   // Replicate an input port to each output port
-  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool], force: Seq[Boolean] = Nil) = {
+  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool], force: Seq[Boolean] = Nil): Seq[DecoupledIO[T]] = {
     val filtered = Wire(Vec(select.size, input))
     for (i <- 0 until select.size) {
       filtered(i).bits := (if (force.lift(i).getOrElse(false)) IdentityModule(input.bits) else input.bits)
