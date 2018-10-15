@@ -38,11 +38,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     this { LazyScope(s"coupler_from_${name}") { body } }
   }
 
-  def coupleTo(name: String)(gen: TLOutwardNode => NoHandle): NoHandle =
-    this { LazyScope(s"coupler_to_${name}") { gen(outwardNode) } }
+  def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
+    to(name) { gen(outwardNode) }
 
-  def coupleFrom(name: String)(gen: TLInwardNode => NoHandle): NoHandle =
-    this { LazyScope(s"coupler_from_${name}") { gen(inwardNode) } }
+  def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
+    from(name) { gen(inwardNode) }
 }
 
 trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>

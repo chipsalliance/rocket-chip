@@ -270,6 +270,43 @@ class TLEdge(
   }
   def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
   def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
+
+  // This is a very expensive circuit; use only if you really mean it!
+  def inFlight(x: TLBundle): (UInt, UInt) = {
+    val flight = RegInit(UInt(0, width = log2Ceil(3*client.endSourceId+1)))
+    val bce = manager.anySupportAcquireB && client.anySupportProbe
+
+    val (a_first, a_last, _) = firstlast(x.a)
+    val (b_first, b_last, _) = firstlast(x.b)
+    val (c_first, c_last, _) = firstlast(x.c)
+    val (d_first, d_last, _) = firstlast(x.d)
+    val (e_first, e_last, _) = firstlast(x.e)
+
+    val (a_request, a_response) = (isRequest(x.a.bits), isResponse(x.a.bits))
+    val (b_request, b_response) = (isRequest(x.b.bits), isResponse(x.b.bits))
+    val (c_request, c_response) = (isRequest(x.c.bits), isResponse(x.c.bits))
+    val (d_request, d_response) = (isRequest(x.d.bits), isResponse(x.d.bits))
+    val (e_request, e_response) = (isRequest(x.e.bits), isResponse(x.e.bits))
+
+    val a_inc = x.a.fire() && a_first && a_request
+    val b_inc = x.b.fire() && b_first && b_request
+    val c_inc = x.c.fire() && c_first && c_request
+    val d_inc = x.d.fire() && d_first && d_request
+    val e_inc = x.e.fire() && e_first && e_request
+    val inc = Cat(Seq(a_inc, d_inc) ++ (if (bce) Seq(b_inc, c_inc, e_inc) else Nil))
+
+    val a_dec = x.a.fire() && a_last && a_response
+    val b_dec = x.b.fire() && b_last && b_response
+    val c_dec = x.c.fire() && c_last && c_response
+    val d_dec = x.d.fire() && d_last && d_response
+    val e_dec = x.e.fire() && e_last && e_response
+    val dec = Cat(Seq(a_dec, d_dec) ++ (if (bce) Seq(b_dec, c_dec, e_dec) else Nil))
+
+    val next_flight = flight + PopCount(inc) - PopCount(dec)
+    flight := next_flight
+
+    (flight, next_flight)
+  }
 }
 
 class TLEdgeOut(

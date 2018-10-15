@@ -30,13 +30,13 @@ class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
-  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
+  new WithNBanks(2) ++ new BaseConfig)
 
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new BaseConfig)
 
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
-  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
+  new WithNBanks(4) ++ new BaseConfig)
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
@@ -58,6 +58,7 @@ class DualCoreConfig extends Config(
 class TinyConfig extends Config(
   new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
+  new WithNBanks(0) ++
   new With1TinyCore ++
   new BaseConfig)
 
@@ -71,6 +72,7 @@ class MMIOPortOnlyConfig extends Config(
   new WithNoSlavePort ++
   new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
+  new WithNBanks(0) ++
   new WithIncoherentTiles ++
   new WithScratchpadsOnly ++
   new DefaultConfig

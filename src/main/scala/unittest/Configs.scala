@@ -46,6 +46,7 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),
       Module(new TLRAMZeroDelayTest(4,     txns=15*txns, timeout=timeout)),
+      Module(new TLRAMHintHandlerTest(     txns=15*txns, timeout=timeout)),
       Module(new TLFuzzRAMTest(            txns= 3*txns, timeout=timeout)),
       Module(new TLRR0Test(                txns= 3*txns, timeout=timeout)),
       Module(new TLRR1Test(                txns= 3*txns, timeout=timeout)),
@@ -80,7 +81,8 @@ class WithTLXbarUnitTests extends Config((site, here, up) => {
       Module(new TLRAMXbarTest(1,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(2,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(8,           txns=5*txns, timeout=timeout)),
-      Module(new TLMulticlientXbarTest(4,4, txns=2*txns, timeout=timeout)) ) }
+      Module(new TLMulticlientXbarTest(4,4, txns=2*txns, timeout=timeout)),
+      Module(new TLMasterMuxTest(           txns=5*txns, timeout=timeout)) ) }
 })
 
 class WithECCTests extends Config((site, here, up) => {
