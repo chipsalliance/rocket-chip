@@ -147,7 +147,7 @@ class FloppedLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
 class OnePortLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
     extends LanePositionedQueueBase(gen, lanes, rows) {
 
-  require (rows > 8 && rows % 2 == 0)
+  require (rows > 8 && rows % 4 == 0)
   // If rows <= 8, use FloppedLanePositionedQueue instead
 
   // Make the SRAM twice as wide, so that we can use 1RW port
@@ -157,28 +157,32 @@ class OnePortLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
   val enq_buffer = Reg(Vec(4, Vec(lanes, gen)))
   val deq_buffer = Reg(Vec(4, Vec(lanes, gen)))
 
-  // !!! rounding
-  val gap = (enq_row >> 1) - (deq_row >> 1)
-  val gap2 = gap <= 2.U
-  val gap1 = gap <= 1.U
-  val gap0 = gap === 0.U
+  val gap = (enq_row >> 1).zext() - (deq_row >> 1).zext()
+  val gap0 = gap === 0.S
+  val gap1 = gap0 || gap === (1-rows/2).S || gap === 1.S
+  val gap2 = gap1 || gap === (2-rows/2).S || gap === 2.S
 
   val deq_push = deq_wrap && deq_row(0)
   val enq_push = enq_wrap && enq_row(0)
-  val ren = deq_push
+  val ren = deq_push // !!! optimize
   val wen = RegInit(false.B)
 
   when (!ren)     { wen := false.B }
-  when (enq_push) { wen := true.B }
+  when (enq_push) { wen := true.B } // !!! optimize
 
   val write_row = RegEnable(enq_row, enq_push)
   val ram_i = Mux(write_row(1),
     VecInit(enq_buffer(2) ++ enq_buffer(3)),
     VecInit(enq_buffer(0) ++ enq_buffer(1)))
-  val ram_o = ram.read((deq_row >> 1) + 2.U, ren) // !!! rounding
+  val deq_row_half = deq_row >> 1
+  val read_row =
+    Mux(!isPow2(rows).B && deq_row_half === (rows/2-1).U, 1.U,
+    Mux(!isPow2(rows).B && deq_row_half === (rows/2-2).U, 0.U,
+    deq_row_half + 2.U))
+  val ram_o = ram.read(read_row, ren)
   when (wen && !ren) { ram.write(write_row >> 1, ram_i) }
 
-  val deq_fill  = RegNext(deq_push)
+  val deq_fill = RegNext(deq_push)
   for (l <- 0 until lanes) {
     when (deq_fill && deq_row(1)) {
       deq_buffer(0)(l) := Mux(gap2, enq_buffer(0)(l), ram_o(l))
@@ -216,7 +220,7 @@ class OnePortLanePositionedQueueTest(lanes: Int, rows: Int, cycles: Int, timeout
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(new FloppedLanePositionedQueue(UInt(bits.W), lanes, rows))
+  val q = Module(new OnePortLanePositionedQueue(UInt(bits.W), lanes, rows))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
