@@ -5,6 +5,8 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+/////////////////////////////// Abstract API for the Queue /////////////////////////
+
 class LanePositionedDecoupledIO[T <: Data](private val gen: T, val lanes: Int) extends Bundle {
   val laneBits1 = log2Ceil(lanes+1) // [0, lanes]
 
@@ -29,6 +31,8 @@ trait LanePositionedQueueModule[T <: Data] extends Module {
 trait LanePositionedQueue {
   def apply[T <: Data](gen: T, lanes: Int, rows: Int): LanePositionedQueueModule[T]
 }
+
+/////////////////////////////// Index math implementation //////////////////////////
 
 // A shared base class that keeps track of the indexing and flow control
 class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: Int) extends Module with LanePositionedQueueModule[T] {
@@ -119,7 +123,7 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
 
 /////////////////////////////// Registered implementation //////////////////////////
 
-class FloppedLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
+class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int)
     extends LanePositionedQueueBase(gen, lanes, rows) {
 
   require (rows % 2 == 0)
@@ -142,9 +146,13 @@ class FloppedLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
   bank(1).write(b1_row, io.enq.bits, b1_mask)
 }
 
+object FloppedLanePositionedQueue extends LanePositionedQueue {
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int) = new FloppedLanePositionedQueueModule(gen, lanes, rows)
+}
+
 /////////////////////////////// One port implementation ////////////////////////////
 
-class OnePortLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
+class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int, rows: Int)
     extends LanePositionedQueueBase(gen, lanes, rows) {
 
   require (rows > 8 && rows % 4 == 0)
@@ -213,14 +221,20 @@ class OnePortLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
   }
 }
 
+case class OnePortLanePositionedQueue(ecc: Code) extends LanePositionedQueue {
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int) = new OnePortLanePositionedQueueModule(ecc)(gen, lanes, rows)
+}
+
+/////////////////////////////// Black Box Unit Testing /////////////////////////////
+
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink.LFSR64
 
-class OnePortLanePositionedQueueTest(lanes: Int, rows: Int, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
+class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: Int, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(new OnePortLanePositionedQueue(UInt(bits.W), lanes, rows))
+  val q = Module(queueFactory(UInt(bits.W), lanes, rows))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
