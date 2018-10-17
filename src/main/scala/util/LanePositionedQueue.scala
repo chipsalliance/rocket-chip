@@ -160,7 +160,8 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int,
 
   // Make the SRAM twice as wide, so that we can use 1RW port
   // Read accesses have priority, but we never do two back-back
-  val ram = SyncReadMem(rows/2, Vec(2*lanes, gen))
+  val codeBits = ecc.width(2*lanes*gen.asUInt.getWidth)
+  val ram = SyncReadMem(rows/2, UInt(codeBits.W))
 
   val enq_buffer = Reg(Vec(4, Vec(lanes, gen)))
   val deq_buffer = Reg(Vec(4, Vec(lanes, gen)))
@@ -191,8 +192,8 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int,
     Mux(!isPow2(rows).B && deq_row_half === (rows/2-1).U, 1.U,
     Mux(!isPow2(rows).B && deq_row_half === (rows/2-2).U, 0.U,
     deq_row_half + 2.U))
-  val ram_o = ram.read(read_row, ren)
-  when (wen && !ren) { ram.write(write_row >> 1, ram_i) }
+  val ram_o = ecc.decode(ram.read(read_row, ren)).corrected.asTypeOf(Vec(2*lanes, gen))
+  when (wen && !ren) { ram.write(write_row >> 1, ecc.encode(ram_i.asUInt)) }
 
   val deq_fill = RegNext(deq_push)
   for (l <- 0 until lanes) {
@@ -255,7 +256,7 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
 
   q.io.enq.bits := VecInit.tabulate(lanes) { i =>
     val pos = Mux(i.U >= q.io.enq_0_lane, i.U, (i + lanes).U) - q.io.enq_0_lane
-    enq + pos
+    Mux (pos >= q.io.enq.valid, 0.U, enq + pos)
   }
 
   q.io.deq.bits.zipWithIndex.foreach { case (d, i) =>
