@@ -165,18 +165,22 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int,
   val enq_buffer = Reg(Vec(4, Vec(lanes, gen)))
   val deq_buffer = Reg(Vec(4, Vec(lanes, gen)))
 
+  val deq_push = deq_wrap && deq_row(0)
+  val enq_push = enq_wrap && enq_row(0)
+
+  val maybe_empty = RegInit(true.B)
+  when (deq_push =/= enq_push) { maybe_empty := deq_push }
+
   val gap = (enq_row >> 1).zext() - (deq_row >> 1).zext()
-  val gap0 = gap === 0.S
+  val gap0 = gap === 0.S && maybe_empty
   val gap1 = gap0 || gap === (1-rows/2).S || gap === 1.S
   val gap2 = gap1 || gap === (2-rows/2).S || gap === 2.S
 
-  val deq_push = deq_wrap && deq_row(0)
-  val enq_push = enq_wrap && enq_row(0)
-  val ren = deq_push // !!! optimize
+  val ren = deq_push && !gap2
   val wen = RegInit(false.B)
 
-  when (!ren)     { wen := false.B }
-  when (enq_push) { wen := true.B } // !!! optimize
+  when (!ren)              { wen := false.B }
+  when (enq_push && !gap1) { wen := true.B }
 
   val write_row = RegEnable(enq_row, enq_push)
   val ram_i = Mux(write_row(1),
