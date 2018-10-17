@@ -50,34 +50,33 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
       } else {
         val z = out +& add
         val s = z - lanes.U
-        Mux(s.asSInt >= 0.S, s, z)
+        out := Mux(s.asSInt >= 0.S, s, z)
       }
       out
     }
   }
 
   def row(inc: Bool) = {
-    if (rows == 1) 0.U else {
+    if (rows == 1) (0.U, 0.U) else {
       val out = RegInit(0.U(rowBits.W))
-      when (inc) {
-        out := out + 1.U
-        if (!isPow2(rows)) {
-          when (out === (rows-1).U) { out := 0.U }
-        }
+      val out1 = WireInit(out + 1.U)
+      if (!isPow2(rows)) {
+        when (out === (rows-1).U) { out1 := 0.U }
       }
-      out
+      when (inc) { out := out1 }
+      (out, out1)
     }
   }
 
   val enq_add  = Wire(UInt(laneBits1.W))
   val enq_wrap = Wire(Bool())
   val enq_lane = lane(enq_add)
-  val enq_row  = row(enq_wrap)
+  val (enq_row, enq_row1) = row(enq_wrap)
 
   val deq_add  = Wire(UInt(laneBits1.W))
   val deq_wrap = Wire(Bool())
   val deq_lane = lane(deq_add)
-  val deq_row  = row(deq_wrap)
+  val (deq_row, deq_row1) = row(deq_wrap)
 
   val capBits1 = log2Ceil(capacity+1)
   val delta = enq_add.zext() - deq_add.zext()
@@ -109,12 +108,12 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
 
   val enq_vmask = UIntToOH1(io.enq.valid +& enq_lane, 2*lanes-1).pad(2*lanes)
   val enq_rmask = UIntToOH1(io.enq.ready +& enq_lane, 2*lanes-1).pad(2*lanes)
-  val enq_lmask = UIntToOH1(                enq_lane,   lanes-1).pad(2*lanes)
+  val enq_lmask = UIntToOH1(                enq_lane,     lanes).pad(2*lanes)
   val enq_mask  = ((enq_vmask & enq_rmask) & ~enq_lmask)
 
   val deq_vmask = UIntToOH1(io.deq.valid +& deq_lane, 2*lanes-1).pad(2*lanes)
   val deq_rmask = UIntToOH1(io.deq.ready +& deq_lane, 2*lanes-1).pad(2*lanes)
-  val deq_lmask = UIntToOH1(                deq_lane,   lanes-1).pad(2*lanes)
+  val deq_lmask = UIntToOH1(                deq_lane,     lanes).pad(2*lanes)
   val deq_mask  = ((deq_vmask & deq_rmask) & ~deq_lmask)
 }
 
@@ -126,8 +125,8 @@ class FloppedLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
   require (rows % 2 == 0)
   val bank = Seq.fill(2) { Mem(rows/2, Vec(lanes, gen)) }
 
-  val b0_out = bank(0).read((deq_row + 1.U) >> 1)
-  val b1_out = bank(1).read(deq_row >> 1)
+  val b0_out = bank(0).read(deq_row1 >> 1)
+  val b1_out = bank(1).read(deq_row  >> 1)
   for (l <- 0 until lanes) {
     io.deq.bits(l) := Mux(deq_row(0) ^ deq_lmask(l), b1_out(l), b0_out(l))
   }
@@ -136,8 +135,8 @@ class FloppedLanePositionedQueue[T <: Data](gen: T, lanes: Int, rows: Int)
   val lo_mask = enq_mask(lanes-1, 0)
   val b0_mask = Mux(enq_row(0), hi_mask, lo_mask).toBools
   val b1_mask = Mux(enq_row(0), lo_mask, hi_mask).toBools
-  val b0_row  = (enq_row + enq_row(0)) >> 1
-  val b1_row  = enq_row >> 1
+  val b0_row  = enq_row1 >> 1
+  val b1_row  = enq_row  >> 1
 
   bank(0).write(b0_row, io.enq.bits, b0_mask)
   bank(1).write(b1_row, io.enq.bits, b1_mask)
@@ -223,8 +222,8 @@ class OnePortLanePositionedQueueTest(lanes: Int, rows: Int, cycles: Int, timeout
   val deq = RegInit(0.U(bits.W))
   val done = RegInit(false.B)
 
-  q.io.enq.valid := (LFSR64() * q.io.enq.ready) >> 64
-  q.io.deq.ready := (LFSR64() * q.io.deq.valid) >> 64
+  q.io.enq.valid := (LFSR64() * (q.io.enq.ready +& 1.U)) >> 64
+  q.io.deq.ready := (LFSR64() * (q.io.deq.valid +& 1.U)) >> 64
 
   enq := enq + q.io.enq.valid
   deq := deq + q.io.deq.ready
