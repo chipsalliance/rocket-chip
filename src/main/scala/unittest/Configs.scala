@@ -132,7 +132,9 @@ class WithPowerQueueTests extends Config((site, here, up) => {
       Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 3, 16, 10000)),
       Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 5, 20, 10000)),
       Module(new MultiPortQueueTest(3, 2, 10000)),
-      Module(new MultiPortQueueTest(5, 6, 10000))
+      Module(new MultiPortQueueTest(5, 6, 10000)),
+      Module(new MultiLaneQueueTest(3, 2, 10000)),
+      Module(new MultiLaneQueueTest(5, 6, 10000))
       )}})
 
 class AMBAUnitTestConfig extends Config(new WithAMBAUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
