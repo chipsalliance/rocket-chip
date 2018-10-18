@@ -8,6 +8,7 @@ import chisel3.util._
 class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(Vec(lanes, Decoupled(gen)))
+    // NOTE: deq.{valid,bits} depend on deq.ready; if this is a problem, add a flow queue.
     val deq = Vec(lanes, Decoupled(gen))
   })
 
