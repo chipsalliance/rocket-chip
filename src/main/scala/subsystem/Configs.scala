@@ -76,6 +76,12 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
   }
 })
 
+/**
+ * TinyCore Configuration
+ *  - xlen = 32bit
+ *  - dcache: 16Kbit scratchpad (256 x 64bit)
+ *  - icache: 4Kbit scratchpad (64 x 64bit)
+ */
 class With1TinyCore extends Config((site, here, up) => {
   case XLen => 32
   case RocketTilesKey => List(RocketTileParams(

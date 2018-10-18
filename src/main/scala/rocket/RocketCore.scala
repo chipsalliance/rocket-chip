@@ -72,6 +72,10 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
     csr.map(c => f(csrs(decls.indexOf(c)))).getOrElse(alt)
 }
 
+/**
+ * Top module of Rocket Core
+ *
+ */
 class Rocket(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
