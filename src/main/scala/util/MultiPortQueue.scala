@@ -13,31 +13,18 @@ class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: 
 
   val queue = Module(storage(gen, lanes, rows))
 
-  queue.io.enq.valid := PopCount(io.enq.map(_.valid))
-  queue.io.deq.ready := PopCount(io.deq.map(_.ready))
-
-  // Scatter ready from queue to enq ports
-  val enq_ready_1hot = UIntToOH1(queue.io.enq.ready, lanes)
-  val enq_ready_dense = Wire(Vec(lanes, ValidIO(Bool())))
+  // Compute per-enq-port ready
+  val enq_valid = DensePrefixSum(io.enq.map(_.valid.asUInt))(_ +& _)
+  queue.io.enq.valid := enq_valid.last
   for (i <- 0 until lanes) {
-    enq_ready_dense(i).valid := io.enq(i).valid
-    enq_ready_dense(i).bits := enq_ready_1hot(i)
-  }
-  val (_, enq_ready_sparse) = Scatter(enq_ready_dense)
-  for (i <- 0 until lanes) {
-    io.enq(i).ready := enq_ready_sparse(i)
+    io.enq(i).ready := enq_valid(i) <= queue.io.enq.ready
   }
 
-  // Scatter valid from queue to deq ports
-  val deq_valid_1hot = UIntToOH1(queue.io.deq.valid, lanes)
-  val deq_valid_dense = Wire(Vec(lanes, ValidIO(Bool())))
+  // Computer per-deq-port valid
+  val deq_ready = DensePrefixSum(io.deq.map(_.ready.asUInt))(_ +& _)
+  queue.io.deq.ready := deq_ready.last
   for (i <- 0 until lanes) {
-    deq_valid_dense(i).valid := io.deq(i).ready
-    deq_valid_dense(i).bits := deq_valid_1hot(i)
-  }
-  val (_, deq_valid_sparse) = Scatter(deq_valid_dense)
-  for (i <- 0 until lanes) {
-    io.deq(i).valid := deq_valid_sparse(i)
+    io.deq(i).valid := deq_ready(i) <= queue.io.deq.valid
   }
 
   // Gather data from enq ports to rotated lanes

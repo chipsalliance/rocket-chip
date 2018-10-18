@@ -8,7 +8,7 @@ import chisel3.util._
 object Gather {
   // Compress all the valid data to the lowest indices
   def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum = DensePrefixSum): (UInt, Vec[T]) = {
-    val popBits = log2Ceil(data.size+1)
+    val popBits = log2Ceil(data.size)
     val holes = data.map(x => WireInit(UInt(popBits.W), (!x.valid).asUInt))
     val shift = prefixSum(holes)(_ + _)
     def helper(offset: Int, x: Vector[T]): Vector[T] = {
@@ -33,7 +33,7 @@ object Gather {
 
 object Scatter {
   def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum = DensePrefixSum): (UInt, Vec[T]) = {
-    val popBits = log2Ceil(data.size+1)
+    val popBits = log2Ceil(data.size)
     val holes = data.map(x => WireInit(UInt(popBits.W), (!x.valid).asUInt))
     val shift = prefixSum(holes)(_ + _)
     def helper(offset: Int, x: Vector[T]): Vector[T] = {
