@@ -47,7 +47,25 @@ class BP(implicit p: Parameters) extends CoreBundle()(p) {
     Mux(control.tmatch(1), rangeAddressMatch(x), pow2AddressMatch(x))
 }
 
+/**
+ * Breakpoint Unit
+ *
+ */
 class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
+  /**
+   * IO Interface
+   *  - '''status''':
+   *  - '''bp''':
+   *  - '''pc''':
+   *  - '''ea''':
+   *  - '''xcpt_if''':
+   *  - '''xcpt_ld''':
+   *  - '''xcpt_st''':
+   *  - '''debug_if''':
+   *  - '''debug_ld''':
+   *  - '''debug_st''':
+   *
+   */
   val io = new Bundle {
     val status = new MStatus().asInput
     val bp = Vec(n, new BP).asInput
