@@ -22,6 +22,10 @@ class BaseConfig extends Config(
   new BaseSubsystemConfig()
 )
 
+/**
+ * Default Configuration
+ *  - 1 big core
+ */
 class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)
 
 class DefaultBufferlessConfig extends Config(

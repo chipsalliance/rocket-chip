@@ -38,6 +38,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
 
 /**
  * Configuration of N big cores
+ *  - xlen = 64bit
  * @param n core number
  */
 class WithNBigCores(n: Int) extends Config((site, here, up) => {
@@ -89,6 +90,7 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
  *  - xlen = 32bit
  *  - dcache: 16Kbit scratchpad (256 x 64bit)
  *  - icache: 4Kbit scratchpad (64 x 64bit)
+ *  - misc: no fpu, btb
  */
 class With1TinyCore extends Config((site, here, up) => {
   case XLen => 32
