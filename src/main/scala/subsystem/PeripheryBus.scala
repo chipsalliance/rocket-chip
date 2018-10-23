@@ -36,7 +36,10 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     TLBuffer(pa.buffer) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
   }.getOrElse(TLNameNode("no_atomics"))
 
-  out_xbar.node :*= atomics :*= in_xbar.node
+  (out_xbar.node
+    :*= TLFIFOFixer(TLFIFOFixer.all)
+    :*= atomics
+    :*= in_xbar.node)
 
   def inwardNode: TLInwardNode = in_xbar.node
   def outwardNode: TLOutwardNode = out_xbar.node
