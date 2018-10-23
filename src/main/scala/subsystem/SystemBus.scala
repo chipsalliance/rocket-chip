@@ -45,7 +45,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
     gen => to(s"bus_named_$name") {
       (gen
-        :*= TLFIFOFixer(TLFIFOFixer.all)
         :*= TLWidthWidget(params.beatBytes)
         :*= TLBuffer(params.pbusBuffer)
         :*= outwardNode)
