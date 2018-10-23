@@ -29,13 +29,13 @@ trait LanePositionedQueueModule[T <: Data] extends Module {
 }
 
 trait LanePositionedQueue {
-  def apply[T <: Data](gen: T, lanes: Int, rows: Int): LanePositionedQueueModule[T]
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean = false): LanePositionedQueueModule[T]
 }
 
 /////////////////////////////// Index math implementation //////////////////////////
 
 // A shared base class that keeps track of the indexing and flow control
-class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: Int) extends Module with LanePositionedQueueModule[T] {
+class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: Int, val flow: Boolean) extends Module with LanePositionedQueueModule[T] {
   require (rows >= 1)
   require (lanes >= 1)
 
@@ -104,8 +104,10 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
   enq_add := Mux(enq_all || enq_low > io.enq.valid, io.enq.valid, enq_low)
   enq_wrap := enq_add +& enq_lane >= lanes.U
 
-  val deq_all = used >= lanes.U
-  val deq_low = used(laneBits1-1, 0)
+  // It is safe to assume all enq.valid are accepted, because the addition saturates
+  val avail = if (flow) used +& io.enq.valid else used
+  val deq_all = avail >= lanes.U
+  val deq_low = avail(laneBits1-1, 0)
   io.deq.valid := Mux(deq_all, lanes.U, deq_low)
   deq_add := Mux(deq_all || deq_low > io.deq.ready, io.deq.ready, deq_low)
   deq_wrap := deq_add +& deq_lane >= lanes.U
@@ -119,12 +121,30 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
   val deq_rmask = UIntToOH1(io.deq.ready +& deq_lane, 2*lanes-1).pad(2*lanes)
   val deq_lmask = UIntToOH1(                deq_lane,     lanes).pad(2*lanes)
   val deq_mask  = ((deq_vmask & deq_rmask) & ~deq_lmask)
+
+  val deq_bits = Wire(Vec(lanes, gen))
+  io.deq.bits := deq_bits
+
+  // Bypass data when empty
+  if (flow) {
+    val maybe_empty = RegInit(true.B)
+    when (deq_wrap =/= enq_wrap) { maybe_empty := deq_wrap }
+
+    val row0 = deq_row  === enq_row && maybe_empty
+    val row1 = deq_row1 === enq_row
+    for (i <- 0 until lanes) {
+      val set = Mux(deq_lmask(i),
+        Mux(row0, false.B, Mux(row1, enq_lmask(i), true.B)),
+        Mux(row1, true.B,  Mux(row0, enq_lmask(i), true.B)))
+      when (!set) { io.deq.bits(i) := io.enq.bits(i) }
+    }
+  }
 }
 
 /////////////////////////////// Registered implementation //////////////////////////
 
-class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int)
-    extends LanePositionedQueueBase(gen, lanes, rows) {
+class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean)
+    extends LanePositionedQueueBase(gen, lanes, rows, flow) {
 
   require (rows % 2 == 0)
   val bank = Seq.fill(2) { Mem(rows/2, Vec(lanes, gen)) }
@@ -132,7 +152,7 @@ class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int)
   val b0_out = bank(0).read(deq_row1 >> 1)
   val b1_out = bank(1).read(deq_row  >> 1)
   for (l <- 0 until lanes) {
-    io.deq.bits(l) := Mux(deq_row(0) ^ deq_lmask(l), b1_out(l), b0_out(l))
+    deq_bits(l) := Mux(deq_row(0) ^ deq_lmask(l), b1_out(l), b0_out(l))
   }
 
   val hi_mask = enq_mask(2*lanes-1, lanes)
@@ -147,13 +167,14 @@ class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int)
 }
 
 object FloppedLanePositionedQueue extends LanePositionedQueue {
-  def apply[T <: Data](gen: T, lanes: Int, rows: Int) = new FloppedLanePositionedQueueModule(gen, lanes, rows)
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean) =
+    new FloppedLanePositionedQueueModule(gen, lanes, rows, flow)
 }
 
 /////////////////////////////// One port implementation ////////////////////////////
 
-class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int, rows: Int)
-    extends LanePositionedQueueBase(gen, lanes, rows) {
+class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int, rows: Int, flow: Boolean)
+    extends LanePositionedQueueBase(gen, lanes, rows, flow) {
 
   require (rows > 8 && rows % 4 == 0)
   // If rows <= 8, use FloppedLanePositionedQueue instead
@@ -222,12 +243,13 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int,
   val deq_buf0 = deq_buffer(deq_row(1,0))
   val deq_buf1 = VecInit.tabulate(4) { i => deq_buffer((i+1) % 4) } (deq_row(1,0))
   for (l <- 0 until lanes) {
-    io.deq.bits(l) := Mux(deq_lmask(l), deq_buf1(l), deq_buf0(l))
+    deq_bits(l) := Mux(deq_lmask(l), deq_buf1(l), deq_buf0(l))
   }
 }
 
 case class OnePortLanePositionedQueue(ecc: Code) extends LanePositionedQueue {
-  def apply[T <: Data](gen: T, lanes: Int, rows: Int) = new OnePortLanePositionedQueueModule(ecc)(gen, lanes, rows)
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean) =
+    new OnePortLanePositionedQueueModule(ecc)(gen, lanes, rows, flow)
 }
 
 /////////////////////////////// Black Box Unit Testing /////////////////////////////
@@ -239,7 +261,7 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(queueFactory(UInt(bits.W), lanes, rows))
+  val q = Module(queueFactory(UInt(bits.W), lanes, rows, true))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
