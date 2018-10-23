@@ -5,11 +5,11 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
-class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, val flow: Boolean = false, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
+class MultiPortQueue[T <: Data](gen: T, val enq_lanes: Int, val deq_lanes: Int, val lanes: Int, val rows: Int, val flow: Boolean = false, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val io = IO(new Bundle {
-    val enq = Flipped(Vec(lanes, Decoupled(gen)))
+    val enq = Flipped(Vec(enq_lanes, Decoupled(gen)))
     // NOTE: deq.{valid,bits} depend on deq.ready of lower-indexed ports
-    val deq = Vec(lanes, Decoupled(gen))
+    val deq = Vec(deq_lanes, Decoupled(gen))
   })
 
   val queue = Module(storage(gen, lanes, rows, flow))
@@ -67,11 +67,11 @@ object MultiPortQueue {
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink.LFSR64
 
-class MultiPortQueueTest(lanes: Int, rows: Int, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
+class MultiPortQueueTest(lanes: Int, wlanes: Int, rows: Int, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(new MultiPortQueue(UInt(bits.W), lanes, rows))
+  val q = Module(new MultiPortQueue(UInt(bits.W), lanes, lanes, wlanes, rows))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
