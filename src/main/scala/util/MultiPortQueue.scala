@@ -14,46 +14,63 @@ class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: 
 
   val queue = Module(storage(gen, lanes, rows))
 
-  // Compute per-enq-port ready
-  val enq_valid = DensePrefixSum(io.enq.map(_.valid.asUInt))(_ +& _)
-  queue.io.enq.valid := enq_valid.last
-  for (i <- 0 until lanes) {
-    io.enq(i).ready := enq_valid(i) <= queue.io.enq.ready
+  MultiPortQueue.gather (io.enq, queue.io.enq, queue.io.enq_0_lane)
+  MultiPortQueue.scatter(io.deq, queue.io.deq, queue.io.deq_0_lane)
+}
+
+object MultiPortQueue {
+  def gather[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U) {
+    val lanes = dense.lanes
+    val gen = chiselTypeOf(sparse.head.bits)
+    require (lanes == sparse.size)
+
+    // Compute per-enq-port ready
+    val enq_valid = DensePrefixSum(sparse.map(_.valid.asUInt))(_ +& _)
+    dense.valid := enq_valid.last
+    for (i <- 0 until lanes) {
+      sparse(i).ready := enq_valid(i) <= dense.ready
+    }
+
+    // Gather data from enq ports to rotated lanes
+    val enq_1hot = UIntToOH1(offset, lanes).pad(lanes)
+    val enq_sparse = Wire(Vec(2*lanes, ValidIO(gen)))
+    for (i <- 0 until lanes) {
+      enq_sparse(i).valid := enq_1hot(lanes-1-i)
+      enq_sparse(i).bits  := 0.U.asTypeOf(gen)
+      enq_sparse(i+lanes).valid := sparse(i).valid
+      enq_sparse(i+lanes).bits  := sparse(i).bits
+    }
+    val enq_dense = Gather(enq_sparse)
+    dense.bits := VecInit.tabulate(lanes) { i =>
+      Mux(enq_1hot(i), enq_dense(i+lanes), enq_dense(i))
+    }
   }
 
-  // Computer per-deq-port valid
-  val deq_ready = DensePrefixSum(io.deq.map(_.ready.asUInt))(_ +& _)
-  queue.io.deq.ready := deq_ready.last
-  for (i <- 0 until lanes) {
-    io.deq(i).valid := deq_ready(i) <= queue.io.deq.valid
-  }
+  def scatter[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U) {
+    val lanes = dense.lanes
+    val gen = chiselTypeOf(sparse.head.bits)
+    require (lanes == sparse.size)
 
-  // Gather data from enq ports to rotated lanes
-  val enq_1hot = UIntToOH1(queue.io.enq_0_lane, lanes).pad(lanes)
-  val enq_sparse = Wire(Vec(2*lanes, ValidIO(gen)))
-  for (i <- 0 until lanes) {
-    enq_sparse(i).valid := enq_1hot(lanes-1-i)
-    enq_sparse(i).bits  := 0.U.asTypeOf(gen)
-    enq_sparse(i+lanes).valid := io.enq(i).valid
-    enq_sparse(i+lanes).bits  := io.enq(i).bits
-  }
-  val enq_dense = Gather(enq_sparse)
-  queue.io.enq.bits := VecInit.tabulate(lanes) { i =>
-    Mux(enq_1hot(i), enq_dense(i+lanes), enq_dense(i))
-  }
+    // Computer per-deq-port valid
+    val deq_ready = DensePrefixSum(sparse.map(_.ready.asUInt))(_ +& _)
+    dense.ready := deq_ready.last
+    for (i <- 0 until lanes) {
+      sparse(i).valid := deq_ready(i) <= dense.valid
+    }
 
-  // Scatter data from rotated lanes to deq ports
-  val deq_1hot = UIntToOH1(queue.io.deq_0_lane, lanes).pad(lanes)
-  val deq_dense = Wire(Vec(2*lanes, ValidIO(gen)))
-  for (i <- 0 until lanes) {
-    deq_dense(i).valid := deq_1hot(i)
-    deq_dense(i+lanes).valid := io.deq(i).ready
-    deq_dense(i).bits := queue.io.deq.bits(i)
-    deq_dense(i+lanes).bits := queue.io.deq.bits(i)
-  }
-  val deq_sparse = Scatter(deq_dense)
-  for (i <- 0 until lanes) {
-    io.deq(i).bits := deq_sparse(i+lanes)
+    // Scatter data from rotated lanes to deq ports
+    val deq_1hot = UIntToOH1(offset, lanes).pad(lanes)
+    val deq_dense = Wire(Vec(2*lanes, ValidIO(gen)))
+    for (i <- 0 until lanes) {
+      deq_dense(i).valid := deq_1hot(i)
+      deq_dense(i+lanes).valid := sparse(i).ready
+      deq_dense(i).bits := dense.bits(i)
+      deq_dense(i+lanes).bits := dense.bits(i)
+    }
+    val deq_sparse = Scatter(deq_dense)
+    for (i <- 0 until lanes) {
+      sparse(i).bits := deq_sparse(i+lanes)
+    }
   }
 }
 
