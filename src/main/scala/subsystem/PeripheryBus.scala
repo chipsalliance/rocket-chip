@@ -73,7 +73,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => TLInwardNode): NoHandle = {
     to("tile" named name) { FlipRendering { implicit p =>
-      gen :*= TLBuffer(buffer) :*= outwardNode
+      gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }}
   }
 
