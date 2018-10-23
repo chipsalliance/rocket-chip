@@ -5,7 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
-class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
+class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, val flow: Boolean = false, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val laneBits1 = log2Ceil(lanes+1) // [0, lanes]
 
   val io = IO(new Bundle {
@@ -18,7 +18,7 @@ class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: 
     val deq_bits  = Output(Vec(lanes, gen))
   })
 
-  val queue = Module(storage(gen, lanes, rows))
+  val queue = Module(storage(gen, lanes, rows, flow))
 
   io.enq_ready := io.enq_valid <= queue.io.enq.ready
   queue.io.enq.valid := Mux(io.enq_ready, io.enq_valid, 0.U)

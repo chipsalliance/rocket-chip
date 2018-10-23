@@ -5,14 +5,14 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
-class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
+class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, val flow: Boolean = false, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(Vec(lanes, Decoupled(gen)))
     // NOTE: deq.{valid,bits} depend on deq.ready of lower-indexed ports
     val deq = Vec(lanes, Decoupled(gen))
   })
 
-  val queue = Module(storage(gen, lanes, rows))
+  val queue = Module(storage(gen, lanes, rows, flow))
 
   MultiPortQueue.gather (io.enq, queue.io.enq, queue.io.enq_0_lane)
   MultiPortQueue.scatter(io.deq, queue.io.deq, queue.io.deq_0_lane)
