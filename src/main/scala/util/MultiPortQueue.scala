@@ -8,7 +8,7 @@ import chisel3.util._
 class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(Vec(lanes, Decoupled(gen)))
-    // NOTE: deq.{valid,bits} depend on deq.ready; if this is a problem, add a flow queue.
+    // NOTE: deq.{valid,bits} depend on deq.ready of lower-indexed ports
     val deq = Vec(lanes, Decoupled(gen))
   })
 
@@ -27,8 +27,9 @@ object MultiPortQueue {
     // Compute per-enq-port ready
     val enq_valid = DensePrefixSum(sparse.map(_.valid.asUInt))(_ +& _)
     dense.valid := enq_valid.last
-    for (i <- 0 until lanes) {
-      sparse(i).ready := enq_valid(i) <= dense.ready
+    sparse(0).ready := dense.ready.orR
+    for (i <- 1 until lanes) {
+      sparse(i).ready := enq_valid(i-1) < dense.ready
     }
 
     // Gather data from enq ports to rotated lanes
@@ -54,8 +55,9 @@ object MultiPortQueue {
     // Computer per-deq-port valid
     val deq_ready = DensePrefixSum(sparse.map(_.ready.asUInt))(_ +& _)
     dense.ready := deq_ready.last
-    for (i <- 0 until lanes) {
-      sparse(i).valid := deq_ready(i) <= dense.valid
+    sparse(0).valid := dense.valid.orR
+    for (i <- 1 until lanes) {
+      sparse(i).valid := deq_ready(i-1) < dense.valid
     }
 
     // Scatter data from rotated lanes to deq ports
