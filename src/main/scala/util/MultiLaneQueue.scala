@@ -12,7 +12,7 @@ class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: 
     val enq_ready = Output(Bool())
     val enq_valid = Input(UInt(laneBits1.W))
     val enq_bits  = Input(Vec(lanes, gen))
-    // NOTE: deq_{valid,bits} depend on deq_ready
+    // NOTE: deq_valid depends on deq_ready
     val deq_ready = Input(UInt(laneBits1.W))
     val deq_valid = Output(Bool())
     val deq_bits  = Output(Vec(lanes, gen))
