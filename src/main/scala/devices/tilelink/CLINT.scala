@@ -97,7 +97,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus.beatBytes, cbus.blockBytes) := _ }
+    clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
     clint
   }
 }

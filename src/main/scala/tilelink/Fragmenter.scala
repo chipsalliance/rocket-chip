@@ -307,6 +307,8 @@ object TLFragmenter
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
     fragmenter.node
   }
+
+  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)
 }
 
 /** Synthesizeable unit tests */

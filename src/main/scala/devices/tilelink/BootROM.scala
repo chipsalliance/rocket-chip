@@ -71,7 +71,7 @@ trait HasPeripheryBootROM { this: BaseSubsystem =>
 
   val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, cbus.beatBytes))
 
-  bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus.beatBytes, cbus.blockBytes) := _ }
+  bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus) := _ }
 }
 
 /** Subsystem will power-on running at 0x10040 (BootROM) */

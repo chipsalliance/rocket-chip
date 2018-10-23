@@ -31,7 +31,7 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   */
 trait HasPeripheryDebug { this: BaseSubsystem =>
   val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
-  debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus.beatBytes, cbus.blockBytes) := _ }
+  debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
   val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
   debug.dmInner.dmInner.customNode := debugCustomXbar.node
 

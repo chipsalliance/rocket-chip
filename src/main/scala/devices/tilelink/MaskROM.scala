@@ -18,7 +18,7 @@ trait HasPeripheryMaskROMSlave { this: BaseSubsystem =>
   val maskROMs = maskROMParams map { params =>
     val maskROM = LazyModule(new TLMaskROM(params))
     maskROM.node := cbus.coupleTo("MaskROM") {
-      TLFragmenter(maskROM.beatBytes, cbus.blockBytes) :*= TLWidthWidget(cbus.beatBytes) := _
+      TLFragmenter(maskROM.beatBytes, cbus.blockBytes) :*= TLWidthWidget(cbus) := _
     }
     maskROM
   }

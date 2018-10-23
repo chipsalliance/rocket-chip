@@ -202,6 +202,7 @@ object TLWidthWidget
     val widget = LazyModule(new TLWidthWidget(innerBeatBytes))
     widget.node
   }
+  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes)
 }
 
 /** Synthesizeable unit tests */
