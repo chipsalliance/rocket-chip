@@ -18,12 +18,13 @@ case class PeripheryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   atomics: Option[BusAtomics] = Some(BusAtomics()),
-  sbusCrossingType: ClockCrossingType = SynchronousCrossing(), // relative to sbus
+  busXType: ClockCrossingType = SynchronousCrossing(), // relative to sbus
   frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
   errorDevice: Option[DevNullParams] = None
 ) extends HasTLBusParams
 
 case object PeripheryBusKey extends Field[PeripheryBusParams]
+case object ControlBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")
@@ -52,14 +53,14 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
   def crossFromSystemBus(gen: (=> TLInwardNode) => NoHandle) {
     from("sbus") {
       val from_sbus = this.crossIn(inwardNode)
-      gen(from_sbus(params.sbusCrossingType))
+      gen(from_sbus(params.busXType))
     }
   }
 
   def crossFromControlBus(gen: (=> TLInwardNode) => NoHandle) {
     from("cbus") {
       val from_cbus = this.crossIn(inwardNode)
-      gen(from_cbus(params.sbusCrossingType))
+      gen(from_cbus(params.busXType))
     }
   }
 

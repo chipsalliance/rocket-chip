@@ -55,12 +55,12 @@ trait HasTiles { this: BaseSubsystem =>
   protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
 
     DisableMonitors { implicit p =>
-      sbus.control_bus.toTile(tile.tileParams.name) {
+      cbus.toTile(tile.tileParams.name) {
         crossing.slave.blockerCtrlAddr
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
-            sbus.control_bus.toVariableWidthSlave(Some("bus_blocker")) { bbb.controlNode }
+            cbus.coupleTo("bus_blocker") { bbb.controlNode := _ }
             tile.crossSlavePort() :*= bbb.node
           } .getOrElse { tile.crossSlavePort() }
       }

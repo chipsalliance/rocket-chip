@@ -19,7 +19,12 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case XLen => 64 // Applies to all cores
   case MaxHartIdBits => log2Up(site(RocketTilesKey).size)
   // Interconnect parameters
-  case SystemBusKey => SystemBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
+  case SystemBusKey => SystemBusParams(
+    beatBytes = site(XLen)/8,
+    blockBytes = site(CacheBlockBytes))
+  case ControlBusKey => PeripheryBusParams(
+    beatBytes = site(XLen)/8,
+    blockBytes = site(CacheBlockBytes))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
