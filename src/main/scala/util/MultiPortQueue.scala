@@ -37,7 +37,7 @@ class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: 
     enq_sparse(i+lanes).valid := io.enq(i).valid
     enq_sparse(i+lanes).bits  := io.enq(i).bits
   }
-  val (_, enq_dense) = Gather(enq_sparse)
+  val enq_dense = Gather(enq_sparse)
   queue.io.enq.bits := VecInit.tabulate(lanes) { i =>
     Mux(enq_1hot(i), enq_dense(i+lanes), enq_dense(i))
   }
@@ -51,7 +51,7 @@ class MultiPortQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, storage: 
     deq_dense(i).bits := queue.io.deq.bits(i)
     deq_dense(i+lanes).bits := queue.io.deq.bits(i)
   }
-  val (_, deq_sparse) = Scatter(deq_dense)
+  val deq_sparse = Scatter(deq_dense)
   for (i <- 0 until lanes) {
     io.deq(i).bits := deq_sparse(i+lanes)
   }
