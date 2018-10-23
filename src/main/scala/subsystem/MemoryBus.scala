@@ -25,11 +25,12 @@ case class BankedL2Params(
   coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { subsystem =>
     implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
-    val bh = LazyModule(new TLBroadcast(subsystem.memBusBlockBytes, nTrackers, bufferless))
+    val bh = LazyModule(new TLBroadcast(subsystem.mbus.blockBytes, nTrackers, bufferless))
     val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes))
     ww.node :*= bh.node
     (bh.node, ww.node, () => None)
   }) {
+  require (isPow2(nBanks) || nBanks == 0)
 }
 
 case object BankedL2Key extends Field(BankedL2Params())

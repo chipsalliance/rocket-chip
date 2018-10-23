@@ -16,6 +16,9 @@ trait HasTLBusParams {
   def blockBits: Int = blockBytes * 8
   def blockBeats: Int = blockBytes / beatBytes
   def blockOffset: Int = log2Up(blockBytes)
+
+  require (isPow2(beatBytes))
+  require (isPow2(blockBytes))
 }
 
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
