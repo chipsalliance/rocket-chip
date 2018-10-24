@@ -12,7 +12,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
-import scala.math.max
 
 case class DCacheParams(
     nSets: Int = 64,
@@ -29,6 +28,7 @@ case class DCacheParams(
     blockBytes: Int = 64,
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
+    clockGate: Boolean = false,
     scratch: Option[BigInt] = None) extends L1CacheParams {
 
   def tagCode: Code = Code.fromString(tagECC)
@@ -79,7 +79,6 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
     require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)")
   // would need offset addr for puts if data width < xlen
   require(xLen <= cacheDataBits, s"xLen($xLen) > cacheDataBits($cacheDataBits)")
-  require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -138,6 +137,7 @@ class HellaCachePerfEvents extends Bundle {
   val release = Bool()
   val grant = Bool()
   val tlbMiss = Bool()
+  val blocked = Bool()
 }
 
 // interface between D$ and processor/DTLB
@@ -154,31 +154,32 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_xcpt = (new HellaCacheExceptions).asInput
   val ordered = Bool(INPUT)
   val perf = new HellaCachePerfEvents().asInput
+
+  val keep_clock_enabled = Bool(OUTPUT) // should D$ avoid clock-gating itself?
+  val clock_enabled = Bool(INPUT) // is D$ currently being clocked?
 }
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
 abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule {
-  private val cfg = p(TileKey).dcache.get
-  val firstMMIO = max(1, cfg.nMSHRs)
+  protected val cfg = p(TileKey).dcache.get
+
+  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters(
+    name          = s"Core ${hartid} DCache",
+    sourceId      = IdRange(0, 1 max cfg.nMSHRs),
+    supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
+
+  protected def mmioClientParameters = Seq(TLClientParameters(
+    name          = s"Core ${hartid} DCache MMIO",
+    sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
+    requestFifo   = true))
+
+  def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
   val node = TLClientNode(Seq(TLClientPortParameters(
-    clients = cfg.scratch.map { _ => Seq(
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache MMIO",
-        sourceId      = IdRange(0, cfg.nMMIOs),
-        requestFifo   = true))
-    } getOrElse { Seq(
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache",
-         sourceId      = IdRange(0, firstMMIO),
-         supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes)),
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache MMIO",
-        sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
-        requestFifo   = true))
-    },
+    cacheClientParameters ++ mmioClientParameters,
     minLatency = 1)))
+
   val module: HellaCacheModule
 }
 
@@ -211,7 +212,7 @@ trait HasHellaCache { this: BaseTile =>
   implicit val p: Parameters
   def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcache: HellaCache = LazyModule(
+  lazy val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
       new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
     } else { new NonBlockingDCache(hartId) })
@@ -220,7 +221,8 @@ trait HasHellaCache { this: BaseTile =>
 }
 
 trait HasHellaCacheModule {
-  val outer: HasHellaCache
+  val outer: HasHellaCache with HasTileParameters
+  implicit val p: Parameters
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem

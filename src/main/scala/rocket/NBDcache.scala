@@ -676,6 +676,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   require(isPow2(nWays)) // TODO: relax this
   require(dataScratchpadSize == 0)
+  require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
 
   // ECC is only supported on the data array
   require(cacheParams.tagCode.isInstanceOf[IdentityCode])
@@ -996,4 +997,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.perf.acquire := edge.done(tl_out.a)
   io.cpu.perf.release := edge.done(tl_out.c)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+
+  // no clock-gating support
+  io.cpu.clock_enabled := true
 }

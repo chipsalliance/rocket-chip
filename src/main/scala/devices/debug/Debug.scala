@@ -887,7 +887,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       GOING       -> Seq(WNotifyWire(sbIdWidth, hartGoingId,  hartGoingWrEn,
         "debug_hart_going", "Debug ROM causes hart to write 0 here when it begins executing Debug Mode instructions.")),
       RESUMING    -> Seq(WNotifyWire(sbIdWidth, hartResumingId,  hartResumingWrEn,
-        "debug_hart_resuming", "Debug ROM causes hart to write 0 here when it leaves Debug Mode.")),
+        "debug_hart_resuming", "Debug ROM causes hart to write its hartID here when it leaves Debug Mode.")),
       EXCEPTION   -> Seq(WNotifyWire(sbIdWidth, hartExceptionId,  hartExceptionWrEn,
         "debug_hart_exception", "Debug ROM causes hart to write 0 here if it gets an exception in Debug Mode.")),
       DATA        -> RegFieldGroup("debug_data", Some("Data used to communicate with Debug Module"),

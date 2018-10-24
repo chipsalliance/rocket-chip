@@ -112,9 +112,18 @@ package object util {
       else Cat(UInt(0, n - x.getWidth), x)
     }
 
+    // Like UInt.apply(hi, lo), but returns 0.U for zero-width extracts
     def extract(hi: Int, lo: Int): UInt = {
+      require(hi >= lo-1)
       if (hi == lo-1) UInt(0)
       else x(hi, lo)
+    }
+
+    // Like Some(UInt.apply(hi, lo)), but returns None for zero-width extracts
+    def extractOption(hi: Int, lo: Int): Option[UInt] = {
+      require(hi >= lo-1)
+      if (hi == lo-1) None
+      else Some(x(hi, lo))
     }
 
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
@@ -147,6 +156,13 @@ package object util {
       (0 until x.getWidth by width).map(base => x(base + width - 1, base))
 
     def inRange(base: UInt, bounds: UInt) = x >= base && x < bounds
+
+    def ## (y: Option[UInt]): UInt = y.map(x ## _).getOrElse(x)
+  }
+
+  implicit class OptionUIntToAugmentedOptionUInt(val x: Option[UInt]) extends AnyVal {
+    def ## (y: UInt): UInt = x.map(_ ## y).getOrElse(y)
+    def ## (y: Option[UInt]): Option[UInt] = x.map(_ ## y)
   }
 
   implicit class BooleanToAugmentedBoolean(val x: Boolean) extends AnyVal {

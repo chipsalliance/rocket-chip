@@ -15,7 +15,7 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val requestors = Vec(n, new TLBPTWIO).flip
   }
 
-  val req_arb = Module(new RRArbiter(new PTWReq, n))
+  val req_arb = Module(new RRArbiter(Valid(new PTWReq), n))
   req_arb.io.in <> io.requestors.map(_.req)
   req_arb.io.out.ready := Bool(true)
 
@@ -26,10 +26,10 @@ class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val chosen = UInt(width = log2Up(n))
   }
 
-  val s1_ppn = vpn_to_ppn(req_arb.io.out.bits.addr)
+  val s1_ppn = vpn_to_ppn(req_arb.io.out.bits.bits.addr)
   val s2_ppn = RegEnable(s1_ppn, req_arb.io.out.valid)
   val s2_chosen = RegEnable(req_arb.io.chosen, req_arb.io.out.valid)
-  val s2_valid = Reg(next = req_arb.io.out.valid)
+  val s2_valid = Reg(next = req_arb.io.out.valid && req_arb.io.out.bits.valid)
 
   val s2_resp = Wire(init = 0.U.asTypeOf(new PTWResp))
   s2_resp.pte.ppn := s2_ppn

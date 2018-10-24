@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import chisel3.experimental._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -181,6 +182,7 @@ class CSRDecodeIO extends Bundle {
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
+  val ungated_clock = Clock().asInput
   val interrupts = new CoreInterrupts().asInput
   val hartid = UInt(INPUT, hartIdLen)
   val rw = new Bundle {
@@ -217,14 +219,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
-}
-
-case class CustomCSR(id: Int, mask: BigInt, init: Option[BigInt])
-
-class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
-  val wen = Bool()
-  val wdata = UInt(xLen.W)
-  val value = UInt(xLen.W)
 }
 
 class CSRFile(
@@ -317,17 +311,16 @@ class CSRFile(
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
   val reg_sptbr = Reg(new PTBR)
-  val reg_wfi = Reg(init=Bool(false))
+  val reg_wfi = withClock(io.ungated_clock) { Reg(init=Bool(false)) }
 
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
   val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
+  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !reg_wfi) }
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
   (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
   val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
-  val hpm_mask = reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren)
 
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
@@ -502,7 +495,7 @@ class CSRFile(
     val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
     val counter_addr = io_dec.csr(log2Ceil(reg_mcounteren.getWidth)-1, 0)
     val allow_counter = (reg_mstatus.prv > PRV.S || reg_mcounteren(counter_addr)) &&
-      (reg_mstatus.prv >= PRV.S || reg_scounteren(counter_addr))
+      (!usingVM || reg_mstatus.prv >= PRV.S || reg_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
     io_dec.fp_csr := Bool(usingFPU) && DecodeLogic(io_dec.csr, fp_csrs.keys.toList.map(_.U), (read_mapping -- fp_csrs.keys.toList).keys.toList.map(_.U))
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
@@ -561,7 +554,7 @@ class CSRFile(
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
-  when (pending_interrupts.orR || exception || io.interrupts.debug) { reg_wfi := false }
+  when (pending_interrupts.orR || io.interrupts.debug || exception) { reg_wfi := false }
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }

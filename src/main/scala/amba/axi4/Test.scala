@@ -98,7 +98,7 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasF
   val node = AXI4IdentityNode()
   val xbar = LazyModule(new TLXbar)
   val ram  = LazyModule(new TLRAM(fuzzAddr))
-  val error= LazyModule(new TLError(ErrorParams(Seq(AddressSet(0x1800, 0xff)), maxAtomic = 8, maxTransfer = 256)))
+  val error= LazyModule(new TLError(DevNullParams(Seq(AddressSet(0x1800, 0xff)), maxAtomic = 8, maxTransfer = 256)))
 
   ram.node   := TLErrorEvaluator(pattern) := TLFragmenter(4, 16) := xbar.node
   error.node := xbar.node

@@ -33,8 +33,8 @@ case class TLManagerParameters(
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   fifoId:             Option[Int] = None)
 {
-  require (!address.isEmpty)
-  address.foreach { a => require (a.finite) }
+  require (!address.isEmpty, "Address cannot be empty")
+  address.foreach { a => require (a.finite, "Address must be finite") }
 
   address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
   require (supportsPutFull.contains(supportsPutPartial), s"PutFull($supportsPutFull) < PutPartial($supportsPutPartial)")
@@ -70,7 +70,7 @@ case class TLManagerParameters(
       r = supportsAcquireB || supportsGet,
       w = supportsAcquireT || supportsPutFull,
       x = executable,
-      c = regionType >= RegionType.UNCACHED,
+      c = supportsAcquireB,
       a = supportsArithmetic && supportsLogical))
   }
 
@@ -88,13 +88,13 @@ case class TLManagerPortParameters(
   endSinkId:  Int = 0,
   minLatency: Int = 0)
 {
-  require (!managers.isEmpty)
-  require (isPow2(beatBytes))
-  require (endSinkId >= 0)
-  require (minLatency >= 0)
+  require (!managers.isEmpty, "Manager ports must have managers")
+  require (isPow2(beatBytes), "Data channel width must be a power of 2")
+  require (endSinkId >= 0, "Sink ids cannot be negative")
+  require (minLatency >= 0, "Minimum required latency cannot be negative")
 
   def requireFifo() = managers.foreach { m =>
-    require(m.fifoId == Some(0), s"${m.name} had fifoId ${m.fifoId}, which was not 0 (${managers.map(s => (s.name, s.fifoId))}) ")
+    require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
   }
 
   // Bounds on required sizes
@@ -195,19 +195,21 @@ case class TLManagerPortParameters(
 
 case class TLClientParameters(
   name:                String,
-  sourceId:            IdRange       = IdRange(0,1),
-  nodePath:            Seq[BaseNode] = Seq(),
-  requestFifo:         Boolean       = false, // only a request, not a requirement. applies to A, not C.
+  sourceId:            IdRange         = IdRange(0,1),
+  nodePath:            Seq[BaseNode]   = Seq(),
+  requestFifo:         Boolean         = false, // only a request, not a requirement. applies to A, not C.
+  visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
   // Supports both Probe+Grant of these sizes
-  supportsProbe:       TransferSizes = TransferSizes.none,
-  supportsArithmetic:  TransferSizes = TransferSizes.none,
-  supportsLogical:     TransferSizes = TransferSizes.none,
-  supportsGet:         TransferSizes = TransferSizes.none,
-  supportsPutFull:     TransferSizes = TransferSizes.none,
-  supportsPutPartial:  TransferSizes = TransferSizes.none,
-  supportsHint:        TransferSizes = TransferSizes.none)
+  supportsProbe:       TransferSizes   = TransferSizes.none,
+  supportsArithmetic:  TransferSizes   = TransferSizes.none,
+  supportsLogical:     TransferSizes   = TransferSizes.none,
+  supportsGet:         TransferSizes   = TransferSizes.none,
+  supportsPutFull:     TransferSizes   = TransferSizes.none,
+  supportsPutPartial:  TransferSizes   = TransferSizes.none,
+  supportsHint:        TransferSizes   = TransferSizes.none)
 {
   require (!sourceId.isEmpty)
+  require (!visibility.isEmpty)
   require (supportsPutFull.contains(supportsPutPartial))
   // We only support these operations if we support Probe (ie: we're a cache)
   require (supportsProbe.contains(supportsArithmetic))
@@ -216,6 +218,8 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutFull))
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
+
+  visibility.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
 
   val maxTransfer = List(
     supportsProbe.max,
@@ -227,8 +231,8 @@ case class TLClientParameters(
 }
 
 case class TLClientPortParameters(
-  clients:       Seq[TLClientParameters],
-  minLatency:    Int = 0) // Only applies to B=>C
+  clients:    Seq[TLClientParameters],
+  minLatency: Int = 0) // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)
