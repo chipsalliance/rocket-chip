@@ -7,54 +7,66 @@ import chisel3.util._
 
 object Gather {
   // Compress all the valid data to the lowest indices
-  def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum = DensePrefixSum): Vec[T] = {
+  def apply[T <: Data](data: Seq[ValidIO[T]]): Vec[T] = apply(data, DensePrefixSum)
+  def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum): Vec[T] = {
     val popBits = log2Ceil(data.size)
     val holes = data.map(x => WireInit(UInt(popBits.W), (!x.valid).asUInt))
     apply(data.map(_.bits), prefixSum(holes)(_ + _))
   }
-  def apply[T <: Data](data: Seq[T], prefixHoleSum: Seq[UInt]): Vec[T] = {
-    def helper(offset: Int, x: Vector[T]): Vector[T] = {
-      if (offset >= x.size) {
-        x
+  def apply[T <: Data](data: Seq[T], holeSum: Seq[UInt], layerOp: (Int, Seq[T], Seq[UInt]) => (Seq[T], Seq[UInt]) = idLayer[T] _): Vec[T] = {
+    def helper(layer: Int, offset: Int, holeSum0: Vector[UInt], data0: Vector[T]): Vector[T] = {
+      val (a, b) = layerOp(layer, data0, holeSum0)
+      val data = a.toVector
+      val holeSum = b.toVector
+      if (offset >= data.size) {
+        data
       } else {
         val bit = log2Ceil(offset)
-        helper(offset << 1, Vector.tabulate(x.size) { i =>
-          if (i+offset >= x.size) {
-            x(i)
+        helper(layer + 1, offset << 1, holeSum, Vector.tabulate(data.size) { i =>
+          if (i+offset >= data.size) {
+            data(i)
           } else {
-            Mux(prefixHoleSum(i+offset-1)(bit), x(i+offset), x(i))
+            Mux(holeSum(i+offset-1)(bit), data(i+offset), data(i))
           }
         })
       }
     }
-    VecInit(helper(1, data.toVector))
+    VecInit(helper(0, 1, holeSum.toVector, data.toVector))
   }
+  def layers(size: Int) = if (size == 0) 1 else 1+log2Ceil(size)
+  def idLayer[T](layer: Int, data: Seq[T], holeSum: Seq[UInt]) = (data, holeSum)
 }
 
 object Scatter {
-  def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum = DensePrefixSum): Vec[T] = {
+  def apply[T <: Data](data: Seq[ValidIO[T]]): Vec[T] = apply(data, DensePrefixSum)
+  def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum): Vec[T] = {
     val popBits = log2Ceil(data.size)
     val holes = data.map(x => WireInit(UInt(popBits.W), (!x.valid).asUInt))
     apply(data.map(_.bits), prefixSum(holes)(_ + _))
   }
-  def apply[T <: Data](data: Seq[T], prefixHoleSum: Seq[UInt]): Vec[T] = {
-    def helper(offset: Int, x: Vector[T]): Vector[T] = {
+  def apply[T <: Data](data: Seq[T], holeSum: Seq[UInt], layerOp: (Int, Seq[T], Seq[UInt]) => (Seq[T], Seq[UInt]) = idLayer[T] _): Vec[T] = {
+    def helper(layer: Int, offset: Int, holeSum0: Vector[UInt], data0: Vector[T]): Vector[T] = {
+      val (a, b) = layerOp(layer, data0, holeSum0)
+      val data = a.toVector
+      val holeSum = b.toVector
       if (offset <= 0) {
-        x
+        data
       } else {
         val bit = log2Ceil(offset)
-        helper(offset >> 1, Vector.tabulate(x.size) { i =>
+        helper(layer + 1, offset >> 1, holeSum, Vector.tabulate(data.size) { i =>
           if (i < offset) {
-            x(i)
+            data(i)
           } else {
-            Mux(prefixHoleSum(i-1)(bit), x(i-offset), x(i))
+            Mux(holeSum(i-1)(bit), data(i-offset), data(i))
           }
         })
       }
     }
     val offset = if (data.size <= 1) 0 else 1 << log2Floor(data.size-1)
-    VecInit(helper(offset, data.toVector))
+    VecInit(helper(0, offset, holeSum.toVector, data.toVector))
   }
+  def layers(size: Int) = if (size == 0) 1 else 1+log2Ceil(size)
+  def idLayer[T](layer: Int, data: Seq[T], holeSum: Seq[UInt]) = (data, holeSum)
 }
 
 import freechips.rocketchip.unittest._
