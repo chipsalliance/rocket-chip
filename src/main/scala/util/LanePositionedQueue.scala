@@ -7,19 +7,24 @@ import chisel3.util._
 
 /////////////////////////////// Abstract API for the Queue /////////////////////////
 
-class LanePositionedDecoupledIO[T <: Data](private val gen: T, val lanes: Int) extends Bundle {
-  val laneBits1 = log2Ceil(lanes+1) // [0, lanes]
+class LanePositionedDecoupledIO[T <: Data](private val gen: T, val maxValid: Int, val maxReady: Int) extends Bundle {
+  val validBits1 = log2Ceil(maxValid+1) // [0, maxValid]
+  val readyBits1 = log2Ceil(maxReady+1) // [0, maxReady]
+  val lanes = maxValid min maxReady // at most this many element flow per-cycle
 
-  val ready = Input (UInt(laneBits1.W))
-  val valid = Output(UInt(laneBits1.W))
+  val ready = Input (UInt(readyBits1.W))
+  val valid = Output(UInt(validBits1.W))
   val bits  = Output(Vec(lanes, gen))
 }
 
-class LanePositionedQueueIO[T <: Data](private val gen: T, val lanes: Int) extends Bundle {
+class LanePositionedQueueIO[T <: Data](private val gen: T, val lanes: Int, val depth: Int) extends Bundle {
   val laneBitsU = log2Up(lanes)
 
-  val enq = Flipped(new LanePositionedDecoupledIO(gen, lanes))
-  val deq = new LanePositionedDecoupledIO(gen, lanes)
+  // enq.valid elements are enqueued; enq.valid must be <= enq.ready min lanes
+  val enq = Flipped(new LanePositionedDecoupledIO(gen, lanes, depth))
+  // deq.ready elements are dequeued; deq.ready must be <= deq.valid min lanes
+  val deq = new LanePositionedDecoupledIO(gen, depth, lanes)
+
   val enq_0_lane = Output(UInt(laneBitsU.W))
   val deq_0_lane = Output(UInt(laneBitsU.W))
 }
@@ -39,28 +44,30 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
   require (rows >= 1)
   require (lanes >= 1)
 
-  val io = IO(new LanePositionedQueueIO(gen, lanes))
+  val io = IO(new LanePositionedQueueIO(gen, lanes, rows*lanes))
 
   val capacity  = rows * lanes
   val rowBits   = log2Ceil(rows)
   val laneBits  = log2Ceil(lanes)
   val laneBits1 = log2Ceil(lanes+1) // [0, lanes]
 
-  def lane(add: UInt) = {
-    if (lanes == 1) 0.U else {
+  def lane(add: UInt): (UInt, Bool) = {
+    if (lanes == 1) (0.U, add(0)) else {
       val out = RegInit(0.U(laneBits.W))
+      val z = out +& add
       if (isPow2(lanes)) {
-        out := out + add
+        out := z
+        (out, z(laneBits))
       } else {
-        val z = out +& add
         val s = z - lanes.U
-        out := Mux(s.asSInt >= 0.S, s, z)
+        val wrap = s.asSInt >= 0.S
+        out := Mux(wrap, s, z)
+        (out, wrap)
       }
-      out
     }
   }
 
-  def row(inc: Bool) = {
+  def row(inc: Bool): (UInt, UInt) = {
     if (rows == 1) (0.U, 0.U) else {
       val out = RegInit(0.U(rowBits.W))
       val out1 = WireInit(out + 1.U)
@@ -72,45 +79,36 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
     }
   }
 
-  val enq_add  = Wire(UInt(laneBits1.W))
-  val enq_wrap = Wire(Bool())
-  val enq_lane = lane(enq_add)
-  val (enq_row, enq_row1) = row(enq_wrap)
-
-  val deq_add  = Wire(UInt(laneBits1.W))
-  val deq_wrap = Wire(Bool())
-  val deq_lane = lane(deq_add)
-  val (deq_row, deq_row1) = row(deq_wrap)
+  val (enq_lane, enq_wrap) = lane(io.enq.valid)
+  val (deq_lane, deq_wrap) = lane(io.deq.ready)
+  val (enq_row,  enq_row1) = row(enq_wrap)
+  val (deq_row,  deq_row1) = row(deq_wrap)
 
   val capBits1 = log2Ceil(capacity+1)
-  val delta = enq_add.zext() - deq_add.zext()
+  val delta = io.enq.valid.zext() - io.deq.ready.zext()
   val used = RegInit(       0.U(capBits1.W))
   val free = RegInit(capacity.U(capBits1.W))
   used := (used.asSInt + delta).asUInt
   free := (free.asSInt - delta).asUInt
 
+  // These variables are only used for the assertion below
   val enq_pos = enq_row * lanes.U + enq_lane
   val deq_pos = deq_row * lanes.U + deq_lane
   val diff_pos = enq_pos + Mux(enq_pos >= deq_pos, 0.U, capacity.U) - deq_pos
   assert (used === diff_pos || (diff_pos === 0.U && used === capacity.U))
   assert (used + free === capacity.U)
 
+  // enq.valid <= enq.ready, so we are sure these avail can be dequeued
+  val avail = if (flow) used +& io.enq.valid else used
+
   io.enq_0_lane := enq_lane
   io.deq_0_lane := deq_lane
-
-  val enq_all = free >= lanes.U
-  val enq_low = free(laneBits1-1, 0)
-  io.enq.ready := Mux(enq_all, lanes.U, enq_low)
-  enq_add := Mux(enq_all || enq_low > io.enq.valid, io.enq.valid, enq_low)
-  enq_wrap := enq_add +& enq_lane >= lanes.U
-
-  // It is safe to assume all enq.valid are accepted, because the addition saturates
-  val avail = if (flow) used +& io.enq.valid else used
-  val deq_all = avail >= lanes.U
-  val deq_low = avail(laneBits1-1, 0)
-  io.deq.valid := Mux(deq_all, lanes.U, deq_low)
-  deq_add := Mux(deq_all || deq_low > io.deq.ready, io.deq.ready, deq_low)
-  deq_wrap := deq_add +& deq_lane >= lanes.U
+  io.enq.ready := free
+  io.deq.valid := avail
+  assert (io.enq.valid <= io.enq.ready)
+  assert (io.deq.ready <= io.deq.valid)
+  assert (io.enq.valid <= lanes.U)
+  assert (io.deq.ready <= lanes.U)
 
   val enq_vmask = UIntToOH1(io.enq.valid +& enq_lane, 2*lanes-1).pad(2*lanes)
   val enq_rmask = UIntToOH1(io.enq.ready +& enq_lane, 2*lanes-1).pad(2*lanes)
@@ -267,8 +265,9 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
   val deq = RegInit(0.U(bits.W))
   val done = RegInit(false.B)
 
-  q.io.enq.valid := (LFSR64() * (q.io.enq.ready +& 1.U)) >> 64
-  q.io.deq.ready := (LFSR64() * (q.io.deq.valid +& 1.U)) >> 64
+  def cap(x: UInt) = Mux(x > lanes.U, lanes.U, x) +& 1.U
+  q.io.enq.valid := (LFSR64() * cap(q.io.enq.ready)) >> 64
+  q.io.deq.ready := (LFSR64() * cap(q.io.deq.valid)) >> 64
 
   enq := enq + q.io.enq.valid
   deq := deq + q.io.deq.ready

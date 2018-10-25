@@ -133,8 +133,8 @@ class WithPowerQueueTests extends Config((site, here, up) => {
       Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 5, 20, 10000)),
       Module(new MultiPortQueueTest(3, 3, 2, 10000)),
       Module(new MultiPortQueueTest(5, 5, 6, 10000)),
-      Module(new MultiPortQueueTest(4, 3, 2, 10000)),
-      Module(new MultiPortQueueTest(4, 5, 6, 10000)),
+      Module(new MultiPortQueueTest(4, 3, 6, 10000)),
+      Module(new MultiPortQueueTest(4, 5, 2, 10000)),
       Module(new MultiLaneQueueTest(3, 2, 10000)),
       Module(new MultiLaneQueueTest(5, 6, 10000))
       )}})

@@ -22,9 +22,10 @@ object MultiPortQueue {
   def gather[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U) {
     // Compute per-enq-port ready
     val enq_valid = DensePrefixSum(sparse.map(_.valid.asUInt))(_ +& _)
-    val cap = 1 << dense.laneBits1 // cap-1 is largest legal value for dense.valid
-    dense.valid := Mux((cap <= sparse.size).B && cap.U <= enq_valid.last, (cap-1).U, enq_valid.last)
-    (sparse zip (0.U +: enq_valid)) foreach { case (s, v) => s.ready := v < dense.ready }
+    val cap_ready = Mux(dense.ready >= dense.lanes.U, dense.lanes.U, dense.ready(log2Ceil(dense.lanes)-1, 0))
+    val ready = if (dense.lanes >= sparse.size) dense.ready else cap_ready
+    dense.valid := Mux(enq_valid.last <= ready, enq_valid.last, ready)
+    (sparse zip (0.U +: enq_valid)) foreach { case (s, v) => s.ready := v < ready }
 
     // Gather data from enq ports to rotated lanes
     val popBits = log2Ceil(dense.lanes + sparse.size)
@@ -47,9 +48,10 @@ object MultiPortQueue {
   def scatter[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U) {
     // Computer per-deq-port valid
     val deq_ready = DensePrefixSum(sparse.map(_.ready.asUInt))(_ +& _)
-    val cap = 1 << dense.laneBits1 // cap-1 is largest legal value for dense.valid
-    dense.ready := Mux((cap <= sparse.size).B && cap.U <= deq_ready.last, (cap-1).U, deq_ready.last)
-    (sparse zip (0.U +: deq_ready)) foreach { case (s, r) => s.valid := r < dense.valid }
+    val cap_valid = Mux(dense.valid >= dense.lanes.U, dense.lanes.U, dense.valid(log2Ceil(dense.lanes)-1, 0))
+    val valid = if (dense.lanes >= sparse.size) dense.valid else cap_valid
+    dense.ready := Mux(deq_ready.last <= valid, deq_ready.last, valid)
+    (sparse zip (0.U +: deq_ready)) foreach { case (s, r) => s.valid := r < valid }
 
     // Scatter data from rotated lanes to deq ports
     val bits = dense.bits ++ dense.bits ++ Seq.fill(sparse.size) { 0.U.asTypeOf(chiselTypeOf(sparse.head.bits)) }
