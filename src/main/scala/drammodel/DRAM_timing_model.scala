@@ -108,12 +108,14 @@ class DRAMTimingModel(implicit val conf: MemoryParameters) extends Module{
     } else {
       io.ctrlFSM.readAddr := Cat(io.memController.cmdBus.bankAddr, rowAddr, io.memController.cmdBus.colAddr)
     }
+  /*
     val readDataShiftRegs = Vec.fill(conf.memConst.tCL + conf.memConst.BURST_LENGTH - 1) {
       Reg(init = Bits(0, width = conf.memConst.DATABUS_WIDTH))
     }
-    val readDataValidShiftRegs = Vec.fill(conf.memConst.tCL + conf.memConst.BURST_LENGTH - 1) {
-      Reg(init = Bool(false))
-    }
+    */
+    val readDataShiftRegs = Reg(init = Vec.fill(conf.memConst.tCL + conf.memConst.BURST_LENGTH -1){UInt(0, width = conf.memConst.DATABUS_WIDTH)})
+    val readDataValidShiftRegs = Reg(init = Vec.fill(conf.memConst.tCL + conf.memConst.BURST_LENGTH -1){Bool(false)})
+
     when(io.ctrlFSM.fireTgtCycle) {
       readDataValidShiftRegs(0) := Bool(false)
       for (i <- 1 until conf.memConst.tCL + conf.memConst.BURST_LENGTH - 1) {
@@ -124,11 +126,17 @@ class DRAMTimingModel(implicit val conf: MemoryParameters) extends Module{
       for (i <- 1 until conf.deviceWidth) {
         readData = Cat(io.ctrlFSM.readData.data(i), readData)
       }
+      /*
       for (i <- 0 until conf.memConst.BURST_LENGTH) {
         when(io.ctrlFSM.readData.valid) {
           readDataShiftRegs(i) := readData((i + 1) * conf.memConst.DATABUS_WIDTH - 1, i * conf.memConst.DATABUS_WIDTH)
           readDataValidShiftRegs(i) := Bool(true)
         }
+      }
+      */
+      when(io.ctrlFSM.readData.valid) {
+         readDataShiftRegs(0) := readData(conf.memConst.DATABUS_WIDTH - 1, 0)
+         readDataValidShiftRegs(0) := Bool(true)
       }
     }
     io.memController.readDataBus.valid := readDataValidShiftRegs(conf.memConst.tCL + conf.memConst.BURST_LENGTH - 2)

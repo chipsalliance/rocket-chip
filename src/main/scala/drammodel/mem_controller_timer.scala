@@ -4,7 +4,7 @@ import Chisel._
 
 class MemControllerTimer(implicit conf : MemoryParameters) extends Module{
   val io = new Bundle {
-    val params = new BankParameterIO()
+    val params = new DRAMModelParameterIO().flip
     val cmds = new BankCmdIO()
     val errors = new BankErrorIO()
     val ctrl = new BankToCtrlFSMIO()
@@ -46,23 +46,24 @@ class MemControllerTimer(implicit conf : MemoryParameters) extends Module{
   val tWTR_counter = Reg(init = UInt(0, conf.memConst.TIMING_COUNTER_WIDTH))
   val tWR_counter = Reg(init = UInt(0, conf.memConst.TIMING_COUNTER_WIDTH))
   
-  val tRAS_increment = Wire(Bool(false))
-  val tRCD_increment = Wire(Bool(false))
-  val tRP_increment = Wire(Bool(false))
-  val tCCD_increment = Wire(Bool(false))
-  val tRTP_increment = Wire(Bool(false))
-  val tWTR_increment = Wire(Bool(false))
-  val tWR_increment = Wire(Bool(false))
+  val tRAS_increment = Wire(Bool());tRAS_increment := Bool(false)
+  val tRCD_increment = Wire(Bool());tRCD_increment := Bool(false)
+  val tRP_increment = Wire(Bool());tRP_increment := Bool(false)
+  val tCCD_increment = Wire(Bool());tCCD_increment := Bool(false)
+  val tRTP_increment = Wire(Bool());tRTP_increment := Bool(false)
+  val tWTR_increment = Wire(Bool());tWTR_increment := Bool(false)
+  val tWR_increment = Wire(Bool());tWR_increment := Bool(false)
   
-  val tRAS_reset = Wire(Bool(false))
-  val tRCD_reset = Wire(Bool(false))
-  val tRP_reset = Wire(Bool(false))
-  val tCCD_reset = Wire(Bool(false))
-  val tRTP_reset = Wire(Bool(false))
-  val tWTR_reset = Wire(Bool(false))
-  val tWR_reset = Wire(Bool(false))
+  val tRAS_reset = Wire(Bool()); tRAS_reset := Bool(false)
+  val tRCD_reset = Wire(Bool()); tRCD_reset := Bool(false)
+  val tRP_reset = Wire(Bool()); tRP_reset := Bool(false)
+  val tCCD_reset = Wire(Bool()); tCCD_reset := Bool(false)
+  val tRTP_reset = Wire(Bool()); tRTP_reset := Bool(false)
+  val tWTR_reset = Wire(Bool()); tWTR_reset := Bool(false)
+  val tWR_reset = Wire(Bool()); tWR_reset := Bool(false)
   
   when(io.fireTgtCycle){
+    printf("####### tRP_increment = %x, tRP_param = %x, tRP_counter = %x\n",tRP_increment, io.params.tRP, tRP_counter)
     when(tRAS_reset){
       tRAS_counter := UInt(0)
     }.otherwise{
@@ -79,6 +80,7 @@ class MemControllerTimer(implicit conf : MemoryParameters) extends Module{
     }
     when(tRP_reset){
       tRP_counter := UInt(0)
+      printf("###### tRP reset ######\n")
     }.otherwise{
       when(tRP_increment && tRP_counter < tRP){
         tRP_counter := tRP_counter + UInt(1)

@@ -19,7 +19,7 @@ class MemController()(implicit val conf: MemoryParameters) extends Module {
   //Predef.assert(memConst.DRAM_BANK_ADDR_WIDTH +conf.memConst.DRAM_ROW_ADDR_WIDTH +conf.memConst.DRAM_COL_ADDR_WIDTH + conf.addrOffsetWidth <= mif.addrBits)
 
   val timer = Module(new MemControllerTimer())
-  //timer.io.params <> io.params
+  timer.io.params <> io.params
   timer.io.fireTgtCycle := io.fireTgtCycle
   timer.io.cmds.valid := io.DRAMModel.cmdBus.valid
   timer.io.cmds.activate := io.DRAMModel.cmdBus.cmd ===conf.memConst.activate_cmd
@@ -164,8 +164,8 @@ class MemController()(implicit val conf: MemoryParameters) extends Module {
     writeData = Cat(dataInBusData(i).data, writeData)
   }
   if(conf.memConst.tWL + conf.memConst.BURST_LENGTH - 1 > 0){
-    val dataInBusValidRegs = Vec.fill(conf.memConst.tWL + conf.memConst.BURST_LENGTH - 1){Reg(init = Bool(false))}
-    val dataInBusDataRegs = Vec.fill(conf.memConst.tWL + conf.memConst.BURST_LENGTH - 1){Reg(init = Bits(0, width = conf.memConst.DATABUS_WIDTH))}
+    val dataInBusValidRegs = Reg(init = Vec.fill(conf.memConst.tWL + conf.memConst.BURST_LENGTH -1){Bool(false)})
+    val dataInBusDataRegs = Reg(init = Vec.fill(conf.memConst.tWL + conf.memConst.BURST_LENGTH -1){UInt(0, width = conf.memConst.DATABUS_WIDTH)})
     io.DRAMModel.writeDataBus.valid := dataInBusValidRegs(conf.memConst.tWL + conf.memConst.BURST_LENGTH - 1 - 1)
     io.DRAMModel.writeDataBus.data := dataInBusDataRegs(conf.memConst.tWL + conf.memConst.BURST_LENGTH - 1 - 1)
 
@@ -218,12 +218,10 @@ class MemController()(implicit val conf: MemoryParameters) extends Module {
     nextWriteDatas(i).data := writeDatas(i).data
   }
   when(currentState === idle){
-    when(readDataQueues(0).io.enq.ready && readDataQueues(1).io.enq.ready && readDataQueues(2).io.enq.ready && readDataQueues(3).io.enq.ready){
-      //deque cmd queue
-      io.mem_cmd_queue.ready := timer.io.activate_rdy & Bool(true) & io.fireTgtCycle
-    }
     when(io.mem_cmd_queue.valid && readDataQueues(0).io.enq.ready && readDataQueues(1).io.enq.ready && readDataQueues(2).io.enq.ready && readDataQueues(3).io.enq.ready){
       when(timer.io.activate_rdy){
+        //deque cmd queue
+        io.mem_cmd_queue.ready := Bool(true) & io.fireTgtCycle
         //store addr
         nextAddr := io.mem_cmd_queue.bits.addr
         //set fsm outputs
