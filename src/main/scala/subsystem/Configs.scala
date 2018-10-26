@@ -24,11 +24,11 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     blockBytes = site(CacheBlockBytes))
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes))
-  case PeripheryBusKey => PeripheryBusParams(
-    beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
     errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)))
+  case PeripheryBusKey => PeripheryBusParams(
+    beatBytes = site(XLen)/8,
+    blockBytes = site(CacheBlockBytes))
   case MemoryBusKey => MemoryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   case FrontBusKey => FrontBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
