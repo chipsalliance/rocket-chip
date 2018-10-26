@@ -32,16 +32,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   }}
   def busView = master_splitter.node.edges.in.head
 
-  def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
-    gen => to(s"bus_named_$name") {
-      (gen
-        :*= TLWidthWidget(params.beatBytes)
-        :*= outwardNode)
-    }
-
-  def fromMasterBus(name: String): (=> TLOutwardNode) => NoHandle =
-    gen => from(s"bus_named_$name") { master_splitter.node :=* gen }
-
   def toSplitSlave[D,U,E,B <: Data]
       (name: Option[String] = None)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
