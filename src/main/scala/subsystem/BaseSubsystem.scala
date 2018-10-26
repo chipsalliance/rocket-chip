@@ -58,8 +58,8 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   def memBusCanCauseHalt: () => Option[Bool] = halt
 
   if (nBanks != 0) {
-    sbus.coupleTo("mbus") { in :*= _ }
-    mbus.coupleFrom(s"coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
+    sbus.coupleTo("coherence_manager") { in :*= _ }
+    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
   }
 
   lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
