@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -22,8 +21,6 @@ case class PeripheryBusParams(
   errorDevice: Option[DevNullParams] = None
 ) extends HasTLBusParams
 
-case object PeripheryBusKey extends Field[PeripheryBusParams]
-case object ControlBusKey extends Field[PeripheryBusParams]
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")

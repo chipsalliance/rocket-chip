@@ -8,6 +8,13 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case object SystemBusKey extends Field[SystemBusParams]
+case object FrontBusKey extends Field[FrontBusParams]
+case object PeripheryBusKey extends Field[PeripheryBusParams]
+case object ControlBusKey extends Field[PeripheryBusParams]
+case object MemoryBusKey extends Field[MemoryBusParams]
+case object BankedL2Key extends Field(BankedL2Params())
+
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
 
 /** BareSubsystem is the root class for creating a subsystem */
