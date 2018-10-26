@@ -46,29 +46,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  // The sbus masters the cbus; here we convert TL-UH -> TL-UL
-  sbus.crossToBus(cbus, NoCrossing)
-
-  // The cbus masters the pbus; which might be clocked slower
-  cbus.crossToBus(pbus, SynchronousCrossing())
-
-  // The fbus masters the sbus; both are TL-UH or TL-C
-  FlipRendering { implicit p =>
-    sbus.crossFromBus(fbus, SynchronousCrossing())
-  }
-
-  // The sbus masters the mbus; here we convert TL-C -> TL-UH
-  private val BankedL2Params(nBanks, coherenceManager) = p(BankedL2Key)
-  // TODO: the below call to coherenceManager should be wrapped in a LazyScope here,
-  //       but plumbing halt is too annoying for now.
-  private val (in, out, halt) = coherenceManager(this)
-  def memBusCanCauseHalt: () => Option[Bool] = halt
-
-  if (nBanks != 0) {
-    sbus.coupleTo("coherence_manager") { in :*= _ }
-    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
-  }
-
+  // Collect information for use in DTS
   lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
   ResourceBinding {
     val managers = topManagers

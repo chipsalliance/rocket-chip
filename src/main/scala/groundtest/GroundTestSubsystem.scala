@@ -35,6 +35,16 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) := ibus.toPLIC
 
+  sbus.crossToBus(cbus, NoCrossing)
+  cbus.crossToBus(pbus, SynchronousCrossing())
+  sbus.crossFromBus(fbus, SynchronousCrossing())
+  private val BankedL2Params(nBanks, coherenceManager) = p(BankedL2Key)
+  private val (in, out, halt) = coherenceManager(this)
+  if (nBanks != 0) {
+    sbus.coupleTo("coherence_manager") { in :*= _ }
+    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
+  }
+
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
