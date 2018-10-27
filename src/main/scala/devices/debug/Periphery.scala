@@ -30,8 +30,8 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   * or exports the Debug Module Interface (DMI), based on a global parameter.
   */
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  val debug = LazyModule(new TLDebugModule(sbus.control_bus.beatBytes))
-  sbus.control_bus.toVariableWidthSlave(Some("debug")){ debug.node }
+  val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
+  debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
   val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
   debug.dmInner.dmInner.customNode := debugCustomXbar.node
 

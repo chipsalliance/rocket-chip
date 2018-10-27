@@ -12,8 +12,6 @@ import freechips.rocketchip.util._
 case class SystemBusParams(
   beatBytes: Int,
   blockBytes: Int,
-  atomics: Option[BusAtomics] = Some(BusAtomics()),
-  pbusBuffer: BufferParams = BufferParams.none,
   policy: TLArbiter.Policy = TLArbiter.roundRobin,
   errorDevice: Option[DevNullParams] = None) extends HasTLBusParams
 
@@ -24,14 +22,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     with CanAttachTLSlaves
     with CanAttachTLMasters
     with HasTLXbarPhy {
-
-  val cbus_params = new PeripheryBusParams(
-    p(PeripheryBusKey).beatBytes,
-    params.blockBytes,
-    params.atomics,
-    NoCrossing)
-  val control_bus = LazyModule(new PeripheryBus(cbus_params))
-  control_bus.crossFromSystemBus { this.toSlaveBus("cbus") }
 
   private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
@@ -46,7 +36,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     gen => to(s"bus_named_$name") {
       (gen
         :*= TLWidthWidget(params.beatBytes)
-        :*= TLBuffer(params.pbusBuffer)
         :*= outwardNode)
     }
 
