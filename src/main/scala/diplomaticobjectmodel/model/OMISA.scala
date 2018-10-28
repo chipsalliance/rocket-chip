@@ -38,5 +38,5 @@ case class OMISA(
                   u: Option[OMSpecification],
                   s: Option[OMSpecification],
                   addressTranslationModes: Seq[OMAddressTranslationMode]
-) extends CompoundType
+) extends OMCompoundType
 
