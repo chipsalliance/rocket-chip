@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 trait OMBaseType
 
-trait CompoundType extends OMBaseType
+trait OMCompoundType extends OMBaseType
 
-trait OMComponent extends CompoundType
+trait OMComponent extends OMCompoundType
 
