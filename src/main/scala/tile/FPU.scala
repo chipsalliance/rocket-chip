@@ -911,7 +911,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   // gate the clock
-  clock_en_reg :=
+  clock_en_reg := !useClockGating ||
     io.keep_clock_enabled || // chicken bit
     io.valid || // ID stage
     req_valid || // EX stage
