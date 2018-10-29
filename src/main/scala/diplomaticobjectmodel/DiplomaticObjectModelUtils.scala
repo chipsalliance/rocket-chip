@@ -14,10 +14,14 @@ object DiplomaticObjectModelUtils {
     final def option[A](a: => A): Option[A] = if (b) Some(a) else None
   }
 
-  def writeJsonFile(msg: String, filename: String, json: Map[String, Any]) : Unit = {
+  def toJson(json: Any): String = {
     implicit val formats = Serialization.formats(NoTypeHints)
+    pretty(Extraction.decompose(json))
+  }
+
+  def writeJsonFile(msg: String, filename: String, json: Map[String, Any]) : Unit = {
     val writer = new FileWriter(new File(filename))
-    writer.write(pretty(Extraction.decompose(json)))
+    writer.write(toJson(json))
     writer.close()
   }
 

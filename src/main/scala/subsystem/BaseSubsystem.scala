@@ -5,6 +5,7 @@ package freechips.rocketchip.subsystem
 import Chisel._
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -22,6 +23,7 @@ abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with Bin
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
+  lazy val objectModelJson = DiplomaticObjectModelUtils.toJson(objectModelInstance)
 }
 
 abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends LazyModuleImp(_outer) {
@@ -29,6 +31,7 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)
   ElaborationArtefacts.add("json", outer.json)
+  ElaborationArtefacts.add("objectModel.json", outer.objectModelJson)
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
   println(outer.dts)
 }
