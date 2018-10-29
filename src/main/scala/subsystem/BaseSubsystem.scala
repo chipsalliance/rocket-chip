@@ -8,6 +8,13 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case object SystemBusKey extends Field[SystemBusParams]
+case object FrontBusKey extends Field[FrontBusParams]
+case object PeripheryBusKey extends Field[PeripheryBusParams]
+case object ControlBusKey extends Field[PeripheryBusParams]
+case object MemoryBusKey extends Field[MemoryBusParams]
+case object BankedL2Key extends Field(BankedL2Params())
+
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
 
 /** BareSubsystem is the root class for creating a subsystem */
@@ -39,29 +46,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  // The sbus masters the cbus; here we convert TL-UH -> TL-UL
-  cbus.crossFromSystemBus { sbus.toSlaveBus("cbus") }
-
-  // The cbus masters the pbus; which might be clocked slower
-  pbus.crossFromControlBus { cbus.toSlaveBus("pbus") }
-
-  // The fbus masters the sbus; both are TL-UH or TL-C
-  FlipRendering { implicit p =>
-    fbus.crossToSystemBus { sbus.fromMasterBus("fbus") }
-  }
-
-  // The sbus masters the mbus; here we convert TL-C -> TL-UH
-  private val BankedL2Params(nBanks, coherenceManager) = p(BankedL2Key)
-  // TODO: the below call to coherenceManager should be wrapped in a LazyScope here,
-  //       but plumbing halt is too annoying for now.
-  private val (in, out, halt) = coherenceManager(this)
-  def memBusCanCauseHalt: () => Option[Bool] = halt
-
-  if (nBanks != 0) {
-    sbus.coupleTo("coherence_manager") { in :*= _ }
-    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
-  }
-
+  // Collect information for use in DTS
   lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
   ResourceBinding {
     val managers = topManagers

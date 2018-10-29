@@ -16,8 +16,7 @@ import scala.math.max
 case object TileId extends Field[Int]
 
 class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
-    with CanHaveMasterAXI4MemPort
-    with HasPeripheryTestRAMSlave {
+    with CanHaveMasterAXI4MemPort {
   val tileParams = p(GroundTestTilesKey)
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
     c.build(i, p.alterPartial {
@@ -30,8 +29,21 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
     sbus.fromTile(None, buffer = BufferParams.default){ dc.node }
   }
 
+  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
+  pbus.coupleTo("TestRAM") { testram.node := TLFragmenter(pbus) := _ }
+
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) := ibus.toPLIC
+
+  sbus.crossToBus(cbus, NoCrossing)
+  cbus.crossToBus(pbus, SynchronousCrossing())
+  sbus.crossFromBus(fbus, SynchronousCrossing())
+  private val BankedL2Params(nBanks, coherenceManager) = p(BankedL2Key)
+  private val (in, out, halt) = coherenceManager(this)
+  if (nBanks != 0) {
+    sbus.coupleTo("coherence_manager") { in :*= _ }
+    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
+  }
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
@@ -44,16 +56,4 @@ class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends
 
   val status = DebugCombiner(outer.tiles.map(_.module.status))
   success := status.finished
-}
-
-/** Adds a SRAM to the system for testing purposes. */
-trait HasPeripheryTestRAMSlave { this: BaseSubsystem =>
-  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("TestRAM")) { testram.node }
-}
-
-/** Adds a fuzzing master to the system for testing purposes. */
-trait HasPeripheryTestFuzzMaster { this: BaseSubsystem =>
-  val fuzzer = LazyModule(new TLFuzzer(5000))
-  pbus.fromOtherMaster(Some("Fuzzer")) { fuzzer.node }
 }
