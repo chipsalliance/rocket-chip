@@ -33,16 +33,12 @@ case class BankedL2Params(
   require (isPow2(nBanks) || nBanks == 0)
 }
 
-case object BankedL2Key extends Field(BankedL2Params())
-
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   zeroDevice: Option[AddressSet] = None,
   errorDevice: Option[DevNullParams] = None) extends HasTLBusParams
-
-case object MemoryBusKey extends Field[MemoryBusParams]
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)

@@ -3,7 +3,7 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError, TLZero}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -14,8 +14,6 @@ case class SystemBusParams(
   blockBytes: Int,
   policy: TLArbiter.Policy = TLArbiter.roundRobin,
   errorDevice: Option[DevNullParams] = None) extends HasTLBusParams
-
-case object SystemBusKey extends Field[SystemBusParams]
 
 class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "system_bus")
@@ -31,16 +29,6 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     error.node := TLBuffer() := outwardNode
   }}
   def busView = master_splitter.node.edges.in.head
-
-  def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
-    gen => to(s"bus_named_$name") {
-      (gen
-        :*= TLWidthWidget(params.beatBytes)
-        :*= outwardNode)
-    }
-
-  def fromMasterBus(name: String): (=> TLOutwardNode) => NoHandle =
-    gen => from(s"bus_named_$name") { master_splitter.node :=* gen }
 
   def toSplitSlave[D,U,E,B <: Data]
       (name: Option[String] = None)
