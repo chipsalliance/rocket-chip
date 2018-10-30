@@ -12,10 +12,6 @@ import org.json4s.JsonAST.JInt
 
 object DiplomaticObjectModelUtils {
 
-  implicit class RichBoolean(val b: Boolean) extends AnyVal {
-    final def option[A](a: => A): Option[A] = if (b) Some(a) else None
-  }
-
   def toJson(json: Any): String = {
     implicit val formats = Serialization.formats(NoTypeHints)
     pretty(Extraction.decompose(json))
