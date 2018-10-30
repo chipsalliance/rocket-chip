@@ -7,6 +7,8 @@ import java.io.{File, FileWriter}
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{Extraction, NoTypeHints}
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JInt
 
 object DiplomaticObjectModelUtils {
 

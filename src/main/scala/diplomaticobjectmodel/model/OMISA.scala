@@ -20,13 +20,21 @@ case object Sv48 extends OMAddressTranslationMode
 
 sealed trait OMBaseInstructionSet
 
-case object RV32E extends OMBaseInstructionSet
-case object RV32I extends OMBaseInstructionSet
-case object RV64I extends OMBaseInstructionSet
-case object RV128I extends OMBaseInstructionSet
+case object RV32E extends OMBaseInstructionSet {
+  val base = "RV32E"
+}
+case object RV32I extends OMBaseInstructionSet {
+  val base = "RV32I"
+}
+case object RV64I extends OMBaseInstructionSet {
+  val base = "RV64I"
+}
+case object RV128I extends OMBaseInstructionSet {
+  val base = "RV128I"
+}
 
 case class OMISA(
-                  _types: Seq[String],
+                  _types: Seq[String] = Nil,
                   xLen: Int,
                   baseSpecification: OMSpecification,
                   base: OMBaseInstructionSet,
@@ -38,5 +46,6 @@ case class OMISA(
                   u: Option[OMSpecification],
                   s: Option[OMSpecification],
                   addressTranslationModes: Seq[OMAddressTranslationMode]
-) extends OMCompoundType
-
+) extends OMCompoundType {
+  override def getTypes(): Seq[String] = Seq[String]("ISA") ++ super.getTypes
+}
