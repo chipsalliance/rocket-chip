@@ -34,7 +34,7 @@ case object RV128I extends OMBaseInstructionSet {
 }
 
 case class OMISA(
-                  _types: Seq[String] = Nil,
+                  _types: Seq[String],
                   xLen: Int,
                   baseSpecification: OMSpecification,
                   base: OMBaseInstructionSet,
@@ -46,6 +46,36 @@ case class OMISA(
                   u: Option[OMSpecification],
                   s: Option[OMSpecification],
                   addressTranslationModes: Seq[OMAddressTranslationMode]
-) extends OMCompoundType {
-  override def getTypes(): Seq[String] = Seq[String]("ISA") ++ super.getTypes
+) extends OMCompoundType
+
+object OMISA extends OMCompoundType {
+  override def getTypes: Seq[String] = Seq[String]("ISA") ++ super.getTypes
+
+  def apply(xLen: Int,
+            baseSpecification: OMSpecification,
+            base: OMBaseInstructionSet,
+            m: Option[OMSpecification],
+            a: Option[OMSpecification],
+            f: Option[OMSpecification],
+            d: Option[OMSpecification],
+            c: Option[OMSpecification],
+            u: Option[OMSpecification],
+            s: Option[OMSpecification],
+            addressTranslationModes: Seq[OMAddressTranslationMode]): OMISA = {
+    OMISA(
+  _types = getTypes,
+  xLen = xLen,
+  baseSpecification = baseSpecification,
+  base = base,
+  m = m,
+  a = a,
+  f = f,
+  d = d,
+  c = c,
+  u = u,
+  s = s,
+  addressTranslationModes = addressTranslationModes
+  )
+  }
 }
+
