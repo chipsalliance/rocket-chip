@@ -148,7 +148,7 @@ object Split
 object Random
 {
   def apply(mod: Int, random: UInt): UInt = {
-    if (isPow2(mod)) random(log2Up(mod)-1,0)
+    if (isPow2(mod)) random.extract(log2Ceil(mod)-1,0)
     else PriorityEncoder(partition(apply(1 << log2Up(mod*8), random), mod))
   }
   def apply(mod: Int): UInt = apply(mod, randomizer)
@@ -159,10 +159,8 @@ object Random
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 
   private def randomizer = LFSR16()
-  private def round(x: Double): Int =
-    if (x.toInt.toDouble == x) x.toInt else (x.toInt + 1) & -2
   private def partition(value: UInt, slices: Int) =
-    Seq.tabulate(slices)(i => value < UInt(round((i << value.getWidth).toDouble / slices)))
+    Seq.tabulate(slices)(i => value < UInt(((i + 1) << value.getWidth) / slices))
 }
 
 object Majority {

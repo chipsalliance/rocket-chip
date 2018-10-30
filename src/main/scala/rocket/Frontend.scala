@@ -321,7 +321,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.errors := icache.io.errors
 
   // gate the clock
-  clock_en_reg := io.cpu.might_request || // chicken bit
+  clock_en_reg := !rocketParams.clockGate ||
+    io.cpu.might_request || // chicken bit
     icache.io.keep_clock_enabled || // I$ miss or ITIM access
     s1_valid || s2_valid || // some fetch in flight
     !tlb.io.req.ready || // handling TLB miss

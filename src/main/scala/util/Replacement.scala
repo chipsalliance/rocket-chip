@@ -16,7 +16,7 @@ class RandomReplacement(ways: Int) extends ReplacementPolicy {
   replace := Bool(false)
   val lfsr = LFSR16(replace)
 
-  def way = if(ways == 1) UInt(0) else lfsr(log2Up(ways)-1,0)
+  def way = Random(ways, lfsr)
   def miss = replace := Bool(true)
   def hit = {}
 }

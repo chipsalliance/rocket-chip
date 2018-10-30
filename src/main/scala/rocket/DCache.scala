@@ -811,7 +811,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // gate the clock
-  clock_en_reg := io.ptw.customCSRs.disableDCacheClockGate ||
+  clock_en_reg := !cacheParams.clockGate ||
+    io.ptw.customCSRs.disableDCacheClockGate ||
     io.cpu.keep_clock_enabled ||
     metaArb.io.out.valid || // subsumes resetting || flushing
     s1_probe || s2_probe ||
