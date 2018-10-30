@@ -27,7 +27,11 @@ trait HasTiles { this: BaseSubsystem =>
   def sharedMemoryTLEdge = sbus.busView
   val meipNode = p(PLICKey) match {
     case Some(_) => None
-    case None    => Some(IntSourceNode(IntSourcePortSimple(num = 1, ports = 1, sources = 1)))
+    case None    => Some(IntNexusNode(
+      sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
+      sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+      outputRequiresInput = false,
+      inputRequiresOutput = false))
   }
 
   private val lookupByHartId = new LookupByHartIdImpl {
@@ -146,6 +150,10 @@ trait HasTilesModuleImp extends LazyModuleImp
     tile.constants.reset_vector := wire.reset_vector
   }
 
-  val meip = if(outer.meipNode.isDefined) Some(IO(Bool(INPUT))) else None
-  meip.foreach { (outer.meipNode.get.out(0)._1)(0) := _ }
+  val meip = if(outer.meipNode.isDefined) Some(IO(Vec(outer.meipNode.get.out.size, Bool()).asInput)) else None
+  meip.foreach { m =>
+    m.zipWithIndex.foreach{ case (pin, i) =>
+      (outer.meipNode.get.out(i)._1)(0) := pin
+    }
+  }
 }
