@@ -13,7 +13,7 @@ import org.json4s.{Extraction, NoTypeHints}
 object DiplomaticObjectModelUtils {
 
   def toJson(json: Any): String = {
-    implicit val formats = Serialization.formats(NoTypeHints) + OMBaseInstructionSetSerializer
+    implicit val formats = Serialization.formats(NoTypeHints) + OMBaseInstructionSetSerializer + OMBaseInstructionSetSerializer
     pretty(Extraction.decompose(json))
   }
 
