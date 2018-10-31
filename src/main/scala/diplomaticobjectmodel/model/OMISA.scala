@@ -60,37 +60,33 @@ case class OMISA(
                   addressTranslationModes: Seq[OMAddressTranslationMode]
 ) extends OMCompoundType
 
-case class OMISAInfo(
-                      xLen: Int,
-                      baseSpecification: OMSpecification,
-                      base: OMBaseInstructionSet,
-                      m: Option[OMSpecification],
-                      a: Option[OMSpecification],
-                      f: Option[OMSpecification],
-                      d: Option[OMSpecification],
-                      c: Option[OMSpecification],
-                      u: Option[OMSpecification],
-                      s: Option[OMSpecification],
-                      addressTranslationModes: Seq[OMAddressTranslationMode]
-                    ) extends OMCompoundType
-
 object OMISA extends OMCompoundType {
   override def getTypes: Seq[String] = Seq[String]("ISA") ++ super.getTypes
 
-  def apply(info: OMISAInfo): OMISA = {
+  def apply(xLen: Int,
+            baseSpecification: OMSpecification,
+            base: OMBaseInstructionSet,
+            m: Option[OMSpecification],
+            a: Option[OMSpecification],
+            f: Option[OMSpecification],
+            d: Option[OMSpecification],
+            c: Option[OMSpecification],
+            u: Option[OMSpecification],
+            s: Option[OMSpecification],
+            addressTranslationModes: Seq[OMAddressTranslationMode]): OMISA = {
     OMISA(
       _types = getTypes,
-      xLen = info.xLen,
-      baseSpecification = info.baseSpecification,
-      base = info.base,
-      m = info.m,
-      a = info.a,
-      f = info.f,
-      d = info.d,
-      c = info.c,
-      u = info.u,
-      s = info.s,
-      addressTranslationModes = info.addressTranslationModes
+      xLen = xLen,
+      baseSpecification = baseSpecification,
+      base = base,
+      m = m,
+      a = a,
+      f = f,
+      d = d,
+      c = c,
+      u = u,
+      s = s,
+      addressTranslationModes = addressTranslationModes
     )
   }
 }
