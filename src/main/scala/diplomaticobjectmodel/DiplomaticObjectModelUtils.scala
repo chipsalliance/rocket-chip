@@ -3,17 +3,17 @@
 package freechips.rocketchip.diplomaticobjectmodel
 
 import java.io.{File, FileWriter}
+import java.lang.management.OperatingSystemMXBean
 
+import freechips.rocketchip.diplomaticobjectmodel.model.OMBaseInstructionSetSerializer
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{Extraction, NoTypeHints}
-import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JInt
 
 object DiplomaticObjectModelUtils {
 
   def toJson(json: Any): String = {
-    implicit val formats = Serialization.formats(NoTypeHints)
+    implicit val formats = Serialization.formats(NoTypeHints) + OMBaseInstructionSetSerializer
     pretty(Extraction.decompose(json))
   }
 
