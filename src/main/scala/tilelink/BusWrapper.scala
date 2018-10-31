@@ -32,6 +32,8 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
+  def busView: TLEdge
+  def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
 
@@ -178,4 +180,5 @@ trait HasTLXbarPhy { this: TLBusWrapper =>
 
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = xbar.node
+  def busView: TLEdge = xbar.node.edges.in.head
 }
