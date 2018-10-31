@@ -2,25 +2,9 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-//trait OMBaseType {
-//  def getTypes: Seq[String]
-//}
-//
-//trait OMCompoundType extends OMBaseType {
-//  override def getTypes: Seq[String] = Seq[String]("CompoundType")
-//}
-//
-//trait OMComponent extends OMCompoundType {
-//  override def getTypes: Seq[String] = Seq[String]("Component") ++ super.getTypes
-//}
+trait OMBaseType
 
-trait OMBaseType {
-  def getTypes: Seq[String] = Seq("Hello")// getInterfaces.map(_.getSimpleName) // Something like that
-}
-
-trait OMFoo extends OMBaseType
-
-trait OMEnum extends OMFoo
+trait OMEnum extends OMBaseType
 
 trait OMCompoundType extends OMBaseType
 
