@@ -4,7 +4,7 @@ package freechips.rocketchip.subsystem
 
 import Chisel._
 import freechips.rocketchip.config._
-import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError, TLZero}
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -38,30 +38,20 @@ case class MemoryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   zeroDevice: Option[AddressSet] = None,
-  errorDevice: Option[DevNullParams] = None) extends HasTLBusParams
+  errorDevice: Option[DevNullParams] = None)
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "memory_bus")(p)
+    with CanHaveBuiltInDevices
     with CanAttachTLSlaves {
 
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
-
-  params.zeroDevice.foreach { addr => LazyScope("wrapped_zero_device") {
-    val zero = LazyModule(new TLZero(
-      address = addr,
-      beatBytes = params.beatBytes))
-    zero.node := TLFragmenter(params.beatBytes, params.blockBytes) := TLBuffer() := outwardNode
-  }}
-
-  params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
-    val error = LazyModule(new TLError(
-      params = dnp,
-      beatBytes = params.beatBytes))
-    error.node := TLBuffer() := outwardNode
-  }}
+  attachBuiltInDevices(params)
 
   def toDRAMController[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)

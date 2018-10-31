@@ -3,7 +3,7 @@
 package freechips.rocketchip.subsystem
 
 import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError}
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -15,16 +15,17 @@ case class BusAtomics(
 )
 
 case class PeripheryBusParams(
-  beatBytes: Int,
-  blockBytes: Int,
-  atomics: Option[BusAtomics] = Some(BusAtomics()),
-  frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
-  errorDevice: Option[DevNullParams] = None
-) extends HasTLBusParams
-
+    beatBytes: Int,
+    blockBytes: Int,
+    atomics: Option[BusAtomics] = Some(BusAtomics()),
+    frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
+    zeroDevice: Option[AddressSet] = None,
+    errorDevice: Option[DevNullParams] = None)
+  extends HasTLBusParams with HasBuiltInDeviceParams
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")
+    with CanHaveBuiltInDevices
     with CanAttachTLSlaves {
 
   private val node: TLNode = params.atomics.map { pa =>
@@ -42,10 +43,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
   def inwardNode: TLInwardNode = node
   def outwardNode: TLOutwardNode = node
 
-  params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
-    val error = LazyModule(new TLError(params = dnp, beatBytes = params.beatBytes))
-    error.node := outwardNode
-  }}
+  attachBuiltInDevices(params)
 
   def toTile
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
