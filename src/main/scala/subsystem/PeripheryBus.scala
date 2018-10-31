@@ -10,7 +10,8 @@ import freechips.rocketchip.util._
 
 case class BusAtomics(
   arithmetic: Boolean = true,
-  buffer: BufferParams = BufferParams.default
+  buffer: BufferParams = BufferParams.default,
+  widenBytes: Option[Int] = None
 )
 
 case class PeripheryBusParams(
@@ -26,19 +27,20 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")
     with CanAttachTLSlaves {
 
-  private val in_xbar = LazyModule(new TLXbar)
-  private val out_xbar = LazyModule(new TLXbar)
-  private val atomics = params.atomics.map { pa =>
-    TLBuffer(pa.buffer) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
-  }.getOrElse(TLNameNode("no_atomics"))
+  private val node: TLNode = params.atomics.map { pa =>
+    val in_xbar = LazyModule(new TLXbar)
+    val out_xbar = LazyModule(new TLXbar)
+    (out_xbar.node
+      :*= TLFIFOFixer(TLFIFOFixer.all)
+      :*= TLBuffer(pa.buffer)
+      :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
+          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic) :*= TLWidthWidget(beatBytes)
+        } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
+      :*= in_xbar.node)
+  } .getOrElse { TLXbar() :*= TLFIFOFixer(TLFIFOFixer.all) }
 
-  (out_xbar.node
-    :*= TLFIFOFixer(TLFIFOFixer.all)
-    :*= atomics
-    :*= in_xbar.node)
-
-  def inwardNode: TLInwardNode = in_xbar.node
-  def outwardNode: TLOutwardNode = out_xbar.node
+  def inwardNode: TLInwardNode = node
+  def outwardNode: TLOutwardNode = node
 
   params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
     val error = LazyModule(new TLError(params = dnp, beatBytes = params.beatBytes))
