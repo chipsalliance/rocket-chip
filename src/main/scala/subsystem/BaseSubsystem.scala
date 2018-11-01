@@ -50,7 +50,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
   // Collect information for use in DTS
-  lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
+  lazy val topManagers = sbus.unifyManagers
   ResourceBinding {
     val managers = topManagers
     val max = managers.flatMap(_.address).map(_.max).max

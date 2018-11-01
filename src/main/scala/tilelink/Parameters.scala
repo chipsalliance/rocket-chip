@@ -377,7 +377,7 @@ case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, mana
 
 object ManagerUnification
 {
-  def apply(managers: Seq[TLManagerParameters]) = {
+  def apply(managers: Seq[TLManagerParameters]): List[TLManagerParameters] = {
     // To be unified, devices must agree on all of these terms
     case class TLManagerKey(
       resources:          Seq[Resource],
