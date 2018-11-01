@@ -28,20 +28,22 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     with CanHaveBuiltInDevices
     with CanAttachTLSlaves {
 
+  private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val node: TLNode = params.atomics.map { pa =>
     val in_xbar = LazyModule(new TLXbar)
     val out_xbar = LazyModule(new TLXbar)
     (out_xbar.node
-      :*= TLFIFOFixer(TLFIFOFixer.all)
+      :*= fixer.node
       :*= TLBuffer(pa.buffer)
       :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
           TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic) :*= TLWidthWidget(beatBytes)
         } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
       :*= in_xbar.node)
-  } .getOrElse { TLXbar() :*= TLFIFOFixer(TLFIFOFixer.all) }
+  } .getOrElse { TLXbar() :*= fixer.node }
 
   def inwardNode: TLInwardNode = node
   def outwardNode: TLOutwardNode = node
+  def busView: TLEdge = fixer.node.edges.in.head
 
   attachBuiltInDevices(params)
 

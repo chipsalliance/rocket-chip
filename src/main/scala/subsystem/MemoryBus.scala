@@ -51,6 +51,7 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
+  def busView: TLEdge = xbar.node.edges.in.head
   attachBuiltInDevices(params)
 
   def toDRAMController[D,U,E,B <: Data]

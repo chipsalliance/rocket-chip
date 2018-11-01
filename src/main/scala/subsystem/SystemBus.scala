@@ -28,7 +28,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   private val master_splitter = LazyModule(new TLSplitter)
   inwardNode :=* master_splitter.node
 
-  def busView = master_splitter.node.edges.in.head
+  override def busView = master_splitter.node.edges.in.head
 
   def toSplitSlave[D,U,E,B <: Data]
       (name: Option[String] = None)
