@@ -775,7 +775,7 @@ class Rocket(implicit p: Parameters) extends CoreModule()(p)
   // gate the clock
   if (rocketParams.clockGate) {
     long_latency_stall := csr.io.csr_stall || io.dmem.perf.blocked
-    clock_en := clock_en_reg || (!long_latency_stall && io.imem.resp.valid)
+    clock_en := clock_en_reg || ex_pc_valid || (!long_latency_stall && io.imem.resp.valid)
     clock_en_reg :=
       ex_pc_valid || mem_pc_valid || wb_pc_valid || // instruction in flight
       io.ptw.customCSRs.disableCoreClockGate || // chicken bit
