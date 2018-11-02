@@ -70,9 +70,8 @@ abstract class Device
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
 
-  def objectModelInstance() : Option[OMComponent] = {
-    None
-  }
+  def objectModelInstance() : Option[OMComponent] = None
+
 
   def parent: Option[Device] = None
 

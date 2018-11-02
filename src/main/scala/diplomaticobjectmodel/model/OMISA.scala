@@ -23,15 +23,15 @@ case object RV64I extends OMBaseInstructionSet
 case object RV128I extends OMBaseInstructionSet
 
 case class OMISA(
-                  xLen: Int,
-                  baseSpecification: OMSpecification,
-                  base: OMBaseInstructionSet,
-                  m: Option[OMSpecification],
-                  a: Option[OMSpecification],
-                  f: Option[OMSpecification],
-                  d: Option[OMSpecification],
-                  c: Option[OMSpecification],
-                  u: Option[OMSpecification],
-                  s: Option[OMSpecification],
-                  addressTranslationModes: Seq[OMAddressTranslationMode]
+  xLen: Int,
+  baseSpecification: OMSpecification,
+  base: OMBaseInstructionSet,
+  m: Option[OMSpecification],
+  a: Option[OMSpecification],
+  f: Option[OMSpecification],
+  d: Option[OMSpecification],
+  c: Option[OMSpecification],
+  u: Option[OMSpecification],
+  s: Option[OMSpecification],
+  addressTranslationModes: Seq[OMAddressTranslationMode]
 ) extends OMCompoundType
