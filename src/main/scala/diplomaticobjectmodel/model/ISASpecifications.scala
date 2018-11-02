@@ -2,8 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomaticobjectmodel.model.BaseExtensions.specifications
-
 sealed trait PrivilegedArchitectureExtension
 
 case object MachineLevelISA extends PrivilegedArchitectureExtension
