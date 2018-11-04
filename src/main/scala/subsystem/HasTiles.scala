@@ -89,7 +89,7 @@ trait HasTiles { this: BaseSubsystem =>
     //    From CLINT: "msip" and "mtip"
     tile.crossIntIn() :=
       clintOpt.map { _.intnode }
-        .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+        .getOrElse { NullIntSource(CLINTConsts.ints) }
 
     //    From PLIC: "meip"
     tile.crossIntIn() :=
