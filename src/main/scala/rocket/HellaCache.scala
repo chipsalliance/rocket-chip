@@ -183,6 +183,7 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   val module: HellaCacheModule
 }
 
+/** IO of HellaCache */
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
   val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
