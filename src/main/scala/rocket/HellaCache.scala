@@ -140,7 +140,7 @@ class HellaCachePerfEvents extends Bundle {
   val blocked = Bool()
 }
 
-// interface between D$ and processor/DTLB
+/** interface between D$ and processor/DTLB */
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
   val s1_kill = Bool(OUTPUT) // kill previous cycle's req
