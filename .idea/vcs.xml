@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/chisel3" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/firrtl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/hardfloat" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-fesvr" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-binutils-gdb" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-dejagnu" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-gcc" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-glibc" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-newlib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/dtc" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/pixman" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/SLOF" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/ipxe" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/openbios" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/openhackware" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/qemu-palcode" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/seabios" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/sgabios" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/u-boot" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-gnu-toolchain/riscv-qemu/roms/vgabios" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-isa-sim" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-opcodes" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-openocd" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-openocd/jimtcl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-openocd/src/jtag/drivers/libjaylink" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-openocd/tools/git2cl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-pk" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-tests" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/riscv-tools/riscv-tests/env" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/torture" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/torture/env" vcs="Git" />
+  </component>
+</project>

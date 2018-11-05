@@ -63,37 +63,31 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
 /** Adds a port to the system intended to master an AXI4 DRAM controller. */
 trait CanHaveMasterAXI4DDRPort { this: BaseSubsystem =>
   val module: CanHaveMasterAXI4DDRPortModuleImp
-  val nMemoryChannels: Int
-  private val memPortParamsOpt = p(ExtMem)
-  private val portName = "axi4"
-  private val device = new MemoryDevice
 
-  require(nMemoryChannels == 0 || memPortParamsOpt.isDefined,
-    s"Cannot have $nMemoryChannels with no memory port!")
+  val memAXI4Node = p(ExtMem).map { case MemoryPortParams(memPortParams, nMemoryChannels) =>
+    val portName = "axi4"
+    val device = new MemoryDevice
 
-  val memAXI4Node = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
-    val params = memPortParamsOpt.get
-    val base = AddressSet(params.base, params.size-1)
-    val filter = AddressSet(channel * cacheBlockBytes, ~((nMemoryChannels-1) * cacheBlockBytes))
+    val memAXI4Node = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
+      val base = AddressSet(memPortParams.base, memPortParams.size - 1)
+      val filter = AddressSet(channel * mbus.blockBytes, ~((nMemoryChannels - 1) * mbus.blockBytes))
 
-    AXI4SlavePortParameters(
-      slaves = Seq(AXI4SlaveParameters(
-        address       = base.intersect(filter).toList,
-        resources     = device.reg,
-        regionType    = RegionType.UNCACHED, // cacheable
-        executable    = true,
-        supportsWrite = TransferSizes(1, cacheBlockBytes),
-        supportsRead  = TransferSizes(1, cacheBlockBytes),
-        interleavedId = Some(0))), // slave does not interleave read responses
-      beatBytes = params.beatBytes)
-  })
+      AXI4SlavePortParameters(
+        slaves = Seq(AXI4SlaveParameters(
+          address = base.intersect(filter).toList,
+          resources = device.reg,
+          regionType = RegionType.UNCACHED, // cacheable
+          executable = true,
+          supportsWrite = TransferSizes(1, mbus.blockBytes),
+          supportsRead = TransferSizes(1, mbus.blockBytes),
+          interleavedId = Some(0))), // slave does not interleave read responses
+        beatBytes = memPortParams.beatBytes)
+    })
 
-  memPortParamsOpt.foreach { params =>
-    memBuses.map { m =>
-       memAXI4Node := m.toDRAMController(Some(portName)) {
-        (AXI4UserYanker() := AXI4IdIndexer(params.idBits) := TLToAXI4())
-      }
+    memAXI4Node := mbus.toDRAMController(Some(portName)) {
+      AXI4UserYanker() := AXI4IdIndexer(memPortParams.idBits) := TLToAXI4()
     }
+    memAXI4Node
   }
 }
 
@@ -120,13 +114,17 @@ trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
 trait CanHaveMasterAXI4DDRPortModuleImp extends LazyModuleImp {
   val outer: CanHaveMasterAXI4DDRPort
 
-  val mem_axi4 = IO(HeterogeneousBag.fromNode(outer.memAXI4Node.in))
-  (mem_axi4 zip outer.memAXI4Node.in).foreach { case (io, (bundle, _)) => io <> bundle }
+  val mem_axi4 = outer.memAXI4Node.map(x => IO(HeterogeneousBag.fromNode(x.in)))
+  (mem_axi4 zip outer.memAXI4Node) foreach { case (io, node) =>
+    (io zip node.in).foreach { case (io, (bundle, _)) => io <> bundle }
+  }
 
   def connectSimAXIDDR() {
-    (mem_axi4 zip outer.memAXI4Node.in).foreach { case (io, (_, edge)) =>
-      val mem = LazyModule(new SimAXIDDR(edge, size = p(ExtMem).get.size))
-      Module(mem.module).io.axi4.head <> io
+    (mem_axi4 zip outer.memAXI4Node).foreach { case (io, node) =>
+      (io zip node.in).foreach { case (io, (_, edge)) =>
+        val mem = LazyModule(new SimAXIDDR(edge, size = p(ExtMem).get.master.size))
+        Module(mem.module).io.axi4.head <> io
+      }
     }
   }
 }
