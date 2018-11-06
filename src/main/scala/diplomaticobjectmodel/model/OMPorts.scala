@@ -32,3 +32,4 @@ trait FrontPort      extends InboundPort
 trait MemoryPort     extends OutboundPort
 trait PeripheralPort extends OutboundPort
 trait SystemPort     extends OutboundPort
+

@@ -6,3 +6,4 @@ trait OMDevice extends OMComponent {
   def memoryRegions: List[OMMemoryRegion]
   def interrupts: List[OMInterrupt]
 }
+
