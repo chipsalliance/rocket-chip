@@ -9,9 +9,9 @@ trait OMSignal extends RTLComponent {
   def description: String
 }
 
-trait Clock extends OMSignal
+trait OMClock extends OMSignal
 
-case class ClockRelationship(
+case class OMClockRelationship(
   clock0: String,
   clock1: String,
   relationship: String,
@@ -36,8 +36,8 @@ case class OMResetVector(
 )
 
 case class OMRTLInterface(
-  clocks: List[Clock],
-  clockRelationships: List[ClockRelationship],
+  clocks: List[OMClock],
+  clockRelationships: List[OMClockRelationship],
   resets: List[RTLReset]
 ) extends RTLComponent
 
