@@ -3,7 +3,6 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel.log2Ceil
-import freechips.rocketchip.diplomaticobjectmodel.model._
 import scala.collection.immutable.{ListMap,SortedMap}
 import scala.collection.mutable.HashMap
 
@@ -69,10 +68,6 @@ abstract class Device
 {
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
-
-  def objectModelInstance() : Option[OMComponent] = None
-
-
   def parent: Option[Device] = None
 
   /** make sure all derived devices have an unique label */
@@ -364,8 +359,6 @@ trait BindingScope
 
   /** Collect resource addresses from tree. */
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
-
-  def objectModelInstance: Option[OMComponent] = None
 }
 
 object BindingScope
