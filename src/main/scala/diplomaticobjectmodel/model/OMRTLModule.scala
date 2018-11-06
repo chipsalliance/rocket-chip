@@ -25,7 +25,7 @@ trait Synchronicity extends OMEnum
 trait Synchronous extends Synchronicity
 trait Asynchronous extends Synchronicity
 
-case class RTLReset(
+case class OMRTLReset(
   activeEdge: OMSignalAssertionLevel,
   clock: String, // This will always be the name of the clock signal on the top-level module
   synchronicity: Synchronicity
@@ -38,7 +38,7 @@ case class OMResetVector(
 case class OMRTLInterface(
   clocks: List[OMClock],
   clockRelationships: List[OMClockRelationship],
-  resets: List[RTLReset]
+  resets: List[OMRTLReset]
 ) extends RTLComponent
 
 case class OMRTLModule(
