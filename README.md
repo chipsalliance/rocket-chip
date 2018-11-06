@@ -331,7 +331,7 @@ You can generate synthesizable Verilog with the following commands:
 
 The Verilog used for the FPGA tools will be generated in
 vsim/generated-src. Please proceed further with the directions shown in
-the [README](https://github.com/sifive/freedom/README.md)
+the [README](https://github.com/sifive/freedom)
 of the freedom repository. You can also run Rocket Chip on Amazon EC2 F1
 with [FireSim](https://github.com/firesim/firesim).
 
