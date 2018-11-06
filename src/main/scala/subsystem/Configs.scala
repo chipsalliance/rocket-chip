@@ -25,12 +25,18 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
-    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)))
+    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)),
+    replicatorMask = site(MultiChipMaskKey))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
-  case MemoryBusKey => MemoryBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
-  case FrontBusKey => FrontBusParams(beatBytes = site(XLen)/8, blockBytes = site(CacheBlockBytes))
+  case MemoryBusKey => MemoryBusParams(
+    beatBytes = site(XLen)/8,
+    blockBytes = site(CacheBlockBytes),
+    replicatorMask = site(MultiChipMaskKey))
+  case FrontBusKey => FrontBusParams(
+    beatBytes = site(XLen)/8,
+    blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
   case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
