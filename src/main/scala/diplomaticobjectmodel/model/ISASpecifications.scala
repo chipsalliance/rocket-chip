@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-sealed trait PrivilegedArchitectureExtension
+sealed trait PrivilegedArchitectureExtension extends OMEnum
 
 case object MachineLevelISA extends PrivilegedArchitectureExtension
 case object SupervisorLevelISA extends PrivilegedArchitectureExtension
