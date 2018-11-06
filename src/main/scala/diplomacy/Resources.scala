@@ -70,8 +70,7 @@ abstract class Device
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
 
-  def objectModelInstance() : Option[OMComponent] = None
-
+  def getOMComponents() : Seq[OMComponent] = Nil
 
   def parent: Option[Device] = None
 
@@ -365,7 +364,7 @@ trait BindingScope
   /** Collect resource addresses from tree. */
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
 
-  def objectModelInstance: Option[OMComponent] = None
+  def getOMComponents: Option[OMComponent] = None
 }
 
 object BindingScope
