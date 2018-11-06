@@ -365,7 +365,7 @@ trait BindingScope
   /** Collect resource addresses from tree. */
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
 
-  def objectModelInstance: Option[OMComponent] = None
+  def getOMComponents: Option[OMComponent] = None
 }
 
 object BindingScope

@@ -20,7 +20,7 @@ case object BuildSystemBus extends Field[Parameters => SystemBus](p => new Syste
 
 /** BareSubsystem is the root class for creating a subsystem */
 abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
-  lazy val objectModelJson = DiplomaticObjectModelUtils.toJson(objectModelInstance)
+  lazy val objectModelJson = DiplomaticObjectModelUtils.toJson(getOMComponents)
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
