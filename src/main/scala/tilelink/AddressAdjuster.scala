@@ -65,7 +65,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
         val container = remote.managers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
         require (!container.isEmpty, s"There is no remote manager which contains the addresses of ${l.name} (${l.address})")
         val r = container.get
-        require (l.regionType <= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
+        require (l.regionType >= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
         require (!l.executable || r.executable, s"Device ${l.name} cannot be executable if ${r.name} is not")
         require (!l.mayDenyPut || r.mayDenyPut, s"Device ${l.name} cannot deny Put if ${r.name} does not")
         require (!l.mayDenyGet || r.mayDenyGet, s"Device ${l.name} cannot deny Get if ${r.name} does not")
