@@ -36,7 +36,7 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
       :*= fixer.node
       :*= TLBuffer(pa.buffer)
       :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
-          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic) :*= TLWidthWidget(beatBytes)
+          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
         } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
       :*= in_xbar.node)
   } .getOrElse { TLXbar() :*= fixer.node }
