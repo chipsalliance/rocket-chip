@@ -111,11 +111,9 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
         minLatency = local.minLatency min remote.minLatency)
     })
 
-  lazy val module = new LazyModuleImp(this) {
-    val io = IO(new Bundle {
-      val local_address = UInt(bits.size.W)
-    })
+  val chip_id = BundleBridgeSink[UInt]()
 
+  lazy val module = new LazyModuleImp(this) {
     require (node.edges.in.size == 1)
     require (node.edges.out.size == 2)
 
@@ -125,7 +123,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
     require (localEdge.manager.beatBytes == remoteEdge.manager.beatBytes)
 
     // Which address within the mask routes to local devices?
-    val local_address = (bits zip io.local_address.toBools).foldLeft(0.U) {
+    val local_address = (bits zip chip_id.bundle.toBools).foldLeft(0.U) {
       case (acc, (bit, sel)) => acc | Mux(sel, 0.U, bit.U)
     }
 
