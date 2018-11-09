@@ -56,8 +56,6 @@ class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
   }
 }
 
-case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
-
 object MaskROM {
   def attach(params: MaskROMParams, bus: TLBusWrapper)(implicit p: Parameters): TLMaskROM = {
     val maskROM = LazyModule(new TLMaskROM(params))
