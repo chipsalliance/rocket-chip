@@ -25,6 +25,7 @@ class LanePositionedQueueIO[T <: Data](private val gen: T, val lanes: Int, val d
   // deq.ready elements are dequeued; deq.ready must be <= deq.valid min lanes
   val deq = new LanePositionedDecoupledIO(gen, depth, lanes)
 
+  // The 0th element enqueued comes from enq.bits(enq_0_lane), later elements wrap
   val enq_0_lane = Output(UInt(laneBitsU.W))
   val deq_0_lane = Output(UInt(laneBitsU.W))
 }
@@ -34,13 +35,13 @@ trait LanePositionedQueueModule[T <: Data] extends Module {
 }
 
 trait LanePositionedQueue {
-  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean = false): LanePositionedQueueModule[T]
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean = false, pipe: Boolean = false): LanePositionedQueueModule[T]
 }
 
 /////////////////////////////// Index math implementation //////////////////////////
 
 // A shared base class that keeps track of the indexing and flow control
-class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: Int, val flow: Boolean) extends Module with LanePositionedQueueModule[T] {
+class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: Int, val flow: Boolean, val pipe: Boolean) extends Module with LanePositionedQueueModule[T] {
   require (rows >= 1)
   require (lanes >= 1)
 
@@ -98,13 +99,10 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
   assert (used === diff_pos || (diff_pos === 0.U && used === capacity.U))
   assert (used + free === capacity.U)
 
-  // enq.valid <= enq.ready, so we are sure these avail can be dequeued
-  val avail = if (flow) used +& io.enq.valid else used
-
   io.enq_0_lane := enq_lane
   io.deq_0_lane := deq_lane
-  io.enq.ready := free
-  io.deq.valid := avail
+  io.enq.ready := (if (pipe) free +& io.deq.ready else free)
+  io.deq.valid := (if (flow) used +& io.enq.valid else used)
   assert (io.enq.valid <= io.enq.ready)
   assert (io.deq.ready <= io.deq.valid)
   assert (io.enq.valid <= lanes.U)
@@ -141,8 +139,8 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
 
 /////////////////////////////// Registered implementation //////////////////////////
 
-class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean)
-    extends LanePositionedQueueBase(gen, lanes, rows, flow) {
+class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean, pipe: Boolean)
+    extends LanePositionedQueueBase(gen, lanes, rows, flow, pipe) {
 
   require (rows % 2 == 0)
   val bank = Seq.fill(2) { Mem(rows/2, Vec(lanes, gen)) }
@@ -165,14 +163,14 @@ class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int,
 }
 
 object FloppedLanePositionedQueue extends LanePositionedQueue {
-  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean) =
-    new FloppedLanePositionedQueueModule(gen, lanes, rows, flow)
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean, pipe: Boolean) =
+    new FloppedLanePositionedQueueModule(gen, lanes, rows, flow, pipe)
 }
 
 /////////////////////////////// One port implementation ////////////////////////////
 
-class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int, rows: Int, flow: Boolean)
-    extends LanePositionedQueueBase(gen, lanes, rows, flow) {
+class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int, rows: Int, flow: Boolean, pipe: Boolean)
+    extends LanePositionedQueueBase(gen, lanes, rows, flow, pipe) {
 
   require (rows > 8 && rows % 4 == 0)
   // If rows <= 8, use FloppedLanePositionedQueue instead
@@ -246,8 +244,8 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, lanes: Int,
 }
 
 case class OnePortLanePositionedQueue(ecc: Code) extends LanePositionedQueue {
-  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean) =
-    new OnePortLanePositionedQueueModule(ecc)(gen, lanes, rows, flow)
+  def apply[T <: Data](gen: T, lanes: Int, rows: Int, flow: Boolean, pipe: Boolean) =
+    new OnePortLanePositionedQueueModule(ecc)(gen, lanes, rows, flow, pipe)
 }
 
 /////////////////////////////// Black Box Unit Testing /////////////////////////////
@@ -259,7 +257,7 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(queueFactory(UInt(bits.W), lanes, rows, true))
+  val q = Module(queueFactory(UInt(bits.W), lanes, rows, true, false))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
