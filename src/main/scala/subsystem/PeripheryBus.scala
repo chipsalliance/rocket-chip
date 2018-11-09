@@ -20,8 +20,11 @@ case class PeripheryBusParams(
     atomics: Option[BusAtomics] = Some(BusAtomics()),
     frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
     zeroDevice: Option[AddressSet] = None,
-    errorDevice: Option[DevNullParams] = None)
-  extends HasTLBusParams with HasBuiltInDeviceParams
+    errorDevice: Option[DevNullParams] = None,
+    replicatorMask: BigInt = 0)
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
+  with HasRegionReplicatorParams
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")
@@ -32,8 +35,10 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
   private val node: TLNode = params.atomics.map { pa =>
     val in_xbar = LazyModule(new TLXbar)
     val out_xbar = LazyModule(new TLXbar)
+    val fixer_node =
+      if (params.replicatorMask == 0) fixer.node else { fixer.node :*= RegionReplicator(params.replicatorMask) }
     (out_xbar.node
-      :*= fixer.node
+      :*= fixer_node
       :*= TLBuffer(pa.buffer)
       :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
           TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)

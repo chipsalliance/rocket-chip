@@ -6,6 +6,12 @@ import chisel3._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
+case object MultiChipMaskKey extends Field[BigInt](0)
+
+trait HasRegionReplicatorParams {
+  val replicatorMask: BigInt
+}
+
 // Replicate all devices below this adapter to multiple addreses.
 // If a device was at 0x4000-0x4fff and mask=0x10000, it will now be at 0x04000-0x04fff and 0x14000-0x14fff.
 class RegionReplicator(mask: BigInt = 0)(implicit p: Parameters) extends LazyModule {
