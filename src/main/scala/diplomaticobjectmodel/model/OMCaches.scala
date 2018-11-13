@@ -10,8 +10,8 @@ case object SEC extends OMECC
 case object SECDED extends OMECC
 
 trait OMCache extends OMDevice {
-  def memoryRegions: List[OMMemoryRegion]
-  def interrupts: List[OMInterrupt]
+  def memoryRegions(): Seq[OMMemoryRegion]
+  def interrupts(): Seq[OMInterrupt]
   def nSets: Int
   def nWays: Int
   def blockSizeBytes: Int
@@ -23,29 +23,29 @@ trait OMCache extends OMDevice {
 }
 
 case class OMICache(
-  memoryRegions: List[OMMemoryRegion],
-  interrupts: List[OMInterrupt],
-  nSets: Int,
-  nWays: Int,
-  blockSizeBytes: Int,
-  dataMemorySizeBytes: Int,
-  dataECC: Option[OMECC],
-  tagECC: Option[OMECC],
-  nTLBEntries: Int,
-  memories: List[OMMemory],
-  maxTimSize: Int
+                     memoryRegions: Seq[OMMemoryRegion],
+                     interrupts: Seq[OMInterrupt],
+                     nSets: Int,
+                     nWays: Int,
+                     blockSizeBytes: Int,
+                     dataMemorySizeBytes: Int,
+                     dataECC: Option[OMECC],
+                     tagECC: Option[OMECC],
+                     nTLBEntries: Int,
+                     memories: List[OMMemory],
+                     maxTimSize: Int
 ) extends OMCache
 
 case class OMDCache(
-  memoryRegions: List[OMMemoryRegion],
-  interrupts: List[OMInterrupt],
-  nSets: Int,
-  nWays: Int,
-  blockSizeBytes: Int,
-  dataMemorySizeBytes: Int,
-  dataECC: Option[OMECC],
-  tagECC: Option[OMECC],
-  nTLBEntries: Int,
-  memories: List[OMMemory],
-  maxTimSize: Int
+                     memoryRegions: Seq[OMMemoryRegion],
+                     interrupts: Seq[OMInterrupt],
+                     nSets: Int,
+                     nWays: Int,
+                     blockSizeBytes: Int,
+                     dataMemorySizeBytes: Int,
+                     dataECC: Option[OMECC],
+                     tagECC: Option[OMECC],
+                     nTLBEntries: Int,
+                     memories: List[OMMemory],
+                     maxTimSize: Int
 ) extends OMCache

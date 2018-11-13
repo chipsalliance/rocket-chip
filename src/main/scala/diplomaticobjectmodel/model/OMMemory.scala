@@ -2,11 +2,11 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-trait OMMemory extends OMCompoundType {
-  def description: String
-  def addressWidth: Int
-  def dataWidth: Int
-  def depth: Int
-  def writeMaskGranularity: Int
-  def rtlModule: OMRTLModule
-}
+case class OMMemory(
+  description: String,
+  addressWidth: Int,
+  dataWidth: Int,
+  depth: Int,
+  writeMaskGranularity: Int,
+  rtlModule: OMRTLModule
+)

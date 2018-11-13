@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 case class OMCLINT(
-  memoryRegions: List[OMMemoryRegion],
-  interrupts: List[OMInterrupt],
-  specifications: List[OMSpecification]
+                    memoryRegions: Seq[OMMemoryRegion],
+                    interrupts: Seq[OMInterrupt],
+                    specifications: List[OMSpecification]
 ) extends OMDevice

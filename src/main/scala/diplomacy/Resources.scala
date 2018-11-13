@@ -65,12 +65,14 @@ case class ResourceBindings(map: Map[String, Seq[Binding]] = Map.empty)
   */
 case class Description(name: String, mapping: Map[String, Seq[ResourceValue]])
 
+case class ResourceBindingsMap(map: Map[Device, ResourceBindings])
+
 abstract class Device
 {
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
 
-  def getOMComponents() : Seq[OMComponent] = Nil
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = Nil
 
   def parent: Option[Device] = None
 
@@ -245,6 +247,14 @@ class MemoryDevice extends Device with DeviceRegName
   }
 }
 
+class PortDevice extends MemoryDevice {
+  def getPort(): Seq[OMPort] = Nil
+}
+
+class SRAMDevice extends MemoryDevice {
+
+}
+
 case class Resource(owner: Device, key: String)
 {
   def bind(user: Device, value: ResourceValue) {
@@ -361,10 +371,34 @@ trait BindingScope
     ResourceMap(SortedMap("/" -> tree))
   }
 
+  /***
+    * Find the device's ResourceBindings in the ResourceBindingsMap
+    * @param dev
+    * @param rsb
+    */
+  def getResourceBindings(dev: Device, rsb: ResourceBindingsMap): Option[ResourceBindings] = {
+    if (rsb.map.contains(dev)) {
+      Some(rsb.map.lift(dev).getOrElse(ResourceBindings()))
+    }
+    else {
+      None
+    }
+  }
+
+  /** Generate the ResourceBindingsMap which stores each device's ResourceBindings
+    *
+    * @return
+    */
+  def getResourceBindingsMap: ResourceBindingsMap = {
+    eval
+    ResourceBindingsMap(map = resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
+        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct))))
+  }
+
   /** Collect resource addresses from tree. */
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
 
-  def getOMComponents: Option[OMComponent] = None
+  def createOMComponents(resourceBindingsMap: ResourceBindingsMap): Option[OMComponent] = None
 }
 
 object BindingScope

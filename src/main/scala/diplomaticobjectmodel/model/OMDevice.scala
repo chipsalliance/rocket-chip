@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 trait OMDevice extends OMComponent {
-  def memoryRegions: List[OMMemoryRegion]
-  def interrupts: List[OMInterrupt]
+  def memoryRegions: Seq[OMMemoryRegion]
+  def interrupts: Seq[OMInterrupt]
 }
 

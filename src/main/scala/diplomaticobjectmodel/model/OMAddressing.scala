@@ -3,15 +3,15 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 trait OMRange extends OMCompoundType {
-  def base: Int
-  def size: Int
+  def base: BigInt
+  def size: BigInt
 }
 
 trait OMBitRange extends OMRange
 
 case class OMAddressSet(
-  base: Int,
-  mask: Int
+  base: BigInt,
+  mask: BigInt
 ) extends OMCompoundType
 
 // Permissions are for memory regions
@@ -22,8 +22,6 @@ case class OMPermissions(
   cacheable: Boolean,
   atomics: Boolean
 ) extends OMCompoundType
-
-
 
 case class OMRegFieldDesc(
   name: String,
@@ -49,8 +47,8 @@ case class OMRegFieldGroup (
 case class OMRegisterMap (
   name: String,
   description: String,
-  registerFields: List[OMRegField],
-  groups: List[OMRegFieldGroup]
+  registerFields: Seq[OMRegField],
+  groups: Seq[OMRegFieldGroup]
 ) extends OMCompoundType
 
   /**
@@ -61,7 +59,7 @@ case class OMRegisterMap (
 case class OMMemoryRegion (
   name: String,
   description: String,
-  addressSets: List[OMAddressSet],
+  addressSets: Seq[OMAddressSet],
   permissions: OMPermissions,
   registerMap: Option[OMRegisterMap]
 ) extends OMCompoundType

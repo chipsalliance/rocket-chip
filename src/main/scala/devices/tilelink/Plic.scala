@@ -13,6 +13,8 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.model._
+
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -76,6 +78,30 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         "riscv,max-priority" -> Seq(ResourceInt(nPriorities)),
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
+    }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      require(resourceBindingsMap.map.contains(this))
+      val resourceBindings = resourceBindingsMap.map.get(this)
+      resourceBindings.map(getOMPLIC(_)) match {
+        case Some(rb) => Seq(rb)
+        case None => Nil
+      }
+    }
+
+    def getOMPLIC(resources: ResourceBindings): OMPLIC = {
+      OMPLIC(
+        memoryRegions = List[OMMemoryRegion](),
+        interrupts = List[OMInterrupt](),
+        specifications = List[OMSpecification](),
+        latency = 2, // TODO
+        nInterrupts = 0,  // TODO plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
+        nPriorities = params.maxPriorities,
+        targets = List[OMInterruptTarget](OMInterruptTarget( // We need a function to create an OMInterruptTarget
+          hartId = 0, // TODO
+          mode = OMMachineMode // TODO OMPrivilegeMode()
+        ))
+        )
     }
   }
 

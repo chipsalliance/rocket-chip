@@ -6,7 +6,7 @@ trait RTLComponent extends OMCompoundType
 
 trait OMSignal extends RTLComponent {
   def name: String // This will always be the name of the signal on the top-level module
-  def description: String
+  def description: Option[String]
 }
 
 trait OMClock extends OMSignal
@@ -26,9 +26,9 @@ trait Synchronous extends Synchronicity
 trait Asynchronous extends Synchronicity
 
 case class OMRTLReset(
-  activeEdge: OMSignalAssertionLevel,
-  clock: String, // This will always be the name of the clock signal on the top-level module
-  synchronicity: Synchronicity
+  activeEdge: Option[OMSignalAssertionLevel],
+  clock: String, // This will always be the name of the clock signal on the to p-level module
+  synchronicity: Option[Synchronicity]
 )
 
 case class OMResetVector(
@@ -41,9 +41,9 @@ case class OMRTLInterface(
   resets: List[OMRTLReset]
 ) extends RTLComponent
 
-case class OMRTLModule(
+case class  OMRTLModule(
   moduleName: String,
-  instanceName: String,
-  hierarchicalId: String,  // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
+  instanceName: Option[String],  // TODO: This does not exist for the top-level module because the top-level module is the only one that is not instantiated
+  hierarchicalId: Option[String],  // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
   interface: OMRTLInterface
 )

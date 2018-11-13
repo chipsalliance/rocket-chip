@@ -19,10 +19,11 @@ trait TL_UH extends TL
 trait TL_C extends TL
 
 case class OMPort(
-  memoryRegions: List[OMMemoryRegion],
-  interrupts: List[OMInterrupt],
-  width: Int,
-  protocol: OMProtocol
+                   memoryRegions: Seq[OMMemoryRegion],
+                   interrupts: Seq[OMInterrupt],
+                   signalNamePrefix: String,
+                   width: Int,
+                   protocol: OMProtocol
 ) extends OMDevice
 
 trait InboundPort extends OMPort

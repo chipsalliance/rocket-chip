@@ -6,11 +6,13 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
+
+import scala.math.{max, min}
 
 object CLINTConsts
 {
@@ -39,6 +41,28 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   // clint0 => at most 4095 devices
   val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      require(resourceBindingsMap.map.contains(this))
+      val resourceBindings = resourceBindingsMap.map.get(this)
+      resourceBindings.map(getOMCLINT(_)) match {
+        case Some(rb) => Seq(rb)
+        case None => Nil
+      }
+    }
+
+    def getOMCLINT(resources: ResourceBindings): OMCLINT = {
+      OMCLINT(
+        memoryRegions = List[OMMemoryRegion](),
+        interrupts = List[OMInterrupt](),
+        specifications = List[OMSpecification]()
+//       targets = List[OMInterruptTarget](OMInterruptTarget( // We need a function to create an OMInterruptTarget
+//          hartId = 0, // TODO
+//          mode = OMMachineMode // TODO OMPrivilegeMode()
+//        ))
+      )
+    }
+
   }
 
   val node = TLRegisterNode(
