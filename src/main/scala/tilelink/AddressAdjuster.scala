@@ -65,7 +65,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
         val container = remote.managers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
         require (!container.isEmpty, s"There is no remote manager which contains the addresses of ${l.name} (${l.address})")
         val r = container.get
-        require (l.regionType <= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
+        require (l.regionType >= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
         require (!l.executable || r.executable, s"Device ${l.name} cannot be executable if ${r.name} is not")
         require (!l.mayDenyPut || r.mayDenyPut, s"Device ${l.name} cannot deny Put if ${r.name} does not")
         require (!l.mayDenyGet || r.mayDenyGet, s"Device ${l.name} cannot deny Get if ${r.name} does not")
@@ -111,11 +111,9 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
         minLatency = local.minLatency min remote.minLatency)
     })
 
-  lazy val module = new LazyModuleImp(this) {
-    val io = IO(new Bundle {
-      val local_address = UInt(bits.size.W)
-    })
+  val chip_id = BundleBridgeSink[UInt]()
 
+  lazy val module = new LazyModuleImp(this) {
     require (node.edges.in.size == 1)
     require (node.edges.out.size == 2)
 
@@ -125,7 +123,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
     require (localEdge.manager.beatBytes == remoteEdge.manager.beatBytes)
 
     // Which address within the mask routes to local devices?
-    val local_address = (bits zip io.local_address.toBools).foldLeft(0.U) {
+    val local_address = (bits zip chip_id.bundle.toBools).foldLeft(0.U) {
       case (acc, (bit, sel)) => acc | Mux(sel, 0.U, bit.U)
     }
 

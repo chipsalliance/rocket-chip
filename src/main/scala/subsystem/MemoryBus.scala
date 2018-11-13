@@ -38,9 +38,11 @@ case class MemoryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   zeroDevice: Option[AddressSet] = None,
-  errorDevice: Option[DevNullParams] = None)
+  errorDevice: Option[DevNullParams] = None,
+  replicatorMask: BigInt = 0)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
+  with HasRegionReplicatorParams
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
 class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
@@ -49,7 +51,8 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
     with CanAttachTLSlaves {
 
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
-  def inwardNode: TLInwardNode = xbar.node
+  def inwardNode: TLInwardNode =
+    if (params.replicatorMask == 0) xbar.node else { xbar.node :*= RegionReplicator(params.replicatorMask) }
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
   attachBuiltInDevices(params)

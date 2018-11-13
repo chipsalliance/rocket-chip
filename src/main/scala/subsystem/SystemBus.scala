@@ -25,23 +25,11 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     with HasTLXbarPhy {
   attachBuiltInDevices(params)
 
-  private val master_splitter = LazyModule(new TLSplitter)
-  inwardNode :=* master_splitter.node
-
-  override def busView = master_splitter.node.edges.in.head
-
-  def toSplitSlave[D,U,E,B <: Data]
-      (name: Option[String] = None)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :=* master_splitter.node }
-  }
-
   def fromTile
       (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
       (gen: => TLOutwardNode): NoHandle = {
     from("tile" named name) {
-      master_splitter.node :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allUncacheable) :=* gen
+      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allUncacheable) :=* gen
     }
   }
 }

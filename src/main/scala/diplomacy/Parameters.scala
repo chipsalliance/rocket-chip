@@ -155,6 +155,7 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
       Seq(this)
     } else {
       val new_inflex = ~x.mask & mask
+      // !!! this fractures too much; find a better algorithm
       val fracture = AddressSet.enumerateMask(new_inflex).flatMap(m => intersect(AddressSet(m, ~new_inflex)))
       fracture.filter(!_.overlaps(x))
     }
@@ -223,9 +224,9 @@ object AddressSet
   }
 
   def enumerateMask(mask: BigInt): Seq[BigInt] = {
-    def helper(id: BigInt): Seq[BigInt] =
-      if (id == mask) Seq(id) else id +: helper(((~mask | id) + 1) & mask)
-    helper(0)
+    def helper(id: BigInt, tail: Seq[BigInt]): Seq[BigInt] =
+      if (id == mask) (id +: tail).reverse else helper(((~mask | id) + 1) & mask, id +: tail)
+    helper(0, Nil)
   }
 
   def enumerateBits(mask: BigInt): Seq[BigInt] = {
