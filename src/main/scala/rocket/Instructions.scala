@@ -374,9 +374,11 @@ object CSRs {
   val sscratch = 0x140
   val sepc = 0x141
   val scause = 0x142
-  val sbadaddr = 0x143
+  val stval = 0x143
+  val sbadaddr = stval // legacy name
   val sip = 0x144
-  val sptbr = 0x180
+  val satp = 0x180
+  val sptbr = satp // legacy name
   val mstatus = 0x300
   val misa = 0x301
   val medeleg = 0x302
@@ -387,7 +389,8 @@ object CSRs {
   val mscratch = 0x340
   val mepc = 0x341
   val mcause = 0x342
-  val mbadaddr = 0x343
+  val mtval = 0x343
+  val mbadaddr = mtval // legacy name
   val mip = 0x344
   val pmpcfg0 = 0x3a0
   val pmpcfg1 = 0x3a1
@@ -587,9 +590,9 @@ object CSRs {
     res += sscratch
     res += sepc
     res += scause
-    res += sbadaddr
+    res += stval
     res += sip
-    res += sptbr
+    res += satp
     res += mstatus
     res += misa
     res += medeleg
@@ -600,7 +603,7 @@ object CSRs {
     res += mscratch
     res += mepc
     res += mcause
-    res += mbadaddr
+    res += mtval
     res += mip
     res += pmpcfg0
     res += pmpcfg1

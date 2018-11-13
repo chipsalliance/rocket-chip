@@ -294,7 +294,7 @@ class CSRFile(
   val reg_mip = Reg(new MIP)
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_mcause = Reg(Bits(width = xLen))
-  val reg_mbadaddr = Reg(UInt(width = vaddrBitsExtended))
+  val reg_mtval = Reg(UInt(width = vaddrBitsExtended))
   val reg_mscratch = Reg(Bits(width = xLen))
   val mtvecWidth = paddrBits min xLen
   val reg_mtvec = mtvecInit match {
@@ -307,10 +307,10 @@ class CSRFile(
 
   val reg_sepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_scause = Reg(Bits(width = xLen))
-  val reg_sbadaddr = Reg(UInt(width = vaddrBitsExtended))
+  val reg_stval = Reg(UInt(width = vaddrBitsExtended))
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
-  val reg_sptbr = Reg(new PTBR)
+  val reg_satp = Reg(new PTBR)
   val reg_wfi = withClock(io.ungated_clock) { Reg(init=Bool(false)) }
 
   val reg_fflags = Reg(UInt(width = 5))
@@ -370,7 +370,7 @@ class CSRFile(
     CSRs.mie -> reg_mie,
     CSRs.mscratch -> reg_mscratch,
     CSRs.mepc -> readEPC(reg_mepc).sextTo(xLen),
-    CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
+    CSRs.mtval -> reg_mtval.sextTo(xLen),
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.hartid)
 
@@ -441,8 +441,8 @@ class CSRFile(
     read_mapping += CSRs.sie -> read_sie.asUInt
     read_mapping += CSRs.sscratch -> reg_sscratch
     read_mapping += CSRs.scause -> reg_scause
-    read_mapping += CSRs.sbadaddr -> reg_sbadaddr.sextTo(xLen)
-    read_mapping += CSRs.sptbr -> reg_sptbr.asUInt
+    read_mapping += CSRs.stval -> reg_stval.sextTo(xLen)
+    read_mapping += CSRs.satp -> reg_satp.asUInt
     read_mapping += CSRs.sepc -> readEPC(reg_sepc).sextTo(xLen)
     read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
     read_mapping += CSRs.scounteren -> reg_scounteren
@@ -501,12 +501,12 @@ class CSRFile(
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       !decodeAny(read_mapping) ||
-      io_dec.csr === CSRs.sptbr && !allow_sfence_vma ||
+      io_dec.csr === CSRs.satp && !allow_sfence_vma ||
       (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
       Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
       io_dec.fp_csr && io_dec.fp_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
-    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mbadaddr || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.sbadaddr)
+    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mtval || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.stval)
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       is_wfi && !allow_wfi ||
       is_ret && !allow_sret ||
@@ -537,7 +537,7 @@ class CSRFile(
   }
   val tvec = Mux(trapToDebug, debugTVec, notDebugTVec)
   io.evec := tvec
-  io.ptbr := reg_sptbr
+  io.ptbr := reg_satp
   io.eret := insn_call || insn_break || insn_ret
   io.singleStep := reg_dcsr.step && !reg_debug
   io.status := reg_mstatus
@@ -578,7 +578,7 @@ class CSRFile(
       reg_sepc := epc
       reg_scause := cause
       xcause_dest := sCause
-      reg_sbadaddr := io.tval
+      reg_stval := io.tval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -587,7 +587,7 @@ class CSRFile(
       reg_mepc := epc
       reg_mcause := cause
       xcause_dest := mCause
-      reg_mbadaddr := io.tval
+      reg_mtval := io.tval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
@@ -716,7 +716,7 @@ class CSRFile(
     if (mtvecWritable)
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
-    when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
+    when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
 
     for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
       writeCounter(i + CSR.firstMHPC, c, wdata)
@@ -759,14 +759,14 @@ class CSRFile(
         val new_sip = new MIP().fromBits((read_mip & ~reg_mideleg) | (wdata & reg_mideleg))
         reg_mip.ssip := new_sip.ssip
       }
-      when (decoded_addr(CSRs.sptbr)) {
-        val new_sptbr = new PTBR().fromBits(wdata)
-        val valid_mode = new_sptbr.pgLevelsToMode(pgLevels)
-        when (new_sptbr.mode === 0) { reg_sptbr.mode := 0 }
-        when (new_sptbr.mode === valid_mode) { reg_sptbr.mode := valid_mode }
-        when (new_sptbr.mode === 0 || new_sptbr.mode === valid_mode) {
-          reg_sptbr.ppn := new_sptbr.ppn(ppnBits-1,0)
-          if (asIdBits > 0) reg_sptbr.asid := new_sptbr.asid(asIdBits-1,0)
+      when (decoded_addr(CSRs.satp)) {
+        val new_satp = new PTBR().fromBits(wdata)
+        val valid_mode = new_satp.pgLevelsToMode(pgLevels)
+        when (new_satp.mode === 0) { reg_satp.mode := 0 }
+        when (new_satp.mode === valid_mode) { reg_satp.mode := valid_mode }
+        when (new_satp.mode === 0 || new_satp.mode === valid_mode) {
+          reg_satp.ppn := new_satp.ppn(ppnBits-1,0)
+          if (asIdBits > 0) reg_satp.asid := new_satp.asid(asIdBits-1,0)
         }
       }
       when (decoded_addr(CSRs.sie))      { reg_mie := (reg_mie & ~reg_mideleg) | (wdata & reg_mideleg) }
@@ -774,7 +774,7 @@ class CSRFile(
       when (decoded_addr(CSRs.sepc))     { reg_sepc := formEPC(wdata) }
       when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
       when (decoded_addr(CSRs.scause))   { reg_scause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
-      when (decoded_addr(CSRs.sbadaddr)) { reg_sbadaddr := wdata(vaddrBitsExtended-1,0) }
+      when (decoded_addr(CSRs.stval))    { reg_stval := wdata(vaddrBitsExtended-1,0) }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
       when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata & UInt(delegable_counters) }
@@ -829,7 +829,7 @@ class CSRFile(
     reg_mcounteren := 0
   }
 
-  reg_sptbr.asid := 0
+  reg_satp.asid := 0
   if (nBreakpoints <= 1) reg_tselect := 0
   if (nBreakpoints >= 1)
     reg_bp(nBreakpoints-1).control.chain := false
