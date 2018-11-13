@@ -208,36 +208,22 @@ object DiplomaticObjectModelAddressing {
   }
 
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
-    resourceBindings.map.map {
+    resourceBindings.map.flatMap {
       case (x: String, seq: Seq[Binding]) if (regFilter(x)) =>
         println(s"ResourceBindings: key = reg/control Binding")
-        seq.map {
-          case Binding(device: Option[Device], value: ResourceValue) => Some(omMemoryRegion(name, value))
-        }
+        Some(seq.map {
+          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, value)
+        })
       case _ => None
-    }
-
-    val omm = OMMemoryRegion (
-      name = name,
-      description = "",
-      addressSets = Seq[OMAddressSet](),
-      permissions = OMPermissions(
-        readable = false,
-        writeable = false,
-        executable = false,
-        cacheable = false,
-        atomics = false
-      ) ,
-      registerMap = None // Option[OMRegisterMap]
-    )
-    Seq(omm)
+    }.flatten.toSeq
   }
 
   def printMR(name: String, seq: Seq[OMMemoryRegion]): Unit = {
     println(s"printMR name = %s".format(name))
     seq.map{
       case mr =>
-        println(s"  printMR perms = %s".format(mr.name, mr.permissions))
+        println(s"  printMR perms r = %s w = %s x = %s c = %s a = %s ".format(mr.permissions.readable, mr.permissions.writeable,
+          mr.permissions.executable, mr.permissions.cacheable, mr.permissions.atomics))
         mr.addressSets.map{
           case as =>
             println(s"    printMR base = %s mask = %s".format(as.base, as.mask))
