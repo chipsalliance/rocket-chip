@@ -21,8 +21,10 @@ case class ParsedInputNames(
     configProject: String,
     configs: String) {
   val configClasses: Seq[String] = configs.split('_')
-  val fullConfigClasses: Seq[String] = configClasses.map(configProject + "." + _)
-  val fullTopModuleClass: String = topModuleProject + "." + topModuleClass
+  def prepend(prefix: String, suffix: String) =
+    if (prefix == "" || prefix == "_root_") suffix else (prefix + "." + suffix)
+  val fullConfigClasses: Seq[String] = configClasses.map(x => prepend(configProject, x))
+  val fullTopModuleClass: String = prepend(topModuleProject, topModuleClass)
 }
 
 /** Common utilities we supply to all Generators. In particular, supplies the
