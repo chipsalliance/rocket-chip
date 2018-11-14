@@ -340,9 +340,7 @@ trait BindingScope
   /** Generate the device tree. */
   def bindingTree: ResourceMap = {
     eval
-    val map: Map[Device, ResourceBindings] =
-      resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
-        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct)))
+    val map: Map[Device, ResourceBindings] = getResourceBindingsMap.map
     val descs: HashMap[Device, Description] = HashMap.empty
     def getDesc(dev: Device): Description = {
       if (descs.contains(dev)) {
