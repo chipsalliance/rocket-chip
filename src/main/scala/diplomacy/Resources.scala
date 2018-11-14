@@ -145,12 +145,12 @@ trait DeviceRegName
 {
   this: Device =>
   def describeName(devname: String, resources: ResourceBindings): String = {
-    val reg = resources.map.filterKeys(regFilter)
+    val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
     if (reg.isEmpty) {
       devname
     } else {
-      val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
-      val mainreg = reg.find(x => regName(x._1) == "control").getOrElse(reg.head)._2
+      val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
+      val mainreg = reg.find(x => DiplomacyUtils.regName(x._1) == "control").getOrElse(reg.head)._2
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
         case x: ResourceAddress => s"${devname}@${x.address.head.base.toString(16)}"
@@ -162,6 +162,9 @@ trait DeviceRegName
   def reg(name: String): Seq[Resource] = Seq(Resource(this, "reg/" + name))
   def reg: Seq[Resource] = Seq(Resource(this, "reg"))
 
+}
+
+object DiplomacyUtils {
   def regFilter(name: String): Boolean = name == "reg" || name.take(4) == "reg/"
   def regName(name: String): Option[String] = {
     val keys = name.split("/")
@@ -188,8 +191,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
     def optDef(x: String, seq: Seq[ResourceValue]) = if (seq.isEmpty) None else Some(x -> seq)
     val compat = optDef("compatible", devcompat.map(ResourceString(_))) // describe the list of compatiable devices
 
-    val reg = resources.map.filterKeys(regFilter)
-    val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
+    val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
+    val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
     // We need to be sure that each named reg has exactly one AddressRange associated to it
     named.foreach {
       case (k, Seq(Binding(_, value: ResourceAddress))) =>
@@ -199,7 +202,7 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
         require (false, s"DTS device $name has $k = $seq, must be a single ResourceAddress!")
     }
 
-    val names = optDef("reg-names", named.map(x => ResourceString(regName(x._1).get)).toList) // names of the named address space
+    val names = optDef("reg-names", named.map(x => ResourceString(DiplomacyUtils.regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
 
     Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
@@ -242,17 +245,9 @@ class MemoryDevice extends Device with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
     Description(describeName("memory", resources), ListMap(
-      "reg"         -> resources.map.filterKeys(regFilter).flatMap(_._2).map(_.value).toList,
+      "reg"         -> resources.map.filterKeys(DiplomacyUtils.regFilter).flatMap(_._2).map(_.value).toList,
       "device_type" -> Seq(ResourceString("memory"))))
   }
-}
-
-class PortDevice extends MemoryDevice {
-  def getPort(): Seq[OMPort] = Nil
-}
-
-class SRAMDevice extends MemoryDevice {
-
 }
 
 case class Resource(owner: Device, key: String)
@@ -369,20 +364,6 @@ trait BindingScope
       val tokens = name.split("/").toList
       expand(tokens, Seq(ResourceMap(mapping, Seq(d.label)))) })
     ResourceMap(SortedMap("/" -> tree))
-  }
-
-  /***
-    * Find the device's ResourceBindings in the ResourceBindingsMap
-    * @param dev
-    * @param rsb
-    */
-  def getResourceBindings(dev: Device, rsb: ResourceBindingsMap): Option[ResourceBindings] = {
-    if (rsb.map.contains(dev)) {
-      Some(rsb.map.lift(dev).getOrElse(ResourceBindings()))
-    }
-    else {
-      None
-    }
   }
 
   /** Generate the ResourceBindingsMap which stores each device's ResourceBindings

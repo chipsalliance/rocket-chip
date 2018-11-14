@@ -3,14 +3,10 @@
 package freechips.rocketchip.diplomaticobjectmodel
 
 import java.io.{File, FileWriter}
-import java.lang.management.OperatingSystemMXBean
 
-import Chisel.{Data, SeqMem, Vec, log2Ceil}
-import chisel3.SyncReadMem
-import freechips.rocketchip.diplomacy.DTS.{Cells, fmtCell}
-import freechips.rocketchip.diplomacy.{AddressRange, Binding, Device, ResourceAddress, ResourceAlias, ResourceBindings, ResourceInt, ResourceMap, ResourceMapping, ResourcePermissions, ResourceReference, ResourceString, ResourceValue}
+import Chisel.{Data, Vec, log2Ceil}
+import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceMapping, ResourcePermissions, ResourceValue}
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.util.Annotated
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{Extraction, NoTypeHints}
@@ -42,30 +38,24 @@ object DiplomaticObjectModelAddressing {
     )
   }
 
-  private def omAddressSets(ranges: Seq[AddressRange]): Seq[OMAddressSet] = {
+  private def omAddressSets(ranges: Seq[AddressSet]): Seq[OMAddressSet] = {
     ranges.map {
-      case AddressRange(base, size) =>
-        OMAddressSet(base = base, mask = size - 1)
+      case AddressSet(base, mask) =>
+        OMAddressSet(base = base, mask = mask)
     }
   }
 
-  private def omAddress(x: ResourceAddress): Seq[OMAddressSet] = {
-    val ranges = AddressRange.fromSets(x.address)
-    omAddressSets(ranges)
-  }
-
-  private def omMemoryRegion(name: String, value: ResourceValue): OMMemoryRegion = {
+  private def omMemoryRegion(name: String, regName: String, value: ResourceValue): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
-        val ranges = AddressRange.fromSets(rm.address)
-        (omAddressSets(ranges),rm.permissions)
-      case ra: ResourceAddress => (omAddress(ra), ra.permissions)
+        (omAddressSets(rm.address),rm.permissions)
+      case ra: ResourceAddress => (omAddressSets(ra.address), ra.permissions)
       case _ => throw new IllegalArgumentException()
     }
 
     OMMemoryRegion(
       name = name,
-      description = "",
+      description = regName,
       addressSets = omRanges,
       permissions = omPerms(permissions),
       registerMap = None // Option[OMRegisterMap]
@@ -85,33 +75,18 @@ object DiplomaticObjectModelAddressing {
   }
 
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
-    resourceBindings.map.flatMap {
+    resourceBindings.map.collect {
       case (x: String, seq: Seq[Binding]) if (regFilter(x)) =>
-        println(s"ResourceBindings: key = reg/control Binding")
-        Some(seq.map {
-          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, value)
-        })
-      case _ => None
-    }.flatten.toSeq
-  }
-
-  def printMR(name: String, seq: Seq[OMMemoryRegion]): Unit = {
-    println(s"printMR name = %s".format(name))
-    seq.map{
-      case mr =>
-        println(s"  printMR perms r = %s w = %s x = %s c = %s a = %s ".format(mr.permissions.readable, mr.permissions.writeable,
-          mr.permissions.executable, mr.permissions.cacheable, mr.permissions.atomics))
-        mr.addressSets.map{
-          case as =>
-            println(s"    printMR base = %s mask = %s".format(as.base, as.mask))
+        seq.map {
+          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, regName(x).getOrElse(""), value)
         }
-    }
+    }.flatten.toSeq
   }
 
   def makeOMMemory[T <: Data](
       rtlModule: OMRTLModule,
       desc: String,
-      size: Int, // depth
+      depth: Int,
       data: T
     ): OMMemory = {
 
@@ -122,9 +97,9 @@ object DiplomaticObjectModelAddressing {
 
       OMMemory(
         description = desc,
-        addressWidth = log2Ceil(size),
+        addressWidth = log2Ceil(depth),
         dataWidth = data.getWidth,
-        depth = size,
+        depth = depth,
         writeMaskGranularity = granWidth,
         rtlModule = rtlModule
       )
