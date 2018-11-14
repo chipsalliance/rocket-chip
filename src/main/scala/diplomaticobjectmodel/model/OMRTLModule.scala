@@ -9,7 +9,10 @@ trait OMSignal extends RTLComponent {
   def description: Option[String]
 }
 
-trait OMClock extends OMSignal
+case class OMClock(
+                  name: String,
+                  description: Option[String]
+                  ) extends OMSignal
 
 case class OMClockRelationship(
   clock0: String,

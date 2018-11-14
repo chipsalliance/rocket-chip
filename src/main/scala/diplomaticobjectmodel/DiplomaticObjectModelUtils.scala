@@ -5,9 +5,12 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 import java.lang.management.OperatingSystemMXBean
 
+import Chisel.{Data, SeqMem, Vec, log2Ceil}
+import chisel3.SyncReadMem
 import freechips.rocketchip.diplomacy.DTS.{Cells, fmtCell}
 import freechips.rocketchip.diplomacy.{AddressRange, Binding, Device, ResourceAddress, ResourceAlias, ResourceBindings, ResourceInt, ResourceMap, ResourceMapping, ResourcePermissions, ResourceReference, ResourceString, ResourceValue}
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.util.Annotated
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{Extraction, NoTypeHints}
@@ -231,4 +234,25 @@ object DiplomaticObjectModelAddressing {
     }
   }
 
+  def makeOMMemory[T <: Data](
+      rtlModule: OMRTLModule,
+      desc: String,
+      size: Int, // depth
+      data: T
+    ): OMMemory = {
+
+      val granWidth = data match {
+        case v: Vec[_] => v.head.getWidth
+        case d => d.getWidth
+      }
+
+      OMMemory(
+        description = desc,
+        addressWidth = log2Ceil(size),
+        dataWidth = data.getWidth,
+        depth = size,
+        writeMaskGranularity = granWidth,
+        rtlModule = rtlModule
+      )
+    }
 }
