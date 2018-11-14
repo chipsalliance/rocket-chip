@@ -66,19 +66,11 @@ object DiplomaticObjectModelAddressing {
     Nil
   }
 
-  def regFilter(name: String): Boolean = name == "reg" || name.take(4) == "reg/"
-
-  def regName(name: String): Option[String] = {
-    val keys = name.split("/")
-    require (keys.size >= 1 && keys.size <= 2 && keys(0) == "reg", s"Invalid reg name '${name}'")
-    if (keys.size == 1) None else Some(keys(1))
-  }
-
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
-      case (x: String, seq: Seq[Binding]) if (regFilter(x)) =>
+      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x)) =>
         seq.map {
-          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, regName(x).getOrElse(""), value)
+          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value)
         }
     }.flatten.toSeq
   }
