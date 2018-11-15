@@ -17,8 +17,11 @@ TORTURE_CONFIG ?= default
 # The top-level directory that contains rocket-chip
 TOP ?= ..
 
+# The directory that tools get checked out into
+RISCV_TOOLS = $(abspath $(TOP))/riscv-tools
+
 # The hash of the tools that we're using
-TOOLS_HASH ?= $(shell git -C $(TOP) ls-tree HEAD -- riscv-tools | xargs echo | cut -d' ' -f3)
+TOOLS_HASH ?= $(shell cat $(TOP)/riscv-tools.hash)
 $(info Using riscv-tools of $(TOOLS_HASH))
 
 # The directory that the tools get built into.
@@ -131,18 +134,24 @@ stamps/other-submodules.stamp:
 	git -C $(abspath $(TOP)) submodule update --init --recursive $(submodule_names)
 	date > $@
 
-$(RISCV)/install.stamp:
+stamps/riscv-tools_checkout.stamp:
 	mkdir -p $(dir $@)
-	git -C $(abspath $(TOP)) submodule update --init riscv-tools
-	rm -f $(abspath $(TOP))/riscv-tools/.travis.yml
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-gnu-toolchain
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-isa-sim
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-fesvr
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-opcodes
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-pk
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-tests
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-openocd
-	+cd $(abspath $(TOP))/riscv-tools; RISCV=$(abspath $(RISCV)) ./build.sh
+	git -C $(abspath $(TOP)) clone -n https://github.com/riscv/riscv-tools.git
+	git -C $(RISCV_TOOLS) checkout $(TOOLS_HASH)
+	git -C $(RISCV_TOOLS) submodule update --init --recursive
+	rm -f $(RISCV_TOOLS)/.travis.yml
+	mkdir -p $(dir $@)
+	date > $@
+
+# riscv-tools_checkout.stamp is an order-only prerequisite:
+# https://www.gnu.org/software/make/manual/make.html#Prerequisite-Types
+# This means that the rule will be executed, but it will /not/ be
+# evaluated as a depenency for install.stamp. This is needed because
+# the timestamp on install.stamp will be older than the checkout stamp
+# anytime we restore the installation area from cache in travisci.
+$(RISCV)/install.stamp: | stamps/riscv-tools_checkout.stamp
+	mkdir -p $(dir $@)
+	+cd $(RISCV_TOOLS); RISCV=$(abspath $(RISCV)) ./build.sh
 	date > $@
 
 # Builds the various simulators
@@ -248,9 +257,8 @@ endif
 
 JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
 
-stamps/riscv-tests.stamp:
-	git -C $(abspath $(TOP)) submodule update --init riscv-tools
-	git -C $(abspath $(TOP))/riscv-tools submodule update --init --recursive riscv-tests
+stamps/riscv-tests.stamp: stamps/riscv-tools_checkout.stamp
+	mkdir -p $(dir $@)
 	date > $@
 
 stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp

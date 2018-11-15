@@ -31,9 +31,9 @@ environment variable to your riscv-tools installation directory.
 
     $ export RISCV=/path/to/riscv/toolchain/installation
 
-The riscv-tools repository is already included in
-rocket-chip as a Git submodule. You **must** build this version
-of riscv-tools:
+The riscv-tools repository known to work with rocket-chip is noted
+in the file riscv-tools.hash. However, any recent riscv-tools should work.
+You can build riscv-tools as follows:
 
     $ cd rocket-chip/riscv-tools
     $ git submodule update --init --recursive
@@ -238,8 +238,6 @@ points to the rocket-chip repository.
     $ cd rocket-chip
     $ export ROCKETCHIP=`pwd`
     $ git submodule update --init
-    $ cd riscv-tools
-    $ git submodule update --init --recursive riscv-tests
 
 Before going any further, you must point the RISCV environment variable
 to your riscv-tools installation directory. If you do not yet have
