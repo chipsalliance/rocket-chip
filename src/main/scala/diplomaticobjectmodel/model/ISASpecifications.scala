@@ -2,15 +2,14 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-sealed trait PrivilegedArchitectureExtension
-
+sealed trait PrivilegedArchitectureExtension extends OMEnum
 case object MachineLevelISA extends PrivilegedArchitectureExtension
 case object SupervisorLevelISA extends PrivilegedArchitectureExtension
 
 object PrivilegedArchitectureExtensions {
   val specifications = Map[PrivilegedArchitectureExtension, String](
-      MachineLevelISA -> "Machine-Level ISA",
-      SupervisorLevelISA -> "Supervisor-Level ISA"
+    MachineLevelISA -> "Machine-Level ISA",
+    SupervisorLevelISA -> "Supervisor-Level ISA"
   )
 
   def specVersion(extension: PrivilegedArchitectureExtension, version: String): OMSpecification = OMSpecification(specifications(extension), version)
@@ -38,5 +37,4 @@ object ISAExtensions {
   )
 
   def specVersion(extension: OMExtensionType, version: String): OMSpecification = OMSpecification(specifications(extension), version)
-
 }

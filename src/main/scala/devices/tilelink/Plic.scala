@@ -13,6 +13,10 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
+
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -76,6 +80,31 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         "riscv,max-priority" -> Seq(ResourceInt(nPriorities)),
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
+    }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
+    }
+
+    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+      val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings) // TODO name source???
+
+      Seq[OMComponent](
+        OMPLIC(
+          memoryRegions = memRegions,
+          interrupts = Nil, // TODO
+          specifications = List(
+            OMSpecification(
+              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
+              version = "1.10"
+            )
+          ),
+          latency = 2, // TODO
+          nInterrupts = 3,
+          nPriorities = params.maxPriorities,
+          targets = Nil
+        )
+      )
     }
   }
 
