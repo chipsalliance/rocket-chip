@@ -19,6 +19,10 @@ object DiplomaticObjectModelUtils {
     pretty(Extraction.decompose(json))
   }
 
+  def addTypes(json: Any): String = {
+    toJson(json)
+  }
+
   def writeJsonFile(filename: String, json: Map[String, Any]): Unit = {
     val writer = new FileWriter(new File(filename))
     writer.write(toJson(json))

@@ -45,7 +45,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMCLINT)
     }
 
-    def getOMCLINT(resources: ResourceBindings): Seq[OMComponent] = {
+    def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings) // TODO name source???
 
       Seq[OMComponent](
