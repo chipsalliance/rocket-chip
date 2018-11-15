@@ -5,7 +5,7 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceMapping, ResourcePermissions, ResourceValue}
+import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceMapping, ResourcePermissions, ResourceValue}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
@@ -27,6 +27,12 @@ object DiplomaticObjectModelUtils {
 }
 
 object DiplomaticObjectModelAddressing {
+
+  def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
+    require(resourceBindingsMap.map.contains(device))
+    val resourceBindings = resourceBindingsMap.map.get(device)
+    resourceBindings.map { case rb => fn(rb) }.getOrElse(Nil)
+  }
 
   private def omPerms(p: ResourcePermissions): OMPermissions = {
     OMPermissions(

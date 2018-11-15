@@ -13,11 +13,11 @@ case class OMInterruptTarget(
 ) extends OMCompoundType
 
 case class OMPLIC(
-                   memoryRegions: Seq[OMMemoryRegion],
-                   interrupts: Seq[OMInterrupt],
-                   specifications: List[OMSpecification],
-                   latency: Int,
-                   nInterrupts: Int, // plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
-                   nPriorities: Int,
-                   targets: List[OMInterruptTarget]
+  memoryRegions: Seq[OMMemoryRegion],
+  interrupts: Seq[OMInterrupt],
+  specifications: List[OMSpecification],
+  latency: Int,
+  nInterrupts: Int, // plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
+  nPriorities: Int,
+  targets: List[OMInterruptTarget]
 ) extends OMDevice

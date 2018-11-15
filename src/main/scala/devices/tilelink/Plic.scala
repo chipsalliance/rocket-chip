@@ -13,6 +13,8 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -81,16 +83,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      require(resourceBindingsMap.map.contains(this))
-      val resourceBindings = resourceBindingsMap.map.get(this)
-      resourceBindings.map(getOMPLIC(_)) match {
-        case Some(rb) => Seq(rb)
-        case None => Nil
-      }
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
     }
 
-    def getOMPLIC(resources: ResourceBindings): OMPLIC = {
-      OMPLIC(
+    def getOMPLIC(resources: ResourceBindings): Seq[OMComponent] = {
+      Seq[OMComponent](OMPLIC(
         memoryRegions = List[OMMemoryRegion](),
         interrupts = List[OMInterrupt](),
         specifications = List[OMSpecification](),
@@ -101,7 +98,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
           hartId = 0, // TODO
           mode = OMMachineMode // TODO OMPrivilegeMode()
         ))
-        )
+        ))
     }
   }
 

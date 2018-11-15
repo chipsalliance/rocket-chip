@@ -10,9 +10,9 @@ trait OMSignal extends RTLComponent {
 }
 
 case class OMClock(
-                  name: String,
-                  description: Option[String]
-                  ) extends OMSignal
+  name: String,
+  description: Option[String]
+) extends OMSignal
 
 case class OMClockRelationship(
   clock0: String,
