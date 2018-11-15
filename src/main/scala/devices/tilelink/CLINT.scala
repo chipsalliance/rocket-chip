@@ -4,15 +4,14 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
+import freechips.rocketchip.regmapper._
+import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-
-import scala.math.{max, min}
 
 object CLINTConsts
 {
@@ -43,26 +42,25 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     override val alwaysExtended = true
 
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      require(resourceBindingsMap.map.contains(this))
-      val resourceBindings = resourceBindingsMap.map.get(this)
-      resourceBindings.map(getOMCLINT(_)) match {
-        case Some(rb) => Seq(rb)
-        case None => Nil
-      }
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMCLINT)
     }
 
-    def getOMCLINT(resources: ResourceBindings): OMCLINT = {
-      OMCLINT(
-        memoryRegions = List[OMMemoryRegion](),
-        interrupts = List[OMInterrupt](),
-        specifications = List[OMSpecification]()
-//       targets = List[OMInterruptTarget](OMInterruptTarget( // We need a function to create an OMInterruptTarget
-//          hartId = 0, // TODO
-//          mode = OMMachineMode // TODO OMPrivilegeMode()
-//        ))
+    def getOMCLINT(resources: ResourceBindings): Seq[OMComponent] = {
+      val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings) // TODO name source???
+
+      Seq[OMComponent](
+        OMCLINT(
+          memoryRegions = memRegions,
+          interrupts = Nil,
+          specifications = List(
+            OMSpecification(
+              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
+              version = "1.10"
+            )
+          )
+        )
       )
     }
-
   }
 
   val node = TLRegisterNode(

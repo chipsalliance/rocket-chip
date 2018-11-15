@@ -86,19 +86,25 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
     }
 
-    def getOMPLIC(resources: ResourceBindings): Seq[OMComponent] = {
-      Seq[OMComponent](OMPLIC(
-        memoryRegions = List[OMMemoryRegion](),
-        interrupts = List[OMInterrupt](),
-        specifications = List[OMSpecification](),
-        latency = 2, // TODO
-        nInterrupts = 0,  // TODO plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
-        nPriorities = params.maxPriorities,
-        targets = List[OMInterruptTarget](OMInterruptTarget( // We need a function to create an OMInterruptTarget
-          hartId = 0, // TODO
-          mode = OMMachineMode // TODO OMPrivilegeMode()
-        ))
-        ))
+    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+      val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings) // TODO name source???
+
+      Seq[OMComponent](
+        OMPLIC(
+          memoryRegions = memRegions,
+          interrupts = Nil, // TODO
+          specifications = List(
+            OMSpecification(
+              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
+              version = "1.10"
+            )
+          ),
+          latency = 2, // TODO
+          nInterrupts = 3,
+          nPriorities = params.maxPriorities,
+          targets = Nil
+        )
+      )
     }
   }
 
