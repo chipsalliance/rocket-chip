@@ -30,6 +30,8 @@ case class BundleBridgeSink[T <: Data]()(implicit valName: ValName) extends Sink
   }
 }
 
+// NOTE: You cannot do BundleBridgeSource(... .flip()) or BundleBridgeSource(Flipped(...)). It WILL NOT WORK.
+// If you want to use a flipped, make a new Bundle class that contains the flipped element.
 case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(gen)))
 {
   def bundle: T = out(0)._1
