@@ -12,7 +12,6 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMFPU
 
 case class FPUParams(
   fLen: Int = 64,
@@ -922,10 +921,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   } // leaving gated-clock domain
   val fpuImpl = withClock (gated_clock) { new FPUImpl }
-
-  val omFPU = OMFPU(
-    fLen = cfg.fLen
-  )
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"FPU_$label", "Core;;" + desc)
