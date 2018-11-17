@@ -13,6 +13,8 @@ import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -54,7 +56,31 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
+  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
+    val omMemory = DiplomaticObjectModelAddressing.makeOMMemory(
+      rtlModule = OMRTLModule,
+      name = "tag_array",
+      desc = "ICache Tag Array",
+      size = nSets,
+      data = Vec(nWays, UInt(width = tECC.width(1 + tagBits)))
+    )
+
+    val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLIC", resourceBindings) // TODO name source???
+
+    val omICache = OMICache(
+      memoryRegions = Nil, // Seq[OMMemoryRegion],
+      interrupts = Nil, // Seq[OMInterrupt],
+      nSets = 0,
+      nWays = 0,
+      blockSizeBytes = 0,
+      dataMemorySizeBytes = 0,
+      dataECC = None, // Option[OMECC],
+      tagECC = None, // Option[OMECC],
+      nTLBEntries = 0,
+      memories = Nil, // List[OMMemory],
+      maxTimSize = 0
+    )
+  }
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
     TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
