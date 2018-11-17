@@ -1106,7 +1106,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
           ),
           nAbstractDataWords = cfg.nAbstractDataWords,
           nProgramBufferWords = cfg.nProgramBufferWords,
-          hasJtagDTM = false, // TODO cfg.
+          hasJtagDTM = p(ExportDebugJTAG), // TODO cfg.
         )
       )
     }
