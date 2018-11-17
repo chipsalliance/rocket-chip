@@ -162,9 +162,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // TODO figure out how to move the below into their respective mix-ins
   dcacheArb.io.requestor <> dcachePorts
   ptw.io.requestor <> ptwPorts
-
-
-
 }
 
 trait HasFpuOpt { this: RocketTileModuleImp =>
