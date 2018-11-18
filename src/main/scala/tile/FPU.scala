@@ -5,6 +5,7 @@ package freechips.rocketchip.tile
 
 import Chisel._
 import Chisel.ImplicitConversions._
+
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
