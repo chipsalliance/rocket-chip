@@ -12,6 +12,8 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -1083,6 +1085,31 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMDebug)
+    }
+
+    def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+      val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings)
+      val cfg = p(DebugModuleParams)
+
+      Seq[OMComponent](
+        OMDebug(
+          memoryRegions = memRegions,
+          interrupts = Nil,
+          specifications = List(
+            OMSpecification(
+              name = "The RISC‑V Debug Specification",
+              version = "0.13"
+            )
+          ),
+          nAbstractDataWords = cfg.nAbstractDataWords,
+          nProgramBufferWords = cfg.nProgramBufferWords,
+          hasJtagDTM = p(ExportDebugJTAG),
+        )
+      )
+    }
   }
 
   val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
