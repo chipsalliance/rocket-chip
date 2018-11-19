@@ -11,7 +11,8 @@ case class OMMulDiv(
   multiplyBitsPerCycle: Int,
   multiplyFullyPipelined: Boolean,
   multiplyMaxLatency: Int,
-  multiplyMinLatency: Int
+  multiplyMinLatency: Int,
+  _types: Seq[String] = Seq("OMMulDiv", "OMComponent", "OMCompoundType")
 ) extends OMComponent
 
 

@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 /* The following enum names come from IP-XACT */
-sealed trait OMRegFieldWrType
+sealed trait OMRegFieldWrType extends OMEnum
 case object RFWT_ONE_TO_CLEAR   extends OMRegFieldWrType
 case object RFWT_ONE_TO_SET     extends OMRegFieldWrType
 case object RFWT_ONE_TO_TOGGLE  extends OMRegFieldWrType

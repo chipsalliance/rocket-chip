@@ -5,5 +5,6 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 case class OMPerformanceMonitor(
   specifications: List[OMSpecification],
   hasBasicCounters: Boolean,
-  nAdditionalCounters: Int
+  nAdditionalCounters: Int,
+  _types: Seq[String] = Seq("OMPerformanceMonitor", "OMComponent", "OMCompoundType")
 ) extends OMComponent
