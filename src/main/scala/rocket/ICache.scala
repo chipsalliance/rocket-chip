@@ -13,8 +13,10 @@ import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
+import diplomaticobjectmodel.OMContainer
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.subsystem.CacheBlockBytes
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -57,30 +59,37 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
-    val omMemory = DiplomaticObjectModelAddressing.makeOMMemory(
-      rtlModule = OMRTLModule,
-      name = "tag_array",
-      desc = "ICache Tag Array",
-      size = nSets,
-      data = Vec(nWays, UInt(width = tECC.width(1 + tagBits)))
-    )
 
-    val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLIC", resourceBindings) // TODO name source???
+//    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+//      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMICache)
+//    }
 
-    val omICache = OMICache(
-      memoryRegions = Nil, // Seq[OMMemoryRegion],
-      interrupts = Nil, // Seq[OMInterrupt],
-      nSets = 0,
-      nWays = 0,
-      blockSizeBytes = 0,
-      dataMemorySizeBytes = 0,
-      dataECC = None, // Option[OMECC],
-      tagECC = None, // Option[OMECC],
-      nTLBEntries = 0,
-      memories = Nil, // List[OMMemory],
-      maxTimSize = 0
-    )
+    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap, omMemories: Seq[OMMemory]): Seq[OMComponent] = {
+      require(resourceBindingsMap.map.contains(device))
+      val resourceBindings = resourceBindingsMap.map.get(device)
+      resourceBindings.map { case rb => getOMICache(rb, omMemories) }.getOrElse(Nil)
+    }
+
+    def getOMICache(resourceBindings: ResourceBindings, omMemory: Seq[OMMemory]): Seq[OMComponent] = {
+
+      Seq[OMComponent](
+        OMICache(
+          memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
+          interrupts = Nil,
+          nSets = icacheParams.nSets,
+          nWays = icacheParams.nWays,
+          blockSizeBytes = icacheParams.blockBytes,
+          dataMemorySizeBytes = size,
+          dataECC = icacheParams.dataECC.map{case code => OMECC.getCode(code)},
+          tagECC = icacheParams.tagECC.map{case code => OMECC.getCode(code)},
+          nTLBEntries = icacheParams.nTLBEntries,
+          memories = omMemory,
+          maxTimSize = 0
+        )
+      )
+    }
   }
+
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
     TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
@@ -201,11 +210,15 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
+  val bundleParams = p(SharedMemoryTLEdge).bundle
+
+  val tagbits = bundleParams.addressBits - (if (usingVM) untagBits min pgIdxBits else untagBits)
+
   val tag_array = DescribedSRAM(
     name = "tag_array",
     desc = "ICache Tag Array",
     size = nSets,
-    data = Vec(nWays, UInt(width = tECC.width(1 + tagBits)))
+    data = Vec(nWays, UInt(width = tECC.width(1 + tagbits)))
   )
 
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
@@ -265,6 +278,33 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         size = nSets * refillCycles,
         data = Vec(nWays, UInt(width = dECC.width(wordBits)))
       )
+  }
+
+  def getOMContainer(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+
+    val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
+      i =>
+        val omRTLInterface = OMRTLInterface(
+          clocks = Nil,
+          clockRelationships = Nil,
+          resets = Nil
+        )
+
+        val omRTLModule = OMRTLModule(
+          moduleName = "data_arrays_${i}",
+          instanceName = None,
+          hierarchicalId = None,
+          interface = omRTLInterface
+        )
+
+        DiplomaticObjectModelAddressing.makeOMMemory(
+          rtlModule = omRTLModule,
+          desc = "ICache Tag Array",
+          depth = nSets * refillCycles,
+          data = Vec(nWays, UInt(width = dECC.width(wordBits)))
+        )
+    }
+    outer.device.getOMICacheFromBindings(resourceBindingsMap, data_arrays)
   }
 
   for ((data_array, i) <- data_arrays zipWithIndex) {

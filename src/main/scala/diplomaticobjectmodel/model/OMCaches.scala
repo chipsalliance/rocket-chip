@@ -9,9 +9,19 @@ case object Parity extends OMECC
 case object SEC extends OMECC
 case object SECDED extends OMECC
 
+object OMECC {
+  def getCode(code: String): OMECC = {
+    code match {
+      case "Identity" => Identity
+      case "Parity"   => Parity
+      case "SEC"      => SEC
+      case "SECDED"   => SECDED
+      case _ => throw new IllegalArgumentException("ERROR: invalid getCode arg: $code")
+    }
+  }
+}
+
 trait OMCache extends OMDevice {
-  def memoryRegions(): Seq[OMMemoryRegion]
-  def interrupts(): Seq[OMInterrupt]
   def nSets: Int
   def nWays: Int
   def blockSizeBytes: Int
@@ -19,7 +29,7 @@ trait OMCache extends OMDevice {
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
   def nTLBEntries: Int
-  def memories: List[OMMemory]
+  def memories: Seq[OMMemory]
 }
 
 case class OMICache(
@@ -32,7 +42,7 @@ case class OMICache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
-  memories: List[OMMemory],
+  memories: Seq[OMMemory],
   maxTimSize: Int
 ) extends OMCache
 
