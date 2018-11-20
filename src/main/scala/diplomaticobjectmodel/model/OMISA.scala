@@ -33,5 +33,6 @@ case class OMISA(
   c: Option[OMSpecification],
   u: Option[OMSpecification],
   s: Option[OMSpecification],
-  addressTranslationModes: Seq[OMAddressTranslationMode]
+  addressTranslationModes: Seq[OMAddressTranslationMode],
+  _types: Seq[String] = Seq("OMISA", "OMCompoundType")
 ) extends OMCompoundType

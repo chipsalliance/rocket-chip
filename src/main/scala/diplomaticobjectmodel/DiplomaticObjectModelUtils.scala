@@ -9,13 +9,13 @@ import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
-import org.json4s.{Extraction, NoTypeHints}
+import org.json4s.{CustomSerializer, Extraction, NoTypeHints}
 
 
 object DiplomaticObjectModelUtils {
 
   def toJson(json: Any): String = {
-    implicit val formats = Serialization.formats(NoTypeHints)
+    implicit val formats = Serialization.formats(NoTypeHints) + new OMEnumSerializer
     pretty(Extraction.decompose(json))
   }
 
@@ -28,7 +28,75 @@ object DiplomaticObjectModelUtils {
     writer.write(toJson(json))
     writer.close()
   }
+
+  /**
+   * Get the demangled name for the class.
+   *
+   * In Scala companion objects have a trailing $, so this will strip the
+   * trailing $.
+   */
+  def getDemangledName(claz: Class[_]): String =
+    """\$.*$""".r.replaceFirstIn(claz.getSimpleName, "")
+
+  /**
+    * Given a sequence of strings, remove duplicates by keeping only
+    *   the last occurrence in the sequence.
+    */
+  def keepLast(names: Seq[String]): Seq[String] = {
+    var keepers = List[String]()
+    var seen = Set[String]()
+
+    // Coded as an imperative loop, could easily be functional.
+    for (name <- names.reverse)
+      if (!seen(name)) {
+        keepers = name +: keepers
+        seen = seen + name
+      }
+
+    keepers.toSeq
+  }
+
+  /**
+   * Get a list of super classes and traits for a class
+   */
+  def getSuperClasses(klass: Class[_]): Seq[Class[_]] = {
+
+    if (klass == null)
+      Seq()
+
+    else {
+      val superKlass = klass.getSuperclass
+      val interfaces = klass.getInterfaces
+      val classes    = klass.getClasses
+
+      val parents = if (superKlass == null)  interfaces
+      else          interfaces :+ superKlass
+
+      val ancestors = for {parent <- parents; ancestor <- getSuperClasses(parent)}
+        yield ancestor
+
+      (klass +: parents) ++ ancestors
+    }
+  }
+
+  def getAllClassNames(klass: Class[_]): Seq[String] =
+    keepLast(getSuperClasses(klass).map(getDemangledName _))
 }
+
+class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
+  import org.json4s.JsonDSL._
+  (
+    Map.empty,
+    {
+      // Note: This is only meant to work for our OMEnum types, where we don't
+      // need to recursively serialize child properties because our OMEnum types
+      // do not have members. We currently don't have a way of recursively
+      // serializing objects without basically reimplementing the default
+      // serializers for case classes.
+      case inst: OMEnum => ("_types" -> DiplomaticObjectModelUtils.getAllClassNames(inst.getClass))
+    }
+  )
+})
 
 object DiplomaticObjectModelAddressing {
 
