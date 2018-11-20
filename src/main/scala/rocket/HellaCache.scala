@@ -210,11 +210,10 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
-  def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
   lazy val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
-      new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
+      new DCache(hartId, p(RocketCrossingKey).head.knownRatio)
     } else { new NonBlockingDCache(hartId) })
 
   tlMasterXbar.node := dcache.node

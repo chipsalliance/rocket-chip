@@ -72,7 +72,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = UInt(width = cacheParams.tagCode.width(new L1Metadata().getWidth))
 }
 
-class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class DCache(hartid: Int, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 

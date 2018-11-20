@@ -66,13 +66,6 @@ class RocketTile(
   masterNode :=* tlOtherMastersNode
   DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
 
-  def findScratchpadFromICache: Option[AddressSet] = dtim_adapter.map { s =>
-    val finalNode = frontend.masterNode.edges.out.head.manager.managers.find(_.nodePath.last == s.node)
-    require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
-    require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
-    finalNode.get.address(0)
-  }
-
   nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
 
   val dtimProperty = dtim_adapter.map(d => Map(
