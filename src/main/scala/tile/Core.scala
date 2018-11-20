@@ -34,6 +34,7 @@ trait CoreParams {
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean
   val misaWritable: Boolean
+  val haveCFlush: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean

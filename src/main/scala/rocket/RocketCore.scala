@@ -28,6 +28,7 @@ case class RocketCoreParams(
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
   haveBasicCounters: Boolean = true,
+  haveCFlush: Boolean = false,
   misaWritable: Boolean = true,
   nL2TLBEntries: Int = 0,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
@@ -162,6 +163,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (xLen == 32) new I32Decode else new I64Decode) +:
     (usingVM.option(new SDecode)) ++:
     (usingDebug.option(new DebugDecode)) ++:
+    Seq(new FenceIDecode(tile.dcache.flushOnFenceI)) ++:
+    rocketParams.haveCFlush.option(new CFlushDecode) ++:
     Seq(new IDecode)
   } flatMap(_.table)
 

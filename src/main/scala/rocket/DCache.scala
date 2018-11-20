@@ -763,12 +763,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
   val flushCounterWrap = flushCounterNext(log2Ceil(nSets)-1, 0)
-  when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
-    io.cpu.s2_nack := !flushed
-    when (!flushed) {
-      flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
-    }
-  }
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_data_error, "DATA_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in data array during cache flush")
   s1_flush_valid := metaArb.io.in(5).fire() && !s1_flush_valid && !s2_flush_valid_pre_tag_ecc && release_state === s_ready && !release_ack_wait
@@ -780,8 +774,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
 
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  val supports_flush = !edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.UNCACHEABLE)
+  val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   if (supports_flush) {
+    when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
+      io.cpu.s2_nack := !flushed
+      when (!flushed) {
+        flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
+      }
+    }
+
     when (tl_out_a.fire() && !s2_uncached) { flushed := false }
     when (flushing) {
       s1_victim_way := flushCounter >> log2Up(nSets)

@@ -478,15 +478,16 @@ class CSRFile(
   val wdata = readModifyWriteCSR(io.rw.cmd, io.rw.rdata, io.rw.wdata)
 
   val system_insn = io.rw.cmd === CSR.I
-  val decode_table = Seq(
-    SCALL->     List(Y,N,N,N,N,N),
-    SBREAK->    List(N,Y,N,N,N,N),
-    MRET->      List(N,N,Y,N,N,N),
-    CEASE->     List(N,N,N,Y,N,N),
-    WFI->       List(N,N,N,N,Y,N)) ++ (if (usingDebug) Seq(
-    DRET->      List(N,N,Y,N,N,N)) else Seq()) ++ (if (usingVM) Seq(
-    SRET->      List(N,N,Y,N,N,N),
-    SFENCE_VMA->List(N,N,N,N,N,Y)) else Seq())
+  val decode_table = Seq(        SCALL->       List(Y,N,N,N,N,N),
+                                 SBREAK->      List(N,Y,N,N,N,N),
+                                 MRET->        List(N,N,Y,N,N,N),
+                                 CEASE->       List(N,N,N,Y,N,N),
+                                 WFI->         List(N,N,N,N,Y,N)) ++
+    usingDebug.option(           DRET->        List(N,N,Y,N,N,N)) ++
+    coreParams.haveCFlush.option(CFLUSH_D_L1-> List(N,N,N,N,N,N)) ++
+    usingVM.option(              SRET->        List(N,N,Y,N,N,N)) ++
+    usingVM.option(              SFENCE_VMA->  List(N,N,N,N,N,Y))
+
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: insn_sfence :: Nil =
     DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.toBool)
 
