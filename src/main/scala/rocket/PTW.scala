@@ -49,6 +49,7 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val pmp = Vec(nPMPs, new PMP).asInput
   val perf = new PTWPerfEvents().asOutput
   val customCSRs = coreParams.customCSRs.asInput
+  val clock_enabled = Bool(OUTPUT)
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -91,6 +92,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
 
   val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
+  io.dpath.clock_enabled := usingVM && clock_en
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
     else ClockGate(clock, clock_en, "ptw_clock_gate")

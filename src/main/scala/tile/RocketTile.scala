@@ -110,6 +110,14 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   val uncorrectable = RegInit(Bool(false))
   val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))
 
+  override val cease = outer.rocketParams.core.clockGate.option(IO(Bool(OUTPUT)))
+  cease.foreach(_ := RegNext(
+    !outer.dcache.module.io.cpu.clock_enabled &&
+    !outer.frontend.module.io.cpu.clock_enabled &&
+    !ptw.io.dpath.clock_enabled &&
+    core.io.cease
+  ))
+
   outer.bus_error_unit.foreach { lm =>
     lm.module.io.errors.dcache := outer.dcache.module.io.errors
     lm.module.io.errors.icache := outer.frontend.module.io.errors

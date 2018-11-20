@@ -341,7 +341,7 @@ class CSRFile(
   val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, d_interrupts))
   val interruptMSB = BigInt(1) << (xLen-1)
   val interruptCause = UInt(interruptMSB) + whichInterrupt
-  io.interrupt := (anyInterrupt && !io.singleStep || reg_singleStepped) && !reg_debug
+  io.interrupt := (anyInterrupt && !io.singleStep || reg_singleStepped) && !(reg_debug || io.status.cease)
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
   io.pmp := reg_pmp.map(PMP(_))
@@ -640,9 +640,7 @@ class CSRFile(
 
   io.time := reg_cycle
   io.csr_stall := reg_wfi || io.status.cease
-
-  io.status.cease := RegEnable(true.B, insn_cease, false.B)
-  when (io.status.cease) { assert(!(exception || io.retire.orR)) }
+  io.status.cease := RegEnable(true.B, false.B, insn_cease)
 
   for ((io, reg) <- io.customCSRs zip reg_custom) {
     io.wen := false
