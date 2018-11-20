@@ -16,6 +16,7 @@ import Instructions._
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient
   val debug = Bool()
+  val cease = Bool()
   val isa = UInt(width = 32)
 
   val dprv = UInt(width = PRV.SZ) // effective privilege for data accesses
@@ -317,7 +318,7 @@ class CSRFile(
   val reg_frm = Reg(UInt(width = 3))
 
   val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !reg_wfi) }
+  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
   (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
   val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
@@ -478,17 +479,20 @@ class CSRFile(
 
   val system_insn = io.rw.cmd === CSR.I
   val decode_table = Seq(
-    SCALL->     List(Y,N,N,N,N),
-    SBREAK->    List(N,Y,N,N,N),
-    MRET->      List(N,N,Y,N,N),
-    WFI->       List(N,N,N,Y,N)) ++ (if (usingDebug) Seq(
-    DRET->      List(N,N,Y,N,N)) else Seq()) ++ (if (usingVM) Seq(
-    SRET->      List(N,N,Y,N,N),
-    SFENCE_VMA->List(N,N,N,N,Y)) else Seq())
-  val insn_call::insn_break::insn_ret::insn_wfi::insn_sfence::Nil = DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.toBool)
+    SCALL->     List(Y,N,N,N,N,N),
+    SBREAK->    List(N,Y,N,N,N,N),
+    MRET->      List(N,N,Y,N,N,N),
+    CEASE->     List(N,N,N,Y,N,N),
+    WFI->       List(N,N,N,N,Y,N)) ++ (if (usingDebug) Seq(
+    DRET->      List(N,N,Y,N,N,N)) else Seq()) ++ (if (usingVM) Seq(
+    SRET->      List(N,N,Y,N,N,N),
+    SFENCE_VMA->List(N,N,N,N,N,Y)) else Seq())
+  val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: insn_sfence :: Nil =
+    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.toBool)
 
   for (io_dec <- io.decode) {
-    val is_call::is_break::is_ret::is_wfi::is_sfence::Nil = DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.toBool)
+    val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: Nil =
+      DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.toBool)
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
@@ -634,7 +638,10 @@ class CSRFile(
   }
 
   io.time := reg_cycle
-  io.csr_stall := reg_wfi
+  io.csr_stall := reg_wfi || io.status.cease
+
+  io.status.cease := RegEnable(true.B, insn_cease, false.B)
+  when (io.status.cease) { assert(!(exception || io.retire.orR)) }
 
   for ((io, reg) <- io.customCSRs zip reg_custom) {
     io.wen := false
