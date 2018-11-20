@@ -89,7 +89,7 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
 }
 
 @chiselName
-class Rocket(implicit p: Parameters) extends CoreModule()(p)
+class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
 
