@@ -103,8 +103,48 @@ class WithECCTests extends Config((site, here, up) => {
       Module(new ECCTest(8)) ) }
 })
 
+class WithScatterGatherTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    Seq(
+      Module(new GatherTest(1)),
+      Module(new GatherTest(2)),
+      Module(new GatherTest(3)),
+      Module(new GatherTest(7)),
+      Module(new GatherTest(8)),
+      Module(new GatherTest(9)),
+      Module(new ScatterTest(1)),
+      Module(new ScatterTest(2)),
+      Module(new ScatterTest(3)),
+      Module(new ScatterTest(7)),
+      Module(new ScatterTest(8)),
+      Module(new ScatterTest(9)))}})
+
+class WithPowerQueueTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    Seq(
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   1,  2, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   2,  6, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   3, 10, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 12, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 16, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 20, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 1, 12, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 3, 16, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 5, 20, 10000)),
+      Module(new MultiPortQueueTest(1, 1, 2, 10000)),
+      Module(new MultiPortQueueTest(3, 3, 2, 10000)),
+      Module(new MultiPortQueueTest(5, 5, 6, 10000)),
+      Module(new MultiPortQueueTest(4, 3, 6, 10000)),
+      Module(new MultiPortQueueTest(4, 5, 2, 10000)),
+      Module(new MultiLaneQueueTest(1, 2, 10000)),
+      Module(new MultiLaneQueueTest(3, 2, 10000)),
+      Module(new MultiLaneQueueTest(5, 6, 10000))
+      )}})
+
 class AMBAUnitTestConfig extends Config(new WithAMBAUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class ECCUnitTestConfig extends Config(new WithECCTests)
+class ScatterGatherTestConfig extends Config(new WithScatterGatherTests)
+class PowerQueueTestConfig extends Config(new WithPowerQueueTests)
