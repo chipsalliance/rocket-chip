@@ -138,6 +138,11 @@ class HellaCachePerfEvents extends Bundle {
   val grant = Bool()
   val tlbMiss = Bool()
   val blocked = Bool()
+  val canAcceptStoreThenLoad = Bool()
+  val canAcceptStoreThenRMW = Bool()
+  val canAcceptLoadThenLoad = Bool()
+  val storeBufferEmptyAfterLoad = Bool()
+  val storeBufferEmptyAfterStore = Bool()
 }
 
 // interface between D$ and processor/DTLB

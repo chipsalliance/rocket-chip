@@ -424,7 +424,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   // performance hints to processor
-  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard)
+  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard) || !(!s2_waw_hazard || s2_store_merge)
 
   // Prepare a TileLink request message that initiates a transaction
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
@@ -830,6 +830,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.grant := d_done
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  io.cpu.perf.storeBufferEmptyAfterLoad := !(
+    (s1_valid && s1_write) ||
+    ((s2_valid && s2_write && !s2_waw_hazard) || pstore1_held) ||
+    pstore2_valid)
+  io.cpu.perf.storeBufferEmptyAfterStore := !(
+    (s1_valid && s1_write) ||
+    (s2_valid && s2_write && pstore1_rmw) ||
+    ((s2_valid && s2_write && !s2_waw_hazard || pstore1_held) && pstore2_valid))
+  io.cpu.perf.canAcceptStoreThenLoad := !(
+    ((s2_valid && s2_write && pstore1_rmw) && (s1_valid && s1_write && !s1_waw_hazard)) ||
+    (pstore2_valid && pstore1_valid_likely && (s1_valid && s1_write)))
+  io.cpu.perf.canAcceptStoreThenRMW := io.cpu.perf.canAcceptStoreThenLoad && !pstore2_valid
+  io.cpu.perf.canAcceptLoadThenLoad := !((s1_valid && s1_write && needsRead(s1_req)) && ((s2_valid && s2_write && !s2_waw_hazard || pstore1_held) || pstore2_valid))
   io.cpu.perf.blocked := {
     // stop reporting blocked just before unblocking to avoid overly conservative stalling
     val cycles = outer.bufferUncachedRequests.map(n => if (n > 1) 1 else 2).getOrElse(2)
