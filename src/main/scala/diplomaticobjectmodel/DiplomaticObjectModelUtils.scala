@@ -72,11 +72,7 @@ object DiplomaticObjectModelAddressing {
     )
   }
 
-  def getOMInterrupts(resourceBindings: ResourceBindings): Seq[OMInterrupt]= {
-    Nil
-  }
-
-  def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
+   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
       case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x)) =>
         seq.map {
@@ -106,4 +102,8 @@ object DiplomaticObjectModelAddressing {
         rtlModule = rtlModule
       )
     }
+
+  def getOMInterrupts(resourceBindings: ResourceBindings): Seq[OMInterrupt]= {
+    Nil
+  }
 }
