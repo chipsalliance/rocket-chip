@@ -4,5 +4,6 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 case class OMSpecification(
   name: String,
-  version: String
+  version: String,
+  _types: Seq[String] = Seq("OMSpecification")
 )
