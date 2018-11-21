@@ -3,6 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import Chisel._
+import chisel3.experimental._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -101,6 +102,7 @@ case class DebugModuleParams (
   nAbstractDataWords : Int = 4,
   nScratch : Int = 1,
   hasBusMaster : Boolean = false,
+  clockGate : Boolean = true,
   maxSupportedSBAccess : Int = 32,
   supportQuickAccess : Boolean = false,
   supportHartArray   : Boolean = false,
@@ -1059,6 +1061,12 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
   dmInner.dmiNode := dmiXing.node
 
+  // Require that there are no registers in TL interface, so that spurious
+  // processor accesses to the DM don't need to enable the clock.  We don't
+  // require this property of the SBA, because the debugger is responsible for
+  // raising dmactive (hence enabling the clock) during these transactions.
+  require(dmInner.tlNode.concurrency == 0)
+
   lazy val module = new LazyModuleImp(this) {
 
     val io = IO(new Bundle {
@@ -1070,9 +1078,23 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       val psd = new PSDTestMode().asInput
     })
 
-    dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
-    dmInner.module.io.dmactive := ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
-    dmInner.module.io.debugUnavail := io.debugUnavail
+    val dmactive_synced = ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
+    // Need to clock DM during reset because of synchronous reset.  The unit
+    // should also be reset when dmactive_synced is low, so keep the clock
+    // alive for one cycle after dmactive_synced falls to action this behavior.
+    val clock_en = RegNext(dmactive_synced || reset)
+    val gated_clock =
+      if (!p(DebugModuleParams).clockGate) clock
+      else ClockGate(clock, clock_en, "debug_clock_gate")
+
+    // Keep the async-crossing sink in the gated-clock domain, both to save
+    // power and also for the sake of the ready-valid handshake with dmInner
+    withClock (gated_clock) {
+      dmInner.module.clock := gated_clock
+      dmInner.module.io.dmactive := dmactive_synced
+      dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
+      dmInner.module.io.debugUnavail := io.debugUnavail
+    }
   }
 }
 
