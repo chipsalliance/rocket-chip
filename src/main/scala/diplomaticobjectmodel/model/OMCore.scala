@@ -14,4 +14,5 @@ trait OMCore extends OMComponent{
   def interruptLatency: Int
   def nLocalInterrupts: Int
   def nBreakpoints: Int
+  def rtlModule: Option[OMRTLModule]
 }

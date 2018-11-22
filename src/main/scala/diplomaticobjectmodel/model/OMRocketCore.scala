@@ -24,5 +24,6 @@ case class OMRocketCore(
   branchPredictor: Option[OMRocketBranchPredictor],
   dcache: Option[OMDCache],
   icache: Option[OMICache],
+  rtlModule: Option[OMRTLModule] = None,
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore

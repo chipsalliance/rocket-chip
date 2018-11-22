@@ -11,7 +11,7 @@ trait OMSignal extends RTLComponent {
 
 case class OMClock(
   name: String,
-  description: Option[String]
+  description: Option[String] = None
 ) extends OMSignal
 
 case class OMClockRelationship(
@@ -29,19 +29,21 @@ trait Synchronous extends Synchronicity
 trait Asynchronous extends Synchronicity
 
 case class OMRTLReset(
+  name: String,
+  description: Option[String] = None,
   activeEdge: Option[OMSignalAssertionLevel],
   clock: String, // This will always be the name of the clock signal on the to p-level module
   synchronicity: Option[Synchronicity]
-)
+) extends OMSignal
 
 case class OMResetVector(
   width: Int
-)
+) extends OMBaseType
 
 case class OMRTLInterface(
-  clocks: List[OMClock],
-  clockRelationships: List[OMClockRelationship],
-  resets: List[OMRTLReset]
+  clocks: Seq[OMClock],
+  clockRelationships: Seq[OMClockRelationship],
+  resets: Seq[OMRTLReset]
 ) extends RTLComponent
 
 case class  OMRTLModule(

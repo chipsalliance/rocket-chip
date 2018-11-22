@@ -29,6 +29,7 @@ object DiplomaticObjectModelUtils {
     writer.close()
   }
 
+
   /**
    * Get the demangled name for the class.
    *
@@ -154,7 +155,7 @@ object DiplomaticObjectModelAddressing {
   }
 
   def makeOMMemory[T <: Data](
-      rtlModule: OMRTLModule,
+      rtlModule: Option[OMRTLModule],
       desc: String,
       depth: Int,
       data: T

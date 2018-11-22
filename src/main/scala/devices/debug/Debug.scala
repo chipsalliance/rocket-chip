@@ -1083,7 +1083,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
 class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
-  val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
+  val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")) {
     override val alwaysExtended = true
 
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
@@ -1093,6 +1093,27 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings)
       val cfg = p(DebugModuleParams)
+
+      def getClockRelationships: Seq[OMClockRelationship] = Nil
+
+      def getClocks: Seq[OMClock] = Nil
+
+      def getResets: Seq[OMRTLReset] = Nil
+
+      def getRTLModule(): OMRTLModule = {
+        val omRTLInterface = OMRTLInterface(
+          clocks = getClocks,
+          clockRelationships = getClockRelationships,
+          resets = getResets
+        )
+
+        OMRTLModule(
+          moduleName = name, // TODO Ask Jack, probably need to change the moduleName type to named
+          instanceName = None, // Some(instanceName), // TODO Ask Jack, probably need to change the instanceName type to named
+          hierarchicalId = None, // TODO Ask Jack, probably need to change the hierarchicalId type to named
+          interface = omRTLInterface
+        )
+      }
 
       Seq[OMComponent](
         OMDebug(
@@ -1107,6 +1128,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
           nAbstractDataWords = cfg.nAbstractDataWords,
           nProgramBufferWords = cfg.nProgramBufferWords,
           hasJtagDTM = p(ExportDebugJTAG),
+          rtlModule = Some(getRTLModule())
         )
       )
     }

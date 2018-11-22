@@ -378,6 +378,7 @@ trait BindingScope
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
 
   def createOMComponents(resourceBindingsMap: ResourceBindingsMap): Option[OMComponent] = None
+  def createImpOMComponents(resourceBindingsMap: ResourceBindingsMap): Option[OMComponent] = None
 }
 
 object BindingScope

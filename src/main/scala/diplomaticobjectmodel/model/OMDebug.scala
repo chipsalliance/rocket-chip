@@ -9,5 +9,6 @@ case class OMDebug(
   nAbstractDataWords: Int,
   nProgramBufferWords: Int,
   hasJtagDTM: Boolean,
+  rtlModule: Option[OMRTLModule] = None,
   _types: Seq[String] = Seq("OMDebug", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice

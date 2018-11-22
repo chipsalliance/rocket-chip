@@ -10,8 +10,8 @@ case object SEC extends OMECC
 case object SECDED extends OMECC
 
 trait OMCache extends OMDevice {
-  def memoryRegions(): Seq[OMMemoryRegion]
-  def interrupts(): Seq[OMInterrupt]
+  def memoryRegions: Seq[OMMemoryRegion]
+  def interrupts: Seq[OMInterrupt]
   def nSets: Int
   def nWays: Int
   def blockSizeBytes: Int
@@ -34,6 +34,7 @@ case class OMICache(
   nTLBEntries: Int,
   memories: List[OMMemory],
   maxTimSize: Int,
+  rtlModule: Option[OMRTLModule],
   _types: Seq[String] = Seq("OMICache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
@@ -49,5 +50,6 @@ case class OMDCache(
   nTLBEntries: Int,
   memories: List[OMMemory],
   maxTimSize: Int,
+  rtlModule: Option[OMRTLModule],
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache

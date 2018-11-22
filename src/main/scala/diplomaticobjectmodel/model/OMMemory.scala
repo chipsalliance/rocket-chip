@@ -8,6 +8,6 @@ case class OMMemory(
   dataWidth: Int,
   depth: Int,
   writeMaskGranularity: Int,
-  rtlModule: OMRTLModule,
+  rtlModule: Option[OMRTLModule] = None,
   _types: Seq[String] = Seq("OMMemory")
 )

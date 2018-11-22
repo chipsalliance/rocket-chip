@@ -89,6 +89,27 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings) // TODO name source???
 
+      def getClockRelationships: Seq[OMClockRelationship] = Nil
+
+      def getClocks: Seq[OMClock] = Nil
+
+      def getResets: Seq[OMRTLReset] = Nil
+
+      def getRTLModule(): OMRTLModule = {
+        val omRTLInterface = OMRTLInterface(
+          clocks = getClocks,
+          clockRelationships = getClockRelationships,
+          resets = getResets
+        )
+
+        OMRTLModule(
+          moduleName = name, // TODO Ask Jack, probably need to change the moduleName type to named
+          instanceName = None, // Some(instanceName), // TODO Ask Jack, probably need to change the instanceName type to named
+          hierarchicalId = None, // TODO Ask Jack, probably need to change the hierarchicalId type to named
+          interface = omRTLInterface
+        )
+      }
+
       Seq[OMComponent](
         OMPLIC(
           memoryRegions = memRegions,
@@ -102,7 +123,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
           latency = 2, // TODO
           nInterrupts = 3,
           nPriorities = params.maxPriorities,
-          targets = Nil
+          targets = Nil,
+          rtlModule = Some(getRTLModule())
         )
       )
     }

@@ -6,5 +6,6 @@ case class OMCLINT(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
   specifications: List[OMSpecification],
+  rtlModule: Option[OMRTLModule] = None,
   _types: Seq[String] = Seq("OMCLINT", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
