@@ -49,12 +49,12 @@ case object SlowToFast extends RationalDirection {
 
 final class RationalIO[T <: Data](gen: T) extends Bundle
 {
-  val bits0  = gen.chiselCloneType
-  val bits1  = gen.chiselCloneType
-  val valid  = Bool()
-  val source = UInt(width = 2)
-  val ready  = Bool().flip
-  val sink   = UInt(width = 2).flip
+  val bits0  = gen.asOutput
+  val bits1  = gen.asOutput
+  val valid  = Bool(OUTPUT)
+  val source = UInt(OUTPUT, width = 2)
+  val ready  = Bool(INPUT)
+  val sink   = UInt(INPUT, width = 2)
 
   override def cloneType: this.type = new RationalIO(gen).asInstanceOf[this.type]
 }

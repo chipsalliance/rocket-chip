@@ -161,9 +161,11 @@ case class TLManagerPortParameters(
       lgSize:  UInt,
       range:   Option[TransferSizes]): Bool = {
     def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
     val supportCases = managers.groupBy(m => trim(member(m))).mapValues(_.flatMap(_.address))
-    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.values.toList)
-    val simplified = supportCases.mapValues(seq => AddressSet.unify(seq.map(_.widen(~mask)).distinct))
+                               .toSeq.sortBy { case (k, _) => (k.min, k.max) }
+    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    val simplified = supportCases.map { case (k, seq) => (k, AddressSet.unify(seq.map(_.widen(~mask)).distinct)) }
     simplified.map { case (s, a) =>
       (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)

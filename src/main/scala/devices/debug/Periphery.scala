@@ -9,6 +9,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink._
@@ -38,6 +39,9 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
     fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
   }
+
+  def getOMDebugModule(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
+    debug.device.getOMComponents(resourceBindingsMap)
 }
 
 trait HasPeripheryDebugModuleImp extends LazyModuleImp {

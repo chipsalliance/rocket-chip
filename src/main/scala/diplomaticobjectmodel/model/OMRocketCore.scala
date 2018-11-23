@@ -5,7 +5,8 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 case class OMRocketBranchPredictor(
   nBtbEntries: Int,
   nBhtEntries: Int,
-  nRasEntries: Int
+  nRasEntries: Int,
+  _types: Seq[String] = Seq("OMRocketBranchPredictor", "OMBranchPredictor", "OMComponent", "OMCompoundType")
 ) extends OMBranchPredictor
 
 case class OMRocketCore(
@@ -22,5 +23,6 @@ case class OMRocketCore(
   nBreakpoints: Int,
   branchPredictor: Option[OMRocketBranchPredictor],
   dcache: Option[OMDCache],
-  icache: Option[OMICache]
+  icache: Option[OMICache],
+  _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore
