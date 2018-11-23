@@ -89,14 +89,17 @@ class RocketTile(
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
     }
 
-//
-    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap, omMemories: Seq[OMMemory]): Seq[OMComponent] = {
-      require(resourceBindingsMap.map.contains(device))
-      val resourceBindings = resourceBindingsMap.map.get(device)
-      resourceBindings.map { case rb => getOMCabooseCores(rb, omMemories) }.getOrElse(Nil)
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      val cores = getOMRocketCores(resourceBindingsMap)
+      val icache = getOMICacheFromBindings(resourceBindingsMap)
+      cores ++: icache
     }
 
-    def getOMCabooseCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = { // TODO use resourceBindingsMap: ResourceBindingsMap?
+    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      frontend.icache.device.getOMComponents(resourceBindingsMap)
+    }
+
+    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = { // TODO use resourceBindingsMap: ResourceBindingsMap?
       val coreParams = rocketParams.core
 
       val perfMon = if (coreParams.haveBasicCounters || coreParams.nPerfCounters > 0) {
@@ -128,7 +131,7 @@ class RocketTile(
       val isaExtSpec = ISAExtensions.specVersion _
       val baseSpec = BaseExtensions.specVersion _
 
-      val baseISAVersion = BaseExtensions.baseISAVersion(baseInstructionSet)
+      val baseISAVersion = "" // TODO This func is in the om-scala-rocket branch ISAExtensions.baseISASpecification(baseInstructionSet)
 
       val d = coreParams.fpu.filter(_.fLen > 32).map(x => isaExtSpec(D, "2.0"))
 

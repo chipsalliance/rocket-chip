@@ -60,18 +60,11 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
 
-//    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-//      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMICache)
-//    }
-
-    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap, omMemories: Seq[OMMemory]): Seq[OMComponent] = {
-      require(resourceBindingsMap.map.contains(device))
-      val resourceBindings = resourceBindingsMap.map.get(device)
-      resourceBindings.map { case rb => getOMICache(rb, omMemories) }.getOrElse(Nil)
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMICache)
     }
 
-    def getOMICache(resourceBindings: ResourceBindings, omMemory: Seq[OMMemory]): Seq[OMComponent] = {
-
+    def getOMICache(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       Seq[OMComponent](
         OMICache(
           memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
@@ -83,7 +76,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
           dataECC = icacheParams.dataECC.map{case code => OMECC.getCode(code)},
           tagECC = icacheParams.tagECC.map{case code => OMECC.getCode(code)},
           nTLBEntries = icacheParams.nTLBEntries,
-          memories = omMemory,
+          memories = Nil,
           maxTimSize = 0
         )
       )
@@ -280,9 +273,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       )
   }
 
-  def getOMContainer(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+  def getOMMemories(resourceBindingsMap: ResourceBindingsMap): Seq[OMMemory] = {
 
-    val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
+    Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
       i =>
         val omRTLInterface = OMRTLInterface(
           clocks = Nil,
@@ -304,7 +297,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           data = Vec(nWays, UInt(width = dECC.width(wordBits)))
         )
     }
-    outer.device.getOMICacheFromBindings(resourceBindingsMap, data_arrays)
   }
 
   for ((data_array, i) <- data_arrays zipWithIndex) {
