@@ -26,6 +26,8 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val ram = SeqMem(entries, data)
   when (do_enq) { ram.write(enq_ptr, io.enq.bits) }
 
+  // BUG! does not hold the output of the SRAM when !ready
+  // ... However, HellaQueue is correct due to the pipe stage
   val ren = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
   val raddr = Mux(io.deq.valid, Mux(deq_done, UInt(0), deq_ptr + UInt(1)), deq_ptr)
   val ram_out_valid = Reg(next = ren)
