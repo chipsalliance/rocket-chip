@@ -377,10 +377,8 @@ object CSRs {
   val sepc = 0x141
   val scause = 0x142
   val stval = 0x143
-  val sbadaddr = stval // legacy name
   val sip = 0x144
   val satp = 0x180
-  val sptbr = satp // legacy name
   val mstatus = 0x300
   val misa = 0x301
   val medeleg = 0x302
@@ -392,7 +390,6 @@ object CSRs {
   val mepc = 0x341
   val mcause = 0x342
   val mtval = 0x343
-  val mbadaddr = mtval // legacy name
   val mip = 0x344
   val pmpcfg0 = 0x3a0
   val pmpcfg1 = 0x3a1
