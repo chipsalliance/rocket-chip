@@ -31,6 +31,7 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
+    require (mask.filter(b=>b).size < 31)
     val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
