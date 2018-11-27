@@ -831,8 +831,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)))
   coreMonitorBundle.inst := csr.io.trace(0).insn
 
-  p(BundleMonitorKey).foreach { _ ("rocket_core_monitor", coreMonitorBundle) }
-
   if (enableCommitLog) {
     val t = csr.io.trace(0)
     val rd = wb_waddr
