@@ -66,13 +66,6 @@ class RocketTile(
   masterNode :=* tlOtherMastersNode
   DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
 
-  def findScratchpadFromICache: Option[AddressSet] = dtim_adapter.map { s =>
-    val finalNode = frontend.masterNode.edges.out.head.manager.managers.find(_.nodePath.last == s.node)
-    require (finalNode.isDefined, "Could not find the scratch pad; not reachable via icache?")
-    require (finalNode.get.address.size == 1, "Scratchpad address space was fragmented!")
-    finalNode.get.address(0)
-  }
-
   nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
 
   val dtimProperty = dtim_adapter.map(d => Map(
@@ -112,10 +105,18 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
-  val core = Module(new Rocket()(outer.p))
+  val core = Module(new Rocket(outer)(outer.p))
 
   val uncorrectable = RegInit(Bool(false))
   val halt_and_catch_fire = outer.rocketParams.hcfOnUncorrectable.option(IO(Bool(OUTPUT)))
+
+  override val cease = outer.rocketParams.core.clockGate.option(IO(Bool(OUTPUT)))
+  cease.foreach(_ := RegNext(
+    !outer.dcache.module.io.cpu.clock_enabled &&
+    !outer.frontend.module.io.cpu.clock_enabled &&
+    !ptw.io.dpath.clock_enabled &&
+    core.io.cease
+  ))
 
   outer.bus_error_unit.foreach { lm =>
     lm.module.io.errors.dcache := outer.dcache.module.io.errors
