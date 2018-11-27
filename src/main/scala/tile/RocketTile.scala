@@ -22,6 +22,7 @@ case class RocketTileParams(
     hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
     hartId: Int = 0,
+    beuControlAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
     boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
     ) extends TileParams {
@@ -47,7 +48,7 @@ class RocketTile(
   }
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, xBytes))
 
-  val bus_error_unit = tileParams.core.tileControlAddr map { a =>
+  val bus_error_unit = tileParams.beuControlAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
     intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
