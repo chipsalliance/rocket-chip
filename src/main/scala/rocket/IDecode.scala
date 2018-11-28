@@ -49,14 +49,14 @@ class IntCtrlSigs extends Bundle {
   val dp = Bool()
 
   def default: List[BitPat] =
-                //           jal                                                                   renf1             fence.i
-                //   val     | jalr                                                                | renf2           |
-                //   | fp_val| | renx2                                                             | | renf3         |
-                //   | | rocc| | | renx1       s_alu1                          mem_val             | | | wfd         | 
-                //   | | | br| | | |   s_alu2  |       imm    dw     alu       | mem_cmd   mem_type| | | | mul       | 
-                //   | | | | | | | |   |       |       |      |      |         | |           |     | | | | | div     | fence
-                //   | | | | | | | |   |       |       |      |      |         | |           |     | | | | | | wxd   | | amo
-                //   | | | | | | | | scie      |       |      |      |         | |           |     | | | | | | |     | | | dp
+                //           jal                                                                   renf1               fence.i
+                //   val     | jalr                                                                | renf2             |
+                //   | fp_val| | renx2                                                             | | renf3           |
+                //   | | rocc| | | renx1       s_alu1                          mem_val             | | | wfd           |
+                //   | | | br| | | |   s_alu2  |       imm    dw     alu       | mem_cmd   mem_type| | | | mul         |
+                //   | | | | | | | |   |       |       |      |      |         | |           |     | | | | | div       | fence
+                //   | | | | | | | |   |       |       |      |      |         | |           |     | | | | | | wxd     | | amo
+                //   | | | | | | | | scie      |       |      |      |         | |           |     | | | | | | |       | | | dp
                 List(N,X,X,X,X,X,X,X,X,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, X,X,X,X,X,X,X,CSR.X,X,X,X,X)
 
   def decode(inst: UInt, table: Iterable[(BitPat, List[BitPat])]) = {
@@ -111,18 +111,33 @@ class IDecode(implicit val p: Parameters) extends DecodeConstants
     SRA->       List(Y,N,N,N,N,N,Y,Y,N,A2_RS2, A1_RS1, IMM_X, DW_XPR,FN_SRA,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
 
     FENCE->     List(Y,N,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,N,N,N,N,CSR.N,N,Y,N,N),
-    FENCE_I->   List(Y,N,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     Y,M_FLUSH_ALL,MT_X, N,N,N,N,N,N,N,CSR.N,Y,N,N,N),
 
     SCALL->     List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N),
     SBREAK->    List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N),
     MRET->      List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N),
     WFI->       List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N),
+    CEASE->     List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N),
     CSRRW->     List(Y,N,N,N,N,N,N,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.W,N,N,N,N),
     CSRRS->     List(Y,N,N,N,N,N,N,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.S,N,N,N,N),
     CSRRC->     List(Y,N,N,N,N,N,N,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.C,N,N,N,N),
     CSRRWI->    List(Y,N,N,N,N,N,N,N,N,A2_IMM, A1_ZERO,IMM_Z, DW_XPR,FN_ADD,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.W,N,N,N,N),
     CSRRSI->    List(Y,N,N,N,N,N,N,N,N,A2_IMM, A1_ZERO,IMM_Z, DW_XPR,FN_ADD,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.S,N,N,N,N),
     CSRRCI->    List(Y,N,N,N,N,N,N,N,N,A2_IMM, A1_ZERO,IMM_Z, DW_XPR,FN_ADD,   N,M_X,        MT_X, N,N,N,N,N,N,Y,CSR.C,N,N,N,N))
+}
+
+class FenceIDecode(flushDCache: Boolean)(implicit val p: Parameters) extends DecodeConstants
+{
+  private val (v, cmd) = if (flushDCache) (Y, BitPat(M_FLUSH_ALL)) else (N, M_X)
+
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    FENCE_I->   List(Y,N,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     v,cmd,        MT_X, N,N,N,N,N,N,N,CSR.N,Y,Y,N,N))
+}
+
+class CFlushDecode(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    CFLUSH_D_L1->
+                List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     Y,M_FLUSH_ALL,MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N))
 }
 
 class SDecode(implicit val p: Parameters) extends DecodeConstants
