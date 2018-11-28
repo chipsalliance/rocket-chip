@@ -17,7 +17,7 @@ class EventSet(gate: (UInt, UInt) => Bool, events: Seq[(String, () => Bool)]) {
   }
   def withCovers {
     events.zipWithIndex.foreach {
-      case ((name, _), i) => cover(check(1.U << i), name)
+      case ((name, func), i) => cover(gate((1.U << i), (func() << i)), name)
     }
   }
 }
