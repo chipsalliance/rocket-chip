@@ -149,6 +149,15 @@ object DiplomaticObjectModelAddressing {
     }.flatten.toSeq
   }
 
+  def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
+    resourceBindings.map.collect {
+      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.rangeFilter(x)) =>
+        seq.map {
+          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, "port memory region", value)
+        }
+    }.flatten.toSeq
+  }
+
   def makeOMMemory[T <: Data](
       rtlModule: OMRTLModule,
       desc: String,
