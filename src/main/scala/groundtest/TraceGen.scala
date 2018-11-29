@@ -66,7 +66,6 @@ case class TraceGenParams(
     numGens: Int) extends GroundTestTileParams {
   def build(i: Int, p: Parameters): GroundTestTile = new TraceGenTile(i, this)(p)
   val hartId = 0
-  val trace = false
   val blockerCtrlAddr = None
   val name = None
 }

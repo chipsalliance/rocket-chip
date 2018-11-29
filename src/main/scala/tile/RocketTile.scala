@@ -18,7 +18,6 @@ case class RocketTileParams(
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     btb: Option[BTBParams] = Some(BTBParams()),
     dataScratchpadBytes: Int = 0,
-    trace: Boolean = false,
     hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
     hartId: Int = 0,
@@ -126,12 +125,14 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
   outer.bus_error_unit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
-  core.io.hartid := constants.hartid // Pass through the hartid
-  trace.foreach { _ := core.io.trace }
   halt_and_catch_fire.foreach { _ := uncorrectable }
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.reset_vector := constants.reset_vector
   outer.frontend.module.io.hartid := constants.hartid
+
+  // Pass through various external constants and reports
+  trace := core.io.trace
+  core.io.hartid := constants.hartid
   outer.dcache.module.io.hartid := constants.hartid
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => core.io.fpu <> fpu.io }

@@ -27,7 +27,6 @@ trait TileParams {
   val icache: Option[ICacheParams]
   val dcache: Option[DCacheParams]
   val btb: Option[BTBParams]
-  val trace: Boolean
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
   val name: Option[String]
@@ -202,7 +201,7 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
 
-  val trace = tileParams.trace.option(IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput))
+  val trace = IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput)
   val constants = IO(new TileInputConstants)
 
   val cease: Option[Bool] = None
