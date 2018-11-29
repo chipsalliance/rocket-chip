@@ -135,8 +135,11 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
-  def intInwardNode: IntInwardNode
-  def intOutwardNode: IntOutwardNode
+  def intInwardNode: IntInwardNode    // Interrupts to the core from external devices
+  def intOutwardNode: IntOutwardNode  // Interrupts from tile-internal devices (e.g. BEU)
+  def haltNode: IntOutwardNode        // Unrecoverable error has occurred; suggest reset
+  def ceaseNode: IntOutwardNode       // Tile has ceased to retire instructions
+  def wfiNode: IntOutwardNode         // Tile is waiting for an interrupt
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)
@@ -204,9 +207,6 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
 
   val trace = IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput)
   val constants = IO(new TileInputConstants)
-
-  val cease: Option[Bool] = None
-  val halt_and_catch_fire: Option[Bool]
 }
 
 /** Some other non-tilelink but still standard inputs */
