@@ -21,7 +21,7 @@ case class RocketTileParams(
     hcfOnUncorrectable: Boolean = false,
     name: Option[String] = Some("tile"),
     hartId: Int = 0,
-    beuControlAddr: Option[BigInt] = None,
+    beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
     boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
     ) extends TileParams {
@@ -47,7 +47,7 @@ class RocketTile(
   }
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, xBytes))
 
-  val bus_error_unit = tileParams.beuControlAddr map { a =>
+  val bus_error_unit = rocketParams.beuAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
     intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
@@ -118,17 +118,18 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     core.io.cease
   ))
 
-  outer.bus_error_unit.foreach { lm =>
-    lm.module.io.errors.dcache := outer.dcache.module.io.errors
-    lm.module.io.errors.icache := outer.frontend.module.io.errors
-  }
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
-  outer.bus_error_unit.foreach { beu => core.io.interrupts.buserror.get := beu.module.io.interrupt }
   halt_and_catch_fire.foreach { _ := uncorrectable }
   outer.frontend.module.io.cpu <> core.io.imem
   outer.frontend.module.io.reset_vector := constants.reset_vector
   outer.frontend.module.io.hartid := constants.hartid
+
+  outer.bus_error_unit.foreach { beu =>
+    core.io.interrupts.buserror.get := beu.module.io.interrupt
+    beu.module.io.errors.dcache := outer.dcache.module.io.errors
+    beu.module.io.errors.icache := outer.frontend.module.io.errors
+  }
 
   // Pass through various external constants and reports
   trace := core.io.trace
