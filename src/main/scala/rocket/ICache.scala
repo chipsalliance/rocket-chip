@@ -77,7 +77,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
           tagECC = icacheParams.tagECC.map{case code => OMECC.getCode(code)},
           nTLBEntries = icacheParams.nTLBEntries,
           memories = Nil,
-          maxTimSize = 0
+          maxTimSize = 0 // TODO icacheParams.nSets * refillCycles
         )
       )
     }
