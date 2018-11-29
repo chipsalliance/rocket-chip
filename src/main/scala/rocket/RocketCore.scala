@@ -89,6 +89,23 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   override def decls = super.decls :+ marchid :+ mvendorid :+ mimpid
 }
 
+// this bundle is used to expose some internal core signals
+// to verification monitors which sample instruction commits
+class CoreMonitorBundle(val xLen: Int) extends Bundle {
+  val hartid = UInt(width = xLen)
+  val timer = UInt(width = 32)
+  val valid = Bool()
+  val pc = UInt(width = xLen)
+  val wrdst = UInt(width = 5)
+  val wrdata = UInt(width = xLen)
+  val wren = Bool()
+  val rd0src = UInt(width = 5)
+  val rd0val = UInt(width = xLen)
+  val rd1src = UInt(width = 5)
+  val rd1val = UInt(width = xLen)
+  val inst = UInt(width = 32)
+}
+
 @chiselName
 class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
@@ -802,24 +819,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
-  class CoreMonitorBundle extends Bundle {
-    val hartid = UInt(width = hartIdLen)
-    val time = UInt(width = 32)
-    val valid = Bool()
-    val pc = UInt(width = vaddrBitsExtended)
-    val wrdst = UInt(width = 5)
-    val wrdata = UInt(width = xLen)
-    val wren = Bool()
-    val rd0src = UInt(width = 5)
-    val rd0val = UInt(width = xLen)
-    val rd1src = UInt(width = 5)
-    val rd1val = UInt(width = xLen)
-    val inst = UInt(width = 32)
-  }
-  val coreMonitorBundle = Wire(new CoreMonitorBundle)
+  val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
 
   coreMonitorBundle.hartid := io.hartid
-  coreMonitorBundle.time := csr.io.time(31,0)
+  coreMonitorBundle.timer := csr.io.time(31,0)
   coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
   coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0)
   coreMonitorBundle.wrdst := Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0))
@@ -859,7 +862,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
   else {
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         coreMonitorBundle.hartid, coreMonitorBundle.time, coreMonitorBundle.valid,
+         coreMonitorBundle.hartid, coreMonitorBundle.timer, coreMonitorBundle.valid,
          coreMonitorBundle.pc,
          coreMonitorBundle.wrdst, coreMonitorBundle.wrdata, coreMonitorBundle.wren,
          coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
