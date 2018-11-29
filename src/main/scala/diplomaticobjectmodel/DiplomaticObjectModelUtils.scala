@@ -100,6 +100,11 @@ class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
 
 object DiplomaticObjectModelAddressing {
 
+  def getResourceBindings(device: Device, resourceBindingsMap: ResourceBindingsMap): Option[ResourceBindings] = {
+    require(resourceBindingsMap.map.contains(device))
+    resourceBindingsMap.map.get(device)
+  }
+
   def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
     require(resourceBindingsMap.map.contains(device))
     val resourceBindings = resourceBindingsMap.map.get(device)
@@ -123,7 +128,7 @@ object DiplomaticObjectModelAddressing {
     }
   }
 
-  private def omMemoryRegion(name: String, regName: String, value: ResourceValue): OMMemoryRegion = {
+  private def omMemoryRegion(name: String, description: String, value: ResourceValue): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
         (omAddressSets(rm.address),rm.permissions)
@@ -133,11 +138,15 @@ object DiplomaticObjectModelAddressing {
 
     OMMemoryRegion(
       name = name,
-      description = regName,
+      description = description,
       addressSets = omRanges,
       permissions = omPerms(permissions),
       registerMap = None // Option[OMRegisterMap]
     )
+  }
+
+  def getOMInterrupts(resourceBindings: ResourceBindings): Seq[OMInterrupt]= {
+    Nil
   }
 
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
@@ -179,8 +188,4 @@ object DiplomaticObjectModelAddressing {
         rtlModule = rtlModule
       )
     }
-
-  def getOMInterrupts(resourceBindings: ResourceBindings): Seq[OMInterrupt]= {
-    Nil
-  }
 }
