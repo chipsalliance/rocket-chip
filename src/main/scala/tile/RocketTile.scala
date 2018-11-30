@@ -124,8 +124,12 @@ class RocketTile(
       val isaExtSpec = ISAExtensions.specVersion _
       val baseSpec = BaseExtensions.specVersion _
 
-      val baseISAVersion = "" // TODO This func is in the om-scala-rocket branch ISAExtensions.baseISASpecification(baseInstructionSet)
-
+      val baseISAVersion = baseInstructionSet match {
+        case RV32E => "1.9"
+        case RV32I => "2.0"
+        case RV64I => "2.0"
+        case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
+      }
       val d = coreParams.fpu.filter(_.fLen > 32).map(x => isaExtSpec(D, "2.0"))
 
       val omIsa = OMISA(

@@ -23,12 +23,6 @@ object BaseExtensions {
   )
 
   def specVersion(extension: OMBaseInstructionSet, version: String): OMSpecification = OMSpecification(specifications(extension), version)
-  def baseISAVersion(baseInstructionSet: OMBaseInstructionSet): String = baseInstructionSet match {
-    case RV32E => "1.9"
-    case RV32I => "2.0"
-    case RV64I => "2.0"
-    case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
-  }
 }
 
 object ISAExtensions {
