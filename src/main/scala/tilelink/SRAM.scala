@@ -41,7 +41,8 @@ class TLRAM(
     beatBytes  = beatBytes,
     minLatency = 1))) // no bypass needed for this device
 
-  val notifyNode = ecc.notifyErrors.option(BundleBridgeSource(() => new TLRAMErrors(ecc, address.mask.bitCount).cloneType))
+  val indexBits = address.mask.bitCount - log2Ceil(beatBytes)
+  val notifyNode = ecc.notifyErrors.option(BundleBridgeSource(() => new TLRAMErrors(ecc, indexBits).cloneType))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, edge) = node.in(0)
