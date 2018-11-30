@@ -34,6 +34,7 @@ trait CoreParams {
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean
   val misaWritable: Boolean
+  val haveCFlush: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
@@ -105,5 +106,6 @@ trait HasCoreIO extends HasTileParameters {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val cease = Bool().asOutput
   }
 }

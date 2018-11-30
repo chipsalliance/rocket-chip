@@ -168,6 +168,7 @@ trait DeviceRegName
 
 object DiplomacyUtils {
   def regFilter(name: String): Boolean = name == "reg" || name.take(4) == "reg/"
+  def rangeFilter(name: String): Boolean = name == "ranges"
   def regName(name: String): Option[String] = {
     val keys = name.split("/")
     require (keys.size >= 1 && keys.size <= 2 && keys(0) == "reg", s"Invalid reg name '${name}'")

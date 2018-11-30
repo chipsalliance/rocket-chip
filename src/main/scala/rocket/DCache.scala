@@ -72,7 +72,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = UInt(width = cacheParams.tagCode.width(new L1Metadata().getWidth))
 }
 
-class DCache(hartid: Int, val scratch: () => Option[AddressSet] = () => None, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class DCache(hartid: Int, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this) 
 }
 
@@ -354,8 +354,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_merge_likely = s2_valid && s2_write && s2_store_merge
   val pstore1_merge = s2_store_valid && s2_store_merge
   val pstore2_valid = Reg(Bool())
-  val pstore_drain_opportunistic = !(io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits))
-  val pstore_drain_on_miss = releaseInFlight
+  val pstore_drain_opportunistic = !(io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)) && !(s1_valid && s1_waw_hazard)
+  val pstore_drain_on_miss = releaseInFlight || RegNext(io.cpu.s2_nack)
   val pstore1_held = Reg(Bool())
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
   val pstore1_valid_pre_kill = s2_store_valid_pre_kill || pstore1_held
@@ -424,7 +424,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   // performance hints to processor
-  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard)
+  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard) || !(!s2_waw_hazard || s2_store_merge)
 
   // Prepare a TileLink request message that initiates a transaction
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
@@ -763,12 +763,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
   val flushCounterWrap = flushCounterNext(log2Ceil(nSets)-1, 0)
-  when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
-    io.cpu.s2_nack := !flushed
-    when (!flushed) {
-      flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
-    }
-  }
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_data_error, "DATA_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in data array during cache flush")
   s1_flush_valid := metaArb.io.in(5).fire() && !s1_flush_valid && !s2_flush_valid_pre_tag_ecc && release_state === s_ready && !release_ack_wait
@@ -780,8 +774,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
 
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  val supports_flush = !edge.manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.UNCACHEABLE)
+  val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   if (supports_flush) {
+    when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
+      io.cpu.s2_nack := !flushed
+      when (!flushed) {
+        flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
+      }
+    }
+
     when (tl_out_a.fire() && !s2_uncached) { flushed := false }
     when (flushing) {
       s1_victim_way := flushCounter >> log2Up(nSets)
@@ -829,6 +830,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.grant := d_done
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
+  io.cpu.perf.storeBufferEmptyAfterLoad := !(
+    (s1_valid && s1_write) ||
+    ((s2_valid && s2_write && !s2_waw_hazard) || pstore1_held) ||
+    pstore2_valid)
+  io.cpu.perf.storeBufferEmptyAfterStore := !(
+    (s1_valid && s1_write) ||
+    (s2_valid && s2_write && pstore1_rmw) ||
+    ((s2_valid && s2_write && !s2_waw_hazard || pstore1_held) && pstore2_valid))
+  io.cpu.perf.canAcceptStoreThenLoad := !(
+    ((s2_valid && s2_write && pstore1_rmw) && (s1_valid && s1_write && !s1_waw_hazard)) ||
+    (pstore2_valid && pstore1_valid_likely && (s1_valid && s1_write)))
+  io.cpu.perf.canAcceptStoreThenRMW := io.cpu.perf.canAcceptStoreThenLoad && !pstore2_valid
+  io.cpu.perf.canAcceptLoadThenLoad := !((s1_valid && s1_write && needsRead(s1_req)) && ((s2_valid && s2_write && !s2_waw_hazard || pstore1_held) || pstore2_valid))
   io.cpu.perf.blocked := {
     // stop reporting blocked just before unblocking to avoid overly conservative stalling
     val cycles = outer.bufferUncachedRequests.map(n => if (n > 1) 1 else 2).getOrElse(2)
