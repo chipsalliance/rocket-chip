@@ -17,7 +17,8 @@ case class AXI4SlaveParameters(
   nodePath:      Seq[BaseNode] = Seq(),
   supportsWrite: TransferSizes = TransferSizes.none,
   supportsRead:  TransferSizes = TransferSizes.none,
-  interleavedId: Option[Int]   = None) // The device will not interleave responses (R+B)
+  interleavedId: Option[Int]   = None,
+  device: Option[Device] = None) // The device will not interleave responses (R+B)
 {
   address.foreach { a => require (a.finite) }
   address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap") }

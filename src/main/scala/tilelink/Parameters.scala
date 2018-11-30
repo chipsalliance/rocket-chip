@@ -31,7 +31,8 @@ case class TLManagerParameters(
   alwaysGrantsT:      Boolean = false, // typically only true for CacheCork'd read-write devices
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
-  fifoId:             Option[Int] = None)
+  fifoId:             Option[Int] = None,
+  device: Option[Device] = None)
 {
   require (!address.isEmpty, "Address cannot be empty")
   address.foreach { a => require (a.finite, "Address must be finite") }

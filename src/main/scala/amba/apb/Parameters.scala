@@ -15,7 +15,8 @@ case class APBSlaveParameters(
   executable:    Boolean       = false, // processor can execute from this memory
   nodePath:      Seq[BaseNode] = Seq(),
   supportsWrite: Boolean       = true,
-  supportsRead:  Boolean       = true)
+  supportsRead:  Boolean       = true,
+  device: Option[Device] = None)
 {
   address.foreach { a => require (a.finite) }
     address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
