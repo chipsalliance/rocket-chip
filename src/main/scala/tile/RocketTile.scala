@@ -146,6 +146,11 @@ class RocketTile(
         addressTranslationModes = Nil
       )
 
+      val btb = rocketParams.btb.map(BTB.makeOMI(_))
+
+      val icache = frontend.icache.device.getOMComponents(resourceBindingsMap).headOption.getOrElse(None).asInstanceOf[OMICache]
+
+      val omDCache = rocketParams.dcache.map(OMDCache.makeOMI(_, Nil))
       Seq(OMRocketCore(
         isa = omIsa,
         mulDiv = None, // TODO mulDiv,
@@ -155,12 +160,12 @@ class RocketTile(
         hartIds = Seq(hartId),
         hasTrace = false, // TODO in the imp below
         hasVectoredInterrupts = true,
-        interruptLatency = 2, // TODO
+        interruptLatency = 6,
         nLocalInterrupts = coreParams.nLocalInterrupts,
         nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = None, // TODO  Option[OMRocketBranchPredictor],
-        dcache = None, // TODO Option[OMDCache],
-        icache = None // Option[OMICache]
+        branchPredictor = btb,
+        dcache = omDCache,
+        icache = Some(icache)
       ))
     }
 

@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import freechips.rocketchip.rocket.DCacheParams
+
 sealed trait OMECC extends OMBaseType
 
 case object Identity extends OMECC
@@ -57,7 +59,26 @@ case class OMDCache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
-  memories: List[OMMemory],
+  memories: Seq[OMMemory],
   maxTimSize: Int,
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
+
+object OMDCache {
+  def makeOMI(p: DCacheParams, memories: Seq[OMMemory]): OMDCache = {
+    val x = p.dataECC.map(OMECC.getCode(_)).getOrElse()
+    OMDCache(
+      memoryRegions = Nil,
+      interrupts = Nil,
+      nSets = p.nSets,
+      nWays = p.nWays,
+      blockSizeBytes = p.blockBytes,
+      dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
+      dataECC = p.dataECC.map(OMECC.getCode(_)),
+      tagECC = p.tagECC.map(OMECC.getCode(_)),
+      nTLBEntries = p.nTLBEntries,
+      memories = memories,
+      maxTimSize = 0
+    )
+  }
+}

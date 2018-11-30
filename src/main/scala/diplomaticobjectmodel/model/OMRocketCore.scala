@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import freechips.rocketchip.rocket.{BTBParams, MulDivParams}
+
 case class OMRocketBranchPredictor(
   nBtbEntries: Int,
   nBhtEntries: Int,
@@ -26,3 +28,13 @@ case class OMRocketCore(
   icache: Option[OMICache],
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore
+
+object BTB {
+  def makeOMI(p: BTBParams): OMRocketBranchPredictor = {
+    OMRocketBranchPredictor(
+      nBtbEntries = p.nEntries,
+      nBhtEntries = p.bhtParams.map(_.nEntries).getOrElse(0),
+      nRasEntries = p.nRAS
+    )
+  }
+}
