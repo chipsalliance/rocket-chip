@@ -13,12 +13,12 @@ case object SECDED extends OMECC
 
 object OMECC {
   def getCode(code: String): OMECC = {
-    code match {
-      case "Identity" => Identity
-      case "Parity"   => Parity
-      case "SEC"      => SEC
-      case "SECDED"   => SECDED
-      case _ => throw new IllegalArgumentException("ERROR: invalid getCode arg: $code")
+    code.toLowerCase match {
+      case "identity" => Identity
+      case "parity"   => Parity
+      case "sec"      => SEC
+      case "secded"   => SECDED
+      case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }
 }
