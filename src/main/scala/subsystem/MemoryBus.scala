@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -22,13 +23,13 @@ case object BroadcastKey extends Field(BroadcastParams())
 /** L2 memory subsystem configuration */
 case class BankedL2Params(
   nBanks: Int = 1,
-  coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, () => Option[Bool]) = { subsystem =>
+  coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode]) = { subsystem =>
     implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
     val bh = LazyModule(new TLBroadcast(subsystem.mbus.blockBytes, nTrackers, bufferless))
     val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes))
     ww.node :*= bh.node
-    (bh.node, ww.node, () => None)
+    (bh.node, ww.node, None)
   }) {
   require (isPow2(nBanks) || nBanks == 0)
 }
