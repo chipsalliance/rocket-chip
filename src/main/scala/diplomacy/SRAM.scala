@@ -4,6 +4,8 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemory, OMMemoryRegion, OMRTLInterface, OMRTLModule}
 import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
@@ -14,6 +16,12 @@ abstract class DiplomaticSRAM(
   val device = devName
     .map(new SimpleDevice(_, Seq("sifive,sram0")))
     .getOrElse(new MemoryDevice())
+
+  def getOMMemRegions(resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = {
+    val resourceBindings = DiplomaticObjectModelAddressing.getResourceBindings(device, resourceBindingsMap)
+    require(resourceBindings.isDefined)
+    resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), _)).getOrElse(Nil) // TODO name source???
+  }
 
   val resources = device.reg("mem")
 
@@ -32,6 +40,28 @@ abstract class DiplomaticSRAM(
       data = Vec(lanes, UInt(width = bits))
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
-    mem
+
+    def getRTLModule(): OMRTLModule = {
+      val omRTLInterface = OMRTLInterface(
+        clocks = Nil,
+        clockRelationships = Nil,
+        resets = Nil
+      )
+      OMRTLModule(
+        moduleName = "mem", // TODO Ask Jack, probably need to change the moduleName type to named
+        instanceName = None, // Some(instanceName), // TODO Ask Jack, probably need to change the instanceName type to named
+        hierarchicalId = None, // TODO Ask Jack, probably need to change the hierarchicalId type to named
+        interface = omRTLInterface
+      )
+    }
+
+    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
+      rtlModule = getRTLModule(),
+      desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
+      depth = size,
+      data = Vec(lanes, UInt(width = bits))
+    )
+
+    (mem, Seq(omMem))
   }
 }
