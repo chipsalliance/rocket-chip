@@ -320,13 +320,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     new_meta.asUInt
   }
 
-  // tag updates on hit/miss
-  metaArb.io.in(2).valid := (s2_valid_hit && s2_update_meta) || (s2_want_victimize && !s2_victim_dirty)
-  metaArb.io.in(2).bits.write := !s2_cannot_victimize
+  // tag updates on hit
+  metaArb.io.in(2).valid := s2_valid_hit_pre_data_ecc && s2_update_meta
+  metaArb.io.in(2).bits.write := !s2_data_error && !io.cpu.s2_kill
   metaArb.io.in(2).bits.way_en := s2_victim_way
   metaArb.io.in(2).bits.idx := s2_vaddr(idxMSB, idxLSB)
   metaArb.io.in(2).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_vaddr(idxMSB, 0))
-  metaArb.io.in(2).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)).asUInt)
+  metaArb.io.in(2).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, s2_new_hit_state).asUInt)
 
   // load reservations and TL error reporting
   val s2_lr = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XLR
@@ -498,7 +498,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
-  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta) else true.B
+  val canAcceptCachedGrant = !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)
   tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
@@ -618,9 +618,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   releaseWay := s2_probe_way
 
   if (!usingDataScratchpad) {
-    when (s2_victimize && s2_victim_dirty) {
-      assert(!(s2_valid && s2_hit_valid && !s2_data_error))
-      release_state := s_voluntary_writeback
+    when (s2_victimize) {
+      assert(s2_flush_valid || io.cpu.s2_nack)
+      release_state := Mux(s2_victim_dirty, s_voluntary_writeback, s_voluntary_write_meta)
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
     when (s2_probe) {
