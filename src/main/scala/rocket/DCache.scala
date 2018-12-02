@@ -358,10 +358,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore_drain_on_miss = releaseInFlight || RegNext(io.cpu.s2_nack)
   val pstore1_held = Reg(Bool())
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
-  val pstore1_valid_pre_kill = s2_store_valid_pre_kill || pstore1_held
   def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && (!s2_waw_hazard || s2_store_merge) && s2_write && !s2_sc_fail && !s2_kill || pstore1_held
   val pstore1_valid = s2_store_valid || pstore1_held
-  any_pstore_valid := pstore1_valid_pre_kill || pstore2_valid
+  any_pstore_valid := pstore1_held || pstore2_valid
   val pstore_drain_structural = pstore1_valid_likely && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
   assert(pstore1_rmw || pstore1_valid_not_rmw(io.cpu.s2_kill) === pstore1_valid)
   ccover(pstore_drain_structural, "STORE_STRUCTURAL_HAZARD", "D$ read-modify-write structural hazard")
@@ -414,7 +413,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     addr(idxMSB, wordOffBits) === s1_req.addr(idxMSB, wordOffBits) &&
     Mux(s1_write, (eccByteMask(mask) & eccByteMask(s1_mask)).orR, (mask & s1_mask).orR)
   val s1_hazard =
-    (pstore1_valid_pre_kill && s1Depends(pstore1_addr, pstore1_mask)) ||
+    (pstore1_valid_likely && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
   val s1_raw_hazard = s1_read && s1_hazard
   s1_waw_hazard := (if (eccBytes == 1) false.B else {
