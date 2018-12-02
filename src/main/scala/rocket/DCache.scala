@@ -14,6 +14,13 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
 import TLMessages._
 
+// TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
+trait InlineInstance { self: chisel3.experimental.BaseModule =>
+  chisel3.experimental.annotate(
+    new chisel3.experimental.ChiselAnnotation {
+      def toFirrtl: firrtl.annotations.Annotation = firrtl.passes.InlineAnnotation(self.toNamed) } )
+}
+
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
     with CanHaveErrors {
   val correctable = (cacheParams.tagCode.canCorrect || cacheParams.dataCode.canCorrect).option(Valid(UInt(width = paddrBits)))
@@ -95,7 +102,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // tags
   val replacer = cacheParams.replacement
-  val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
+  val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val tag_array = DescribedSRAM(
     name = "tag_array",
@@ -106,7 +113,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // data
   val data = Module(new DCacheDataArray)
-  val dataArb = Module(new Arbiter(new DCacheDataReq, 4))
+  val dataArb = Module(new Arbiter(new DCacheDataReq, 4) with InlineInstance)
   dataArb.io.in.tail.foreach(_.bits.wdata := dataArb.io.in.head.bits.wdata) // tie off write ports by default
   data.io.req <> dataArb.io.out
   data.io.req.bits.wdata := encodeData(dataArb.io.out.bits.wdata(rowBits-1, 0), dataArb.io.out.bits.poison)
