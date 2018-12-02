@@ -38,7 +38,6 @@ trait CoreParams {
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
-  val tileControlAddr: Option[BigInt]
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def instBytes: Int = instBits / 8
@@ -93,7 +92,7 @@ abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundl
   with HasCoreParameters
 
 class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
-  val buserror = coreParams.tileControlAddr.map(a => Bool())
+  val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
 trait HasCoreIO extends HasTileParameters {

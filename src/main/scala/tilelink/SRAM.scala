@@ -8,16 +8,22 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
+class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
+  val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))
+  val uncorrectable = (params.code.canDetect  && params.notifyErrors).option(Valid(UInt(addrBits.W)))
+}
+
 class TLRAM(
     address: AddressSet,
     cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
-    eccBytes: Int = 1,
-    devName: Option[String] = None,
-    code: Code = new IdentityCode)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+    ecc: ECCParams = ECCParams(),
+    val devName: Option[String] = None,
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
+  val eccBytes = ecc.bytes
+  val code = ecc.code
   require (eccBytes  >= 1 && isPow2(eccBytes))
   require (beatBytes >= 1 && isPow2(beatBytes))
   require (eccBytes <= beatBytes, s"TLRAM eccBytes (${eccBytes}) > beatBytes (${beatBytes}). Use a WidthWidget=>Fragmenter=>SRAM if you need high density and narrow ECC; it will do bursts efficiently")
@@ -34,6 +40,9 @@ class TLRAM(
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
     minLatency = 1))) // no bypass needed for this device
+
+  val indexBits = address.mask.bitCount - log2Ceil(beatBytes)
+  val notifyNode = ecc.notifyErrors.option(BundleBridgeSource(() => new TLRAMErrors(ecc, indexBits).cloneType))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, edge) = node.in(0)
@@ -74,6 +83,17 @@ class TLRAM(
     val d_uncorrectable = d_decoded.map(_.uncorrectable)
     val d_need_fix      = d_correctable.reduce(_ || _)
     val d_error         = d_uncorrectable.reduce(_ || _)
+
+    notifyNode.foreach { nnode =>
+      nnode.bundle.correctable.foreach { c =>
+        c.valid := d_need_fix
+        c.bits  := d_address
+      }
+      nnode.bundle.uncorrectable.foreach { u =>
+        u.valid := d_error
+        u.bits  := d_address
+      }
+    }
 
     // What does D-stage want to write-back?
     val d_wb_data = Vec(Seq.tabulate(beatBytes) { i =>
@@ -174,11 +194,11 @@ object TLRAM
     cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
-    eccBytes: Int = 1,
+    ecc: ECCParams = ECCParams(),
     devName: Option[String] = None,
-    code: Code = new IdentityCode)(implicit p: Parameters): TLInwardNode =
+  )(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, cacheable, executable, beatBytes, eccBytes, devName, code))
+    val ram = LazyModule(new TLRAM(address, cacheable, executable, beatBytes, ecc, devName))
     ram.node
   }
 }
@@ -206,7 +226,7 @@ class TLRAMSimpleTest(ramBeatBytes: Int, txns: Int = 5000, timeout: Int = 500000
 class TLRAMECC(ramBeatBytes: Int, eccBytes: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("SRAMSimple"))
-  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes, eccBytes = eccBytes, code = new SECDEDCode))
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes, ecc = ECCParams(bytes = eccBytes, code = new SECDEDCode)))
 
   ram.node := TLDelayer(0.25) := model.node := fuzz.node
 
