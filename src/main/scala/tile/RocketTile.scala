@@ -7,6 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -80,6 +81,82 @@ class RocketTile(
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
     }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      val cores = getOMRocketCores(resourceBindingsMap)
+      val icache = getOMICacheFromBindings(resourceBindingsMap)
+      cores ++: icache
+    }
+    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      frontend.icache.device.getOMComponents(resourceBindingsMap)
+    }
+    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = { // TODO use resourceBindingsMap: ResourceBindingsMap?
+      val coreParams = rocketParams.core
+      val perfMon = if (coreParams.haveBasicCounters || coreParams.nPerfCounters > 0) {
+        Some(OMPerformanceMonitor(
+          specifications = List[OMSpecification](PrivilegedArchitectureExtensions.specVersion(MachineLevelISA, "1.10")),
+          hasBasicCounters = coreParams.haveBasicCounters,
+          nAdditionalCounters = coreParams.nPerfCounters
+        ))
+      }
+      else { None }
+      val pmp = if (coreParams.pmpGranularity > 0 || coreParams.nPMPs > 0) {
+        Some(OMPMP(
+          specifications = List[OMSpecification](PrivilegedArchitectureExtensions.specVersion(MachineLevelISA, "1.10")),
+          nRegions = coreParams.nPMPs,
+          granularity = coreParams.pmpGranularity
+        ))
+      }
+      else { None }
+      // TODO val mulDiv = coreParams.mulDiv.map{ md => MulDiv.makeOMI(md, xLen)}
+      val baseInstructionSet = xLen match {
+        case 32 => if (XLen == 32) RV32E else RV32I // TODO coreParams.useRVE
+        case 64 => RV64I
+        case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
+      }
+      val isaExtSpec = ISAExtensions.specVersion _
+      val baseSpec = BaseExtensions.specVersion _
+      val baseISAVersion = baseInstructionSet match {
+        case RV32E => "1.9"
+        case RV32I => "2.0"
+        case RV64I => "2.0"
+        case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
+      }
+      val d = coreParams.fpu.filter(_.fLen > 32).map(x => isaExtSpec(D, "2.0"))
+      val omIsa = OMISA(
+        xLen = xLen,
+        baseSpecification = baseSpec(baseInstructionSet, baseISAVersion),
+        base = baseInstructionSet,
+        m = coreParams.mulDiv.map { case x => isaExtSpec(M, "2.0") },
+        a = coreParams.useAtomics.option(isaExtSpec(A, "2.0")),
+        f = coreParams.fpu.map { case x => isaExtSpec(F, "2.0") },
+        d = d,
+        c = coreParams.useCompressed.option(isaExtSpec(C," 2.0")),
+        u = coreParams.useUser.option(isaExtSpec(U,"1.10")),
+        s = None,
+        addressTranslationModes = Nil
+      )
+      val btb = rocketParams.btb.map(BTB.makeOMI(_))
+      val omICache = frontend.icache.device.getOMComponents(resourceBindingsMap).headOption.getOrElse(None).asInstanceOf[OMICache]
+      val omDCache = rocketParams.dcache.map(OMCaches.dcache(_))
+      Seq(OMRocketCore(
+        isa = omIsa,
+        mulDiv = None, // TODO mulDiv,
+        performanceMonitor = perfMon,
+        pmp = pmp,
+        documentationName = "TODO",
+        hartIds = Seq(hartId),
+        hasTrace = false, // TODO in the imp below
+        hasVectoredInterrupts = true,
+        interruptLatency = 6,
+        nLocalInterrupts = coreParams.nLocalInterrupts,
+        nBreakpoints = coreParams.nBreakpoints,
+        branchPredictor = btb,
+        dcache = omDCache,
+        icache = Some(omICache)
+      ))
+    }
+
   }
 
   ResourceBinding {

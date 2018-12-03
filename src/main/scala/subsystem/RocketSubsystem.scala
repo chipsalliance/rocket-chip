@@ -8,6 +8,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
@@ -53,6 +54,15 @@ trait HasRocketTiles extends HasTiles
 
     rocket
   }
+
+  abstract override def getSubsystemOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+    val rockets = getOMRocketCores(resourceBindingsMap)
+    val plics = plicOpt.map(_.device.getOMComponents(resourceBindingsMap))
+    val clints = clintOpt.map(_.device.getOMComponents(resourceBindingsMap)) // super.getSubsystemOMComponents(resourceBindingsMap)
+    rockets ++ plics.getOrElse(Nil) ++ clints.getOrElse(Nil)
+  }
+  def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
+    rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
 }
 
 trait HasRocketTilesModuleImp extends HasTilesModuleImp

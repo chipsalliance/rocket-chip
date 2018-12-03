@@ -13,6 +13,8 @@ import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMCaches, OMComponent, OMECC, OMICache}
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -54,7 +56,16 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
+  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      require(resourceBindingsMap.map.contains(this))
+      val resourceBindings = resourceBindingsMap.map.get(this)
+      resourceBindings.map {
+        rb => OMCaches.icache(icacheParams, rb)
+      }
+    }.getOrElse(throw new NoSuchElementException)
+  }
+
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
     TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
