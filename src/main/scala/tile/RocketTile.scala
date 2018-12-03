@@ -90,7 +90,7 @@ class RocketTile(
     def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
       frontend.icache.device.getOMComponents(resourceBindingsMap)
     }
-    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = { // TODO use resourceBindingsMap: ResourceBindingsMap?
+    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
       val coreParams = rocketParams.core
       val perfMon = if (coreParams.haveBasicCounters || coreParams.nPerfCounters > 0) {
         Some(OMPerformanceMonitor(
