@@ -4,6 +4,8 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model.OMMemory
 import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
@@ -32,6 +34,13 @@ abstract class DiplomaticSRAM(
       data = Vec(lanes, UInt(width = bits))
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
-    mem
+
+    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
+      desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
+      depth = size,
+      data = Vec(lanes, UInt(width = bits))
+    )
+
+    (mem, Seq(omMem))
   }
 }
