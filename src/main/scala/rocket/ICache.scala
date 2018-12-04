@@ -14,7 +14,7 @@ import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMCaches, OMComponent, OMECC, OMICache}
+import freechips.rocketchip.diplomaticobjectmodel.model._
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -61,9 +61,27 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
       require(resourceBindingsMap.map.contains(this))
       val resourceBindings = resourceBindingsMap.map.get(this)
       resourceBindings.map {
-        rb => OMCaches.icache(icacheParams, rb)
+        rb => icache(icacheParams, rb)
       }
     }.getOrElse(throw new NoSuchElementException)
+  }
+
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val regions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings)
+    Seq[OMComponent](
+      OMICache(
+        memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
+        interrupts = Nil,
+        nSets = p.nSets,
+        nWays = p.nWays,
+        blockSizeBytes = p.blockBytes,
+        dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
+        dataECC = p.dataECC.map{case code => OMECC.getCode(code)},
+        tagECC = p.tagECC.map{case code => OMECC.getCode(code)},
+        nTLBEntries = p.nTLBEntries,
+        maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
+      )
+    )
   }
 
   private val wordBytes = icacheParams.fetchBytes

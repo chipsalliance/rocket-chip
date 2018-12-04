@@ -111,7 +111,7 @@ class RocketTile(
       }
       else { None }
 
-      val mulDiv = coreParams.mulDiv.map{ md => MulDiv.makeOMI(md, xLen)}
+      val mulDiv = coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)}
 
       val baseInstructionSet = xLen match {
         case 32 => if (XLen == 32) RV32E else RV32I // TODO coreParams.useRVE
@@ -136,9 +136,9 @@ class RocketTile(
         xLen = xLen,
         baseSpecification = baseSpec(baseInstructionSet, baseISAVersion),
         base = baseInstructionSet,
-        m = coreParams.mulDiv.map { case x => isaExtSpec(M, "2.0") },
+        m = coreParams.mulDiv.map { x => isaExtSpec(M, "2.0") },
         a = coreParams.useAtomics.option(isaExtSpec(A, "2.0")),
-        f = coreParams.fpu.map { case x => isaExtSpec(F, "2.0") },
+        f = coreParams.fpu.map { x => isaExtSpec(F, "2.0") },
         d = d,
         c = coreParams.useCompressed.option(isaExtSpec(C," 2.0")),
         u = coreParams.useUser.option(isaExtSpec(U,"1.10")),
@@ -150,7 +150,21 @@ class RocketTile(
 
       val omICache = frontend.icache.device.getOMComponents(resourceBindingsMap).headOption.getOrElse(None).asInstanceOf[OMICache]
 
-      val omDCache = rocketParams.dcache.map(OMCaches.dcache(_))
+      def dcache(p: DCacheParams): OMDCache = {
+        OMDCache(
+          memoryRegions = Nil,
+          interrupts = Nil,
+          nSets = p.nSets,
+          nWays = p.nWays,
+          blockSizeBytes = p.blockBytes,
+          dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
+          dataECC = p.dataECC.map(OMECC.getCode(_)),
+          tagECC = p.tagECC.map(OMECC.getCode(_)),
+          nTLBEntries = p.nTLBEntries
+        )
+      }
+
+      val omDCache = rocketParams.dcache.map(dcache(_))
 
       Seq(OMRocketCore(
         isa = omIsa,

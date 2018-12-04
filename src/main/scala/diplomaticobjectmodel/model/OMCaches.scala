@@ -52,41 +52,6 @@ case class OMDCache(
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
-
-object OMCaches {
-  def dcache(p: DCacheParams): OMDCache = {
-    OMDCache(
-      memoryRegions = Nil,
-      interrupts = Nil,
-      nSets = p.nSets,
-      nWays = p.nWays,
-      blockSizeBytes = p.blockBytes,
-      dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode(_)),
-      tagECC = p.tagECC.map(OMECC.getCode(_)),
-      nTLBEntries = p.nTLBEntries
-    )
-  }
-
-  def icache(p: ICacheParams, resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val regions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings)
-    Seq[OMComponent](
-      OMICache(
-        memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
-        interrupts = Nil,
-        nSets = p.nSets,
-        nWays = p.nWays,
-        blockSizeBytes = p.blockBytes,
-        dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-        dataECC = p.dataECC.map{case code => OMECC.getCode(code)},
-        tagECC = p.tagECC.map{case code => OMECC.getCode(code)},
-        nTLBEntries = p.nTLBEntries,
-        maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
-      )
-    )
-  }
-}
-
 object OMECC {
   def getCode(code: String): OMECC = {
     code.toLowerCase match {

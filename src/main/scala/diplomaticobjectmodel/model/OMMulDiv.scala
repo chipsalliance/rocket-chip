@@ -16,7 +16,7 @@ case class OMMulDiv(
 ) extends OMComponent
 
 
-object MulDiv {
+object OMMulDiv {
   def makeOMI(md: MulDivParams, xLen: Int): OMMulDiv = {
     val mulMinLatency =
       if (md.mulUnroll > 0) {
