@@ -60,11 +60,12 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       // Look for an Error device to redirect bad requests
       val errorDevs = edgeOut.manager.managers.filter(_.nodePath.last.lazyModule.className == "TLError")
       require (!errorDevs.isEmpty, "There is no TLError reachable from AXI4ToTL. One must be instantiated.")
-      val error = errorDevs.head.address.head.base
-      require (errorDevs.head.supportsPutPartial.contains(edgeOut.manager.maxTransfer),
-        s"Error device supports ${errorDevs.head.supportsPutPartial} PutPartial but must support ${edgeOut.manager.maxTransfer}")
-      require (errorDevs.head.supportsGet.contains(edgeOut.manager.maxTransfer),
-        s"Error device supports ${errorDevs.head.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
+      val errorDev = errorDevs.maxBy(_.maxTransfer)
+      val error = errorDev.address.head.base
+      require (errorDev.supportsPutPartial.contains(edgeOut.manager.maxTransfer),
+        s"Error device supports ${errorDev.supportsPutPartial} PutPartial but must support ${edgeOut.manager.maxTransfer}")
+      require (errorDev.supportsGet.contains(edgeOut.manager.maxTransfer),
+        s"Error device supports ${errorDev.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
 
       val r_out = Wire(out.a)
       val r_size1 = in.ar.bits.bytes1()

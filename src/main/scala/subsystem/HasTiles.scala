@@ -25,6 +25,8 @@ trait HasTiles { this: BaseSubsystem =>
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
   def sharedMemoryTLEdge = sbus.busView
+
+  // define some nodes that are useful for collecting or driving tile interrupts
   val meipNode = p(PLICKey) match {
     case Some(_) => None
     case None    => Some(IntNexusNode(
@@ -33,6 +35,18 @@ trait HasTiles { this: BaseSubsystem =>
       outputRequiresInput = false,
       inputRequiresOutput = false))
   }
+
+  val tileHaltXbarNode = IntXbar(p)
+  val tileHaltSinkNode = IntSinkNode(IntSinkPortSimple())
+  tileHaltSinkNode := tileHaltXbarNode
+
+  val tileWFIXbarNode = IntXbar(p)
+  val tileWFISinkNode = IntSinkNode(IntSinkPortSimple())
+  tileWFISinkNode := tileWFIXbarNode
+
+  val tileCeaseXbarNode = IntXbar(p)
+  val tileCeaseSinkNode = IntSinkNode(IntSinkPortSimple())
+  tileCeaseSinkNode := tileCeaseXbarNode
 
   private val lookupByHartId = new LookupByHartIdImpl {
     def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T =
@@ -113,6 +127,11 @@ trait HasTiles { this: BaseSubsystem =>
         plic.intnode :=* tile.crossIntOut()
       }
     }
+
+    // 5. Reports of tile status are collected without needing to be clock-crossed
+    tileHaltXbarNode := tile.haltNode
+    tileWFIXbarNode := tile.wfiNode
+    tileCeaseXbarNode := tile.ceaseNode
   }
 
   protected def perTileOrGlobalSetting[T](in: Seq[T], n: Int): Seq[T] = in.size match {

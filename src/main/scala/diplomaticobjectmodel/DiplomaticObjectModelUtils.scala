@@ -168,7 +168,6 @@ object DiplomaticObjectModelAddressing {
   }
 
   def makeOMMemory[T <: Data](
-      rtlModule: OMRTLModule,
       desc: String,
       depth: Int,
       data: T
@@ -184,8 +183,7 @@ object DiplomaticObjectModelAddressing {
         addressWidth = log2Ceil(depth),
         dataWidth = data.getWidth,
         depth = depth,
-        writeMaskGranularity = granWidth,
-        rtlModule = rtlModule
+        writeMaskGranularity = granWidth
       )
     }
 }

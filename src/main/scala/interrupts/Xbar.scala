@@ -21,3 +21,10 @@ class IntXbar()(implicit p: Parameters) extends LazyModule
     intnode.out.foreach { case (o, _) => o := cat }
   }
 }
+
+object IntXbar {
+  def apply(implicit p: Parameters): IntNode = {
+    val xbar = LazyModule(new IntXbar)
+    xbar.intnode
+  }
+}

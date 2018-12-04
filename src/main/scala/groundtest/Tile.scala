@@ -36,6 +36,9 @@ abstract class GroundTestTile(params: GroundTestTileParams)
   val intInwardNode: IntInwardNode = IntIdentityNode()
   val intOutwardNode: IntOutwardNode = IntIdentityNode()
   val slaveNode: TLInwardNode = TLIdentityNode()
+  val ceaseNode: IntOutwardNode = IntIdentityNode()
+  val haltNode: IntOutwardNode = IntIdentityNode()
+  val wfiNode: IntOutwardNode = IntIdentityNode()
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(new DCache(0)) }
 

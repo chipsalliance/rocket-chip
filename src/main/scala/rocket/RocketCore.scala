@@ -36,7 +36,6 @@ case class RocketCoreParams(
   fastLoadWord: Boolean = true,
   fastLoadByte: Boolean = false,
   branchPredictionModeCSR: Boolean = false,
-  tileControlAddr: Option[BigInt] = None,
   clockGate: Boolean = false,
   mvendorid: Int = 0, // 0 means non-commercial implementation
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
