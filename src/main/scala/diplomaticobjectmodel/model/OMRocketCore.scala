@@ -18,7 +18,6 @@ case class OMRocketCore(
   pmp: Option[OMPMP],
   documentationName: String,
   hartIds: Seq[Int],
-  hasTrace: Boolean,
   hasVectoredInterrupts: Boolean,
   interruptLatency: Int,
   nLocalInterrupts: Int,

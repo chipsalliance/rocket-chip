@@ -173,7 +173,6 @@ class RocketTile(
         pmp = pmp,
         documentationName = "TODO",
         hartIds = Seq(hartId),
-        hasTrace = rocketParams.trace,
         hasVectoredInterrupts = true,
         interruptLatency = 6,
         nLocalInterrupts = coreParams.nLocalInterrupts,
