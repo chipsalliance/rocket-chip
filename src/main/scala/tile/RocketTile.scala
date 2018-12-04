@@ -93,6 +93,8 @@ class RocketTile(
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
       val coreParams = rocketParams.core
 
+      val fpu= coreParams.fpu.map{f => OMFPU(fLen = f.fLen)}
+
       val perfMon = if (coreParams.haveBasicCounters || coreParams.nPerfCounters > 0) {
         Some(OMPerformanceMonitor(
           specifications = List[OMSpecification](PrivilegedArchitectureExtensions.specVersion(MachineLevelISA, "1.10")),
@@ -169,6 +171,7 @@ class RocketTile(
       Seq(OMRocketCore(
         isa = omIsa,
         mulDiv = mulDiv,
+        fpu = fpu,
         performanceMonitor = perfMon,
         pmp = pmp,
         documentationName = "TODO",

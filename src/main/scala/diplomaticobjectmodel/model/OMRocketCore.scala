@@ -14,6 +14,7 @@ case class OMRocketBranchPredictor(
 case class OMRocketCore(
   isa: OMISA,
   mulDiv: Option[OMMulDiv],
+  fpu: Option[OMFPU],
   performanceMonitor: Option[OMPerformanceMonitor],
   pmp: Option[OMPMP],
   documentationName: String,
