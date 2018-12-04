@@ -6,22 +6,6 @@ import freechips.rocketchip.diplomacy.ResourceBindings
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.rocket.{DCacheParams, ICacheParams}
 
-/***
-  * Memory physical (size)
-  * ITIM = banks * ways * sets * blocksize
-  * DTIM = banks * ways * sets * blocksize
-  * L2lim = banks * ways * sets * blocksize
-  * TLRAM = address set size = data depth * data width
-  *
-  * Memory available as a TIM
-  * ITIM = banks * (ways-1) * sets * blocksize
-  * DTIM = banks * ways * sets * blocksize
-  * L2lim = banks * (ways-1)  * sets * blocksize
-  * TLRAM = address set size = data depth * data width
-  *
-  * Memory addressable is the address set max size
-  */
-
 sealed trait OMECC extends OMBaseType
 
 case object Identity extends OMECC
