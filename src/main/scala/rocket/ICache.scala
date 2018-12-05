@@ -61,13 +61,12 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
       require(resourceBindingsMap.map.contains(this))
       val resourceBindings = resourceBindingsMap.map.get(this)
       resourceBindings.map {
-        rb => icache(icacheParams, rb)
-      }
-    }.getOrElse(throw new NoSuchElementException)
+        rb => makeOMI(icacheParams, rb)
+      }.getOrElse(throw new NoSuchElementException)
+    }
   }
 
-  def icache(p: ICacheParams, resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val regions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings)
+  def makeOMI(p: ICacheParams, resourceBindings: ResourceBindings): Seq[OMComponent] = {
     Seq[OMComponent](
       OMICache(
         memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
@@ -76,8 +75,8 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
         nWays = p.nWays,
         blockSizeBytes = p.blockBytes,
         dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-        dataECC = p.dataECC.map{case code => OMECC.getCode(code)},
-        tagECC = p.tagECC.map{case code => OMECC.getCode(code)},
+        dataECC = p.dataECC.map(OMECC.getCode),
+        tagECC = p.tagECC.map(OMECC.getCode),
         nTLBEntries = p.nTLBEntries,
         maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
       )

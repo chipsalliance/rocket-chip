@@ -93,7 +93,7 @@ class RocketTile(
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
       val coreParams = rocketParams.core
 
-      val fpu= coreParams.fpu.map{f => OMFPU(fLen = f.fLen)}
+      val fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)}
 
       val perfMon = if (coreParams.haveBasicCounters || coreParams.nPerfCounters > 0) {
         Some(OMPerformanceMonitor(
@@ -116,7 +116,7 @@ class RocketTile(
       val mulDiv = coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)}
 
       val baseInstructionSet = xLen match {
-        case 32 => if (XLen == 32) RV32E else RV32I // TODO coreParams.useRVE
+        case 32 => if (XLen == 32) RV32E else RV32I
         case 64 => RV64I
         case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
       }
@@ -144,15 +144,21 @@ class RocketTile(
         d = d,
         c = coreParams.useCompressed.option(isaExtSpec(C," 2.0")),
         u = coreParams.useUser.option(isaExtSpec(U,"1.10")),
-        s = None,
+        s = coreParams.useVM.option(isaExtSpec(S,"1.10")),
         addressTranslationModes = Nil
       )
 
       val btb = rocketParams.btb.map(BTB.makeOMI(_))
 
-      val omICache = frontend.icache.device.getOMComponents(resourceBindingsMap).headOption.getOrElse(None).asInstanceOf[OMICache]
+      val omICache = rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
+        case Seq() => throw new IllegalArgumentException
+        case Seq(h) => h.asInstanceOf[OMICache]
+        case _ => throw new IllegalArgumentException
+      })
 
+//      //If DCache is configured as a DTIM, then you should populate the memory regions
       def dcache(p: DCacheParams): OMDCache = {
+        val memoryRegions = Nil //p.scratch.map()
         OMDCache(
           memoryRegions = Nil,
           interrupts = Nil,
@@ -182,7 +188,7 @@ class RocketTile(
         nBreakpoints = coreParams.nBreakpoints,
         branchPredictor = btb,
         dcache = omDCache,
-        icache = Some(omICache)
+        icache = omICache
       ))
     }
 

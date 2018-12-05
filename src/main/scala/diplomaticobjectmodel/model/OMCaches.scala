@@ -2,10 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.ResourceBindings
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.rocket.{DCacheParams, ICacheParams}
-
 sealed trait OMECC extends OMBaseType
 
 case object Identity extends OMECC
