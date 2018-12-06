@@ -93,105 +93,31 @@ class RocketTile(
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
       val coreParams = rocketParams.core
 
-      val fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)}
-
-      val perfMon = if (coreParams.haveBasicCounters || coreParams.nPerfCounters > 0) {
-        Some(OMPerformanceMonitor(
-          specifications = List[OMSpecification](PrivilegedArchitectureExtensions.specVersion(MachineLevelISA, "1.10")),
-          hasBasicCounters = coreParams.haveBasicCounters,
-          nAdditionalCounters = coreParams.nPerfCounters
-        ))
-      }
-      else { None }
-
-      val pmp = if (coreParams.pmpGranularity > 0 || coreParams.nPMPs > 0) {
-        Some(OMPMP(
-          specifications = List[OMSpecification](PrivilegedArchitectureExtensions.specVersion(MachineLevelISA, "1.10")),
-          nRegions = coreParams.nPMPs,
-          granularity = coreParams.pmpGranularity
-        ))
-      }
-      else { None }
-
-      val mulDiv = coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)}
-
-      val baseInstructionSet = xLen match {
-        case 32 => if (XLen == 32) RV32E else RV32I
-        case 64 => RV64I
-        case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
-      }
-
-      val isaExtSpec = ISAExtensions.specVersion _
-
-      val baseSpec = BaseExtensions.specVersion _
-
-      val baseISAVersion = baseInstructionSet match {
-        case RV32E => "1.9"
-        case RV32I => "2.0"
-        case RV64I => "2.0"
-        case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
-      }
-
-      val d = coreParams.fpu.filter(_.fLen > 32).map(x => isaExtSpec(D, "2.0"))
-
-      val omIsa = OMISA(
-        xLen = xLen,
-        baseSpecification = baseSpec(baseInstructionSet, baseISAVersion),
-        base = baseInstructionSet,
-        m = coreParams.mulDiv.map { x => isaExtSpec(M, "2.0") },
-        a = coreParams.useAtomics.option(isaExtSpec(A, "2.0")),
-        f = coreParams.fpu.map { x => isaExtSpec(F, "2.0") },
-        d = d,
-        c = coreParams.useCompressed.option(isaExtSpec(C," 2.0")),
-        u = coreParams.useUser.option(isaExtSpec(U,"1.10")),
-        s = coreParams.useVM.option(isaExtSpec(S,"1.10")),
-        addressTranslationModes = Nil
-      )
-
-      val btb = rocketParams.btb.map(BTB.makeOMI(_))
-
       val omICache = rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
         case Seq() => throw new IllegalArgumentException
         case Seq(h) => h.asInstanceOf[OMICache]
         case _ => throw new IllegalArgumentException
       })
 
-//      //If DCache is configured as a DTIM, then you should populate the memory regions
-      def dcache(p: DCacheParams): OMDCache = {
-        val memoryRegions = Nil //p.scratch.map()
-        OMDCache(
-          memoryRegions = Nil,
-          interrupts = Nil,
-          nSets = p.nSets,
-          nWays = p.nWays,
-          blockSizeBytes = p.blockBytes,
-          dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-          dataECC = p.dataECC.map(OMECC.getCode(_)),
-          tagECC = p.tagECC.map(OMECC.getCode(_)),
-          nTLBEntries = p.nTLBEntries
-        )
-      }
-
-      val omDCache = rocketParams.dcache.map(dcache(_))
+      val omDCache = rocketParams.dcache.map(OMCaches.dcache(_))
 
       Seq(OMRocketCore(
-        isa = omIsa,
-        mulDiv = mulDiv,
-        fpu = fpu,
-        performanceMonitor = perfMon,
-        pmp = pmp,
+        isa = OMISA.isa(coreParams, xLen),
+        mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
+        fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
+        performanceMonitor = PerformanceMonitor.permon(coreParams),
+        pmp = OMPMP.pmp(coreParams),
         documentationName = "TODO",
         hartIds = Seq(hartId),
         hasVectoredInterrupts = true,
         interruptLatency = 6,
         nLocalInterrupts = coreParams.nLocalInterrupts,
         nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = btb,
+        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI(_)),
         dcache = omDCache,
         icache = omICache
       ))
     }
-
   }
 
   ResourceBinding {

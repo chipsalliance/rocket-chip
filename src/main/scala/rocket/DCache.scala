@@ -73,7 +73,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
 }
 
 class DCache(hartid: Int, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
-  override lazy val module = new DCacheModule(this) 
+  override lazy val module = new DCacheModule(this)
 }
 
 @chiselName

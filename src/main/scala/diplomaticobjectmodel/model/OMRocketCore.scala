@@ -29,7 +29,7 @@ case class OMRocketCore(
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore
 
-object BTB {
+object OMBTB {
   def makeOMI(p: BTBParams): OMRocketBranchPredictor = {
     OMRocketBranchPredictor(
       nBtbEntries = p.nEntries,

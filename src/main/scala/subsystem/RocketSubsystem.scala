@@ -60,6 +60,7 @@ trait HasRocketTiles extends HasTiles
     val plics = plicOpt.map(_.device.getOMComponents(resourceBindingsMap))
     val clints = clintOpt.map(_.device.getOMComponents(resourceBindingsMap))
     rockets ++ plics.getOrElse(Nil) ++ clints.getOrElse(Nil)
+
   }
   def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
     rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))

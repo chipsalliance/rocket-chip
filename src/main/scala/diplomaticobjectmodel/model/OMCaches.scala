@@ -2,6 +2,10 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import freechips.rocketchip.diplomacy.ResourceBindings
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.rocket.{DCacheParams, ICacheParams}
+
 sealed trait OMECC extends OMBaseType
 
 case object Identity extends OMECC
@@ -58,4 +62,40 @@ object OMECC {
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }
+}
+
+object OMCaches {
+  //      //If DCache is configured as a DTIM, then you should populate the memory regions
+  def dcache(p: DCacheParams): OMDCache = {
+    val memoryRegions = Nil // TODO
+    OMDCache(
+      memoryRegions = Nil,
+      interrupts = Nil,
+      nSets = p.nSets,
+      nWays = p.nWays,
+      blockSizeBytes = p.blockBytes,
+      dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
+      dataECC = p.dataECC.map(OMECC.getCode(_)),
+      tagECC = p.tagECC.map(OMECC.getCode(_)),
+      nTLBEntries = p.nTLBEntries
+    )
+  }
+
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    Seq[OMComponent](
+      OMICache(
+        memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
+        interrupts = Nil,
+        nSets = p.nSets,
+        nWays = p.nWays,
+        blockSizeBytes = p.blockBytes,
+        dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
+        dataECC = p.dataECC.map(OMECC.getCode),
+        tagECC = p.tagECC.map(OMECC.getCode),
+        nTLBEntries = p.nTLBEntries,
+        maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
+      )
+    )
+  }
+
 }
