@@ -84,25 +84,36 @@ class RocketTile(
 
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
       val cores = getOMRocketCores(resourceBindingsMap)
-      val icache = getOMICacheFromBindings(resourceBindingsMap)
-      cores ++: icache
+      cores
     }
-    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      frontend.icache.device.getOMComponents(resourceBindingsMap)
-    }
-    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
-      val coreParams = rocketParams.core
 
-      val omICache = rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
+    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
+      rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
         case Seq() => throw new IllegalArgumentException
         case Seq(h) => h.asInstanceOf[OMICache]
         case _ => throw new IllegalArgumentException
       })
+    }
 
-      val omDCache = rocketParams.dcache.map(OMCaches.dcache)
+    def getOMDCacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
+      val d = dtim_adapter.map(_.device.getOMComponents(resourceBindingsMap))
+
+      dtim_adapter.map(_.device.getOMComponents(resourceBindingsMap) match {
+        case Seq() => throw new IllegalArgumentException
+        case Seq(h) => h.asInstanceOf[OMDCache]
+        case _ => throw new IllegalArgumentException
+      })
+    }
+
+    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
+      val coreParams = rocketParams.core
+
+      val omICache = getOMICacheFromBindings(resourceBindingsMap)
+
+      val omDCache = getOMDCacheFromBindings(resourceBindingsMap)
 
       Seq(OMRocketCore(
-        isa = OMISA.isa(coreParams, xLen),
+        isa = OMISA.rocketISA(coreParams, xLen),
         mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
         fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
         performanceMonitor = PerformanceMonitor.permon(coreParams),

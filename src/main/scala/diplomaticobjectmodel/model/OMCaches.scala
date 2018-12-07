@@ -65,11 +65,9 @@ object OMECC {
 }
 
 object OMCaches {
-  //      //If DCache is configured as a DTIM, then you should populate the memory regions
-  def dcache(p: DCacheParams): OMDCache = {
-    val memoryRegions = Nil // TODO
+  def dcache(p: DCacheParams, resourceBindings: Option[ResourceBindings]): OMDCache = {
     OMDCache(
-      memoryRegions = Nil,
+      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("DCache", _)).getOrElse(Nil),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
@@ -81,20 +79,18 @@ object OMCaches {
     )
   }
 
-  def icache(p: ICacheParams, resourceBindings: Option[ResourceBindings]): Seq[OMComponent] = {
-    Seq[OMComponent](
-      OMICache(
-        memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", _)).getOrElse(Nil),
-        interrupts = Nil,
-        nSets = p.nSets,
-        nWays = p.nWays,
-        blockSizeBytes = p.blockBytes,
-        dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-        dataECC = p.dataECC.map(OMECC.getCode),
-        tagECC = p.tagECC.map(OMECC.getCode),
-        nTLBEntries = p.nTLBEntries,
-        maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
-      )
+  def icache(p: ICacheParams, resourceBindings: Option[ResourceBindings]): OMICache = {
+    OMICache(
+      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", _)).getOrElse(Nil),
+      interrupts = Nil,
+      nSets = p.nSets,
+      nWays = p.nWays,
+      blockSizeBytes = p.blockBytes,
+      dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
+      dataECC = p.dataECC.map(OMECC.getCode),
+      tagECC = p.tagECC.map(OMECC.getCode),
+      nTLBEntries = p.nTLBEntries,
+      maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
     )
   }
 

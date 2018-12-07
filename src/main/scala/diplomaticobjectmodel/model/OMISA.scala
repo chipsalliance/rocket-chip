@@ -47,7 +47,7 @@ object OMISA {
     def option[T](z: => T): Option[T] = if (x) Some(z) else None
   }
 
-  def isa(coreParams: RocketCoreParams, xLen: Int): OMISA = {
+  def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
       case 32 => if (XLen == 32) RV32E else RV32I
       case 64 => RV64I
@@ -65,6 +65,12 @@ object OMISA {
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
     }
 
+    val addressTranslationModes = xLen match {
+        case 32 => Sv32
+        case 64 => Sv39
+        case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
+      }
+
     OMISA(
       xLen = xLen,
       baseSpecification = baseSpec(baseInstructionSet, baseISAVersion),
@@ -76,7 +82,7 @@ object OMISA {
       c = coreParams.useCompressed.option(isaExtSpec(C, " 2.0")),
       u = coreParams.useUser.option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
-      addressTranslationModes = Nil
+      addressTranslationModes = Seq(addressTranslationModes)
     )
   }
 }

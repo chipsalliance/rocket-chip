@@ -59,7 +59,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
   val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
       val resourceBindings = resourceBindingsMap.map.get(this)
-      OMCaches.icache(icacheParams, resourceBindings)
+      Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
     }
   }
 
