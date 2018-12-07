@@ -293,6 +293,11 @@ class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
   case NExtTopInterrupts => nExtInts
 })
 
+class WithoutPlic() extends Config((site, here, up) => {
+  case PLICKey => None
+  case NExtTopInterrupts => 0
+})
+
 class WithoutClint() extends Config((site, here, up) => {
   case CLINTKey => None
 })
