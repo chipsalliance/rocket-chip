@@ -58,11 +58,8 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      require(resourceBindingsMap.map.contains(this))
       val resourceBindings = resourceBindingsMap.map.get(this)
-      resourceBindings.map {
-        rb => OMCaches.icache(icacheParams, resourceBindings(icacheParams, rb))
-      }.getOrElse(throw new NoSuchElementException)
+      OMCaches.icache(icacheParams, resourceBindings)
     }
   }
 

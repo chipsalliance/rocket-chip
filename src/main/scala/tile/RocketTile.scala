@@ -99,7 +99,7 @@ class RocketTile(
         case _ => throw new IllegalArgumentException
       })
 
-      val omDCache = rocketParams.dcache.map(OMCaches.dcache(_))
+      val omDCache = rocketParams.dcache.map(OMCaches.dcache)
 
       Seq(OMRocketCore(
         isa = OMISA.isa(coreParams, xLen),
@@ -113,7 +113,7 @@ class RocketTile(
         interruptLatency = 6,
         nLocalInterrupts = coreParams.nLocalInterrupts,
         nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI(_)),
+        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
         dcache = omDCache,
         icache = omICache
       ))

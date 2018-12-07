@@ -81,10 +81,10 @@ object OMCaches {
     )
   }
 
-  def icache(p: ICacheParams, resourceBindings: ResourceBindings): Seq[OMComponent] = {
+  def icache(p: ICacheParams, resourceBindings: Option[ResourceBindings]): Seq[OMComponent] = {
     Seq[OMComponent](
       OMICache(
-        memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", resourceBindings),
+        memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", _)).getOrElse(Nil),
         interrupts = Nil,
         nSets = p.nSets,
         nWays = p.nWays,
