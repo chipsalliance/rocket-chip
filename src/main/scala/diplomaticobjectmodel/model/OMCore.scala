@@ -9,7 +9,6 @@ trait OMCore extends OMComponent{
   def pmp: Option[OMPMP]
   def documentationName: String
   def hartIds: Seq[Int]
-  def hasTrace: Boolean
   def hasVectoredInterrupts: Boolean
   def interruptLatency: Int
   def nLocalInterrupts: Int

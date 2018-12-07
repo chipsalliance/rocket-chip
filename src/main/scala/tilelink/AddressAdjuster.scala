@@ -120,11 +120,12 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
     val (parent, parentEdge) = node.in(0)
     val (remote, remoteEdge) = node.out(0)
     val (local,  localEdge)  = node.out(1)
-    require (localEdge.manager.beatBytes == remoteEdge.manager.beatBytes)
+    require (localEdge.manager.beatBytes == remoteEdge.manager.beatBytes,
+      s"Port width mismatch ${localEdge.manager.beatBytes} (${localEdge.manager.managers.map(_.name)}) != ${remoteEdge.manager.beatBytes} (${remoteEdge.manager.managers.map(_.name)})")
 
     // Which address within the mask routes to local devices?
     val local_address = (bits zip chip_id.bundle.toBools).foldLeft(0.U) {
-      case (acc, (bit, sel)) => acc | Mux(sel, 0.U, bit.U)
+      case (acc, (bit, sel)) => acc | Mux(sel, bit.U, 0.U)
     }
 
     // Route A by address, but reroute unsupported operations
@@ -160,9 +161,15 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
 
     // Rewrite sink in D
     val sink_threshold = localEdge.manager.endSinkId.U // more likely to be 0 than remote.endSinkId
-    val local_d  = WireInit(chiselTypeOf(parent.d), local.d) // type-cast, because 'sink' width differs
-    val remote_d = WireInit(chiselTypeOf(parent.d), remote.d)
-    remote_d.bits.sink := remote.d.bits.sink + sink_threshold
+    val local_d  = Wire(chiselTypeOf(parent.d)) // type-cast, because 'sink' width differs
+    local.d.ready := local_d.ready
+    local_d.valid := local.d.valid
+    local_d.bits  := local.d.bits
+    val remote_d = Wire(chiselTypeOf(parent.d))
+    remote.d.ready := remote_d.ready
+    remote_d.valid := remote.d.valid
+    remote_d.bits := remote.d.bits
+    remote_d.bits.sink := remote.d.bits.sink +& sink_threshold
     TLArbiter.robin(parentEdge, parent.d, local_d, remote_d)
 
     if (parentEdge.manager.anySupportAcquireB && parentEdge.client.anySupportProbe) {
@@ -186,6 +193,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
       remote.e.valid := parent.e.valid && !e_local
       local .e.bits  := parent.e.bits
       remote.e.bits  := parent.e.bits
+      remote.e.bits.sink := parent.e.bits.sink - sink_threshold
     }
   }
 }

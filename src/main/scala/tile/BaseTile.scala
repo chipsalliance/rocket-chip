@@ -27,8 +27,8 @@ trait TileParams {
   val icache: Option[ICacheParams]
   val dcache: Option[DCacheParams]
   val btb: Option[BTBParams]
-  val trace: Boolean
   val hartId: Int
+  val beuAddr: Option[BigInt]
   val blockerCtrlAddr: Option[BigInt]
   val name: Option[String]
 }
@@ -135,8 +135,11 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
-  def intInwardNode: IntInwardNode
-  def intOutwardNode: IntOutwardNode
+  def intInwardNode: IntInwardNode    // Interrupts to the core from external devices
+  def intOutwardNode: IntOutwardNode  // Interrupts from tile-internal devices (e.g. BEU)
+  def haltNode: IntOutwardNode        // Unrecoverable error has occurred; suggest reset
+  def ceaseNode: IntOutwardNode       // Tile has ceased to retire instructions
+  def wfiNode: IntOutwardNode         // Tile is waiting for an interrupt
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)
@@ -182,13 +185,13 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   }
 
   protected def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
-  def crossSlavePort(): TLInwardNode = { DisableMonitors { implicit p =>
+  def crossSlavePort(): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
     val tlSlaveXing = this.crossIn(crossing match {
       case RationalCrossing(_) => slaveNode :*= this { makeSlaveBoundaryBuffers }
       case _ => slaveNode
     })
     tlSlaveXing(crossing)
-  } }
+  } } }
 
   def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
   def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
@@ -202,10 +205,8 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
 
-  val trace = tileParams.trace.option(IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput))
+  val trace = IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput)
   val constants = IO(new TileInputConstants)
-
-  val halt_and_catch_fire: Option[Bool]
 }
 
 /** Some other non-tilelink but still standard inputs */

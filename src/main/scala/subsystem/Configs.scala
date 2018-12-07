@@ -172,7 +172,7 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   }
   case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
     val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes)(subsystem.p))
-    (ww.node, ww.node, () => None)
+    (ww.node, ww.node, None)
   })
 })
 
