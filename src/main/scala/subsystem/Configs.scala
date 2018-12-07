@@ -293,6 +293,10 @@ class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
   case NExtTopInterrupts => nExtInts
 })
 
+class WithoutClint() extends Config((site, here, up) => {
+  case CLINTKey => None
+})
+
 class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(_.copy(nMemoryChannels = n))
 })
