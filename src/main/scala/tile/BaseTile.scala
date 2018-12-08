@@ -146,6 +146,10 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
+  val traceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
+  //val traceNode = BundleBroadcast[Vec[TracedInstruction]]
+  //traceNode := traceSourceNode
+
   def connectTLSlave(node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
@@ -205,7 +209,6 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
 
-  val trace = IO(Vec(tileParams.core.retireWidth, new TracedInstruction).asOutput)
   val constants = IO(new TileInputConstants)
 }
 
