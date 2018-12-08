@@ -121,7 +121,7 @@ class RocketTile(
         documentationName = "TODO",
         hartIds = Seq(hartId),
         hasVectoredInterrupts = true,
-        interruptLatency = 6,
+        interruptLatency = 4,
         nLocalInterrupts = coreParams.nLocalInterrupts,
         nBreakpoints = coreParams.nBreakpoints,
         branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),

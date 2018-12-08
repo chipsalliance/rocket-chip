@@ -4,6 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 import freechips.rocketchip.rocket.RocketCoreParams
 import freechips.rocketchip.tile.XLen
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 trait OMExtensionType extends OMEnum
 case object M extends OMExtensionType
@@ -41,15 +42,9 @@ case class OMISA(
 ) extends OMCompoundType
 
 object OMISA {
-  // TODO the package object util has this code but is not seen in this scope
-  implicit class BooleanToAugmentedBoolean(val x: Boolean) extends AnyVal {
-    // this one's snagged from scalaz
-    def option[T](z: => T): Option[T] = if (x) Some(z) else None
-  }
-
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
-      case 32 => if (XLen == 32) RV32E else RV32I
+      case 32 => RV32I
       case 64 => RV64I
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
     }
