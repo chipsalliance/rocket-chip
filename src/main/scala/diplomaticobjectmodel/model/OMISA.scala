@@ -3,7 +3,6 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 import freechips.rocketchip.rocket.RocketCoreParams
-import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 trait OMExtensionType extends OMEnum
