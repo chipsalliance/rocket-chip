@@ -19,7 +19,6 @@ trait OMCache extends OMDevice {
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
   def nTLBEntries: Int
-  def memories: List[OMMemory]
 }
 
 case class OMICache(
@@ -32,7 +31,6 @@ case class OMICache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
-  memories: List[OMMemory],
   maxTimSize: Int,
   _types: Seq[String] = Seq("OMICache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
@@ -47,7 +45,17 @@ case class OMDCache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
-  memories: List[OMMemory],
-  maxTimSize: Int,
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
+
+object OMECC {
+  def getCode(code: String): OMECC = {
+    code.toLowerCase match {
+      case "identity" => Identity
+      case "parity"   => Parity
+      case "sec"      => SEC
+      case "secded"   => SECDED
+      case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
+    }
+  }
+}

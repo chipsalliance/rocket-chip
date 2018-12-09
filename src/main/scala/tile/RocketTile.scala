@@ -7,6 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -79,6 +80,54 @@ class RocketTile(
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
+    }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      val cores = getOMRocketCores(resourceBindingsMap)
+      cores
+    }
+
+    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
+      rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
+        case Seq() => throw new IllegalArgumentException
+        case Seq(h) => h.asInstanceOf[OMICache]
+        case _ => throw new IllegalArgumentException
+      })
+    }
+
+    def getOMDCacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
+      val d = dtim_adapter.map(_.device.getOMComponents(resourceBindingsMap))
+
+      dtim_adapter.map(_.device.getOMComponents(resourceBindingsMap) match {
+        case Seq() => throw new IllegalArgumentException
+        case Seq(h) => h.asInstanceOf[OMDCache]
+        case _ => throw new IllegalArgumentException
+      })
+    }
+
+    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
+      val coreParams = rocketParams.core
+
+      val omICache = getOMICacheFromBindings(resourceBindingsMap)
+
+      val omDCache = getOMDCacheFromBindings(resourceBindingsMap)
+
+      Seq(OMRocketCore(
+        isa = OMISA.rocketISA(coreParams, xLen),
+        mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
+        fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
+        performanceMonitor = PerformanceMonitor.permon(coreParams),
+        pmp = OMPMP.pmp(coreParams),
+        documentationName = "TODO",
+        hartIds = Seq(hartId),
+        hasVectoredInterrupts = true,
+        interruptLatency = 4,
+        nLocalInterrupts = coreParams.nLocalInterrupts,
+        nBreakpoints = coreParams.nBreakpoints,
+        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
+        dcache = omDCache,
+        icache = omICache
+      ))
     }
   }
 
