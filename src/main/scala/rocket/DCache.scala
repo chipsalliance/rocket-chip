@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
+import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -79,7 +79,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = UInt(width = cacheParams.tagCode.width(new L1Metadata().getWidth))
 }
 
-class DCache(hartid: Int, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class DCache(hartid: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this)
 }
 
@@ -121,10 +121,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.out.ready := clock_en_reg
 
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> outer.bufferUncachedRequests
-                .map(_ min maxUncachedInFlight-1)
-                .map(Queue(tl_out_a, _, flow = true))
-                .getOrElse(tl_out_a)
+  tl_out.a <> {
+    val a_queue_depth = outer.crossing match {
+      case RationalCrossing(_) => 2 min maxUncachedInFlight-1 // TODO make this depend on the actual ratio?
+      case SynchronousCrossing(_) => 0
+    }
+    Queue(tl_out_a, a_queue_depth, flow = true)
+  }
 
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
@@ -851,8 +854,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.canAcceptLoadThenLoad := !((s1_valid && s1_write && needsRead(s1_req)) && ((s2_valid && s2_write && !s2_waw_hazard || pstore1_held) || pstore2_valid))
   io.cpu.perf.blocked := {
     // stop reporting blocked just before unblocking to avoid overly conservative stalling
-    val cycles = outer.bufferUncachedRequests.map(n => if (n > 1) 1 else 2).getOrElse(2)
-    cached_grant_wait && d_address_inc < ((cacheBlockBytes - cycles * beatBytes) max 0)
+    val beatsBeforeEnd = outer.crossing match {
+      case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
+      case SynchronousCrossing(_) => 2
+    }
+    cached_grant_wait && d_address_inc < ((cacheBlockBytes - beatsBeforeEnd * beatBytes) max 0)
   }
 
   // report errors
