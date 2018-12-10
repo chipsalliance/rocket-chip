@@ -125,7 +125,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     val a_queue_depth = outer.crossing match {
       case RationalCrossing(_) => 2 min maxUncachedInFlight-1 // TODO make this depend on the actual ratio?
       case SynchronousCrossing(BufferParams.none) => 1 // Need some buffering to guarantee livelock freedom
-      case SynchronousCrossing(_) => 0
+      case SynchronousCrossing(_) => 0 // Adequate buffering within the crossing
+      case _: AsynchronousCrossing => 0 // Adequate buffering within the crossing
     }
     Queue(tl_out_a, a_queue_depth, flow = true)
   }
@@ -856,8 +857,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.blocked := {
     // stop reporting blocked just before unblocking to avoid overly conservative stalling
     val beatsBeforeEnd = outer.crossing match {
-      case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
       case SynchronousCrossing(_) => 2
+      case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
+      case _: AsynchronousCrossing => 1 // likewise
     }
     cached_grant_wait && d_address_inc < ((cacheBlockBytes - beatsBeforeEnd * beatBytes) max 0)
   }
