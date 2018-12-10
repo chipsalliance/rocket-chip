@@ -95,14 +95,8 @@ class RocketTile(
       })
     }
 
-    def getOMDCacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
-      val d = dtim_adapter.map(_.device.getOMComponents(resourceBindingsMap))
-
-      dtim_adapter.map(_.device.getOMComponents(resourceBindingsMap) match {
-        case Seq() => throw new IllegalArgumentException
-        case Seq(h) => h.asInstanceOf[OMDCache]
-        case _ => throw new IllegalArgumentException
-      })
+    def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
+      dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
     }
 
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
@@ -110,7 +104,7 @@ class RocketTile(
 
       val omICache = getOMICacheFromBindings(resourceBindingsMap)
 
-      val omDCache = getOMDCacheFromBindings(resourceBindingsMap)
+      val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
 
       Seq(OMRocketCore(
         isa = OMISA.rocketISA(coreParams, xLen),
