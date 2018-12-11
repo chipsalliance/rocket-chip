@@ -55,7 +55,7 @@ trait HasRocketTiles extends HasTiles
     rocket
   }
 
-  abstract override def getSubsystemOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+  def getRocketSubsystemOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
     val rockets = getOMRocketCores(resourceBindingsMap)
     val plics = plicOpt.map(_.device.getOMComponents(resourceBindingsMap))
     val clints = clintOpt.map(_.device.getOMComponents(resourceBindingsMap))
