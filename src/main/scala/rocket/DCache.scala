@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
+import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -13,6 +13,13 @@ import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
 import TLMessages._
+
+// TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
+trait InlineInstance { self: chisel3.experimental.BaseModule =>
+  chisel3.experimental.annotate(
+    new chisel3.experimental.ChiselAnnotation {
+      def toFirrtl: firrtl.annotations.Annotation = firrtl.passes.InlineAnnotation(self.toNamed) } )
+}
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
     with CanHaveErrors {
@@ -72,8 +79,8 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = UInt(width = cacheParams.tagCode.width(new L1Metadata().getWidth))
 }
 
-class DCache(hartid: Int, val bufferUncachedRequests: Option[Int] = None)(implicit p: Parameters) extends HellaCache(hartid)(p) {
-  override lazy val module = new DCacheModule(this) 
+class DCache(hartid: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+  override lazy val module = new DCacheModule(this)
 }
 
 @chiselName
@@ -95,7 +102,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // tags
   val replacer = cacheParams.replacement
-  val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8))
+  val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val tag_array = DescribedSRAM(
     name = "tag_array",
@@ -106,7 +113,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // data
   val data = Module(new DCacheDataArray)
-  val dataArb = Module(new Arbiter(new DCacheDataReq, 4))
+  val dataArb = Module(new Arbiter(new DCacheDataReq, 4) with InlineInstance)
   dataArb.io.in.tail.foreach(_.bits.wdata := dataArb.io.in.head.bits.wdata) // tie off write ports by default
   data.io.req <> dataArb.io.out
   data.io.req.bits.wdata := encodeData(dataArb.io.out.bits.wdata(rowBits-1, 0), dataArb.io.out.bits.poison)
@@ -114,10 +121,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.out.ready := clock_en_reg
 
   val tl_out_a = Wire(tl_out.a)
-  tl_out.a <> outer.bufferUncachedRequests
-                .map(_ min maxUncachedInFlight-1)
-                .map(Queue(tl_out_a, _, flow = true))
-                .getOrElse(tl_out_a)
+  tl_out.a <> {
+    val a_queue_depth = outer.crossing match {
+      case RationalCrossing(_) => 2 min maxUncachedInFlight-1 // TODO make this depend on the actual ratio?
+      case SynchronousCrossing(BufferParams.none) => 1 // Need some buffering to guarantee livelock freedom
+      case SynchronousCrossing(_) => 0 // Adequate buffering within the crossing
+      case _: AsynchronousCrossing => 0 // Adequate buffering within the crossing
+    }
+    Queue(tl_out_a, a_queue_depth, flow = true)
+  }
 
   val (tl_out_c, release_queue_empty) =
     if (cacheParams.acquireBeforeRelease) {
@@ -313,13 +325,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     new_meta.asUInt
   }
 
-  // tag updates on hit/miss
-  metaArb.io.in(2).valid := (s2_valid_hit && s2_update_meta) || (s2_want_victimize && !s2_victim_dirty)
-  metaArb.io.in(2).bits.write := !s2_cannot_victimize
+  // tag updates on hit
+  metaArb.io.in(2).valid := s2_valid_hit_pre_data_ecc && s2_update_meta
+  metaArb.io.in(2).bits.write := !s2_data_error && !io.cpu.s2_kill
   metaArb.io.in(2).bits.way_en := s2_victim_way
   metaArb.io.in(2).bits.idx := s2_vaddr(idxMSB, idxLSB)
   metaArb.io.in(2).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_vaddr(idxMSB, 0))
-  metaArb.io.in(2).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, Mux(s2_valid_hit, s2_new_hit_state, ClientMetadata.onReset)).asUInt)
+  metaArb.io.in(2).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, s2_new_hit_state).asUInt)
 
   // load reservations and TL error reporting
   val s2_lr = Bool(usingAtomics && !usingDataScratchpad) && s2_req.cmd === M_XLR
@@ -358,10 +370,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore_drain_on_miss = releaseInFlight || RegNext(io.cpu.s2_nack)
   val pstore1_held = Reg(Bool())
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
-  val pstore1_valid_pre_kill = s2_store_valid_pre_kill || pstore1_held
   def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && (!s2_waw_hazard || s2_store_merge) && s2_write && !s2_sc_fail && !s2_kill || pstore1_held
   val pstore1_valid = s2_store_valid || pstore1_held
-  any_pstore_valid := pstore1_valid_pre_kill || pstore2_valid
+  any_pstore_valid := pstore1_held || pstore2_valid
   val pstore_drain_structural = pstore1_valid_likely && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
   assert(pstore1_rmw || pstore1_valid_not_rmw(io.cpu.s2_kill) === pstore1_valid)
   ccover(pstore_drain_structural, "STORE_STRUCTURAL_HAZARD", "D$ read-modify-write structural hazard")
@@ -414,7 +425,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     addr(idxMSB, wordOffBits) === s1_req.addr(idxMSB, wordOffBits) &&
     Mux(s1_write, (eccByteMask(mask) & eccByteMask(s1_mask)).orR, (mask & s1_mask).orR)
   val s1_hazard =
-    (pstore1_valid_pre_kill && s1Depends(pstore1_addr, pstore1_mask)) ||
+    (pstore1_valid_likely && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
   val s1_raw_hazard = s1_read && s1_hazard
   s1_waw_hazard := (if (eccBytes == 1) false.B else {
@@ -492,7 +503,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
-  val canAcceptCachedGrant = if (cacheParams.acquireBeforeRelease) !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta) else true.B
+  val canAcceptCachedGrant = !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)
   tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
@@ -612,9 +623,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   releaseWay := s2_probe_way
 
   if (!usingDataScratchpad) {
-    when (s2_victimize && s2_victim_dirty) {
-      assert(!(s2_valid && s2_hit_valid && !s2_data_error))
-      release_state := s_voluntary_writeback
+    when (s2_victimize) {
+      assert(s2_flush_valid || io.cpu.s2_nack)
+      release_state := Mux(s2_victim_dirty, s_voluntary_writeback, s_voluntary_write_meta)
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
     when (s2_probe) {
@@ -845,8 +856,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.perf.canAcceptLoadThenLoad := !((s1_valid && s1_write && needsRead(s1_req)) && ((s2_valid && s2_write && !s2_waw_hazard || pstore1_held) || pstore2_valid))
   io.cpu.perf.blocked := {
     // stop reporting blocked just before unblocking to avoid overly conservative stalling
-    val cycles = outer.bufferUncachedRequests.map(n => if (n > 1) 1 else 2).getOrElse(2)
-    cached_grant_wait && d_address_inc < ((cacheBlockBytes - cycles * beatBytes) max 0)
+    val beatsBeforeEnd = outer.crossing match {
+      case SynchronousCrossing(_) => 2
+      case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
+      case _: AsynchronousCrossing => 1 // likewise
+    }
+    cached_grant_wait && d_address_inc < ((cacheBlockBytes - beatsBeforeEnd * beatBytes) max 0)
   }
 
   // report errors
