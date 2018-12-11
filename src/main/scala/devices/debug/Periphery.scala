@@ -25,6 +25,7 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   val systemjtag = p(ExportDebugJTAG).option(new SystemJTAGIO)
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
+  val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
 }
 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
@@ -58,6 +59,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
 
   debug.ndreset  := outer.debug.module.io.ctrl.ndreset
   debug.dmactive := outer.debug.module.io.ctrl.dmactive
+  debug.extTrigger.foreach { x => outer.debug.module.io.extTrigger.foreach {y => x <> y}}
 
   // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
   outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
