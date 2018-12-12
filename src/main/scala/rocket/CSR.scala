@@ -791,16 +791,23 @@ class CSRFile(
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
 
-      val bp = reg_bp(reg_tselect)
-      when (!bp.control.dmode || reg_debug) {
-        when (decoded_addr(CSRs.tdata1)) {
-          val newBPC = new BPControl().fromBits(wdata)
-          val dMode = newBPC.dmode && reg_debug
-          bp.control := newBPC
-          bp.control.dmode := dMode
-          bp.control.action := dMode && newBPC.action
+      for ((bp, i) <- reg_bp.zipWithIndex) {
+        when (i === reg_tselect && (!bp.control.dmode || reg_debug)) {
+          when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
+          when (decoded_addr(CSRs.tdata1)) {
+            bp.control := wdata.asTypeOf(bp.control)
+
+            val prevChain = if (i == 0) false.B else reg_bp(i-1).control.chain
+            val prevDMode = if (i == 0) false.B else reg_bp(i-1).control.dmode
+            val nextChain = if (i >= nBreakpoints-1) true.B else reg_bp(i+1).control.chain
+            val nextDMode = if (i >= nBreakpoints-1) true.B else reg_bp(i+1).control.dmode
+            val newBPC = readModifyWriteCSR(io.rw.cmd, bp.control.asUInt, io.rw.wdata).asTypeOf(bp.control)
+            val dMode = newBPC.dmode && reg_debug && (prevDMode || !prevChain)
+            bp.control.dmode := dMode
+            bp.control.action := dMode && newBPC.action
+            bp.control.chain := newBPC.chain && !(prevChain || nextChain) && (dMode || !nextDMode)
+          }
         }
-        when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
       }
     }
     if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
@@ -837,8 +844,6 @@ class CSRFile(
 
   reg_satp.asid := 0
   if (nBreakpoints <= 1) reg_tselect := 0
-  if (nBreakpoints >= 1)
-    reg_bp(nBreakpoints-1).control.chain := false
   for (bpc <- reg_bp map {_.control}) {
     bpc.ttype := bpc.tType
     bpc.maskmax := bpc.maskMax
@@ -851,6 +856,7 @@ class CSRFile(
     when (reset) {
       bpc.action := false
       bpc.dmode := false
+      bpc.chain := false
       bpc.r := false
       bpc.w := false
       bpc.x := false

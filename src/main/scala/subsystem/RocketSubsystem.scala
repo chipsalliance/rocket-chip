@@ -22,10 +22,6 @@ case class RocketCrossingParams(
     crossingType: ClockCrossingType = SynchronousCrossing(),
     master: TileMasterPortParams = TileMasterPortParams(),
     slave: TileSlavePortParams = TileSlavePortParams()) {
-  def knownRatio: Option[Int] = crossingType match {
-    case RationalCrossing(_) => Some(2)
-    case _ => None
-  }
 }
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)

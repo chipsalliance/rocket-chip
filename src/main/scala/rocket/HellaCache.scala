@@ -224,7 +224,7 @@ trait HasHellaCache { this: BaseTile =>
   var nDCachePorts = 0
   lazy val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
-      new DCache(hartId, p(RocketCrossingKey).head.knownRatio)
+      new DCache(hartId, crossing)
     } else { new NonBlockingDCache(hartId) })
 
   tlMasterXbar.node := dcache.node
