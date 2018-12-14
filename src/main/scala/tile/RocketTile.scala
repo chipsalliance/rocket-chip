@@ -96,7 +96,12 @@ class RocketTile(
     }
 
     def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
-      dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
+      val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
+      val omDCache: Option[OMDCache] = tileParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
+
+      require(!(omDTIM.isDefined && omDCache.isDefined))
+
+      omDTIM.orElse(omDCache)
     }
 
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
