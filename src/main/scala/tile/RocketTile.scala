@@ -101,9 +101,7 @@ class RocketTile(
 
       require(!(dtim.isDefined && omDCache.isDefined))
 
-      if (dtim.isDefined) { dtim}
-      else if (omDCache.isDefined) {omDCache}
-      else { None }
+      dtim.orElse(omDCache)
     }
 
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
