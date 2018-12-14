@@ -146,7 +146,7 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
-  val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()).asOutput)
+  val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
   val traceNode = BundleBroadcast[Vec[TracedInstruction]]
   traceNode := traceSourceNode
 

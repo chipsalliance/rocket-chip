@@ -65,7 +65,7 @@ class BundleBroadcast[T <: Data]()(implicit p: Parameters) extends LazyModule
     val (in, _) = node.in.head
     def getElements(x: Data): Seq[Element] = x match {
       case e: Element => Seq(e)
-      case a: Aggregate => getDataElements(a).flatMap(getElements)
+      case a: Aggregate => a.getElements.flatMap(getElements)
     }
     getElements(in).foreach { elt => DataMirror.directionOf(elt) match {
       case ActualDirection.Output => ()
