@@ -74,8 +74,6 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
       }
     }
   }
-
-  def getSubsystemOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = Nil
 }
 
 
