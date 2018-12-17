@@ -13,7 +13,7 @@ case class DevNullParams(
   region: RegionType.T = RegionType.UNCACHEABLE,
   executable: Boolean = true,
   mayDenyGet: Boolean = true,
-  mayDenyPut: Boolean = true,
+  mayDenyPut: Boolean = true
 ) {
   require (1 <= maxAtomic, s"Atomic transfer size must be > 1 (was $maxAtomic)")
   require (maxAtomic <= maxTransfer, s"Atomic transfer size must be <= max transfer (but $maxAtomic > $maxTransfer)")
