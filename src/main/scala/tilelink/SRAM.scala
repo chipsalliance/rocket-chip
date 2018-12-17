@@ -86,11 +86,11 @@ class TLRAM(
 
     notifyNode.foreach { nnode =>
       nnode.bundle.correctable.foreach { c =>
-        c.valid := d_need_fix
+        c.valid := d_need_fix && d_ram_valid
         c.bits  := d_address
       }
       nnode.bundle.uncorrectable.foreach { u =>
-        u.valid := d_error
+        u.valid := d_error && d_ram_valid
         u.bits  := d_address
       }
     }
