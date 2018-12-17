@@ -44,7 +44,8 @@ abstract class DiplomaticSRAM(
     val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
       desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
       depth = size,
-      data = Vec(lanes, UInt(width = bits))
+      data = Vec(lanes, UInt(width = bits)),
+      rtlModule = None
     )
 
     (mem, Seq(omMem))

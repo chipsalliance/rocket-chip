@@ -2,15 +2,17 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import firrtl.annotations.Named
+
 trait RTLComponent extends OMCompoundType
 
 trait OMSignal extends RTLComponent {
-  def name: String // This will always be the name of the signal on the top-level module
+  def name: Either[Named, String] // This will always be the name of the signal on the top-level module
   def description: Option[String]
 }
 
 case class OMClock(
-  name: String,
+  name: Either[Named, String],
   description: Option[String] = None
 ) extends OMSignal
 
@@ -29,11 +31,11 @@ trait Synchronous extends Synchronicity
 trait Asynchronous extends Synchronicity
 
 case class OMRTLReset(
-  name: String,
+  name: Either[Named, String],
   description: Option[String] = None,
-  activeEdge: Option[OMSignalAssertionLevel],
+  activeEdge: Option[OMSignalAssertionLevel] = None,
   clock: String, // This will always be the name of the clock signal on the to p-level module
-  synchronicity: Option[Synchronicity]
+  synchronicity: Option[Synchronicity] = None
 ) extends OMSignal
 
 case class OMResetVector(
@@ -48,7 +50,7 @@ case class OMRTLInterface(
 
 case class  OMRTLModule(
   moduleName: String,
-  instanceName: Option[String],  // TODO: This does not exist for the top-level module because the top-level module is the only one that is not instantiated
-  hierarchicalId: Option[String],  // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
+  instanceName: Option[String] = None,  // TODO: This does not exist for the top-level module because the top-level module is the only one that is not instantiated
+  hierarchicalId: Option[String] = None,  // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
   interface: OMRTLInterface
 )
