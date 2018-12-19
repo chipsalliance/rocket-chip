@@ -22,7 +22,7 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 	mv -f $@.tmp $@
 
 # Build and install our own Verilator, to work around versionining issues.
-VERILATOR_VERSION=3.904
+VERILATOR_VERSION=4.008
 VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
 VERILATOR_TARGET := $(abspath verilator/install/bin/verilator)
 INSTALLED_VERILATOR ?= $(VERILATOR_TARGET)
@@ -52,12 +52,14 @@ verilator: $(INSTALLED_VERILATOR)
 
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
+VERILATOR_THREADS ?= --threads $(shell nproc)
 VERILATOR_FLAGS := --top-module $(MODEL) \
   +define+PRINTF_COND=\$$c\(\"verbose\",\"\&\&\"\,\"done_reset\"\) \
   +define+RANDOMIZE_GARBAGE_ASSIGN \
   +define+STOP_COND=\$$c\(\"done_reset\"\) --assert \
   --output-split 20000 \
   --output-split-cfuncs 20000 \
+  $(VERILATOR_THREADS) \
 	-Wno-STMTDLY --x-assign unique \
   -I$(vsrc) \
   -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
