@@ -815,6 +815,8 @@ class CSRFile(
       when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.cfgLocked) {
         val newCfg = new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
         pmp.cfg := newCfg
+        // disallow unreadable but writable PMPs
+        pmp.cfg.w := newCfg.w && newCfg.r
         // can't select a=NA4 with coarse-grained PMPs
         if (pmpGranularity.log2 > PMP.lgAlign)
           pmp.cfg.a := Cat(newCfg.a(1), newCfg.a.orR)
