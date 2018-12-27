@@ -18,8 +18,7 @@ case class OMPLIC(
   interrupts: Seq[OMInterrupt],
   specifications: List[OMSpecification],
   latency: Int,
-  nInterrupts: Int, // plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
-  nPriorities: Int,
+  nGlobalInterrupts: Int,  // Number of global interrupts going into the PLIC  nPriorities: Int,
   targets: List[OMInterruptTarget],
   _types: Seq[String] = Seq("OMPLIC", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice

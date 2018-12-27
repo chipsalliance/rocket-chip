@@ -99,9 +99,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
               version = "1.10"
             )
           ),
-          latency = 2, // TODO
-          nInterrupts = 3,
-          nPriorities = params.maxPriorities,
+          latency = 4,
+          nGlobalInterrupts = 0, // Number of global interrupts going into the PLIC  nPriorities: Int,
           targets = Nil
         )
       )

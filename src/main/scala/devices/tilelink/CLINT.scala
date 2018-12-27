@@ -51,7 +51,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       Seq[OMComponent](
         OMCLINT(
           memoryRegions = memRegions,
-          interrupts = Nil,
+          interrupts = 0, // params.numInts,
           specifications = List(
             OMSpecification(
               name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
