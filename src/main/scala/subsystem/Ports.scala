@@ -23,6 +23,7 @@ case class SlavePortParams(beatBytes: Int, idBits: Int, sourceBits: Int)
 case class MemoryPortParams(master: MasterPortParams, nMemoryChannels: Int)
 
 case object ExtMem extends Field[Option[MemoryPortParams]](None)
+case object AccMem extends Field[Option[MemoryPortParams]](None)
 case object ExtBus extends Field[Option[MasterPortParams]](None)
 case object ExtIn extends Field[Option[SlavePortParams]](None)
 

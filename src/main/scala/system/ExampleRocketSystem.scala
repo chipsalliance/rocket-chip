@@ -14,6 +14,7 @@ import freechips.rocketchip.util.DontTouch
 class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     with HasAsyncExtInterrupts
     with CanHaveMasterAXI4MemPort
+    with CanHaveAccAXI4MemPort
     with CanHaveMasterAXI4MMIOPort
     with CanHaveSlaveAXI4Port
     with HasPeripheryBootROM {
@@ -36,6 +37,9 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
   if (nBanks != 0) {
     sbus.coupleTo("coherence_manager") { in :*= _ }
     mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
+
+    // How to connect this nicely via config Parameters ?
+    abus.coupleFrom("coherence_manager") { _ :=* BankBinder(abus.blockBytes * (nBanks-1)) :*= out } 
   }
 }
 
@@ -43,6 +47,7 @@ class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends
     with HasRTCModuleImp
     with HasExtInterruptsModuleImp
     with CanHaveMasterAXI4MemPortModuleImp
+    with CanHaveAccAXI4MemPortModuleImp
     with CanHaveMasterAXI4MMIOPortModuleImp
     with CanHaveSlaveAXI4PortModuleImp
     with HasPeripheryBootROMModuleImp

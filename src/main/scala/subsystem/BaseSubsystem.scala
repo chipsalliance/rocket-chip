@@ -15,6 +15,7 @@ case object FrontBusKey extends Field[FrontBusParams]
 case object PeripheryBusKey extends Field[PeripheryBusParams]
 case object ControlBusKey extends Field[PeripheryBusParams]
 case object MemoryBusKey extends Field[MemoryBusParams]
+case object AccBusKey extends Field[MemoryBusParams]
 case object BankedL2Key extends Field(BankedL2Params())
 
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
@@ -48,6 +49,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
+  val abus = LazyModule(new MemoryBus(p(AccBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
   // Collect information for use in DTS

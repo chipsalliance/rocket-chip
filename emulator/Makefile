@@ -19,9 +19,10 @@ include $(sim_dir)/Makefrag-verilator
 
 all: $(emu)
 debug: $(emu_debug)
+vlog: $(verilog)
 
 clean:
-	rm -rf *.o *.a emulator-* $(generated_dir) $(generated_dir_debug) DVEfiles $(output_dir)
+	rm -rf *.o *.a emulator-* $(generated_dir)/* $(generated_dir_debug)/* DVEfiles $(output_dir)
 
 .PHONY: default all debug clean
 

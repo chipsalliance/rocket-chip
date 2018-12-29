@@ -82,3 +82,12 @@ class BaseFPGAConfig extends Config(new BaseConfig)
 
 class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
 class DefaultFPGASmallConfig extends Config(new DefaultFPGAConfig)
+
+class AccConfig extends Config (
+  new AccCoreConfig ++ 
+  new WithNSmallCores(1) ++
+  new WithNoMMIOPort ++
+  new WithNoSlavePort ++
+  new WithAccMemPort ++
+  new BaseConfig 
+)

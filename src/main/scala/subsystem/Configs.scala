@@ -13,6 +13,8 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+import acc_pkg._
+
 class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
@@ -31,6 +33,10 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
   case MemoryBusKey => MemoryBusParams(
+    beatBytes = site(XLen)/8,
+    blockBytes = site(CacheBlockBytes),
+    replicatorMask = site(MultiChipMaskKey))
+  case AccBusKey => MemoryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
     replicatorMask = site(MultiChipMaskKey))
@@ -318,6 +324,14 @@ class WithDefaultMemPort extends Config((site, here, up) => {
                       idBits = 4), 1))
 })
 
+class WithAccMemPort extends Config((site, here, up) => {
+  case AccMem => Some(MemoryPortParams(MasterPortParams(
+                      base = x"F000_0000",
+                      size = x"1000_0000",
+                      beatBytes = site(MemoryBusKey).beatBytes,
+                      idBits = 4), 1))
+})
+
 class WithNoMemPort extends Config((site, here, up) => {
   case ExtMem => None
 })
@@ -351,4 +365,13 @@ class WithScratchpadsOnly extends Config((site, here, up) => {
         nWays = 1,
         scratch = Some(0x80000000L))))
   }
+})
+
+class AccCoreConfig extends Config((site, here, up) => {
+  case BuildRoCC => List(
+    (p: Parameters) => {
+      val acore = LazyModule(new GenericRocc(OpcodeSet.custom0)(p))
+      acore
+    }
+  )
 })
