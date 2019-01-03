@@ -393,14 +393,14 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     def DMI_HAWINDOWSEL_OFFSET = ((DMI_HAWINDOWSEL - DMI_DMCONTROL) << 2)
     def DMI_HAWINDOW_OFFSET    = ((DMI_HAWINDOW - DMI_DMCONTROL) << 2)
 
-    dmiNode.regmap(
-      DMI_DMCONTROL_OFFSET   -> Seq(RWNotify(32, DMCONTROLRdData.asUInt(),
-        DMCONTROLWrDataVal, DMCONTROLRdEn, DMCONTROLWrEn, Some(RegFieldDesc("dmi_dmcontrol", "", reset=Some(0))))),
-      DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWSELRdData.asUInt(),
-        HAWINDOWSELWrDataVal, HAWINDOWSELRdEn, HAWINDOWSELWrEn, Some(RegFieldDesc("dmi_hawindowsel", "", reset=Some(0))))) else Nil),
-      DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWRdData.asUInt(),
-        HAWINDOWWrDataVal, HAWINDOWRdEn, HAWINDOWWrEn, Some(RegFieldDesc("dmi_hawindow", "", reset=Some(0))))) else Nil)
-    )
+    val mapping: Seq[RegField.Map] = Seq(DMI_DMCONTROL_OFFSET   -> Seq(RWNotify(32, DMCONTROLRdData.asUInt(),
+      DMCONTROLWrDataVal, DMCONTROLRdEn, DMCONTROLWrEn, Some(RegFieldDesc("dmi_dmcontrol", "", reset=Some(0))))),
+    DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWSELRdData.asUInt(),
+      HAWINDOWSELWrDataVal, HAWINDOWSELRdEn, HAWINDOWSELWrEn, Some(RegFieldDesc("dmi_hawindowsel", "", reset=Some(0))))) else Nil),
+    DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWRdData.asUInt(),
+      HAWINDOWWrDataVal, HAWINDOWRdEn, HAWINDOWWrEn, Some(RegFieldDesc("dmi_hawindow", "", reset=Some(0))))) else Nil))
+
+    val omrm = dmiNode.regmap(mapping:_*)
 
     //--------------------------------------------------------------
     // Interrupt Registers
@@ -831,7 +831,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     //--------------------------------------------------------------
     // Program Buffer Access (DMI ... System Bus can override)
     //--------------------------------------------------------------
-    dmiNode.regmap(
+    val omRegMap = dmiNode.regmap(
       (DMI_DMSTATUS    << 2) -> Seq(RegField.r(32, DMSTATUSRdData.asUInt(), RegFieldDesc("dmi_dmstatus", ""))),
       //TODO (DMI_CFGSTRADDR0 << 2) -> cfgStrAddrFields,
       (DMI_HARTINFO    << 2) -> Seq(RegField.r(32, HARTINFORdData.asUInt(), RegFieldDesc("dmi_hartinfo", "" /*, reset=Some(HARTINFORdData.litValue)*/))),
@@ -1251,8 +1251,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     }
 
     def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings)
-      val cfg = p(DebugModuleParams)
+      val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(dmInner.dmInner.module.omRegMap))
+      val cfg : DebugModuleParams = p(DebugModuleParams)
 
       Seq[OMComponent](
         OMDebug(
@@ -1272,8 +1272,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     }
   }
 
-  val dmOuter = LazyModule(new TLDebugModuleOuterAsync(device)(p))
-  val dmInner = LazyModule(new TLDebugModuleInnerAsync(device, () => {dmOuter.dmOuter.intnode.edges.out.size}, beatBytes)(p))
+  val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
+  val dmInner : TLDebugModuleInnerAsync = LazyModule(new TLDebugModuleInnerAsync(device, () => {dmOuter.dmOuter.intnode.edges.out.size}, beatBytes)(p))
 
   val node = dmInner.tlNode
   val intnode = dmOuter.intnode

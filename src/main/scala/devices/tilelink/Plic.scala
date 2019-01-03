@@ -87,7 +87,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings) // TODO name source???
+      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap)) // TODO name source???
 
       Seq[OMComponent](
         OMPLIC(
@@ -108,14 +108,14 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
   }
 
-  val node = TLRegisterNode(
+  val node : TLRegisterNode = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
     beatBytes = beatBytes,
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
-  val intnode = IntNexusNode(
+  val intnode: IntNexusNode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
@@ -313,7 +313,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       )
     }
 
-    node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+    val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
