@@ -51,6 +51,10 @@ trait HasRocketTiles extends HasTiles
     rocket
   }
 
+  def coreMonitorBundles = (rocketTiles map { t =>
+    t.module.core.rocketImpl.coreMonitorBundle
+  }).toList
+
   def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
     rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
 }
