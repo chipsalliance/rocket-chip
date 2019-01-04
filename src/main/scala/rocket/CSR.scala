@@ -359,6 +359,8 @@ class CSRFile(
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
   val reg_misa = Reg(init=UInt(isaMax))
   val read_mstatus = io.status.asUInt()(xLen-1,0)
+  val read_mtvec = formTVec(reg_mtvec).padTo(xLen)
+  val read_stvec = formTVec(reg_stvec).sextTo(xLen)
 
   val read_mapping = LinkedHashMap[Int,Bits](
     CSRs.tselect -> reg_tselect,
@@ -366,7 +368,7 @@ class CSRFile(
     CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
     CSRs.misa -> reg_misa,
     CSRs.mstatus -> read_mstatus,
-    CSRs.mtvec -> reg_mtvec,
+    CSRs.mtvec -> read_mtvec,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
     CSRs.mscratch -> reg_mscratch,
@@ -445,7 +447,7 @@ class CSRFile(
     read_mapping += CSRs.stval -> reg_stval.sextTo(xLen)
     read_mapping += CSRs.satp -> reg_satp.asUInt
     read_mapping += CSRs.sepc -> readEPC(reg_sepc).sextTo(xLen)
-    read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
+    read_mapping += CSRs.stvec -> read_stvec
     read_mapping += CSRs.scounteren -> reg_scounteren
     read_mapping += CSRs.mideleg -> reg_mideleg
     read_mapping += CSRs.medeleg -> reg_medeleg
@@ -528,17 +530,17 @@ class CSRFile(
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
   val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
-  val mtvecBaseAlign = 2
-  val mtvecInterruptAlign = {
+  def mtvecBaseAlign = 2
+  def mtvecInterruptAlign = {
     require(reg_mip.getWidth <= xLen)
     log2Ceil(xLen)
   }
   val notDebugTVec = {
-    val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
+    val base = Mux(delegate, read_stvec, read_mtvec)
     val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
     val interruptVec = Cat(base >> (mtvecInterruptAlign + mtvecBaseAlign), interruptOffset)
     val doVector = base(0) && cause(cause.getWidth-1) && (cause_lsbs >> mtvecInterruptAlign) === 0
-    Mux(doVector, interruptVec, base)
+    Mux(doVector, interruptVec, base >> mtvecBaseAlign << mtvecBaseAlign)
   }
   val tvec = Mux(trapToDebug, debugTVec, notDebugTVec)
   io.evec := tvec
@@ -720,7 +722,7 @@ class CSRFile(
     when (decoded_addr(CSRs.mepc))     { reg_mepc := formEPC(wdata) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     if (mtvecWritable)
-      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
+      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
     when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
 
@@ -778,7 +780,7 @@ class CSRFile(
       when (decoded_addr(CSRs.sie))      { reg_mie := (reg_mie & ~reg_mideleg) | (wdata & reg_mideleg) }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
       when (decoded_addr(CSRs.sepc))     { reg_sepc := formEPC(wdata) }
-      when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
+      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata }
       when (decoded_addr(CSRs.scause))   { reg_scause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
       when (decoded_addr(CSRs.stval))    { reg_stval := wdata(vaddrBitsExtended-1,0) }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
@@ -920,6 +922,7 @@ class CSRFile(
   }
   def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def readEPC(x: UInt) = ~(~x | Mux(reg_misa('c' - 'a'), 1.U, 3.U))
+  def formTVec(x: UInt) = x andNot Mux(x(0), ((((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign) | 2).U, 2)
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
   def formFS(fs: UInt) = if (coreParams.haveFSDirty) fs else Fill(2, fs.orR)
 }

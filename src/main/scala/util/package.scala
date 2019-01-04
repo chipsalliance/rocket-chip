@@ -126,6 +126,9 @@ package object util {
       else Some(x(hi, lo))
     }
 
+    // like x & ~y, but first truncate or zero-extend y to x's width
+    def andNot(y: UInt): UInt = x & ~Wire(t = x, init = y)
+
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
 
     def rotateRight(n: UInt): UInt = {
