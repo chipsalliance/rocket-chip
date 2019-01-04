@@ -10,8 +10,8 @@ enablePlugins(PackPlugin)
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2",
-  scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.12.4", "2.11.12"),
+  scalaVersion := "2.12.8",
+  crossScalaVersions := Seq("2.12.8", "2.11.12"),
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
@@ -22,7 +22,7 @@ lazy val commonSettings = Seq(
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 lazy val hardfloat  = project.dependsOn(chisel).settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.11.12", "2.12.4"))
+  .settings(crossScalaVersions := Seq("2.11.12", "2.12.8"))
 lazy val macros = (project in file("macros")).settings(commonSettings)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
