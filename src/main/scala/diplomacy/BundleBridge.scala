@@ -78,8 +78,9 @@ class BundleBroadcast[T <: Data]()(implicit p: Parameters) extends LazyModule
 
 object BundleBroadcast
 {
-  def apply[T <: Data]()(implicit p: Parameters): BundleBridgeNexus[T] = {
+  def apply[T <: Data](name: Option[String] = None)(implicit p: Parameters): BundleBridgeNexus[T] = {
     val broadcast = LazyModule(new BundleBroadcast[T])
+    name.map(broadcast.suggestName)
     broadcast.node
   }
 }
