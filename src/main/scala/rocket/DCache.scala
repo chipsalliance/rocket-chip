@@ -239,11 +239,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_all_data_ways = Vec(data.io.resp :+ dummyEncodeData(tl_out.d.bits.data))
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask)
 
-  val s2_valid_pre_xcpt = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
-  val s2_valid = s2_valid_pre_xcpt && !io.cpu.s2_xcpt.asUInt.orR
+  val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
+  val s2_valid_no_xcpt = s2_valid && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
-  val s2_valid_masked = s2_valid && Reg(next = !s1_nack)
+  val s2_valid_masked = s2_valid_no_xcpt && Reg(next = !s1_nack)
   val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
   val s2_uncached = Reg(Bool())
@@ -309,7 +309,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
   dontTouch(s2_victim_dirty)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
-  io.cpu.s2_nack := s2_valid && !s2_valid_hit && !(s2_valid_uncached_pending && tl_out_a.ready)
+  io.cpu.s2_nack := s2_valid_no_xcpt && !s2_valid_hit && !(s2_valid_uncached_pending && tl_out_a.ready)
   when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
 
   // tag updates on ECC errors
@@ -828,7 +828,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     io.cpu.keep_clock_enabled ||
     metaArb.io.out.valid || // subsumes resetting || flushing
     s1_probe || s2_probe ||
-    s1_valid || s2_valid_pre_xcpt ||
+    s1_valid || s2_valid ||
     pstore1_held || pstore2_valid ||
     release_state =/= s_ready ||
     release_ack_wait || !release_queue_empty ||
