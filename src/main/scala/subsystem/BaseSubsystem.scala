@@ -33,7 +33,7 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
   println(outer.dts)
 
-  def addOM(): Unit = {
+  def addOMArtefacts(): Unit = {
     ElaborationArtefacts.add("objectModel.json", outer.objectModelJson)
   }
 }
