@@ -160,7 +160,9 @@ object OMRegister {
     }
   }
 
-  private def getRegFieldDesc(rf: RegField): Option[OMRegFieldDesc] = {
+  private def getRegFieldDesc(rf: RegField, byteOffset: Int, bitOffset: Int): Option[OMRegFieldDesc] = {
+    val anonName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
+
     rf.desc.map {
       rfd =>
         OMRegFieldDesc(
@@ -176,51 +178,57 @@ object OMRegister {
     }
   }
 
-  private def getBitRange(rf: RegField): OMBitRange = {
-    OMBitRange(base = 0, size = 0)
+  private def getBitRange(rf: RegField, byteOffset: Int, bitOffset: Int, wordSizeBits: Int, base: BigInt): OMBitRange = {
+    val wordSizeBytes = wordSizeBits / 8
+    val bitWords = if (bitOffset/wordSizeBits > wordSizeBytes) bitOffset/wordSizeBits else 0
+    val sizeWords = byteOffset/wordSizeBytes + bitWords
+    OMBitRange(base = base, size = sizeWords)
   }
 
-  private def getRegField(rf: RegField): OMRegField = {
+  private def getRegField(rf: RegField, byteOffset: Int, bitOffset: Int, wordSizeBits: Int, base: BigInt): OMRegField = {
+
     OMRegField (
-      bitRange = getBitRange(rf),
-      description = getRegFieldDesc(rf)
+      bitRange = getBitRange(rf, byteOffset, bitOffset, wordSizeBits, base),
+
+      description = getRegFieldDesc(rf, byteOffset, bitOffset)
     )
   }
 
-  private def makeRegisters(baseAddress: BigInt,
-    mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegField] = {
+  private def makeRegisters(baseAddress: BigInt, wordSizeBits: Int, mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegField] = {
     mapping.flatMap {
       case (byteOffset, seq) =>
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
-
-         getRegField(regField)
+          getRegField(regField, byteOffset, bitOffset, wordSizeBits, baseAddress)
         }
     }
   }
 
-  private def makeGroups(baseAddress: BigInt,
-    mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegFieldGroup] = {
+  private def makeGroups(baseAddress: BigInt, mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegFieldGroup] = {
     mapping.flatMap {
-      case (byteOffset, seq) =>
-        seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
-          OMRegFieldGroup(
-            name = "",
-            description = None // Option[String],
-          )
-        }
-    }
+      case (_, seq: Seq[RegField]) =>
+        seq.flatMap {
+          case regField =>
+            regField.desc.map {
+              case desc: RegFieldDesc =>
+                OMRegFieldGroup(
+                  name = desc.group.getOrElse(""),
+                  description = desc.groupDesc
+                )
+            }
+         }
+    }.distinct
   }
 
-  private def makeRegisterMap(rawModule: RawModule,
+  private def makeRegisterMap(
+    rawModule: RawModule,
     baseAddress: BigInt,
+    wordSizeBits: Int,
     mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
 
-    makeRegisters(baseAddress, mapping)
-
     OMRegisterMap(
-      name = "",
-      description = "",
-      registerFields = makeRegisters(baseAddress, mapping),
+      name = rawModule.name,
+      description = rawModule.desiredName, // TODO
+      registerFields = makeRegisters(baseAddress, wordSizeBits, mapping),
       groups = makeGroups(baseAddress, mapping)
     )
   }
@@ -228,22 +236,20 @@ object OMRegister {
   private def makeMemoryRegionFromRegisters(
     rawModule: RawModule,
     baseAddress: BigInt,
-    mapping: Seq[(Int, Seq[RegField])]
+    mapping: Seq[(Int, Seq[RegField])],
+    wordSizeBits: Int,
+    base: Int
   ): OMRegisterMap = {
-    makeRegisterMap(rawModule, baseAddress, mapping)
+    makeRegisterMap(rawModule, baseAddress, wordSizeBits, mapping)
   }
 
   def convert(
     rawModule: RawModule,
     baseAddress: BigInt,
+    wordSizeBits: Int,
     mapping: RegField.Map*
   ): OMRegisterMap = {
-
-    val moduleName = rawModule.name
-    val baseHex = s"0x${baseAddress.toInt.toHexString}"
-    val displayName = s"${moduleName}.${baseHex}"
-
-    makeRegisterMap(rawModule, baseAddress, mapping)
+    makeRegisterMap(rawModule, baseAddress, wordSizeBits, mapping)
   }
 
 }

@@ -86,14 +86,14 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     genRegDescsJson(mapping:_*)
-
-    om(mapping:_*)
+    genOMRegMap(mapping:_*)
   }
 
-  def om(mapping: RegField.Map*): OMRegisterMap = {
+  def genOMRegMap(mapping: RegField.Map*): OMRegisterMap = {
     OMRegister.convert(
       rawModule = Module.currentModule.get.asInstanceOf[RawModule],
       baseAddress = address.head.base,
+      wordSizeBits = 32,
       mapping = mapping:_*
     )
   }
@@ -151,7 +151,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val io = IO(bundleBuilder)
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
-  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
+  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*) // TODO set the word size
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
