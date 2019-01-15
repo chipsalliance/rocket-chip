@@ -70,7 +70,7 @@ case object PLICKey extends Field[Option[PLICParams]](None)
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
-  val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
+  val device = new SimpleDevice("interrupt-controller", Seq("sifive,plic-1.0.0")) {
     override val alwaysExtended = true
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
