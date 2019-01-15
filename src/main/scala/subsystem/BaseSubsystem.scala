@@ -6,8 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 case object SystemBusKey extends Field[SystemBusParams]
@@ -33,8 +31,11 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("dts", outer.dts)
   ElaborationArtefacts.add("json", outer.json)
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
-  ElaborationArtefacts.add("objectModel.json", outer.objectModelJson)
   println(outer.dts)
+
+  def addOMArtefacts(): Unit = {
+    ElaborationArtefacts.add("objectModel.json", outer.objectModelJson)
+  }
 }
 
 /** Base Subsystem class with no peripheral devices or ports added */
