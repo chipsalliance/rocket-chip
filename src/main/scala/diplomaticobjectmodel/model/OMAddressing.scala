@@ -3,9 +3,6 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 import chisel3.experimental.RawModule
-import freechips.rocketchip.regmapper.RegFieldAccessType.RegFieldAccessType
-import freechips.rocketchip.regmapper.RegFieldRdAction.RegFieldRdAction
-import freechips.rocketchip.regmapper.RegFieldWrType.RegFieldWrType
 import freechips.rocketchip.regmapper._
 
 trait OMRange extends OMCompoundType {
@@ -82,48 +79,6 @@ case class OMMemoryRegion (
 
 object OMRegister {
 
-  def makeRegMappingSer(
-    rawModule: RawModule,
-    moduleName: String,
-    baseAddress: BigInt,
-    width: Int,
-    byteOffset: Int,
-    bitOffset: Int,
-    regField: RegField): RegFieldDescSer = {
-
-    val anonRegFieldName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
-    val selectedRegFieldName = regField.desc.map(_.name).getOrElse(anonRegFieldName)
-
-    val map = Map[BigInt, (String, String)]() // TODO
-
-    // TODO: enumerations will be handled in upcoming PR
-    //    ("enumerations" -> desc.map {d =>
-    //      Option(d.enumerations.map { case (key, (name, edesc)) =>
-    //        (("value" -> key) ~ ("name" -> name) ~ ("description" -> edesc))
-    //      }).filter(_.nonEmpty)}) )
-
-    val desc = regField.desc
-
-    val regFieldDescSer = RegFieldDescSer(
-      byteOffset = s"0x${byteOffset.toInt.toHexString}",
-      bitOffset = bitOffset,
-      bitWidth = width,
-      name = selectedRegFieldName,
-      desc = desc.map {_.desc}.getOrElse("None"),
-      group = desc.map {_.group.getOrElse("None")}.getOrElse("None"),
-      groupDesc = desc.map {_.groupDesc.getOrElse("None")}.getOrElse("None"),
-      accessType = desc.map {_.access.toString}.getOrElse("None"),
-      wrType = desc.map(_.wrType.toString).getOrElse("None"),
-      rdAction = desc.map(_.rdAction.toString).getOrElse("None"),
-      volatile = desc.map(_.volatile).getOrElse(false),
-      hasReset = desc.map {_.reset != None }.getOrElse(false),
-      resetValue = desc.map{_.reset.getOrElse(BigInt(0))}.getOrElse(BigInt(0)),
-      enumerations = map
-    )
-
-    regFieldDescSer
-  }
-
   private def getRegFieldAccessType(rfd: RegFieldDesc): OMRegFieldAccessType = {
     rfd.access match {
       case RegFieldAccessType.R => R
@@ -161,8 +116,6 @@ object OMRegister {
   }
 
   private def getRegFieldDesc(rf: RegField, byteOffset: Int, bitOffset: Int): Option[OMRegFieldDesc] = {
-    val anonName = s"unnamedRegField${byteOffset.toHexString}_${bitOffset}"
-
     rf.desc.map {
       rfd =>
         OMRegFieldDesc(
@@ -178,32 +131,29 @@ object OMRegister {
     }
   }
 
-  private def getBitRange(rf: RegField, byteOffset: Int, bitOffset: Int, wordSizeBits: Int, base: BigInt): OMBitRange = {
-    val wordSizeBytes = wordSizeBits / 8
-    val bitWords = if (bitOffset/wordSizeBits > wordSizeBytes) bitOffset/wordSizeBits else 0
-    val sizeWords = byteOffset/wordSizeBytes + bitWords
-    OMBitRange(base = base, size = sizeWords)
+  private def getBitRange(rf: RegField, byteOffset: Int, bitOffset: Int): OMBitRange = {
+    OMBitRange(base = (byteOffset * 8) + bitOffset, size = rf.width)
   }
 
-  private def getRegField(rf: RegField, byteOffset: Int, bitOffset: Int, wordSizeBits: Int, base: BigInt): OMRegField = {
+  private def getRegField(rf: RegField, byteOffset: Int, bitOffset: Int): OMRegField = {
 
     OMRegField (
-      bitRange = getBitRange(rf, byteOffset, bitOffset, wordSizeBits, base),
+      bitRange = getBitRange(rf, byteOffset, bitOffset),
 
       description = getRegFieldDesc(rf, byteOffset, bitOffset)
     )
   }
 
-  private def makeRegisters(baseAddress: BigInt, wordSizeBits: Int, mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegField] = {
+  private def makeRegisters(mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegField] = {
     mapping.flatMap {
       case (byteOffset, seq) =>
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
-          getRegField(regField, byteOffset, bitOffset, wordSizeBits, baseAddress)
+          getRegField(regField, byteOffset, bitOffset)
         }
     }
   }
 
-  private def makeGroups(baseAddress: BigInt, mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegFieldGroup] = {
+  private def makeGroups(mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegFieldGroup] = {
     mapping.flatMap {
       case (_, seq: Seq[RegField]) =>
         seq.flatMap {
@@ -221,35 +171,21 @@ object OMRegister {
 
   private def makeRegisterMap(
     rawModule: RawModule,
-    baseAddress: BigInt,
-    wordSizeBits: Int,
     mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
 
     OMRegisterMap(
       name = rawModule.name,
       description = rawModule.desiredName, // TODO
-      registerFields = makeRegisters(baseAddress, wordSizeBits, mapping),
-      groups = makeGroups(baseAddress, mapping)
+      registerFields = makeRegisters(mapping),
+      groups = makeGroups(mapping)
     )
-  }
-
-  private def makeMemoryRegionFromRegisters(
-    rawModule: RawModule,
-    baseAddress: BigInt,
-    mapping: Seq[(Int, Seq[RegField])],
-    wordSizeBits: Int,
-    base: Int
-  ): OMRegisterMap = {
-    makeRegisterMap(rawModule, baseAddress, wordSizeBits, mapping)
   }
 
   def convert(
     rawModule: RawModule,
-    baseAddress: BigInt,
-    wordSizeBits: Int,
     mapping: RegField.Map*
   ): OMRegisterMap = {
-    makeRegisterMap(rawModule, baseAddress, wordSizeBits, mapping)
+    makeRegisterMap(rawModule, mapping)
   }
 
 }

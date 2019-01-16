@@ -92,8 +92,6 @@ case class TLRegisterNode(
   def genOMRegMap(mapping: RegField.Map*): OMRegisterMap = {
     OMRegister.convert(
       rawModule = Module.currentModule.get.asInstanceOf[RawModule],
-      baseAddress = address.head.base,
-      wordSizeBits = 32,
       mapping = mapping:_*
     )
   }
