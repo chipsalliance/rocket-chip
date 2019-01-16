@@ -146,7 +146,7 @@ object OMRegister {
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
           getRegField(regField, byteOffset, bitOffset)
         }
-    }
+    }.sortBy(_.bitRange.base)
   }
 
   private def makeGroups(mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegFieldGroup] = {
@@ -158,7 +158,7 @@ object OMRegister {
       name = desc.group.getOrElse(""),
       description = desc.groupDesc
     )
-    groups.distinct
+    groups.distinct.sortBy(_.name)
   }
 
   private def makeRegisterMap(mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
