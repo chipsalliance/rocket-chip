@@ -18,7 +18,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
     supportsWrite = expandTransfer(s.supportsWrite, beatBytes, s.minAlignment),
     supportsRead  = expandTransfer(s.supportsRead,  beatBytes, s.minAlignment),
     interleavedId = None) // this breaks interleaving guarantees
-  def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true)
+  def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true, maxFlight = None)
 
   val node = AXI4AdapterNode(
     masterFn = { mp => mp.copy(masters = mp.masters.map(m => mapMaster(m)), userBits = mp.userBits + 1) },
