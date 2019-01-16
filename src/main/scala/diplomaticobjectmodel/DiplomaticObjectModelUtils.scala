@@ -128,7 +128,7 @@ object DiplomaticObjectModelAddressing {
     }
   }
 
-  private def omMemoryRegion(name: String, description: String, value: ResourceValue): OMMemoryRegion = {
+  private def omMemoryRegion(name: String, description: String, value: ResourceValue, omRegMap: Option[OMRegisterMap]): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
         (omAddressSets(rm.address),rm.permissions)
@@ -141,7 +141,7 @@ object DiplomaticObjectModelAddressing {
       description = description,
       addressSets = omRanges,
       permissions = omPerms(permissions),
-      registerMap = None // Option[OMRegisterMap]
+      registerMap = omRegMap
     )
   }
 
@@ -149,20 +149,20 @@ object DiplomaticObjectModelAddressing {
     Nil
   }
 
-  def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
+  def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
       case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x)) =>
         seq.map {
-          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value)
+          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap)
         }
     }.flatten.toSeq
   }
 
-  def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings): Seq[OMMemoryRegion]= {
+  def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
       case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.rangeFilter(x)) =>
         seq.map {
-          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, "port memory region", value)
+          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, "port memory region", value, omRegMap)
         }
     }.flatten.toSeq
   }
