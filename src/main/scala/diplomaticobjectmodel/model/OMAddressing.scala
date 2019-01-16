@@ -56,8 +56,6 @@ case class OMRegFieldGroup (
 ) extends OMCompoundType
 
 case class OMRegisterMap (
-  name: String,
-  description: String,
   registerFields: Seq[OMRegField],
   groups: Seq[OMRegFieldGroup],
   _types: Seq[String] = Seq("OMRegisterMap", "OMCompoundType")
@@ -136,10 +134,8 @@ object OMRegister {
   }
 
   private def getRegField(rf: RegField, byteOffset: Int, bitOffset: Int): OMRegField = {
-
     OMRegField (
       bitRange = getBitRange(rf, byteOffset, bitOffset),
-
       description = getRegFieldDesc(rf, byteOffset, bitOffset)
     )
   }
@@ -154,38 +150,26 @@ object OMRegister {
   }
 
   private def makeGroups(mapping: Seq[(Int, Seq[RegField])]): Seq[OMRegFieldGroup] = {
-    mapping.flatMap {
-      case (_, seq: Seq[RegField]) =>
-        seq.flatMap {
-          case regField =>
-            regField.desc.map {
-              case desc: RegFieldDesc =>
-                OMRegFieldGroup(
-                  name = desc.group.getOrElse(""),
-                  description = desc.groupDesc
-                )
-            }
-         }
-    }.distinct
+    val groups = for {
+      (_,seq) <- mapping
+      regField <- seq
+      desc <- regField.desc
+    } yield  OMRegFieldGroup(
+      name = desc.group.getOrElse(""),
+      description = desc.groupDesc
+    )
+    groups.distinct
   }
 
-  private def makeRegisterMap(
-    rawModule: RawModule,
-    mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
-
+  private def makeRegisterMap(mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
     OMRegisterMap(
-      name = rawModule.name,
-      description = rawModule.desiredName, // TODO
       registerFields = makeRegisters(mapping),
       groups = makeGroups(mapping)
     )
   }
 
-  def convert(
-    rawModule: RawModule,
-    mapping: RegField.Map*
-  ): OMRegisterMap = {
-    makeRegisterMap(rawModule, mapping)
+  def convert(mapping: RegField.Map*): OMRegisterMap = {
+    makeRegisterMap(mapping)
   }
 
 }

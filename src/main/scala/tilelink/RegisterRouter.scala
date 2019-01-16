@@ -90,10 +90,7 @@ case class TLRegisterNode(
   }
 
   def genOMRegMap(mapping: RegField.Map*): OMRegisterMap = {
-    OMRegister.convert(
-      rawModule = Module.currentModule.get.asInstanceOf[RawModule],
-      mapping = mapping:_*
-    )
+    OMRegister.convert(mapping = mapping:_*)
   }
 
   def genRegDescsJson(mapping: RegField.Map*) {
