@@ -146,7 +146,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   val io = IO(bundleBuilder)
   val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
   val address = router.address
-  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*) // TODO set the word size
+  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
