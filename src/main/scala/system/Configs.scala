@@ -33,7 +33,7 @@ class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 class DualBankConfig extends Config(
   new WithNBanks(2) ++ new BaseConfig)
 
-class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new BaseConfig)
+class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new DefaultConfig)
 
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
@@ -42,9 +42,9 @@ class DualChannelDualBankConfig extends Config(
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
 class Edge128BitConfig extends Config(
-  new WithEdgeDataBits(128) ++ new BaseConfig)
+  new WithEdgeDataBits(128) ++ new DefaultConfig)
 class Edge32BitConfig extends Config(
-  new WithEdgeDataBits(32) ++ new BaseConfig)
+  new WithEdgeDataBits(32) ++ new DefaultConfig)
 
 class SingleChannelBenchmarkConfig extends Config(new DefaultConfig)
 class DualChannelBenchmarkConfig extends Config(new WithNMemoryChannels(2) ++ new SingleChannelBenchmarkConfig)
