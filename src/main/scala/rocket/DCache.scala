@@ -777,7 +777,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
   ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_data_error, "DATA_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in data array during cache flush")
   s1_flush_valid := metaArb.io.in(5).fire() && !s1_flush_valid && !s2_flush_valid_pre_tag_ecc && release_state === s_ready && !release_ack_wait
-  metaArb.io.in(5).valid := flushing
+  metaArb.io.in(5).valid := flushing && !flushed
   metaArb.io.in(5).bits.write := false
   metaArb.io.in(5).bits.idx := flushCounter(idxBits-1, 0)
   metaArb.io.in(5).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, metaArb.io.in(5).bits.idx << blockOffBits)

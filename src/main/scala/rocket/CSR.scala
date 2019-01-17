@@ -329,7 +329,7 @@ class CSRFile(
   mip.msip := io.interrupts.msip
   mip.meip := io.interrupts.meip
   // seip is the OR of reg_mip.seip and the actual line from the PLIC
-  io.interrupts.seip.foreach { mip.seip := reg_mip.seip || RegNext(_) }
+  io.interrupts.seip.foreach { mip.seip := reg_mip.seip || _ }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
   val high_interrupts = io.interrupts.buserror.map(_ << CSR.busErrorIntCause).getOrElse(0.U)
