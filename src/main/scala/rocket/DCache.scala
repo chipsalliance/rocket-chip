@@ -10,6 +10,7 @@ import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+import chisel3.core.{DontCare, WireInit}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
 import TLMessages._
@@ -173,6 +174,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // I/O MSHRs
   val uncachedInFlight = RegInit(Vec.fill(maxUncachedInFlight)(false.B))
   val uncachedReqs = Reg(Vec(maxUncachedInFlight, new HellaCacheReq))
+  val uncachedResp = WireInit(new HellaCacheReq, DontCare)
 
   // hit initiation path
   val s0_read = isRead(io.cpu.req.bits.cmd)
@@ -267,13 +269,22 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_meta_error = (s2_meta_uncorrectable_errors | s2_meta_correctable_errors).orR
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
   val s2_data = {
-    val en = s1_valid || inWriteback
+    val wordsPerRow = rowBits / wordBits
+    val en = s1_valid || inWriteback || io.cpu.replay_next
+    val word_en = Mux(inWriteback, Fill(wordsPerRow, 1.U), Mux(!s1_did_read, 0.U, UIntToOH(s1_req.addr.extract((rowBits/8).log2-1, wordBytes.log2), wordsPerRow)))
+    val s1_way_words = s1_all_data_ways.map(_.grouped(dECC.width(eccBits) * (wordBits / eccBits)))
     if (cacheParams.pipelineWayMux) {
-      val s2_data_way = RegEnable(s1_data_way, en)
-      val s2_all_data_ways = (0 until nWays).map(i => RegEnable(s1_all_data_ways(i), en))
-      Mux1H(s2_data_way, s2_all_data_ways)
+      val s1_word_en = Mux(io.cpu.replay_next, 0.U, word_en)
+      (for (i <- 0 until wordsPerRow) yield {
+        val s2_way_en = RegEnable(Mux(s1_word_en(i), s1_data_way, 0.U), en)
+        val s2_way_words = (0 until nWays).map(j => RegEnable(s1_way_words(j)(i), en))
+        (0 until nWays).map(j => Mux(s2_way_en(j), s2_way_words(j), 0.U)).reduce(_|_)
+      }).asUInt
     } else {
-      RegEnable(Mux1H(s1_data_way, s1_all_data_ways), en || tl_out.d.fire())
+      val s1_word_en = Mux(!io.cpu.replay_next, word_en, UIntToOH(uncachedResp.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes)), wordsPerRow))
+      (for (i <- 0 until wordsPerRow) yield {
+        RegEnable(Mux1H(Mux(s1_word_en(i), s1_data_way, 0.U), s1_way_words.map(_(i))), en)
+      }).asUInt
     }
   }
   val s2_probe_way = RegEnable(s1_hit_way, s1_probe)
@@ -286,9 +297,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_hit, s2_grow_param, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_data_decoded = decodeData(s2_data)
   val s2_word_idx = s2_req.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
-  val s2_did_read = RegEnable(s1_did_read, s1_valid_not_nacked)
-  val s2_data_error = s2_did_read && (s2_data_decoded.map(_.error).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
-  val s2_data_error_uncorrectable = (s2_data_decoded.map(_.uncorrectable).grouped(wordBits/eccBits).map(_.reduce(_||_)).toSeq)(s2_word_idx)
+  val s2_data_error = s2_data_decoded.map(_.error).orR
+  val s2_data_error_uncorrectable = s2_data_decoded.map(_.uncorrectable).orR
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
@@ -517,7 +527,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       }
     } .elsewhen (grantIsUncached) {
       val d_sel = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
-      val req = Mux1H(d_sel, uncachedReqs)
+      uncachedResp := Mux1H(d_sel, uncachedReqs)
       (d_sel.asBools zip uncachedInFlight) foreach { case (s, f) =>
         when (s && d_last) {
           assert(f, "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
@@ -528,14 +538,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         if (!cacheParams.pipelineWayMux)
           s1_data_way := 1.U << nWays
         s2_req.cmd := M_XRD
-        s2_req.typ := req.typ
-        s2_req.tag := req.tag
+        s2_req.typ := uncachedResp.typ
+        s2_req.tag := uncachedResp.tag
         s2_req.addr := {
           require(rowOffBits >= beatOffBits)
           val dontCareBits = s1_paddr >> rowOffBits << rowOffBits
-          dontCareBits | req.addr(beatOffBits-1, 0)
+          dontCareBits | uncachedResp.addr(beatOffBits-1, 0)
         }
-        s2_uncached_resp_addr := req.addr
+        s2_uncached_resp_addr := uncachedResp.addr
       }
     } .elsewhen (grantIsVoluntary) {
       assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.") // TODO should handle Ack coming back on same cycle!
@@ -610,8 +620,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_release_data_valid = Reg(next = dataArb.io.in(2).fire())
   val s2_release_data_valid = Reg(next = s1_release_data_valid && !releaseRejected)
   val releaseDataBeat = Cat(UInt(0), c_count) + Mux(releaseRejected, UInt(0), s1_release_data_valid + Cat(UInt(0), s2_release_data_valid))
-  val writeback_data_error = s2_data_decoded.map(_.error).reduce(_||_)
-  val writeback_data_uncorrectable = s2_data_decoded.map(_.uncorrectable).reduce(_||_)
 
   val nackResponseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = TLPermissions.NtoN)
   val cleanReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param)
@@ -681,7 +689,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     tl_out_c.bits.source := probe_bits.source
     tl_out_c.bits.address := probe_bits.address
     tl_out_c.bits.data := s2_data_corrected
-    tl_out_c.bits.corrupt := inWriteback && writeback_data_uncorrectable
+    tl_out_c.bits.corrupt := inWriteback && s2_data_error_uncorrectable
   }
 
   dataArb.io.in(2).valid := inWriteback && releaseDataBeat < refillCycles
@@ -729,7 +737,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // uncached response
   io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
   val doUncachedResp = Reg(next = io.cpu.replay_next)
-  val s2_uncached_data_beat = RegEnable(tl_out.d.bits.data, io.cpu.replay_next)
+  val s2_uncached_data_word = {
+    val word_idx = uncachedResp.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
+    val words = tl_out.d.bits.data.grouped(wordBits)
+    RegEnable(words(word_idx), io.cpu.replay_next)
+  }
   when (doUncachedResp) {
     assert(!s2_valid_hit)
     io.cpu.resp.valid := true
@@ -738,10 +750,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // load data subword mux/sign extension
-  val s2_data_word = ((0 until rowBits by wordBits).map(i => s2_data_uncorrected(wordBits+i-1,i)): Seq[UInt])(s2_word_idx)
-  val s2_data_word_corrected = ((0 until rowBits by wordBits).map(i => s2_data_corrected(wordBits+i-1,i)): Seq[UInt])(s2_word_idx)
-  val s2_uncached_data_word = ((0 until cacheDataBits by wordBits).map(i => s2_uncached_data_beat(wordBits+i-1,i)): Seq[UInt])(s2_word_idx)
-  val s2_data_word_possibly_uncached = Mux(cacheParams.pipelineWayMux && doUncachedResp, s2_uncached_data_word, s2_data_word)
+  val s2_data_word = (0 until rowBits by wordBits).map(i => s2_data_uncorrected(wordBits+i-1,i)).reduce(_|_)
+  val s2_data_word_corrected = (0 until rowBits by wordBits).map(i => s2_data_corrected(wordBits+i-1,i)).reduce(_|_)
+  val s2_data_word_possibly_uncached = Mux(cacheParams.pipelineWayMux && doUncachedResp, s2_uncached_data_word, 0.U) | s2_data_word
   val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word_possibly_uncached, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
@@ -867,8 +878,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // report errors
   val (data_error, data_error_uncorrectable, data_error_addr) =
     if (usingDataScratchpad) (s2_valid_data_error, s2_data_error_uncorrectable, s2_req.addr) else {
-      (RegNext(tl_out_c.fire() && inWriteback && writeback_data_error),
-        RegNext(writeback_data_uncorrectable),
+      (RegNext(tl_out_c.fire() && inWriteback && s2_data_error),
+        RegNext(s2_data_error_uncorrectable),
         probe_bits.address) // This is stable for a cycle after tl_out_c.fire, so don't need a register
     }
   {
