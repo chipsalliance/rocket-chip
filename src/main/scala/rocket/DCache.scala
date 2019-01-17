@@ -162,6 +162,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_waw_hazard = Wire(Bool())
 
   val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_retry :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 8)
+  val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
+  val flushed = Reg(init=Bool(true))
   val cached_grant_wait = Reg(init=Bool(false))
   val release_ack_wait = Reg(init=Bool(false))
   val can_acquire_before_release = !release_ack_wait && release_queue_empty
@@ -301,9 +303,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_error_uncorrectable = s2_data_decoded.map(_.uncorrectable).orR
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
-  val s2_valid_hit_pre_data_ecc = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
-  val s2_valid_data_error = s2_valid_hit_pre_data_ecc && s2_data_error && can_acquire_before_release
-  val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error && (!s2_waw_hazard || s2_store_merge)
+  val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
+  val s2_valid_hit_pre_data_ecc = s2_valid_hit_pre_data_ecc_and_waw && (!s2_waw_hazard || s2_store_merge)
+  val s2_valid_data_error = s2_valid_hit_pre_data_ecc_and_waw && s2_data_error && can_acquire_before_release
+  val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && can_acquire_before_release
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   dontTouch(s2_valid_cached_miss)
@@ -319,8 +322,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
   dontTouch(s2_victim_dirty)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
-  io.cpu.s2_nack := s2_valid_no_xcpt && !s2_valid_hit && !(s2_valid_uncached_pending && tl_out_a.ready)
-  when (io.cpu.s2_nack || (s2_valid_hit && s2_update_meta)) { s1_nack := true }
+  io.cpu.s2_nack := s2_valid_no_xcpt && !(s2_valid_uncached_pending && tl_out_a.ready || supports_flush && s2_req.cmd === M_FLUSH_ALL && flushed) && !s2_valid_hit
+  when (io.cpu.s2_nack || (s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta)) { s1_nack := true }
 
   // tag updates on ECC errors
   val s2_first_meta_corrected = PriorityMux(s2_meta_correctable_errors, s2_meta_corrected)
@@ -336,7 +339,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // tag updates on hit
-  metaArb.io.in(2).valid := s2_valid_hit_pre_data_ecc && s2_update_meta
+  metaArb.io.in(2).valid := s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta
   metaArb.io.in(2).bits.write := !s2_data_error && !io.cpu.s2_kill
   metaArb.io.in(2).bits.way_en := s2_victim_way
   metaArb.io.in(2).bits.idx := s2_vaddr(idxMSB, idxLSB)
@@ -363,7 +366,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // don't perform data correction if it might clobber a recent store
   val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
   // pending store buffer
-  val s2_valid_correct = s2_valid_hit_pre_data_ecc && s2_correct && !io.cpu.s2_kill
+  val s2_valid_correct = s2_valid_hit_pre_data_ecc_and_waw && s2_correct && !io.cpu.s2_kill
   def s2_store_valid_pre_kill = s2_valid_hit && s2_write && !s2_sc_fail
   def s2_store_valid = s2_store_valid_pre_kill && !io.cpu.s2_kill
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
@@ -380,7 +383,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore_drain_on_miss = releaseInFlight || RegNext(io.cpu.s2_nack)
   val pstore1_held = Reg(Bool())
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
-  def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && (!s2_waw_hazard || s2_store_merge) && s2_write && !s2_sc_fail && !s2_kill || pstore1_held
+  def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && s2_write && !s2_kill || pstore1_held
   val pstore1_valid = s2_store_valid || pstore1_held
   any_pstore_valid := pstore1_held || pstore2_valid
   val pstore_drain_structural = pstore1_valid_likely && pstore2_valid && ((s1_valid && s1_write) || pstore1_rmw)
@@ -708,7 +711,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (metaArb.io.in(4).fire()) { release_state := s_ready }
 
   // cached response
-  io.cpu.resp.valid := s2_valid_hit
   io.cpu.resp.bits <> s2_req
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false
@@ -735,16 +737,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // uncached response
-  io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
-  val doUncachedResp = Reg(next = io.cpu.replay_next)
   val s2_uncached_data_word = {
     val word_idx = uncachedResp.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
     val words = tl_out.d.bits.data.grouped(wordBits)
     RegEnable(words(word_idx), io.cpu.replay_next)
   }
+  val doUncachedResp = Reg(next = io.cpu.replay_next)
+  io.cpu.resp.valid := (s2_valid_hit_pre_data_ecc || doUncachedResp) && !s2_data_error
+  io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
   when (doUncachedResp) {
     assert(!s2_valid_hit)
-    io.cpu.resp.valid := true
     io.cpu.resp.bits.replay := true
     io.cpu.resp.bits.addr := s2_uncached_resp_addr
   }
@@ -779,7 +781,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val resetting = RegInit(false.B)
   if (!usingDataScratchpad)
     when (RegNext(reset)) { resetting := true }
-  val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val flushCounterNext = flushCounter +& 1
@@ -796,10 +797,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(5).bits.data := metaArb.io.in(4).bits.data
 
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
-  val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   if (supports_flush) {
     when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
-      io.cpu.s2_nack := !flushed
       when (!flushed) {
         flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
       }
