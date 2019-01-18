@@ -103,7 +103,7 @@ case class TLManagerPortParameters(
   def maxTransfer = managers.map(_.maxTransfer).max
   def mayDenyGet = managers.exists(_.mayDenyGet)
   def mayDenyPut = managers.exists(_.mayDenyPut)
-  
+
   // Operation sizes supported by all outward Managers
   val allSupportAcquireT   = managers.map(_.supportsAcquireT)  .reduce(_ intersect _)
   val allSupportAcquireB   = managers.map(_.supportsAcquireB)  .reduce(_ intersect _)
@@ -420,4 +420,16 @@ object ManagerUnification
     }
     map.values.map(m => m.copy(address = AddressSet.unify(m.address))).toList
   }
+}
+
+case class TLBufferParams(
+  a: BufferParams = BufferParams.none,
+  b: BufferParams = BufferParams.none,
+  c: BufferParams = BufferParams.none,
+  d: BufferParams = BufferParams.none,
+  e: BufferParams = BufferParams.none
+) extends DirectedBuffers[TLBufferParams] {
+  def copyIn(x: BufferParams) = this.copy(b = x, d = x)
+  def copyOut(x: BufferParams) = this.copy(a = x, c = x, e = x)
+  def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
 }
