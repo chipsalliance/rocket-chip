@@ -100,7 +100,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             )
           ),
           latency = 2, // TODO
-          nInterrupts = 3,
+          nGlobalInterrupts = -1, //Set in upper level call after this object is created
           nPriorities = params.maxPriorities,
           targets = Nil
         )
@@ -151,12 +151,40 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
     val harts = io_harts.flatten
 
+    def getTargets(): Seq[OMInterruptTarget] = {
+      io_harts.zipWithIndex.map {
+        case (h, i) =>
+
+          println(s"mode: ${h}")
+
+          // +1 because 0 is reserved, +1-1 because the range is half-open
+          OMInterruptTarget(
+            hartId = i,
+            mode = OMMachineMode //OMPLIC.getMode(h.)
+          )
+      }
+    }
+
+    getTargets()
+
     println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>
       // +1 because 0 is reserved, +1-1 because the range is half-open
       println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
     println("")
+
+    def getSources(): Seq[OMInterrupt] = {
+      flatSources.zipWithIndex.map {
+        case (s, i) =>
+          // +1 because 0 is reserved, +1-1 because the range is half-open
+          OMInterrupt(
+            receiver = "", // TODO Reference
+            numberAtReceiver = i + 1,
+            name = s.name
+          )
+      }
+    }
 
     require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
     require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")

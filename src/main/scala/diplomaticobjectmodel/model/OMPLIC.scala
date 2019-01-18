@@ -10,7 +10,7 @@ case object OMUserMode extends OMPrivilegeMode
 case class OMInterruptTarget(
   hartId: Int,
   mode: OMPrivilegeMode,
-  _types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")
+  _types: Seq[String] = Seq("OMInterruptTarget", "OMCompoundType")
 ) extends OMCompoundType
 
 case class OMPLIC(
@@ -18,8 +18,19 @@ case class OMPLIC(
   interrupts: Seq[OMInterrupt],
   specifications: List[OMSpecification],
   latency: Int,
-  nInterrupts: Int, // plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
+  nGlobalInterrupts: Int,  // Number of global interrupts going into the PLIC
   nPriorities: Int,
   targets: List[OMInterruptTarget],
   _types: Seq[String] = Seq("OMPLIC", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
+
+object OMPLIC {
+  def getMode(mode: String): OMPrivilegeMode = {
+    mode match {
+      case "M" => OMMachineMode
+      case "S" => OMSupervisorMode
+      case "U" => OMUserMode
+    }
+  }
+
+}
