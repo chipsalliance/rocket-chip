@@ -1253,7 +1253,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings)
       val cfg = p(DebugModuleParams)
-
       Seq[OMComponent](
         OMDebug(
           memoryRegions = memRegions,
@@ -1266,7 +1265,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
           ),
           nAbstractDataWords = cfg.nAbstractDataWords,
           nProgramBufferWords = cfg.nProgramBufferWords,
-          hasJtagDTM = p(ExportDebugJTAG),
+          interfaceType = OMDebug.getDebugInterfaceType(p(ExportDebugJTAG), false, p(ExportDebugDMI)),
         )
       )
     }
