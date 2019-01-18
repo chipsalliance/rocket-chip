@@ -58,7 +58,7 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
   def shift(x: Int) = IdRange(start+x, end+x)
   def size = end - start
   def isEmpty = end == start
-  
+
   def range = start until end
 }
 
@@ -90,13 +90,13 @@ case class TransferSizes(min: Int, max: Int)
     else { UInt(log2Ceil(min)) <= x && x <= UInt(log2Ceil(max)) }
 
   def contains(x: TransferSizes) = x.none || (min <= x.min && x.max <= max)
-  
+
   def intersect(x: TransferSizes) =
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
 
   override def toString() = "TransferSizes[%d, %d]".format(min, max)
- 
+
 }
 
 object TransferSizes {
@@ -299,4 +299,10 @@ case class RationalCrossing(direction: RationalDirection = FastToSlow) extends C
 case class AsynchronousCrossing(depth: Int = 8, sourceSync: Int = 3, sinkSync: Int = 3, safe: Boolean = true, narrow: Boolean = false) extends ClockCrossingType
 {
   def asSinkParams = AsyncQueueParams(depth, sinkSync, safe, narrow)
+}
+
+trait DirectedBuffers[T] {
+  def copyIn(x: BufferParams): T
+  def copyOut(x: BufferParams): T
+  def copyInOut(x: BufferParams): T
 }
