@@ -403,18 +403,6 @@ BaseConfig. You can change those numbers to get a Rocket core with different
 cache parameters. For example, by changing L1I, NWays to 4, you will get
 a 32KB 4-way set-associative L1 instruction cache rather than a 16KB 2-way
 set-associative L1 instruction cache.
-
-Further down, you will be able to see two FPGA configurations:
-DefaultFPGAConfig and DefaultFPGASmallConfig. DefaultFPGAConfig inherits from
-BaseConfig, but overrides the low-performance memory port (i.e., backup
-memory port) to be turned off. This is because the high-performance memory
-port is directly connected to the high-performance AXI interface on the ZYNQ
-FPGA. DefaultFPGASmallConfig inherits from DefaultFPGAConfig, but changes the
-cache sizes, disables the FPU, turns off the fast early-out multiplier and
-divider, and reduces the number of TLB entries (all defined in SmallConfig).
-This small configuration is used for the Zybo FPGA board, which has the
-smallest ZYNQ part.
-
 Towards the end, you can also find that DefaultSmallConfig inherits all
 parameters from BaseConfig but overrides the same parameters of
 WithNSmallCores.
