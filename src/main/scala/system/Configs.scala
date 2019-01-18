@@ -31,13 +31,13 @@ class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
-  new WithNBanks(2) ++ new BaseConfig)
+  new WithNBanks(2) ++ new DefaultConfig)
 
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new DefaultConfig)
 
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
-  new WithNBanks(4) ++ new BaseConfig)
+  new WithNBanks(4) ++ new DefaultConfig)
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
@@ -51,7 +51,7 @@ class DualChannelBenchmarkConfig extends Config(new WithNMemoryChannels(2) ++ ne
 class QuadChannelBenchmarkConfig extends Config(new WithNMemoryChannels(4) ++ new SingleChannelBenchmarkConfig)
 class OctoChannelBenchmarkConfig extends Config(new WithNMemoryChannels(8) ++ new SingleChannelBenchmarkConfig)
 
-class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new BaseConfig)
+class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
 class DualCoreConfig extends Config(
   new WithNBigCores(2) ++ new BaseConfig)
