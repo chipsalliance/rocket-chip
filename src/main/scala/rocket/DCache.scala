@@ -241,7 +241,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
   val s1_all_data_ways = Vec(data.io.resp :+ dummyEncodeData(tl_out.d.bits.data))
-  val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask)
+  val s1_mask_xwr = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask
+  val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, s1_mask_xwr)
+  // for partial writes, s1_data.mask must be a subset of s1_mask_xwr
+  assert(!(s1_valid && s1_req.cmd === M_PWR) || (s1_mask_xwr & ~io.cpu.s1_data.mask).andR)
 
   val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
   val s2_valid_no_xcpt = s2_valid && !io.cpu.s2_xcpt.asUInt.orR
@@ -436,7 +439,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // store->load RAW hazard detection
   def s1Depends(addr: UInt, mask: UInt) =
     addr(idxMSB, wordOffBits) === s1_req.addr(idxMSB, wordOffBits) &&
-    Mux(s1_write, (eccByteMask(mask) & eccByteMask(s1_mask)).orR, (mask & s1_mask).orR)
+    Mux(s1_write, (eccByteMask(mask) & eccByteMask(s1_mask_xwr)).orR, (mask & s1_mask_xwr).orR)
   val s1_hazard =
     (pstore1_valid_likely && s1Depends(pstore1_addr, pstore1_mask)) ||
      (pstore2_valid && s1Depends(pstore2_addr, pstore2_storegen_mask))
