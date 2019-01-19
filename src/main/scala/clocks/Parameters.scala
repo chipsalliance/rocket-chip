@@ -1,10 +1,9 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.clocks
 
-import Chisel._
+import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
 import scala.math.max
 
 // All Clock parameters specify only the PLL values required at power-on
