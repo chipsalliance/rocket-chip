@@ -16,11 +16,10 @@ case class OMInterruptTarget(
 case class OMPLIC(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
-  specifications: List[OMSpecification],
+  specifications: Seq[OMSpecification],
   latency: Int,
-  nGlobalInterrupts: Int,  // Number of global interrupts going into the PLIC
   nPriorities: Int,
-  targets: List[OMInterruptTarget],
+  targets: Seq[OMInterruptTarget],
   _types: Seq[String] = Seq("OMPLIC", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
 
