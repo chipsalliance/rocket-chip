@@ -1,17 +1,16 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.clocks
 
-import Chisel._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+import chisel3._
+import freechips.rocketchip.util.HeterogeneousBag
 
-class ClockBundle(params: ClockBundleParameters) extends GenericParameterizedBundle(params)
+class ClockBundle(val params: ClockBundleParameters) extends Bundle
 {
   val clock = Clock()
   val reset = Bool()
 }
 
-class ClockGroupBundle(params: ClockGroupBundleParameters) extends GenericParameterizedBundle(params)
+class ClockGroupBundle(val params: ClockGroupBundleParameters) extends Bundle
 {
   val member = HeterogeneousBag(params.members.map(p => new ClockBundle(p)))
 }
