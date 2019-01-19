@@ -12,7 +12,8 @@ trait OMRange extends OMCompoundType {
 
 case class OMBitRange(
   base: BigInt,
-  size: BigInt
+  size: BigInt,
+  _types: Seq[String] = Seq("OMBitRange", "OMCompoundType")
 ) extends OMRange
 
 case class OMAddressSet(
