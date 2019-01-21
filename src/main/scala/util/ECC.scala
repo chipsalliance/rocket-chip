@@ -197,9 +197,7 @@ case class ECCParams(
   bytes: Int = 1,
   code: Code = new IdentityCode,
   notifyErrors: Boolean = false,
-) {
-  require(bytes == 1 || !code.isInstanceOf[IdentityCode], "Don't change the lane size if theres no encoding")
-}
+)
 
 object Code {
   def fromString(s: Option[String]): Code = fromString(s.getOrElse("none"))
