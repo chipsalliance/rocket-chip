@@ -43,10 +43,11 @@ case class ClockEdgeParameters(
   sourceInfo: SourceInfo)
 {
   // Unify the given+taken ClockParameters
-  require (!source.give.isEmpty || !sink.take.isEmpty)
-  val clock = source.give.orElse(sink.take).get
-  source.give.foreach { x => require (clock == x) }
-  sink.take.foreach   { x => require (clock == x) }
+  val clock = source.give.orElse(sink.take).map { clock =>
+    source.give.foreach { x => require (clock == x) }
+    sink.take.foreach   { x => require (clock == x) }
+    clock
+  }
 
   val bundle = ClockBundleParameters()
 }

@@ -18,10 +18,11 @@ class ResetWrangler(debounceNs: Double = 100000)(implicit p: Parameters) extends
 
     val status = IO(Output(UInt(in.size.W)))
     status := Cat(in.map(_.reset).reverse)
-
     val causes = in.map(_.reset).foldLeft(false.B)(_ || _)
-    val (slowIn, slowEdge) = node.in.minBy(_._2.clock.freqMHz)
-    val slowPeriodNs = 1000 / slowEdge.clock.freqMHz
+
+    require(node.in.forall(_._2.clock.isDefined), "Cannot wrangle reset for an unspecified clock frequency")
+    val (slowIn, slowEdge) = node.in.minBy(_._2.clock.get.freqMHz)
+    val slowPeriodNs = 1000 / slowEdge.clock.get.freqMHz
     val slowTicks = math.ceil(debounceNs/slowPeriodNs).toInt max 7
     val slowBits = log2Ceil(slowTicks+1)
 
