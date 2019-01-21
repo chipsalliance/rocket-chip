@@ -20,10 +20,9 @@ case class OMDebug(
 object OMDebug {
 
   def getDebugInterfaceType(jtag: Boolean, cjtag: Boolean, dmi: Boolean): DebugInterfaceType = {
-      if (jtag) { JTAG }
-      else if (cjtag) { CJTAG }
-      else if (dmi) { DMI }
-      else { throw new IllegalArgumentException }
-    }
+    if (jtag) { JTAG }
+    else if (cjtag) { CJTAG }
+    else if (dmi) { DMI }
+    else { throw new IllegalArgumentException }
   }
 }

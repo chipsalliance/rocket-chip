@@ -1265,7 +1265,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
           ),
           nAbstractDataWords = cfg.nAbstractDataWords,
           nProgramBufferWords = cfg.nProgramBufferWords,
-          interfaceType = OMDebug.getDebugInterfaceType(p(ExportDebugJTAG), false, p(ExportDebugDMI)),
+          interfaceType = OMDebug.getDebugInterfaceType(p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI)),
         )
       )
     }
