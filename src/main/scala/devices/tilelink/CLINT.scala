@@ -46,7 +46,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings) // TODO name source???
+      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(module.omRegMap))
 
       Seq[OMComponent](
         OMCLINT(
@@ -63,12 +63,12 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     }
   }
 
-  val node = TLRegisterNode(
+  val node: TLRegisterNode = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
     beatBytes = beatBytes)
 
-  val intnode = IntNexusNode(
+  val intnode : IntNexusNode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false)
@@ -104,7 +104,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
      * bffc mtime hi
      */
 
-    node.regmap(
+    val omRegMap : OMRegisterMap = node.regmap(
       0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.flatMap{ case (r, i) =>
         RegField(1, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0))) :: RegField(ipiWidth - 1) :: Nil }),
       timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) => RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"),
