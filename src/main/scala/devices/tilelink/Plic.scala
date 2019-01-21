@@ -153,13 +153,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def getTargets(): Seq[OMInterruptTarget] = {
       interrupts.zip(io_harts).zipWithIndex.map {
         case ((mode, hart), index) =>
-
-          println(s"mode: ${mode} hart: ${hart.length} index: ${index}")
-          harts.map(println _)
-
-          // +1 because 0 is reserved, +1-1 because the range is half-open
+         // +1 because 0 is reserved, +1-1 because the range is half-open
           OMInterruptTarget(
-            hartId = 0,
+            hartId = index,
             modes = OMPLIC.getMode(hart.length)
           )
       }
