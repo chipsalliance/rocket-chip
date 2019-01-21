@@ -151,15 +151,16 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val harts = io_harts.flatten
 
     def getTargets(): Seq[OMInterruptTarget] = {
-      io_harts.zipWithIndex.map {
-        case (h, i) =>
+      interrupts.zip(io_harts).zipWithIndex.map {
+        case ((mode, hart), index) =>
 
-          println(s"mode: ${h}")
+          println(s"mode: ${mode} hart: ${hart.length} index: ${index}")
+          harts.map(println _)
 
           // +1 because 0 is reserved, +1-1 because the range is half-open
           OMInterruptTarget(
-            hartId = i,
-            mode = OMMachineMode //OMPLIC.getMode(h.)
+            hartId = 0,
+            modes = OMPLIC.getMode(hart.length)
           )
       }
     }

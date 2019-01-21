@@ -9,7 +9,7 @@ case object OMUserMode extends OMPrivilegeMode
 
 case class OMInterruptTarget(
   hartId: Int,
-  mode: OMPrivilegeMode,
+  modes: Seq[OMPrivilegeMode],
   _types: Seq[String] = Seq("OMInterruptTarget", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -24,12 +24,11 @@ case class OMPLIC(
 ) extends OMDevice
 
 object OMPLIC {
-  def getMode(mode: String): OMPrivilegeMode = {
-    mode match {
-      case "M" => OMMachineMode
-      case "S" => OMSupervisorMode
-      case "U" => OMUserMode
+  def getMode(length: Int): Seq[OMPrivilegeMode] = {
+    length match {
+      case 1 => Seq(OMMachineMode)
+      case 2 => Seq(OMMachineMode,OMSupervisorMode)
+      case _ => throw new IllegalArgumentException
     }
   }
-
 }
