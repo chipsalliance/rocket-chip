@@ -205,7 +205,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val hitsVec = all_entries.map(vm_enabled && _.hit(vpn))
   val real_hits = hitsVec.asUInt
   val hits = Cat(!vm_enabled, real_hits)
-  val ppn = Mux1H(hitsVec :+ !vm_enabled, all_entries.map(_.ppn(vpn)) :+ vpn(ppnBits-1, 0))
+  val ppn = Mux1H(hitsVec :+ !vm_enabled, all_entries.map(_.ppn(vpn)) :+ io.req.bits.vaddr(paddrBits-1, pgIdxBits))
 
   // permission bit arrays
   when (do_refill && !invalidate_refill) {

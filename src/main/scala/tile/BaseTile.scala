@@ -53,7 +53,7 @@ trait HasTileParameters {
   def vaddrBits: Int =
     if (usingVM) {
       val v = pgIdxBits + pgLevels * pgLevelBits
-      require(v == xLen || xLen > v && v > paddrBits)
+      require(v == xLen || xLen > v)
       v
     } else {
       // since virtual addresses sign-extend but physical addresses
@@ -78,7 +78,7 @@ trait HasTileParameters {
   def masterPortBeatBytes = p(SystemBusKey).beatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
-  //                  Core   PTW                DTIM                    coprocessors           
+  //                  Core   PTW                DTIM                    coprocessors
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
 
   // TODO merge with isaString in CSR.scala
