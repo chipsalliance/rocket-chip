@@ -82,9 +82,25 @@ CONFIGS += $(CONFIGS_32)
 CONFIGS += $(CONFIGS_64)
 endif
 
+# Miscellaneous configs cover any remaining configurations not tested
+# above, but are included in the freechips.rocketchip.system package.
+# These are here to prevent regressions at the compilation level and
+# expected to be built, but not executed.
 ifeq ($(SUITE), Miscellaneous)
 PROJECT=freechips.rocketchip.system
-CONFIGS=RoccExampleConfig
+CONFIGS=\
+	DefaultSmallConfig \
+	DualBankConfig \
+	DualChannelConfig \
+	DualChannelDualBankConfig \
+	RoccExampleConfig \
+	Edge128BitConfig \
+	Edge32BitConfig \
+	QuadChannelBenchmarkConfig \
+	EightChannelConfig \
+	DualCoreConfig \
+	MemPortOnlyConfig \
+	MMIOPortOnlyConfig
 endif
 
 # These are the named regression targets.  While it's expected you run them in
