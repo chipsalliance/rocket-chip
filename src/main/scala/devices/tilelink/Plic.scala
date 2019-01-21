@@ -92,7 +92,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       Seq[OMComponent](
         OMPLIC(
           memoryRegions = memRegions,
-          interrupts = Nil, // TODO
+          interrupts = module.getSources(),
           specifications = List(
             OMSpecification(
               name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
@@ -153,14 +153,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def getTargets(): Seq[OMInterruptTarget] = {
       interrupts.zip(io_harts).zipWithIndex.map {
         case ((mode, hart), index) =>
-         // +1 because 0 is reserved, +1-1 because the range is half-open
           OMInterruptTarget(
             hartId = index,
             modes = OMPLIC.getMode(hart.length)
           )
       }
     }
-    
+
     println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>
       // +1 because 0 is reserved, +1-1 because the range is half-open
