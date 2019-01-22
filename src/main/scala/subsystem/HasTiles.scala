@@ -17,7 +17,7 @@ class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
     with HasExternallyDrivenTileConstants
     with Clocked
 
-trait HasTiles { this: BaseSubsystem =>
+trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   implicit val p: Parameters
   val tiles: Seq[BaseTile]
   protected def tileParams: Seq[TileParams] = tiles.map(_.tileParams)
