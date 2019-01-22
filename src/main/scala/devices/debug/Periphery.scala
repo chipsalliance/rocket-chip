@@ -17,6 +17,7 @@ import freechips.rocketchip.tilelink._
 /** Options for possible debug interfaces */
 case object ExportDebugDMI extends Field[Boolean](true)
 case object ExportDebugJTAG extends Field[Boolean](false)
+case object ExportDebugCJTAG extends Field[Boolean](false)
 
 /** A wrapper bundle containing one of the two possible debug interfaces */
 
