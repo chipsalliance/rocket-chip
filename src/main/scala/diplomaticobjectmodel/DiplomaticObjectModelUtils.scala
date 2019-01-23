@@ -5,7 +5,7 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceMapping, ResourcePermissions, ResourceReference, ResourceValue}
+import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Description, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceReference, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
@@ -187,43 +187,33 @@ object DiplomaticObjectModelAddressing {
       )
     }
 
-  val alwaysExtended = false
-  def describeInterrupts(resources: ResourceBindings): Seq[OMInterruptTarget] = {
+  private def getInterruptNumber(r: ResourceValue): BigInt = {
+    r match {
+      case ResourceInt(value: BigInt) => value
+      case _ => throw new IllegalArgumentException
+    }
+  }
+
+  private def getDeviceName(device: Device): String = {
+    device match {
+      case sd:SimpleDevice => sd.asInstanceOf[SimpleDevice].devNamePlusAddress
+      case _ => throw new IllegalArgumentException
+    }
+  }
+
+  def describeInterrupts(name: String, resources: ResourceBindings): Seq[OMInterrupt] = {
     val int = resources("int")
-
-    int.foreach { b => require (b.device.isDefined, "Device ${devname} property 'int' is missing user device") }
-    val parents = int.map(_.device.get).distinct
-    val simple = parents.size == 1 && !alwaysExtended
-
-    val parent =
-      if (!simple) { None }
-      else { println(Some("interrupt-parent" -> Seq(ResourceReference(parents.head.label)))) }
-
-    val interrupts =
-      if (!simple) { None }
-      else { println(Some("interrupts" -> int.map(_.value))) }
-
-    val interrupts_extended =
-      if (simple || parents.isEmpty) { None }
-      else { println(Some("interrupts-extended" -> int.flatMap(b => Seq(ResourceReference(b.device.get.label), b.value)))) }
-
-    val x = parents.head.parent.map(_.describe(resources = resources))
-
-    val y = x.map(_.name).getOrElse("")
-
-     Nil
+    int.flatMap {
+      b =>
+        val grandParentOpt = b.device.get.parent
+        grandParentOpt.map {
+         gp =>
+          OMInterrupt(
+            receiver = getDeviceName(gp),
+            numberAtReceiver = getInterruptNumber(b.value).toInt,
+            name = name
+          )
+        }
+    }
   }
 }
-
-//OMInterruptTarget(
-//hartId: Int,
-//mode: OMPrivilegeMode,
-//_types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")
-//)
-
-//OMInterrupt(
-//receiver: String, // TODO Reference
-//numberAtReceiver: Int,
-//name: String,
-//_types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")
-//)

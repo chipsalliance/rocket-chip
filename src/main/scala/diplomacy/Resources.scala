@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
+import java.awt.Label
+
 import Chisel.log2Ceil
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
@@ -186,6 +188,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
   with DeviceRegName
 {
   override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
+  var devNamePlusAddress: String = ""
+
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
     val int = describeInterrupts(resources)      // interrupt description
@@ -207,6 +211,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
 
     val names = optDef("reg-names", named.map(x => ResourceString(DiplomacyUtils.regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
+
+    devNamePlusAddress = name
 
     Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
   }
