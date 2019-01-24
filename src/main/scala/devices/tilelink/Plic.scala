@@ -101,7 +101,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             )
           ),
           latency = 2, // TODO
-          nInterrupts = 3,
+          nInterrupts = module.getLocalInterrupts().size,
           nPriorities = params.maxPriorities,
           targets = Nil
         )
@@ -158,6 +158,16 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
     }
     println("")
+
+    def getLocalInterrupts(): Seq[OMInterrupt] = {
+      flatSources.zipWithIndex.map { s =>
+        OMInterrupt(
+          receiver = "", // TODO Reference
+          numberAtReceiver = s._2 + 1,
+          name = s._1.name
+        )
+      }
+    }
 
     require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
     require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
