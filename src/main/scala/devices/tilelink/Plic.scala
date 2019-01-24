@@ -93,7 +93,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       Seq[OMComponent](
         OMPLIC(
           memoryRegions = memRegions,
-          interrupts = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings),
+          interrupts = module.getSources(),
           specifications = List(
             OMSpecification(
               name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
@@ -101,9 +101,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             )
           ),
           latency = 2, // TODO
-          nInterrupts = module.getLocalInterrupts().size,
           nPriorities = params.maxPriorities,
-          targets = Nil
+          targets = module.getTargets()
         )
       )
     }
@@ -159,13 +158,25 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
     println("")
 
-    def getLocalInterrupts(): Seq[OMInterrupt] = {
-      flatSources.zipWithIndex.map { s =>
-        OMInterrupt(
-          receiver = "", // TODO Reference
-          numberAtReceiver = s._2 + 1,
-          name = s._1.name
-        )
+    def getTargets(): Seq[OMInterruptTarget] = {
+      interrupts.zip(io_harts).zipWithIndex.map {
+        case ((mode, hart), index) =>
+          OMInterruptTarget(
+            hartId = index,
+            modes = OMPLIC.getMode(hart.length)
+          )
+      }
+    }
+
+    def getSources(): Seq[OMInterrupt] = {
+      flatSources.zipWithIndex.map {
+        case (s, i) =>
+          // +1 because 0 is reserved, +1-1 because the range is half-open
+          OMInterrupt(
+            receiver = "", // TODO Reference
+            numberAtReceiver = i + 1,
+            name = s.name
+          )
       }
     }
 
