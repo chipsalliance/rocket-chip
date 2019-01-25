@@ -158,8 +158,10 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
     println("")
 
+    val unflattenedInts = intnode.in.map { case (i, e) => i.take(e.source.num) }.zip(io_harts).zipWithIndex
+
     def getTargets(): Seq[OMInterruptTarget] = {
-      interrupts.zip(io_harts).zipWithIndex.map {
+      unflattenedInts.map {
         case ((mode, hart), index) =>
           OMInterruptTarget(
             hartId = index,
