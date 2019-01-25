@@ -2,8 +2,6 @@
 
 package freechips.rocketchip.diplomacy
 
-import java.awt.Label
-
 import Chisel.log2Ceil
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._

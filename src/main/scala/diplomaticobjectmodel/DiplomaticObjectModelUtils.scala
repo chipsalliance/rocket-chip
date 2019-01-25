@@ -203,17 +203,14 @@ object DiplomaticObjectModelAddressing {
 
   def describeInterrupts(name: String, resources: ResourceBindings): Seq[OMInterrupt] = {
     val int = resources("int")
-    int.flatMap {
-      b =>
-        val grandParentOpt = b.device.get.parent
-        grandParentOpt.map {
-         gp =>
-          OMInterrupt(
+    for {
+      b <- int
+      grandParentOpt = b.device.get.parent
+      gp <- grandParentOpt
+    } yield OMInterrupt(
             receiver = getDeviceName(gp),
-            numberAtReceiver = getInterruptNumber(b.value).toInt,
+            numberAtReceiver = getInterruptNumber(b.value),
             name = name
           )
-        }
     }
-  }
 }
