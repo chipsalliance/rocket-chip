@@ -88,12 +88,12 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
     def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
-      val  Description(name, mapping) = describe(resourceBindings)
+      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
 
       Seq[OMComponent](
         OMPLIC(
           memoryRegions = memRegions,
-          interrupts = module.getSources(),
+          interrupts = ints,
           specifications = List(
             OMSpecification(
               name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
@@ -164,18 +164,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
           OMInterruptTarget(
             hartId = index,
             modes = OMPLIC.getMode(hart.length)
-          )
-      }
-    }
-
-    def getSources(): Seq[OMInterrupt] = {
-      flatSources.zipWithIndex.map {
-        case (s, i) =>
-          // +1 because 0 is reserved, +1-1 because the range is half-open
-          OMInterrupt(
-            receiver = "", // TODO Reference
-            numberAtReceiver = i + 1,
-            name = s.name
           )
       }
     }
