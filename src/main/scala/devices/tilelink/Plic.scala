@@ -89,6 +89,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
       val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
+      val Description(name, mapping) = describe(resourceBindings)
 
       Seq[OMComponent](
         OMPLIC(
