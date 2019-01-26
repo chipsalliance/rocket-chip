@@ -19,15 +19,17 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 // Use diplomatic interrupts to external interrupts from the subsystem into the tile
-trait HasExternalInterrupts { this: BaseTile =>
+trait SinksExternalInterrupts { this: BaseTile =>
 
-  val intInwardNode = intXbar.intnode
+  val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
   protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
 
-  val intcDevice = new Device {
-    def describe(resources: ResourceBindings): Description = {
-      Description(s"cpus/cpu@$hartId/interrupt-controller", Map(
+  def cpuDevice: Device
+  val intcDevice = new DeviceSnippet {
+    override def parent = Some(cpuDevice)
+    def describe(): Description = {
+      Description("interrupt-controller", Map(
         "compatible"           -> "riscv,cpu-intc".asProperty,
         "interrupt-controller" -> Nil,
         "#interrupt-cells"     -> 1.asProperty))
@@ -35,8 +37,6 @@ trait HasExternalInterrupts { this: BaseTile =>
   }
 
   ResourceBinding {
-    Resource(intcDevice, "reg").bind(ResourceInt(BigInt(hartId)))
-
     intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
       for (i <- s.range.start until s.range.end) {
        csrIntMap.lift(i).foreach { j =>
@@ -50,7 +50,7 @@ trait HasExternalInterrupts { this: BaseTile =>
 
   // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the
-  //         per-tile crossbar in subsystem.HasRocketTiles
+  //         per-tile crossbar in subsystem.HasTiles.connectInterrupts
 
   // debug, msip, mtip, meip, seip, lip offsets in CSRs
   def csrIntMap: List[Int] = {
@@ -73,5 +73,35 @@ trait HasExternalInterrupts { this: BaseTile =>
 
     val (interrupts, _) = intSinkNode.in(0)
     (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
+  }
+}
+
+trait SourcesExternalNotifications { this: BaseTile =>
+  // Report unrecoverable error conditions
+  val haltNode = IntSourceNode(IntSourcePortSimple())
+
+  def reportHalt(could_halt: Option[Bool]) {
+    val (halt_and_catch_fire, _) = haltNode.out(0)
+    halt_and_catch_fire(0) := could_halt.map(RegEnable(true.B, false.B, _)).getOrElse(false.B)
+  }
+
+  def reportHalt(errors: Seq[CanHaveErrors]) {
+    reportHalt(errors.flatMap(_.uncorrectable).map(_.valid).reduceOption(_||_))
+  }
+
+  // Report when the tile has ceased to retire instructions
+  val ceaseNode = IntSourceNode(IntSourcePortSimple())
+
+  def reportCease(could_cease: Option[Bool]) {
+    val (cease, _) = ceaseNode.out(0)
+    cease(0) := could_cease.map(RegNext(_)).getOrElse(false.B)
+  }
+
+  // Report when the tile is waiting for an interrupt
+  val wfiNode = IntSourceNode(IntSourcePortSimple())
+
+  def reportWFI(could_wfi: Option[Bool]) {
+    val (wfi, _) = wfiNode.out(0)
+    wfi(0) := could_wfi.map(RegNext(_)).getOrElse(false.B)
   }
 }

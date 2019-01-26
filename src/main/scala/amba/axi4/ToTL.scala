@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class AXI4ToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
+case class AXI4ToTLNode(wcorrupt: Boolean = false)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
   dFn = { case AXI4MasterPortParameters(masters, userBits) =>
     masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = masters.map(_.maxFlight.get).max
@@ -35,12 +35,13 @@ case class AXI4ToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AX
         supportsRead  = m.supportsGet.intersect(maxXfer),
         interleavedId = Some(0))}, // TL2 never interleaves D beats
     beatBytes = mp.beatBytes,
+    wcorrupt = wcorrupt,
     minLatency = mp.minLatency)
   })
 
-class AXI4ToTL()(implicit p: Parameters) extends LazyModule
+class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
-  val node = AXI4ToTLNode()
+  val node = AXI4ToTLNode(wcorrupt)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -59,11 +60,12 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       // Look for an Error device to redirect bad requests
       val errorDevs = edgeOut.manager.managers.filter(_.nodePath.last.lazyModule.className == "TLError")
       require (!errorDevs.isEmpty, "There is no TLError reachable from AXI4ToTL. One must be instantiated.")
-      val error = errorDevs.head.address.head.base
-      require (errorDevs.head.supportsPutPartial.contains(edgeOut.manager.maxTransfer),
-        s"Error device supports ${errorDevs.head.supportsPutPartial} PutPartial but must support ${edgeOut.manager.maxTransfer}")
-      require (errorDevs.head.supportsGet.contains(edgeOut.manager.maxTransfer),
-        s"Error device supports ${errorDevs.head.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
+      val errorDev = errorDevs.maxBy(_.maxTransfer)
+      val error = errorDev.address.head.base
+      require (errorDev.supportsPutPartial.contains(edgeOut.manager.maxTransfer),
+        s"Error device supports ${errorDev.supportsPutPartial} PutPartial but must support ${edgeOut.manager.maxTransfer}")
+      require (errorDev.supportsGet.contains(edgeOut.manager.maxTransfer),
+        s"Error device supports ${errorDev.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
 
       val r_out = Wire(out.a)
       val r_size1 = in.ar.bits.bytes1()
@@ -97,6 +99,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       in.w.ready  := w_out.ready && in.aw.valid
       w_out.valid := in.aw.valid && in.w.valid
       w_out.bits := edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
+      in.w.bits.corrupt.foreach { w_out.bits.corrupt := _ }
 
       val w_sel = UIntToOH(in.aw.bits.id, numIds)
       (w_sel.toBools zip w_count) foreach { case (s, r) =>
@@ -108,7 +111,7 @@ class AXI4ToTL()(implicit p: Parameters) extends LazyModule
       val ok_b  = Wire(in.b)
       val ok_r  = Wire(in.r)
 
-      val d_resp = Mux(out.d.bits.error, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
+      val d_resp = Mux(out.d.bits.denied || out.d.bits.corrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
       val d_hasData = edgeOut.hasData(out.d.bits)
       val d_last = edgeOut.last(out.d)
 
@@ -160,9 +163,9 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply()(implicit p: Parameters) =
+  def apply(wcorrupt: Boolean = false)(implicit p: Parameters) =
   {
-    val axi42tl = LazyModule(new AXI4ToTL)
+    val axi42tl = LazyModule(new AXI4ToTL(wcorrupt))
     axi42tl.node
   }
 }

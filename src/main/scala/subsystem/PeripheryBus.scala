@@ -2,116 +2,61 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.{Parameters}
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case class BusAtomics(
+  arithmetic: Boolean = true,
+  buffer: BufferParams = BufferParams.default,
+  widenBytes: Option[Int] = None
+)
+
 case class PeripheryBusParams(
-  beatBytes: Int,
-  blockBytes: Int,
-  arithmeticAtomics: Boolean = true,
-  bufferAtomics: BufferParams = BufferParams.default,
-  sbusCrossingType: SubsystemClockCrossing = SynchronousCrossing(), // relative to sbus
-  frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
-) extends HasTLBusParams
+    beatBytes: Int,
+    blockBytes: Int,
+    atomics: Option[BusAtomics] = Some(BusAtomics()),
+    frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
+    zeroDevice: Option[AddressSet] = None,
+    errorDevice: Option[DevNullParams] = None,
+    replicatorMask: BigInt = 0)
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
+  with HasRegionReplicatorParams
 
-case object PeripheryBusKey extends Field[PeripheryBusParams]
+class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
+    extends TLBusWrapper(params, "periphery_bus")
+    with CanHaveBuiltInDevices
+    with CanAttachTLSlaves {
 
-class PeripheryBus(params: PeripheryBusParams)
-                  (implicit p: Parameters) extends TLBusWrapper(params, "periphery_bus")
-    with HasTLXbarPhy
-    with HasCrossing {
-  val crossing = params.sbusCrossingType
+  private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  private val node: TLNode = params.atomics.map { pa =>
+    val in_xbar = LazyModule(new TLXbar)
+    val out_xbar = LazyModule(new TLXbar)
+    val fixer_node =
+      if (params.replicatorMask == 0) fixer.node else { fixer.node :*= RegionReplicator(params.replicatorMask) }
+    (out_xbar.node
+      :*= fixer_node
+      :*= TLBuffer(pa.buffer)
+      :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
+          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
+        } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
+      :*= in_xbar.node)
+  } .getOrElse { TLXbar() :*= fixer.node }
 
-  def toSlave[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= bufferTo(buffer) }
-  }
+  def inwardNode: TLInwardNode = node
+  def outwardNode: TLOutwardNode = node
+  def busView: TLEdge = fixer.node.edges.in.head
 
-  def toVariableWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: TLInwardNode) { toVariableWidthSlaveNodeOption(name, buffer)(Some(node)) }
-
-  def toVariableWidthSlaveNodeOption(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: Option[TLInwardNode]) {
-    node foreach { n => to("slave" named name) { n :*= fragmentTo(buffer) } }
-  }
-
-  def toVariableWidthSlave[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= fragmentTo(buffer) }
-  }
-
-  def toFixedWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(gen: TLInwardNode) {
-    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
-  }
-
-  def toFixedWidthSlave[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) { gen :*= fixedWidthTo(buffer) }
-  }
-
-  def toFixedWidthSingleBeatSlaveNode
-      (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: TLInwardNode) {
-    to("slave" named name) {
-      gen :*= TLFragmenter(widthBytes, params.blockBytes) :*= fixedWidthTo(buffer)
-    }
-  }
-
-  def toFixedWidthSingleBeatSlave[D,U,E,B <: Data]
-      (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) {
-      gen :*= TLFragmenter(widthBytes, params.blockBytes) :*= fixedWidthTo(buffer)
-    }
-  }
-
-  def toLargeBurstSlave[D,U,E,B <: Data]
-      (maxXferBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
-    to("slave" named name) {
-      gen :*= fragmentTo(params.beatBytes, maxXferBytes, buffer)
-    }
-  }
-
-  def toFixedWidthPort[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
-        TLIdentity.gen): OutwardNodeHandle[D,U,E,B] = {
-    to("port" named name) { gen := fixedWidthTo(buffer) }
-  }
-
-
-  def fromSystemBus(gen: => TLOutwardNode) {
-    from("sbus") {
-      (inwardNode
-        :*= TLBuffer(params.bufferAtomics)
-        :*= TLAtomicAutomata(arithmetic = params.arithmeticAtomics)
-        :*= gen)
-    }
-  }
-
-  def fromOtherMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLIdentity.gen): InwardNodeHandle[D,U,E,B] = {
-    from("master" named name) { bufferFrom(buffer) :=* gen }
-  }
-
+  attachBuiltInDevices(params)
 
   def toTile
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => TLNode): TLOutwardNode = {
+      (gen: => TLInwardNode): NoHandle = {
     to("tile" named name) { FlipRendering { implicit p =>
-      gen :*= bufferTo(buffer)
+      gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }}
   }
 }

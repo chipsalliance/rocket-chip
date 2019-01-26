@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import chisel3.experimental._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -15,6 +16,7 @@ import Instructions._
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient
   val debug = Bool()
+  val cease = Bool()
   val isa = UInt(width = 32)
 
   val dprv = UInt(width = PRV.SZ) // effective privilege for data accesses
@@ -115,11 +117,17 @@ object CSR
   val SZ = 3
   def X = BitPat.dontCare(SZ)
   def N = UInt(0,SZ)
-  def W = UInt(1,SZ)
-  def S = UInt(2,SZ)
-  def C = UInt(3,SZ)
+  def R = UInt(2,SZ)
   def I = UInt(4,SZ)
-  def R = UInt(5,SZ)
+  def W = UInt(5,SZ)
+  def S = UInt(6,SZ)
+  def C = UInt(7,SZ)
+
+  // mask a CSR cmd with a valid bit
+  def maskCmd(valid: Bool, cmd: UInt): UInt = {
+    // all commands less than CSR.I are treated by CSRFile as NOPs
+    cmd & ~Mux(valid, 0.U, CSR.I)
+  }
 
   val ADDRSZ = 12
   def busErrorIntCause = 128
@@ -165,6 +173,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
 class CSRDecodeIO extends Bundle {
   val csr = UInt(INPUT, CSR.ADDRSZ)
   val fp_illegal = Bool(OUTPUT)
+  val fp_csr = Bool(OUTPUT)
   val rocc_illegal = Bool(OUTPUT)
   val read_illegal = Bool(OUTPUT)
   val write_illegal = Bool(OUTPUT)
@@ -174,6 +183,7 @@ class CSRDecodeIO extends Bundle {
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
+  val ungated_clock = Clock().asInput
   val interrupts = new CoreInterrupts().asInput
   val hartid = UInt(INPUT, hartIdLen)
   val rw = new Bundle {
@@ -200,19 +210,26 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
   val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ)).flip
+  val set_fs_dirty = coreParams.haveFSDirty.option(Bool(INPUT))
   val rocc_interrupt = Bool(INPUT)
   val interrupt = Bool(OUTPUT)
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
   val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
+  val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
 }
 
-class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Parameters) extends CoreModule()(p)
+class CSRFile(
+  perfEventSets: EventSets = new EventSets(Seq()),
+  customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
+    extends CoreModule()(p)
     with HasCoreParameters {
-  val io = new CSRFileIO
+  val io = new CSRFileIO {
+    val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO).asOutput
+  }
 
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))
   reset_mstatus.mpp := PRV.M
@@ -261,6 +278,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     Causes.breakpoint,
     Causes.load_page_fault,
     Causes.store_page_fault,
+    Causes.misaligned_load,
+    Causes.misaligned_store,
+    Causes.illegal_instruction,
     Causes.user_ecall).map(1 << _).sum)
 
   val reg_debug = Reg(init=Bool(false))
@@ -278,7 +298,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val reg_mip = Reg(new MIP)
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_mcause = Reg(Bits(width = xLen))
-  val reg_mbadaddr = Reg(UInt(width = vaddrBitsExtended))
+  val reg_mtval = Reg(UInt(width = vaddrBitsExtended))
   val reg_mscratch = Reg(Bits(width = xLen))
   val mtvecWidth = paddrBits min xLen
   val reg_mtvec = mtvecInit match {
@@ -291,21 +311,20 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
   val reg_sepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_scause = Reg(Bits(width = xLen))
-  val reg_sbadaddr = Reg(UInt(width = vaddrBitsExtended))
+  val reg_stval = Reg(UInt(width = vaddrBitsExtended))
   val reg_sscratch = Reg(Bits(width = xLen))
   val reg_stvec = Reg(UInt(width = vaddrBits))
-  val reg_sptbr = Reg(new PTBR)
-  val reg_wfi = Reg(init=Bool(false))
+  val reg_satp = Reg(new PTBR)
+  val reg_wfi = withClock(io.ungated_clock) { Reg(init=Bool(false)) }
 
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
   val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else WideCounter(64)
+  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
   (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
   val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
-  val hpm_mask = reg_mcounteren & Mux((!usingVM).B || reg_mstatus.prv === PRV.S, delegable_counters.U, reg_scounteren)
 
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
@@ -313,7 +332,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   mip.msip := io.interrupts.msip
   mip.meip := io.interrupts.meip
   // seip is the OR of reg_mip.seip and the actual line from the PLIC
-  io.interrupts.seip.foreach { mip.seip := reg_mip.seip || RegNext(_) }
+  io.interrupts.seip.foreach { mip.seip := reg_mip.seip || _ }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
   val high_interrupts = io.interrupts.buserror.map(_ << CSR.busErrorIntCause).getOrElse(0.U)
@@ -325,7 +344,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, d_interrupts))
   val interruptMSB = BigInt(1) << (xLen-1)
   val interruptCause = UInt(interruptMSB) + whichInterrupt
-  io.interrupt := anyInterrupt && !reg_debug && !io.singleStep || reg_singleStepped
+  io.interrupt := (anyInterrupt && !io.singleStep || reg_singleStepped) && !(reg_debug || io.status.cease)
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
   io.pmp := reg_pmp.map(PMP(_))
@@ -343,22 +362,21 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
   val reg_misa = Reg(init=UInt(isaMax))
   val read_mstatus = io.status.asUInt()(xLen-1,0)
+  val read_mtvec = formTVec(reg_mtvec).padTo(xLen)
+  val read_stvec = formTVec(reg_stvec).sextTo(xLen)
 
   val read_mapping = LinkedHashMap[Int,Bits](
     CSRs.tselect -> reg_tselect,
     CSRs.tdata1 -> reg_bp(reg_tselect).control.asUInt,
     CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
-    CSRs.mimpid -> UInt(0),
-    CSRs.marchid -> UInt(0),
-    CSRs.mvendorid -> UInt(0),
     CSRs.misa -> reg_misa,
     CSRs.mstatus -> read_mstatus,
-    CSRs.mtvec -> reg_mtvec,
+    CSRs.mtvec -> read_mtvec,
     CSRs.mip -> read_mip,
     CSRs.mie -> reg_mie,
     CSRs.mscratch -> reg_mscratch,
     CSRs.mepc -> readEPC(reg_mepc).sextTo(xLen),
-    CSRs.mbadaddr -> reg_mbadaddr.sextTo(xLen),
+    CSRs.mtval -> reg_mtval.sextTo(xLen),
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.hartid)
 
@@ -429,10 +447,10 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     read_mapping += CSRs.sie -> read_sie.asUInt
     read_mapping += CSRs.sscratch -> reg_sscratch
     read_mapping += CSRs.scause -> reg_scause
-    read_mapping += CSRs.sbadaddr -> reg_sbadaddr.sextTo(xLen)
-    read_mapping += CSRs.sptbr -> reg_sptbr.asUInt
+    read_mapping += CSRs.stval -> reg_stval.sextTo(xLen)
+    read_mapping += CSRs.satp -> reg_satp.asUInt
     read_mapping += CSRs.sepc -> readEPC(reg_sepc).sextTo(xLen)
-    read_mapping += CSRs.stvec -> reg_stvec.sextTo(xLen)
+    read_mapping += CSRs.stvec -> read_stvec
     read_mapping += CSRs.scounteren -> reg_scounteren
     read_mapping += CSRs.mideleg -> reg_mideleg
     read_mapping += CSRs.medeleg -> reg_medeleg
@@ -446,38 +464,63 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     for (i <- 0 until read_pmp.size by pmpCfgPerCSR)
       read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> read_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
     for ((pmp, i) <- read_pmp zipWithIndex)
-      read_mapping += (CSRs.pmpaddr0 + i) -> pmp.addr
+      read_mapping += (CSRs.pmpaddr0 + i) -> pmp.readAddr
   }
+
+  // implementation-defined CSRs
+  val reg_custom = customCSRs.map { csr =>
+    require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
+    require(!read_mapping.contains(csr.id))
+    val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
+    read_mapping += csr.id -> reg
+    reg
+  }
+
+  // mimpid, marchid, and mvendorid are 0 unless overridden by customCSRs
+  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
 
   val decoded_addr = read_mapping map { case (k, v) => k -> (io.rw.addr === k) }
   val wdata = readModifyWriteCSR(io.rw.cmd, io.rw.rdata, io.rw.wdata)
 
   val system_insn = io.rw.cmd === CSR.I
-  val opcode = UInt(1) << io.rw.addr(2,0)
-  val insn_call = system_insn && opcode(0)
-  val insn_break = system_insn && opcode(1)
-  val insn_ret = system_insn && opcode(2)
-  val insn_wfi = system_insn && opcode(5)
+  val decode_table = Seq(        SCALL->       List(Y,N,N,N,N,N),
+                                 SBREAK->      List(N,Y,N,N,N,N),
+                                 MRET->        List(N,N,Y,N,N,N),
+                                 CEASE->       List(N,N,N,Y,N,N),
+                                 WFI->         List(N,N,N,N,Y,N)) ++
+    usingDebug.option(           DRET->        List(N,N,Y,N,N,N)) ++
+    coreParams.haveCFlush.option(CFLUSH_D_L1-> List(N,N,N,N,N,N)) ++
+    usingVM.option(              SRET->        List(N,N,Y,N,N,N)) ++
+    usingVM.option(              SFENCE_VMA->  List(N,N,N,N,N,Y))
+
+  val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: insn_sfence :: Nil =
+    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.toBool)
 
   for (io_dec <- io.decode) {
+    val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: Nil =
+      DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.toBool)
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
     val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
+    val counter_addr = io_dec.csr(log2Ceil(reg_mcounteren.getWidth)-1, 0)
+    val allow_counter = (reg_mstatus.prv > PRV.S || reg_mcounteren(counter_addr)) &&
+      (!usingVM || reg_mstatus.prv >= PRV.S || reg_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
+    io_dec.fp_csr := Bool(usingFPU) && DecodeLogic(io_dec.csr, fp_csrs.keys.toList.map(_.U), (read_mapping -- fp_csrs.keys.toList).keys.toList.map(_.U))
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       !decodeAny(read_mapping) ||
-      io_dec.csr === CSRs.sptbr && !allow_sfence_vma ||
-      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && reg_mstatus.prv <= PRV.S && hpm_mask(io_dec.csr(log2Ceil(CSR.firstCtr)-1,0)) ||
+      io_dec.csr === CSRs.satp && !allow_sfence_vma ||
+      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
       Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
-      Bool(usingFPU) && decodeAny(fp_csrs) && io_dec.fp_illegal
+      io_dec.fp_csr && io_dec.fp_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
-    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mbadaddr || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.sbadaddr)
+    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mtval || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.stval)
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
-      !io_dec.csr(5) && io_dec.csr(2) && !allow_wfi ||
-      !io_dec.csr(5) && io_dec.csr(1) && !allow_sret ||
-      io_dec.csr(5) && !allow_sfence_vma
+      is_wfi && !allow_wfi ||
+      is_ret && !allow_sret ||
+      is_sfence && !allow_sfence_vma
   }
 
   val cause =
@@ -490,18 +533,21 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
   val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
   val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
-  val mtvecBaseAlign = 2
-  val mtvecInterruptAlign = log2Ceil(new MIP().getWidth)
+  def mtvecBaseAlign = 2
+  def mtvecInterruptAlign = {
+    require(reg_mip.getWidth <= xLen)
+    log2Ceil(xLen)
+  }
   val notDebugTVec = {
-    val base = Mux(delegate, reg_stvec.sextTo(vaddrBitsExtended), reg_mtvec)
+    val base = Mux(delegate, read_stvec, read_mtvec)
     val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
     val interruptVec = Cat(base >> (mtvecInterruptAlign + mtvecBaseAlign), interruptOffset)
     val doVector = base(0) && cause(cause.getWidth-1) && (cause_lsbs >> mtvecInterruptAlign) === 0
-    Mux(doVector, interruptVec, base)
+    Mux(doVector, interruptVec, base >> mtvecBaseAlign << mtvecBaseAlign)
   }
   val tvec = Mux(trapToDebug, debugTVec, notDebugTVec)
   io.evec := tvec
-  io.ptbr := reg_sptbr
+  io.ptbr := reg_satp
   io.eret := insn_call || insn_break || insn_ret
   io.singleStep := reg_dcsr.step && !reg_debug
   io.status := reg_mstatus
@@ -518,8 +564,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
-  when (pending_interrupts.orR || exception || io.interrupts.debug) { reg_wfi := false }
-  assert(!reg_wfi || io.retire === UInt(0))
+  when (pending_interrupts.orR || io.interrupts.debug || exception) { reg_wfi := false }
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }
@@ -543,7 +588,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_sepc := epc
       reg_scause := cause
       xcause_dest := sCause
-      reg_sbadaddr := io.tval
+      reg_stval := io.tval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -552,7 +597,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
       reg_mepc := epc
       reg_mcause := cause
       xcause_dest := mCause
-      reg_mbadaddr := io.tval
+      reg_mtval := io.tval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
@@ -599,7 +644,14 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   }
 
   io.time := reg_cycle
-  io.csr_stall := reg_wfi
+  io.csr_stall := reg_wfi || io.status.cease
+  io.status.cease := RegEnable(true.B, false.B, insn_cease)
+
+  for ((io, reg) <- io.customCSRs zip reg_custom) {
+    io.wen := false
+    io.wdata := wdata
+    io.value := reg
+  }
 
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
@@ -608,12 +660,23 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
   }})
 
+  val set_fs_dirty = Wire(init = io.set_fs_dirty.getOrElse(false.B))
+  if (coreParams.haveFSDirty) {
+    when (set_fs_dirty) {
+      assert(reg_mstatus.fs > 0)
+      reg_mstatus.fs := 3
+    }
+  }
+
   io.fcsr_rm := reg_frm
   when (io.fcsr_flags.valid) {
     reg_fflags := reg_fflags | io.fcsr_flags.bits
+    set_fs_dirty := true
   }
 
-  when (io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)) {
+  val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
+  io.csrw_counter := Mux(coreParams.haveBasicCounters && csr_wen && (io.rw.addr.inRange(CSRs.mcycle, CSRs.mcycle + CSR.nCtr) || io.rw.addr.inRange(CSRs.mcycleh, CSRs.mcycleh + CSR.nCtr)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
+  when (csr_wen) {
     when (decoded_addr(CSRs.mstatus)) {
       val new_mstatus = new MStatus().fromBits(wdata)
       reg_mstatus.mie := new_mstatus.mie
@@ -621,7 +684,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
 
       if (usingUser) {
         reg_mstatus.mprv := new_mstatus.mprv
-        reg_mstatus.mpp := trimPrivilege(new_mstatus.mpp)
+        reg_mstatus.mpp := legalizePrivilege(new_mstatus.mpp)
         if (usingVM) {
           reg_mstatus.mxr := new_mstatus.mxr
           reg_mstatus.sum := new_mstatus.sum
@@ -634,7 +697,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         }
       }
 
-      if (usingVM || usingFPU) reg_mstatus.fs := Fill(2, new_mstatus.fs.orR)
+      if (usingVM || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
     when (decoded_addr(CSRs.misa)) {
@@ -662,9 +725,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (decoded_addr(CSRs.mepc))     { reg_mepc := formEPC(wdata) }
     when (decoded_addr(CSRs.mscratch)) { reg_mscratch := wdata }
     if (mtvecWritable)
-      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
+      when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
-    when (decoded_addr(CSRs.mbadaddr)) { reg_mbadaddr := wdata(vaddrBitsExtended-1,0) }
+    when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
 
     for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
       writeCounter(i + CSR.firstMHPC, c, wdata)
@@ -676,9 +739,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     }
 
     if (usingFPU) {
-      when (decoded_addr(CSRs.fflags)) { reg_fflags := wdata }
-      when (decoded_addr(CSRs.frm))    { reg_frm := wdata }
-      when (decoded_addr(CSRs.fcsr))   { reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+      when (decoded_addr(CSRs.fflags)) { set_fs_dirty := true; reg_fflags := wdata }
+      when (decoded_addr(CSRs.frm))    { set_fs_dirty := true; reg_frm := wdata }
+      when (decoded_addr(CSRs.fcsr))   { set_fs_dirty := true; reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
     }
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
@@ -687,7 +750,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_dcsr.ebreakm := new_dcsr.ebreakm
         if (usingVM) reg_dcsr.ebreaks := new_dcsr.ebreaks
         if (usingUser) reg_dcsr.ebreaku := new_dcsr.ebreaku
-        if (usingUser) reg_dcsr.prv := trimPrivilege(new_dcsr.prv)
+        if (usingUser) reg_dcsr.prv := legalizePrivilege(new_dcsr.prv)
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
@@ -700,29 +763,29 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
         reg_mstatus.spp := new_sstatus.spp
         reg_mstatus.mxr := new_sstatus.mxr
         reg_mstatus.sum := new_sstatus.sum
-        reg_mstatus.fs := Fill(2, new_sstatus.fs.orR) // even without an FPU
+        reg_mstatus.fs := formFS(new_sstatus.fs)
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
-        val new_sip = new MIP().fromBits(wdata)
+        val new_sip = new MIP().fromBits((read_mip & ~reg_mideleg) | (wdata & reg_mideleg))
         reg_mip.ssip := new_sip.ssip
       }
-      when (decoded_addr(CSRs.sptbr)) {
-        val new_sptbr = new PTBR().fromBits(wdata)
-        val valid_mode = new_sptbr.pgLevelsToMode(pgLevels)
-        when (new_sptbr.mode === 0) { reg_sptbr.mode := 0 }
-        when (new_sptbr.mode === valid_mode) { reg_sptbr.mode := valid_mode }
-        when (new_sptbr.mode === 0 || new_sptbr.mode === valid_mode) {
-          reg_sptbr.ppn := new_sptbr.ppn(ppnBits-1,0)
-          if (asIdBits > 0) reg_sptbr.asid := new_sptbr.asid(asIdBits-1,0)
+      when (decoded_addr(CSRs.satp)) {
+        val new_satp = new PTBR().fromBits(wdata)
+        val valid_mode = new_satp.pgLevelsToMode(pgLevels)
+        when (new_satp.mode === 0) { reg_satp.mode := 0 }
+        when (new_satp.mode === valid_mode) { reg_satp.mode := valid_mode }
+        when (new_satp.mode === 0 || new_satp.mode === valid_mode) {
+          reg_satp.ppn := new_satp.ppn(ppnBits-1,0)
+          if (asIdBits > 0) reg_satp.asid := new_satp.asid(asIdBits-1,0)
         }
       }
       when (decoded_addr(CSRs.sie))      { reg_mie := (reg_mie & ~reg_mideleg) | (wdata & reg_mideleg) }
       when (decoded_addr(CSRs.sscratch)) { reg_sscratch := wdata }
       when (decoded_addr(CSRs.sepc))     { reg_sepc := formEPC(wdata) }
-      when (decoded_addr(CSRs.stvec))    { reg_stvec := ~(~wdata | 2.U | Mux(wdata(0), UInt(((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign), 0.U)) }
+      when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata }
       when (decoded_addr(CSRs.scause))   { reg_scause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
-      when (decoded_addr(CSRs.sbadaddr)) { reg_sbadaddr := wdata(vaddrBitsExtended-1,0) }
+      when (decoded_addr(CSRs.stval))    { reg_stval := wdata(vaddrBitsExtended-1,0) }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata & delegable_interrupts }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata & delegable_exceptions }
       when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata & UInt(delegable_counters) }
@@ -733,25 +796,45 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
 
-      val bp = reg_bp(reg_tselect)
-      when (!bp.control.dmode || reg_debug) {
-        when (decoded_addr(CSRs.tdata1)) {
-          val newBPC = new BPControl().fromBits(wdata)
-          val dMode = newBPC.dmode && reg_debug
-          bp.control := newBPC
-          bp.control.dmode := dMode
-          bp.control.action := dMode && newBPC.action
+      for ((bp, i) <- reg_bp.zipWithIndex) {
+        when (i === reg_tselect && (!bp.control.dmode || reg_debug)) {
+          when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
+          when (decoded_addr(CSRs.tdata1)) {
+            bp.control := wdata.asTypeOf(bp.control)
+
+            val prevChain = if (i == 0) false.B else reg_bp(i-1).control.chain
+            val prevDMode = if (i == 0) false.B else reg_bp(i-1).control.dmode
+            val nextChain = if (i >= nBreakpoints-1) true.B else reg_bp(i+1).control.chain
+            val nextDMode = if (i >= nBreakpoints-1) true.B else reg_bp(i+1).control.dmode
+            val newBPC = readModifyWriteCSR(io.rw.cmd, bp.control.asUInt, io.rw.wdata).asTypeOf(bp.control)
+            val dMode = newBPC.dmode && reg_debug && (prevDMode || !prevChain)
+            bp.control.dmode := dMode
+            bp.control.action := dMode && newBPC.action
+            bp.control.chain := newBPC.chain && !(prevChain || nextChain) && (dMode || !nextDMode)
+          }
         }
-        when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
       }
     }
     if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
       require(xLen % pmp.cfg.getWidth == 0)
       when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.cfgLocked) {
-        pmp.cfg := new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
+        val newCfg = new PMPConfig().fromBits(wdata >> ((i * pmp.cfg.getWidth) % xLen))
+        pmp.cfg := newCfg
+        // disallow unreadable but writable PMPs
+        pmp.cfg.w := newCfg.w && newCfg.r
+        // can't select a=NA4 with coarse-grained PMPs
+        if (pmpGranularity.log2 > PMP.lgAlign)
+          pmp.cfg.a := Cat(newCfg.a(1), newCfg.a.orR)
       }
       when (decoded_addr(CSRs.pmpaddr0 + i) && !pmp.addrLocked(next)) {
         pmp.addr := wdata
+      }
+    }
+    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+      val mask = csr.mask.U(xLen.W)
+      when (decoded_addr(csr.id)) {
+        reg := (wdata & mask) | (reg & ~mask)
+        io.wen := true
       }
     }
   }
@@ -766,10 +849,8 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     reg_mcounteren := 0
   }
 
-  reg_sptbr.asid := 0
+  reg_satp.asid := 0
   if (nBreakpoints <= 1) reg_tselect := 0
-  if (nBreakpoints >= 1)
-    reg_bp(nBreakpoints-1).control.chain := false
   for (bpc <- reg_bp map {_.control}) {
     bpc.ttype := bpc.tType
     bpc.maskmax := bpc.maskMax
@@ -782,6 +863,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     when (reset) {
       bpc.action := false
       bpc.dmode := false
+      bpc.chain := false
       bpc.r := false
       bpc.w := false
       bpc.x := false
@@ -819,8 +901,9 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
     (any, which)
   }
 
-  def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) =
-    (Mux(cmd.isOneOf(CSR.S, CSR.C), rdata, UInt(0)) | wdata) & ~Mux(cmd === CSR.C, wdata, UInt(0))
+  def readModifyWriteCSR(cmd: UInt, rdata: UInt, wdata: UInt) = {
+    (Mux(cmd(1), rdata, UInt(0)) | wdata) & ~Mux(cmd(1,0).andR, wdata, UInt(0))
+  }
 
   def legalizePrivilege(priv: UInt): UInt =
     if (usingVM) Mux(priv === PRV.H, PRV.U, priv)
@@ -842,5 +925,7 @@ class CSRFile(perfEventSets: EventSets = new EventSets(Seq()))(implicit p: Param
   }
   def formEPC(x: UInt) = ~(~x | (if (usingCompressed) 1.U else 3.U))
   def readEPC(x: UInt) = ~(~x | Mux(reg_misa('c' - 'a'), 1.U, 3.U))
+  def formTVec(x: UInt) = x andNot Mux(x(0), ((((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign) | 2).U, 2)
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
+  def formFS(fs: UInt) = if (coreParams.haveFSDirty) fs else Fill(2, fs.orR)
 }

@@ -3,14 +3,15 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.experimental.RawModule
 import chisel3.internal.firrtl.Circuit
-import chisel3.experimental.{RawModule}
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
-import freechips.rocketchip.system.{TestGeneration, DefaultTestSuites}
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy.LazyModule
 import java.io.{File, FileWriter}
+
 import firrtl.annotations.JsonProtocol
+import freechips.rocketchip.config._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
@@ -20,8 +21,10 @@ case class ParsedInputNames(
     configProject: String,
     configs: String) {
   val configClasses: Seq[String] = configs.split('_')
-  val fullConfigClasses: Seq[String] = configClasses.map(configProject + "." + _)
-  val fullTopModuleClass: String = topModuleProject + "." + topModuleClass
+  def prepend(prefix: String, suffix: String) =
+    if (prefix == "" || prefix == "_root_") suffix else (prefix + "." + suffix)
+  val fullConfigClasses: Seq[String] = configClasses.map(x => prepend(configProject, x))
+  val fullTopModuleClass: String = prepend(topModuleProject, topModuleClass)
 }
 
 /** Common utilities we supply to all Generators. In particular, supplies the
@@ -45,13 +48,15 @@ trait HasGeneratorUtilities {
   def getParameters(config: Config): Parameters = config.toInstance
 
   def elaborate(fullTopModuleClassName: String, params: Parameters): Circuit = {
-    val gen = () =>
+    val top = () =>
       Class.forName(fullTopModuleClassName)
-        .getConstructor(classOf[Parameters])
-        .newInstance(params)
-        .asInstanceOf[RawModule]
+          .getConstructor(classOf[Parameters])
+          .newInstance(params) match {
+        case m: RawModule => m
+        case l: LazyModule => LazyModule(l).module
+      }
 
-    Driver.elaborate(gen)
+    Driver.elaborate(top)
   }
 
   def enumerateROMs(circuit: Circuit): String = {

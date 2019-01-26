@@ -32,7 +32,7 @@ class WithTraceGen(params: Seq[DCacheParams], nReqs: Int = 8192) extends Config(
       }.flatten
     },
     maxRequests = nReqs,
-    memStart = site(ExtMem).base,
+    memStart = site(ExtMem).get.master.base,
     numGens = params.size)
   }   
   case MaxHartIdBits => log2Up(params.size)

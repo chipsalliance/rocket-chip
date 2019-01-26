@@ -25,7 +25,6 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import scala.util.Random
 
 // =======
 // Outline
@@ -67,8 +66,9 @@ case class TraceGenParams(
     numGens: Int) extends GroundTestTileParams {
   def build(i: Int, p: Parameters): GroundTestTile = new TraceGenTile(i, this)(p)
   val hartId = 0
-  val trace = false
+  val beuAddr = None
   val blockerCtrlAddr = None
+  val name = None
 }
 
 trait HasTraceGenParams {
@@ -218,7 +218,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val bagOfAddrs = addressBag.map(x => UInt(memStart + x, pAddrBits))
 
   val extraAddrs = Seq.fill(numExtraAddrs) {
-    UInt(memStart + Random.nextInt(1 << 16) * numBytesInWord, pAddrBits)
+    UInt(memStart + SeededRandom.fromSeed.nextInt(1 << 16) * numBytesInWord, pAddrBits)
   }
 
   // A random index into the address bag.
@@ -511,7 +511,6 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.bits.typ  := UInt(log2Ceil(numBytesInWord))
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
-  io.mem.invalidate_lr := Bool(false)
 
   // On cycle when request is actually sent, print it
   when (io.mem.req.fire()) {

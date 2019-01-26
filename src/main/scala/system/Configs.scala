@@ -6,30 +6,20 @@ package freechips.rocketchip.system
 import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.devices.debug.{IncludeJtagDTM, JtagDTMKey}
 import freechips.rocketchip.diplomacy._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
+class WithDebugSBASystem extends freechips.rocketchip.subsystem.WithDebugSBA
 
-class BaseConfig extends Config(new BaseSubsystemConfig().alter((site,here,up) => {
-  // DTS descriptive parameters
-  case DTSModel => "freechips,rocketchip-unknown"
-  case DTSCompat => Nil
-  case DTSTimebase => BigInt(1000000) // 1 MHz
-  // External port parameters
-  case NExtTopInterrupts => 2
-  case ExtMem => MasterPortParams(
-                      base = x"8000_0000",
-                      size = x"1000_0000",
-                      beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4)
-  case ExtBus => MasterPortParams(
-                      base = x"6000_0000",
-                      size = x"2000_0000",
-                      beatBytes = site(MemoryBusKey).beatBytes,
-                      idBits = 4)
-  case ExtIn  => SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4)
-}))
+class BaseConfig extends Config(
+  new WithDefaultMemPort() ++
+  new WithDefaultMMIOPort() ++
+  new WithDefaultSlavePort() ++
+  new WithTimebase(BigInt(1000000)) ++ // 1 MHz
+  new WithDTS("freechips,rocketchip-unknown", Nil) ++
+  new WithNExtTopInterrupts(2) ++
+  new BaseSubsystemConfig()
+)
 
 class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)
 
@@ -40,13 +30,13 @@ class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(
-  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
+  new WithNBanks(2) ++ new BaseConfig)
 
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new BaseConfig)
 
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
-  new WithNBanksPerMemChannel(2) ++ new BaseConfig)
+  new WithNBanks(4) ++ new BaseConfig)
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
@@ -66,10 +56,27 @@ class DualCoreConfig extends Config(
   new WithNBigCores(2) ++ new BaseConfig)
 
 class TinyConfig extends Config(
+  new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
-  new WithIncoherentTiles ++
+  new WithNBanks(0) ++
   new With1TinyCore ++
   new BaseConfig)
+
+class MemPortOnlyConfig extends Config(
+  new WithNoMMIOPort ++
+  new WithNoSlavePort ++
+  new DefaultConfig
+)
+
+class MMIOPortOnlyConfig extends Config(
+  new WithNoSlavePort ++
+  new WithNoMemPort ++
+  new WithNMemoryChannels(0) ++
+  new WithNBanks(0) ++
+  new WithIncoherentTiles ++
+  new WithScratchpadsOnly ++
+  new DefaultConfig
+)
 
 class BaseFPGAConfig extends Config(new BaseConfig)
 

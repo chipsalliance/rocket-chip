@@ -37,15 +37,14 @@
 `define RANDOMIZE
 `endif
 
-module AsyncResetReg (
-                      input      d,
-                      output     q,
-                      input      en,
+module AsyncResetReg (d, q, en, clk, rst);
+parameter RESET_VALUE = 0;
 
-                      input      clk,
-                      input      rst);
-
-   reg                           q_reg;
+input  wire d;
+output reg  q;
+input  wire en;
+input  wire clk;
+input  wire rst;
 
    // There is a lot of initialization
    // here you don't normally find in Verilog
@@ -54,42 +53,28 @@ module AsyncResetReg (
    // and we want to make sure to properly model
    // that, yet Chisel codebase is absolutely intolerant
    // of Xs.
-   
-   initial begin
-`ifdef RANDOMIZE
-      integer                    initvar;
-      reg [31:0]                 _RAND;
-      _RAND = {1{$random}};
-`endif // RANDOMIZE
-      if (rst) begin
-        q_reg = 1'b0;
-      end 
-`ifdef RANDOMIZE
- `ifdef RANDOMIZE_REG_INIT
-      else begin
-  `ifndef verilator
-         #0.002 begin end
-  `endif // verilator
-         // We have to check for rst again
-         // otherwise we initialize this
-         // even though rst is asserted.
-         if (~rst)
-           q_reg = _RAND[0];
-      end
- `endif // RANDOMIZE_REG_INIT
-`endif // RANDOMIZE
-   end
-   
+`ifndef SYNTHESIS
+  initial begin
+    `ifdef RANDOMIZE
+    integer    initvar;
+    reg [31:0] _RAND;
+    _RAND = {1{$random}};
+    q = _RAND[0];
+    `endif // RANDOMIZE
+    if (rst) begin
+      q = RESET_VALUE;
+    end 
+  end
+`endif
+
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
-         q_reg <= 1'b0;
+         q <= RESET_VALUE;
       end else if (en) begin
-         q_reg <= d;
+         q <= d;
       end
    end
-
-   assign q = rst ? 1'b0 :  q_reg;
  
 endmodule // AsyncResetReg
 

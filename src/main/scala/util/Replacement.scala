@@ -16,7 +16,7 @@ class RandomReplacement(ways: Int) extends ReplacementPolicy {
   replace := Bool(false)
   val lfsr = LFSR16(replace)
 
-  def way = if(ways == 1) UInt(0) else lfsr(log2Up(ways)-1,0)
+  def way = Random(ways, lfsr)
   def miss = replace := Bool(true)
   def hit = {}
 }
@@ -50,7 +50,7 @@ class PseudoLRU(n: Int)
       next_state = next_state.bitSet(idx, !bit)
       idx = Cat(idx, bit)
     }
-    next_state(n-1, 1)
+    next_state.extract(n-1, 1)
   }
   def replace = get_replace_way(state_reg)
   def get_replace_way(state: UInt) = {

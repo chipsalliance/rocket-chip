@@ -8,24 +8,29 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
+class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
+  val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))
+  val uncorrectable = (params.code.canDetect  && params.notifyErrors).option(Valid(UInt(addrBits.W)))
+}
+
 class TLRAM(
     address: AddressSet,
     cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
-    eccBytes: Int = 1,
-    devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil,
-    code: Code = new IdentityCode)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+    ecc: ECCParams = ECCParams(),
+    val devName: Option[String] = None,
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
+  val eccBytes = ecc.bytes
+  val code = ecc.code
   require (eccBytes  >= 1 && isPow2(eccBytes))
   require (beatBytes >= 1 && isPow2(beatBytes))
   require (eccBytes <= beatBytes, s"TLRAM eccBytes (${eccBytes}) > beatBytes (${beatBytes}). Use a WidthWidget=>Fragmenter=>SRAM if you need high density and narrow ECC; it will do bursts efficiently")
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(address) ++ errors,
+      address            = List(address),
       resources          = device.reg("mem"),
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.UNCACHEABLE,
       executable         = executable,
@@ -36,13 +41,16 @@ class TLRAM(
     beatBytes  = beatBytes,
     minLatency = 1))) // no bypass needed for this device
 
+  val indexBits = address.mask.bitCount - log2Ceil(beatBytes)
+  val notifyNode = ecc.notifyErrors.option(BundleBridgeSource(() => new TLRAMErrors(ecc, indexBits).cloneType))
+
   lazy val module = new LazyModuleImp(this) {
     val (in, edge) = node.in(0)
 
     val width = code.width(eccBytes*8)
     val lanes = beatBytes/eccBytes
     val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
-    val mem = makeSinglePortedByteWriteSeqMem(1 << addrBits.size, lanes, width)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << addrBits.size, lanes, width)
 
     /* This block uses a two-stage pipeline; A=>D
      * Both stages vie for access to the single SRAM port.
@@ -60,11 +68,11 @@ class TLRAM(
     val d_ram_valid = RegInit(Bool(false)) // true if we just read-out from SRAM
     val d_size      = Reg(UInt())
     val d_source    = Reg(UInt())
-    val d_legal     = Reg(Bool())
     val d_read      = Reg(Bool())
     val d_address   = Reg(UInt(width = addrBits.size))
     val d_rmw_mask  = Reg(UInt(width = beatBytes))
     val d_rmw_data  = Reg(UInt(width = 8*beatBytes))
+    val d_poison    = Reg(Bool())
 
     // Decode raw unregistered SRAM output
     val d_raw_data      = Wire(Vec(lanes, Bits(width = width)))
@@ -76,6 +84,17 @@ class TLRAM(
     val d_need_fix      = d_correctable.reduce(_ || _)
     val d_error         = d_uncorrectable.reduce(_ || _)
 
+    notifyNode.foreach { nnode =>
+      nnode.bundle.correctable.foreach { c =>
+        c.valid := d_need_fix && d_ram_valid
+        c.bits  := d_address
+      }
+      nnode.bundle.uncorrectable.foreach { u =>
+        u.valid := d_error && d_ram_valid
+        u.bits  := d_address
+      }
+    }
+
     // What does D-stage want to write-back?
     val d_wb_data = Vec(Seq.tabulate(beatBytes) { i =>
       val upd = d_rmw_mask(i)
@@ -86,7 +105,7 @@ class TLRAM(
     val (d_wb_lanes, d_wb_poison) = Seq.tabulate(lanes) { i =>
       val upd = d_rmw_mask(eccBytes*(i+1)-1, eccBytes*i)
       (upd.orR || d_correctable(i),
-       !upd.andR && d_uncorrectable(i)) // sub-lane writes should not correct uncorrectable
+       (!upd.andR && d_uncorrectable(i)) || d_poison) // sub-lane writes should not correct uncorrectable
     }.unzip
     val d_wb = d_rmw_mask.orR || (d_ram_valid && d_need_fix)
 
@@ -94,21 +113,21 @@ class TLRAM(
     val d_held_data = RegEnable(d_corrected, d_ram_valid)
     val d_held_error = RegEnable(d_error, d_ram_valid)
 
-    in.d.bits.opcode := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
-    in.d.bits.param  := UInt(0)
-    in.d.bits.size   := d_size
-    in.d.bits.source := d_source
-    in.d.bits.sink   := UInt(0)
+    in.d.bits.opcode  := Mux(d_read, TLMessages.AccessAckData, TLMessages.AccessAck)
+    in.d.bits.param   := UInt(0)
+    in.d.bits.size    := d_size
+    in.d.bits.source  := d_source
+    in.d.bits.sink    := UInt(0)
+    in.d.bits.denied  := Bool(false)
     // It is safe to use uncorrected data here because of d_pause
-    in.d.bits.data   := Mux(d_ram_valid, d_uncorrected, d_held_data)
-    in.d.bits.error  := !d_legal || Mux(d_ram_valid, d_error, d_held_error)
+    in.d.bits.data    := Mux(d_ram_valid, d_uncorrected, d_held_data)
+    in.d.bits.corrupt := Mux(d_ram_valid, d_error, d_held_error) && d_read
 
     // Formulate a response only when SRAM output is unused or correct
     val d_pause = d_read && d_ram_valid && d_need_fix
     in.d.valid := d_full && !d_pause
     in.a.ready := !d_full || (in.d.ready && !d_pause && !d_wb)
 
-    val a_legal = Bool(errors.isEmpty) || address.contains(in.a.bits.address)
     val a_address = Cat(addrBits.reverse)
     val a_read = in.a.bits.opcode === TLMessages.Get
     val a_data = Vec(Seq.tabulate(lanes) { i => in.a.bits.data(eccBytes*8*(i+1)-1, eccBytes*8*i) })
@@ -130,13 +149,13 @@ class TLRAM(
     d_rmw_mask  := UInt(0)
     when (in.a.fire()) {
       d_full      := Bool(true)
-      d_ram_valid := a_ren && a_legal
+      d_ram_valid := a_ren
       d_size      := in.a.bits.size
       d_source    := in.a.bits.source
-      d_legal     := a_legal
       d_read      := a_read
       d_address   := a_address
       d_rmw_mask  := UInt(0)
+      d_poison    := in.a.bits.corrupt
       when (!a_read && a_sublane) {
         d_rmw_mask := in.a.bits.mask
         d_rmw_data := in.a.bits.data
@@ -145,7 +164,7 @@ class TLRAM(
     }
 
     // SRAM arbitration
-    val a_fire = in.a.fire() && a_legal
+    val a_fire = in.a.fire()
     val wen =  d_wb || (a_fire && !a_ren)
 //  val ren = !d_wb && (a_fire &&  a_ren)
     val ren = !wen && a_fire // help Chisel infer a RW-port
@@ -153,7 +172,7 @@ class TLRAM(
     val addr   = Mux(d_wb, d_address, a_address)
     val sel    = Mux(d_wb, Vec(d_wb_lanes), Vec(a_lanes))
     val dat    = Mux(d_wb, d_wb_data, a_data)
-    val poison = Mux(d_wb, Vec(d_wb_poison), Vec.fill(lanes) { Bool(false) })
+    val poison = Mux(d_wb, Vec(d_wb_poison), Vec.fill(lanes) { in.a.bits.corrupt })
     val coded  = Vec((dat zip poison) map { case (d, p) =>
       if (code.canDetect) code.encode(d, p) else code.encode(d)
     })
@@ -175,12 +194,11 @@ object TLRAM
     cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
-    eccBytes: Int = 1,
+    ecc: ECCParams = ECCParams(),
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil,
-    code: Code = new IdentityCode)(implicit p: Parameters): TLInwardNode =
+  )(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, cacheable, executable, beatBytes, eccBytes, devName, errors, code))
+    val ram = LazyModule(new TLRAM(address, cacheable, executable, beatBytes, ecc, devName))
     ram.node
   }
 }
@@ -208,7 +226,7 @@ class TLRAMSimpleTest(ramBeatBytes: Int, txns: Int = 5000, timeout: Int = 500000
 class TLRAMECC(ramBeatBytes: Int, eccBytes: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("SRAMSimple"))
-  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes, eccBytes = eccBytes, code = new SECDEDCode))
+  val ram  = LazyModule(new TLRAM(AddressSet(0x0, 0x3ff), beatBytes = ramBeatBytes, ecc = ECCParams(bytes = eccBytes, code = new SECDEDCode)))
 
   ram.node := TLDelayer(0.25) := model.node := fuzz.node
 

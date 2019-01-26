@@ -9,17 +9,21 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
+import freechips.rocketchip.tilelink._
 
-/** A knob selecting one of the two possible debug interfaces */
-case object IncludeJtagDTM extends Field[Boolean](false)
+/** Options for possible debug interfaces */
+case object ExportDebugDMI extends Field[Boolean](true)
+case object ExportDebugJTAG extends Field[Boolean](false)
+case object ExportDebugCJTAG extends Field[Boolean](false)
 
 /** A wrapper bundle containing one of the two possible debug interfaces */
 
 class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
-  val clockeddmi = (!p(IncludeJtagDTM)).option(new ClockedDMIIO().flip)
-  val systemjtag = (p(IncludeJtagDTM)).option(new SystemJTAGIO)
+  val clockeddmi = p(ExportDebugDMI).option(new ClockedDMIIO().flip)
+  val systemjtag = p(ExportDebugJTAG).option(new SystemJTAGIO)
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
 }
@@ -28,41 +32,38 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   * or exports the Debug Module Interface (DMI), based on a global parameter.
   */
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  val debug = LazyModule(new TLDebugModule(pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("debug")){ debug.node }
-}
+  val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
+  debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
+  val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
+  debug.dmInner.dmInner.customNode := debugCustomXbar.node
 
-trait HasPeripheryDebugBundle {
-  implicit val p: Parameters
-
-  val debug: DebugIO
-
-  def connectDebug(c: Clock,
-    r: Bool,
-    out: Bool,
-    tckHalfPeriod: Int = 2,
-    cmdDelay: Int = 2,
-    psd: PSDTestMode = new PSDTestMode().fromBits(0.U)): Unit =  {
-    debug.clockeddmi.foreach { d =>
-      val dtm = Module(new SimDTM).connect(c, r, d, out)
-    }
-    debug.systemjtag.foreach { sj =>
-      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
-      sj.reset := r
-      sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
-    }
-    debug.psd.foreach { _ <> psd }
+  debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
+    fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
   }
+
+  def getOMDebugModule(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
+    debug.device.getOMComponents(resourceBindingsMap)
 }
 
-trait HasPeripheryDebugModuleImp extends LazyModuleImp with HasPeripheryDebugBundle {
+trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val outer: HasPeripheryDebug
 
   val debug = IO(new DebugIO)
 
+  require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
+    "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
+
   debug.clockeddmi.foreach { dbg => outer.debug.module.io.dmi <> dbg }
 
-  val dtm = debug.systemjtag.map { sj =>
+  val dtm = debug.systemjtag.map { instantiateJtagDTM(_) }
+
+  debug.ndreset  := outer.debug.module.io.ctrl.ndreset
+  debug.dmactive := outer.debug.module.io.ctrl.dmactive
+
+  // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
+  outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
+
+  def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
     dtm.io.jtag <> sj.jtag
@@ -80,12 +81,6 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp with HasPeripheryDebugBun
     outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
     dtm
   }
-
-  debug.ndreset  := outer.debug.module.io.ctrl.ndreset
-  debug.dmactive := outer.debug.module.io.ctrl.dmactive
-
-  // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
-  outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 }
 
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
@@ -149,3 +144,44 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
   setResource("/csrc/remote_bitbang.cc")
 }
 
+object Debug {
+  def connectDebug(
+      debug: DebugIO,
+      c: Clock,
+      r: Bool,
+      out: Bool,
+      tckHalfPeriod: Int = 2,
+      cmdDelay: Int = 2,
+      psd: PSDTestMode = new PSDTestMode().fromBits(0.U))
+      (implicit p: Parameters): Unit =  {
+    debug.clockeddmi.foreach { d =>
+      val dtm = Module(new SimDTM).connect(c, r, d, out)
+    }
+    debug.systemjtag.foreach { sj =>
+      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
+      sj.reset := r
+      sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
+    }
+    debug.psd.foreach { _ <> psd }
+  }
+
+  def tieoffDebug(debug: DebugIO): Bool = {
+    debug.systemjtag.foreach { sj =>
+      sj.jtag.TCK := Bool(true).asClock
+      sj.jtag.TMS := Bool(true)
+      sj.jtag.TDI := Bool(true)
+      sj.jtag.TRSTn.foreach { r => r := Bool(true) }
+      sj.reset := Bool(true)
+      sj.mfr_id := 0.U
+    }
+
+    debug.clockeddmi.foreach { d =>
+      d.dmi.req.valid := Bool(false)
+      d.dmi.resp.ready := Bool(true)
+      d.dmiClock := Bool(false).asClock
+      d.dmiReset := Bool(true)
+    }
+    debug.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)}
+    debug.ndreset
+  }
+}

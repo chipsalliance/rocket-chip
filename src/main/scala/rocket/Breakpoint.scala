@@ -70,14 +70,14 @@ class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
 
   io.bp.foldLeft((Bool(true), Bool(true), Bool(true))) { case ((ri, wi, xi), bp) =>
     val en = bp.control.enabled(io.status)
-    val r = en && ri && bp.control.r && bp.addressMatch(io.ea)
-    val w = en && wi && bp.control.w && bp.addressMatch(io.ea)
-    val x = en && xi && bp.control.x && bp.addressMatch(io.pc)
+    val r = en && bp.control.r && bp.addressMatch(io.ea)
+    val w = en && bp.control.w && bp.addressMatch(io.ea)
+    val x = en && bp.control.x && bp.addressMatch(io.pc)
     val end = !bp.control.chain
 
-    when (end && r) { io.xcpt_ld := !bp.control.action; io.debug_ld := bp.control.action }
-    when (end && w) { io.xcpt_st := !bp.control.action; io.debug_st := bp.control.action }
-    when (end && x) { io.xcpt_if := !bp.control.action; io.debug_if := bp.control.action }
+    when (end && r && ri) { io.xcpt_ld := !bp.control.action; io.debug_ld := bp.control.action }
+    when (end && w && wi) { io.xcpt_st := !bp.control.action; io.debug_st := bp.control.action }
+    when (end && x && xi) { io.xcpt_if := !bp.control.action; io.debug_if := bp.control.action }
 
     (end || r, end || w, end || x)
   }

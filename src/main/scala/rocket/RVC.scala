@@ -16,7 +16,7 @@ class ExpandedInstruction extends Bundle {
   val rs3 = UInt(width = 5)
 }
 
-class RVCDecoder(x: UInt)(implicit p: Parameters) {
+class RVCDecoder(x: UInt, xLen: Int) {
   def inst(bits: UInt, rd: UInt = x(11,7), rs1: UInt = x(19,15), rs2: UInt = x(24,20), rs3: UInt = x(31,27)) = {
     val res = Wire(new ExpandedInstruction)
     res.bits := bits
@@ -57,7 +57,7 @@ class RVCDecoder(x: UInt)(implicit p: Parameters) {
     def lw = inst(Cat(lwImm, rs1p, UInt(2,3), rs2p, UInt(0x03,7)), rs2p, rs1p, rs2p)
     def fld = inst(Cat(ldImm, rs1p, UInt(3,3), rs2p, UInt(0x07,7)), rs2p, rs1p, rs2p)
     def flw = {
-      if (p(XLen) == 32) inst(Cat(lwImm, rs1p, UInt(2,3), rs2p, UInt(0x07,7)), rs2p, rs1p, rs2p)
+      if (xLen == 32) inst(Cat(lwImm, rs1p, UInt(2,3), rs2p, UInt(0x07,7)), rs2p, rs1p, rs2p)
       else ld
     }
     def unimp = inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x3F,7)), rs2p, rs1p, rs2p)
@@ -65,7 +65,7 @@ class RVCDecoder(x: UInt)(implicit p: Parameters) {
     def sw = inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x23,7)), rs2p, rs1p, rs2p)
     def fsd = inst(Cat(ldImm >> 5, rs2p, rs1p, UInt(3,3), ldImm(4,0), UInt(0x27,7)), rs2p, rs1p, rs2p)
     def fsw = {
-      if (p(XLen) == 32) inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x27,7)), rs2p, rs1p, rs2p)
+      if (xLen == 32) inst(Cat(lwImm >> 5, rs2p, rs1p, UInt(2,3), lwImm(4,0), UInt(0x27,7)), rs2p, rs1p, rs2p)
       else sd
     }
     Seq(addi4spn, fld, lw, flw, unimp, fsd, sw, fsw)
@@ -78,7 +78,7 @@ class RVCDecoder(x: UInt)(implicit p: Parameters) {
       inst(Cat(addiImm, rd, UInt(0,3), rd, opc), rd, rd, rs2p)
     }
     def jal = {
-      if (p(XLen) == 32) inst(Cat(jImm(20), jImm(10,1), jImm(11), jImm(19,12), ra, UInt(0x6F,7)), ra, rd, rs2p)
+      if (xLen == 32) inst(Cat(jImm(20), jImm(10,1), jImm(11), jImm(19,12), ra, UInt(0x6F,7)), ra, rd, rs2p)
       else addiw
     }
     def li = inst(Cat(addiImm, x0, UInt(0,3), rd, UInt(0x13,7)), rd, x0, rs2p)
@@ -110,19 +110,20 @@ class RVCDecoder(x: UInt)(implicit p: Parameters) {
   }
   
   def q2 = {
+    val load_opc = Mux(rd.orR, UInt(0x03,7), UInt(0x1F,7))
     def slli = inst(Cat(shamt, rd, UInt(1,3), rd, UInt(0x13,7)), rd, rd, rs2)
-    def ldsp = inst(Cat(ldspImm, sp, UInt(3,3), rd, UInt(0x03,7)), rd, sp, rs2)
-    def lwsp = inst(Cat(lwspImm, sp, UInt(2,3), rd, UInt(0x03,7)), rd, sp, rs2)
+    def ldsp = inst(Cat(ldspImm, sp, UInt(3,3), rd, load_opc), rd, sp, rs2)
+    def lwsp = inst(Cat(lwspImm, sp, UInt(2,3), rd, load_opc), rd, sp, rs2)
     def fldsp = inst(Cat(ldspImm, sp, UInt(3,3), rd, UInt(0x07,7)), rd, sp, rs2)
     def flwsp = {
-      if (p(XLen) == 32) inst(Cat(lwspImm, sp, UInt(2,3), rd, UInt(0x07,7)), rd, sp, rs2)
+      if (xLen == 32) inst(Cat(lwspImm, sp, UInt(2,3), rd, UInt(0x07,7)), rd, sp, rs2)
       else ldsp
     }
     def sdsp = inst(Cat(sdspImm >> 5, rs2, sp, UInt(3,3), sdspImm(4,0), UInt(0x23,7)), rd, sp, rs2)
     def swsp = inst(Cat(swspImm >> 5, rs2, sp, UInt(2,3), swspImm(4,0), UInt(0x23,7)), rd, sp, rs2)
     def fsdsp = inst(Cat(sdspImm >> 5, rs2, sp, UInt(3,3), sdspImm(4,0), UInt(0x27,7)), rd, sp, rs2)
     def fswsp = {
-      if (p(XLen) == 32) inst(Cat(swspImm >> 5, rs2, sp, UInt(2,3), swspImm(4,0), UInt(0x27,7)), rd, sp, rs2)
+      if (xLen == 32) inst(Cat(swspImm >> 5, rs2, sp, UInt(2,3), swspImm(4,0), UInt(0x27,7)), rd, sp, rs2)
       else sdsp
     }
     def jalr = {
@@ -160,9 +161,9 @@ class RVCExpander(implicit val p: Parameters) extends Module with HasCoreParamet
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= UInt(3)
-    io.out := new RVCDecoder(io.in).decode
+    io.out := new RVCDecoder(io.in, p(XLen)).decode
   } else {
     io.rvc := Bool(false)
-    io.out := new RVCDecoder(io.in).passthrough
+    io.out := new RVCDecoder(io.in, p(XLen)).passthrough
   }
 }

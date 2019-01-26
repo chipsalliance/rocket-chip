@@ -29,7 +29,7 @@ class AHBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val mem = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ
@@ -92,8 +92,10 @@ class AHBRAM(
     when (in.hready) { d_request := Bool(false) }
     when (a_request)  { d_request := Bool(true) }
 
+    val disable_ahb_fuzzing = PlusArg("disable_ahb_fuzzing", default = 0, "1:Disabled 0:Enabled.")(0)
+
     // Finally, the outputs
-    in.hreadyout := (if(fuzzHreadyout) { !d_request || LFSRNoiseMaker(1)(0) } else { Bool(true) })
+    in.hreadyout := Mux(disable_ahb_fuzzing, Bool(true), { if(fuzzHreadyout) { !d_request || LFSRNoiseMaker(1)(0) }  else { Bool(true) }} )
     in.hresp     := Mux(d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }

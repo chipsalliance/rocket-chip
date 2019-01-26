@@ -45,6 +45,7 @@ class AXI4BundleW(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val data = UInt(width = params.dataBits)
   val strb = UInt(width = params.dataBits/8)
   val last = Bool()
+  val corrupt = if (params.wcorrupt) Some(Bool()) else None
 }
 
 class AXI4BundleR(params: AXI4BundleParameters) extends AXI4BundleBase(params)
@@ -70,6 +71,24 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val b  = Irrevocable(new AXI4BundleB (params)).flip
   val ar = Irrevocable(new AXI4BundleAR(params))
   val r  = Irrevocable(new AXI4BundleR (params)).flip
+
+  def tieoff() {
+    ar.ready.dir match {
+      case INPUT =>
+        ar.ready := Bool(false)
+        aw.ready := Bool(false)
+        w.ready  := Bool(false)
+        r.valid  := Bool(false)
+        b.valid  := Bool(false)
+      case OUTPUT =>
+        ar.valid := Bool(false)
+        aw.valid := Bool(false)
+        w.valid  := Bool(false)
+        r.ready  := Bool(false)
+        b.ready  := Bool(false)
+      case _ =>
+    }
+  }
 }
 
 object AXI4Bundle
@@ -81,9 +100,9 @@ class AXI4AsyncBundleBase(params: AXI4AsyncBundleParameters) extends GenericPara
 
 class AXI4AsyncBundle(params: AXI4AsyncBundleParameters) extends AXI4AsyncBundleBase(params)
 {
-  val aw = new AsyncBundle(params.depth, new AXI4BundleAW(params.base))
-  val w  = new AsyncBundle(params.depth, new AXI4BundleW (params.base))
-  val b  = new AsyncBundle(params.depth, new AXI4BundleB (params.base)).flip
-  val ar = new AsyncBundle(params.depth, new AXI4BundleAR(params.base))
-  val r  = new AsyncBundle(params.depth, new AXI4BundleR (params.base)).flip
+  val aw = new AsyncBundle(new AXI4BundleAW(params.base), params.async)
+  val w  = new AsyncBundle(new AXI4BundleW (params.base), params.async)
+  val b  = new AsyncBundle(new AXI4BundleB (params.base), params.async).flip
+  val ar = new AsyncBundle(new AXI4BundleAR(params.base), params.async)
+  val r  = new AsyncBundle(new AXI4BundleR (params.base), params.async).flip
 }

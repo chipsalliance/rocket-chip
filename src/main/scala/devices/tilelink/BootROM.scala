@@ -69,9 +69,9 @@ trait HasPeripheryBootROM { this: BaseSubsystem =>
   }
   def resetVector: BigInt = params.hang
 
-  val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, pbus.beatBytes))
+  val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, cbus.beatBytes))
 
-  pbus.toVariableWidthSlave(Some("bootrom")){ bootrom.node }
+  bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus) := _ }
 }
 
 /** Subsystem will power-on running at 0x10040 (BootROM) */

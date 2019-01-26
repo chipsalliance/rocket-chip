@@ -8,7 +8,6 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
-case object BuildCore extends Field[Parameters => CoreModule with HasCoreIO]
 case object XLen extends Field[Int]
 
 // These parameters can be varied per-core
@@ -20,6 +19,7 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
+  val useSCIE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
@@ -28,17 +28,21 @@ trait CoreParams {
   val instBits: Int
   val nLocalInterrupts: Int
   val nPMPs: Int
+  val pmpGranularity: Int
   val nBreakpoints: Int
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
+  val haveFSDirty: Boolean
   val misaWritable: Boolean
+  val haveCFlush: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
-  val tileControlAddr: Option[BigInt]
+  def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
+  def lrscCycles: Int
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -52,6 +56,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
+  val usingSCIE = coreParams.useSCIE
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth
@@ -66,6 +71,7 @@ trait HasCoreParameters extends HasTileParameters {
 
   val nBreakpoints = coreParams.nBreakpoints
   val nPMPs = coreParams.nPMPs
+  val pmpGranularity = coreParams.pmpGranularity
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable
@@ -76,6 +82,7 @@ trait HasCoreParameters extends HasTileParameters {
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
+
 }
 
 abstract class CoreModule(implicit val p: Parameters) extends Module
@@ -85,7 +92,7 @@ abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundl
   with HasCoreParameters
 
 class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
-  val buserror = coreParams.tileControlAddr.map(a => Bool())
+  val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
 trait HasCoreIO extends HasTileParameters {
@@ -98,5 +105,6 @@ trait HasCoreIO extends HasTileParameters {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val cease = Bool().asOutput
   }
 }

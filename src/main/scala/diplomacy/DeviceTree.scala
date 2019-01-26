@@ -90,10 +90,18 @@ object DTS
           } }
           Seq(indent, k, " = ", seq.flatMap(z => helper(z, "", myCells)).mkString(", "), ";\n")
         }
+        case Some(ResourceAlias(_)) => {
+          seq.foreach { r => r match {
+            case ResourceAlias(_) => Unit
+            case _ => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
+          } }
+          Seq(indent, k, " = ", seq.flatMap(z => helper(z, "", myCells)).mkString(", "), ";\n")
+        }
         case Some(_) => {
           seq.foreach { r => r match {
             case ResourceMap(_, _) => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
             case ResourceString(_) => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
+            case ResourceAlias(_)  => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
             case _ => Unit
           } }
           Seq(indent, k, " = <", seq.flatMap(z => helper(z, "", myCells)).mkString(" "), ">;\n")
@@ -113,6 +121,7 @@ object DTS
     case x: ResourceInt => Seq(x.value.toString)
     case x: ResourceString => fmtString(x)
     case x: ResourceReference => Seq("&" + x.value)
+    case x: ResourceAlias => Seq("&" + x.value)
     case x: ResourceMap => fmtMap(x, indent, cells)
   }
 }

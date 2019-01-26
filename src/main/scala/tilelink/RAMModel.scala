@@ -22,7 +22,7 @@ import freechips.rocketchip.util._
 // put, get, getAck, putAck => ok: detected by getAck (it sees busy>0)		impossible for FIFO
 // If FIFO, the getAck should check data even if its validity was wiped
 
-class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p: Parameters) extends LazyModule
+class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDeniedData: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode()
 
@@ -288,8 +288,10 @@ class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p:
                 printf(", undefined (concurrent incomplete puts #%d)\n", d_inc(i) - d_dec(i))
               } .elsewhen (!d_fifo && !d_valid) {
                 printf(", undefined (concurrent completed put)\n")
-              } .elsewhen (Bool(ignoreErrorData) && d.error) {
-                printf(", undefined (error result)\n")
+              } .elsewhen (Bool(ignoreDeniedData) && d.denied) {
+                printf(", undefined (denied result)\n")
+              } .elsewhen (Bool(ignoreCorruptData) && d.corrupt) {
+                printf(", undefined (corrupt result)\n")
               } .otherwise {
                 printf("\n")
                 when (shadow.value =/= got) { printf("EXPECTED: 0x%x\n", shadow.value) }
@@ -305,10 +307,10 @@ class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p:
           when ((Cat(race.reverse) & d_mask).orR) { d_no_race := Bool(false) }
           when (d_last) {
             val must_match = d_crc_valid && (d_fifo || (d_valid && d_no_race))
-            val error = Bool(ignoreErrorData) && d.error
+            val corrupt = (Bool(ignoreCorruptData) && d.corrupt) || (Bool(ignoreDeniedData) && d.denied)
             printf(log + " crc = 0x%x %d\n", d_crc, must_match.asUInt)
-            when (!error && must_match && d_crc =/= d_crc_check) { printf("EXPECTED: 0x%x\n", d_crc_check) }
-            assert (!must_match || d_crc === d_crc_check)
+            when (!corrupt && must_match && d_crc =/= d_crc_check) { printf("EXPECTED: 0x%x\n", d_crc_check) }
+            assert (corrupt || !must_match || d_crc === d_crc_check)
           }
         }
       }
@@ -333,9 +335,9 @@ class TLRAMModel(log: String = "", ignoreErrorData: Boolean = false)(implicit p:
 
 object TLRAMModel
 {
-  def apply(log: String = "", ignoreErrorData: Boolean = false)(implicit p: Parameters): TLNode =
+  def apply(log: String = "", ignoreCorruptData: Boolean = false, ignoreDeniedData: Boolean = true)(implicit p: Parameters): TLNode =
   {
-    val model = LazyModule(new TLRAMModel(log, ignoreErrorData))
+    val model = LazyModule(new TLRAMModel(log, ignoreCorruptData, ignoreDeniedData))
     model.node
   }
 

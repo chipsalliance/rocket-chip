@@ -5,22 +5,10 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 case class MaskROMParams(address: BigInt, name: String, depth: Int = 2048, width: Int = 32)
-
-case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]]
-
-trait HasPeripheryMaskROMSlave { this: BaseSubsystem =>
-  val maskROMParams = p(PeripheryMaskROMKey)
-  val maskROMs = maskROMParams map { params =>
-    val maskROM = LazyModule(new TLMaskROM(params))
-    pbus.toFixedWidthSingleBeatSlave(maskROM.beatBytes, Some("MaskROM")) { maskROM.node }
-    maskROM
-  }
-}
 
 class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
   val beatBytes = c.width/8
@@ -65,5 +53,17 @@ class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
     in.b.valid := Bool(false)
     in.c.ready := Bool(true)
     in.e.ready := Bool(true)
+  }
+}
+
+object MaskROM {
+  def attach(params: MaskROMParams, bus: TLBusWrapper)(implicit p: Parameters): TLMaskROM = {
+    val maskROM = LazyModule(new TLMaskROM(params))
+    maskROM.node := bus.coupleTo("MaskROM") {
+      TLFragmenter(maskROM.beatBytes, bus.blockBytes) :*= TLWidthWidget(bus) := _
+    }
+    InModuleBody { maskROM.module.clock := bus.module.clock }
+    InModuleBody { maskROM.module.reset := bus.module.reset }
+    maskROM
   }
 }

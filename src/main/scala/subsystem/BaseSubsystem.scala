@@ -3,14 +3,23 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.util._
+
+case object SystemBusKey extends Field[SystemBusParams]
+case object FrontBusKey extends Field[FrontBusParams]
+case object PeripheryBusKey extends Field[PeripheryBusParams]
+case object ControlBusKey extends Field[PeripheryBusParams]
+case object MemoryBusKey extends Field[MemoryBusParams]
+case object BankedL2Key extends Field(BankedL2Params())
+
+case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
 
 /** BareSubsystem is the root class for creating a subsystem */
 abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
+  lazy val objectModelJson = DiplomaticObjectModelUtils.toJson(createOMComponents(getResourceBindingsMap))
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
@@ -23,6 +32,10 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("json", outer.json)
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
   println(outer.dts)
+
+  def addOMArtefacts(): Unit = {
+    ElaborationArtefacts.add("objectModel.json", outer.objectModelJson)
+  }
 }
 
 /** Base Subsystem class with no peripheral devices or ports added */
@@ -32,49 +45,16 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   // These are wrappers around the standard buses available in all subsytems, where
   // peripherals, tiles, ports, and other masters and slaves can attach themselves.
   val ibus = new InterruptBusWrapper()
-  val sbus = LazyModule(new SystemBus(p(SystemBusKey)))
+  val sbus = LazyModule(p(BuildSystemBus)(p))
   val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
+  val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
+  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  // The sbus masters the pbus; here we convert TL-UH -> TL-UL
-  pbus.fromSystemBus { sbus.toPeripheryBus { pbus.crossTLIn } }
-
-  // The fbus masters the sbus; both are TL-UH or TL-C
-  FlipRendering { implicit p =>
-    fbus.toSystemBus { sbus.fromFrontBus { fbus.crossTLOut } }
-  }
-
-  // The sbus masters the mbus; here we convert TL-C -> TL-UH
-  private val mbusParams = p(MemoryBusKey)
-  private val l2Params = p(BankedL2Key)
-  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes) = mbusParams
-  val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
-  val nBanks = l2Params.nBanks
-  val cacheBlockBytes = memBusBlockBytes
-  // TODO: the below call to coherenceManager should be wrapped in a LazyScope here,
-  //       but plumbing halt is too annoying for now.
-  private val (in, out, halt) = coherenceManager(this)
-  def memBusCanCauseHalt: () => Option[Bool] = halt
-
-  require (isPow2(nMemoryChannels) || nMemoryChannels == 0)
-  require (isPow2(nBanksPerChannel))
-  require (isPow2(memBusBlockBytes))
-
-  private val mask = ~BigInt((nBanks-1) * memBusBlockBytes)
-  val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
-    val mbus = LazyModule(new MemoryBus(mbusParams)(p))
-    for (bank <- 0 until nBanksPerChannel) {
-      val offset = (bank * nMemoryChannels) + channel
-      ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.Mmask(AddressSet(offset * memBusBlockBytes, mask))) } := out
-    }
-    mbus
-  }
-
-  // Make topManagers an Option[] so as to avoid LM name reflection evaluating it...
-  lazy val topManagers = Some(ManagerUnification(sbus.busView.manager.managers))
+  // Collect information for use in DTS
+  lazy val topManagers = sbus.unifyManagers
   ResourceBinding {
-    val managers = topManagers.get
+    val managers = topManagers
     val max = managers.flatMap(_.address).map(_.max).max
     val width = ResourceInt((log2Ceil(max)+31) / 32)
     val model = p(DTSModel)
@@ -99,21 +79,23 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
 
 
 abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
-  private val mapping: Seq[AddressMapEntry] = {
+  private val mapping: Seq[AddressMapEntry] = Annotated.addressMapping(this, {
     outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
     }.sortBy(_.range)
-  }
+  })
+
+  Annotated.addressMapping(this, mapping)
 
   println("Generated Address Map")
   mapping.map(entry => println(entry.toString((outer.sbus.busView.bundle.addressBits-1)/4 + 1)))
   println("")
 
-  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.serialize).mkString(",")}]}""")
+  ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.toJSON).mkString(",")}]}""")
 
   // Confirm that all of memory was described by DTS
   private val dtsRanges = AddressRange.unify(mapping.map(_.range))
-  private val allRanges = AddressRange.unify(outer.topManagers.get.flatMap { m => AddressRange.fromSets(m.address) })
+  private val allRanges = AddressRange.unify(outer.topManagers.flatMap { m => AddressRange.fromSets(m.address) })
 
   if (dtsRanges != allRanges) {
     println("Address map described by DTS differs from physical implementation:")

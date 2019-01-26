@@ -13,6 +13,10 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
+
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -60,7 +64,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
   def address = AddressSet(baseAddress, PLICConsts.size-1)
 }
 
-case object PLICKey extends Field(PLICParams())
+case object PLICKey extends Field[Option[PLICParams]](None)
 
 /** Platform-Level Interrupt Controller */
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
@@ -73,20 +77,45 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       val extra = Map(
         "interrupt-controller" -> Nil,
         "riscv,ndev" -> Seq(ResourceInt(nDevices)),
-        "riscv,max-priority" -> Seq(ResourceInt(params.maxPriorities)),        
+        "riscv,max-priority" -> Seq(ResourceInt(nPriorities)),
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
     }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
+    }
+
+    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
+
+      Seq[OMComponent](
+        OMPLIC(
+          memoryRegions = memRegions,
+          interrupts = Nil, // TODO
+          specifications = List(
+            OMSpecification(
+              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
+              version = "1.10"
+            )
+          ),
+          latency = 2, // TODO
+          nInterrupts = 3,
+          nPriorities = params.maxPriorities,
+          targets = Nil
+        )
+      )
+    }
   }
 
-  val node = TLRegisterNode(
+  val node : TLRegisterNode = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
     beatBytes = beatBytes,
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
-  val intnode = IntNexusNode(
+  val intnode: IntNexusNode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
@@ -94,7 +123,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
   /* Negotiated sizes */
   def nDevices: Int = intnode.edges.in.map(_.source.num).sum
-  def nPriorities = min(params.maxPriorities, nDevices)
+  def minPriorities = min(params.maxPriorities, nDevices)
+  def nPriorities = (1 << log2Ceil(minPriorities+1)) - 1 // round up to next 2^n-1
   def nHarts = intnode.edges.out.map(_.source.num).sum
 
   // Assign all the devices unique ranges
@@ -111,6 +141,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 
   lazy val module = new LazyModuleImp(this) {
+    Annotated.params(this, params)
+
     val (io_devices, edgesIn) = intnode.in.unzip
     val (io_harts, _) = intnode.out.unzip
 
@@ -126,78 +158,89 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
     println("")
 
-    require (nDevices == interrupts.size)
-    require (nHarts == harts.size)
+    require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
+    require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
 
-    require(nDevices <= PLICConsts.maxDevices)
-    require(nHarts > 0 && nHarts <= PLICConsts.maxHarts)
+    require(nDevices <= PLICConsts.maxDevices, s"Must be: nDevices=$nDevices <= PLICConsts.maxDevices=${PLICConsts.maxDevices}")
+    require(nHarts > 0 && nHarts <= PLICConsts.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICConsts.maxHarts=${PLICConsts.maxHarts}")
 
     // For now, use LevelGateways for all TL2 interrupts
-    val gateways = Vec((false.B +: interrupts).map { case i =>
+    val gateways = interrupts.map { case i =>
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
       gateway.io.plic
-    })
+    }
 
+    val prioBits = log2Ceil(nPriorities+1)
     val priority =
-      if (nPriorities > 0) Reg(Vec(nDevices+1, UInt(width=log2Up(nPriorities+1))))
-      else Wire(init=Vec.fill(nDevices+1)(UInt(1)))
+      if (nPriorities > 0) Reg(Vec(nDevices, UInt(width=prioBits)))
+      else Wire(init=Vec.fill(nDevices)(UInt(1)))
     val threshold =
-      if (nPriorities > 0) Reg(Vec(nHarts, UInt(width = log2Up(nPriorities+1))))
+      if (nPriorities > 0) Reg(Vec(nHarts, UInt(width=prioBits)))
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
-    val pending = Reg(init=Vec.fill(nDevices+1){Bool(false)})
-    val enables = Reg(Vec(nHarts, Vec(nDevices+1, Bool())))
+    val pending = Reg(init=Vec.fill(nDevices){Bool(false)})
+
+    /* Construct the enable registers, chunked into 8-bit segments to reduce verilog size */
+    val firstEnable = nDevices min 7
+    val fullEnables = (nDevices - firstEnable) / 8
+    val tailEnable  = nDevices - firstEnable - 8*fullEnables
+    def enableRegs = (Reg(UInt(width = firstEnable)) +:
+                      Seq.fill(fullEnables) { Reg(UInt(width = 8)) }) ++
+                     (if (tailEnable > 0) Some(Reg(UInt(width = tailEnable))) else None)
+    val enables = Seq.fill(nHarts) { enableRegs }
+    val enableVec = Vec(enables.map(x => Cat(x.reverse)))
+    val enableVec0 = Vec(enableVec.map(x => Cat(x, UInt(0, width=1))))
     
-    def findMax(x: Seq[UInt]): (UInt, UInt) = {
-      if (x.length > 1) {
-        val half = 1 << (log2Ceil(x.length) - 1)
-        val left = findMax(x take half)
-        val right = findMax(x drop half)
-        MuxT(left._1 >= right._1, left, (right._1, UInt(half) | right._2))
-      } else (x.head, UInt(0))
-    }
-
-    val maxDevs = Reg(Vec(nHarts, UInt(width = log2Up(pending.size))))
+    val maxDevs = Reg(Vec(nHarts, UInt(width = log2Ceil(nDevices+1))))
+    val pendingUInt = Cat(pending.reverse)
     for (hart <- 0 until nHarts) {
-      val effectivePriority = (UInt(1) << priority(0).getWidth) +:
-        (for (((p, en), pri) <- (pending zip enables(hart) zip priority).tail)
-          yield Cat(p && en, pri))
-      val (maxPri, maxDev) = findMax(effectivePriority)
-
-      maxDevs(hart) := maxDev
-      harts(hart) := ShiftRegister(Reg(next = maxPri) > Cat(UInt(1), threshold(hart)), params.intStages)
+      val fanin = Module(new PLICFanIn(nDevices, prioBits))
+      fanin.io.prio := priority
+      fanin.io.ip   := enableVec(hart) & pendingUInt
+      maxDevs(hart) := fanin.io.dev
+      harts(hart)   := ShiftRegister(Reg(next = fanin.io.max) > threshold(hart), params.intStages)
     }
 
-    def priorityRegDesc(i: Int) = if (i > 0) {
-      RegFieldDesc(s"priority_$i", s"Acting priority of interrupt source $i",
-        reset=if (nPriorities > 0) None else Some(1),
-        wrType=Some(RegFieldWrType.MODIFY))
-    } else {
-      RegFieldDesc.reserved
-    }
-    def pendingRegDesc(i: Int) = if (i > 0) {
-      RegFieldDesc(s"pending_$i", s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.",
-      volatile = true)
-    } else {
-      RegFieldDesc.reserved
+    def priorityRegDesc(i: Int) =
+      RegFieldDesc(
+        name      = s"priority_$i",
+        desc      = s"Acting priority of interrupt source $i",
+        group     = Some("priority"),
+        groupDesc = Some("Acting priorities of each interrupt source."),
+        reset     = if (nPriorities > 0) None else Some(1))
+
+    def pendingRegDesc(i: Int) =
+      RegFieldDesc(
+        name      = s"pending_$i",
+        desc      = s"Set to 1 if interrupt source $i is pending, regardless of its enable or priority setting.",
+        group     = Some("pending"),
+        groupDesc = Some("Pending Bit Array. 1 Bit for each interrupt source."),
+        volatile = true)
+
+    def enableRegDesc(i: Int, j: Int, wide: Int) = {
+      val low = if (j == 0) 1 else j*8
+      val high = low + wide - 1
+      RegFieldDesc(
+        name      = s"enables_${j}",
+        desc      = s"Targets ${low}-${high}. Set bits to 1 if interrupt should be enabled.",
+        group     = Some(s"enables_${i}"),
+        groupDesc = Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."))
     }
 
-    def priorityRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, priorityRegDesc(i)) else RegField.r(32, x, priorityRegDesc(i))
-    val priorityRegFields = Seq(PLICConsts.priorityBase -> RegFieldGroup("priority",
-      Some(s"Acting priorities of each interrupt source. Maximum legal value is ${nPriorities}. 32 bits for each interrupt source."),
-      priority.zipWithIndex.map{case (p, i) => priorityRegField(p, i)}))
-    val pendingRegFields = Seq(PLICConsts.pendingBase  -> RegFieldGroup("pending", Some("Pending Bit Array. 1 Bit for each interrupt source."),
-      pending.zipWithIndex.map{case (b, i) => RegField.r(1, b, pendingRegDesc(i))}))
+    def priorityRegField(x: UInt, i: Int) =
+      if (nPriorities > 0) {
+        RegField(prioBits, x, priorityRegDesc(i))
+      } else {
+        RegField.r(prioBits, x, priorityRegDesc(i))
+      }
 
- 
+    val priorityRegFields = priority.zipWithIndex.map { case (p, i) =>
+      PLICConsts.priorityBase+4*(i+1) -> Seq(priorityRegField(p, i+1)) }
+    val pendingRegFields = Seq(PLICConsts.pendingBase ->
+      (RegField(1) +: pending.zipWithIndex.map { case (b, i) => RegField.r(1, b, pendingRegDesc(i+1))}))
     val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
-      PLICConsts.enableBase(i) -> RegFieldGroup(s"enables_${i}", Some(s"Enable bits for each interrupt source for target $i. 1 bit for each interrupt source."),
-        e.zipWithIndex.map{case (b, j) => if (j > 0) {
-          RegField(1, b, RegFieldDesc(s"enable_${i}_${j}", s"Enable interrupt for source $j for target $i.", reset=None))
-        } else {
-          RegField(1, b, RegFieldDesc.reserved)
-        }})
-    }
+      PLICConsts.enableBase(i) -> (RegField(1) +: e.zipWithIndex.map { case (x, j) =>
+        RegField(x.getWidth, x, enableRegDesc(i, j, x.getWidth)) }) }
 
     // When a hart reads a claim/complete register, then the
     // device which is currently its highest priority is no longer pending.
@@ -207,10 +250,10 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     // Note: PLIC doesn't care which hart reads the register.
     val claimer = Wire(Vec(nHarts, Bool()))
     assert((claimer.asUInt & (claimer.asUInt - UInt(1))) === UInt(0)) // One-Hot
-    val claiming = Vec.tabulate(nHarts){i => Mux(claimer(i), UIntToOH(maxDevs(i), nDevices+1), UInt(0))}
-    val claimedDevs = Vec(claiming.reduceLeft( _ | _ ).toBools)
+    val claiming = Seq.tabulate(nHarts){i => Mux(claimer(i), maxDevs(i), UInt(0))}.reduceLeft(_|_)
+    val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).toBools)
 
-    ((pending zip gateways) zip claimedDevs) foreach { case ((p, g), c) =>
+    ((pending zip gateways) zip claimedDevs.tail) foreach { case ((p, g), c) =>
       g.ready := !p
       when (c || g.valid) { p := !c }
     }
@@ -226,18 +269,27 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
     val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(completerDev, nDevices+1), UInt(0))
-    (gateways zip completedDevs.toBools) foreach { case (g, c) =>
+    (gateways zip completedDevs.toBools.tail) foreach { case (g, c) =>
        g.complete := c
     }
 
-    def thresholdRegDesc(i: Int) = RegFieldDesc(s"threshold_$i", s"Interrupt & claim threshold for target $i. Maximum value is ${nPriorities}.",
-      reset=if (nPriorities > 0) None else Some(1),
-      wrType=Some(RegFieldWrType.MODIFY))
-    def thresholdRegField(x: UInt, i: Int) = if (nPriorities > 0) RegField(32, x, thresholdRegDesc(i)) else RegField.r(32, x, thresholdRegDesc(i))
+    def thresholdRegDesc(i: Int) =
+      RegFieldDesc(
+        name = s"threshold_$i",
+        desc = s"Interrupt & claim threshold for target $i. Maximum value is ${nPriorities}.",
+        reset    = if (nPriorities > 0) None else Some(1))
+
+    def thresholdRegField(x: UInt, i: Int) =
+      if (nPriorities > 0) {
+        RegField(prioBits, x, thresholdRegDesc(i))
+      } else {
+        RegField.r(prioBits, x, thresholdRegDesc(i))
+      }
 
     val hartRegFields = Seq.tabulate(nHarts) { i =>
       PLICConsts.hartBase(i) -> Seq(
         thresholdRegField(threshold(i), i),
+        RegField(32-prioBits),
         RegField(32,
           RegReadFn { valid =>
             claimer(i) := valid
@@ -247,7 +299,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0), 
                    "completerDev should be consistent for all harts")
             completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
-            completer(i) := valid && enables(i)(completerDev)
+            completer(i) := valid && enableVec0(i)(completerDev)
             Bool(true)
           },
           Some(RegFieldDesc(s"claim_complete_$i",
@@ -259,14 +311,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             volatile = true))
         )
       )
-    } 
+    }
 
-    node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
-
-    priority(0) := 0
-    pending(0) := false
-    for (e <- enables)
-      e(0) := false
+    val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
@@ -289,9 +336,35 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 }
 
+class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
+  val io = new Bundle {
+    val prio = Vec(nDevices, UInt(width = prioBits)).flip
+    val ip   = UInt(width = nDevices).flip
+    val dev  = UInt(width = log2Ceil(nDevices+1))
+    val max  = UInt(width = prioBits)
+  }
+
+  def findMax(x: Seq[UInt]): (UInt, UInt) = {
+    if (x.length > 1) {
+      val half = 1 << (log2Ceil(x.length) - 1)
+      val left = findMax(x take half)
+      val right = findMax(x drop half)
+      MuxT(left._1 >= right._1, left, (right._1, UInt(half) | right._2))
+    } else (x.head, UInt(0))
+  }
+
+  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.toBools zip io.prio).map { case (p, x) => Cat(p, x) }
+  val (maxPri, maxDev) = findMax(effectivePriority)
+  io.max := maxPri // strips the always-constant high '1' bit
+  io.dev := maxDev
+}
+
 /** Trait that will connect a PLIC to a subsystem */
-trait HasPeripheryPLIC { this: BaseSubsystem =>
-  val plic  = LazyModule(new TLPLIC(p(PLICKey), pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("plic")) { plic.node }
-  plic.intnode := ibus.toPLIC
+trait CanHavePeripheryPLIC { this: BaseSubsystem =>
+  val plicOpt  = p(PLICKey).map { params =>
+    val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
+    plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
+    plic.intnode :=* ibus.toPLIC
+    plic
+  }
 }

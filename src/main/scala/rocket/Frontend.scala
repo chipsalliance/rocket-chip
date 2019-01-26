@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.core.withReset
+import chisel3.experimental._
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -44,6 +44,8 @@ class FrontendPerfEvents extends Bundle {
 }
 
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
+  val might_request = Bool(OUTPUT)
+  val clock_enabled = Bool(INPUT)
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
@@ -69,16 +71,30 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
   val errors = new ICacheErrors
 }
 
+@chiselName
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
-    with HasCoreParameters
+    with HasRocketCoreParameters
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
   implicit val edge = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 
-  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), nTLBEntries))
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 5, flow = true)) }
+
+  val clock_en_reg = Reg(Bool())
+  val clock_en = clock_en_reg || io.cpu.might_request
+  io.cpu.clock_enabled := clock_en
+  assert(!(io.cpu.req.valid || io.cpu.sfence.valid || io.cpu.flush_icache || io.cpu.bht_update.valid || io.cpu.btb_update.valid) || io.cpu.might_request)
+  val gated_clock =
+    if (!rocketParams.clockGate) clock
+    else ClockGate(clock, clock_en, "icache_clock_gate")
+
+  icache.clock := gated_clock
+  icache.io.clock_enabled := clock_en
+  withClock (gated_clock) { // entering gated-clock domain
+
+  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBEntries)))
 
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
   val s1_valid = RegNext(s0_valid)
@@ -123,11 +139,12 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   }
 
   io.ptw <> tlb.io.ptw
-  tlb.io.req.valid := !s2_replay
+  tlb.io.req.valid := s1_valid && !s2_replay
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
-  tlb.io.req.bits.sfence := io.cpu.sfence
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
+  tlb.io.sfence := io.cpu.sfence
+  tlb.io.kill := !s2_valid
 
   icache.io.hartid := io.hartid
   icache.io.req.valid := s0_valid
@@ -170,6 +187,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       predicted_taken := Bool(true)
     }
 
+    val force_taken = io.ptw.customCSRs.bpmStatic
+    when (io.ptw.customCSRs.flushBTB) { btb.io.flush := true }
+    when (force_taken) { btb.io.bht_update.valid := false }
+
     val s2_base_pc = ~(~s2_pc | (fetchBytes-1))
     val taken_idx = Wire(UInt())
     val after_idx = Wire(UInt())
@@ -191,18 +212,19 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
       val rvcJAL = Bool(xLen == 32) && bits === Instructions.C_JAL
       val rvcJump = bits === Instructions.C_J || rvcJAL
-      val rvcImm = Mux(bits(14), new RVCDecoder(bits).bImm.asSInt, new RVCDecoder(bits).jImm.asSInt)
+      val rvcImm = Mux(bits(14), new RVCDecoder(bits, xLen).bImm.asSInt, new RVCDecoder(bits, xLen).jImm.asSInt)
       val rvcJR = bits === Instructions.C_MV && bits(6,2) === 0
       val rvcReturn = rvcJR && BitPat("b00?01") === bits(11,7)
       val rvcJALR = bits === Instructions.C_ADD && bits(6,2) === 0
       val rvcCall = rvcJAL || rvcJALR
       val rviImm = Mux(rviBits(3), ImmGen(IMM_UJ, rviBits), ImmGen(IMM_SB, rviBits))
+      val predict_taken = s2_btb_resp_bits.bht.taken || force_taken
       val taken =
-        prevRVI && (rviJump || rviJALR || rviBranch && s2_btb_resp_bits.bht.taken) ||
-        valid && (rvcJump || rvcJALR || rvcJR || rvcBranch && s2_btb_resp_bits.bht.taken)
+        prevRVI && (rviJump || rviJALR || rviBranch && predict_taken) ||
+        valid && (rvcJump || rvcJALR || rvcJR || rvcBranch && predict_taken)
       val predictReturn = btb.io.ras_head.valid && (prevRVI && rviReturn || valid && rvcReturn)
       val predictJump = prevRVI && rviJump || valid && rvcJump
-      val predictBranch = s2_btb_resp_bits.bht.taken && (prevRVI && rviBranch || valid && rvcBranch)
+      val predictBranch = predict_taken && (prevRVI && rviBranch || valid && rvcBranch)
 
       when (s2_valid && s2_btb_resp_valid && s2_btb_resp_bits.bridx === idx && valid && !rvc) {
         // The BTB has predicted that the middle of an RVI instruction is
@@ -219,7 +241,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
         btb.io.ras_update.valid := fq.io.enq.fire() && !wrong_path && (prevRVI && (rviCall || rviReturn) || valid && (rvcCall || rvcReturn))
         btb.io.ras_update.bits.cfiType := Mux(Mux(prevRVI, rviReturn, rvcReturn), CFIType.ret,
                                           Mux(Mux(prevRVI, rviCall, rvcCall), CFIType.call,
-                                          Mux(Mux(prevRVI, rviBranch, rvcBranch), CFIType.branch,
+                                          Mux(Mux(prevRVI, rviBranch, rvcBranch) && !force_taken, CFIType.branch,
                                           CFIType.jump)))
 
         when (!s2_btb_taken) {
@@ -299,6 +321,15 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
   io.errors := icache.io.errors
+
+  // gate the clock
+  clock_en_reg := !rocketParams.clockGate ||
+    io.cpu.might_request || // chicken bit
+    icache.io.keep_clock_enabled || // I$ miss or ITIM access
+    s1_valid || s2_valid || // some fetch in flight
+    !tlb.io.req.ready || // handling TLB miss
+    !fq.io.mask(fq.io.mask.getWidth-1) // queue not full
+  } // leaving gated-clock domain
 
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
 

@@ -1,13 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.rocket
+package freechips.rocketchip.tile
 
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.util.Valid
+import chisel3.core.DontCare
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.util._
-import freechips.rocketchip.tile._
+import freechips.rocketchip.rocket._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -84,15 +85,24 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
       else RegFieldDesc.reserved
     }
 
+    val cause_wen = Wire(init = false.B)
+    val new_cause = Wire(UInt(causeWidth.W), DontCare)
+    val new_value = Wire(UInt(value.getWidth.W), DontCare)
     for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
       when (s.get.valid) {
         acc := true
-        when (en && cause === 0) {
-          cause := i
-          value := s.get.bits
+        when (en) {
+          cause_wen := true
+          new_cause := i
+          new_value := s.get.bits
         }
         cover(en, s"BusErrorCause_$i", s"Core;;BusErrorCause $i covered")
       }
+    }
+
+    when (cause === 0 && cause_wen) {
+      cause := OptimizationBarrier(new_cause)
+      value := OptimizationBarrier(new_value)
     }
 
     val (int_out, _) = intNode.out(0)

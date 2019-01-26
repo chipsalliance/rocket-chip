@@ -47,8 +47,7 @@ case class RegFieldDesc (
   // TODO: testable?
   reset: Option[BigInt] = None,
   enumerations: Map[BigInt, (String, String)] = Map()
-){
-}
+)
 
 object RegFieldDesc {
   def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
@@ -139,7 +138,7 @@ object RegWriteFn
 
 case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option[RegFieldDesc])
 {
-  require (width > 0, s"RegField width must be > 0, not $width")
+  require (width >= 0, s"RegField width must be >= 0, not $width")
 
   def pipelined = !read.combinational || !write.combinational
 

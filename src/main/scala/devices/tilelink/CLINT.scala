@@ -4,13 +4,14 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
+import freechips.rocketchip.regmapper._
+import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 object CLINTConsts
 {
@@ -30,7 +31,7 @@ case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
   def address = AddressSet(baseAddress, CLINTConsts.size-1)
 }
 
-case object CLINTKey extends Field(CLINTParams())
+case object CLINTKey extends Field[Option[CLINTParams]](None)
 
 class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
@@ -39,19 +40,41 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   // clint0 => at most 4095 devices
   val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMCLINT)
+    }
+
+    def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(module.omRegMap))
+
+      Seq[OMComponent](
+        OMCLINT(
+          memoryRegions = memRegions,
+          interrupts = Nil,
+          specifications = List(
+            OMSpecification(
+              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
+              version = "1.10"
+            )
+          )
+        )
+      )
+    }
   }
 
-  val node = TLRegisterNode(
+  val node: TLRegisterNode = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
     beatBytes = beatBytes)
 
-  val intnode = IntNexusNode(
+  val intnode : IntNexusNode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false)
 
   lazy val module = new LazyModuleImp(this) {
+    Annotated.params(this, params)
     require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
 
     val io = IO(new Bundle {
@@ -81,9 +104,9 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
      * bffc mtime hi
      */
 
-    node.regmap(
-      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.map{ case (r, i) =>
-        RegField(ipiWidth, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0)))}),
+    val omRegMap : OMRegisterMap = node.regmap(
+      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.flatMap{ case (r, i) =>
+        RegField(1, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0))) :: RegField(ipiWidth - 1) :: Nil }),
       timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) => RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"),
           RegField.bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset=None))))},
       timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"),
@@ -93,7 +116,10 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 }
 
 /** Trait that will connect a CLINT to a subsystem */
-trait HasPeripheryCLINT { this: BaseSubsystem =>
-  val clint = LazyModule(new CLINT(p(CLINTKey), pbus.beatBytes))
-  pbus.toVariableWidthSlave(Some("clint")) { clint.node }
+trait CanHavePeripheryCLINT { this: BaseSubsystem =>
+  val clintOpt = p(CLINTKey).map { params =>
+    val clint = LazyModule(new CLINT(params, cbus.beatBytes))
+    clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
+    clint
+  }
 }

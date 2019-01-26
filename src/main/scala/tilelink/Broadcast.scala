@@ -35,6 +35,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
               regionType         = RegionType.TRACKED,
               supportsAcquireB   = TransferSizes(lowerBound, lineBytes),
               supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, lineBytes) else TransferSizes.none,
+              alwaysGrantsT      = false,
               // truncate supported accesses to lineBytes (we only ever probe for one line)
               supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, lineBytes)),
               supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, lineBytes)),
@@ -82,7 +83,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       val d_drop = d_what === DROP
       val d_hasData = edgeOut.hasData(out.d.bits)
       val d_normal = Wire(in.d)
-      val d_trackerOH = Vec(trackers.map { t => !t.idle && t.source === d_normal.bits.source }).asUInt
+      val d_trackerOH = Vec(trackers.map { t => t.need_d && t.source === d_normal.bits.source }).asUInt
 
       assert (!out.d.valid || !d_drop || out.d.bits.opcode === TLMessages.AccessAck)
 
@@ -228,6 +229,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
     val source = UInt(OUTPUT) // the source awaiting D response
     val line = UInt(OUTPUT)   // the line waiting for probes
     val idle = Bool(OUTPUT)
+    val need_d = Bool(OUTPUT)
   }
 
   val lineShift = log2Ceil(lineBytes)
@@ -271,6 +273,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   }
 
   io.idle := idle
+  io.need_d := !sent_d
   io.source := source
   io.line := address >> lineShift
 
@@ -299,6 +302,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   io.out_a.bits.address := address
   io.out_a.bits.mask    := o_data.bits.mask
   io.out_a.bits.data    := o_data.bits.data
+  io.out_a.bits.corrupt := Bool(false)
 }
 
 object TLBroadcastConstants

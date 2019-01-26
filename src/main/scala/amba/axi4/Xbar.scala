@@ -29,6 +29,7 @@ class AXI4Xbar(
     slaveFn = { seq =>
       seq(0).copy(
         minLatency = seq.map(_.minLatency).min,
+        wcorrupt = seq.exists(_.wcorrupt),
         slaves = seq.flatMap { port =>
           require (port.beatBytes == seq(0).beatBytes,
             s"Xbar data widths don't match: ${port.slaves.map(_.name)} has ${port.beatBytes}B vs ${seq(0).slaves.map(_.name)} has ${seq(0).beatBytes}B")
@@ -211,7 +212,7 @@ object AXI4Xbar
     axi4xbar.node
   }
 
-  def mapInputIds(ports: Seq[AXI4MasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endId)).map(_.get)
+  def mapInputIds(ports: Seq[AXI4MasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endId))
 
   // Replicate an input port to each output port
   def fanout[T <: AXI4BundleBase](input: IrrevocableIO[T], select: Seq[Bool]) = {
@@ -285,7 +286,7 @@ class AXI4XbarFuzzTest(name: String, txns: Int, nMasters: Int, nSlaves: Int)(imp
   val xbar = AXI4Xbar()
   val slaveSize = 0x1000
   val masterBandSize = slaveSize >> log2Ceil(nMasters)
-  def filter(i: Int) = TLFilter.Mmask(AddressSet(i * masterBandSize, ~BigInt(slaveSize - masterBandSize)))
+  def filter(i: Int) = TLFilter.mSelectIntersect(AddressSet(i * masterBandSize, ~BigInt(slaveSize - masterBandSize)))
 
   val slaves = Seq.tabulate(nSlaves) { i => LazyModule(new AXI4RAM(AddressSet(slaveSize * i, slaveSize-1))) }
   slaves.foreach { s => (s.node

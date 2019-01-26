@@ -8,6 +8,8 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
 class IDMapGenerator(numIds: Int) extends Module {
+  require (numIds > 0)
+
   val w = log2Up(numIds)
   val io = new Bundle {
     val free = Decoupled(UInt(width = w)).flip

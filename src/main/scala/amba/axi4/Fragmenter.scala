@@ -18,7 +18,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
     supportsWrite = expandTransfer(s.supportsWrite, beatBytes, s.minAlignment),
     supportsRead  = expandTransfer(s.supportsRead,  beatBytes, s.minAlignment),
     interleavedId = None) // this breaks interleaving guarantees
-  def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true)
+  def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true, maxFlight = None)
 
   val node = AXI4AdapterNode(
     masterFn = { mp => mp.copy(masters = mp.masters.map(m => mapMaster(m)), userBits = mp.userBits + 1) },
@@ -63,8 +63,8 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
         val addr = Mux(busy, r_addr, a.bits.addr)
 
         val lo = if (lgBytes == 0) UInt(0) else addr(lgBytes-1, 0)
-        val hi = addr >> lgBytes
-        val alignment = hi(AXI4Parameters.lenBits-1,0)
+        val cutoff = AXI4Parameters.lenBits + lgBytes
+        val alignment = addr((a.bits.params.addrBits min cutoff)-1, lgBytes)
 
         // We don't care about illegal addresses; bursts or no bursts... whatever circuit is simpler (AXI4ToTL will fix it)
         // !!! think about this more -- what if illegal?

@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import chisel3.internal.InstanceId
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters
@@ -24,7 +25,7 @@ case class BTBParams(
   bhtParams: Option[BHTParams] = Some(BHTParams()),
   updatesOutOfOrder: Boolean = false)
 
-trait HasBtbParameters extends HasCoreParameters {
+trait HasBtbParameters extends HasCoreParameters { this: InstanceId =>
   val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
   val matchBits = btbParams.nMatchBits max log2Ceil(p(CacheBlockBytes) * tileParams.icache.get.nSets)
   val entries = btbParams.nEntries
@@ -32,9 +33,11 @@ trait HasBtbParameters extends HasCoreParameters {
   val nPages = (btbParams.nPages + 1) / 2 * 2 // control logic assumes 2 divides pages
 }
 
-abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters
-abstract class BtbBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
-  with HasBtbParameters
+abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters {
+  Annotated.params(this, btbParams)
+}
+
+abstract class BtbBundle(implicit val p: Parameters) extends Bundle with HasBtbParameters
 
 class RAS(nras: Int) {
   def push(addr: UInt): Unit = {
@@ -286,7 +289,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   if (btbParams.bhtParams.nonEmpty) {
-    val bht = new BHT(btbParams.bhtParams.get)
+    val bht = new BHT(Annotated.params(this, btbParams.bhtParams.get))
     val isBranch = (idxHit & cfiType.map(_ === CFIType.branch).asUInt).orR
     val res = bht.get(io.req.bits.addr)
     when (io.bht_advance.valid) {
