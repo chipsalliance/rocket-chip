@@ -238,7 +238,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       (s1_meta_hit_way, s1_meta_hit_state, s1_meta, s1_meta_uncorrected(s1_victim_way))
     }
   val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
-  val s1_all_data_ways = Vec(data.io.resp :+ dummyEncodeData(tl_out.d.bits.data))
+  val s1_all_data_ways = Vec(data.io.resp :+ encodeData(tl_out.d.bits.data, tl_out.d.bits.corrupt))
   val s1_mask_xwr = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, s1_mask_xwr)
   // for partial writes, s1_data.mask must be a subset of s1_mask_xwr
@@ -573,7 +573,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     dataArb.io.in(1).bits.write := true
     dataArb.io.in(1).bits.addr :=  (s2_vaddr >> idxLSB) << idxLSB | d_address_inc
     dataArb.io.in(1).bits.way_en := s2_victim_way
-    dataArb.io.in(1).bits.wdata := encodeData(tl_out.d.bits.data, tl_out.d.bits.corrupt)
+    dataArb.io.in(1).bits.wdata := s1_all_data_ways.last
     dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
     dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   } else {
