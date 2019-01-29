@@ -103,7 +103,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
           ),
           latency = 2, // TODO
           nPriorities = nPriorities,
-          targets = module.getTargets()
+          targets = Nil
         )
       )
     }
@@ -159,17 +159,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
     println("")
 
-    val unflattenedInts = intnode.in.map { case (i, e) => i.take(e.source.num) }.zip(io_harts).zipWithIndex
-
-    def getTargets(): Seq[OMInterruptTarget] = {
-      unflattenedInts.map {
-        case ((mode, hart), index) =>
-          OMInterruptTarget(
-            hartId = index,
-            modes = OMPLIC.getMode(hart.length)
-          )
-      }
-    }
+    val unflattenedInts = intnode.edges.out.map(_.source.num).zipWithIndex
 
     require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
     require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
