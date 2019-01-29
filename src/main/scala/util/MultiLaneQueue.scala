@@ -31,7 +31,7 @@ class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, val flow:
 
 object RotateVector {
   def left[T <: Data](input: Seq[T], shift: UInt): Vec[T] = {
-    val bools = shift.toBools.toVector
+    val bools = shift.asBools.toVector
     def helper(bit: Int, offset: Int, x: Vector[T]): Vector[T] = {
       if (offset >= input.size) {
         x
@@ -44,7 +44,7 @@ object RotateVector {
     VecInit(helper(0, 1, input.toVector))
   }
   def right[T <: Data](input: Seq[T], shift: UInt): Vec[T] = {
-    val bools = shift.toBools.toVector
+    val bools = shift.asBools.toVector
     def helper(bit: Int, offset: Int, x: Vector[T]): Vector[T] = {
       if (offset >= input.size) {
         x

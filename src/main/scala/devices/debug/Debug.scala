@@ -373,8 +373,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
          // drive each slice of hamask with stored HAMASKReg or with new value being written
         for (jj <- 0 until haWindowSize) {
           if (((ii*haWindowSize) + jj) < nComponents) {
-            val tempWrData = HAWINDOWWrData.maskdata.toBools
-            val tempMaskReg = HAMASKReg.asUInt.toBools
+            val tempWrData = HAWINDOWWrData.maskdata.asBools
+            val tempMaskReg = HAMASKReg.asUInt.asBools
             when (HAWINDOWWrEn && (ii.U === HAWINDOWSELReg.hawindowsel)) {
               hamask(ii*haWindowSize + jj) := tempWrData(jj)
 	    }.otherwise {
@@ -410,7 +410,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val debugIntRegs = Wire(init = Vec(AsyncResetReg(updateData = debugIntNxt.asUInt,
       resetData = 0,
       enable = true.B,
-      name = "debugInterrupts").toBools))
+      name = "debugInterrupts").asBools))
 
     debugIntNxt := debugIntRegs
 
@@ -749,8 +749,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // This will take the shorter of the lists, which is what we want.
     val autoexecData  = Wire(init = Vec.fill(cfg.nAbstractDataWords){false.B})
     val autoexecProg  = Wire(init = Vec.fill(cfg.nProgramBufferWords){false.B})
-      (autoexecData zip ABSTRACTAUTOReg.autoexecdata.toBools).zipWithIndex.foreach {case (t, i) => t._1 := dmiAbstractDataAccessVec(i * 4) && t._2 }
-      (autoexecProg zip ABSTRACTAUTOReg.autoexecprogbuf.toBools).zipWithIndex.foreach {case (t, i) => t._1 := dmiProgramBufferAccessVec(i * 4) && t._2}
+      (autoexecData zip ABSTRACTAUTOReg.autoexecdata.asBools).zipWithIndex.foreach {case (t, i) => t._1 := dmiAbstractDataAccessVec(i * 4) && t._2 }
+      (autoexecProg zip ABSTRACTAUTOReg.autoexecprogbuf.asBools).zipWithIndex.foreach {case (t, i) => t._1 := dmiProgramBufferAccessVec(i * 4) && t._2}
 
     val autoexec = autoexecData.reduce(_ || _) || autoexecProg.reduce(_ || _)
 
@@ -874,7 +874,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     if (needCustom) {
       val (custom, customP) = customNode.in.head
       require(customP.width % 8 == 0, s"Debug Custom width must be divisible by 8, not ${customP.width}")
-      val custom_data = custom.data.toBools
+      val custom_data = custom.data.asBools
       val custom_bytes =  Seq.tabulate(customP.width/8){i => custom_data.slice(i*8, (i+1)*8).asUInt}
       when (custom.ready && custom.valid) {
         (abstractDataMem zip custom_bytes).zipWithIndex.foreach {case ((a, b), i) =>
@@ -964,7 +964,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
         require(imm % 2 == 0, "Immediate must be even for UJ encoding.")
         val immWire = Wire(init = imm.S(21.W))
-        val immBits = Wire(init = Vec(immWire.toBools))
+        val immBits = Wire(init = Vec(immWire.asBools))
 
         imm0 := immBits.slice(1,  1  + 10).asUInt()
         imm1 := immBits.slice(11, 11 + 11).asUInt()

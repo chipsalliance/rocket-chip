@@ -38,7 +38,7 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
       if (alreadyRegistered) {
         out.sync := in
       } else {
-        out.sync := AsyncResetReg(Cat(in.reverse)).toBools
+        out.sync := AsyncResetReg(Cat(in.reverse)).asBools
       }
     }
   }

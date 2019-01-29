@@ -210,8 +210,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       // We need to track if any reads or writes are inflight for a given ID.
       // If the opposite type arrives, we must stall until it completes.
-      val a_sel = UIntToOH(arw.id, edgeOut.master.endId).toBools
-      val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).toBools
+      val a_sel = UIntToOH(arw.id, edgeOut.master.endId).asBools
+      val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).asBools
       val d_last = Mux(r_wins, out.r.bits.last, Bool(true))
       // If FIFO was requested, ensure that R+W ordering is preserved
       (a_sel zip d_sel zip idStall zip idCount) foreach { case (((as, ds), s), n) =>
