@@ -124,7 +124,7 @@ class RocketTile(
         fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
         performanceMonitor = PerformanceMonitor.permon(coreParams),
         pmp = OMPMP.pmp(coreParams),
-        documentationName = "TODO",
+        documentationName = tileParams.name.getOrElse("rocket"),
         hartIds = Seq(hartId),
         hasVectoredInterrupts = true,
         interruptLatency = 4,
