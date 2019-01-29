@@ -242,7 +242,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_mask_xwr = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, s1_mask_xwr)
   // for partial writes, s1_data.mask must be a subset of s1_mask_xwr
-  assert(!(s1_valid && s1_req.cmd === M_PWR) || (s1_mask_xwr & ~io.cpu.s1_data.mask).andR)
+  assert(!(s1_valid_masked && s1_req.cmd === M_PWR) || (s1_mask_xwr | ~io.cpu.s1_data.mask).andR)
 
   val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false))
   val s2_valid_no_xcpt = s2_valid && !io.cpu.s2_xcpt.asUInt.orR
