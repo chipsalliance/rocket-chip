@@ -159,8 +159,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
     println("")
 
-    val unflattenedInts = intnode.edges.out.map(_.source.num).zipWithIndex
-
     require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
     require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
 
