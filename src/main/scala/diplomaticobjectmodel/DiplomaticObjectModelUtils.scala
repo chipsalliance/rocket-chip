@@ -5,7 +5,7 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceMapping, ResourcePermissions, ResourceValue}
+import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
@@ -185,5 +185,32 @@ object DiplomaticObjectModelAddressing {
         depth = depth,
         writeMaskGranularity = granWidth
       )
+    }
+
+  private def getInterruptNumber(r: ResourceValue): BigInt = {
+    r match {
+      case ResourceInt(value: BigInt) => value
+      case _ => throw new IllegalArgumentException
+    }
+  }
+
+  private def getDeviceName(device: Device): String = {
+    device match {
+      case sd:SimpleDevice => sd.asInstanceOf[SimpleDevice].devNamePlusAddress
+      case _ => throw new IllegalArgumentException
+    }
+  }
+
+  def describeInterrupts(name: String, resources: ResourceBindings): Seq[OMInterrupt] = {
+    val int = resources("int")
+    for {
+      b <- int
+      grandParentOpt = b.device.get.parent
+      gp <- grandParentOpt
+    } yield OMInterrupt(
+            receiver = getDeviceName(gp),
+            numberAtReceiver = getInterruptNumber(b.value),
+            name = name
+          )
     }
 }

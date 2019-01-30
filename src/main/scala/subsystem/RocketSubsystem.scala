@@ -8,7 +8,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterruptTarget}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
@@ -54,6 +54,9 @@ trait HasRocketTiles extends HasTiles
   def coreMonitorBundles = (rocketTiles map { t =>
     t.module.core.rocketImpl.coreMonitorBundle
   }).toList
+
+  def getOMRocketInterruptTargets(): Seq[OMInterruptTarget] =
+    rocketTiles.flatMap(c => c.cpuDevice.getInterruptTargets())
 
   def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
     rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))

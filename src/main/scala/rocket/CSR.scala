@@ -278,6 +278,9 @@ class CSRFile(
     Causes.breakpoint,
     Causes.load_page_fault,
     Causes.store_page_fault,
+    Causes.misaligned_load,
+    Causes.misaligned_store,
+    Causes.illegal_instruction,
     Causes.user_ecall).map(1 << _).sum)
 
   val reg_debug = Reg(init=Bool(false))
@@ -870,10 +873,7 @@ class CSRFile(
     bp := new BP().fromBits(0)
   for (pmp <- reg_pmp) {
     pmp.cfg.res := 0
-    when (reset) {
-      pmp.cfg.a := 0
-      pmp.cfg.l := 0
-    }
+    when (reset) { pmp.reset() }
   }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {

@@ -70,7 +70,7 @@ case object PLICKey extends Field[Option[PLICParams]](None)
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
-  val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
+  val device: SimpleDevice = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
     override val alwaysExtended = true
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
@@ -88,11 +88,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
     def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
+      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
+      val Description(name, mapping) = describe(resourceBindings)
 
       Seq[OMComponent](
         OMPLIC(
           memoryRegions = memRegions,
-          interrupts = Nil, // TODO
+          interrupts = ints,
           specifications = List(
             OMSpecification(
               name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
@@ -100,8 +102,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             )
           ),
           latency = 2, // TODO
-          nInterrupts = 3,
-          nPriorities = params.maxPriorities,
+          nPriorities = nPriorities,
           targets = Nil
         )
       )

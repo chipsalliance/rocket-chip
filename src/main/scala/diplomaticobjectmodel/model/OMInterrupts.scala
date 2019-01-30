@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 case class OMInterrupt(
   receiver: String, // TODO Reference
-  numberAtReceiver: Int,
+  numberAtReceiver: BigInt,
   name: String,
   _types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")
 )  extends OMCompoundType

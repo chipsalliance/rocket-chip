@@ -78,7 +78,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
-            cbus.coupleTo("bus_blocker") { bbb.controlNode := _ }
+            cbus.coupleTo("bus_blocker") { bbb.controlNode := TLFragmenter(cbus) := _ }
             tile.crossSlavePort() :*= bbb.node
           } .getOrElse { tile.crossSlavePort() }
       }
