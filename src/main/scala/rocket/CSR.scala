@@ -873,10 +873,7 @@ class CSRFile(
     bp := new BP().fromBits(0)
   for (pmp <- reg_pmp) {
     pmp.cfg.res := 0
-    when (reset) {
-      pmp.cfg.a := 0
-      pmp.cfg.l := 0
-    }
+    when (reset) { pmp.reset() }
   }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
