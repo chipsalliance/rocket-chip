@@ -1,7 +1,6 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.tile
-
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -48,7 +47,7 @@ trait SinksExternalInterrupts { this: BaseTile =>
     }
   }
 
-      // TODO: the order of the following two functions must match, and
+  // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the
   //         per-tile crossbar in subsystem.HasTiles.connectInterrupts
 
