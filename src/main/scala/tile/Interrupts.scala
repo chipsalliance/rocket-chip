@@ -1,7 +1,9 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.tile
+
 import Chisel._
+
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterruptTarget, OMPLIC, OMPrivilegeMode}
