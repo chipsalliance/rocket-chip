@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMPrivilegeMode, _}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -102,6 +102,13 @@ class RocketTile(
       require(!(omDTIM.isDefined && omDCache.isDefined))
 
       omDTIM.orElse(omDCache)
+    }
+
+    def getInterruptTargets(): Seq[OMInterruptTarget] = {
+      Seq(OMInterruptTarget(
+        hartId = rocketParams.hartId,
+        modes = OMModes.getModes(rocketParams.core.useVM)
+      ))
     }
 
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {

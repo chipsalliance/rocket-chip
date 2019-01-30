@@ -7,19 +7,37 @@ case object OMMachineMode extends OMPrivilegeMode
 case object OMSupervisorMode extends OMPrivilegeMode
 case object OMUserMode extends OMPrivilegeMode
 
+object OMModes {
+  def getModes(useVM: Boolean): Seq[OMPrivilegeMode] = {
+    useVM match {
+      case false => Seq(OMMachineMode)
+      case true => Seq(OMMachineMode, OMSupervisorMode)
+    }
+  }
+}
+
 case class OMInterruptTarget(
   hartId: Int,
-  mode: OMPrivilegeMode,
-  _types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")
+  modes: Seq[OMPrivilegeMode],
+  _types: Seq[String] = Seq("OMInterruptTarget", "OMCompoundType")
 ) extends OMCompoundType
 
 case class OMPLIC(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
-  specifications: List[OMSpecification],
+  specifications: Seq[OMSpecification],
   latency: Int,
-  nInterrupts: Int, // plic.nInterrupts - coreComplex.nExternalGlobalInterrupts == internal global interrupts from devices inside of the Core Complex
   nPriorities: Int,
-  targets: List[OMInterruptTarget],
+  targets: Seq[OMInterruptTarget],
   _types: Seq[String] = Seq("OMPLIC", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
+
+object OMPLIC {
+  def getMode(length: Int): Seq[OMPrivilegeMode] = {
+    length match {
+      case 1 => Seq(OMMachineMode)
+      case 2 => Seq(OMMachineMode,OMSupervisorMode)
+      case _ => throw new IllegalArgumentException
+    }
+  }
+}
