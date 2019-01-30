@@ -6,7 +6,6 @@ import Chisel._
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterruptTarget, OMPLIC, OMPrivilegeMode}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
