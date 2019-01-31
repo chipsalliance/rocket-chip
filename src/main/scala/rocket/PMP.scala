@@ -161,6 +161,25 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     val hit = pmp.hit(io.addr, io.size, lgMaxSize, prevPMP)
     val ignore = default && !pmp.cfg.l
     val aligned = pmp.aligned(io.addr, io.size, lgMaxSize, prevPMP)
+
+    cover(!default && pmp.cfg.a === 0x0, "The cfg access is set to no access",    "Cover PMP access mode setting")
+    cover(!default && pmp.cfg.a === 0x1, "The cfg access is set to TOR access",   "Cover PMP access mode setting")
+    cover(!default && pmp.cfg.a === 0x2, "The cfg access is set to NA4 access",   "Cover PMP access mode setting")
+    cover(!default && pmp.cfg.a === 0x3, "The cfg access is set to NAPOT access", "Cover PMP access mode setting")
+    cover(!default && pmp.cfg.l === 0x1, "The cfg lock is set to high",           "Cover PMP lock mode setting")
+    
+    // Not including Write and no Read permission as the combination is reserved
+    cover(!default && (Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === 0x0), "The permission is set to no access",                        "Cover PMP access permission setting") 
+    cover(!default && (Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === 0x1), "The permission is set to Read only access",                 "Cover PMP access permission setting") 
+    cover(!default && (Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === 0x3), "The permission is set to Read and Write only access",       "Cover PMP access permission setting") 
+    cover(!default && (Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === 0x4), "The permission is set to Execution only access",            "Cover PMP access permission setting") 
+    cover(!default && (Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === 0x5), "The permission is set to Read and Execution only access",   "Cover PMP access permission setting") 
+    cover(!default && (Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === 0x7), "The permission is set to Read, Write and Execution access", "Cover PMP access permission setting")
+
+    cover(!ignore && hit && aligned && pmp.cfg.a === 0x1, "The access matches TOR mode",   "Cover PMP access")
+    cover(!ignore && hit && aligned && pmp.cfg.a === 0x2, "The access matches NA4 mode",   "Cover PMP access")
+    cover(!ignore && hit && aligned && pmp.cfg.a === 0x3, "The access matches NAPOT mode", "Cover PMP access")
+
     val cur = Wire(init = pmp)
     cur.cfg.r := (aligned && pmp.cfg.r) || ignore
     cur.cfg.w := (aligned && pmp.cfg.w) || ignore
