@@ -7,6 +7,7 @@ import Chisel.ImplicitConversions._
 import freechips.rocketchip.config._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 class PMPConfig extends Bundle {
   val l = Bool()
