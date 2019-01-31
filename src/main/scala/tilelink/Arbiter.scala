@@ -57,7 +57,7 @@ object TLArbiter
       // Who wants access to the sink?
       val valids = sourcesIn.map(_.valid)
       // Arbitrate amongst the requests
-      val readys = Vec(policy(valids.size, Cat(valids.reverse), latch).toBools)
+      val readys = Vec(policy(valids.size, Cat(valids.reverse), latch).asBools)
       // Which request wins arbitration?
       val winner = Vec((readys zip valids) map { case (r,v) => r&&v })
 

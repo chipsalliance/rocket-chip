@@ -78,7 +78,7 @@ class GatherTest(size: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   mask := mask + !io.finished
 
   // Put 0, 1, 2, 3 ... at all of the lanes with mask=1
-  val sum = RipplePrefixSum(0.U(bits.W) +: mask.toBools.map { x => WireInit(UInt(bits.W), x) })(_+_)
+  val sum = RipplePrefixSum(0.U(bits.W) +: mask.asBools.map { x => WireInit(UInt(bits.W), x) })(_+_)
   val input = Wire(Vec(size, Valid(UInt(bits.W))))
   for (i <- 0 until size) {
     input(i).valid := mask(i)
@@ -103,6 +103,6 @@ class ScatterTest(size: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   }
 
   val output = Scatter(input)
-  val sum = RipplePrefixSum(0.U(bits.W) +: mask.toBools.map { x => WireInit(UInt(bits.W), x) })(_+_)
+  val sum = RipplePrefixSum(0.U(bits.W) +: mask.asBools.map { x => WireInit(UInt(bits.W), x) })(_+_)
   for (i <- 0 until size) assert (!mask(i) || output(i) === sum(i))
 }

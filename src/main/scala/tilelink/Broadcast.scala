@@ -73,7 +73,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
       // We always accept E
       in.e.ready := Bool(true)
-      (trackers zip UIntToOH(in.e.bits.sink).toBools) foreach { case (tracker, select) =>
+      (trackers zip UIntToOH(in.e.bits.sink).asBools) foreach { case (tracker, select) =>
         tracker.e_last := select && in.e.fire()
       }
 
@@ -100,7 +100,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       // A tracker response is anything neither dropped nor a ReleaseAck
       val d_response = d_hasData || !d_what(1)
       val d_last = edgeIn.last(d_normal)
-      (trackers zip d_trackerOH.toBools) foreach { case (tracker, select) =>
+      (trackers zip d_trackerOH.asBools) foreach { case (tracker, select) =>
         tracker.d_last := select && d_normal.fire() && d_response && d_last
         tracker.probedack := select && out.d.fire() && d_drop
       }
@@ -170,7 +170,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
       val trackerReady = Vec(trackers.map(_.in_a.ready)).asUInt
       in.a.ready := (!a_first || !probe_busy) && (selectTracker & trackerReady).orR()
-      (trackers zip selectTracker.toBools) foreach { case (t, select) =>
+      (trackers zip selectTracker.asBools) foreach { case (t, select) =>
         t.in_a.valid := in.a.valid && select && (!a_first || !probe_busy)
         t.in_a.bits := in.a.bits
         t.in_a_first := a_first

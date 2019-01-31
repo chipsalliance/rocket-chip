@@ -124,7 +124,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
       s"Port width mismatch ${localEdge.manager.beatBytes} (${localEdge.manager.managers.map(_.name)}) != ${remoteEdge.manager.beatBytes} (${remoteEdge.manager.managers.map(_.name)})")
 
     // Which address within the mask routes to local devices?
-    val local_address = (bits zip chip_id.bundle.toBools).foldLeft(0.U) {
+    val local_address = (bits zip chip_id.bundle.asBools).foldLeft(0.U) {
       case (acc, (bit, sel)) => acc | Mux(sel, bit.U, 0.U)
     }
 

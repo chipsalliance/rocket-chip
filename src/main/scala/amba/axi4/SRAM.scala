@@ -34,8 +34,8 @@ class AXI4RAM(
     val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
-    val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
-    val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).toBools).filter(_._1).map(_._2).reverse)
+    val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
+    val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val r_sel0 = address.contains(in.ar.bits.addr)
     val w_sel0 = address.contains(in.aw.bits.addr)
 
@@ -56,7 +56,7 @@ class AXI4RAM(
 
     val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
     when (in.aw.fire() && w_sel0) {
-      mem.write(w_addr, wdata, in.w.bits.strb.toBools)
+      mem.write(w_addr, wdata, in.w.bits.strb.asBools)
       corrupt.foreach { _.write(w_addr, in.w.bits.corrupt.get.asUInt) }
     }
 

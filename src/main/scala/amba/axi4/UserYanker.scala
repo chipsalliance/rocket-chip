@@ -55,8 +55,8 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       in.r <> out.r
       in.r.bits.user.get := r_bits
 
-      val arsel = UIntToOH(arid, edgeIn.master.endId).toBools
-      val rsel  = UIntToOH(rid,  edgeIn.master.endId).toBools
+      val arsel = UIntToOH(arid, edgeIn.master.endId).asBools
+      val rsel  = UIntToOH(rid,  edgeIn.master.endId).asBools
       (rqueues zip (arsel zip rsel)) foreach { case (q, (ar, r)) =>
         q.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
         q.enq.valid := in .ar.valid && out.ar.ready && ar
@@ -76,8 +76,8 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       in.b <> out.b
       in.b.bits.user.get := b_bits
 
-      val awsel = UIntToOH(awid, edgeIn.master.endId).toBools
-      val bsel  = UIntToOH(bid,  edgeIn.master.endId).toBools
+      val awsel = UIntToOH(awid, edgeIn.master.endId).asBools
+      val bsel  = UIntToOH(bid,  edgeIn.master.endId).asBools
       (wqueues zip (awsel zip bsel)) foreach { case (q, (aw, b)) =>
         q.deq.ready := out.b .valid && in .b .ready && b
         q.enq.valid := in .aw.valid && out.aw.ready && aw

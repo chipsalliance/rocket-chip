@@ -45,7 +45,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   }
 
   require(rowBytes % wordBytes == 0)
-  val eccMask = if (eccBits == wordBits) Seq(true.B) else io.req.bits.eccMask.toBools
+  val eccMask = if (eccBits == wordBits) Seq(true.B) else io.req.bits.eccMask.asBools
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
   val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
   val addr = io.req.bits.addr >> rowOffBits
@@ -223,7 +223,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       val metaReq = metaArb.io.out
       val metaIdx = metaReq.bits.idx
       when (metaReq.valid && metaReq.bits.write) {
-        val wmask = if (nWays == 1) Seq(true.B) else metaReq.bits.way_en.toBools
+        val wmask = if (nWays == 1) Seq(true.B) else metaReq.bits.way_en.asBools
         tag_array.write(metaIdx, Vec.fill(nWays)(metaReq.bits.data), wmask)
       }
       val s1_meta = tag_array.read(metaIdx, metaReq.valid && !metaReq.bits.write)
@@ -469,7 +469,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val a_sel = UIntToOH(a_source, maxUncachedInFlight+mmioOffset) >> mmioOffset
   when (tl_out_a.fire()) {
     when (s2_uncached) {
-      (a_sel.toBools zip (uncachedInFlight zip uncachedReqs)) foreach { case (s, (f, r)) =>
+      (a_sel.asBools zip (uncachedInFlight zip uncachedReqs)) foreach { case (s, (f, r)) =>
         when (s) {
           f := Bool(true)
           r := s2_req
@@ -518,7 +518,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     } .elsewhen (grantIsUncached) {
       val d_sel = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
       val req = Mux1H(d_sel, uncachedReqs)
-      (d_sel.toBools zip uncachedInFlight) foreach { case (s, f) =>
+      (d_sel.asBools zip uncachedInFlight) foreach { case (s, f) =>
         when (s && d_last) {
           assert(f, "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
           f := false
