@@ -103,9 +103,13 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   }
 
   def generateAnno {
+    import firrtl.transforms.clockfinder._
     val annotationFile = new File(td, s"$longName.anno.json")
     val af = new FileWriter(annotationFile)
-    af.write(JsonProtocol.serialize(circuit.annotations.map(_.toFirrtl)))
+    val modules = circuit.components.map(_.id).collect { case r: RawModule => r }
+    val allAnnos = GetClockSources(modules.map(_.toNamed.toTarget)) +:
+      circuit.annotations.map(_.toFirrtl)
+    af.write(JsonProtocol.serialize(allAnnos))
     af.close()
   }
 
