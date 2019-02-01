@@ -94,7 +94,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     def entry_data = data.map(_.asTypeOf(new EntryData))
 
     private def sectorIdx(vpn: UInt) = vpn.extract(nSectors.log2-1, 0)
-    def getData(vpn: UInt) = data(sectorIdx(vpn)).asTypeOf(new EntryData)
+    def getData(vpn: UInt) = OptimizationBarrier(data(sectorIdx(vpn)).asTypeOf(new EntryData))
     def sectorHit(vpn: UInt) = valid.orR && sectorTagMatch(vpn)
     def sectorTagMatch(vpn: UInt) = ((tag ^ vpn) >> nSectors.log2) === 0
     def hit(vpn: UInt) = {
