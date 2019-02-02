@@ -48,6 +48,10 @@ class LoadGen(typ: UInt, signed: Bool, addr: UInt, dat: UInt, zero: Bool, maxSiz
   def data = genData(0)
 }
 
+/**
+ * Atomic memory operation ALU for Dcache
+ *
+ */
 class AMOALU(operandBits: Int)(implicit p: Parameters) extends Module {
   val minXLen = 32
   val widths = (0 to log2Ceil(operandBits / minXLen)).map(minXLen << _)

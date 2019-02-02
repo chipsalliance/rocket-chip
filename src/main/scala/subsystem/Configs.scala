@@ -46,6 +46,11 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
 
 /* Composable partial function Configs to set individual parameters */
 
+/**
+ * Configuration of N big cores
+ *  - xlen = 64bit
+ * @param n core number
+ */
 class WithNBigCores(n: Int) extends Config((site, here, up) => {
   case RocketTilesKey => {
     val big = RocketTileParams(
@@ -64,6 +69,10 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
   }
 })
 
+/**
+ * Configuration of N small cores
+ * @param n core number
+ */
 class WithNSmallCores(n: Int) extends Config((site, here, up) => {
   case RocketTilesKey => {
     val small = RocketTileParams(
@@ -86,6 +95,13 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
   }
 })
 
+/**
+ * TinyCore Configuration
+ *  - xlen = 32bit
+ *  - dcache: 16Kbit scratchpad (256 x 64bit)
+ *  - icache: 4Kbit 1-way (64 x 64bit)
+ *  - misc: no fpu, btb, physical address only
+ */
 class With1TinyCore extends Config((site, here, up) => {
   case XLen => 32
   case RocketTilesKey => List(RocketTileParams(

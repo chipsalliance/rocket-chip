@@ -8,6 +8,10 @@ import freechips.rocketchip.config.Parameters
 
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {
+  /* IO Interface
+   *  - ''' requestor''': Sources to arbiter
+   *  - ''' mem''': arbitrated source to HellaCacheIO
+   */
   val io = new Bundle {
     val requestor = Vec(n, new HellaCacheIO).flip
     val mem = new HellaCacheIO

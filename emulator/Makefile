@@ -19,11 +19,13 @@ include $(sim_dir)/Makefrag-verilator
 
 all: $(emu)
 debug: $(emu_debug)
+doc:
+	cd $(base_dir) && $(SBT) doc
 
 clean:
 	rm -rf *.o *.a emulator-* $(generated_dir) $(generated_dir_debug) DVEfiles $(output_dir)
 
-.PHONY: default all debug clean
+.PHONY: default all debug clean doc
 
 #--------------------------------------------------------------------
 # Run assembly tests and benchmarks

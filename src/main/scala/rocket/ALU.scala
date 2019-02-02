@@ -47,7 +47,22 @@ object ALU
 import ALU._
 import Instructions._
 
+/**
+ * ALU implementation of Rocket Core
+ *
+ */
 class ALU(implicit p: Parameters) extends CoreModule()(p) {
+  /**
+   * IO Interface
+   *  - '''dw''': data width DW_64, DW_32
+   *  - '''fn''': ALU function
+   *  - '''in2''': operand 2
+   *  - '''in1''': operand 1
+   *  - '''out''': ALU output
+   *  - '''adder_out''': adder result
+   *  - '''cmp_out''': compare result
+   *
+   */
   val io = new Bundle {
     val dw = Bits(INPUT, SZ_DW)
     val fn = Bits(INPUT, SZ_ALU_FN)

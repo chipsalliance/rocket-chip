@@ -145,7 +145,7 @@ class HellaCachePerfEvents extends Bundle {
   val storeBufferEmptyAfterStore = Bool()
 }
 
-// interface between D$ and processor/DTLB
+/** interface between D$ and processor/DTLB */
 class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Decoupled(new HellaCacheReq)
   val s1_kill = Bool(OUTPUT) // kill previous cycle's req
@@ -194,6 +194,7 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   require(!tileParams.core.haveCFlush || !tileParams.core.useVM, "CFLUSH_D_L1 instruction and virtual memory are incompatible")
 }
 
+/** IO of HellaCache */
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
   val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
