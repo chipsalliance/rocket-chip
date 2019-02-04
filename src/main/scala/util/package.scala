@@ -207,6 +207,15 @@ package object util {
     helper(1, x)(width-1, 0)
   }
 
-  def OptimizationBarrier(x: UInt): UInt = ~(~x)
-  def OptimizationBarrier[T <: Data](x: T): T = OptimizationBarrier(x.asUInt).asTypeOf(x)
+  def OptimizationBarrier[T <: Data](in: T): T = {
+    val foo = Module(new Module {
+      val io = IO(new Bundle {
+        val x = Input(in)
+        val y = Output(in)
+      })
+      io.y := io.x
+    })
+    foo.io.x := in
+    foo.io.y
+  }
 }

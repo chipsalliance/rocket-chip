@@ -82,13 +82,13 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
         // Transmit the selected burst to inner
         in.r.valid := locked
         in.r.bits  := Vec(qs.map(_.deq.bits))(deq_id)
-        (deq_OH.toBools zip qs) foreach { case (s, q) =>
+        (deq_OH.asBools zip qs) foreach { case (s, q) =>
           q.deq.ready := s && in.r.fire()
         }
 
         // Feed response into matching Q
         out.r.ready := Vec(qs.map(_.enq.ready))(enq_id)
-        (enq_OH.toBools zip qs) foreach { case (s, q) =>
+        (enq_OH.asBools zip qs) foreach { case (s, q) =>
           q.enq.valid := s && out.r.valid
           q.enq.bits := out.r.bits
         }

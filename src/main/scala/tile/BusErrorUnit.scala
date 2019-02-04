@@ -101,8 +101,8 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     }
 
     when (cause === 0 && cause_wen) {
-      cause := OptimizationBarrier(new_cause)
-      value := OptimizationBarrier(new_value)
+      cause := new_cause
+      value := new_value
     }
 
     val (int_out, _) = intNode.out(0)

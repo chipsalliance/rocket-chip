@@ -494,11 +494,11 @@ class CSRFile(
     usingVM.option(              SFENCE_VMA->  List(N,N,N,N,N,Y))
 
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: insn_sfence :: Nil =
-    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.toBool)
+    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
 
   for (io_dec <- io.decode) {
     val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: Nil =
-      DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.toBool)
+      DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
@@ -657,7 +657,7 @@ class CSRFile(
 
   // cover access to register
   read_mapping.foreach( {case (k, v) => {
-    cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
+    cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
   }})
 
   val set_fs_dirty = Wire(init = io.set_fs_dirty.getOrElse(false.B))

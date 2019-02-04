@@ -232,7 +232,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     val (tl_error, tag) = Split(enc_tag.uncorrected, tagBits)
     val tagMatch = s1_vb && tag === s1_tag
     s1_tag_disparity(i) := s1_vb && enc_tag.error
-    s1_tl_error(i) := tagMatch && tl_error.toBool
+    s1_tl_error(i) := tagMatch && tl_error.asBool
     s1_tag_hit(i) := tagMatch || scratchpadHit
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)

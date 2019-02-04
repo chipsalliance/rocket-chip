@@ -54,7 +54,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
           interrupts = Nil,
           specifications = List(
             OMSpecification(
-              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
+              name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
               version = "1.10"
             )
           )

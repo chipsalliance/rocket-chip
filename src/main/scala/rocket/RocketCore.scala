@@ -573,8 +573,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
-  val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).toBool
-  val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).toBool
+  val dmem_resp_xpu = !io.dmem.resp.bits.tag(0).asBool
+  val dmem_resp_fpu =  io.dmem.resp.bits.tag(0).asBool
   val dmem_resp_waddr = io.dmem.resp.bits.tag(5, 1)
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
