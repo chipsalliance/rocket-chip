@@ -1,13 +1,25 @@
-package diplomaticobjectmodel
+// See LICENSE.SiFive for license details.
+
+package freechips.rocketchip.diplomaticobjectmodel
 
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 
 import scala.collection.mutable.ListBuffer
 
-object DiplomaticObjectModel {
-  val components = new ListBuffer[OMComponent]()
+class DomCollector {
+  def getComponent(): Option[OMComponent] = None
+}
 
-  def add(c: OMComponent): Unit = {
-    components.+=:(c)
+object DiplomaticObjectModel {
+  val doms = ListBuffer[DomCollector]()
+
+  def add(d: DomCollector): Unit = {
+    doms += (d)
+  }
+
+  def getComponents(): Seq[OMComponent] = {
+    doms.flatMap {
+      case dc: DomCollector => dc.getComponent()
+    }
   }
 }
