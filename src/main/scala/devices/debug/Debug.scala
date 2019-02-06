@@ -1260,7 +1260,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
           interrupts = Nil,
           specifications = List(
             OMSpecification(
-              name = "The RISC‑V Debug Specification",
+              name = "The RISC-V Debug Specification",
               version = "0.13"
             )
           ),

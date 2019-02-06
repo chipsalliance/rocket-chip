@@ -657,7 +657,7 @@ class CSRFile(
 
   // cover access to register
   read_mapping.foreach( {case (k, v) => {
-    cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C, CSR.R) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
+    cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
   }})
 
   val set_fs_dirty = Wire(init = io.set_fs_dirty.getOrElse(false.B))
