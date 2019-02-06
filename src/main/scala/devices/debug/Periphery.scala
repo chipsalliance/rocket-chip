@@ -18,6 +18,7 @@ import freechips.rocketchip.tilelink._
 case object ExportDebugDMI extends Field[Boolean](true)
 case object ExportDebugJTAG extends Field[Boolean](false)
 case object ExportDebugCJTAG extends Field[Boolean](false)
+case object ExportDisableDebug extends Field[Boolean](false)
 
 /** A wrapper bundle containing one of the two possible debug interfaces */
 
@@ -27,6 +28,7 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
   val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
+  val disableDebug = p(ExportDisableDebug).option(Bool(INPUT))
 }
 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
@@ -69,6 +71,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
     dtm.io.jtag <> sj.jtag
+    debug.disableDebug.foreach { x => dtm.io.jtag.TMS := sj.jtag.TMS | x }  // force TMS high when debug is disabled
 
     dtm.clock          := sj.jtag.TCK
     dtm.io.jtag_reset  := sj.reset
