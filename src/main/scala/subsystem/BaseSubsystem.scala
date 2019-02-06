@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.util._
 
 case object SystemBusKey extends Field[SystemBusParams]
@@ -19,7 +20,6 @@ case object BuildSystemBus extends Field[Parameters => SystemBus](p => new Syste
 
 /** BareSubsystem is the root class for creating a subsystem */
 abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
-  lazy val objectModelJson = DiplomaticObjectModelUtils.toJson(createOMComponents(getResourceBindingsMap))
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
@@ -33,8 +33,10 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
   println(outer.dts)
 
-  def addOMArtefacts(): Unit = {
-    ElaborationArtefacts.add("objectModel.json", outer.objectModelJson)
+  def addOMArtefacts(components: Seq[OMComponent]): Unit = {
+    val subSystemComponents = outer.createOMComponents(outer.getResourceBindingsMap)
+    val c = subSystemComponents.map( _ +: components)
+    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(c.getOrElse(Nil)))
   }
 }
 
