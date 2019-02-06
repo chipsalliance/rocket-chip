@@ -168,6 +168,7 @@ object Debug {
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
     }
     debug.psd.foreach { _ <> psd }
+    debug.disableDebug.foreach { x => x := Bool(false) }
   }
 
   def tieoffDebug(debug: DebugIO): Bool = {
@@ -187,6 +188,7 @@ object Debug {
       d.dmiReset := Bool(true)
     }
     debug.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)}
+    debug.disableDebug.foreach { x => x := Bool(false) }
     debug.ndreset
   }
 }
