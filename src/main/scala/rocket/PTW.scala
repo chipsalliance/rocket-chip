@@ -15,10 +15,18 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
 import scala.collection.mutable.ListBuffer
 
+/**
+  * Page table walker request
+  * @param p
+  */
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
 }
 
+/**
+  * Page table walker response
+  * @param p
+  */
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae = Bool()
   val pte = new PTE
@@ -27,6 +35,10 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val homogeneous = Bool()
 }
 
+/**
+  * translation look aside buffer page table walker I/O
+  * @param p
+  */
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val req = Decoupled(Valid(new PTWReq))
@@ -37,10 +49,17 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val customCSRs = coreParams.customCSRs.asInput
 }
 
+/**
+  *
+  */
 class PTWPerfEvents extends Bundle {
   val l2miss = Bool()
 }
 
+/**
+  * Datapath page table walker I/O
+  * @param p
+  */
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val ptbr = new PTBR().asInput
@@ -52,32 +71,44 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val clock_enabled = Bool(OUTPUT)
 }
 
+/**
+  * Page table entry
+  * @param p
+  */
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
-  val ppn = UInt(width = 54)
+  val ppn = UInt(width = 54) // physical page number
   val reserved_for_software = Bits(width = 2)
-  val d = Bool()
-  val a = Bool()
-  val g = Bool()
-  val u = Bool()
-  val x = Bool()
-  val w = Bool()
-  val r = Bool()
-  val v = Bool()
+  // virtual page is abbreviated by vp
+  val d = Bool() // dirty, vp has been written
+  val a = Bool() // accessed, vp has been read, written or fetched
+  val g = Bool() // global, vp exists in all address spaces
+  val u = Bool() // user, vp is accessible to the user mode
+  val x = Bool() // executable
+  val w = Bool() // writable
+  val r = Bool() // readable
+  val v = Bool() // valid
 
-  def table(dummy: Int = 0) = v && !r && !w && !x
-  def leaf(dummy: Int = 0) = v && (r || (x && !w)) && a
-  def ur(dummy: Int = 0) = sr() && u
-  def uw(dummy: Int = 0) = sw() && u
-  def ux(dummy: Int = 0) = sx() && u
-  def sr(dummy: Int = 0) = leaf() && r
-  def sw(dummy: Int = 0) = leaf() && w && d
-  def sx(dummy: Int = 0) = leaf() && x
+  def table(dummy: Int = 0) = v && !r && !w && !x // pointer, vp is pointer to next level of page table
+  def leaf(dummy: Int = 0) = v && (r || (x && !w)) && a // vp is valid, accessed and (readable or (executable and not writable)
+  def ur(dummy: Int = 0) = sr() && u // vp is sr and readable by user
+  def uw(dummy: Int = 0) = sw() && u // vp is sw and writeable by user
+  def ux(dummy: Int = 0) = sx() && u // vp is sx and executable by user
+  def sr(dummy: Int = 0) = leaf() && r // vp is leaf and readable
+  def sw(dummy: Int = 0) = leaf() && w && d // vp is leaf, writeable and dirty
+  def sx(dummy: Int = 0) = leaf() && x // vp is leaf and executable
 }
 
+/**
+  * Page table walker
+  * This class is responsible for resolving virtual to physical addresses
+  * @param n
+  * @param edge
+  * @param p
+  */
 @chiselName
 class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val requestor = Vec(n, new TLBPTWIO).flip
+    val requestor = Vec(n, new TLBPTWIO).flip // connection to TLBs in L1 caches, rocket core
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
