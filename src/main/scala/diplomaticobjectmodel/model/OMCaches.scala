@@ -4,10 +4,10 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 sealed trait OMECC extends OMBaseType
 
-case object Identity extends OMECC
-case object Parity extends OMECC
-case object SEC extends OMECC
-case object SECDED extends OMECC
+case object Identity extends OMECC { val name: String = "Identity"}
+case object Parity extends OMECC { val name: String = "Parity"}
+case object SEC extends OMECC { val name: String = "SEC"}
+case object SECDED extends OMECC { val name: String = "SECDED"}
 
 trait OMCache extends OMDevice {
   def memoryRegions(): Seq[OMMemoryRegion]

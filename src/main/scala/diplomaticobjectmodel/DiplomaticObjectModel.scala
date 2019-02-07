@@ -6,20 +6,20 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 
 import scala.collection.mutable.ListBuffer
 
-class DomCollector {
+class OMCollector {
   def getComponent(): Option[OMComponent] = None
 }
 
 object DiplomaticObjectModel {
-  val doms = ListBuffer[DomCollector]()
+  val doms = ListBuffer[OMCollector]()
 
-  def add(d: DomCollector): Unit = {
+  def add(d: OMCollector): Unit = {
     doms += (d)
   }
 
   def getComponents(): Seq[OMComponent] = {
     doms.flatMap {
-      case dc: DomCollector => dc.getComponent()
+      case dc: OMCollector => dc.getComponent()
     }
   }
 }
