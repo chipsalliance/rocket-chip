@@ -10,7 +10,7 @@ import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.core.{DontCare, WireInit}
+import chisel3.{DontCare, WireInit}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
 import TLMessages._
