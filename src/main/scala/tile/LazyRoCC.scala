@@ -219,7 +219,8 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
   when (io.resp.fire()) { state := s_idle }
 
   ptw.req.valid := (state === s_ptw_req)
-  ptw.req.bits.addr := req_vpn
+  ptw.req.bits.valid := true.B
+  ptw.req.bits.bits.addr := req_vpn
 
   io.resp.valid := (state === s_resp)
   io.resp.bits.rd := req_rd

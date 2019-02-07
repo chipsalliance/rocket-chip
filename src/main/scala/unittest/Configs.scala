@@ -46,6 +46,7 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),
       Module(new TLRAMZeroDelayTest(4,     txns=15*txns, timeout=timeout)),
+      Module(new TLRAMHintHandlerTest(     txns=15*txns, timeout=timeout)),
       Module(new TLFuzzRAMTest(            txns= 3*txns, timeout=timeout)),
       Module(new TLRR0Test(                txns= 3*txns, timeout=timeout)),
       Module(new TLRR1Test(                txns= 3*txns, timeout=timeout)),
@@ -80,7 +81,8 @@ class WithTLXbarUnitTests extends Config((site, here, up) => {
       Module(new TLRAMXbarTest(1,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(2,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(8,           txns=5*txns, timeout=timeout)),
-      Module(new TLMulticlientXbarTest(4,4, txns=2*txns, timeout=timeout)) ) }
+      Module(new TLMulticlientXbarTest(4,4, txns=2*txns, timeout=timeout)),
+      Module(new TLMasterMuxTest(           txns=5*txns, timeout=timeout)) ) }
 })
 
 class WithECCTests extends Config((site, here, up) => {
@@ -101,8 +103,48 @@ class WithECCTests extends Config((site, here, up) => {
       Module(new ECCTest(8)) ) }
 })
 
+class WithScatterGatherTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    Seq(
+      Module(new GatherTest(1)),
+      Module(new GatherTest(2)),
+      Module(new GatherTest(3)),
+      Module(new GatherTest(7)),
+      Module(new GatherTest(8)),
+      Module(new GatherTest(9)),
+      Module(new ScatterTest(1)),
+      Module(new ScatterTest(2)),
+      Module(new ScatterTest(3)),
+      Module(new ScatterTest(7)),
+      Module(new ScatterTest(8)),
+      Module(new ScatterTest(9)))}})
+
+class WithPowerQueueTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    Seq(
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   1,  2, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   2,  6, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   3, 10, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 12, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 16, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 20, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 1, 12, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 3, 16, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 5, 20, 10000)),
+      Module(new MultiPortQueueTest(1, 1, 2, 10000)),
+      Module(new MultiPortQueueTest(3, 3, 2, 10000)),
+      Module(new MultiPortQueueTest(5, 5, 6, 10000)),
+      Module(new MultiPortQueueTest(4, 3, 6, 10000)),
+      Module(new MultiPortQueueTest(4, 5, 2, 10000)),
+      Module(new MultiLaneQueueTest(1, 2, 10000)),
+      Module(new MultiLaneQueueTest(3, 2, 10000)),
+      Module(new MultiLaneQueueTest(5, 6, 10000))
+      )}})
+
 class AMBAUnitTestConfig extends Config(new WithAMBAUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class ECCUnitTestConfig extends Config(new WithECCTests)
+class ScatterGatherTestConfig extends Config(new WithScatterGatherTests)
+class PowerQueueTestConfig extends Config(new WithPowerQueueTests)

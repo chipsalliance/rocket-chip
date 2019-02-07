@@ -54,7 +54,7 @@ input  wire rst;
    // that, yet Chisel codebase is absolutely intolerant
    // of Xs.
 `ifndef SYNTHESIS
-  initial begin
+  initial begin:B0
     `ifdef RANDOMIZE
     integer    initvar;
     reg [31:0] _RAND;

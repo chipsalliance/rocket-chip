@@ -14,17 +14,17 @@ trait Clocked extends Bundle {
   val reset = Bool()  
 }
 
-trait CanHaltAndCatchFire extends Bundle {
-  val halt_and_catch_fire: Option[Bool]
-}
-
 object DecoupledHelper {
   def apply(rvs: Bool*) = new DecoupledHelper(rvs)
 }
 
 class DecoupledHelper(val rvs: Seq[Bool]) {
   def fire(exclude: Bool, includes: Bool*) = {
+    require(rvs.contains(exclude), "Excluded Bool not present in DecoupledHelper! Note that DecoupledHelper uses referential equality for exclusion! If you don't want to exclude anything, use fire()!")
     (rvs.filter(_ ne exclude) ++ includes).reduce(_ && _)
+  }
+  def fire() = {
+    rvs.reduce(_ && _)
   }
 }
 
@@ -144,7 +144,7 @@ object Split
 object Random
 {
   def apply(mod: Int, random: UInt): UInt = {
-    if (isPow2(mod)) random(log2Up(mod)-1,0)
+    if (isPow2(mod)) random.extract(log2Ceil(mod)-1,0)
     else PriorityEncoder(partition(apply(1 << log2Up(mod*8), random), mod))
   }
   def apply(mod: Int): UInt = apply(mod, randomizer)
@@ -155,10 +155,8 @@ object Random
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 
   private def randomizer = LFSR16()
-  private def round(x: Double): Int =
-    if (x.toInt.toDouble == x) x.toInt else (x.toInt + 1) & -2
   private def partition(value: UInt, slices: Int) =
-    Seq.tabulate(slices)(i => value < UInt(round((i << value.getWidth).toDouble / slices)))
+    Seq.tabulate(slices)(i => value < UInt(((i + 1) << value.getWidth) / slices))
 }
 
 object Majority {
@@ -170,12 +168,12 @@ object Majority {
 
   def apply(in: Seq[Bool]): Bool = apply(in.toSet)
 
-  def apply(in: UInt): Bool = apply(in.toBools.toSet)
+  def apply(in: UInt): Bool = apply(in.asBools.toSet)
 }
 
 object PopCountAtLeast {
   private def two(x: UInt): (Bool, Bool) = x.getWidth match {
-    case 1 => (x.toBool, Bool(false))
+    case 1 => (x.asBool, Bool(false))
     case n =>
       val half = x.getWidth / 2
       val (leftOne, leftTwo) = two(x(half - 1, 0))

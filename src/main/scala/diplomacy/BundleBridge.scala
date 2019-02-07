@@ -4,6 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.core.{DataMirror,ActualDirection}
 import chisel3.experimental.IO
 import freechips.rocketchip.config.{Parameters,Field}
 
@@ -47,5 +48,39 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
     val sink = BundleBridgeSink[T]()
     sink := this
     sink
+  }
+}
+
+case class BundleBridgeNexus[T <: Data]()(implicit valName: ValName) extends NexusNode(new BundleBridgeImp[T])(
+  dFn = seq => seq.head,
+  uFn = _ => BundleBridgeNull(),
+  inputRequiresOutput = false)
+
+class BundleBroadcast[T <: Data]()(implicit p: Parameters) extends LazyModule
+{
+  val node = BundleBridgeNexus[T]()
+
+  lazy val module = new LazyModuleImp(this) {
+    require (node.in.size == 1)
+    val (in, _) = node.in.head
+    def getElements(x: Data): Seq[Element] = x match {
+      case e: Element => Seq(e)
+      case a: Aggregate => a.getElements.flatMap(getElements)
+    }
+    getElements(in).foreach { elt => DataMirror.directionOf(elt) match {
+      case ActualDirection.Output => ()
+      case ActualDirection.Unspecified => ()
+      case _ => require(false, "BundleBroadcast can only be used with Output-directed Bundles")
+    } }
+    node.out.foreach { case (out, _) => out := in }
+  }
+}
+
+object BundleBroadcast
+{
+  def apply[T <: Data](name: Option[String] = None)(implicit p: Parameters): BundleBridgeNexus[T] = {
+    val broadcast = LazyModule(new BundleBroadcast[T])
+    name.map(broadcast.suggestName)
+    broadcast.node
   }
 }

@@ -94,7 +94,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     def entry_data = data.map(_.asTypeOf(new EntryData))
 
     private def sectorIdx(vpn: UInt) = vpn.extract(nSectors.log2-1, 0)
-    def getData(vpn: UInt) = data(sectorIdx(vpn)).asTypeOf(new EntryData)
+    def getData(vpn: UInt) = OptimizationBarrier(data(sectorIdx(vpn)).asTypeOf(new EntryData))
     def sectorHit(vpn: UInt) = valid.orR && sectorTagMatch(vpn)
     def sectorTagMatch(vpn: UInt) = ((tag ^ vpn) >> nSectors.log2) === 0
     def hit(vpn: UInt) = {
@@ -251,9 +251,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_array = Cat(true.B, priv_rw_ok & (entries.map(_.sr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.sx).asUInt, UInt(0))))
   val w_array = Cat(true.B, priv_rw_ok & entries.map(_.sw).asUInt)
   val x_array = Cat(true.B, priv_x_ok & entries.map(_.sx).asUInt)
-  val pr_array = Cat(Fill(nPhysicalEntries, prot_r), normal_entries.map(_.pr).asUInt) | ptw_ae_array
-  val pw_array = Cat(Fill(nPhysicalEntries, prot_w), normal_entries.map(_.pw).asUInt) | ptw_ae_array
-  val px_array = Cat(Fill(nPhysicalEntries, prot_x), normal_entries.map(_.px).asUInt) | ptw_ae_array
+  val pr_array = Cat(Fill(nPhysicalEntries, prot_r), normal_entries.map(_.pr).asUInt) & ~ptw_ae_array
+  val pw_array = Cat(Fill(nPhysicalEntries, prot_w), normal_entries.map(_.pw).asUInt) & ~ptw_ae_array
+  val px_array = Cat(Fill(nPhysicalEntries, prot_x), normal_entries.map(_.px).asUInt) & ~ptw_ae_array
   val paa_array = Cat(Fill(nPhysicalEntries, prot_aa), normal_entries.map(_.paa).asUInt)
   val pal_array = Cat(Fill(nPhysicalEntries, prot_al), normal_entries.map(_.pal).asUInt)
   val eff_array = Cat(Fill(nPhysicalEntries, prot_eff), normal_entries.map(_.eff).asUInt)
@@ -312,9 +312,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
 
-  io.ptw.req.valid := state === s_request && !io.kill
-  io.ptw.req.bits <> io.ptw.status
-  io.ptw.req.bits.addr := r_refill_tag
+  io.ptw.req.valid := state === s_request
+  io.ptw.req.bits.valid := !io.kill
+  io.ptw.req.bits.bits.addr := r_refill_tag
 
   if (usingVM) {
     val sfence = io.sfence.valid

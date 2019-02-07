@@ -4,16 +4,23 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMCaches, OMComponent, OMDCache}
+import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 /* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
 class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
-  val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
+  val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
+    def getMemory(p: DCacheParams, resourceBindingsMap: ResourceBindingsMap): OMDCache = {
+      val resourceBindings = resourceBindingsMap.map.get(this)
+      OMCaches.dcache(p, resourceBindings)
+    }
+  }
+
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = List(address),

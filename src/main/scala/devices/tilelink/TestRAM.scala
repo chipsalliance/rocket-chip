@@ -35,7 +35,7 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
 
     val (in, edge) = node.in(0)
 
-    val addrBits = (mask zip edge.addr_hi(in.a.bits).toBools).filter(_._1).map(_._2)
+    val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
     val memAddress = Cat(addrBits.reverse)
     val mem = Mem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8)))
     val bad = Mem(1 << addrBits.size, Bool())
@@ -52,7 +52,7 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
     in.d.bits.corrupt := !hasData && bad(memAddress) && Bool(trackCorruption)
     in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
     when (in.a.fire() && hasData) {
-      mem.write(memAddress, wdata, in.a.bits.mask.toBools)
+      mem.write(memAddress, wdata, in.a.bits.mask.asBools)
       bad.write(memAddress, in.a.bits.corrupt)
     }
 

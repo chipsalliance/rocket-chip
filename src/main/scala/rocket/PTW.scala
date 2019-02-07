@@ -12,6 +12,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental._
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -28,11 +29,12 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
-  val req = Decoupled(new PTWReq)
+  val req = Decoupled(Valid(new PTWReq))
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
+  val customCSRs = coreParams.customCSRs.asInput
 }
 
 class PTWPerfEvents extends Bundle {
@@ -46,6 +48,8 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
   val perf = new PTWPerfEvents().asOutput
+  val customCSRs = coreParams.customCSRs.asInput
+  val clock_enabled = Bool(OUTPUT)
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
@@ -70,6 +74,7 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   def sx(dummy: Int = 0) = leaf() && x
 }
 
+@chiselName
 class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val requestor = Vec(n, new TLBPTWIO).flip
@@ -79,19 +84,28 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
+
+  val arb = Module(new RRArbiter(Valid(new PTWReq), n))
+  arb.io.in <> io.requestor.map(_.req)
+  arb.io.out.ready := state === s_ready
+
+  val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
+
+  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
+  io.dpath.clock_enabled := usingVM && clock_en
+  val gated_clock =
+    if (!usingVM || !tileParams.dcache.get.clockGate) clock
+    else ClockGate(clock, clock_en, "ptw_clock_gate")
+  withClock (gated_clock) { // entering gated-clock domain
+
   val invalidated = Reg(Bool())
   val count = Reg(UInt(width = log2Up(pgLevels)))
-  val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
   val resp_ae = RegNext(false.B)
   val resp_fragmented_superpage = RegNext(false.B)
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
-
-  val arb = Module(new RRArbiter(new PTWReq, n))
-  arb.io.in <> io.requestor.map(_.req)
-  arb.io.out.ready := state === s_ready
 
   val (pte, invalid_paddr) = {
     val tmp = new PTE().fromBits(io.mem.resp.bits.data_word_bypass)
@@ -111,12 +125,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
   }
   val fragmented_superpage_ppn = {
-    val choices = (pgLevels-1 until 0 by -1).map(i => Cat(r_pte.ppn >> (pgLevels*i), r_req.addr(pgLevels*i-1, 0)))
+    val choices = (pgLevels-1 until 0 by -1).map(i => Cat(r_pte.ppn >> (pgLevelBits*i), r_req.addr(pgLevelBits*i-1, 0)))
     choices(count)
   }
 
   when (arb.io.out.fire()) {
-    r_req := arb.io.out.bits
+    r_req := arb.io.out.bits.bits
     r_req_dest := arb.io.chosen
   }
 
@@ -195,9 +209,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
 
     val s0_valid = !l2_refill && arb.io.out.fire()
-    val s1_valid = RegNext(s0_valid)
+    val s1_valid = RegNext(s0_valid && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
-    val s1_rdata = ram.read(arb.io.out.bits.addr(idxBits-1, 0), s0_valid)
+    val s1_rdata = ram.read(arb.io.out.bits.bits.addr(idxBits-1, 0), s0_valid)
     val s2_rdata = code.decode(RegEnable(s1_rdata, s1_valid))
     val s2_valid_bit = RegEnable(valid(r_idx), s1_valid)
     val s2_g = RegEnable(g(r_idx), s1_valid)
@@ -218,7 +232,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
   invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
-  
+
   io.mem.req.valid := state === s_req || state === s_dummy1
   io.mem.req.bits.phys := Bool(true)
   io.mem.req.bits.cmd  := M_XRD
@@ -229,7 +243,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>
-    TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits)))(pte_addr >> pgIdxBits << pgIdxBits).homogeneous
+    val pgSize = BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits))
+    if (pageGranularityPMPs && i == pgLevels - 1) {
+      require(TLBPageLookup.homogeneous(edge.manager.managers, pgSize), s"All memory regions must be $pgSize-byte aligned")
+      true.B
+    } else {
+      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize)(pte_addr).homogeneous
+    }
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
   val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(pte_addr >> pgIdxBits << pgIdxBits, count)
@@ -243,6 +263,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).ptbr := io.dpath.ptbr
+    io.requestor(i).customCSRs := io.dpath.customCSRs
     io.requestor(i).status := io.dpath.status
     io.requestor(i).pmp := io.dpath.pmp
   }
@@ -254,7 +275,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   switch (state) {
     is (s_ready) {
       when (arb.io.out.fire()) {
-        next_state := s_req
+        next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
       }
       count := UInt(0)
     }
@@ -279,7 +300,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_fragment_superpage) {
       next_state := s_ready
       resp_valid(r_req_dest) := true
-      resp_ae := !pmaPgLevelHomogeneous(pgLevels-1)
+      resp_ae := false
       when (!homogeneous) {
         count := pgLevels-1
         resp_fragmented_superpage := true
@@ -287,7 +308,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
   }
 
-  private def makePTE(ppn: UInt, default: PTE) = {
+  def makePTE(ppn: UInt, default: PTE) = {
     val pte = Wire(init = default)
     pte.ppn := ppn
     pte
@@ -341,7 +362,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   ccover(io.mem.s2_nack, "NACK", "D$ nacked page-table access")
   ccover(state === s_wait2 && io.mem.s2_xcpt.ae.ld, "AE", "access exception while walking page table")
 
-  def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
+  } // leaving gated-clock domain
+
+  private def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     if (usingVM) cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
 }
 

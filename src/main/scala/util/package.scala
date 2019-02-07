@@ -41,6 +41,14 @@ package object util {
       val amt = n.padTo(log2Ceil(x.size))
       (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
     }
+
+    def rotateRight(n: Int): Seq[T] = x.takeRight(n) ++ x.dropRight(n)
+
+    def rotateRight(n: UInt): Seq[T] = {
+      require(isPow2(x.size))
+      val amt = n.padTo(log2Ceil(x.size))
+      (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotateRight(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+    }
   }
 
   // allow bitwise ops on Seq[Bool] just like UInt
@@ -104,16 +112,35 @@ package object util {
       else Cat(UInt(0, n - x.getWidth), x)
     }
 
+    // Like UInt.apply(hi, lo), but returns 0.U for zero-width extracts
     def extract(hi: Int, lo: Int): UInt = {
+      require(hi >= lo-1)
       if (hi == lo-1) UInt(0)
       else x(hi, lo)
     }
+
+    // Like Some(UInt.apply(hi, lo)), but returns None for zero-width extracts
+    def extractOption(hi: Int, lo: Int): Option[UInt] = {
+      require(hi >= lo-1)
+      if (hi == lo-1) None
+      else Some(x(hi, lo))
+    }
+
+    // like x & ~y, but first truncate or zero-extend y to x's width
+    def andNot(y: UInt): UInt = x & ~Wire(t = x, init = y)
 
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
 
     def rotateRight(n: UInt): UInt = {
       val amt = n.padTo(log2Ceil(x.getWidth))
       (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+    }
+
+    def rotateLeft(n: Int): UInt = if (n == 0) x else Cat(x(x.getWidth-1-n,0), x(x.getWidth-1,x.getWidth-n))
+
+    def rotateLeft(n: UInt): UInt = {
+      val amt = n.padTo(log2Ceil(x.getWidth))
+      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
     }
 
     // compute (this + y) % n, given (this < n) and (y < n)
@@ -132,6 +159,13 @@ package object util {
       (0 until x.getWidth by width).map(base => x(base + width - 1, base))
 
     def inRange(base: UInt, bounds: UInt) = x >= base && x < bounds
+
+    def ## (y: Option[UInt]): UInt = y.map(x ## _).getOrElse(x)
+  }
+
+  implicit class OptionUIntToAugmentedOptionUInt(val x: Option[UInt]) extends AnyVal {
+    def ## (y: UInt): UInt = x.map(_ ## y).getOrElse(y)
+    def ## (y: Option[UInt]): Option[UInt] = x.map(_ ## y)
   }
 
   implicit class BooleanToAugmentedBoolean(val x: Boolean) extends AnyVal {
@@ -173,6 +207,15 @@ package object util {
     helper(1, x)(width-1, 0)
   }
 
-  def OptimizationBarrier(x: UInt): UInt = ~(~x)
-  def OptimizationBarrier[T <: Data](x: T): T = OptimizationBarrier(x.asUInt).asTypeOf(x)
+  def OptimizationBarrier[T <: Data](in: T): T = {
+    val foo = Module(new Module {
+      val io = IO(new Bundle {
+        val x = Input(in)
+        val y = Output(in)
+      })
+      io.y := io.x
+    })
+    foo.io.x := in
+    foo.io.y
+  }
 }

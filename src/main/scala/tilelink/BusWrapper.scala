@@ -16,11 +16,14 @@ trait HasTLBusParams {
   def blockBits: Int = blockBytes * 8
   def blockBeats: Int = blockBytes / beatBytes
   def blockOffset: Int = log2Up(blockBytes)
+
+  require (isPow2(beatBytes))
+  require (isPow2(blockBytes))
 }
 
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
     extends SimpleLazyModule
-    with LazyScope
+    with HasClockDomainCrossing
     with HasTLBusParams {
 
   def beatBytes = params.beatBytes
@@ -29,6 +32,10 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
+  def busView: TLEdge
+  def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
+  def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
+  def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
 
   def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }
@@ -38,11 +45,23 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     this { LazyScope(s"coupler_from_${name}") { body } }
   }
 
-  def coupleTo(name: String)(gen: TLOutwardNode => NoHandle): NoHandle =
-    this { LazyScope(s"coupler_to_${name}") { gen(outwardNode) } }
+  def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
+    to(name) { gen(outwardNode) }
 
-  def coupleFrom(name: String)(gen: TLInwardNode => NoHandle): NoHandle =
-    this { LazyScope(s"coupler_from_${name}") { gen(inwardNode) } }
+  def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
+    from(name) { gen(inwardNode) }
+
+  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType): NoHandle = {
+    coupleTo(s"bus_named_${bus.busName}") {
+      bus.crossInHelper(xType) :*= TLWidthWidget(beatBytes) :*= _
+    }
+  }
+
+  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType): NoHandle = {
+    coupleFrom(s"bus_named_${bus.busName}") {
+      _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
+    }
+  }
 }
 
 trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
@@ -161,4 +180,5 @@ trait HasTLXbarPhy { this: TLBusWrapper =>
 
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = xbar.node
+  def busView: TLEdge = xbar.node.edges.in.head
 }

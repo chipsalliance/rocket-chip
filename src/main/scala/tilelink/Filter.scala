@@ -116,7 +116,8 @@ object TLFilter
       Some(m.copy(
         regionType       = RegionType.UNCACHED,
         supportsAcquireB = TransferSizes.none,
-        supportsAcquireT = TransferSizes.none))
+        supportsAcquireT = TransferSizes.none,
+        alwaysGrantsT    = false))
     } else { Some(m) }
   }
   // only cacheable managers are visible, but cannot be acquired from
@@ -125,7 +126,8 @@ object TLFilter
       Some(m.copy(
         regionType       = RegionType.UNCACHED,
         supportsAcquireB = TransferSizes.none,
-        supportsAcquireT = TransferSizes.none))
+        supportsAcquireT = TransferSizes.none,
+        alwaysGrantsT    = false))
     } else { None }
   }
   // hide all caching clients

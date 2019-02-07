@@ -31,9 +31,9 @@ environment variable to your riscv-tools installation directory.
 
     $ export RISCV=/path/to/riscv/toolchain/installation
 
-The riscv-tools repository is already included in
-rocket-chip as a Git submodule. You **must** build this version
-of riscv-tools:
+The riscv-tools repository known to work with rocket-chip is noted
+in the file riscv-tools.hash. However, any recent riscv-tools should work.
+You can build riscv-tools as follows:
 
     $ cd rocket-chip/riscv-tools
     $ git submodule update --init --recursive
@@ -238,8 +238,6 @@ points to the rocket-chip repository.
     $ cd rocket-chip
     $ export ROCKETCHIP=`pwd`
     $ git submodule update --init
-    $ cd riscv-tools
-    $ git submodule update --init --recursive riscv-tests
 
 Before going any further, you must point the RISCV environment variable
 to your riscv-tools installation directory. If you do not yet have
@@ -331,8 +329,9 @@ You can generate synthesizable Verilog with the following commands:
 
 The Verilog used for the FPGA tools will be generated in
 vsim/generated-src. Please proceed further with the directions shown in
-the [README](https://github.com/ucb-bar/fpga-zynq/blob/master/README.md)
-of the fpga-zynq repository.
+the [README](https://github.com/sifive/freedom/blob/master/README.md)
+of the freedom repository. You can also run Rocket Chip on Amazon EC2 F1
+with [FireSim](https://github.com/firesim/firesim).
 
 
 If you have access to VCS, you will be able to run assembly
@@ -475,7 +474,7 @@ By default the emulator is generated under the name `emulator-freechips.rocketch
 
 ### 2) Compiling and executing a custom program using the emulator
 
-We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests).
+We suppose that `helloworld` is our program, you can use `crt.S`, `syscalls.c` and the linker script `test.ld` to construct your own program, check examples stated in [riscv-tests](https://github.com/riscv/riscv-tests). Note that `test.ld` loads the program at 0x80000000 so you will need to use `-mcmodel=medany` otherwise you will get relocation errors. See [All Aboard, Part 4: The RISC-V Code Models](https://www.sifive.com/blog/2017/09/11/all-aboard-part-4-risc-v-code-models/) for more details.
 
 In our case we will use the following example:
 

@@ -17,7 +17,8 @@ case class AXI4SlaveParameters(
   nodePath:      Seq[BaseNode] = Seq(),
   supportsWrite: TransferSizes = TransferSizes.none,
   supportsRead:  TransferSizes = TransferSizes.none,
-  interleavedId: Option[Int]   = None) // The device will not interleave responses (R+B)
+  interleavedId: Option[Int]   = None,
+  device: Option[Device] = None) // The device will not interleave responses (R+B)
 {
   address.foreach { a => require (a.finite) }
   address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap") }
@@ -144,4 +145,16 @@ case class AXI4AsyncBundleParameters(async: AsyncQueueParams, base: AXI4BundlePa
 case class AXI4AsyncEdgeParameters(master: AXI4AsyncMasterPortParameters, slave: AXI4AsyncSlavePortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
   val bundle = AXI4AsyncBundleParameters(slave.async, AXI4BundleParameters(master.base, slave.base))
+}
+
+case class AXI4BufferParams(
+  aw: BufferParams = BufferParams.none,
+  w:  BufferParams = BufferParams.none,
+  b:  BufferParams = BufferParams.none,
+  ar: BufferParams = BufferParams.none,
+  r:  BufferParams = BufferParams.none
+) extends DirectedBuffers[AXI4BufferParams] {
+  def copyIn(x: BufferParams) = this.copy(b = x, r = x)
+  def copyOut(x: BufferParams) = this.copy(aw = x, ar = x, w = x)
+  def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
 }

@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.core.withReset
+import chisel3.experimental._
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -44,6 +44,8 @@ class FrontendPerfEvents extends Bundle {
 }
 
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
+  val might_request = Bool(OUTPUT)
+  val clock_enabled = Bool(INPUT)
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
@@ -53,7 +55,6 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
   val perf = new FrontendPerfEvents().asInput
-  val customCSRs = new CustomCSRs().asOutput
 }
 
 class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
@@ -70,16 +71,30 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
   val errors = new ICacheErrors
 }
 
+@chiselName
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
-    with HasCoreParameters
+    with HasRocketCoreParameters
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
   implicit val edge = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 
-  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBEntries)))
   val fq = withReset(reset || io.cpu.req.valid) { Module(new ShiftQueue(new FrontendResp, 5, flow = true)) }
+
+  val clock_en_reg = Reg(Bool())
+  val clock_en = clock_en_reg || io.cpu.might_request
+  io.cpu.clock_enabled := clock_en
+  assert(!(io.cpu.req.valid || io.cpu.sfence.valid || io.cpu.flush_icache || io.cpu.bht_update.valid || io.cpu.btb_update.valid) || io.cpu.might_request)
+  val gated_clock =
+    if (!rocketParams.clockGate) clock
+    else ClockGate(clock, clock_en, "icache_clock_gate")
+
+  icache.clock := gated_clock
+  icache.io.clock_enabled := clock_en
+  withClock (gated_clock) { // entering gated-clock domain
+
+  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBEntries)))
 
   val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
   val s1_valid = RegNext(s0_valid)
@@ -124,7 +139,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   }
 
   io.ptw <> tlb.io.ptw
-  tlb.io.req.valid := !s2_replay
+  tlb.io.req.valid := s1_valid && !s2_replay
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
@@ -172,8 +187,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       predicted_taken := Bool(true)
     }
 
-    val force_taken = io.cpu.customCSRs.bpmStatic
-    when (io.cpu.customCSRs.flushBTB) { btb.io.flush := true }
+    val force_taken = io.ptw.customCSRs.bpmStatic
+    when (io.ptw.customCSRs.flushBTB) { btb.io.flush := true }
     when (force_taken) { btb.io.bht_update.valid := false }
 
     val s2_base_pc = ~(~s2_pc | (fetchBytes-1))
@@ -306,6 +321,15 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
   io.errors := icache.io.errors
+
+  // gate the clock
+  clock_en_reg := !rocketParams.clockGate ||
+    io.cpu.might_request || // chicken bit
+    icache.io.keep_clock_enabled || // I$ miss or ITIM access
+    s1_valid || s2_valid || // some fetch in flight
+    !tlb.io.req.ready || // handling TLB miss
+    !fq.io.mask(fq.io.mask.getWidth-1) // queue not full
+  } // leaving gated-clock domain
 
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
 

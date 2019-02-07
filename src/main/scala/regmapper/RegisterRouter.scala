@@ -22,6 +22,7 @@ abstract class RegisterRouter[T <: Data](devParams: RegisterRouterParams)(implic
     extends LazyModule
     with HasClockDomainCrossing {
 
+  require (isPow2(devParams.size))
   val address = Seq(AddressSet(devParams.base, devParams.size-1))
   val concurrency = devParams.concurrency
   val beatBytes = devParams.beatBytes

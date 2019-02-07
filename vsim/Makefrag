@@ -9,6 +9,7 @@ bb_vsrcs = \
     $(vsrc)/ClockDivider2.v \
     $(vsrc)/ClockDivider3.v \
     $(vsrc)/AsyncResetReg.v \
+    $(vsrc)/EICG_wrapper.v \
 
 sim_vsrcs = \
     $(generated_dir)/$(long_name).v \

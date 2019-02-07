@@ -13,6 +13,10 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
+
 import scala.math.min
 
 class GatewayPLICIO extends Bundle {
@@ -66,7 +70,7 @@ case object PLICKey extends Field[Option[PLICParams]](None)
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
-  val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
+  val device: SimpleDevice = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
     override val alwaysExtended = true
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
@@ -77,16 +81,42 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
     }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
+    }
+
+    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
+      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
+      val Description(name, mapping) = describe(resourceBindings)
+
+      Seq[OMComponent](
+        OMPLIC(
+          memoryRegions = memRegions,
+          interrupts = ints,
+          specifications = List(
+            OMSpecification(
+              name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
+              version = "1.10"
+            )
+          ),
+          latency = 2, // TODO
+          nPriorities = nPriorities,
+          targets = Nil
+        )
+      )
+    }
   }
 
-  val node = TLRegisterNode(
+  val node : TLRegisterNode = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
     beatBytes = beatBytes,
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
-  val intnode = IntNexusNode(
+  val intnode: IntNexusNode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
@@ -222,7 +252,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val claimer = Wire(Vec(nHarts, Bool()))
     assert((claimer.asUInt & (claimer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val claiming = Seq.tabulate(nHarts){i => Mux(claimer(i), maxDevs(i), UInt(0))}.reduceLeft(_|_)
-    val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).toBools)
+    val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).asBools)
 
     ((pending zip gateways) zip claimedDevs.tail) foreach { case ((p, g), c) =>
       g.ready := !p
@@ -240,7 +270,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
     val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(completerDev, nDevices+1), UInt(0))
-    (gateways zip completedDevs.toBools.tail) foreach { case (g, c) =>
+    (gateways zip completedDevs.asBools.tail) foreach { case (g, c) =>
        g.complete := c
     }
 
@@ -284,7 +314,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       )
     }
 
-    node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+    val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
@@ -324,7 +354,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
     } else (x.head, UInt(0))
   }
 
-  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.toBools zip io.prio).map { case (p, x) => Cat(p, x) }
+  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.asBools zip io.prio).map { case (p, x) => Cat(p, x) }
   val (maxPri, maxDev) = findMax(effectivePriority)
   io.max := maxPri // strips the always-constant high '1' bit
   io.dev := maxDev
@@ -333,8 +363,8 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 /** Trait that will connect a PLIC to a subsystem */
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
-    val plic = LazyModule(new TLPLIC(params, sbus.control_bus.beatBytes))
-    sbus.control_bus.toVariableWidthSlave(Some("plic")) { plic.node }
+    val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
+    plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
     plic.intnode :=* ibus.toPLIC
     plic
   }

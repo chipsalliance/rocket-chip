@@ -19,6 +19,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
     val s1_id = Reg(UInt())
     val s2_id = Reg(next=s1_id)
 
+    io.mem.keep_clock_enabled := io.requestor.map(_.keep_clock_enabled).reduce(_||_)
+
     io.mem.req.valid := io.requestor.map(_.req.valid).reduce(_||_)
     io.requestor(0).req.ready := io.mem.req.ready
     for (i <- 1 until n)
@@ -62,6 +64,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       io.requestor(i).perf := io.mem.perf
       io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === UInt(i)
       io.requestor(i).s2_nack_cause_raw := io.mem.s2_nack_cause_raw
+      io.requestor(i).clock_enabled := io.mem.clock_enabled
       resp.bits := io.mem.resp.bits
       resp.bits.tag := io.mem.resp.bits.tag >> log2Up(n)
 
