@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams}
+import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByIntoSeq}
 import scala.math.max
 
 case class TLManagerParameters(
@@ -139,10 +139,12 @@ case class TLManagerPortParameters(
   }
 
   // Compute the simplest AddressSets that decide a key
-  def fastPropertyGroup[K](p: TLManagerParameters => K): Map[K, Seq[AddressSet]] = {
-    val groups = managers.map(m => (p(m), m.address)).groupBy(_._1).mapValues(_.flatMap(_._2))
-    val reductionMask = AddressDecoder(groups.values.toList)
-    groups.mapValues(seq => AddressSet.unify(seq.map(_.widen(~reductionMask)).distinct))
+  def fastPropertyGroup[K](p: TLManagerParameters => K): Seq[(K, Seq[AddressSet])] = {
+    val groups = groupByIntoSeq(managers.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
+      k -> vs.flatMap(_._2)
+    }
+    val reductionMask = AddressDecoder(groups.map(_._2))
+    groups.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~reductionMask)).distinct) }
   }
   // Select a property
   def fastProperty[K, D <: Data](address: UInt, p: TLManagerParameters => K, d: K => D): D =
@@ -163,10 +165,11 @@ case class TLManagerPortParameters(
       range:   Option[TransferSizes]): Bool = {
     def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
     // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
-    val supportCases = managers.groupBy(m => trim(member(m))).mapValues(_.flatMap(_.address))
-                               .toSeq.sortBy { case (k, _) => (k.min, k.max) }
+    val supportCases = groupByIntoSeq(managers)(m => trim(member(m))).map { case (k, vs) =>
+      k -> vs.flatMap(_.address)
+    }
     val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
-    val simplified = supportCases.map { case (k, seq) => (k, AddressSet.unify(seq.map(_.widen(~mask)).distinct)) }
+    val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
     simplified.map { case (s, a) =>
       (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)
