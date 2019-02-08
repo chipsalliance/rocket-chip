@@ -234,7 +234,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
       // for write operations confirm resp immediately because we don't care about data
       io.dmi.resp.valid,
       // for read operations confirm resp when we capture the data
-      dmiAccessChain.io.capture.capture)
+      dmiAccessChain.io.capture.capture & !stickyBusyReg)
 
   // incorrect operation - not enough time was spent in JTAG Idle state after DMI Write
   cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Write");
