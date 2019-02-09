@@ -191,7 +191,6 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.UNCACHEABLE)
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
-  require(!tileParams.core.haveCFlush || !tileParams.core.useVM, "CFLUSH_D_L1 instruction and virtual memory are incompatible")
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
