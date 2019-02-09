@@ -88,7 +88,6 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   val stickyBusyReg = RegInit(Bool(false))
   val stickyNonzeroRespReg = RegInit(Bool(false))
 
-  val skipOpReg = Reg(init = Bool(false)) // Skip op because we're busy
   val downgradeOpReg = Reg(init = Bool(false)) // downgrade op because prev. failed.
 
   val busy = Wire(Bool())
@@ -151,11 +150,9 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // during every CAPTURE_DR, and use the result in UPDATE_DR.
   // The sticky versions are reset by write to dmiReset in DTM_INFO.
   when (dmiAccessChain.io.update.valid) {
-    skipOpReg := Bool(false)
     downgradeOpReg := Bool(false)
   }
   when (dmiAccessChain.io.capture.capture) {
-    skipOpReg := busy
     downgradeOpReg := (!busy & nonzeroResp)
     stickyBusyReg := busy
     stickyNonzeroRespReg := nonzeroResp
@@ -193,16 +190,6 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // Debug Access Chain Implementation
 
   dmiAccessChain.io.capture.bits := Mux(busy, busyResp, Mux(io.dmi.resp.valid, dmiResp, nopResp))
-  when (dmiAccessChain.io.update.valid) {
-    skipOpReg := Bool(false)
-    downgradeOpReg := Bool(false)
-  }
-  when (dmiAccessChain.io.capture.capture) {
-    skipOpReg := busy
-    downgradeOpReg := (!busy & nonzeroResp)
-    stickyBusyReg := busy
-    stickyNonzeroRespReg := nonzeroResp
-  }
 
   //--------------------------------------------------------
   // Drive Ready Valid Interface
@@ -211,7 +198,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   assert(!(dmiReqValidCheck && io.dmi.req.fire()), "Conflicting updates for dmiReqValidReg, should not happen.");
 
   when (dmiAccessChain.io.update.valid) {
-    when (skipOpReg) {
+    when (stickyBusyReg) {
       // Do Nothing
     }.elsewhen (downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
       //Do Nothing
@@ -234,7 +221,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
       // for write operations confirm resp immediately because we don't care about data
       io.dmi.resp.valid,
       // for read operations confirm resp when we capture the data
-      dmiAccessChain.io.capture.capture)
+      dmiAccessChain.io.capture.capture & !busy)
 
   // incorrect operation - not enough time was spent in JTAG Idle state after DMI Write
   cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Write");
@@ -276,5 +263,4 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // and is used to reset the debug registers).
 
   io.fsmReset := tapIO.output.reset
-
 }
