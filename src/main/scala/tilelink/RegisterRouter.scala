@@ -7,6 +7,7 @@ import chisel3.experimental.RawModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
@@ -86,11 +87,7 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     genRegDescsJson(mapping:_*)
-    genOMRegMap(mapping:_*)
-  }
-
-  def genOMRegMap(mapping: RegField.Map*): OMRegisterMap = {
-    OMRegister.convert(mapping = mapping:_*)
+    DiplomaticObjectModelAddressing.genOMRegMap(mapping:_*)
   }
 
   def genRegDescsJson(mapping: RegField.Map*) {
@@ -186,5 +183,8 @@ trait HasTLControlRegMap { this: RegisterRouter[_] =>
   val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  protected def regmap(mapping: RegField.Map*): OMRegisterMap = {
+    controlNode.regmap(mapping:_*)
+    DiplomaticObjectModelAddressing.genOMRegMap(mapping:_*)
+  }
 }
