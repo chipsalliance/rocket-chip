@@ -32,12 +32,6 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("json", outer.json)
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
   println(outer.dts)
-
-  def addOMArtefacts(components: Seq[OMComponent]): Unit = {
-    val subSystemComponents = outer.createOMComponents(outer.getResourceBindingsMap)
-    val c = subSystemComponents.map( _ +: components)
-    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(c.getOrElse(Nil)))
-  }
 }
 
 /** Base Subsystem class with no peripheral devices or ports added */

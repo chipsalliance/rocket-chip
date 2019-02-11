@@ -7,6 +7,7 @@ import java.io.{File, FileWriter}
 import Chisel.{Data, Vec, log2Ceil}
 import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.util.{Code, ElaborationArtefacts}
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{CustomSerializer, Extraction, NoTypeHints}
@@ -81,6 +82,23 @@ object DiplomaticObjectModelUtils {
 
   def getAllClassNames(klass: Class[_]): Seq[String] =
     keepLast(getSuperClasses(klass).map(getDemangledName _))
+
+  def convertCode(code: Code): Option[OMECC] = {
+    val x = code.toString.split('.')(3).split('@')(0)
+    x match {
+      case "SECDEDCode" => Some(OMECC.SECDED)
+      case "IdentityCode" => Some(OMECC.Identity)
+      case "ParityCode" => Some(OMECC.Parity)
+      case "SECCode" => Some(OMECC.SEC)
+      case _ => throw new IllegalArgumentException
+    }
+  }
+
+  def addOMArtefacts(components: Seq[OMComponent]): Unit = {
+    val domComponents = DiplomaticObjectModel.doms.flatMap(_.getComponent())
+    val c = domComponents ++ components
+    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(c))
+  }
 }
 
 class OMEnumSerializer extends CustomSerializer[OMEnum](format => {

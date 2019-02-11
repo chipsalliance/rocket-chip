@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import scala.collection.mutable.ListBuffer
 
 class OMCollector {
-  def getComponent(): Option[OMComponent] = None
+  def getComponent(): Seq[OMComponent] = Nil
 }
 
 object DiplomaticObjectModel {
