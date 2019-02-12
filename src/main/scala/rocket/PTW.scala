@@ -149,15 +149,22 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val size = 1 << log2Up(pgLevels * 2)
     val plru = new PseudoLRU(size)
     val valid = RegInit(0.U(size.W))
-    val tags = Reg(Vec(size, UInt(width = paddrBits)))
+    val tags = Reg(Vec(size, UInt(width = pgLevelBits * (pgLevels-1) + log2Ceil(pgLevels-1))))
     val data = Reg(Vec(size, UInt(width = ppnBits)))
 
-    val hits = tags.map(_ === pte_addr).asUInt & valid
+    val expected_count = count.extract(log2Ceil(pgLevels-1)-1, 0)
+    val expected_addr = r_req.addr >> pgLevelBits
+    val hits = for ((tag, v) <- tags zip valid.asBools) yield {
+      val (tag_addr, tag_count) = Split(tag, log2Ceil(pgLevels-1))
+      val addr_match = (0 until pgLevels-1).map(i => tag_count < i || ((expected_addr ^ tag_addr) >> (pgLevels-i-2)*pgLevelBits)(pgLevelBits-1, 0) === 0).andR
+      v && expected_count === tag_count && addr_match
+    }
     val hit = hits.orR
+
     when (mem_resp_valid && traverse && !hit && !invalidated) {
       val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
-      tags(r) := pte_addr
+      tags(r) := (expected_addr << log2Ceil(pgLevels-1)) | expected_count
       data(r) := pte.ppn
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
