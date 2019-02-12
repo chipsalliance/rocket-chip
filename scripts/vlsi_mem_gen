@@ -167,12 +167,15 @@ def gen_mem(name, width, depth, mask_gran, mask_seg, ports):
     prefix = 'RW%d_' % idx
     sequential.append('always @(posedge %sclk)' % prefix)
     sequential.append("  if (%sen && %swmode) begin" % (prefix, prefix))
-    if mask_seg > 0:
-      sequential.append("      for(i=0;i<%d;i=i+1) begin" % mask_seg)
-      sequential.append("        if(%swmask[i]) begin" % prefix)
-      sequential.append("          ram[%saddr][i*%d +: %d] <= %swdata[i*%d +: %d];" %(prefix, mask_gran, mask_gran, prefix, mask_gran, mask_gran))
-      sequential.append("        end")
-      sequential.append("      end")
+    if mask_seg > 0::
+      sequential.append("    for(i=0;i<%d;i=i+1) begin" % mask_seg)
+      if pid in maskedports:
+        sequential.append("      if(%swmask[i]) begin" % prefix)
+        sequential.append("        ram[%saddr][i*%d +: %d] <= %swdata[i*%d +: %d];" %(prefix, mask_gran, mask_gran, prefix, mask_gran, mask_gran))
+        sequential.append("      end")
+      else:
+        sequential.append("      ram[%saddr][i*%d +: %d] <= %swdata[i*%d +: %d];" %(prefix, mask_gran, mask_gran, prefix, mask_gran, mask_gran))
+      sequential.append("    end")
     sequential.append("  end")
   body = "\
   %s\n\
