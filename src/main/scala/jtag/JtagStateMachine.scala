@@ -7,7 +7,6 @@ import chisel3.{Input, Output}
 import chisel3.experimental.withReset
 
 import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.util.{AsyncResetRegVec}
 import freechips.rocketchip.util.property._
 
 object JtagState {
@@ -79,11 +78,8 @@ class JtagStateMachine(implicit val p: Parameters) extends Module() {
   val io = IO(new StateMachineIO)
 
   val nextState = Wire(JtagState.State.chiselType())
-  val currStateReg = Module (new AsyncResetRegVec(w = JtagState.State.width,
-    init = JtagState.State.toInt(JtagState.TestLogicReset)))
-  currStateReg.io.en := true.B
-  currStateReg.io.d  := nextState
-  val currState = currStateReg.io.q
+  val initState = JtagState.State.toInt(JtagState.TestLogicReset).U(JtagState.State.width.W)
+  val currState = withReset(Module.reset.asAsyncReset)(RegNext(nextState, initState))
 
   switch (currState) {
     is (JtagState.TestLogicReset.U) {

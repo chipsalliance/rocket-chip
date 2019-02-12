@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.{withReset, AsyncReset}
 
 case class AsyncQueueParams(
   depth:  Int     = 8,
@@ -49,7 +50,7 @@ class AsyncBundle[T <: Data](private val gen: T, val params: AsyncQueueParams = 
 object GrayCounter {
   def apply(bits: Int, increment: Bool = true.B, clear: Bool = false.B, name: String = "binary"): UInt = {
     val incremented = Wire(UInt(bits.W))
-    val binary = AsyncResetReg(incremented, name)
+    val binary = withReset(Module.reset.asAsyncReset)(RegNext(incremented, false.B)).suggestName(name)
     incremented := Mux(clear, 0.U, binary + increment.asUInt())
     incremented ^ (incremented >> 1)
   }
