@@ -116,6 +116,7 @@ trait CanHaveMasterAXI4MMIOPortModuleImp extends LazyModuleImp {
 
   def connectSimAXIMMIO() {
     (mmio_axi4 zip outer.mmioAXI4Node.in) foreach { case (io, (_, edge)) =>
+      // test harness size capped to 4KB (ignoring p(ExtMem).get.master.size)
       val mmio_mem = LazyModule(new SimAXIMem(edge, size = 4096))
       Module(mmio_mem.module).io.axi4.head <> io
     }
