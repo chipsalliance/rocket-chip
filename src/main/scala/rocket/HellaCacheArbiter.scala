@@ -29,10 +29,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
     for (i <- n-1 to 0 by -1) {
       val req = io.requestor(i).req
       def connect_s0() = {
-        io.mem.req.bits.cmd := req.bits.cmd
-        io.mem.req.bits.typ := req.bits.typ
-        io.mem.req.bits.addr := req.bits.addr
-        io.mem.req.bits.phys := req.bits.phys
+        io.mem.req.bits := req.bits
         io.mem.req.bits.tag := Cat(req.bits.tag, UInt(i, log2Up(n)))
         s1_id := UInt(i)
       }
@@ -55,6 +52,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       }
     }
 
+    io.mem.uncached_resp.foreach(_.ready := false.B)
+
     for (i <- 0 until n) {
       val resp = io.requestor(i).resp
       val tag_hit = io.mem.resp.bits.tag(log2Up(n)-1,0) === UInt(i)
@@ -69,6 +68,16 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       resp.bits.tag := io.mem.resp.bits.tag >> log2Up(n)
 
       io.requestor(i).replay_next := io.mem.replay_next
+
+      io.requestor(i).uncached_resp.map { uncached_resp =>
+        val uncached_tag_hit = io.mem.uncached_resp.get.bits.tag(log2Up(n)-1,0) === UInt(i)
+        uncached_resp.valid := io.mem.uncached_resp.get.valid && uncached_tag_hit
+        when (uncached_resp.ready && uncached_tag_hit) {
+          io.mem.uncached_resp.get.ready := true.B
+        }
+        uncached_resp.bits := io.mem.uncached_resp.get.bits
+        uncached_resp.bits.tag := io.mem.uncached_resp.get.bits.tag >> log2Up(n)
+      }
     }
   }
 }

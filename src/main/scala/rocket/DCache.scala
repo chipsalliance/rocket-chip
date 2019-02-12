@@ -242,7 +242,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
   val tl_d_data_encoded = Wire(encodeData(tl_out.d.bits.data, false.B).cloneType)
-  val s1_all_data_ways = Vec(data.io.resp :+ tl_d_data_encoded)
+  val s1_all_data_ways = Vec(data.io.resp ++ (!cacheParams.separateUncachedResp).option(tl_d_data_encoded))
   val s1_mask_xwr = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, s1_mask_xwr)
   // for partial writes, s1_data.mask must be a subset of s1_mask_xwr
@@ -258,7 +258,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.typ(0)
   val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.typ(0)
   val s2_uncached = Reg(Bool())
-  val s2_uncached_resp_addr = Reg(UInt()) // should be DCE'd in synthesis
+  val s2_uncached_resp_addr = Reg(s2_req.addr.cloneType) // should be DCE'd in synthesis
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
@@ -529,6 +529,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
   val canAcceptCachedGrant = !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)
   tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
+  val uncachedRespIdxOH = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
+  uncachedResp := Mux1H(uncachedRespIdxOH, uncachedReqs)
   when (tl_out.d.fire()) {
     when (grantIsCached) {
       grantInProgress := true
@@ -540,26 +542,26 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         replacer.miss
       }
     } .elsewhen (grantIsUncached) {
-      val d_sel = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
-      uncachedResp := Mux1H(d_sel, uncachedReqs)
-      (d_sel.asBools zip uncachedInFlight) foreach { case (s, f) =>
+      (uncachedRespIdxOH.asBools zip uncachedInFlight) foreach { case (s, f) =>
         when (s && d_last) {
           assert(f, "An AccessAck was unexpected by the dcache.") // TODO must handle Ack coming back on same cycle!
           f := false
         }
       }
       when (grantIsUncachedData) {
-        if (!cacheParams.pipelineWayMux)
-          s1_data_way := 1.U << nWays
-        s2_req.cmd := M_XRD
-        s2_req.typ := uncachedResp.typ
-        s2_req.tag := uncachedResp.tag
-        s2_req.addr := {
-          require(rowOffBits >= beatOffBits)
-          val dontCareBits = s1_paddr >> rowOffBits << rowOffBits
-          dontCareBits | uncachedResp.addr(beatOffBits-1, 0)
+        if (!cacheParams.separateUncachedResp) {
+          if (!cacheParams.pipelineWayMux)
+            s1_data_way := 1.U << nWays
+          s2_req.cmd := M_XRD
+          s2_req.typ := uncachedResp.typ
+          s2_req.tag := uncachedResp.tag
+          s2_req.addr := {
+            require(rowOffBits >= beatOffBits)
+            val dontCareBits = s1_paddr >> rowOffBits << rowOffBits
+            dontCareBits | uncachedResp.addr(beatOffBits-1, 0)
+          }
+          s2_uncached_resp_addr := uncachedResp.addr
         }
-        s2_uncached_resp_addr := uncachedResp.addr
       }
     } .elsewhen (grantIsVoluntary) {
       assert(release_ack_wait, "A ReleaseAck was unexpected by the dcache.") // TODO should handle Ack coming back on same cycle!
@@ -584,7 +586,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     dataArb.io.in(1).bits.write := true
     dataArb.io.in(1).bits.addr :=  (s2_vaddr >> idxLSB) << idxLSB | d_address_inc
     dataArb.io.in(1).bits.way_en := s2_victim_way
-    dataArb.io.in(1).bits.wdata := s1_all_data_ways.last
+    dataArb.io.in(1).bits.wdata := tl_d_data_encoded
     dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
     dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   } else {
@@ -602,17 +604,19 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_vaddr(idxMSB, 0))
   metaArb.io.in(3).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, s2_hit_state.onGrant(s2_req.cmd, tl_out.d.bits.param)).asUInt)
 
-  // don't accept uncached grants if there's a structural hazard on s2_data...
-  val blockUncachedGrant = Reg(Bool())
-  blockUncachedGrant := dataArb.io.out.valid
-  when (grantIsUncachedData && (blockUncachedGrant || s1_valid)) {
-    tl_out.d.ready := false
-    // ...but insert bubble to guarantee grant's eventual forward progress
-    when (tl_out.d.valid) {
-      io.cpu.req.ready := false
-      dataArb.io.in(1).valid := true
-      dataArb.io.in(1).bits.write := false
-      blockUncachedGrant := !dataArb.io.in(1).ready
+  if (!cacheParams.separateUncachedResp) {
+    // don't accept uncached grants if there's a structural hazard on s2_data...
+    val blockUncachedGrant = Reg(Bool())
+    blockUncachedGrant := dataArb.io.out.valid
+    when (grantIsUncachedData && (blockUncachedGrant || s1_valid)) {
+      tl_out.d.ready := false
+      // ...but insert bubble to guarantee grant's eventual forward progress
+      when (tl_out.d.valid) {
+        io.cpu.req.ready := false
+        dataArb.io.in(1).valid := true
+        dataArb.io.in(1).bits.write := false
+        blockUncachedGrant := !dataArb.io.in(1).ready
+      }
     }
   }
   ccover(tl_out.d.valid && !tl_out.d.ready, "BLOCK_D", "D$ D-channel blocked")
@@ -747,18 +751,28 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // uncached response
-  val s2_uncached_data_word = {
+  val s1_uncached_data_word = {
     val word_idx = uncachedResp.addr.extract(log2Up(rowBits/8)-1, log2Up(wordBytes))
     val words = tl_out.d.bits.data.grouped(wordBits)
-    RegEnable(words(word_idx), io.cpu.replay_next)
+    words(word_idx)
   }
+  val s2_uncached_data_word = RegEnable(s1_uncached_data_word, io.cpu.replay_next)
   val doUncachedResp = Reg(next = io.cpu.replay_next)
   io.cpu.resp.valid := (s2_valid_hit_pre_data_ecc || doUncachedResp) && !s2_data_error
-  io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData
+  io.cpu.replay_next := tl_out.d.fire() && grantIsUncachedData && !cacheParams.separateUncachedResp
   when (doUncachedResp) {
     assert(!s2_valid_hit)
     io.cpu.resp.bits.replay := true
     io.cpu.resp.bits.addr := s2_uncached_resp_addr
+  }
+
+  io.cpu.uncached_resp.map { resp =>
+    resp.valid := tl_out.d.valid && grantIsUncachedData
+    resp.bits.tag := uncachedResp.tag
+    resp.bits.data := new LoadGen(uncachedResp.typ, mtSigned(uncachedResp.typ), uncachedResp.addr, s1_uncached_data_word, false.B, wordBytes).data
+    when (grantIsUncachedData && !resp.ready) {
+      tl_out.d.ready := false
+    }
   }
 
   // load data subword mux/sign extension
