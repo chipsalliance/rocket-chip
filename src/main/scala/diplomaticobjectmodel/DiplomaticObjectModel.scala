@@ -11,15 +11,13 @@ class OMCollector {
 }
 
 object DiplomaticObjectModel {
-  val doms = ListBuffer[OMCollector]()
+  private val doms = ListBuffer[OMCollector]()
 
   def add(d: OMCollector): Unit = {
     doms += (d)
   }
 
   def getComponents(): Seq[OMComponent] = {
-    doms.flatMap {
-      case dc: OMCollector => dc.getComponent()
-    }
+    doms.flatMap(_.getComponent())
   }
 }

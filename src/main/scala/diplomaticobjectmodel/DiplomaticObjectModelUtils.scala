@@ -94,10 +94,9 @@ object DiplomaticObjectModelUtils {
     }
   }
 
-  def addOMArtefacts(components: Seq[OMComponent]): Unit = {
-    val domComponents = DiplomaticObjectModel.doms.flatMap(_.getComponent())
-    val c = domComponents ++ components
-    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(c))
+  def addOMArtefacts(): Unit = {
+    val domComponents = DiplomaticObjectModel.getComponents()
+    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(domComponents))
   }
 }
 
