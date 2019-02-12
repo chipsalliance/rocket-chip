@@ -804,6 +804,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
 
+  coreMonitorBundle.clock := clock
+  coreMonitorBundle.reset := reset
   coreMonitorBundle.hartid := io.hartid
   coreMonitorBundle.timer := csr.io.time(31,0)
   coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
