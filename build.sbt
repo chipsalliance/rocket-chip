@@ -9,7 +9,7 @@ enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  version      := "1.2",
+  version      := "1.2-SNAPSHOT",
   scalaVersion := "2.12.4",
   crossScalaVersions := Seq("2.12.4", "2.11.12"),
   parallelExecution in Global := false,
@@ -17,17 +17,55 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
-  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
-)
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  publishMavenStyle := true,
+  publishArtifact in Test := false,
+  pomIncludeRepository := { x => false },
+  pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>BSD-style</name>
+        <url>http://www.opensource.org/licenses/bsd-license.php</url>
+        <distribution>repo</distribution>
+      </license>
+    </licenses>
+    <scm>
+      <url>https://github.com/freechipsproject/rocketchip.git</url>
+      <connection>scm:git:github.com/freechipsproject/rocketchip.git</connection>
+    </scm>,
+  publishTo := {
+    val v = version.value
+    val nexus = "https://oss.sonatype.org/"
+    if (v.trim.endsWith("SNAPSHOT")) {
+      Some("snapshots" at nexus + "content/repositories/snapshots")
+    }
+    else {
+      Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    }
+  }
+) ++ (if (sys.props.contains("ROCKET_USE_MAVEN")) {
+  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-SNAPSHOT")
+} else {
+  Seq.empty // if () {} else {} needs to have the right type
+})
 
-lazy val chisel = (project in file("chisel3")).settings(commonSettings)
+lazy val chisel = if (sys.props.contains("ROCKET_USE_MAVEN")) {
+  project // if using maven dep, don't use the chisel3 submodule
+} else {
+  (project in file("chisel3")).settings(commonSettings)
+}
 lazy val hardfloat  = project.dependsOn(chisel).settings(commonSettings)
   .settings(crossScalaVersions := Seq("2.11.12", "2.12.4"))
-lazy val macros = (project in file("macros")).settings(commonSettings)
+lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
-  .dependsOn(chisel, hardfloat, macros)
-  .aggregate(chisel, hardfloat, macros) // <-- means the running task on rocketchip is also run by aggregate tasks
+  .dependsOn(chisel, hardfloat, `rocket-macros`)
+  .aggregate(chisel, hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
