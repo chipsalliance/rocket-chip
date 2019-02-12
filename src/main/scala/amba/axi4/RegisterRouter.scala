@@ -115,3 +115,19 @@ class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
 
   lazy val module = moduleBuilder(bundleBuilder(AXI4RegBundleArg()), this)
 }
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
+trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
+  protected val controlNode = AXI4RegisterNode(
+    address = address.head,
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Externally, this helper should be used to connect the register control port to a bus
+  val controlXing: AXI4InwardCrossingHelper = this.crossIn(controlNode)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+}
