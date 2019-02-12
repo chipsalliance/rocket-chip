@@ -9,6 +9,7 @@ import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.{Code, ElaborationArtefacts}
 import freechips.rocketchip.regmapper.RegField
+import freechips.rocketchip.util.ElaborationArtefacts
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{CustomSerializer, Extraction, NoTypeHints}
@@ -23,6 +24,10 @@ object DiplomaticObjectModelUtils {
 
   def addTypes(json: Any): String = {
     toJson(json)
+  }
+
+  def addArtefact(json: String): Unit = {
+    ElaborationArtefacts.add("objectModel.json", json)
   }
 
   def writeJsonFile(filename: String, json: Map[String, Any]): Unit = {
