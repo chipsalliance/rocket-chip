@@ -158,10 +158,12 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
     }
   }
 
+  protected def visibleManagers = tlMasterXbar.node.edges.out.flatMap(_.manager.managers)
+  def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
+
   // Find resource labels for all the outward caches
   def nextLevelCacheProperty: PropertyOption = {
-    val outer = tlMasterXbar.node.edges.out
-      .flatMap(_.manager.managers)
+    val outer = visibleManagers
       .filter(_.supportsAcquireB)
       .flatMap(_.resources.headOption)
       .map(_.owner.label)

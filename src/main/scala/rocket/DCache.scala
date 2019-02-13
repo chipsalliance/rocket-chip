@@ -156,6 +156,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write
   val s1_sfence = s1_req.cmd === M_SFENCE
+  val s1_flush_line = s1_req.cmd === M_FLUSH_ALL && s1_req.typ(0)
   val s1_flush_valid = Reg(Bool())
   val s1_waw_hazard = Wire(Bool())
 
@@ -196,15 +197,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // address translation
   val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)))
+  val s1_cmd_uses_tlb = s1_readwrite || s1_flush_line
   io.ptw <> tlb.io.ptw
   tlb.io.kill := io.cpu.s2_kill
-  tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_readwrite
+  tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_cmd_uses_tlb
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.size := s1_req.typ
   tlb.io.req.bits.cmd := s1_req.cmd
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
-  when (s1_valid && s1_readwrite && tlb.io.resp.miss) { s1_nack := true }
+  when (s1_valid && s1_cmd_uses_tlb && tlb.io.resp.miss) { s1_nack := true }
 
   tlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
   tlb.io.sfence.bits.rs1 := s1_req.typ(0)
@@ -251,6 +253,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_masked = s2_valid_no_xcpt && Reg(next = !s1_nack)
   val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
+  val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.typ(0)
+  val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.typ(0)
   val s2_uncached = Reg(Bool())
   val s2_uncached_resp_addr = Reg(UInt()) // should be DCE'd in synthesis
   when (s1_valid_not_nacked || s1_flush_valid) {
@@ -304,26 +308,30 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_error_uncorrectable = s2_data_decoded.map(_.uncorrectable).orR
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
-  val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_masked && s2_readwrite && !s2_meta_error && s2_hit
+  val s2_valid_hit_maybe_flush_pre_data_ecc_and_waw = s2_valid_masked && !s2_meta_error && s2_hit
+  val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_readwrite
+  val s2_valid_flush_line = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_cmd_flush_line
   val s2_valid_hit_pre_data_ecc = s2_valid_hit_pre_data_ecc_and_waw && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_data_error = s2_valid_hit_pre_data_ecc_and_waw && s2_data_error && can_acquire_before_release
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error
   val s2_valid_miss = s2_valid_masked && s2_readwrite && !s2_meta_error && !s2_hit && can_acquire_before_release
   val s2_valid_cached_miss = s2_valid_miss && !s2_uncached && !uncachedInFlight.asUInt.orR
   dontTouch(s2_valid_cached_miss)
-  val s2_want_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_data_error || s2_flush_valid)
+  val s2_want_victimize = Bool(!usingDataScratchpad) && (s2_valid_cached_miss || s2_valid_flush_line || s2_valid_data_error || s2_flush_valid)
   val s2_cannot_victimize = !s2_flush_valid && io.cpu.s2_kill
   val s2_victimize = s2_want_victimize && !s2_cannot_victimize
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
   val s2_victim_way = Mux(s2_hit_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
-  val s2_victim_tag = Mux(s2_valid_data_error, s2_req.addr(paddrBits-1, tagLSB), RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
+  val s2_victim_tag = Mux(s2_valid_data_error || s2_valid_flush_line, s2_req.addr(paddrBits-1, tagLSB), RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
   val s2_victim_state = Mux(s2_hit_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
 
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
   dontTouch(s2_victim_dirty)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
-  io.cpu.s2_nack := s2_valid_no_xcpt && !(s2_valid_uncached_pending && tl_out_a.ready || supports_flush && s2_req.cmd === M_FLUSH_ALL && flushed) && !s2_valid_hit
+  val s2_dont_nack_uncached = s2_valid_uncached_pending && tl_out_a.ready
+  val s2_dont_nack_flush = supports_flush && (s2_cmd_flush_all && flushed || s2_cmd_flush_line)
+  io.cpu.s2_nack := s2_valid_no_xcpt && !s2_dont_nack_uncached && !s2_dont_nack_flush && !s2_valid_hit
   when (io.cpu.s2_nack || (s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta)) { s1_nack := true }
 
   // tag updates on ECC errors
@@ -634,7 +642,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   if (!usingDataScratchpad) {
     when (s2_victimize) {
-      assert(s2_flush_valid || io.cpu.s2_nack)
+      assert(s2_valid_flush_line || s2_flush_valid || io.cpu.s2_nack)
       release_state := Mux(s2_victim_dirty, s_voluntary_writeback, s_voluntary_write_meta)
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
@@ -785,8 +793,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
   val flushCounterWrap = flushCounterNext(log2Ceil(nSets)-1, 0)
-  ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
-  ccover(s2_valid_masked && s2_req.cmd === M_FLUSH_ALL && s2_data_error, "DATA_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in data array during cache flush")
+  ccover(s2_valid_masked && s2_cmd_flush_all && s2_meta_error, "TAG_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in tag array during cache flush")
+  ccover(s2_valid_masked && s2_cmd_flush_all && s2_data_error, "DATA_ECC_ERROR_DURING_FENCE_I", "D$ ECC error in data array during cache flush")
   s1_flush_valid := metaArb.io.in(5).fire() && !s1_flush_valid && !s2_flush_valid_pre_tag_ecc && release_state === s_ready && !release_ack_wait
   metaArb.io.in(5).valid := flushing && !flushed
   metaArb.io.in(5).bits.write := false
@@ -797,7 +805,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
   if (supports_flush) {
-    when (s2_valid_masked && s2_req.cmd === M_FLUSH_ALL) {
+    when (s2_valid_masked && s2_cmd_flush_all) {
       when (!flushed) {
         flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
       }

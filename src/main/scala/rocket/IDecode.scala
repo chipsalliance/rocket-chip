@@ -137,7 +137,7 @@ class CFlushDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
     CFLUSH_D_L1->
-                List(Y,N,N,N,N,N,N,X,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     Y,M_FLUSH_ALL,MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N))
+                List(Y,N,N,N,N,N,N,Y,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     Y,M_FLUSH_ALL,MT_X, N,N,N,N,N,N,N,CSR.I,N,N,N,N))
 }
 
 class SDecode(implicit val p: Parameters) extends DecodeConstants
