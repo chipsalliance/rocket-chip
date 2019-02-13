@@ -50,11 +50,7 @@ lazy val commonSettings = Seq(
   }
 )
 
-lazy val chisel = if (sys.props.contains("ROCKET_USE_MAVEN")) {
-  project // if using maven dep, don't use the chisel3 submodule
-} else {
-  (project in file("chisel3")).settings(commonSettings)
-}
+lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 
 def dependOnChisel(prj: Project) = {
   if (sys.props.contains("ROCKET_USE_MAVEN")) {
@@ -73,8 +69,6 @@ lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(hardfloat, `rocket-macros`)
   .aggregate(hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
-
-lazy val root = rocketchip
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
