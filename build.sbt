@@ -48,30 +48,39 @@ lazy val commonSettings = Seq(
       Some("releases" at nexus + "service/local/staging/deploy/maven2")
     }
   }
-) ++ (if (sys.props.contains("ROCKET_USE_MAVEN")) {
-  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-SNAPSHOT")
-} else {
-  Seq.empty // if () {} else {} needs to have the right type
-})
+)
 
 lazy val chisel = if (sys.props.contains("ROCKET_USE_MAVEN")) {
   project // if using maven dep, don't use the chisel3 submodule
 } else {
   (project in file("chisel3")).settings(commonSettings)
 }
-lazy val hardfloat  = project.dependsOn(chisel).settings(commonSettings)
+
+def dependOnChisel(prj: Project) = {
+  if (sys.props.contains("ROCKET_USE_MAVEN")) {
+    prj.settings(
+      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-SNAPSHOT")
+    )
+  } else {
+    prj.dependsOn(chisel)
+  }
+}
+
+lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
   .settings(crossScalaVersions := Seq("2.11.12", "2.12.4"))
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
-lazy val rocketchip = (project in file("."))
+lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
-  .dependsOn(chisel, hardfloat, `rocket-macros`)
-  .aggregate(chisel, hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
+  .dependsOn(hardfloat, `rocket-macros`)
+  .aggregate(hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
+
+lazy val root = rocketchip
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
 val setMake = NotSpace ~ ( Space ~> NotSpace )
 
-val chipSettings = Seq(
+lazy val chipSettings = Seq(
   addons := {
     val a = sys.env.getOrElse("ROCKETCHIP_ADDONS", "")
     println(s"Using addons: $a")
