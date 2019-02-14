@@ -17,7 +17,7 @@ trait OMRegistrar {
   def parent: RawModule
   def child: RawModule
   def getEdge(f: () => OMEdge): OMEdge
-  def getOMComponents(): Seq[OMComponent]
+  def getOMComponent(): Seq[OMComponent]
 }
 
 /**
@@ -43,21 +43,27 @@ case object LogicalTreeRegistry {
     registryList.+:(lr)
   }
 
-  def cycleCheck(): Boolean = false
+  private def cycleCheck(): Boolean = false
 
-  def makeTree(): Unit = {
+  private def makeTree(): Unit = {
     require(resourceBindingsMap != None)
 
   }
 
-  def getObjectModel(): OMComponent = {
-
-      registryList.map{
-        case lr: OMRegistrar => lr.getOMComponents()
-      }
+  def getOMComponent(): Seq[OMComponent] = {
+    registryList.map{
+      case lr: OMRegistrar => lr.getOMComponent()
     }
+    Nil
   }
 
+  def getObjectModel(): Seq[OMComponent] = {
+    require(! cycleCheck())
+
+    makeTree()
+
+    Nil
+  }
 }
 
 class TopologicalSort {
