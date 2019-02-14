@@ -7,7 +7,7 @@ import chisel3._
 
 // this bundle is used to expose some internal core signals
 // to verification monitors which sample instruction commits
-class CoreMonitorBundle(val xLen: Int) extends Bundle {
+class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
   val hartid = UInt(width = xLen.W)
   val timer = UInt(width = 32.W)
   val valid = Bool()
