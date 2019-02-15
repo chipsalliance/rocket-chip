@@ -204,7 +204,7 @@ object DiplomaticObjectModelAddressing {
       )
     }
 
-  private def getInterruptNumber(r: ResourceValue): BigInt = {≥…
+  private def getInterruptNumber(r: ResourceValue): BigInt = {
     r match {
       case ResourceInt(value: BigInt) => value
       case _ => throw new IllegalArgumentException
