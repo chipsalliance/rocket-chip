@@ -103,6 +103,7 @@ trait HasCoreData extends HasCoreParameters {
 
 class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
   val phys = Bool()
+  val no_alloc = Bool()
 }
 
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData

@@ -48,6 +48,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae = new TLBExceptions
   val ma = new TLBExceptions
   val cacheable = Bool()
+  val must_alloc = Bool()
   val prefetchable = Bool()
 }
 
@@ -195,8 +196,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
   val prot_r = fastCheck(_.supportsGet) && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
-  val prot_al = fastCheck(_.supportsLogical) || (cacheable && usingAtomicsInCache)
-  val prot_aa = fastCheck(_.supportsArithmetic) || (cacheable && usingAtomicsInCache)
+  val prot_al = fastCheck(_.supportsLogical)
+  val prot_aa = fastCheck(_.supportsArithmetic)
   val prot_x = fastCheck(_.executable) && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
@@ -254,10 +255,12 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val pr_array = Cat(Fill(nPhysicalEntries, prot_r), normal_entries.map(_.pr).asUInt) & ~ptw_ae_array
   val pw_array = Cat(Fill(nPhysicalEntries, prot_w), normal_entries.map(_.pw).asUInt) & ~ptw_ae_array
   val px_array = Cat(Fill(nPhysicalEntries, prot_x), normal_entries.map(_.px).asUInt) & ~ptw_ae_array
-  val paa_array = Cat(Fill(nPhysicalEntries, prot_aa), normal_entries.map(_.paa).asUInt)
-  val pal_array = Cat(Fill(nPhysicalEntries, prot_al), normal_entries.map(_.pal).asUInt)
   val eff_array = Cat(Fill(nPhysicalEntries, prot_eff), normal_entries.map(_.eff).asUInt)
   val c_array = Cat(Fill(nPhysicalEntries, cacheable), normal_entries.map(_.c).asUInt)
+  val paa_array = Cat(Fill(nPhysicalEntries, prot_aa), normal_entries.map(_.paa).asUInt)
+  val pal_array = Cat(Fill(nPhysicalEntries, prot_al), normal_entries.map(_.pal).asUInt)
+  val paa_array_if_cached = paa_array | Mux(usingAtomicsInCache, c_array, 0.U)
+  val pal_array_if_cached = pal_array | Mux(usingAtomicsInCache, c_array, 0.U)
   val prefetchable_array = Cat((cacheable && homogeneous) << (nPhysicalEntries-1), normal_entries.map(_.c).asUInt)
 
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
@@ -280,8 +283,12 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val ae_ld_array = Mux(cmd_read, ae_array | ~pr_array, 0.U)
   val ae_st_array =
     Mux(cmd_write_perms, ae_array | ~pw_array, 0.U) |
-    Mux(cmd_amo_logical, ~pal_array, 0.U) |
-    Mux(cmd_amo_arithmetic, ~paa_array, 0.U)
+    Mux(cmd_amo_logical, ~pal_array_if_cached, 0.U) |
+    Mux(cmd_amo_arithmetic, ~paa_array_if_cached, 0.U)
+  val must_alloc_array =
+    Mux(cmd_amo_logical, ~paa_array, 0.U) |
+    Mux(cmd_amo_arithmetic, ~pal_array, 0.U) |
+    Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
   val ma_ld_array = Mux(misaligned && cmd_read, ~eff_array, 0.U)
   val ma_st_array = Mux(misaligned && cmd_write, ~eff_array, 0.U)
   val pf_ld_array = Mux(cmd_read, ~(r_array | ptw_ae_array), 0.U)
@@ -316,6 +323,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.ma.st := (ma_st_array & hits).orR
   io.resp.ma.inst := false // this is up to the pipeline to figure out
   io.resp.cacheable := (c_array & hits).orR
+  io.resp.must_alloc := (must_alloc_array & hits).orR
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint)
   io.resp.miss := do_refill || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))

@@ -257,12 +257,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_req = Reg(io.cpu.req.bits)
   val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.typ(0)
   val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.typ(0)
-  val s2_uncached = Reg(Bool())
+  val s2_tlb_resp = Reg(tlb.io.resp.cloneType)
+  val s2_uncached = !s2_tlb_resp.cacheable || s2_req.no_alloc && !s2_tlb_resp.must_alloc
   val s2_uncached_resp_addr = Reg(s2_req.addr.cloneType) // should be DCE'd in synthesis
   when (s1_valid_not_nacked || s1_flush_valid) {
     s2_req := s1_req
     s2_req.addr := s1_paddr
-    s2_uncached := !tlb.io.resp.cacheable
+    s2_tlb_resp := tlb.io.resp
   }
   val s2_vaddr = Cat(RegEnable(s1_req.addr, s1_valid_not_nacked || s1_flush_valid) >> pgIdxBits, s2_req.addr(pgIdxBits-1, 0))
   val s2_read = isRead(s2_req.cmd)
@@ -736,8 +737,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
-  val s1_xcpt = tlb.io.resp
-  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_valid_not_nacked), 0.U.asTypeOf(s1_xcpt))
+  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_resp, 0.U.asTypeOf(s2_tlb_resp))
 
   if (usingDataScratchpad) {
     require(!usingVM) // therefore, req.phys means this is a slave-port access
@@ -769,6 +769,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.uncached_resp.map { resp =>
     resp.valid := tl_out.d.valid && grantIsUncachedData
     resp.bits.tag := uncachedResp.tag
+    resp.bits.typ := uncachedResp.typ
     resp.bits.data := new LoadGen(uncachedResp.typ, mtSigned(uncachedResp.typ), uncachedResp.addr, s1_uncached_data_word, false.B, wordBytes).data
     when (grantIsUncachedData && !resp.ready) {
       tl_out.d.ready := false
