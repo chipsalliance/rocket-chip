@@ -46,8 +46,11 @@ case object LogicalTreeRegistry {
   private def cycleCheck(): Boolean = false
 
   private def makeTree(): Unit = {
-    require(resourceBindingsMap != None)
 
+  def cycleCheck(): Boolean = false
+
+  def makeTree(): Unit = {
+    require(resourceBindingsMap != None)
   }
 
   def getOMComponent(): Seq[OMComponent] = {
