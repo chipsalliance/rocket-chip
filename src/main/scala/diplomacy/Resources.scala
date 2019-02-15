@@ -186,7 +186,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
   with DeviceRegName
 {
   override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
-  var devNamePlusAddress: String = ""
+
+  var deviceNamePlusAddress: String = ""
 
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
@@ -210,7 +211,7 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
     val names = optDef("reg-names", named.map(x => ResourceString(DiplomacyUtils.regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
 
-    devNamePlusAddress = name
+    deviceNamePlusAddress = name
 
     Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
   }
@@ -240,13 +241,14 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
       "#size-cells"      -> ofInt((log2Ceil(maxSize) + 31) / 32),
       "ranges"           -> ranges)
 
+    deviceNamePlusAddress = devname
+
     val Description(_, mapping) = super.describe(resources)
     Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra)
   }
 
   def ranges = Seq(Resource(this, "ranges"))
 }
-
 /** A generic memory block. */
 class MemoryDevice extends Device with DeviceRegName
 {
@@ -256,6 +258,7 @@ class MemoryDevice extends Device with DeviceRegName
       "device_type" -> Seq(ResourceString("memory"))))
   }
 }
+
 
 case class Resource(owner: Device, key: String)
 {
@@ -413,6 +416,7 @@ object ResourceAnchors
       val width = resources("width").map(_.value)
       val model = resources("model").map(_.value)
       val compat = resources("compat").map(_.value)
+
       Description("/", Map(
         "#address-cells" -> width,
         "#size-cells"    -> width,
@@ -425,6 +429,7 @@ object ResourceAnchors
     def describe(resources: ResourceBindings): Description = {
       val width = resources("width").map(_.value)
       val compat = resources("compat").map(_.value) :+ ResourceString("simple-bus")
+
       Description("soc", Map(
         "#address-cells" -> width,
         "#size-cells"    -> width,
@@ -434,6 +439,7 @@ object ResourceAnchors
   }
 
   val cpus = new Device {
+
     def describe(resources: ResourceBindings): Description = {
       val width = resources("width").map(_.value)
       Description("cpus", Map(
@@ -443,6 +449,7 @@ object ResourceAnchors
   }
 
   val aliases = new Device {
+
     def describe(resources: ResourceBindings): Description =
       Description("aliases", Map() ++
         resources("uart").zipWithIndex.map { case (Binding(_, value), i) =>
