@@ -5,10 +5,12 @@ package freechips.rocketchip.amba.axi4
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMRegisterMap
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
-import scala.math.{min,max}
+
+import scala.math.{max, min}
 
 case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
@@ -25,7 +27,7 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
 
   // Calling this method causes the matching AXI4 bundle to be
   // configured to route all requests to the listed RegFields.
-  def regmap(mapping: RegField.Map*) = {
+  def regmap(mapping: RegField.Map*): OMRegisterMap = {
     val (io, _) = this.in(0)
     val ar = io.ar
     val aw = io.aw
@@ -129,5 +131,7 @@ trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
   val controlXing: AXI4InwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  protected def regmap(mapping: RegField.Map*): OMRegisterMap = {
+    controlNode.regmap(mapping:_*)
+  }
 }
