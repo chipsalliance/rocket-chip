@@ -259,7 +259,6 @@ class MemoryDevice extends Device with DeviceRegName
   }
 }
 
-
 case class Resource(owner: Device, key: String)
 {
   def bind(user: Device, value: ResourceValue) {
@@ -416,7 +415,6 @@ object ResourceAnchors
       val width = resources("width").map(_.value)
       val model = resources("model").map(_.value)
       val compat = resources("compat").map(_.value)
-
       Description("/", Map(
         "#address-cells" -> width,
         "#size-cells"    -> width,
@@ -429,7 +427,6 @@ object ResourceAnchors
     def describe(resources: ResourceBindings): Description = {
       val width = resources("width").map(_.value)
       val compat = resources("compat").map(_.value) :+ ResourceString("simple-bus")
-
       Description("soc", Map(
         "#address-cells" -> width,
         "#size-cells"    -> width,
@@ -439,7 +436,6 @@ object ResourceAnchors
   }
 
   val cpus = new Device {
-
     def describe(resources: ResourceBindings): Description = {
       val width = resources("width").map(_.value)
       Description("cpus", Map(
@@ -449,7 +445,6 @@ object ResourceAnchors
   }
 
   val aliases = new Device {
-
     def describe(resources: ResourceBindings): Description =
       Description("aliases", Map() ++
         resources("uart").zipWithIndex.map { case (Binding(_, value), i) =>
