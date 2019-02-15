@@ -194,10 +194,10 @@ object DiplomaticObjectModelAddressing {
     }
   }
 
-  private def getDeviceName(device: Device): String = {
+  private def getDeviceName(device: Device, resources: ResourceBindings): String = {
     device match {
-      case sd:SimpleDevice => sd.asInstanceOf[SimpleDevice].devNamePlusAddress
-      case _ => throw new IllegalArgumentException
+      case sd:SimpleDevice => sd.asInstanceOf[SimpleDevice].deviceNamePlusAddress
+      case _ => throw new IllegalArgumentException(s"Error: getDeviceName: " + device.getClass.toString() + "\n")
     }
   }
 
@@ -208,9 +208,21 @@ object DiplomaticObjectModelAddressing {
       grandParentOpt = b.device.get.parent
       gp <- grandParentOpt
     } yield OMInterrupt(
-            receiver = getDeviceName(gp),
-            numberAtReceiver = getInterruptNumber(b.value),
-            name = name
-          )
-    }
+      receiver = getDeviceName(gp, resources),
+      numberAtReceiver = getInterruptNumber(b.value),
+      name = name
+    )
+  }
+
+  def describeGlobalInterrupts(name: String, resources: ResourceBindings): Seq[OMInterrupt] = {
+    val bindings = resources("int")
+    for {
+      binding <- bindings
+      device = binding.device.get
+    } yield OMInterrupt(
+      receiver = device.describe(resources).name,
+      numberAtReceiver = getInterruptNumber(binding.value),
+      name = name
+    )
+  }
 }
