@@ -96,11 +96,16 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBEntries)))
 
-  val s0_valid = io.cpu.req.valid || !fq.io.mask(fq.io.mask.getWidth-3)
-  val s1_valid = RegNext(s0_valid)
+  val s1_valid = Reg(Bool())
+  val s2_valid = RegInit(false.B)
+  val s0_fq_has_space =
+    !fq.io.mask(fq.io.mask.getWidth-3) ||
+    (!fq.io.mask(fq.io.mask.getWidth-2) && (!s1_valid || !s2_valid)) ||
+    (!fq.io.mask(fq.io.mask.getWidth-1) && (!s1_valid && !s2_valid))
+  val s0_valid = io.cpu.req.valid || s0_fq_has_space
+  s1_valid := s0_valid
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
-  val s2_valid = RegInit(false.B)
   val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io.reset_vector))
   val s2_btb_resp_valid = if (usingBTB) Reg(Bool()) else false.B
   val s2_btb_resp_bits = Reg(new BTBResp)
