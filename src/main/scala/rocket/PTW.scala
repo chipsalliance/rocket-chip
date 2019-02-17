@@ -285,7 +285,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (arb.io.out.fire()) {
         next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
       }
-      count := UInt(0)
+      count := pgLevels - minPgLevels - io.dpath.ptbr.additionalPgLevels
     }
     is (s_req) {
       when (pte_cache_hit) {

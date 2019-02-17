@@ -264,9 +264,15 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val prefetchable_array = Cat((cacheable && homogeneous) << (nPhysicalEntries-1), normal_entries.map(_.c).asUInt)
 
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
-  val bad_va = vm_enabled &&
-    (if (vpnBits == vpnBitsExtended) Bool(false)
-     else (io.req.bits.vaddr.asSInt < 0.S) =/= (vpn.asSInt < 0.S))
+  val bad_va = if (!usingVM || (minPgLevels == pgLevels && vaddrBits == vaddrBitsExtended)) false.B else vm_enabled && {
+    val nPgLevelChoices = pgLevels - minPgLevels + 1
+    val minVAddrBits = pgIdxBits + minPgLevels * pgLevelBits
+    (for (i <- 0 until nPgLevelChoices) yield {
+      val mask = ((BigInt(1) << vaddrBitsExtended) - (BigInt(1) << (minVAddrBits + i * pgLevelBits - 1))).U
+      val maskedVAddr = io.req.bits.vaddr & mask
+      io.ptw.ptbr.additionalPgLevels === i && !(maskedVAddr === 0 || maskedVAddr === mask)
+    }).orR
+  }
 
   val cmd_lrsc = Bool(usingAtomics) && io.req.bits.cmd.isOneOf(M_XLR, M_XSC)
   val cmd_amo_logical = Bool(usingAtomics) && isAMOLogical(io.req.bits.cmd)
