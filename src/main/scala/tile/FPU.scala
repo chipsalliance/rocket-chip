@@ -680,6 +680,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val ex_reg_ctrl = RegEnable(id_ctrl, io.valid)
   val ex_ra = List.fill(3)(Reg(UInt()))
 
+  // load response
+  val load_wb = Reg(next=io.dmem_resp_val)
+  val load_wb_double = RegEnable(io.dmem_resp_type(0), io.dmem_resp_val)
+  val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
+  val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
+
   @chiselName class FPUImpl { // entering gated-clock domain
 
   val req_valid = ex_reg_valid || io.cp_req.valid
@@ -704,12 +710,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, ex_reg_ctrl)
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
-
-  // load response
-  val load_wb = Reg(next=io.dmem_resp_val)
-  val load_wb_double = RegEnable(io.dmem_resp_type(0), io.dmem_resp_val)
-  val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
-  val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
   // regfile
   val regfile = Mem(32, Bits(width = fLen+1))
