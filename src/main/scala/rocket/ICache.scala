@@ -293,7 +293,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       require(tECC.isInstanceOf[IdentityCode])
       require(dECC.isInstanceOf[IdentityCode])
       require(outer.icacheParams.itimAddr.isEmpty)
-      io.resp.bits.data := Mux1H(s1_tag_hit, s1_dout)
+      io.resp.bits.data := Mux(s1_valid && s1_hit, Mux1H(s1_tag_hit, s1_dout), 0.U)
       io.resp.bits.ae := s1_tl_error.asUInt.orR
       io.resp.valid := s1_valid && s1_hit
 
@@ -301,7 +301,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       // when some sort of memory bit error have occurred
       when (s2_valid && s2_disparity) { invalidate := true }
 
-      io.resp.bits.data := s2_data_decoded.uncorrected
+      io.resp.bits.data := Mux(s2_valid && s2_hit, s2_data_decoded.uncorrected, 0.U)
       io.resp.bits.ae := s2_tl_error
       io.resp.bits.replay := s2_disparity
       io.resp.valid := s2_valid && s2_hit
