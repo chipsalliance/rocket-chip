@@ -163,6 +163,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_retry :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 8)
   val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   val flushed = Reg(init=Bool(true))
+  val flushing = Reg(init=Bool(false))
   val cached_grant_wait = Reg(init=Bool(false))
   val release_ack_wait = Reg(init=Bool(false))
   val can_acquire_before_release = !release_ack_wait && release_queue_empty
@@ -330,7 +331,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dontTouch(s2_victim_dirty)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
   val s2_dont_nack_uncached = s2_valid_uncached_pending && tl_out_a.ready
-  val s2_dont_nack_flush = supports_flush && (s2_cmd_flush_all && flushed || s2_cmd_flush_line)
+  val s2_dont_nack_flush = supports_flush && (s2_cmd_flush_all && flushed && !flushing || s2_cmd_flush_line)
   io.cpu.s2_nack := s2_valid_no_xcpt && !s2_dont_nack_uncached && !s2_dont_nack_flush && !s2_valid_hit
   when (io.cpu.s2_nack || (s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta)) { s1_nack := true }
 
@@ -788,7 +789,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val resetting = RegInit(false.B)
   if (!usingDataScratchpad)
     when (RegNext(reset)) { resetting := true }
-  val flushing = Reg(init=Bool(false))
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
@@ -806,8 +806,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // Only flush D$ on FENCE.I if some cached executable regions are untracked.
   if (supports_flush) {
     when (s2_valid_masked && s2_cmd_flush_all) {
-      when (!flushed) {
-        flushing := !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR
+      when (!flushed && !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR) {
+        flushing := true
       }
     }
 
