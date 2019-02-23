@@ -18,6 +18,6 @@ object DiplomaticObjectModel {
   }
 
   def getComponents(): OMComponent = {
-    doms.flatMap(_.getComponent()).head
+    doms.flatMap(_.getComponent()).last
   }
 }
