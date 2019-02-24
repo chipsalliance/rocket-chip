@@ -38,6 +38,7 @@ case class RocketCoreParams(
   branchPredictionModeCSR: Boolean = false,
   clockGate: Boolean = false,
   mvendorid: Int = 0, // 0 means non-commercial implementation
+  mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams())
 ) extends CoreParams {
@@ -83,8 +84,7 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   def mvendorid = CustomCSR.constant(CSRs.mvendorid, BigInt(rocketParams.mvendorid))
 
   // mimpid encodes a release version in the form of a BCD-encoded datestamp.
-  // Past releases: <none>
-  def mimpid = CustomCSR.constant(CSRs.mimpid, BigInt(0x20181004))
+  def mimpid = CustomCSR.constant(CSRs.mimpid, BigInt(rocketParams.mimpid))
 
   override def decls = super.decls :+ marchid :+ mvendorid :+ mimpid
 }
