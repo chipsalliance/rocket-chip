@@ -241,7 +241,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       (s1_meta_hit_way, s1_meta_hit_state, s1_meta, s1_meta_uncorrected(s1_victim_way))
     }
   val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
-  val s1_all_data_ways = Vec(data.io.resp :+ encodeData(tl_out.d.bits.data, tl_out.d.bits.corrupt))
+  val tl_d_data_encoded = Wire(encodeData(tl_out.d.bits.data, false.B).cloneType)
+  val s1_all_data_ways = Vec(data.io.resp :+ tl_d_data_encoded)
   val s1_mask_xwr = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, s1_mask_xwr)
   // for partial writes, s1_data.mask must be a subset of s1_mask_xwr
@@ -519,6 +520,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       (whole_opc, whole_opc.isOneOf(uncachedGrantOpcodes), whole_opc.isOneOf(uncachedGrantOpcodesWithData))
     }
   }
+  tl_d_data_encoded := encodeData(tl_out.d.bits.data, tl_out.d.bits.corrupt && !grantIsUncached)
   val grantIsCached = d_opc.isOneOf(Grant, GrantData)
   val grantIsVoluntary = d_opc === ReleaseAck // Clears a different pending bit
   val grantIsRefill = d_opc === GrantData     // Writes the data array
