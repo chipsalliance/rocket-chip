@@ -170,6 +170,7 @@ object RegField
   type Map = (Int, Seq[RegField])
 
   def apply(n: Int)                                                             : RegField = apply(n, (), (), Some(RegFieldDesc.reserved))
+  def apply(n: Int, desc: RegFieldDesc)                                         : RegField = apply(n, (), (), desc)
 
   def apply(n: Int, r: RegReadFn, w: RegWriteFn)                                : RegField = apply(n, r,  w,  None)
   def apply(n: Int, r: RegReadFn, w: RegWriteFn, desc: RegFieldDesc)            : RegField = apply(n, r,  w,  Some(desc))
