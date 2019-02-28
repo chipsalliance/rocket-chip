@@ -122,7 +122,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val tl_out_a = Wire(tl_out.a)
   tl_out.a <> {
     val a_queue_depth = outer.crossing match {
-      case RationalCrossing(_) => 2 min maxUncachedInFlight-1 // TODO make this depend on the actual ratio?
+      case RationalCrossing(_) => // TODO make this depend on the actual ratio?
+        if (cacheParams.separateUncachedResp) (maxUncachedInFlight + 1) / 2
+        else 2 min maxUncachedInFlight-1
       case SynchronousCrossing(BufferParams.none) => 1 // Need some buffering to guarantee livelock freedom
       case SynchronousCrossing(_) => 0 // Adequate buffering within the crossing
       case _: AsynchronousCrossing => 0 // Adequate buffering within the crossing
