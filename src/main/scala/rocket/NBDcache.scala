@@ -993,6 +993,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack
   val s1_xcpt = dtlb.io.resp
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
+  io.cpu.s2_uncached := false.B
+  io.cpu.s2_paddr := s2_req.addr
 
   // performance events
   io.cpu.perf.acquire := edge.done(tl_out.a)

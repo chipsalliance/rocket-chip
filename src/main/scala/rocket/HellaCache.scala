@@ -155,6 +155,8 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
   val s2_nack_cause_raw = Bool(INPUT) // reason for nack is store-load RAW hazard (performance hint)
   val s2_kill = Bool(OUTPUT) // kill req from two cycles ago
+  val s2_uncached = Bool(INPUT) // advisory signal that the access is MMIO
+  val s2_paddr = UInt(INPUT, paddrBits) // translated address
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
