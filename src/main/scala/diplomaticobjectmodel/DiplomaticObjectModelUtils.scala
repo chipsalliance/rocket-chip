@@ -168,7 +168,7 @@ object DiplomaticObjectModelAddressing {
 
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
-      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x)) =>
+      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x)) || (DiplomacyUtils.rangeFilter(x))=>
         seq.map {
           case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap)
         }
