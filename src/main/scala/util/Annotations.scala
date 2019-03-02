@@ -3,14 +3,13 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.core.requireIsHardware
 import chisel3.internal.InstanceId
-import chisel3.experimental.{annotate, ChiselAnnotation, RawModule}
+import chisel3.experimental.{ChiselAnnotation, RawModule, annotate}
 import firrtl.annotations._
-
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
-
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
@@ -196,9 +195,9 @@ trait ShouldBeRetimed { self: RawModule =>
 }
 
 case class RegFieldDescMappingAnnotation(
-  target: ModuleName,
-  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
+  target: ComponentName,
+  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ComponentName] {
+  def duplicate(n: ComponentName): RegFieldDescMappingAnnotation = this.copy(target = n)
 }
 
 object InterruptsPortAnnotation {
@@ -212,7 +211,7 @@ object InterruptsPortAnnotation {
 object GenRegDescsAnno {
 
   def makeRegMappingSer(
-    rawModule: RawModule,
+    d: Data,
     moduleName: String,
     baseAddress: BigInt,
     width: Int,
@@ -255,11 +254,13 @@ object GenRegDescsAnno {
 
 
   def anno(
-    rawModule: RawModule,
+    d: Data,
+    moduleName: String,
     baseAddress: BigInt,
     mapping: RegField.Map*): Seq[RegField.Map] = {
 
-    val moduleName = rawModule.name
+    requireIsHardware(d, "You should only be generating annotations for real hardware")
+
     val baseHex = s"0x${baseAddress.toInt.toHexString}"
     val displayName = s"${moduleName}.${baseHex}"
 
@@ -267,7 +268,7 @@ object GenRegDescsAnno {
       case (byteOffset, seq) =>
         seq.map(_.width).scanLeft(0)(_ + _).zip(seq).map { case (bitOffset, regField) =>
           makeRegMappingSer(
-            rawModule,
+            d,
             moduleName,
             baseAddress,
             regField.width,
@@ -286,7 +287,7 @@ object GenRegDescsAnno {
     )
     
     /* annotate the module with the registers */
-    annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer) })
+    annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(d.toNamed, registersSer) })
 
     mapping
   }

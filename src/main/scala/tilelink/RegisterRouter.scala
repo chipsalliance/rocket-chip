@@ -85,7 +85,7 @@ case class TLRegisterNode(
     bundleIn.c.ready := Bool(true)
     bundleIn.e.ready := Bool(true)
 
-    genRegDescsJson(mapping:_*)
+    genRegDescsJson(bundleIn, mapping:_*)
     genOMRegMap(mapping:_*)
   }
 
@@ -93,7 +93,7 @@ case class TLRegisterNode(
     OMRegister.convert(mapping = mapping:_*)
   }
 
-  def genRegDescsJson(mapping: RegField.Map*) {
+  def genRegDescsJson(d: Data, mapping: RegField.Map*) {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
@@ -107,7 +107,8 @@ case class TLRegisterNode(
 
     val module = Module.currentModule.get.asInstanceOf[RawModule]
     GenRegDescsAnno.anno(
-      module,
+      d,
+      module.name,
       base,
       mapping:_*)
 
