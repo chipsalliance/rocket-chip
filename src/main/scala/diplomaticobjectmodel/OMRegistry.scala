@@ -4,15 +4,16 @@ package freechips.rocketchip.tile
 
 import chisel3.experimental.RawModule
 import freechips.rocketchip.diplomacy.ResourceBindingsMap
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
+import freechips.rocketchip.tile.OMRegistry.registry
+import freechips.rocketchip.util.ElaborationArtefacts
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 trait OMRegistrar {
-  def parent: Option[OMRegistrar]
-  def children: List[OMRegistrar]
-  def getOMComponents(): Seq[OMComponent] // These are the child components
-  def insertChildren(): Unit // this function inserts the child components into this node's component
+  def getOMComponents(): Seq[OMComponent]
 }
 
 /**
@@ -54,11 +55,15 @@ case class LogicalTreeEdge(
 )
 
 case object LogicalModuleTree {
-  val edges = List[LogicalTreeEdge]()
+  val edges = ArrayBuffer[LogicalTreeEdge]()
+
+  def add(parent: RawModule, child: RawModule): Unit = {
+     edges += LogicalTreeEdge(RawModuleContainer(parent), RawModuleContainer(child))
+  }
 
   private def cycleCheck(): Boolean = false
 
-  def getTreeMap(): Map[RawModuleContainer, List[RawModuleContainer]] = {
+  def getTreeMap(): Map[RawModuleContainer, ArrayBuffer[RawModuleContainer]] = {
     edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child))}
   }
 
@@ -71,7 +76,43 @@ case object LogicalModuleTree {
   }
 }
 
-import scala.annotation.tailrec
+case class RawModuleParentRegistrarChildEdge(
+  parent: RawModuleContainer,
+  child: OMRegistrar
+)
+
+/**
+  * A map of parent raw modules to child registrars
+  * Use for leaves which are not raw modules
+  */
+case object OMParentToChildRegistry {
+
+  private val registry = mutable.Map[RawModuleContainer, ArrayBuffer[OMRegistrar]]()
+
+  def register(m: RawModule, r: OMRegistrar): Unit = {
+    val c = RawModuleContainer(m)
+    if (!registry.contains(c)) {
+      registry + (c -> ArrayBuffer[OMRegistrar](r))
+    }
+    else {
+      var l = registry.get(c)
+      l.map(_ += r)
+    }
+  }
+
+  def contains(m: RawModuleContainer): Boolean = {
+    registry.contains(m)
+  }
+
+  def get(m: RawModuleContainer): Option[ArrayBuffer[OMRegistrar]] = {
+    registry.get(m)
+  }
+
+  def makeChildren(rmc: RawModuleContainer): List[Tree[OMRegistrar]] = {
+    val o = registry.get(rmc)
+    o.map{l => l.map(Leaf(_))}.getOrElse(Nil).toList
+  }
+}
 
 sealed trait Tree[+A]
 case class Leaf[A](value: A) extends Tree[A]
@@ -88,45 +129,42 @@ object OMRegistrarTree {
       val children = treeMap.getOrElse(m, Nil)
 
       children match {
-        case Nil => Leaf(r.get)
-        case cs => Branch(r, cs.map(tree(_)))
+        case Nil =>
+          if (OMParentToChildRegistry.contains(m)) {
+            Branch(r, OMParentToChildRegistry.makeChildren(m))
+          }
+          else {
+            Leaf(r.get)
+          }
+        case cs =>
+          val l: List[Tree[OMRegistrar]] = OMParentToChildRegistry.makeChildren(m)
+          Branch(r, cs.map(tree(_)).toList ++ l)
       }
     }
     tree(root.parent)
   }
 }
 
-
-
-object OMTree {
-  def size_bad(t: Tree[OMRegistrar]): OMRegistrar =
-    t match {
-      case Leaf(a) => 1
-      case Branch(a, b) => size_bad(a) + size_bad(b) + 1
-    }
-
-  def size(t: Tree[OMRegistrar]): OMRegistrar = {
-    @tailrec
-    def inner_size(l: List[Tree[OMRegistrar]], acc: OMRegistrar): OMRegistrar =
-      l match {
-        case Nil => acc
-        case Leaf(v) :: ls => inner_size(ls, acc + 1)
-        case Branch(a, b) :: ls => inner_size(a :: b :: ls, acc + 1)
-      }
-    inner_size(List(t), 0)
-  }
-}
-
-case object Foo {
-  def addOMArtefacts(): Unit = {
-    //    val domComponents = getObjectModel()
-    //    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(domComponents))
-  }
-
-}
-
-case object OMPipeline {
-  val registrarTree: Tree[OMRegistrar] = OMRegistrarTree.makeTree()
-
-
-}
+//object OMTree {
+//  def tree(t: Tree[OMRegistrar]): List[OMComponent] =
+//    t match {
+//      case Leaf(r) => r.getOMComponents() // a.getOMComponents()
+//      case Branch(r, cs) => r.map{
+//        case r =>
+//          val components = cs.flatMap(tree(_))
+//          r.getOMComponents()
+//      }.get
+//    }
+//}
+//
+//case object OMPipeline {
+//  def process(): Unit = {
+//    val registrarTree: Tree[OMRegistrar] = OMRegistrarTree.makeTree()
+//    val om = OMTree.tree(registrarTree)
+//  }
+//
+//  def  addOMArtefacts(): Unit = {
+//    val domComponents = process()
+//    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(domComponents))
+//  }
+//}
