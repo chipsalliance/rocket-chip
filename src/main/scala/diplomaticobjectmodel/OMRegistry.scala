@@ -13,7 +13,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 trait OMRegistrar {
-  def getOMComponents(): Seq[OMComponent]
+  def getOMComponents(children: Seq[OMComponent]): Seq[OMComponent]
 }
 
 /**
@@ -68,9 +68,7 @@ case object LogicalModuleTree {
   }
 
   def findRoot(): LogicalTreeEdge = {
-    val roots = edges.map {
-      case r if r.parent == None => r
-    }
+    val roots = edges.filter(_.parent == None)
     assert(roots.size == 1)
     roots.head
   }
@@ -145,26 +143,26 @@ object OMRegistrarTree {
   }
 }
 
-//object OMTree {
-//  def tree(t: Tree[OMRegistrar]): List[OMComponent] =
-//    t match {
-//      case Leaf(r) => r.getOMComponents() // a.getOMComponents()
-//      case Branch(r, cs) => r.map{
-//        case r =>
-//          val components = cs.flatMap(tree(_))
-//          r.getOMComponents()
-//      }.get
-//    }
-//}
-//
-//case object OMPipeline {
-//  def process(): Unit = {
-//    val registrarTree: Tree[OMRegistrar] = OMRegistrarTree.makeTree()
-//    val om = OMTree.tree(registrarTree)
-//  }
-//
-//  def  addOMArtefacts(): Unit = {
-//    val domComponents = process()
-//    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(domComponents))
-//  }
-//}
+object OMTree {
+  def tree(t: Tree[OMRegistrar]): Seq[OMComponent] =
+    t match {
+      case Leaf(r) => r.getOMComponents(Nil) // a.getOMComponents()
+      case Branch(r, cs) => r.map{
+        case r =>
+          val components = cs.flatMap(tree(_))
+          r.getOMComponents(components)
+      }.get
+    }
+}
+
+case object OMPipeline {
+  def process(): Unit = {
+    val registrarTree: Tree[OMRegistrar] = OMRegistrarTree.makeTree()
+    val om = OMTree.tree(registrarTree)
+  }
+
+  def  addOMArtefacts(): Unit = {
+    val domComponents = process()
+    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(domComponents))
+  }
+}
