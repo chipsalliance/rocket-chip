@@ -150,13 +150,14 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
-  def connectTLSlave(node: TLNode, bytes: Int) {
+  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
-        .foldRight(tlSlaveXbar.node:TLOutwardNode)(_ :*= _)
+        .foldRight(xbarNode)(_ :*= _)
     }
   }
+  def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
   protected def visibleManagers = tlMasterXbar.node.edges.out.flatMap(_.manager.managers)
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
