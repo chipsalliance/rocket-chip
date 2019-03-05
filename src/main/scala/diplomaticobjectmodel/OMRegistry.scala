@@ -67,13 +67,13 @@ case object LogicalModuleTree {
     edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child).toList)}
   }
 
-  def findRoot(): RawModule = {
+  def findRoot(): RawModuleContainer = {
     val values = getTreeMap().values.flatten.map { case RawModuleContainer(c) => c}.toSet
 
     val roots = getTreeMap().keys.map { case RawModuleContainer(p) if ! values.contains(p) => p}
 
     assert(roots.size == 1)
-    roots.head
+    RawModuleContainer(roots.head)
   }
 }
 
@@ -121,12 +121,12 @@ case class Branch[A](value: Option[A], children: List[Tree[A]]) extends Tree[A]
 
 object OMRegistrarTree {
   def makeTree(): Tree[OMRegistrar] = {
-    val root: RawModule = LogicalModuleTree.findRoot()
+    val root: RawModuleContainer = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
 
     def tree(m: RawModuleContainer): Tree[OMRegistrar] = {
       val r = OMRegistry.get(m)
-      require(r.isDefined, s"Registrar is not defined for rawmodule")
+      require(r.isDefined, s"Registrar is not defined for rawmodule $m")
       val children = treeMap.getOrElse(m, Nil)
 
       children match {
