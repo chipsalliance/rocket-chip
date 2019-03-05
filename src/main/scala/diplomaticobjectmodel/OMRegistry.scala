@@ -63,12 +63,15 @@ case object LogicalModuleTree {
 
   private def cycleCheck(): Boolean = false
 
-  def getTreeMap(): Map[RawModuleContainer, ArrayBuffer[RawModuleContainer]] = {
-    edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child))}
+  def getTreeMap(): Map[RawModuleContainer, List[RawModuleContainer]] = {
+    edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child).toList)}
   }
 
-  def findRoot(): LogicalTreeEdge = {
-    val roots = edges.filter(_.parent == None)
+  def findRoot(): RawModule = {
+    val values = getTreeMap().values.flatten.map { case RawModuleContainer(c) => c}.toSet
+
+    val roots = getTreeMap().keys.map { case RawModuleContainer(p) if ! values.contains(p) => p}
+
     assert(roots.size == 1)
     roots.head
   }
@@ -90,11 +93,11 @@ case object OMParentToChildRegistry {
   def register(m: RawModule, r: OMRegistrar): Unit = {
     val c = RawModuleContainer(m)
     if (!registry.contains(c)) {
-      registry + (c -> ArrayBuffer[OMRegistrar](r))
+      registry.put(c, ArrayBuffer[OMRegistrar](r))
     }
     else {
       var l = registry.get(c)
-      l.map(_ += r)
+      registry.put(c, l.map(_ += r).get)
     }
   }
 
@@ -118,7 +121,7 @@ case class Branch[A](value: Option[A], children: List[Tree[A]]) extends Tree[A]
 
 object OMRegistrarTree {
   def makeTree(): Tree[OMRegistrar] = {
-    val root = LogicalModuleTree.findRoot()
+    val root: RawModule = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
 
     def tree(m: RawModuleContainer): Tree[OMRegistrar] = {
@@ -139,7 +142,7 @@ object OMRegistrarTree {
           Branch(r, cs.map(tree(_)).toList ++ l)
       }
     }
-    tree(root.parent)
+    tree(root)
   }
 }
 
@@ -159,10 +162,6 @@ case object OMPipeline {
   def process(): Unit = {
     val registrarTree: Tree[OMRegistrar] = OMRegistrarTree.makeTree()
     val om = OMTree.tree(registrarTree)
-  }
-
-  def  addOMArtefacts(): Unit = {
-    val domComponents = process()
-    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(domComponents))
+    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(om))
   }
 }
