@@ -159,7 +159,8 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   }
   def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
-  protected def visibleManagers = tlMasterXbar.node.edges.out.flatMap(_.manager.managers)
+  val visibilityNode = TLIdentityNode()
+  protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
 
   // Find resource labels for all the outward caches

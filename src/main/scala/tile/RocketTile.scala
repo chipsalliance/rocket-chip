@@ -41,7 +41,7 @@ class RocketTile(
 
   val intOutwardNode = IntIdentityNode()
   val slaveNode = TLIdentityNode()
-  val masterNode = TLIdentityNode()
+  val masterNode = visibilityNode
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map(s =>
     LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
