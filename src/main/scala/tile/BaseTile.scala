@@ -33,7 +33,10 @@ trait TileParams {
   val name: Option[String]
 }
 
-trait HasTileParameters {
+/** These parameters values are not computed by diplomacy,
+  * and so are safe to use while diplomacy itself is running.
+  */
+trait HasNonDiplomaticTileParameters {
   implicit val p: Parameters
   def tileParams: TileParams = p(TileKey)
 
@@ -50,28 +53,12 @@ trait HasTileParameters {
   def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
-  def vaddrBits: Int =
-    if (usingVM) {
-      val v = pgIdxBits + pgLevels * pgLevelBits
-      require(v == xLen || xLen > v && v > paddrBits)
-      v
-    } else {
-      // since virtual addresses sign-extend but physical addresses
-      // zero-extend, make room for a zero sign bit for physical addresses
-      (paddrBits + 1) min xLen
-    }
-  def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
-  def vpnBits: Int = vaddrBits - pgIdxBits
-  def ppnBits: Int = paddrBits - pgIdxBits
   def pgLevels: Int = p(PgLevels)
   def asIdBits: Int = p(ASIdBits)
-  def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
-  def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
   def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
 
   def hartId: Int = tileParams.hartId
   def hartIdLen: Int = p(MaxHartIdBits)
-  def resetVectorLen: Int = paddrBits
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
@@ -128,10 +115,34 @@ trait HasTileParameters {
 
 }
 
+/** These parameters values are computed by diplomacy,
+  * and so are NOT safe to use while diplomacy itself is running.
+  * Only mix this trait into LazyModuleImps, Modules, Bundles, Data, etc.
+  */
+trait HasTileParameters extends HasNonDiplomaticTileParameters {
+  def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
+  def vaddrBits: Int =
+    if (usingVM) {
+      val v = pgIdxBits + pgLevels * pgLevelBits
+      require(v == xLen || xLen > v && v > paddrBits)
+      v
+    } else {
+      // since virtual addresses sign-extend but physical addresses
+      // zero-extend, make room for a zero sign bit for physical addresses
+      (paddrBits + 1) min xLen
+    }
+  def vpnBits: Int = vaddrBits - pgIdxBits
+  def ppnBits: Int = paddrBits - pgIdxBits
+  def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
+  def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
+
+  def resetVectorLen: Int = paddrBits
+}
+
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
                        (implicit p: Parameters)
-    extends LazyModule with CrossesToOnlyOneClockDomain with HasTileParameters {
+    extends LazyModule with CrossesToOnlyOneClockDomain with HasNonDiplomaticTileParameters {
   def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
