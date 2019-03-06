@@ -144,7 +144,7 @@ class RocketTile(
     }
   }
 
-  class RocketRegistrar extends LogicalTree {
+  class RocketLogicalTree extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       cpuDevice.getOMComponents(OMRegistry.getResourceBindingsMap)
     }

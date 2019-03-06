@@ -52,7 +52,7 @@ sealed trait Tree[+A]
 case class Leaf[A](value: A) extends Tree[A]
 case class Branch[A](value: A, children: List[Tree[A]]) extends Tree[A]
 
-object OMRegistrarTree {
+object OMLogicalTreeTree {
   def makeTree(): Tree[LogicalTree] = {
     val root: LogicalTree = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
@@ -82,7 +82,7 @@ object OMTree {
 
 case object OMPipeline {
   def process(): Unit = {
-    val registrarTree: Tree[LogicalTree] = OMRegistrarTree.makeTree()
+    val registrarTree: Tree[LogicalTree] = OMLogicalTreeTree.makeTree()
     val om = OMTree.tree(registrarTree)
     ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(om))
   }
