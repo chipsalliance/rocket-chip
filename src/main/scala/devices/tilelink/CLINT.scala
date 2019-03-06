@@ -114,13 +114,13 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
         RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
     )
   }
-  class CLINTRegistrar extends LogicalTree {
+  class CLINTLogicalTree extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       device.getOMComponents(OMRegistry.getResourceBindingsMap)
     }
   }
 
-  val clintRegistrar = new CLINTRegistrar()
+  val clintLogicalTree = new CLINTLogicalTree()
 }
 
 /** Trait that will connect a CLINT to a subsystem */

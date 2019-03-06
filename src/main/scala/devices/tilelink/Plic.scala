@@ -337,13 +337,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  class PLICRegistrar extends LogicalTree {
+  class PLICLogicalTree extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       device.getOMComponents(OMRegistry.getResourceBindingsMap)
     }
   }
 
-  val plicRegistrar = new PLICRegistrar()
+  val plicLogicalTree = new PLICLogicalTree()
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {

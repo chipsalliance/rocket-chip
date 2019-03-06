@@ -1466,11 +1466,11 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   }
 
-  class DebugRegistrar extends LogicalTree {
+  class DebugLogicalTree extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       device.getOMComponents(OMRegistry.getResourceBindingsMap)
     }
   }
 
-  val debugRegistrar = new DebugRegistrar()
+  val debugLogicalTree = new DebugLogicalTree()
 }
