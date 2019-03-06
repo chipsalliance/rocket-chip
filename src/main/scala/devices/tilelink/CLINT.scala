@@ -10,7 +10,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem.BaseSubsystem
-import freechips.rocketchip.tile.{OMRegistrar, OMRegistry}
+import freechips.rocketchip.tile.{LogicalTree, OMRegistry}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -114,7 +114,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
         RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
     )
   }
-  class CLINTRegistrar extends OMRegistrar {
+  class CLINTRegistrar extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       device.getOMComponents(OMRegistry.getResourceBindingsMap)
     }

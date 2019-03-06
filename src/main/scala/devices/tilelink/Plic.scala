@@ -16,7 +16,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.{OMRegistrar, OMRegistry}
+import freechips.rocketchip.tile.{LogicalTree, OMRegistry}
 
 import scala.math.min
 
@@ -337,7 +337,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  class PLICRegistrar extends OMRegistrar {
+  class PLICRegistrar extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       device.getOMComponents(OMRegistry.getResourceBindingsMap)
     }

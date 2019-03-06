@@ -15,7 +15,7 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.{OMRegistrar, OMRegistry}
+import freechips.rocketchip.tile.{LogicalTree, OMRegistry}
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -1466,7 +1466,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   }
 
-  class DebugRegistrar extends OMRegistrar {
+  class DebugRegistrar extends LogicalTree {
     override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
       device.getOMComponents(OMRegistry.getResourceBindingsMap)
     }

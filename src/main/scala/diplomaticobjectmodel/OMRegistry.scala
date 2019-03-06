@@ -16,29 +16,29 @@ case object OMRegistry {
   def getResourceBindingsMap(): ResourceBindingsMap = resourceBindingsMap.get
 }
 
-trait OMRegistrar {
+trait LogicalTree {
   def getOMComponents(children: Seq[OMComponent]): Seq[OMComponent]
 }
 
 case class LogicalTreeEdge(
-  parent: OMRegistrar,
-  child: OMRegistrar
+  parent: LogicalTree,
+  child: LogicalTree
 )
 
 case object LogicalModuleTree {
   val edges = ArrayBuffer[LogicalTreeEdge]()
 
-  def add(parent: OMRegistrar, child: OMRegistrar): Unit = {
+  def add(parent: LogicalTree, child: LogicalTree): Unit = {
      edges += LogicalTreeEdge(parent, child)
   }
 
   private def cycleCheck(): Boolean = false
 
-  def getTreeMap(): Map[OMRegistrar, List[OMRegistrar]] = {
+  def getTreeMap(): Map[LogicalTree, List[LogicalTree]] = {
     edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child).toList)}
   }
 
-  def findRoot(): OMRegistrar = {
+  def findRoot(): LogicalTree = {
     val values = getTreeMap().values.flatten.map{ case c => c }.toSet
 
     val roots = getTreeMap().keys.map { case p if ! values.contains(p) => p}
@@ -48,21 +48,16 @@ case object LogicalModuleTree {
   }
 }
 
-case class RawModuleParentRegistrarChildEdge(
-  parent: OMRegistrar,
-  child: OMRegistrar
-)
-
 sealed trait Tree[+A]
 case class Leaf[A](value: A) extends Tree[A]
 case class Branch[A](value: A, children: List[Tree[A]]) extends Tree[A]
 
 object OMRegistrarTree {
-  def makeTree(): Tree[OMRegistrar] = {
-    val root: OMRegistrar = LogicalModuleTree.findRoot()
+  def makeTree(): Tree[LogicalTree] = {
+    val root: LogicalTree = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
 
-    def tree(r: OMRegistrar): Tree[OMRegistrar] = {
+    def tree(r: LogicalTree): Tree[LogicalTree] = {
       val children = treeMap.getOrElse(r, Nil)
 
       children match {
@@ -76,7 +71,7 @@ object OMRegistrarTree {
 }
 
 object OMTree {
-  def tree(t: Tree[OMRegistrar]): Seq[OMComponent] =
+  def tree(t: Tree[LogicalTree]): Seq[OMComponent] =
     t match {
       case Leaf(r) => r.getOMComponents(Nil) // a.getOMComponents()
       case Branch(r, cs) =>
@@ -87,7 +82,7 @@ object OMTree {
 
 case object OMPipeline {
   def process(): Unit = {
-    val registrarTree: Tree[OMRegistrar] = OMRegistrarTree.makeTree()
+    val registrarTree: Tree[LogicalTree] = OMRegistrarTree.makeTree()
     val om = OMTree.tree(registrarTree)
     ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(om))
   }
