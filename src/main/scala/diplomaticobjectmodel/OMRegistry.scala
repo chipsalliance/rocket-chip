@@ -2,144 +2,73 @@
 
 package freechips.rocketchip.tile
 
-import chisel3.experimental.RawModule
 import freechips.rocketchip.diplomacy.ResourceBindingsMap
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
-import freechips.rocketchip.tile.OMRegistry.registry
 import freechips.rocketchip.util.ElaborationArtefacts
-
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+
+
+case object OMRegistry {
+  private var resourceBindingsMap: Option[ResourceBindingsMap] = None
+
+  def setResourceBindingsMap(rbm: ResourceBindingsMap): Unit = resourceBindingsMap = Some(rbm)
+  def getResourceBindingsMap(): ResourceBindingsMap = resourceBindingsMap.get
+}
 
 trait OMRegistrar {
   def getOMComponents(children: Seq[OMComponent]): Seq[OMComponent]
 }
 
-/**
-  * Used to construct the logical spanning tree from the Edge's
-  * @param components
-  * @param children
-  */
-
-case class OMTreeNode(
-  registrar: OMRegistrar,
-  components: List[OMComponent],
-  children: List[OMTreeNode]
-)
-
-case class RawModuleContainer(
-  rm: RawModule
-)
-
-case object OMRegistry {
-  private var resourceBindingsMap: Option[ResourceBindingsMap] = None
-
-  private val registry = mutable.Map[RawModuleContainer, OMRegistrar]()
-
-  def setResourceBindingsMap(rbm: ResourceBindingsMap): Unit = resourceBindingsMap = Some(rbm)
-  def getResourceBindingsMap(): ResourceBindingsMap = resourceBindingsMap.get
-
-  def register(m: RawModule, r: OMRegistrar): Unit = {
-    registry += (RawModuleContainer(m) -> r)
-  }
-
-  def get(m: RawModuleContainer): Option[OMRegistrar] = {
-    registry.get(m)
-  }
-}
-
 case class LogicalTreeEdge(
-  parent: RawModuleContainer,
-  child: RawModuleContainer
+  parent: OMRegistrar,
+  child: OMRegistrar
 )
 
 case object LogicalModuleTree {
   val edges = ArrayBuffer[LogicalTreeEdge]()
 
-  def add(parent: RawModule, child: RawModule): Unit = {
-     edges += LogicalTreeEdge(RawModuleContainer(parent), RawModuleContainer(child))
+  def add(parent: OMRegistrar, child: OMRegistrar): Unit = {
+     edges += LogicalTreeEdge(parent, child)
   }
 
   private def cycleCheck(): Boolean = false
 
-  def getTreeMap(): Map[RawModuleContainer, List[RawModuleContainer]] = {
+  def getTreeMap(): Map[OMRegistrar, List[OMRegistrar]] = {
     edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child).toList)}
   }
 
-  def findRoot(): RawModuleContainer = {
-    val values = getTreeMap().values.flatten.map { case RawModuleContainer(c) => c}.toSet
+  def findRoot(): OMRegistrar = {
+    val values = getTreeMap().values.flatten.map{ case c => c }.toSet
 
-    val roots = getTreeMap().keys.map { case RawModuleContainer(p) if ! values.contains(p) => p}
+    val roots = getTreeMap().keys.map { case p if ! values.contains(p) => p}
 
     assert(roots.size == 1)
-    RawModuleContainer(roots.head)
+    roots.head
   }
 }
 
 case class RawModuleParentRegistrarChildEdge(
-  parent: RawModuleContainer,
+  parent: OMRegistrar,
   child: OMRegistrar
 )
 
-/**
-  * A map of parent raw modules to child registrars
-  * Use for leaves which are not raw modules
-  */
-case object OMParentToChildRegistry {
-
-  private val registry = mutable.Map[RawModuleContainer, ArrayBuffer[OMRegistrar]]()
-
-  def register(m: RawModule, r: OMRegistrar): Unit = {
-    val c = RawModuleContainer(m)
-    if (!registry.contains(c)) {
-      registry.put(c, ArrayBuffer[OMRegistrar](r))
-    }
-    else {
-      var l = registry.get(c)
-      registry.put(c, l.map(_ += r).get)
-    }
-  }
-
-  def contains(m: RawModuleContainer): Boolean = {
-    registry.contains(m)
-  }
-
-  def get(m: RawModuleContainer): Option[ArrayBuffer[OMRegistrar]] = {
-    registry.get(m)
-  }
-
-  def makeChildren(rmc: RawModuleContainer): List[Tree[OMRegistrar]] = {
-    val o = registry.get(rmc)
-    o.map{l => l.map(Leaf(_))}.getOrElse(Nil).toList
-  }
-}
-
 sealed trait Tree[+A]
 case class Leaf[A](value: A) extends Tree[A]
-case class Branch[A](value: Option[A], children: List[Tree[A]]) extends Tree[A]
+case class Branch[A](value: A, children: List[Tree[A]]) extends Tree[A]
 
 object OMRegistrarTree {
   def makeTree(): Tree[OMRegistrar] = {
-    val root: RawModuleContainer = LogicalModuleTree.findRoot()
+    val root: OMRegistrar = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
 
-    def tree(m: RawModuleContainer): Tree[OMRegistrar] = {
-      val r = OMRegistry.get(m)
-      require(r.isDefined, s"Registrar is not defined for rawmodule $m")
-      val children = treeMap.getOrElse(m, Nil)
+    def tree(r: OMRegistrar): Tree[OMRegistrar] = {
+      val children = treeMap.getOrElse(r, Nil)
 
       children match {
-        case Nil =>
-          if (OMParentToChildRegistry.contains(m)) {
-            Branch(r, OMParentToChildRegistry.makeChildren(m))
-          }
-          else {
-            Leaf(r.get)
-          }
+        case Nil => Leaf(r)
         case cs =>
-          val l: List[Tree[OMRegistrar]] = OMParentToChildRegistry.makeChildren(m)
-          Branch(r, cs.map(tree(_)).toList ++ l)
+          Branch(r, cs.map(tree(_)))
       }
     }
     tree(root)
@@ -150,11 +79,9 @@ object OMTree {
   def tree(t: Tree[OMRegistrar]): Seq[OMComponent] =
     t match {
       case Leaf(r) => r.getOMComponents(Nil) // a.getOMComponents()
-      case Branch(r, cs) => r.map{
-        case r =>
+      case Branch(r, cs) =>
           val components = cs.flatMap(tree(_))
           r.getOMComponents(components)
-      }.get
     }
 }
 

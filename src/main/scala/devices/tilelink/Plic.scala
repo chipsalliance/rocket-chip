@@ -17,6 +17,7 @@ import diplomaticobjectmodel.logicaltree.PLICLogicalTree
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.tile.{OMRegistrar, OMRegistry}
 
 import scala.math.min
 

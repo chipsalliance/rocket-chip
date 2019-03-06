@@ -16,6 +16,7 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.tile.{OMRegistrar, OMRegistry}
 
 object DsbBusConsts {
   def sbAddrWidth = 12

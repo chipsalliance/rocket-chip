@@ -11,6 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.tile.{OMRegistrar, OMRegistry}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
