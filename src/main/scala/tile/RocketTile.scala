@@ -93,6 +93,61 @@ class RocketTile(
       val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
       rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
+
+    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
+      rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
+        case Seq() => throw new IllegalArgumentException
+        case Seq(h) => h.asInstanceOf[OMICache]
+        case _ => throw new IllegalArgumentException
+      })
+    }
+
+    def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
+      val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
+      val omDCache: Option[OMDCache] = tileParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
+
+      require(!(omDTIM.isDefined && omDCache.isDefined))
+
+      omDTIM.orElse(omDCache)
+    }
+
+    def getInterruptTargets(): Seq[OMInterruptTarget] = {
+      Seq(OMInterruptTarget(
+        hartId = rocketParams.hartId,
+        modes = OMModes.getModes(rocketParams.core.useVM)
+      ))
+    }
+
+    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
+      val coreParams = rocketParams.core
+
+      val omICache = getOMICacheFromBindings(resourceBindingsMap)
+
+      val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
+
+      Seq(OMRocketCore(
+        isa = OMISA.rocketISA(coreParams, xLen),
+        mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
+        fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
+        performanceMonitor = PerformanceMonitor.permon(coreParams),
+        pmp = OMPMP.pmp(coreParams),
+        documentationName = tileParams.name.getOrElse("rocket"),
+        hartIds = Seq(hartId),
+        hasVectoredInterrupts = true,
+        interruptLatency = 4,
+        nLocalInterrupts = coreParams.nLocalInterrupts,
+        nBreakpoints = coreParams.nBreakpoints,
+        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
+        dcache = omDCache,
+        icache = omICache
+      ))
+    }
+  }
+
+  class RocketRegistrar extends LogicalTree {
+    override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
+      cpuDevice.getOMComponents(OMRegistry.getResourceBindingsMap)
+    }
   }
 
   val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
