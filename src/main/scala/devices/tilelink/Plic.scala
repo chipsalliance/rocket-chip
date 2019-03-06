@@ -2,21 +2,20 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
 import Chisel.ImplicitConversions._
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.BaseSubsystem
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.{LogicalTree, OMRegistry}
+import freechips.rocketchip.interrupts._
+import freechips.rocketchip.regmapper._
+import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.tile.LogicalTree
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 import scala.math.min
 
@@ -338,8 +337,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 
   class PLICLogicalTree extends LogicalTree {
-    override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(OMRegistry.getResourceBindingsMap)
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+      device.getOMComponents(resourceBindingsMap)
     }
   }
 

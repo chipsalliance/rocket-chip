@@ -10,7 +10,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem.BaseSubsystem
-import freechips.rocketchip.tile.{LogicalTree, OMRegistry}
+import freechips.rocketchip.tile.LogicalTree
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -115,8 +115,8 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     )
   }
   class CLINTLogicalTree extends LogicalTree {
-    override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(OMRegistry.getResourceBindingsMap)
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+      device.getOMComponents(resourceBindingsMap)
     }
   }
 

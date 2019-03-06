@@ -7,10 +7,10 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMPrivilegeMode, _}
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -138,8 +138,8 @@ class RocketTile(
   }
 
   class RocketLogicalTree extends LogicalTree {
-    override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-      cpuDevice.getOMComponents(OMRegistry.getResourceBindingsMap)
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+      cpuDevice.getOMComponents(resourceBindingsMap)
     }
   }
 
