@@ -137,6 +137,14 @@ class RocketTile(
     }
   }
 
+  class RocketRegistrar extends OMRegistrar {
+    override def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
+      cpuDevice.getOMComponents(OMRegistry.getResourceBindingsMap)
+    }
+  }
+
+  val rocketRegistrar = new RocketRegistrar()
+
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(hartId))
   }
