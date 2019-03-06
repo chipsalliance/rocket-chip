@@ -11,6 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model.{OMPrivilegeMode, _}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
+import freechips.rocketchip.subsystem.RocketCrossingParams
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -29,15 +30,21 @@ case class RocketTileParams(
   require(dcache.isDefined)
 }
 
-class RocketTile(
-    val rocketParams: RocketTileParams,
-    crossing: ClockCrossingType)
-  (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
+class RocketTile private(
+      val rocketParams: RocketTileParams,
+      crossing: ClockCrossingType,
+      lookup: LookupByHartIdImpl,
+      q: Parameters)
+    extends BaseTile(rocketParams, crossing, lookup, q)
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasHellaCache
-    with HasICacheFrontend {
+    with HasICacheFrontend
+{
+  // Private constructor ensures altered LazyModule.p is used implicitly
+  def this(params: RocketTileParams, crossing: RocketCrossingParams, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+    this(params, crossing.crossingType, lookup, p)
 
   val intOutwardNode = IntIdentityNode()
   val slaveNode = TLIdentityNode()

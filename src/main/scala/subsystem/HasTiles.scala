@@ -9,13 +9,9 @@ import freechips.rocketchip.devices.debug.TLDebugModule
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, CLINTConsts, TLPLIC, PLICKey}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileKey, TileParams, SharedMemoryTLEdge, HasExternallyDrivenTileConstants}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileParams, HasExternallyDrivenTileConstants}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-
-class ClockedTileInputs(implicit val p: Parameters) extends ParameterizedBundle
-    with HasExternallyDrivenTileConstants
-    with Clocked
 
 trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   implicit val p: Parameters
@@ -24,7 +20,6 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   def nTiles: Int = tileParams.size
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
-  def sharedMemoryTLEdge = sbus.busView
 
   // define some nodes that are useful for collecting or driving tile interrupts
   val meipNode = p(PLICKey) match {
@@ -47,19 +42,6 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   val tileCeaseXbarNode = IntXbar(p)
   val tileCeaseSinkNode = IntSinkNode(IntSinkPortSimple())
   tileCeaseSinkNode := tileCeaseXbarNode
-
-  private val lookupByHartId = new LookupByHartIdImpl {
-    def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T =
-      PriorityMux(tileParams.collect { case t if f(t).isDefined => (t.hartId.U === hartId) -> f(t).get })
-  }
-
-  protected def augmentedTileParameters(tp: TileParams): Parameters = p.alterPartial {
-    // For legacy reasons, it is convenient to store some state
-    // in the global Parameters about the specific tile being built now
-    case TileKey => tp
-    case SharedMemoryTLEdge => sharedMemoryTLEdge
-    case LookupByHartId => lookupByHartId
-  }
 
   protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
     sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
@@ -141,13 +123,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   }
 }
 
-trait HasTilesBundle {
-  val tile_inputs: Vec[ClockedTileInputs]
-}
-
-trait HasTilesModuleImp extends LazyModuleImp
-    with HasTilesBundle
-    with HasResetVectorWire {
+trait HasTilesModuleImp extends LazyModuleImp {
   val outer: HasTiles
 
   def resetVectorBits: Int = {
@@ -157,17 +133,7 @@ trait HasTilesModuleImp extends LazyModuleImp
     vectors.head.getWidth
   }
 
-  val tile_inputs = dontTouch(Wire(Vec(outer.nTiles, new ClockedTileInputs()(p.alterPartial {
-    case SharedMemoryTLEdge => outer.sharedMemoryTLEdge
-  })))) // dontTouch keeps constant prop from sucking these signals into the tile
-
-  // Unconditionally wire up the non-diplomatic tile inputs
-  outer.tiles.map(_.module).zip(tile_inputs).foreach { case(tile, wire) =>
-    tile.clock := wire.clock
-    tile.reset := wire.reset
-    tile.constants.hartid := wire.hartid
-    tile.constants.reset_vector := wire.reset_vector
-  }
+  val tile_inputs = outer.tiles.map(_.module.constants)
 
   val meip = if(outer.meipNode.isDefined) Some(IO(Vec(outer.meipNode.get.out.size, Bool()).asInput)) else None
   meip.foreach { m =>

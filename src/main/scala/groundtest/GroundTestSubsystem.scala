@@ -18,12 +18,7 @@ case object TileId extends Field[Int]
 class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
     with CanHaveMasterAXI4MemPort {
   val tileParams = p(GroundTestTilesKey)
-  val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
-    c.build(i, p.alterPartial {
-      case TileKey => c
-      case SharedMemoryTLEdge => sbus.busView
-    })
-  )}
+  val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(c.build(i, p)) }
 
   tiles.flatMap(_.dcacheOpt).foreach { dc =>
     sbus.fromTile(None, buffer = BufferParams.default){ dc.node }
