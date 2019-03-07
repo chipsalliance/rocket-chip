@@ -312,7 +312,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_maybe_flush_pre_data_ecc_and_waw = s2_valid_masked && !s2_meta_error && s2_hit
   val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_readwrite
-  val s2_valid_flush_line = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_cmd_flush_line
+  val s2_valid_flush_line = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_cmd_flush_line && can_acquire_before_release
   val s2_valid_hit_pre_data_ecc = s2_valid_hit_pre_data_ecc_and_waw && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_data_error = s2_valid_hit_pre_data_ecc_and_waw && s2_data_error && can_acquire_before_release
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error
@@ -332,9 +332,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dontTouch(s2_victim_dirty)
   val s2_update_meta = s2_hit_state =/= s2_new_hit_state
   val s2_dont_nack_uncached = s2_valid_uncached_pending && tl_out_a.ready
-  val s2_dont_nack_flush = supports_flush && (s2_cmd_flush_all && flushed && !flushing || s2_cmd_flush_line && can_acquire_before_release)
+  val s2_dont_nack_flush = supports_flush && !s2_meta_error && (s2_cmd_flush_all && flushed && !flushing || s2_cmd_flush_line && !s2_hit)
   io.cpu.s2_nack := s2_valid_no_xcpt && !s2_dont_nack_uncached && !s2_dont_nack_flush && !s2_valid_hit
-  when (io.cpu.s2_nack || s2_valid_flush_line || (s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta)) { s1_nack := true }
+  when (io.cpu.s2_nack || (s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta)) { s1_nack := true }
 
   // tag updates on ECC errors
   val s2_first_meta_corrected = PriorityMux(s2_meta_correctable_errors, s2_meta_corrected)
