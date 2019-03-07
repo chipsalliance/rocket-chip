@@ -41,8 +41,9 @@ object LogicalModuleTree {
 
   def findRoot(): LogicalTree = {
     val values = getTreeMap().values.flatten.toSet
+    val keys = getTreeMap().keys.toSet
 
-    val roots = getTreeMap().keys.map { case p if ! values.contains(p) => p}
+    val roots = values.diff(keys)
 
     assert(roots.size == 1, "Logical Tree contains more than one root.")
     roots.head
