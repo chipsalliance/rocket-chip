@@ -46,7 +46,7 @@ trait HasRocketTiles extends HasTiles
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
-    connectInterrupts(rocket, Some(debug), clintOpt, plicOpt)
+    connectInterrupts(rocket, debug, clintOpt, plicOpt)
 
     rocket
   }

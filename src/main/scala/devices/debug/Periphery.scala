@@ -27,7 +27,7 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   val systemjtag = p(ExportDebugJTAG).option(new SystemJTAGIO)
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
-  val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
+  val extTrigger = None // (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
   val disableDebug = p(ExportDisableDebug).option(Bool(INPUT))
 }
 
@@ -35,7 +35,8 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   * or exports the Debug Module Interface (DMI), based on a global parameter.
   */
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
+  val debug = None
+/*  val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
   debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
   val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
   debug.dmInner.dmInner.customNode := debugCustomXbar.node
@@ -46,7 +47,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
 
   def getOMDebugModule(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
     debug.device.getOMComponents(resourceBindingsMap)
-}
+*/}
 
 trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val outer: HasPeripheryDebug
@@ -55,7 +56,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
 
   require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
     "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
-
+/*
   debug.clockeddmi.foreach { dbg => outer.debug.module.io.dmi <> dbg }
 
   val dtm = debug.systemjtag.map { instantiateJtagDTM(_) }
@@ -86,6 +87,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outer.debug.module.io.dmi.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
     dtm
   }
+*/
 }
 
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
