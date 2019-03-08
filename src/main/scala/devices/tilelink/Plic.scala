@@ -16,6 +16,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.tile.LogicalTree
 
 import scala.math.min
 
