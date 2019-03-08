@@ -172,7 +172,7 @@ object DiplomaticObjectModelAddressing {
         seq.map {
           case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap)
         }
-    }.flatten.toList
+    }.flatten.toSeq
   }
 
   def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {

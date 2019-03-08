@@ -10,8 +10,8 @@ import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
