@@ -2,20 +2,20 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel.ImplicitConversions._
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
+import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem.BaseSubsystem
-import freechips.rocketchip.tile.LogicalTree
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
 
