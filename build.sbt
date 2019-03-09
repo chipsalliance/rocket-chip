@@ -11,7 +11,7 @@ lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2-SNAPSHOT",
   scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.12.4", "2.11.12"),
+  crossScalaVersions := Seq("2.12.4"),
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
@@ -63,7 +63,7 @@ def dependOnChisel(prj: Project) = {
 }
 
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.11.12", "2.12.4"))
+  .settings(crossScalaVersions := Seq("2.12.4"))
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
