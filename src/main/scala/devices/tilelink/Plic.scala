@@ -14,14 +14,16 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import diplomaticobjectmodel.logicaltree.PLICLogicalTree
+<<<<<<< HEAD
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
+=======
+>>>>>>> 9ff97976... changing API
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.LogicalTree
 
 import scala.math.min
 

@@ -92,6 +92,7 @@ class RocketTile(
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
       val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
       rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
+<<<<<<< HEAD
     }
 
     def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {

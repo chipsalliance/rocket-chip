@@ -55,10 +55,22 @@ class PLICLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap, nPrioritie
 
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
+=======
+import freechips.rocketchip.diplomacy.{ResourceBindingsMap, SimpleDevice}
+import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
+
+class CLINTLogicalTree(device: SimpleDevice) extends LogicalTree {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    device.getOMComponents(resourceBindingsMap)
   }
 }
 
-
+class PLICLogicalTree(device: SimpleDevice) extends LogicalTree {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    device.getOMComponents(resourceBindingsMap)
+  }
+}
+    
 class DebugLogicalTree(device: SimpleDevice, dmInner: TLDebugModuleInnerAsync, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTree {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(dmInner.dmInner.module.omRegMap))
@@ -83,6 +95,11 @@ class DebugLogicalTree(device: SimpleDevice, dmInner: TLDebugModuleInnerAsync, d
 
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
+=======
+class DebugLogicalTree(device: SimpleDevice) extends LogicalTree {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    device.getOMComponents(resourceBindingsMap)
+>>>>>>> 9ff97976... changing API
   }
 }
 

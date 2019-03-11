@@ -16,7 +16,6 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.LogicalTree
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -1454,4 +1453,4 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
   }
 
   val debugLogicalTree = new DebugLogicalTree(device, dmInner, p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
-}
+
