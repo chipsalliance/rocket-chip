@@ -1403,7 +1403,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
 class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
-  val device: SimpleDevice = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")) {
+  val device: SimpleDevice = new SimpleDevice("debug-controller", Seq("sifive,debug-013", "riscv,debug-013")) {
     override val alwaysExtended = true
 
     /**
@@ -1418,8 +1418,10 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     }
   }
 
-  val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
-  val dmInner : TLDebugModuleInnerAsync = LazyModule(new TLDebugModuleInnerAsync(device, () => {dmOuter.dmOuter.intnode.edges.out.size}, beatBytes)(p))
+  val dmOuter: TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
+  val dmInner: TLDebugModuleInnerAsync = LazyModule(new TLDebugModuleInnerAsync(device, () => {
+    dmOuter.dmOuter.intnode.edges.out.size
+  }, beatBytes)(p))
 
   val node = dmInner.tlNode
   val intnode = dmOuter.intnode
@@ -1440,17 +1442,17 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     dmOuter.module.reset := io.dmi.dmiReset
     dmOuter.module.clock := io.dmi.dmiClock
 
-    dmInner.module.io.innerCtrl    := dmOuter.module.io.innerCtrl
-    dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
+    dmInner.module.io.innerCtrl := dmOuter.module.io.innerCtrl
+    dmInner.module.io.dmactive := dmOuter.module.io.ctrl.dmactive
     dmInner.module.io.debugUnavail := io.ctrl.debugUnavail
-    dmOuter.module.io.hgDebugInt   := dmInner.module.io.hgDebugInt
+    dmOuter.module.io.hgDebugInt := dmInner.module.io.hgDebugInt
 
     dmInner.module.io.psd <> io.psd
 
     io.ctrl <> dmOuter.module.io.ctrl
-    io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+    io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach { y => x <> y } }
 
   }
 
   val debugLogicalTree = new DebugLogicalTree(device, dmInner, p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
-
+}

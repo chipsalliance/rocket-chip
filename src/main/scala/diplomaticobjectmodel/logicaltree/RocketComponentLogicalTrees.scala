@@ -55,19 +55,34 @@ class PLICLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap, nPrioritie
 
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
-=======
-import freechips.rocketchip.diplomacy.{ResourceBindingsMap, SimpleDevice}
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
-
-class CLINTLogicalTree(device: SimpleDevice) extends LogicalTree {
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    device.getOMComponents(resourceBindingsMap)
   }
 }
 
-class PLICLogicalTree(device: SimpleDevice) extends LogicalTree {
+class PLICLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap, nPriorities: Int) extends LogicalTree {
+  private def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(omRegMap))
+
+    val ints = DiplomaticObjectModelAddressing.describeInterrupts(device.describe(resourceBindings).name, resourceBindings)
+
+    Seq[OMComponent](
+      OMPLIC(
+        memoryRegions = memRegions,
+        interrupts = ints,
+        specifications = List(
+          OMSpecification(
+            name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
+            version = "1.10"
+          )
+        ),
+        latency = 2, // TODO
+        nPriorities = nPriorities,
+        targets = Nil
+      )
+    )
+  }
+
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    device.getOMComponents(resourceBindingsMap)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
   }
 }
     
@@ -93,6 +108,7 @@ class DebugLogicalTree(device: SimpleDevice, dmInner: TLDebugModuleInnerAsync, d
     )
   }
 
+<<<<<<< HEAD
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
 =======
@@ -100,6 +116,32 @@ class DebugLogicalTree(device: SimpleDevice) extends LogicalTree {
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     device.getOMComponents(resourceBindingsMap)
 >>>>>>> 9ff97976... changing API
+=======
+class DebugLogicalTree(device: SimpleDevice, dmInner: TLDebugModuleInnerAsync, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTree {
+  def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(dmInner.dmInner.module.omRegMap))
+    val cfg : DebugModuleParams = debugModuleParams
+
+    Seq[OMComponent](
+      OMDebug(
+        memoryRegions = memRegions,
+        interrupts = Nil,
+        specifications = List(
+          OMSpecification(
+            name = "The RISC-V Debug Specification",
+            version = "0.13"
+          )
+        ),
+        nAbstractDataWords = cfg.nAbstractDataWords,
+        nProgramBufferWords = cfg.nProgramBufferWords,
+        interfaceType = OMDebug.getDebugInterfaceType(exportDebugJTAG, exportDebugCJTAG, exportDebugDMI),
+      )
+    )
+  }
+
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
+>>>>>>> da012805... changing API
   }
 }
 
