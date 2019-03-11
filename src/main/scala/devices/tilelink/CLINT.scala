@@ -39,28 +39,18 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   import CLINTConsts._
 
   // clint0 => at most 4095 devices
-  val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
+  val device: SimpleDevice = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
 
+    /**
+      * This function is for backwards compatiblity and will be removed in the future
+      *
+      * @param resourceBindingsMap
+      * @return
+      */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMCLINT)
-    }
-
-    def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(module.omRegMap))
-
-      Seq[OMComponent](
-        OMCLINT(
-          memoryRegions = memRegions,
-          interrupts = Nil,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
-              version = "1.10"
-            )
-          )
-        )
-      )
+      val clintLogicalTree: CLINTLogicalTree = new CLINTLogicalTree(device, module.omRegMap)
+      clintLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
   }
 
@@ -115,7 +105,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     )
   }
 
-  val clintLogicalTree = new CLINTLogicalTree(device)
+  val clintLogicalTree: CLINTLogicalTree = new CLINTLogicalTree(device, module.omRegMap)
 }
 
 /** Trait that will connect a CLINT to a subsystem */

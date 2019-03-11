@@ -84,29 +84,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
-    }
-
-    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
-      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
-      val Description(name, mapping) = describe(resourceBindings)
-
-      Seq[OMComponent](
-        OMPLIC(
-          memoryRegions = memRegions,
-          interrupts = ints,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
-              version = "1.10"
-            )
-          ),
-          latency = 2, // TODO
-          nPriorities = nPriorities,
-          targets = Nil
-        )
-      )
+      val plicLogicalTree = new PLICLogicalTree(device, module.omRegMap, nPriorities)
+      plicLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
   }
 
@@ -337,7 +316,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  val plicLogicalTree = new PLICLogicalTree(device)
+  val plicLogicalTree = new PLICLogicalTree(device, module.omRegMap, nPriorities)
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
