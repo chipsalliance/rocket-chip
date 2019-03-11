@@ -13,10 +13,10 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import diplomaticobjectmodel.logicaltree.PLICLogicalTree
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.LogicalTree
 
 import scala.math.min
 
@@ -337,13 +337,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  class PLICLogicalTree extends LogicalTree {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(resourceBindingsMap)
-    }
-  }
-
-  val plicLogicalTree = new PLICLogicalTree()
+  val plicLogicalTree = new PLICLogicalTree(device)
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {

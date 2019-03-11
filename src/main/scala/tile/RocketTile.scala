@@ -4,6 +4,7 @@
 package freechips.rocketchip.tile
 
 import Chisel._
+import diplomaticobjectmodel.logicaltree.RocketLogicalTree
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -75,75 +76,26 @@ class RocketTile(
   val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
     "sifive,itim" -> frontend.icache.device.asProperty))).getOrElse(Nil)
 
-  val cpuDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
+  val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
     }
 
+    /**
+      * This function is for backwards compatiblity and will be removed in the future
+      *
+      * @param resourceBindingsMap
+      * @return
+      */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val cores = getOMRocketCores(resourceBindingsMap)
-      cores
-    }
-
-    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
-      rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
-        case Seq() => throw new IllegalArgumentException
-        case Seq(h) => h.asInstanceOf[OMICache]
-        case _ => throw new IllegalArgumentException
-      })
-    }
-
-    def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
-      val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
-      val omDCache: Option[OMDCache] = tileParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
-
-      require(!(omDTIM.isDefined && omDCache.isDefined))
-
-      omDTIM.orElse(omDCache)
-    }
-
-    def getInterruptTargets(): Seq[OMInterruptTarget] = {
-      Seq(OMInterruptTarget(
-        hartId = rocketParams.hartId,
-        modes = OMModes.getModes(rocketParams.core.useVM)
-      ))
-    }
-
-    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
-      val coreParams = rocketParams.core
-
-      val omICache = getOMICacheFromBindings(resourceBindingsMap)
-
-      val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
-
-      Seq(OMRocketCore(
-        isa = OMISA.rocketISA(coreParams, xLen),
-        mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
-        fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
-        performanceMonitor = PerformanceMonitor.permon(coreParams),
-        pmp = OMPMP.pmp(coreParams),
-        documentationName = tileParams.name.getOrElse("rocket"),
-        hartIds = Seq(hartId),
-        hasVectoredInterrupts = true,
-        interruptLatency = 4,
-        nLocalInterrupts = coreParams.nLocalInterrupts,
-        nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
-        dcache = omDCache,
-        icache = omICache
-      ))
+      val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
+      rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
   }
 
-  class RocketLogicalTree extends LogicalTree {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      cpuDevice.getOMComponents(resourceBindingsMap)
-    }
-  }
-
-  val rocketLogicalTree = new RocketLogicalTree()
+  val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
 
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(hartId))

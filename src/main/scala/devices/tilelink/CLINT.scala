@@ -3,6 +3,7 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
+import diplomaticobjectmodel.logicaltree.CLINTLogicalTree
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
@@ -10,7 +11,6 @@ import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem.BaseSubsystem
-import freechips.rocketchip.tile.LogicalTree
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -114,13 +114,8 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
         RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
     )
   }
-  class CLINTLogicalTree extends LogicalTree {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(resourceBindingsMap)
-    }
-  }
 
-  val clintLogicalTree = new CLINTLogicalTree()
+  val clintLogicalTree = new CLINTLogicalTree(device)
 }
 
 /** Trait that will connect a CLINT to a subsystem */

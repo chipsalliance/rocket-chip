@@ -4,6 +4,7 @@ package freechips.rocketchip.devices.debug
 
 import Chisel._
 import chisel3.experimental._
+import diplomaticobjectmodel.logicaltree.{DebugLogicalTree, LogicalTree}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -15,7 +16,6 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.tile.LogicalTree
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -1466,11 +1466,5 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   }
 
-  class DebugLogicalTree extends LogicalTree {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(resourceBindingsMap)
-    }
-  }
-
-  val debugLogicalTree = new DebugLogicalTree()
+  val debugLogicalTree = new DebugLogicalTree(device)
 }

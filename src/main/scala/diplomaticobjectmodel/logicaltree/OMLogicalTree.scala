@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.tile
+package diplomaticobjectmodel.logicaltree
 
 import freechips.rocketchip.diplomacy.ResourceBindingsMap
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
@@ -13,6 +13,12 @@ trait LogicalTree {
 
 /** LogicalTreeEdges hold LogicalTree Nodes which will be used to construct the logical tree.
   * The LogicalTreeEdge is used to construct a parent child relationship between different modules.
+  *
+  * 1. First a list of   val edges = ArrayBuffer[LogicalTreeEdge]() is constructed.
+  *
+  * 2. Then def getTreeMap(): Map[LogicalTree, List[LogicalTree]] converts the list into a map which represents the tree.
+  *
+  * 3. Then the tree map is converted into a OMLogicalTree by the  def makeTree(): Tree[LogicalTree].
   *
   * @param parent The parent LogicalTree node
   * @param child The child LogicalTree node
@@ -52,7 +58,7 @@ object LogicalModuleTree {
 
 case class Tree[A](parent: A, children: List[Tree[A]])
 
-object OMLogicalTreeTree {
+object OMLogicalTree {
   def makeTree(): Tree[LogicalTree] = {
     val root: LogicalTree = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
@@ -65,8 +71,15 @@ object OMLogicalTreeTree {
 }
 
 object OMTree {
+  /**
+    * Child components are the OM children of the current node and are added to the current node.
+    *
+    * @param t
+    * @param resourceBindingsMap
+    * @return
+    */
   def tree(t: Tree[LogicalTree], resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-    val components =  t.children.flatMap(tree(_, resourceBindingsMap))
-    t.parent.getOMComponents(resourceBindingsMap, components)
+    val childComponents =  t.children.flatMap(tree(_, resourceBindingsMap))
+    t.parent.getOMComponents(resourceBindingsMap, childComponents)
   }
 }

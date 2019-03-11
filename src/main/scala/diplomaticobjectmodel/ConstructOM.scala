@@ -1,15 +1,15 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.tile
+package freechips.rocketchip.diplomaticobjectmodel
 
+import diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomacy.ResourceBindingsMap
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.util.ElaborationArtefacts
 
-case object OMProcessor {
-  def process(resourceBindingsMap: ResourceBindingsMap): Unit = {
-    val tree: Tree[LogicalTree] = OMLogicalTreeTree.makeTree()
+case object ConstructOM {
+  def constructOM(resourceBindingsMap: ResourceBindingsMap): Unit = {
+    val tree: Tree[LogicalTree] = OMLogicalTree.makeTree()
     val om: Seq[OMComponent] = OMTree.tree(tree, resourceBindingsMap)
     ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(om))
   }
