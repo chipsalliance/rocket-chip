@@ -30,9 +30,10 @@ trait GroundTestTileParams extends TileParams {
 
 case object GroundTestTilesKey extends Field[Seq[GroundTestTileParams]]
 
-abstract class GroundTestTile(params: GroundTestTileParams)
-                             (implicit p: Parameters)
-    extends BaseTile(params, crossing = SynchronousCrossing())(p) {
+abstract class GroundTestTile private (params: GroundTestTileParams, x: ClockCrossingType, q: Parameters)
+    extends BaseTile(params, x, HartsWontDeduplicate(params), q)
+{
+  def this(params: GroundTestTileParams)(implicit p: Parameters) = this(params, SynchronousCrossing(), p)
   val intInwardNode: IntInwardNode = IntIdentityNode()
   val intOutwardNode: IntOutwardNode = IntIdentityNode()
   val slaveNode: TLInwardNode = TLIdentityNode()

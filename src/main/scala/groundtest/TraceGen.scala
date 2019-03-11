@@ -577,8 +577,9 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 // Trace-generator wrapper
 // =======================
 
-class TraceGenTile(val id: Int, val params: TraceGenParams)(implicit p: Parameters) extends GroundTestTile(params) {
-  val masterNode: TLOutwardNode = dcacheOpt.map(_.node).getOrElse(TLIdentityNode())
+class TraceGenTile(hack: Int, val id: Int, val params: TraceGenParams, q: Parameters) extends GroundTestTile(params)(q) {
+  def this(id: Int, params: TraceGenParams)(implicit p: Parameters) = this(0, id, params, p)
+  val masterNode: TLOutwardNode = visibilityNode := dcacheOpt.map(_.node).getOrElse(TLIdentityNode())
   override lazy val module = new TraceGenTileModuleImp(this)
 }
 

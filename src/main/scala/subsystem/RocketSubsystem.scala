@@ -41,8 +41,7 @@ trait HasRocketTiles extends HasTiles
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
   val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
-    val rocket = LazyModule(new RocketTile(tp, crossing.crossingType)(augmentedTileParameters(tp)))
-      .suggestName(tp.name)
+    val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams)))
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
@@ -74,10 +73,9 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
+    with HasResetVectorWire
     with HasRocketTilesModuleImp {
   tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
-    wire.clock := clock
-    wire.reset := reset
     wire.hartid := UInt(i)
     wire.reset_vector := global_reset_vector
   }
