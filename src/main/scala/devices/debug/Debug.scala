@@ -1413,7 +1413,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
       * @return
       */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val debugLogicalTree: DebugLogicalTree = new DebugLogicalTree(device, dmInner, p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
       debugLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
   }
