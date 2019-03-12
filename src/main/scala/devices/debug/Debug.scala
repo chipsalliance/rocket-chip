@@ -544,7 +544,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     Annotated.params(this, cfg)
     val supportHartArray = cfg.supportHartArray & (nComponents > 1)
     val nExtTriggers = cfg.nExtTriggers
-    val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 1)) cfg.nHaltGroups
+    val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 0)) cfg.nHaltGroups
       else 0  // no halt groups possible if single hart with no external triggers
 
     val io = IO(new Bundle {
