@@ -158,7 +158,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_write = isWrite(s1_req.cmd)
   val s1_readwrite = s1_read || s1_write
   val s1_sfence = s1_req.cmd === M_SFENCE
-  val s1_flush_line = s1_req.cmd === M_FLUSH_ALL && s1_req.typ(0)
+  val s1_flush_line = s1_req.cmd === M_FLUSH_ALL && s1_req.size(0)
   val s1_flush_valid = Reg(Bool())
   val s1_waw_hazard = Wire(Bool())
 
@@ -206,14 +206,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.valid := s1_valid && !io.cpu.s1_kill && s1_cmd_uses_tlb
   tlb.io.req.bits.passthrough := s1_req.phys
   tlb.io.req.bits.vaddr := s1_req.addr
-  tlb.io.req.bits.size := s1_req.typ
+  tlb.io.req.bits.size := s1_req.size
   tlb.io.req.bits.cmd := s1_req.cmd
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_cmd_uses_tlb && tlb.io.resp.miss) { s1_nack := true }
 
   tlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
-  tlb.io.sfence.bits.rs1 := s1_req.typ(0)
-  tlb.io.sfence.bits.rs2 := s1_req.typ(1)
+  tlb.io.sfence.bits.rs1 := s1_req.size(0)
+  tlb.io.sfence.bits.rs2 := s1_req.size(1)
   tlb.io.sfence.bits.asid := io.cpu.s1_data.data
   tlb.io.sfence.bits.addr := s1_req.addr
 
@@ -245,7 +245,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
   val tl_d_data_encoded = Wire(encodeData(tl_out.d.bits.data, false.B).cloneType)
   val s1_all_data_ways = Vec(data.io.resp ++ (!cacheParams.separateUncachedResp).option(tl_d_data_encoded))
-  val s1_mask_xwr = new StoreGen(s1_req.typ, s1_req.addr, UInt(0), wordBytes).mask
+  val s1_mask_xwr = new StoreGen(s1_req.size, s1_req.addr, UInt(0), wordBytes).mask
   val s1_mask = Mux(s1_req.cmd === M_PWR, io.cpu.s1_data.mask, s1_mask_xwr)
   // for partial writes, s1_data.mask must be a subset of s1_mask_xwr
   assert(!(s1_valid_masked && s1_req.cmd === M_PWR) || (s1_mask_xwr | ~io.cpu.s1_data.mask).andR)
@@ -257,8 +257,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_masked = s2_valid_no_xcpt && Reg(next = !s1_nack)
   val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
-  val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.typ(0)
-  val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.typ(0)
+  val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.size(0)
+  val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.size(0)
   val s2_tlb_resp = Reg(tlb.io.resp.cloneType)
   val s2_uncached = !s2_tlb_resp.cacheable || s2_req.no_alloc && !s2_tlb_resp.must_alloc
   val s2_uncached_resp_addr = Reg(s2_req.addr.cloneType) // should be DCE'd in synthesis
@@ -467,7 +467,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
   val acquire_address = (s2_req.addr >> idxLSB) << idxLSB
   val access_address = s2_req.addr
-  val a_size = mtSize(s2_req.typ)
+  val a_size = s2_req.size
   val a_data = Fill(beatWords, pstore1_data)
   val get     = edge.Get(a_source, access_address, a_size)._2
   val put     = edge.Put(a_source, access_address, a_size, a_data)._2
@@ -556,7 +556,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
           if (!cacheParams.pipelineWayMux)
             s1_data_way := 1.U << nWays
           s2_req.cmd := M_XRD
-          s2_req.typ := uncachedResp.typ
+          s2_req.size := uncachedResp.size
+          s2_req.signed := uncachedResp.signed
           s2_req.tag := uncachedResp.tag
           s2_req.addr := {
             require(rowOffBits >= beatOffBits)
@@ -773,8 +774,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.uncached_resp.map { resp =>
     resp.valid := tl_out.d.valid && grantIsUncachedData
     resp.bits.tag := uncachedResp.tag
-    resp.bits.typ := uncachedResp.typ
-    resp.bits.data := new LoadGen(uncachedResp.typ, mtSigned(uncachedResp.typ), uncachedResp.addr, s1_uncached_data_word, false.B, wordBytes).data
+    resp.bits.size := uncachedResp.size
+    resp.bits.signed := uncachedResp.signed
+    resp.bits.data := new LoadGen(uncachedResp.size, uncachedResp.signed, uncachedResp.addr, s1_uncached_data_word, false.B, wordBytes).data
     when (grantIsUncachedData && !resp.ready) {
       tl_out.d.ready := false
     }
@@ -784,7 +786,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_word = (0 until rowBits by wordBits).map(i => s2_data_uncorrected(wordBits+i-1,i)).reduce(_|_)
   val s2_data_word_corrected = (0 until rowBits by wordBits).map(i => s2_data_corrected(wordBits+i-1,i)).reduce(_|_)
   val s2_data_word_possibly_uncached = Mux(cacheParams.pipelineWayMux && doUncachedResp, s2_uncached_data_word, 0.U) | s2_data_word
-  val loadgen = new LoadGen(s2_req.typ, mtSigned(s2_req.typ), s2_req.addr, s2_data_word_possibly_uncached, s2_sc, wordBytes)
+  val loadgen = new LoadGen(s2_req.size, s2_req.signed, s2_req.addr, s2_data_word_possibly_uncached, s2_sc, wordBytes)
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.resp.bits.data_raw := s2_data_word
@@ -977,13 +979,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   def eccByteMask(byteMask: UInt) = FillInterleaved(eccBytes, eccMask(byteMask))
 
   def likelyNeedsRead(req: HellaCacheReq) = {
-    val res = !req.cmd.isOneOf(M_XWR, M_PFW) || mtSize(req.typ) < log2Ceil(eccBytes)
+    val res = !req.cmd.isOneOf(M_XWR, M_PFW) || req.size < log2Ceil(eccBytes)
     assert(!needsRead(req) || res)
     res
   }
   def needsRead(req: HellaCacheReq) =
     isRead(req.cmd) ||
-    (isWrite(req.cmd) && (req.cmd === M_PWR || mtSize(req.typ) < log2Ceil(eccBytes)))
+    (isWrite(req.cmd) && (req.cmd === M_PWR || req.size < log2Ceil(eccBytes)))
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     cover(cond, s"DCACHE_$label", "MemorySystem;;" + desc)

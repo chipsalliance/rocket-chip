@@ -94,7 +94,8 @@ trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
   val tag  = Bits(width = dcacheReqTagBits)
   val cmd  = Bits(width = M_SZ)
-  val typ  = Bits(width = MT_SZ)
+  val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
+  val signed = Bool()
 }
 
 trait HasCoreData extends HasCoreParameters {
