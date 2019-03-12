@@ -14,7 +14,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 object DsbBusConsts {
@@ -1415,31 +1415,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMDebug)
-    }
-
-    def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(dmInner.dmInner.module.omRegMap))
-      val cfg : DebugModuleParams = p(DebugModuleParams)
-
-      Seq[OMComponent](
-        OMDebug(
-          memoryRegions = memRegions,
-          interrupts = Nil,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC-V Debug Specification",
-              version = "0.13"
-            )
-          ),
-          nAbstractDataWords = cfg.nAbstractDataWords,
-          nProgramBufferWords = cfg.nProgramBufferWords,
-          interfaceType = OMDebug.getDebugInterfaceType(p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI)),
-        )
-      )
-    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
@@ -1473,6 +1448,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
-
   }
+
+  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.omRegMap,
+    p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }
