@@ -4,7 +4,7 @@
 package freechips.rocketchip.tile
 
 import Chisel._
-import diplomaticobjectmodel.logicaltree.RocketLogicalTree
+import diplomaticobjectmodel.logicaltree.{LogicalTree, RocketLogicalTree}
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -92,7 +92,6 @@ class RocketTile(
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
       val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
       rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
-<<<<<<< HEAD
     }
 
     def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
@@ -142,12 +141,6 @@ class RocketTile(
         dcache = omDCache,
         icache = omICache
       ))
-    }
-  }
-
-  class RocketLogicalTree extends LogicalTree {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      cpuDevice.getOMComponents(resourceBindingsMap)
     }
   }
 
