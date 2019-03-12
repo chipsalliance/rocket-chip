@@ -7,6 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.RocketLogicalTree
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMPrivilegeMode, _}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
@@ -82,16 +83,22 @@ class RocketTile private(
   val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
     "sifive,itim" -> frontend.icache.device.asProperty))).getOrElse(Nil)
 
-  val cpuDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
+  val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
     }
 
+    /**
+      * This function is for backwards compatiblity and will be removed in the future
+      *
+      * @param resourceBindingsMap
+      * @return
+      */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val cores = getOMRocketCores(resourceBindingsMap)
-      cores
+      val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
+      rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
 
     def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
@@ -109,13 +116,6 @@ class RocketTile private(
       require(!(omDTIM.isDefined && omDCache.isDefined))
 
       omDTIM.orElse(omDCache)
-    }
-
-    def getInterruptTargets(): Seq[OMInterruptTarget] = {
-      Seq(OMInterruptTarget(
-        hartId = rocketParams.hartId,
-        modes = OMModes.getModes(rocketParams.core.useVM)
-      ))
     }
 
     def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
@@ -143,6 +143,8 @@ class RocketTile private(
       ))
     }
   }
+
+  val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
 
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(hartId))
