@@ -56,7 +56,7 @@ trait HasRocketTiles extends HasTiles
   }).toList
 
   def getOMRocketInterruptTargets(): Seq[OMInterruptTarget] =
-    rocketTiles.flatMap(c => c.cpuDevice.getInterruptTargets())
+    rocketTiles.flatMap(c => c.rocketLogicalTree.getInterruptTargets())
 
   def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
     rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
