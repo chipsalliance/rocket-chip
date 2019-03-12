@@ -54,8 +54,13 @@ trait HasRocketTiles extends HasTiles
     t.module.core.rocketImpl.coreMonitorBundle
   }).toList
 
+  /**
+    * getOMRocketInterruptTargets and getOMRocketCores are deprecated
+    *
+    * @return
+    */
   def getOMRocketInterruptTargets(): Seq[OMInterruptTarget] =
-    rocketTiles.flatMap(c => c.cpuDevice.getInterruptTargets())
+    rocketTiles.flatMap(c => c.rocketLogicalTree.getInterruptTargets())
 
   def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
     rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
