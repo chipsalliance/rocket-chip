@@ -81,8 +81,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       Description(name, mapping ++ extra)
     }
 
+    /**
+      * This function is for backwards compatiblity and will be removed in the future
+      *
+      * @param resourceBindingsMap
+      * @return
+      */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val plicLogicalTree = new PLICLogicalTree(device, module.omRegMap, nPriorities)
       plicLogicalTree.getOMComponents(resourceBindingsMap, Nil)    }
   }
 
