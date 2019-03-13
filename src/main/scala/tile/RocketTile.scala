@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.RocketLogicalTree
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.RocketLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMPrivilegeMode, _}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
@@ -97,7 +97,7 @@ class RocketTile private(
       * @return
       */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
+      val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
       rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
 
@@ -143,8 +143,6 @@ class RocketTile private(
       ))
     }
   }
-
-  val rocketLogicalTree: RocketLogicalTree = new RocketLogicalTree(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
 
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(hartId))

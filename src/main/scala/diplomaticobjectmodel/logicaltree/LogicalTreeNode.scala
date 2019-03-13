@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import scala.collection.mutable.ArrayBuffer
 
 
-trait LogicalTree {
+trait LogicalTreeNode {
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent]): Seq[OMComponent]
 }
 
@@ -24,14 +24,14 @@ trait LogicalTree {
   * @param child The child LogicalTree node
   */
 case class LogicalTreeEdge(
-  parent: LogicalTree,
-  child: LogicalTree
+  parent: LogicalTreeNode,
+  child: LogicalTreeNode
 )
 
 object LogicalModuleTree {
   val edges = ArrayBuffer[LogicalTreeEdge]()
 
-  def add(parent: LogicalTree, child: LogicalTree): Unit = {
+  def add(parent: LogicalTreeNode, child: LogicalTreeNode): Unit = {
      edges += LogicalTreeEdge(parent, child)
   }
 
@@ -41,16 +41,12 @@ object LogicalModuleTree {
     *
     * @return
     */
-  def getTreeMap(): Map[LogicalTree, List[LogicalTree]] = {
+  def getTreeMap: Map[LogicalTreeNode, List[LogicalTreeNode]] = {
     edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child).toList)}
   }
 
-  def findRoot(): LogicalTree = {
-    val values = getTreeMap().values.flatten.toSet
-    val keys = getTreeMap().keys.toSet
-
-    val roots = values.diff(keys)
-
+  def findRoot: LogicalTreeNode = {
+    val roots = getTreeMap().collect{ case (k, _) if !getTreeMap().exists(_._2.contains(k)) => k }
     assert(roots.size == 1, "Logical Tree contains more than one root.")
     roots.head
   }
@@ -59,11 +55,11 @@ object LogicalModuleTree {
 case class Tree[A](parent: A, children: List[Tree[A]])
 
 object OMLogicalTree {
-  def makeTree(): Tree[LogicalTree] = {
-    val root: LogicalTree = LogicalModuleTree.findRoot()
+  def makeTree(): Tree[LogicalTreeNode] = {
+    val root: LogicalTreeNode = LogicalModuleTree.findRoot()
     val treeMap = LogicalModuleTree.getTreeMap()
 
-    def recurse(treeNode: LogicalTree): Tree[LogicalTree] = {
+    def recurse(treeNode: LogicalTreeNode): Tree[LogicalTreeNode] = {
       Tree(treeNode, treeMap.getOrElse(treeNode, Nil).map(recurse(_)))
     }
     recurse(root)
@@ -78,7 +74,7 @@ object OMTree {
     * @param resourceBindingsMap
     * @return
     */
-  def tree(t: Tree[LogicalTree], resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+  def tree(t: Tree[LogicalTreeNode], resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
     val childComponents =  t.children.flatMap(tree(_, resourceBindingsMap))
     t.parent.getOMComponents(resourceBindingsMap, childComponents)
   }

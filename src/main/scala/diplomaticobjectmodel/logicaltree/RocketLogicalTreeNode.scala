@@ -8,18 +8,16 @@ import freechips.rocketchip.rocket.{DCacheParams, Frontend, ScratchpadSlavePort}
 import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 
 
-class RocketLogicalTree(
+class RocketLogicalTreeNode(
   device: SimpleDevice,
-  tileParams: TileParams,
   rocketParams: RocketTileParams,
   frontEnd: Frontend,
   dtim_adapter: Option[ScratchpadSlavePort],
-  XLen: Int) extends LogicalTree {
+  XLen: Int) extends LogicalTreeNode {
 
   def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
     val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
-    val omDCache: Option[OMDCache] = tileParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
-
+    val omDCache: Option[OMDCache] = rocketParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
     require(!(omDTIM.isDefined && omDCache.isDefined))
 
     omDTIM.orElse(omDCache)
@@ -45,8 +43,8 @@ class RocketLogicalTree(
       fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
       performanceMonitor = PerformanceMonitor.permon(coreParams),
       pmp = OMPMP.pmp(coreParams),
-      documentationName = tileParams.name.getOrElse("rocket"),
-      hartIds = Seq(tileParams.hartId),
+      documentationName = rocketParams.name.getOrElse("rocket"),
+      hartIds = Seq(rocketParams.hartId),
       hasVectoredInterrupts = true,
       interruptLatency = 4,
       nLocalInterrupts = coreParams.nLocalInterrupts,
