@@ -23,7 +23,8 @@ trait HasL1CacheParameters extends HasTileParameters {
   def blockOffBits = lgCacheBlockBytes
   def idxBits = log2Up(cacheParams.nSets)
   def untagBits = blockOffBits + idxBits
-  def tagBits = tlBundleParams.addressBits - (if (usingVM) untagBits min pgIdxBits else untagBits)
+  def pgUntagBits = if (usingVM) untagBits min pgIdxBits else untagBits
+  def tagBits = tlBundleParams.addressBits - pgUntagBits
   def nWays = cacheParams.nWays
   def wayBits = log2Up(nWays)
   def isDM = nWays == 1
