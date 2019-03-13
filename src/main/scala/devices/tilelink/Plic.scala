@@ -88,7 +88,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       * @return
       */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      plicLogicalTree.getOMComponents(resourceBindingsMap, Nil)    }
+      plicLogicalTree.getOMComponents(resourceBindingsMap, Nil)
+    }
   }
 
   val node : TLRegisterNode = TLRegisterNode(
@@ -296,7 +297,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       )
     }
 
-    val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+    val omRegMap: OMRegisterMap  = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+
+    def getOMRegMap(): OMRegisterMap = omRegMap
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
@@ -318,7 +321,10 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  val plicLogicalTree = new PLICLogicalTree(device, module.omRegMap, nPriorities)
+  def getOMRegMap(): OMRegisterMap = OMRegisterMap(registerFields = Nil, groups = Nil) // module.getOMRegMap()
+  def getDevice(): SimpleDevice = new SimpleDevice("", Nil) //device
+
+  val plicLogicalTree = new PLICLogicalTree(getDevice, getOMRegMap, nPriorities)
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {

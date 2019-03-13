@@ -48,7 +48,6 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       * @return
       */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val clintLogicalTree: CLINTLogicalTree = new CLINTLogicalTree(device, module.omRegMap)
       clintLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
   }
@@ -102,9 +101,11 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"),
         RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
     )
+
+    def getOMRegMap(): OMRegisterMap = omRegMap
   }
 
-  val clintLogicalTree: CLINTLogicalTree = new CLINTLogicalTree(device, module.omRegMap)
+  val clintLogicalTree: CLINTLogicalTree = new CLINTLogicalTree(device, module.getOMRegMap)
 }
 
 /** Trait that will connect a CLINT to a subsystem */
