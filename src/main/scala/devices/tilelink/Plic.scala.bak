@@ -13,9 +13,8 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.PLICLogicalTree
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -83,14 +82,16 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       Description(name, mapping ++ extra)
     }
 
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
-    }
-
-    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    /**
+      * This function is for backwards compatiblity and will be removed in the future
+      *
+      * @param resourceBindingsMap
+      * @return
+      */
+    private def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
       val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
-      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
-      val Description(name, mapping) = describe(resourceBindings)
+
+      val ints = DiplomaticObjectModelAddressing.describeInterrupts(device.describe(resourceBindings).name, resourceBindings)
 
       Seq[OMComponent](
         OMPLIC(
@@ -107,6 +108,10 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
           targets = Nil
         )
       )
+    }
+
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      getOMComponents(resourceBindingsMap)
     }
   }
 
@@ -315,7 +320,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       )
     }
 
-    val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+    val omRegMap: OMRegisterMap  = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+
+    def getOMRegMap(): OMRegisterMap = omRegMap
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
@@ -337,13 +344,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  class PLICLogicalTreeNode extends LogicalTreeNode {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(resourceBindingsMap)
-    }
-  }
-
-  val plicLogicalTree = new PLICLogicalTreeNode() //(device, module.omRegMap, nPriorities)
+  val plicLogicalTree = new PLICLogicalTree(device, module.omRegMap, nPriorities)
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
