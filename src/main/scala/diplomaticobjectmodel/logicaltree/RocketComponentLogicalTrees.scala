@@ -8,10 +8,10 @@ import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, Si
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
-class CLINTLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap) extends LogicalTree {
+class CLINTLogicalTree(device: SimpleDevice, f: () => OMRegisterMap) extends LogicalTree {
 
   def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(omRegMap))
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(f()))
 
     Seq[OMComponent](
       OMCLINT(
@@ -32,11 +32,11 @@ class CLINTLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap) extends L
   }
 }
 
-class PLICLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap, nPriorities: Int) extends LogicalTree {
+class PLICLogicalTree(device: () => SimpleDevice, f: () => OMRegisterMap, nPriorities: Int) extends LogicalTree {
   private def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(omRegMap))
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(f()))
 
-    val ints = DiplomaticObjectModelAddressing.describeInterrupts(device.describe(resourceBindings).name, resourceBindings)
+    val ints = DiplomaticObjectModelAddressing.describeInterrupts(device().describe(resourceBindings).name, resourceBindings)
 
     Seq[OMComponent](
       OMPLIC(
@@ -56,14 +56,13 @@ class PLICLogicalTree(device: SimpleDevice, omRegMap : OMRegisterMap, nPrioritie
   }
 
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindingsMap, getOMPLIC)
   }
 }
 
-
-class DebugLogicalTree(device: SimpleDevice, dmInner: TLDebugModuleInnerAsync, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTree {
+class DebugLogicalTree(device: SimpleDevice, f: () => OMRegisterMap, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTree {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(dmInner.dmInner.module.omRegMap))
+    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(f()))
     val cfg : DebugModuleParams = debugModuleParams
 
     Seq[OMComponent](
