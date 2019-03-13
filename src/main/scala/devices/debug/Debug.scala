@@ -424,6 +424,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
         HAWINDOWWrDataVal, HAWINDOWRdEn, HAWINDOWWrEn, Some(RegFieldDesc("dmi_hawindow", "", reset=Some(0))))) else Nil)
     )
 
+    def getOMRegMap(): OMRegisterMap = omRegMap
+
     //--------------------------------------------------------------
     // Interrupt Registers
     //--------------------------------------------------------------
@@ -1018,6 +1020,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_SBADDRESS3 << 2) -> sbAddrFields(3) 
     )
 
+    def getOMRegMap(): OMRegisterMap = omRegMap
+
     // Abstract data mem is written by both the tile link interface and DMI...
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
       when (dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
@@ -1178,7 +1182,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Hart Bus Access
     //--------------------------------------------------------------
 
-    tlNode.regmap(
+    val omTLRegMap = tlNode.regmap(
       // This memory is writable.
       HALTED      -> Seq(WNotifyWire(sbIdWidth, hartHaltedId, hartHaltedWrEn,
         "debug_hart_halted", "Debug ROM Causes hart to write its hartID here when it is in Debug Mode.")),
@@ -1204,6 +1208,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
         DebugRomContents().zipWithIndex.map{case (x, i) => RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
     )
+
+    def getOMTLRegMap(): OMRegisterMap = omTLRegMap
 
     // Override System Bus accesses with dmactive reset.
     when (~io.dmactive){
@@ -1448,8 +1454,15 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
-
   }
 
-  val debugLogicalTree = new DebugLogicalTree(device, dmInner, p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
+  // TODO is this needed?
+  def getOMRegMaps(): OMRegisterMap = {
+    dmInner.dmInner.module.getOMRegMap()
+    dmInner.dmInner.module.getOMTLRegMap()
+    dmOuter.dmOuter.module.getOMRegMap()
+  }
+
+  val debugLogicalTree = new DebugLogicalTree(device, dmInner.dmInner.module.getOMRegMap,
+    p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }
