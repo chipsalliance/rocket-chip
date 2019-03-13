@@ -101,7 +101,9 @@ object SystemBusAccessModule
       }
     }
 
-    sb2tl.module.io.addrIn := Mux(sb2tl.module.io.rdEn,Cat(SBADDRESSWrData.reverse),Cat(SBADDRESSFieldsReg.reverse))
+    sb2tl.module.io.addrIn := Mux(sb2tl.module.io.rdEn,
+      Cat(Cat(SBADDRESSFieldsReg.drop(1).reverse), SBADDRESSWrData(0)),
+      Cat(SBADDRESSFieldsReg.reverse))
     anyAddressWrEn         := SBADDRESSWrEn.reduce(_ || _)
 
     // --- System Bus Data Registers ---           
