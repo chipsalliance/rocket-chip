@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.CLINTLogicalTree
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.CLINTLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
@@ -105,7 +105,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     def getOMRegMap(): OMRegisterMap = omRegMap
   }
 
-  val clintLogicalTree: CLINTLogicalTree = new CLINTLogicalTree(device, module.getOMRegMap)
+  val clintLogicalTree: CLINTLogicalTreeNode = new CLINTLogicalTreeNode(device, module.getOMRegMap)
 }
 
 /** Trait that will connect a CLINT to a subsystem */

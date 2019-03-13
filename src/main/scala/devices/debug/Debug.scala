@@ -14,7 +14,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.DebugLogicalTree
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.DebugLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 object DsbBusConsts {
@@ -1463,6 +1463,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     dmOuter.dmOuter.module.getOMRegMap()
   }
 
-  val debugLogicalTree = new DebugLogicalTree(device, dmInner.dmInner.module.getOMRegMap,
+  val debugLogicalTree = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
     p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }
