@@ -3,7 +3,10 @@
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
 import freechips.rocketchip.diplomacy.ResourceBindingsMap
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.OMLogicalTree.tree
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
+
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 
@@ -77,6 +80,33 @@ object OMTree {
   def tree(t: Tree[LogicalTreeNode], resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
     val childComponents =  t.children.flatMap(tree(_, resourceBindingsMap))
     t.parent.getOMComponents(resourceBindingsMap, childComponents)
+  }
+}
+
+object OMLogicalTree {
+  private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
+  def add(edge: LogicalTreeEdge): Unit = {
+    val l = tree.get(edge.parent)
+    val x = l.getOrElse(Seq(edge.child))
+    val x = tree.get(edge.parent).getOrElse(_:Seq[LogicalTreeNode], Seq(edge.child))
+    val xx = tree.get(edge.parent).getOrElse(edge.child +: l.getOrElse(Nil), Seq(edge.child))
+    val xx1 = tree.get(edge.parent).map{
+      case x =>
+        val xx = x
+        x
+    }
+    val xx1 = tree.get(edge.parent).map(_)
+
+    val xxx = tree.get(edge.parent).getOrElse(edge.child +: _:Seq[LogicalTreeNode], Seq(edge.child))
+    x.map(tree.put(edge.parent, _))
+  }
+  def roots: Seq[LogicalTreeNode] = { ... }
+  def isTree: Boolean = roots.size == 1
+  def bind(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+    def recurse(node: LogicalTreeNode): Seq[OMComponent] =
+      node.getOMComponents(resourceBindingsMap, tree(node).flatMap(recurse))
+    require(isTree)
+    recurse(roots.head)
   }
 }
 
