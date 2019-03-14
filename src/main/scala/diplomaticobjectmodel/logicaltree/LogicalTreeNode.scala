@@ -45,8 +45,8 @@ object LogicalModuleTree {
     edges.groupBy(_.parent).map{ case (k, v) => (k, v.map(_.child).toList)}
   }
 
-  def findRoot: LogicalTreeNode = {
-    val roots = getTreeMap.collect{ case (k, _) if !getTreeMap.exists(_._2.contains(k)) => k }
+  def findRoot(treeMap: Map[LogicalTreeNode, List[LogicalTreeNode]]): LogicalTreeNode = {
+    val roots = treeMap.collect{ case (k, _) if !treeMap.exists(_._2.contains(k)) => k }
     assert(roots.size == 1, "Logical Tree contains more than one root.")
     roots.head
   }
@@ -56,8 +56,8 @@ case class Tree[A](parent: A, children: List[Tree[A]])
 
 object OMLogicalTree {
   def makeTree(): Tree[LogicalTreeNode] = {
-    val root: LogicalTreeNode = LogicalModuleTree.findRoot
     val treeMap = LogicalModuleTree.getTreeMap
+    val root: LogicalTreeNode = LogicalModuleTree.findRoot(treeMap)
 
     def recurse(treeNode: LogicalTreeNode): Tree[LogicalTreeNode] = {
       Tree(treeNode, treeMap.getOrElse(treeNode, Nil).map(recurse(_)))
