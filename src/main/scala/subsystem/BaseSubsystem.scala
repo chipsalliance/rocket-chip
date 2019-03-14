@@ -6,10 +6,10 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink.TLPLIC
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.util._
+
 
 case object SystemBusKey extends Field[SystemBusParams]
 case object FrontBusKey extends Field[FrontBusParams]
@@ -75,18 +75,8 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   }
 
   class BaseSubsystemLogicalTreeNode extends LogicalTreeNode {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      //
-      //      List(
-      //        OMCoreComplex(
-      //          components = cs,
-      //          documentationName = "",
-      //          externalGlobalInterrupts = getOMInterruptDevice(resourceBindingsMap)
-      //        )
-      //      )
-      //    }
-
-      Nil
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, cs: Seq[OMComponent]): Seq[OMComponent] = {
+      cs
     }
   }
 
