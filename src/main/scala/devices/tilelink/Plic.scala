@@ -373,6 +373,9 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
     val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
+
+    LogicalModuleTree.add(logicalTree, plic.plicLogicalTree)
+
     plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
     plic.intnode :=* ibus.toPLIC
     plic
