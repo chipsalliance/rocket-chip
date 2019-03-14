@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.CLINTLogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{CLINTLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
@@ -112,6 +112,8 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
+    LogicalModuleTree.add(logicalTree, clint.clintLogicalTree)
+
     clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
     clint
   }

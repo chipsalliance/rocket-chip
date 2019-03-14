@@ -97,7 +97,7 @@ class RocketTile private(
       * @return
       */
     override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, tileParams, rocketParams, frontend, dtim_adapter, p(XLen))
+      val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, frontend, dtim_adapter, p(XLen))
       rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
     }
 
@@ -159,6 +159,8 @@ class RocketTile private(
     if (!rocketParams.boundaryBuffers) super.makeSlaveBoundaryBuffers
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
   }
+
+  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, frontend, dtim_adapter, p(XLen))
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
