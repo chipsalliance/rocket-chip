@@ -63,14 +63,6 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
   val icache = LazyModule(new ICache(icacheParams, hartid))
   val masterNode = icache.masterNode
   val slaveNode = icache.slaveNode
-
-  def getOMICache(resourceBindingsMap: ResourceBindingsMap): OMICache = {
-    icache.device.getOMComponents(resourceBindingsMap) match {
-      case Seq() => throw new IllegalArgumentException
-      case Seq(h) => h.asInstanceOf[OMICache]
-      case _ => throw new IllegalArgumentException
-    }
-  }
 }
 
 class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)

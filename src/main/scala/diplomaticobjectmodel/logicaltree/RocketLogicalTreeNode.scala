@@ -15,6 +15,14 @@ class RocketLogicalTreeNode(
   dtim_adapter: Option[ScratchpadSlavePort],
   XLen: Int) extends LogicalTreeNode {
 
+  def getOMICache(resourceBindingsMap: ResourceBindingsMap): OMICache = {
+    frontEnd.icache.device.getOMComponents(resourceBindingsMap) match {
+      case Seq() => throw new IllegalArgumentException
+      case Seq(h) => h.asInstanceOf[OMICache]
+      case _ => throw new IllegalArgumentException
+    }
+  }
+
   def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
     val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
     val omDCache: Option[OMDCache] = rocketParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
@@ -33,7 +41,7 @@ class RocketLogicalTreeNode(
   override def  getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
-    val omICache: OMICache = frontEnd.getOMICache(resourceBindingsMap)
+    val omICache: OMICache = getOMICache(resourceBindingsMap)
 
     val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
 
