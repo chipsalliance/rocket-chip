@@ -129,7 +129,7 @@ class RocketTile private(
         isa = OMISA.rocketISA(coreParams, xLen),
         mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
         fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
-        performanceMonitor = PerformanceMonitor.permon(coreParams),
+        performanceMonitor = PerformanceMonitor.perfmon(coreParams),
         pmp = OMPMP.pmp(coreParams),
         documentationName = tileParams.name.getOrElse("rocket"),
         hartIds = Seq(hartId),
