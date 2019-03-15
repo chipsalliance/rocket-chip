@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import Chisel._
-import chisel3.core.{Input, IntParam, Output}
+import chisel3.core.{IntParam, Input, Output}
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
