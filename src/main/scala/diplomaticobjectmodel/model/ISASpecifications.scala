@@ -2,6 +2,9 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.tile.CoreParams
+
 sealed trait PrivilegedArchitectureExtension extends OMEnum
 case object MachineLevelISA extends PrivilegedArchitectureExtension
 case object SupervisorLevelISA extends PrivilegedArchitectureExtension
@@ -37,4 +40,12 @@ object ISAExtensions {
   )
 
   def specVersion(extension: OMExtensionType, version: String): OMSpecification = OMSpecification(specifications(extension), version)
+
+  def customExtensions(coreParams: CoreParams): List[OMCustomExtensionSpecification] = {
+    val cflush = coreParams.haveCFlush.option(Xsifivecflushdlone("", ""))
+    List[Option[OMCustomExtensionSpecification]](cflush).flatten
+  }
+
 }
+
+
