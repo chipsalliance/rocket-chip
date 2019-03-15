@@ -13,7 +13,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.DebugLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -423,8 +422,6 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWRdData.asUInt(),
         HAWINDOWWrDataVal, HAWINDOWRdEn, HAWINDOWWrEn, Some(RegFieldDesc("dmi_hawindow", "", reset=Some(0))))) else Nil)
     )
-
-    def getOMRegMap(): OMRegisterMap = omRegMap
 
     //--------------------------------------------------------------
     // Interrupt Registers
@@ -1209,8 +1206,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         DebugRomContents().zipWithIndex.map{case (x, i) => RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
     )
 
-    def getOMTLRegMap(): OMRegisterMap = omTLRegMap
-
     // Override System Bus accesses with dmactive reset.
     when (~io.dmactive){
       abstractDataMem.foreach  {x => x := 0.U}
@@ -1454,13 +1449,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
-  }
-
-  // TODO is this needed?
-  def getOMRegMaps(): OMRegisterMap = {
-    dmInner.dmInner.module.getOMRegMap()
-    dmInner.dmInner.module.getOMTLRegMap()
-    dmOuter.dmOuter.module.getOMRegMap()
   }
 
   val debugLogicalTree = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
