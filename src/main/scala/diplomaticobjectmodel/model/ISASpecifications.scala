@@ -45,7 +45,6 @@ object ISAExtensions {
     val cflush = coreParams.haveCFlush.option(Xsifivecflushdlone("", ""))
     List[Option[OMCustomExtensionSpecification]](cflush).flatten
   }
-
 }
 
 

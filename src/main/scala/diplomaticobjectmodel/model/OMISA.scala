@@ -29,7 +29,7 @@ case class Xsifivecflushdlone(
   name: String,
   version: String,
   override val _types: Seq[String] = Seq("OMXsifivecflushdlone", "OMCustomExtensionSpecification", "OMSpecification")
-) extends OMCustomExtensionSpecification// Cache flush
+) extends OMCustomExtensionSpecification
 
 case class OMISA(
   xLen: Int,
@@ -43,7 +43,7 @@ case class OMISA(
   u: Option[OMSpecification],
   s: Option[OMSpecification],
   addressTranslationModes: Seq[OMAddressTranslationMode],
-  customExtensions: List[OMCustomExtensionSpecification],
+  customExtensions: Seq[OMCustomExtensionSpecification],
   _types: Seq[String] = Seq("OMISA", "OMCompoundType")
 ) extends OMCompoundType
 
