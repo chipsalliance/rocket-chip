@@ -74,6 +74,8 @@ abstract class Device
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
 
+  def getMemory(name: String, omRegMap : Option[OMRegisterMap], resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = Nil
+
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = Nil
 
   def parent: Option[Device] = None

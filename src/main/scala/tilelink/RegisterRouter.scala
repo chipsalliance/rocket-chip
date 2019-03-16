@@ -7,6 +7,7 @@ import chisel3.experimental.RawModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, DiplomaticObjectModelUtils}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
@@ -40,6 +41,13 @@ case class TLRegisterNode(
   address.foreach { case a =>
     require (a.widen(size-1).base == address.head.widen(size-1).base,
       s"TLRegisterNode addresses (${address}) must be aligned to its size ${size}")
+  }
+
+  def getMemory(name: String, omRegMap : Option[OMRegisterMap], resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = {
+    val resourceBindings = resourceBindingsMap.map.get(device)
+    assert(device != None, s"Device is null : ${device.label}")
+
+    resourceBindings.map { case rb => DiplomaticObjectModelAddressing.getOMMemoryRegions(name, rb, omRegMap) }.get
   }
 
   // Calling this method causes the matching TL2 bundle to be
@@ -173,7 +181,7 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 
 /** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
 trait HasTLControlRegMap { this: RegisterRouter[_] =>
-  protected val controlNode = TLRegisterNode(
+  val controlNode = TLRegisterNode(
     address = address,
     device = device,
     deviceKey = "reg/control",
@@ -186,5 +194,5 @@ trait HasTLControlRegMap { this: RegisterRouter[_] =>
   val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
 }

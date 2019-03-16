@@ -5,6 +5,8 @@ package freechips.rocketchip.regmapper
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegisterMap}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 
@@ -32,6 +34,11 @@ abstract class RegisterRouter[T <: Data](devParams: RegisterRouterParams)(implic
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ extraResources(resources))
+    }
+
+    override def getMemory(name: String, omRegMap : Option[OMRegisterMap], resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = {
+      val resourceBindings = resourceBindingsMap.map.get(this)
+      resourceBindings.map { case rb => DiplomaticObjectModelAddressing.getOMMemoryRegions(name, rb, omRegMap) }.get
     }
   }
   // Allow devices to extend the DTS mapping
