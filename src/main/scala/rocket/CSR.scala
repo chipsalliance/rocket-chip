@@ -354,9 +354,9 @@ class CSRFile(
     (if (usingAtomics) "A" else "") +
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +
-    (if (usingCompressed) "C" else "") +
-    (if (usingRoCC) "X" else "")
+    (if (usingCompressed) "C" else "")
   val isaString = "I" + isaMaskString +
+    "X" + // Custom extensions always present (e.g. CEASE instruction)
     (if (usingVM) "S" else "") +
     (if (usingUser) "U" else "")
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
