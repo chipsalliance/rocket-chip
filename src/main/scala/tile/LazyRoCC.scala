@@ -179,7 +179,8 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   io.mem.req.bits.addr := addend
   io.mem.req.bits.tag := addr
   io.mem.req.bits.cmd := M_XRD // perform a load (M_XWR for stores)
-  io.mem.req.bits.typ := MT_D // D = 8 bytes, W = 4, H = 2, B = 1
+  io.mem.req.bits.size := log2Ceil(8).U
+  io.mem.req.bits.signed := Bool(false)
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.req.bits.phys := Bool(false)
 }

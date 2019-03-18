@@ -26,6 +26,7 @@ case class DCacheParams(
     nRPQ: Int = 16,
     nMMIOs: Int = 1,
     blockBytes: Int = 64,
+    separateUncachedResp: Boolean = false,
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
     clockGate: Boolean = false,
@@ -93,7 +94,8 @@ trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
   val tag  = Bits(width = dcacheReqTagBits)
   val cmd  = Bits(width = M_SZ)
-  val typ  = Bits(width = MT_SZ)
+  val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
+  val signed = Bool()
 }
 
 trait HasCoreData extends HasCoreParameters {
@@ -102,6 +104,7 @@ trait HasCoreData extends HasCoreParameters {
 
 class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
   val phys = Bool()
+  val no_alloc = Bool()
 }
 
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
@@ -153,10 +156,13 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
   val s2_nack_cause_raw = Bool(INPUT) // reason for nack is store-load RAW hazard (performance hint)
   val s2_kill = Bool(OUTPUT) // kill req from two cycles ago
+  val s2_uncached = Bool(INPUT) // advisory signal that the access is MMIO
+  val s2_paddr = UInt(INPUT, paddrBits) // translated address
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val s2_xcpt = (new HellaCacheExceptions).asInput
+  val uncached_resp = tileParams.dcache.get.separateUncachedResp.option(Decoupled(new HellaCacheResp).flip)
   val ordered = Bool(INPUT)
   val perf = new HellaCachePerfEvents().asInput
 

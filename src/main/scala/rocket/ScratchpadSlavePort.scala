@@ -72,7 +72,8 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
           TLAtomics.AND           -> M_XA_AND,
           TLAtomics.SWAP          -> M_XA_SWAP)),
         TLMessages.Get            -> M_XRD))
-      req.typ := a.size
+      req.size := a.size
+      req.signed := false
       req.addr := a.address
       req.tag := UInt(0)
       req.phys := true
