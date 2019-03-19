@@ -89,59 +89,6 @@ class RocketTile private(
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
     }
-
-    /**
-      * This function is for backwards compatiblity and will be removed in the future
-      *
-      * @param resourceBindingsMap
-      * @return
-      */
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, frontend, dtim_adapter, p(XLen))
-      rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil)
-    }
-
-    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
-      rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
-        case Seq() => throw new IllegalArgumentException
-        case Seq(h) => h.asInstanceOf[OMICache]
-        case _ => throw new IllegalArgumentException
-      })
-    }
-
-    def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
-      val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
-      val omDCache: Option[OMDCache] = tileParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
-
-      require(!(omDTIM.isDefined && omDCache.isDefined))
-
-      omDTIM.orElse(omDCache)
-    }
-
-    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
-      val coreParams = rocketParams.core
-
-      val omICache = getOMICacheFromBindings(resourceBindingsMap)
-
-      val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
-
-      Seq(OMRocketCore(
-        isa = OMISA.rocketISA(coreParams, xLen),
-        mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
-        fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
-        performanceMonitor = PerformanceMonitor.perfmon(coreParams),
-        pmp = OMPMP.pmp(coreParams),
-        documentationName = tileParams.name.getOrElse("rocket"),
-        hartIds = Seq(hartId),
-        hasVectoredInterrupts = true,
-        interruptLatency = 4,
-        nLocalInterrupts = coreParams.nLocalInterrupts,
-        nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
-        dcache = omDCache,
-        icache = omICache
-      ))
-    }
   }
 
   ResourceBinding {
@@ -160,7 +107,7 @@ class RocketTile private(
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
   }
 
-  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, frontend, dtim_adapter, p(XLen))
+  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen))
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)

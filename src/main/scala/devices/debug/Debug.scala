@@ -1404,18 +1404,8 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
 class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
-  val device: SimpleDevice = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
+  val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
-
-    /**
-      * This function is for backwards compatiblity and will be removed in the future
-      *
-      * @param resourceBindingsMap
-      * @return
-      */
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      debugLogicalTree.getOMComponents(resourceBindingsMap, Nil)
-    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))

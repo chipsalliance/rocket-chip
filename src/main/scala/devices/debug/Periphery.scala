@@ -47,9 +47,6 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
     fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
   }
-
-  def getOMDebugModule(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
-    debug.device.getOMComponents(resourceBindingsMap)
 }
 
 trait HasPeripheryDebugModuleImp extends LazyModuleImp {
