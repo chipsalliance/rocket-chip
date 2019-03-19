@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import scala.collection.mutable
 
 trait LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent]): Seq[OMComponent]
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent]
 }
 
 /** LogicalTreeEdges hold LogicalTree Nodes which will be used to construct the logical tree.

@@ -66,7 +66,7 @@ trait HasRocketTiles extends HasTiles
     rocketTiles.flatMap(c => c.rocketLogicalTree.getInterruptTargets())
 
   def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
-    rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
+    rocketTiles.flatMap(c => c.rocketLogicalTree.getOMComponents(resourceBindingsMap, Nil))
 }
 
 trait HasRocketTilesModuleImp extends HasTilesModuleImp

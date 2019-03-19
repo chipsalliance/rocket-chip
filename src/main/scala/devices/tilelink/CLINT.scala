@@ -40,16 +40,6 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   // clint0 => at most 4095 devices
   val device: SimpleDevice = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
-
-    /**
-      * This function is for backwards compatiblity and will be removed in the future
-      *
-      * @param resourceBindingsMap
-      * @return
-      */
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      clintLogicalTree.getOMComponents(resourceBindingsMap, Nil)
-    }
   }
 
   val node: TLRegisterNode = TLRegisterNode(

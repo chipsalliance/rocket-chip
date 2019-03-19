@@ -94,8 +94,8 @@ object DiplomaticObjectModelUtils {
     }
   }
 
-  def addOMArtefacts(): Unit = {
-    val domComponents = DiplomaticObjectModel.getComponents()
+  def addOMArtefacts(resourceBindingsMap: ResourceBindingsMap): Unit = {
+    val domComponents =   ConstructOM.constructOM(resourceBindingsMap)
     ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(domComponents))
   }
 }

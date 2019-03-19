@@ -4,24 +4,39 @@ package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
 import freechips.rocketchip.diplomacy.{LazyModule, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.rocket.{DCacheParams, Frontend, ScratchpadSlavePort}
+import freechips.rocketchip.rocket.{DCacheParams, Frontend, ICacheParams, ScratchpadSlavePort}
 import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 
+
+class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: Option[ICacheParams]) extends LogicalTreeNode {
+  def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
+    icacheParams.map(i => getOMComponents(resourceBindingsMap) match {
+      case Seq() => throw new IllegalArgumentException
+      case Seq(h) => h.asInstanceOf[OMICache]
+      case _ => throw new IllegalArgumentException
+    })
+  }
+
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
+    val resourceBindings = resourceBindingsMap.map.get(device)
+    icacheParams.map{ x => Seq[OMComponent](OMCaches.icache(x, resourceBindings))}.getOrElse(Nil)
+  }
+}
 
 class RocketLogicalTreeNode(
   device: SimpleDevice,
   rocketParams: RocketTileParams,
-  frontEnd: Frontend,
+//  icacheLTN: ICacheLogicalTreeNode,
   dtim_adapter: Option[ScratchpadSlavePort],
   XLen: Int) extends LogicalTreeNode {
 
-  def getOMICache(resourceBindingsMap: ResourceBindingsMap): OMICache = {
-    frontEnd.icache.device.getOMComponents(resourceBindingsMap) match {
-      case Seq() => throw new IllegalArgumentException
-      case Seq(h) => h.asInstanceOf[OMICache]
-      case _ => throw new IllegalArgumentException
-    }
-  }
+//  def getOMICache(resourceBindingsMap: ResourceBindingsMap): OMICache = { // TODO
+//    icacheLTN.getOMComponents(resourceBindingsMap) match {
+//      case Seq() => throw new IllegalArgumentException
+//      case Seq(h) => h.asInstanceOf[OMICache]
+//      case _ => throw new IllegalArgumentException
+//    }
+//  }
 
   def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
     val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
@@ -41,7 +56,7 @@ class RocketLogicalTreeNode(
   override def  getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
-    val omICache: OMICache = getOMICache(resourceBindingsMap)
+    val omICache: OMICache = OMICache(Nil,Nil, 1,1,1,1, None, None, 1, 1) // TODO getOMICache(resourceBindingsMap)
 
     val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
 
@@ -49,7 +64,7 @@ class RocketLogicalTreeNode(
       isa = OMISA.rocketISA(coreParams, XLen),
       mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, XLen)},
       fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
-      performanceMonitor = PerformanceMonitor.permon(coreParams),
+      performanceMonitor = PerformanceMonitor.perfmon(coreParams),
       pmp = OMPMP.pmp(coreParams),
       documentationName = rocketParams.name.getOrElse("rocket"),
       hartIds = Seq(rocketParams.hartId),
