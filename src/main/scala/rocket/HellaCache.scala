@@ -43,7 +43,8 @@ case class DCacheParams(
     "Scratchpad only allowed in direct-mapped cache.")
   require((!scratch.isDefined || nMSHRs == 0),
     "Scratchpad only allowed in blocking cache.")
-  require(isPow2(nSets), s"nSets($nSets) must be pow2")
+  if (scratch.isEmpty)
+    require(isPow2(nSets), s"nSets($nSets) must be pow2")
 }
 
 trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParameters {
