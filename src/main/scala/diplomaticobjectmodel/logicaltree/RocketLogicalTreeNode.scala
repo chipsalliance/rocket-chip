@@ -53,7 +53,7 @@ class RocketLogicalTreeNode(
     ))
   }
 
-  override def  getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
     val omICache: OMICache = OMICache(Nil,Nil, 1,1,1,1, None, None, 1, 1) // TODO getOMICache(resourceBindingsMap)
