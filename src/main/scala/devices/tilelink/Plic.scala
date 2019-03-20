@@ -13,9 +13,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -291,8 +288,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
     val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
-    def getOMRegMap():OMRegisterMap = omRegMap
-
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
       val completed = completer(0)
@@ -313,7 +308,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  val plicLogicalTree = new PLICLogicalTreeNode(device, module.getOMRegMap, nPriorities)
+  def getOMRegMap(): OMRegisterMap = new OMRegisterMap( registerFields = Nil, groups = Nil) // module.omRegMap
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
@@ -344,10 +339,9 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
     val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
 
-    LogicalModuleTree.add(logicalTree, plic.plicLogicalTree)
-
     plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
     plic.intnode :=* ibus.toPLIC
+
     plic
   }
 }
