@@ -145,7 +145,7 @@ object DiplomaticObjectModelAddressing {
     }
   }
 
-  private def omMemoryRegion(name: String, description: String, value: ResourceValue, omRegMap: Option[OMRegisterMap]): OMMemoryRegion = {
+  def omMemoryRegion(name: String, description: String, value: ResourceValue, omRegMap: Option[OMRegisterMap]): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
         (omAddressSets(rm.address),rm.permissions)
