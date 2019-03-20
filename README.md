@@ -35,7 +35,9 @@ The riscv-tools repository known to work with rocket-chip is noted
 in the file riscv-tools.hash. However, any recent riscv-tools should work.
 You can build riscv-tools as follows:
 
-    $ cd rocket-chip/riscv-tools
+    $ git clone https://github.com/riscv/riscv-tools.git
+    $ cd riscv-tools
+    $ git checkout $(cat ../riscv-tools.hash) # Check out the revision from riscv-tools.hash
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
     $ export MAKEFLAGS="$MAKEFLAGS -jN" # Assuming you have N cores on your host system
@@ -138,9 +140,6 @@ Hardfloat holds Chisel code that generates parameterized IEEE 754-2008 compliant
 floating-point units used for fused multiply-add operations, conversions
 between integer and floating-point numbers, and conversions between
 floating-point conversions with different precision.
-* **riscv-tools**
-([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
-We tag a version of the RISC-V software ecosystem that works with the RTL committed in this repository.
 * **torture**
 ([https://github.com/ucb-bar/riscv-torture](https://github.com/ucb-bar/riscv-torture)):
 This module is used to generate and execute constrained random instruction streams that can
