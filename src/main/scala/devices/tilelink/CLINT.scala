@@ -38,7 +38,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   import CLINTConsts._
 
   // clint0 => at most 4095 devices
-  val device: SimpleDevice = new SimpleDevice("clint", Seq("riscv,clint0")) {
+  val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
   }
 
