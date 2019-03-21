@@ -613,7 +613,7 @@ class CSRFile(
     cover(en && delegable && delegate, s"INTERRUPT_S_$i")
   }
   for (i <- 0 until xLen) {
-    val supported_exceptions = 0x87e |
+    val supported_exceptions: BigInt = 0x87e |
       (if (usingCompressed && !coreParams.misaWritable) 0 else 1) |
       (if (usingUser) 0x100 else 0) |
       (if (usingVM) 0xb200 else 0)
