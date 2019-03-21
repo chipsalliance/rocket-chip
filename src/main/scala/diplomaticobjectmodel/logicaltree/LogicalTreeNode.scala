@@ -32,10 +32,10 @@ object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
   def add(parent: LogicalTreeNode, child: LogicalTreeNode): Unit = {
     val edge = LogicalTreeEdge(parent, child)
-    val xx1 = tree.get(edge.parent).map{
+    val treeNode = tree.get(edge.parent).map{
       case x => edge.child +: x
     }.getOrElse(Seq(edge.child))
-    tree.put(edge.parent, xx1)
+    tree.put(edge.parent, treeNode)
   }
 
   def root: LogicalTreeNode = {

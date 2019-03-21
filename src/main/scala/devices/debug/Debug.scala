@@ -1179,7 +1179,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Hart Bus Access
     //--------------------------------------------------------------
 
-    val omTLRegMap = tlNode.regmap(
+    tlNode.regmap(
       // This memory is writable.
       HALTED      -> Seq(WNotifyWire(sbIdWidth, hartHaltedId, hartHaltedWrEn,
         "debug_hart_halted", "Debug ROM Causes hart to write its hartID here when it is in Debug Mode.")),
