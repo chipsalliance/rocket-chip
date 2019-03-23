@@ -8,35 +8,33 @@ import freechips.rocketchip.rocket.{DCacheParams, Frontend, ICacheParams, Scratc
 import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 
 
-class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: Option[ICacheParams]) extends LogicalTreeNode {
-  def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
-    icacheParams.map(i => getOMComponents(resourceBindingsMap) match {
+class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: ICacheParams) extends LogicalTreeNode {
+  def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): OMICache = {
+    getOMComponents(resourceBindingsMap) match {
       case Seq() => throw new IllegalArgumentException
       case Seq(h) => h.asInstanceOf[OMICache]
       case _ => throw new IllegalArgumentException
-    })
+    }
   }
 
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
     val resourceBindings = resourceBindingsMap.map.get(device)
-    icacheParams.map{ x => Seq[OMComponent](OMCaches.icache(x, resourceBindings))}.getOrElse(Nil)
+    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
+  }
+
+  def iCache(resourceBindingsMap: ResourceBindingsMap): OMICache = {
+    val resourceBindings = resourceBindingsMap.map.get(device)
+    OMCaches.icache(icacheParams, resourceBindings)
   }
 }
 
 class RocketLogicalTreeNode(
   device: SimpleDevice,
   rocketParams: RocketTileParams,
-//  icacheLTN: ICacheLogicalTreeNode,
   dtim_adapter: Option[ScratchpadSlavePort],
-  XLen: Int) extends LogicalTreeNode {
-
-//  def getOMICache(resourceBindingsMap: ResourceBindingsMap): OMICache = { // TODO
-//    icacheLTN.getOMComponents(resourceBindingsMap) match {
-//      case Seq() => throw new IllegalArgumentException
-//      case Seq(h) => h.asInstanceOf[OMICache]
-//      case _ => throw new IllegalArgumentException
-//    }
-//  }
+  XLen: Int,
+  icacheLTN: ICacheLogicalTreeNode
+) extends LogicalTreeNode {
 
   def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
     val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
@@ -56,9 +54,9 @@ class RocketLogicalTreeNode(
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
-    val omICache: OMICache = OMICache(Nil,Nil, 1,1,1,1, None, None, 1, 1) // TODO getOMICache(resourceBindingsMap)
-
     val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
+
+    val omICache = icacheLTN.iCache(resourceBindingsMap) // TODO hack
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),

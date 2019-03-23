@@ -14,6 +14,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{ICacheLogicalTreeNode, LogicalModuleTree, LogicalTreeEdge}
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -343,12 +344,15 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
-trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
+trait HasICacheFrontend extends CanHavePTW {
+  this: BaseTile =>
   val module: HasICacheFrontendModule
   val frontend = LazyModule(new Frontend(tileParams.icache.get, hartId))
   tlMasterXbar.node := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
   nPTWPorts += 1
+
+  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(frontend.icache.device, tileParams.icache.get)
 }
 
 trait HasICacheFrontendModule extends CanHavePTWModule {

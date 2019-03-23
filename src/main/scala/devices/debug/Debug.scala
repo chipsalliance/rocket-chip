@@ -1441,6 +1441,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
   }
 
-  val debugLogicalTree = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
+  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
     p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }

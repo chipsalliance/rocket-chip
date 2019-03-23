@@ -28,7 +28,7 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: () => OMRegisterMap) extends
     )
   }
 
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMCLINT)
   }
 }
@@ -55,16 +55,12 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: () => OMRegisterMap, debugMo
     )
   }
 
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
   }
 }
 
 class PLICLogicalTreeNode(device: SimpleDevice, omRegMap: () => OMRegisterMap, nPriorities: Int) extends LogicalTreeNode {
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
-  }
-
   def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(omRegMap()))
     val ints = DiplomaticObjectModelAddressing.describeInterrupts(device.describe(resourceBindings).name, resourceBindings)
@@ -85,5 +81,15 @@ class PLICLogicalTreeNode(device: SimpleDevice, omRegMap: () => OMRegisterMap, n
         targets = Nil
       )
     )
+  }
+
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
+  }
+}
+
+class BaseSubsystemLogicalTreeNode extends LogicalTreeNode {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, cs: Seq[OMComponent]): Seq[OMComponent] = {
+    cs
   }
 }
