@@ -74,15 +74,6 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
     }
   }
 
-<<<<<<< HEAD
-  class BaseSubsystemLogicalTreeNode extends LogicalTreeNode {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, cs: Seq[OMComponent]): Seq[OMComponent] = {
-      cs
-    }
-  }
-
-=======
->>>>>>> origin/logical-tree3
   val logicalTree = new BaseSubsystemLogicalTreeNode()
 }
 

@@ -100,7 +100,7 @@ class RocketTile private(
     if (!rocketParams.boundaryBuffers) super.makeMasterBoundaryBuffers
     else TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
   }
-t
+
   override def makeSlaveBoundaryBuffers(implicit p: Parameters) = {
     if (!rocketParams.boundaryBuffers) super.makeSlaveBoundaryBuffers
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
