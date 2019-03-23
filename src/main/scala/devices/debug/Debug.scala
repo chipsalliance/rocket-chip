@@ -1090,7 +1090,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val accessRegisterCommandReg = Wire(init = (new ACCESS_REGISTERFields()).fromBits(COMMANDReg.asUInt()))
 
     // TODO: Quick Access
-
     class GeneratedI extends Bundle {
       val imm    = UInt(12.W)
       val rs1    = UInt(5.W)
@@ -1404,7 +1403,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
 class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
-  val device: SimpleDevice = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
+  val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
   }
 
