@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink.TLPLIC
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BaseSubsystemLogicalTreeNode, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.util._
 
@@ -71,12 +71,6 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
       manager.resources.foreach { case resource =>
         resource.bind(value)
       }
-    }
-  }
-
-  class BaseSubsystemLogicalTreeNode extends LogicalTreeNode {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, cs: Seq[OMComponent]): Seq[OMComponent] = {
-      cs
     }
   }
 

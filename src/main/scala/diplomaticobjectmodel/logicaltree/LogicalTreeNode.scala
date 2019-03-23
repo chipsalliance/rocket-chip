@@ -31,11 +31,11 @@ case class LogicalTreeEdge(
 object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
   def add(parent: LogicalTreeNode, child: LogicalTreeNode): Unit = {
-    val edge = LogicalTreeEdge(parent, child)
-    val treeNode = tree.get(edge.parent).map{
-      case x => edge.child +: x
-    }.getOrElse(Seq(edge.child))
-    tree.put(edge.parent, treeNode)
+    val treeOpt = tree.get(parent)
+    val treeNode = treeOpt.map{
+      children => child +: children
+    }.getOrElse(Seq(child))
+    tree.put(parent, treeNode)
   }
 
   def root: LogicalTreeNode = {
@@ -45,9 +45,9 @@ object LogicalModuleTree {
   }
 
   def bind(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-    def recurse(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(recurse))
+    def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
+      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
-    recurse(root)
+    getOMComponentTree(root)
   }
 }

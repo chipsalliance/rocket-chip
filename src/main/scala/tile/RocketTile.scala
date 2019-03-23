@@ -7,8 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.RocketLogicalTreeNode
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMPrivilegeMode, _}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, RocketLogicalTreeNode}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -107,7 +106,8 @@ class RocketTile private(
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
   }
 
-  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen))
+  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen), iCacheLogicalTreeNode)
+  //LogicalModuleTree.add(rocketLogicalTree, iCacheLogicalTreeNode)
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
