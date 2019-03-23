@@ -10,6 +10,6 @@ import freechips.rocketchip.util.ElaborationArtefacts
 case object ConstructOM {
   def constructOM(resourceBindingsMap: ResourceBindingsMap): Unit = {
     val om: Seq[OMComponent] = LogicalModuleTree.bind(resourceBindingsMap)
-    ElaborationArtefacts.add("objectModel1.json", DiplomaticObjectModelUtils.toJson(om))
+    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(om))
   }
 }

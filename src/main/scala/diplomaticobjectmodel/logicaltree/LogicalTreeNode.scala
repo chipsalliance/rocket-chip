@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import scala.collection.mutable
 
 trait LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent]): Seq[OMComponent]
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent]
 }
 
 /** LogicalTreeEdges hold LogicalTree Nodes which will be used to construct the logical tree.
@@ -31,11 +31,11 @@ case class LogicalTreeEdge(
 object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
   def add(parent: LogicalTreeNode, child: LogicalTreeNode): Unit = {
-    val edge = LogicalTreeEdge(parent, child)
-    val xx1 = tree.get(edge.parent).map{
-      case x => edge.child +: x
-    }.getOrElse(Seq(edge.child))
-    tree.put(edge.parent, xx1)
+    val treeOpt = tree.get(parent)
+    val treeNode = treeOpt.map{
+      children => child +: children
+    }.getOrElse(Seq(child))
+    tree.put(parent, treeNode)
   }
 
   def root: LogicalTreeNode = {
@@ -45,9 +45,9 @@ object LogicalModuleTree {
   }
 
   def bind(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-    def recurse(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(recurse))
+    def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
+      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
-    recurse(root)
+    getOMComponentTree(root)
   }
 }

@@ -40,16 +40,6 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   // clint0 => at most 4095 devices
   val device: SimpleDevice = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
-
-    /**
-      * This function is for backwards compatiblity and will be removed in the future
-      *
-      * @param resourceBindingsMap
-      * @return
-      */
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      clintLogicalTree.getOMComponents(resourceBindingsMap, Nil)
-    }
   }
 
   val node: TLRegisterNode = TLRegisterNode(
@@ -105,14 +95,15 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     def getOMRegMap(): OMRegisterMap = omRegMap
   }
 
-  val clintLogicalTree: CLINTLogicalTreeNode = new CLINTLogicalTreeNode(device, module.getOMRegMap)
+  val logicalTreeNode = new CLINTLogicalTreeNode(device, module.getOMRegMap)
 }
 
 /** Trait that will connect a CLINT to a subsystem */
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    LogicalModuleTree.add(logicalTree, clint.clintLogicalTree)
+
+    LogicalModuleTree.add(logicalTree, clint.logicalTreeNode)
 
     clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
     clint

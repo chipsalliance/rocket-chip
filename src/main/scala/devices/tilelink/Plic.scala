@@ -13,9 +13,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -81,32 +79,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         "riscv,max-priority" -> Seq(ResourceInt(nPriorities)),
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
-    }
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
-    }
-
-    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
-      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
-      val Description(name, mapping) = describe(resourceBindings)
-
-      Seq[OMComponent](
-        OMPLIC(
-          memoryRegions = memRegions,
-          interrupts = ints,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
-              version = "1.10"
-            )
-          ),
-          latency = 2, // TODO
-          nPriorities = nPriorities,
-          targets = Nil
-        )
-      )
     }
   }
 
@@ -337,13 +309,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 
-  class PLICLogicalTreeNode extends LogicalTreeNode {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-      device.getOMComponents(resourceBindingsMap)
-    }
-  }
-
-  val plicLogicalTree = new PLICLogicalTreeNode() //(device, module.omRegMap, nPriorities)
+  def getOMRegMap(): OMRegisterMap = module.omRegMap
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
@@ -373,9 +339,6 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
     val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
-
-    LogicalModuleTree.add(logicalTree, plic.plicLogicalTree)
-
     plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
     plic.intnode :=* ibus.toPLIC
     plic

@@ -93,11 +93,6 @@ object DiplomaticObjectModelUtils {
       case _ => throw new IllegalArgumentException
     }
   }
-
-  def addOMArtefacts(): Unit = {
-    val domComponents = DiplomaticObjectModel.getComponents()
-    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(domComponents))
-  }
 }
 
 class OMEnumSerializer extends CustomSerializer[OMEnum](format => {

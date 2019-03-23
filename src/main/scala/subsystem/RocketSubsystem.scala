@@ -31,7 +31,8 @@ case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(Rock
 trait HasRocketTiles extends HasTiles
     with CanHavePeripheryPLIC
     with CanHavePeripheryCLINT
-    with HasPeripheryDebug { this: BaseSubsystem =>
+    with HasPeripheryDebug {
+  this: BaseSubsystem =>
   val module: HasRocketTilesModuleImp
 
   protected val rocketTileParams = p(RocketTilesKey)
@@ -64,9 +65,6 @@ trait HasRocketTiles extends HasTiles
     */
   def getOMRocketInterruptTargets(): Seq[OMInterruptTarget] =
     rocketTiles.flatMap(c => c.rocketLogicalTree.getInterruptTargets())
-
-  def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
-    rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
 }
 
 trait HasRocketTilesModuleImp extends HasTilesModuleImp

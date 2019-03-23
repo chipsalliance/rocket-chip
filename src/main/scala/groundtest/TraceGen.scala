@@ -508,7 +508,8 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.valid     := reqValid
   io.mem.req.bits.addr := reqAddr
   io.mem.req.bits.data := reqData
-  io.mem.req.bits.typ  := UInt(log2Ceil(numBytesInWord))
+  io.mem.req.bits.size := UInt(log2Ceil(numBytesInWord))
+  io.mem.req.bits.signed := false.B
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
 

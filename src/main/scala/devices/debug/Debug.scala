@@ -544,7 +544,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     Annotated.params(this, cfg)
     val supportHartArray = cfg.supportHartArray & (nComponents > 1)
     val nExtTriggers = cfg.nExtTriggers
-    val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 1)) cfg.nHaltGroups
+    val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 0)) cfg.nHaltGroups
       else 0  // no halt groups possible if single hart with no external triggers
 
     val io = IO(new Bundle {
@@ -1406,16 +1406,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device: SimpleDevice = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
-
-    /**
-      * This function is for backwards compatiblity and will be removed in the future
-      *
-      * @param resourceBindingsMap
-      * @return
-      */
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      debugLogicalTree.getOMComponents(resourceBindingsMap, Nil)
-    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
@@ -1451,6 +1441,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
   }
 
-  val debugLogicalTree = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
+  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
     p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }

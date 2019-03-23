@@ -13,7 +13,11 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 /* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
-class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
+class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
+  def this(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) {
+    this(Seq(address), coreDataBytes, usingAtomics)
+  }
+
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
     def getMemory(p: DCacheParams, resourceBindingsMap: ResourceBindingsMap): OMDCache = {
       val resourceBindings = resourceBindingsMap.map.get(this)
@@ -23,7 +27,7 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
-      address            = List(address),
+      address            = address,
       resources          = device.reg("mem"),
       regionType         = RegionType.UNCACHEABLE,
       executable         = true,
@@ -72,7 +76,8 @@ class ScratchpadSlavePort(address: AddressSet, coreDataBytes: Int, usingAtomics:
           TLAtomics.AND           -> M_XA_AND,
           TLAtomics.SWAP          -> M_XA_SWAP)),
         TLMessages.Get            -> M_XRD))
-      req.typ := a.size
+      req.size := a.size
+      req.signed := false
       req.addr := a.address
       req.tag := UInt(0)
       req.phys := true

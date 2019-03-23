@@ -87,6 +87,7 @@ class MIP(implicit p: Parameters) extends CoreBundle()(p)
 }
 
 class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
+  def additionalPgLevels = mode.extract(log2Ceil(pgLevels-minPgLevels+1)-1, 0)
   def pgLevelsToMode(i: Int) = (xLen, i) match {
     case (32, 2) => 1
     case (64, x) if x >= 3 && x <= 6 => x + 5
@@ -354,9 +355,9 @@ class CSRFile(
     (if (usingAtomics) "A" else "") +
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +
-    (if (usingCompressed) "C" else "") +
-    (if (usingRoCC) "X" else "")
+    (if (usingCompressed) "C" else "")
   val isaString = "I" + isaMaskString +
+    "X" + // Custom extensions always present (e.g. CEASE instruction)
     (if (usingVM) "S" else "") +
     (if (usingUser) "U" else "")
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
@@ -772,10 +773,9 @@ class CSRFile(
       }
       when (decoded_addr(CSRs.satp)) {
         val new_satp = new PTBR().fromBits(wdata)
-        val valid_mode = new_satp.pgLevelsToMode(pgLevels)
-        when (new_satp.mode === 0) { reg_satp.mode := 0 }
-        when (new_satp.mode === valid_mode) { reg_satp.mode := valid_mode }
-        when (new_satp.mode === 0 || new_satp.mode === valid_mode) {
+        val valid_modes = 0 +: (minPgLevels to pgLevels).map(new_satp.pgLevelsToMode(_))
+        when (new_satp.mode.isOneOf(valid_modes.map(_.U))) {
+          reg_satp.mode := new_satp.mode & valid_modes.reduce(_|_)
           reg_satp.ppn := new_satp.ppn(ppnBits-1,0)
           if (asIdBits > 0) reg_satp.asid := new_satp.asid(asIdBits-1,0)
         }
