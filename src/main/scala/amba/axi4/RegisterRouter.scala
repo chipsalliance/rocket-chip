@@ -3,17 +3,29 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
+import chisel3.experimental.RawModule
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
+import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescsAnno, HeterogeneousBag}
 import scala.math.{min,max}
 
-case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
+case class AXI4RegisterNode(
+  address:     AddressSet,
+  device:      Device,
+  deviceKey:   String  = "reg/control",
+  concurrency: Int     = 0,
+  beatBytes:   Int     = 4,
+  undefZero:   Boolean = true,
+  executable:  Boolean = false)(
+  implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address       = Seq(address),
+      resources     = Seq(Resource(device, deviceKey)),
       executable    = executable,
       supportsWrite = TransferSizes(1, beatBytes),
       supportsRead  = TransferSizes(1, beatBytes),
@@ -75,15 +87,50 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     b.bits.id   := out_id
     b.bits.resp := AXI4Parameters.RESP_OKAY
     b.bits.user.foreach { _ := out.bits.extra }
+
+    genRegDescsJson(mapping:_*)
+    genOMRegMap(mapping:_*)
+  }
+    def genOMRegMap(mapping: RegField.Map*): OMRegisterMap = {
+    OMRegister.convert(mapping = mapping:_*)
+  }
+
+  def genRegDescsJson(mapping: RegField.Map*) {
+    // Dump out the register map for documentation purposes.
+    val base = address.base
+    val baseHex = s"0x${base.toInt.toHexString}"
+    val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
+    val json = GenRegDescsAnno.serialize(base, name, mapping:_*)
+    var suffix = 0
+    while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
+      suffix = suffix + 1
+    }
+    ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
+
+    val module = Module.currentModule.get.asInstanceOf[RawModule]
+    GenRegDescsAnno.anno(
+      module,
+      base,
+      mapping:_*)
+
   }
 }
 
 // These convenience methods below combine to make it possible to create a AXI4
 // register mapped device from a totally abstract register mapped device.
 
-abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
+abstract class AXI4RegisterRouterBase(devname: String, devcompat: Seq[String], address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
-  val node = AXI4RegisterNode(address, concurrency, beatBytes, undefZero, executable)
+  // Allow devices to extend the DTS mapping
+  def extraResources(resources: ResourceBindings) = Map[String, Seq[ResourceValue]]()
+  val device = new SimpleDevice(devname, devcompat) {
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ extraResources(resources))
+    }
+  }
+
+  val node = AXI4RegisterNode(address, device, "reg/control", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
@@ -104,11 +151,19 @@ class AXI4RegModule[P, B <: AXI4RegBundleBase](val params: P, bundleBuilder: => 
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
-class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
-   (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-   (bundleBuilder: AXI4RegBundleArg => B)
-   (moduleBuilder: (=> B, AXI4RegisterRouterBase) => M)(implicit p: Parameters)
-  extends AXI4RegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
+class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp](
+  val base:        BigInt,
+  val devname:     String,
+  val devcompat:   Seq[String],
+  val interrupts:  Int     = 0,
+  val size:        BigInt  = 4096,
+  val concurrency: Int     = 0,
+  val beatBytes:   Int     = 4,
+  val undefZero:   Boolean = true,
+  val executable:  Boolean = false)
+  (bundleBuilder: AXI4RegBundleArg => B)
+  (moduleBuilder: (=> B, AXI4RegisterRouterBase) => M)(implicit p: Parameters)
+    extends AXI4RegisterRouterBase(devname, devcompat, AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
 {
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended
@@ -118,12 +173,15 @@ class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
 
 /** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
 trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
+//trait HasAXI4ControlRegMap { this: RAXI4RegisterRouterBase =>
   protected val controlNode = AXI4RegisterNode(
-    address = address.head,
+    address     = address.head,
+    device      = device,
+    deviceKey   = "reg/control",
     concurrency = concurrency,
-    beatBytes = beatBytes,
-    undefZero = undefZero,
-    executable = executable)
+    beatBytes   = beatBytes,
+    undefZero   = undefZero,
+    executable  = executable)
 
   // Externally, this helper should be used to connect the register control port to a bus
   val controlXing: AXI4InwardCrossingHelper = this.crossIn(controlNode)

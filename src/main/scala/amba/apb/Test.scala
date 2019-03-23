@@ -8,11 +8,11 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
 
-class RRTest0(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter(address, 0, 32, 0, 4)(
+class RRTest0(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter(address, "RRTest0", Nil, 0, 32, 0, 4)(
   new APBRegBundle((), _)    with RRTest0Bundle)(
   new APBRegModule((), _, _) with RRTest0Module)
 
-class RRTest1(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter(address, 0, 32, 1, 4, false)(
+class RRTest1(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter(address, "RRTest1", Nil, 0, 32, 1, 4, false)(
   new APBRegBundle((), _)    with RRTest1Bundle)(
   new APBRegModule((), _, _) with RRTest1Module)
 
