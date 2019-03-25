@@ -8,12 +8,23 @@ import chisel3.core.{DataMirror,ActualDirection}
 import chisel3.experimental.IO
 import freechips.rocketchip.config.{Parameters,Field}
 
-case class BundleBridgeParams[T <: Data](gen: () => T)
-case class BundleBridgeNull()
+class BundleBridgeNull
+case class BundleBridgeParams[T <: Data](gen: () => T) extends BundleBridgeNull
 
-class BundleBridgeImp[T <: Data]() extends SimpleNodeImp[BundleBridgeParams[T], BundleBridgeNull, BundleBridgeParams[T], T]
+object BundleBridgeNull {
+  def apply(): BundleBridgeNull = new BundleBridgeNull
+}
+
+class BundleBridgeImp[T <: Data]() extends SimpleNodeImp[BundleBridgeNull, BundleBridgeNull, BundleBridgeParams[T], T]
 {
-  def edge(pd: BundleBridgeParams[T], pu: BundleBridgeNull, p: Parameters, sourceInfo: SourceInfo) = pd
+  def edge(pd: BundleBridgeNull, pu: BundleBridgeNull, p: Parameters, sourceInfo: SourceInfo) = (pd, pu) match {
+    case (p: BundleBridgeParams[T], _: BundleBridgeNull) => p
+    case (_: BundleBridgeNull, p: BundleBridgeParams[T]) => p
+    case (p1: BundleBridgeParams[T], p2: BundleBridgeParams[T]) =>
+      throw new Exception("Too many params found")
+    case (_: BundleBridgeNull, _: BundleBridgeNull) =>
+      throw new Exception("No params found")
+  }
   def bundle(e: BundleBridgeParams[T]) = e.gen()
   def render(e: BundleBridgeParams[T]) = RenderedEdge(colour = "#cccc00" /* yellow */)
 }
@@ -30,7 +41,7 @@ case class BundleBridgeSink[T <: Data]()(implicit valName: ValName) extends Sink
   }
 }
 
-case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(gen)))
+trait BundleBridgeBaseSource[T <: Data] extends SourceNode[BundleBridgeNull, BundleBridgeNull, BundleBridgeParams[T], BundleBridgeParams[T], T]
 {
   def bundle: T = out(0)._1
 
@@ -50,6 +61,10 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
     sink
   }
 }
+
+case class BundleBridgeNullSource[T <: Data]()(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeNull())) with BundleBridgeBaseSource[T]
+
+case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(gen))) with BundleBridgeBaseSource[T]
 
 case class BundleBridgeNexus[T <: Data]()(implicit valName: ValName) extends NexusNode(new BundleBridgeImp[T])(
   dFn = seq => seq.head,
