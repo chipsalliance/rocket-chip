@@ -186,7 +186,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
   with DeviceRegName
 {
   override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
-  var devNamePlusAddress: String = ""
+
+  var deviceNamePlusAddress: String = ""
 
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
@@ -210,7 +211,7 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
     val names = optDef("reg-names", named.map(x => ResourceString(DiplomacyUtils.regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
 
-    devNamePlusAddress = name
+    deviceNamePlusAddress = name
 
     Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
   }
@@ -240,13 +241,14 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
       "#size-cells"      -> ofInt((log2Ceil(maxSize) + 31) / 32),
       "ranges"           -> ranges)
 
+    deviceNamePlusAddress = devname
+
     val Description(_, mapping) = super.describe(resources)
     Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra)
   }
 
   def ranges = Seq(Resource(this, "ranges"))
 }
-
 /** A generic memory block. */
 class MemoryDevice extends Device with DeviceRegName
 {

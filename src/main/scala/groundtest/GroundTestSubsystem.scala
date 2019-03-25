@@ -18,18 +18,13 @@ case object TileId extends Field[Int]
 class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
     with CanHaveMasterAXI4MemPort {
   val tileParams = p(GroundTestTilesKey)
-  val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(
-    c.build(i, p.alterPartial {
-      case TileKey => c
-      case SharedMemoryTLEdge => sbus.busView
-    })
-  )}
+  val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(c.build(i, p)) }
 
-  tiles.flatMap(_.dcacheOpt).foreach { dc =>
-    sbus.fromTile(None, buffer = BufferParams.default){ dc.node }
+  tiles.map(_.masterNode).foreach { m =>
+    sbus.fromTile(None, buffer = BufferParams.default){ m }
   }
 
-  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), true, true, pbus.beatBytes))
+  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=pbus.beatBytes))
   pbus.coupleTo("TestRAM") { testram.node := TLFragmenter(pbus) := _ }
 
   // No PLIC in ground test; so just sink the interrupts to nowhere

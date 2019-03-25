@@ -12,14 +12,10 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case object SharedMemoryTLEdge extends Field[TLEdgeOut]
+case object TileVisibilityNodeKey extends Field[TLIdentityNode]
 case object TileKey extends Field[TileParams]
 case object ResetVectorBits extends Field[Int]
 case object MaxHartIdBits extends Field[Int]
-
-abstract class LookupByHartIdImpl {
-  def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T
-}
 case object LookupByHartId extends Field[LookupByHartIdImpl]
 
 trait TileParams {
@@ -33,7 +29,10 @@ trait TileParams {
   val name: Option[String]
 }
 
-trait HasTileParameters {
+/** These parameters values are not computed based on diplomacy negotiation
+  * and so are safe to use while diplomacy itself is running.
+  */
+trait HasNonDiplomaticTileParameters {
   implicit val p: Parameters
   def tileParams: TileParams = p(TileKey)
 
@@ -50,28 +49,17 @@ trait HasTileParameters {
   def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
-  def vaddrBits: Int =
-    if (usingVM) {
-      val v = pgIdxBits + pgLevels * pgLevelBits
-      require(v == xLen || xLen > v && v > paddrBits)
-      v
-    } else {
-      // since virtual addresses sign-extend but physical addresses
-      // zero-extend, make room for a zero sign bit for physical addresses
-      (paddrBits + 1) min xLen
-    }
-  def paddrBits: Int = p(SharedMemoryTLEdge).bundle.addressBits
-  def vpnBits: Int = vaddrBits - pgIdxBits
-  def ppnBits: Int = paddrBits - pgIdxBits
   def pgLevels: Int = p(PgLevels)
+  def minPgLevels: Int = {
+    val res = xLen match { case 32 => 2; case 64 => 3 }
+    require(pgLevels >= res)
+    res
+  }
   def asIdBits: Int = p(ASIdBits)
-  def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
-  def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
   def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
 
   def hartId: Int = tileParams.hartId
   def hartIdLen: Int = p(MaxHartIdBits)
-  def resetVectorLen: Int = paddrBits
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
@@ -128,10 +116,46 @@ trait HasTileParameters {
 
 }
 
+/** These parameters values are computed based on diplomacy negotiations
+  * and so are NOT safe to use while diplomacy itself is running.
+  * Only mix this trait into LazyModuleImps, Modules, Bundles, Data, etc.
+  */
+trait HasTileParameters extends HasNonDiplomaticTileParameters {
+  protected def tlBundleParams = p(TileVisibilityNodeKey).edges.out.head.bundle
+  def paddrBits: Int = tlBundleParams.addressBits
+  def vaddrBits: Int =
+    if (usingVM) {
+      val v = pgIdxBits + pgLevels * pgLevelBits
+      require(v == xLen || xLen > v && v > paddrBits)
+      v
+    } else {
+      // since virtual addresses sign-extend but physical addresses
+      // zero-extend, make room for a zero sign bit for physical addresses
+      (paddrBits + 1) min xLen
+    }
+  def vpnBits: Int = vaddrBits - pgIdxBits
+  def ppnBits: Int = paddrBits - pgIdxBits
+  def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
+  def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
+
+  def resetVectorLen: Int = paddrBits
+}
+
 /** Base class for all Tiles that use TileLink */
-abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
-                       (implicit p: Parameters)
-    extends LazyModule with CrossesToOnlyOneClockDomain with HasTileParameters {
+abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
+    extends LazyModule()(q)
+    with CrossesToOnlyOneClockDomain
+    with HasNonDiplomaticTileParameters
+{
+  // Public constructor alters Parameters to supply some legacy compatibility keys
+  def this(tileParams: TileParams, crossing: ClockCrossingType, lookup: LookupByHartIdImpl, p: Parameters) = {
+    this(crossing, p.alterMap(Map(
+      TileKey -> tileParams,
+      TileVisibilityNodeKey -> TLIdentityNode()(ValName("tile_master")),
+      LookupByHartId -> lookup
+    )))
+  }
+
   def module: BaseTileModuleImp[BaseTile]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
@@ -150,15 +174,17 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
-  def connectTLSlave(node: TLNode, bytes: Int) {
+  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
-        .foldRight(tlSlaveXbar.node:TLOutwardNode)(_ :*= _)
+        .foldRight(xbarNode)(_ :*= _)
     }
   }
+  def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
-  protected def visibleManagers = tlMasterXbar.node.edges.out.flatMap(_.manager.managers)
+  val visibilityNode = p(TileVisibilityNodeKey)
+  protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
 
   // Find resource labels for all the outward caches
@@ -201,6 +227,8 @@ abstract class BaseTile(tileParams: TileParams, val crossing: ClockCrossingType)
 
   def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
   def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
+
+  this.suggestName(tileParams.name)
 }
 
 abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
@@ -220,4 +248,4 @@ trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
   val reset_vector = UInt(INPUT, resetVectorLen)
 }
 
-class TileInputConstants(implicit val p: Parameters) extends ParameterizedBundle with HasExternallyDrivenTileConstants
+class TileInputConstants(implicit val p: Parameters) extends Bundle with HasExternallyDrivenTileConstants

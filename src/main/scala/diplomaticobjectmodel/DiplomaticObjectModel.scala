@@ -17,7 +17,7 @@ object DiplomaticObjectModel {
     doms += (d)
   }
 
-  def getComponents(): Seq[OMComponent] = {
-    doms.flatMap(_.getComponent())
+  def getComponents(): OMComponent = {
+    doms.flatMap(_.getComponent()).last
   }
 }

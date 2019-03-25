@@ -41,7 +41,7 @@ case class OMDCache(
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
-case class OMECC(code: String) extends OMBaseType
+case class OMECC(code: String) extends OMEnum
 
 object OMECC {
   val Identity = OMECC("Identity")

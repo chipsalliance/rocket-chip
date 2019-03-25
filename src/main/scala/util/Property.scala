@@ -112,18 +112,11 @@ class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], mes
   }
 
   def generateProperties(): Seq[CoverPropertyParameters] = {
-    crossProperties(cond).map( (c: CoverBoolean) => {
-      if (!SeqsinSequence(c.labels, exclude)) {
-        new CoverPropertyParameters(
-          cond = c.cond,
-          label = c.labels.reduce( (s1: String, s2: String) => {s1 + "_" + s2} ),
-          message = message + " " + c.labels.map("<" + _ + ">").reduce ( (s1: String, s2: String) => { s1 + " X " + s2 }))
-      } else {
-        new CoverPropertyParameters(
-          cond = true.B,
-          label = c.labels.reduce( (s1: String, s2: String) => {s1 + "_" + s2} ) + "_EXCLUDE",
-          message = message + " " + c.labels.map("<" + _ + ">").reduce ( (s1: String, s2: String) => { s1 + " X " + s2 }))
-      }
+    crossProperties(cond).filter(c => !SeqsinSequence(c.labels, exclude)).map( (c: CoverBoolean) => {
+      new CoverPropertyParameters(
+        cond = c.cond,
+        label = c.labels.reduce( (s1: String, s2: String) => {s1 + "_" + s2} ),
+        message = message + " " + c.labels.map("<" + _ + ">").reduce ( (s1: String, s2: String) => { s1 + " X " + s2 }))
     })
   }
 

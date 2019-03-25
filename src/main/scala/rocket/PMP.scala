@@ -176,9 +176,9 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
       cover(!ignore && hit && aligned && pmp.cfg.a === idx, s"The access matches ${name} mode ", "Cover PMP access")
 
     val cur = Wire(init = pmp)
-    cur.cfg.r := (aligned && pmp.cfg.r) || ignore
-    cur.cfg.w := (aligned && pmp.cfg.w) || ignore
-    cur.cfg.x := (aligned && pmp.cfg.x) || ignore
+    cur.cfg.r := aligned && (pmp.cfg.r || ignore)
+    cur.cfg.w := aligned && (pmp.cfg.w || ignore)
+    cur.cfg.x := aligned && (pmp.cfg.x || ignore)
     Mux(hit, cur, prev)
   }
 

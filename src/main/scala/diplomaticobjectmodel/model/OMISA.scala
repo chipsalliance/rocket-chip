@@ -25,6 +25,12 @@ case object RV32I extends OMBaseInstructionSet
 case object RV64I extends OMBaseInstructionSet
 case object RV128I extends OMBaseInstructionSet
 
+case class Xsifivecflushdlone(
+  name: String,
+  version: String,
+  override val _types: Seq[String] = Seq("OMXsifivecflushdlone", "OMCustomExtensionSpecification", "OMSpecification")
+) extends OMCustomExtensionSpecification
+
 case class OMISA(
   xLen: Int,
   baseSpecification: OMSpecification,
@@ -37,6 +43,7 @@ case class OMISA(
   u: Option[OMSpecification],
   s: Option[OMSpecification],
   addressTranslationModes: Seq[OMAddressTranslationMode],
+  customExtensions: Seq[OMCustomExtensionSpecification],
   _types: Seq[String] = Seq("OMISA", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -63,7 +70,7 @@ object OMISA {
         case 32 => Sv32
         case 64 => Sv39
         case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
-      }
+    }
 
     OMISA(
       xLen = xLen,
@@ -76,7 +83,8 @@ object OMISA {
       c = coreParams.useCompressed.option(isaExtSpec(C, " 2.0")),
       u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
-      addressTranslationModes = Seq(addressTranslationModes)
+      addressTranslationModes = Seq(addressTranslationModes),
+      customExtensions = ISAExtensions.customExtensions(coreParams)
     )
   }
 }

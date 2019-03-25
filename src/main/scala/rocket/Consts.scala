@@ -7,18 +7,6 @@ import freechips.rocketchip.util._
 import scala.math._
 
 trait ScalarOpConstants {
-  val MT_SZ = 3
-  def MT_X  = BitPat("b???")
-  def MT_B  = UInt("b000")
-  def MT_H  = UInt("b001")
-  def MT_W  = UInt("b010")
-  def MT_D  = UInt("b011")
-  def MT_BU = UInt("b100")
-  def MT_HU = UInt("b101")
-  def MT_WU = UInt("b110")
-  def mtSize(mt: UInt) = mt(MT_SZ-2, 0)
-  def mtSigned(mt: UInt) = !mt(MT_SZ-1)
-
   val SZ_BR = 3
   def BR_X    = BitPat("b???")
   def BR_EQ   = UInt(0, 3)
