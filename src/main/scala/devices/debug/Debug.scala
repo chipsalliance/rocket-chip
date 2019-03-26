@@ -296,7 +296,14 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val DMCONTROLRdData = Wire(init = DMCONTROLReg)
 
     val DMCONTROLWrDataVal = Wire(init = 0.U(32.W))
-    val DMCONTROLWrData = (new DMCONTROLFields()).fromBits(DMCONTROLWrDataVal)
+    val DMCONTROLWrData = {
+      // Mask off unused hart ID bits to eliminate some flops
+      val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
+      val fields = DMCONTROLWrDataVal.asTypeOf(new DMCONTROLFields)
+      val res = Wire(init = fields)
+      res.hartsello := fields.hartsello & hartsel_mask
+      res
+    }
     val DMCONTROLWrEn   = Wire(init = false.B)
     val DMCONTROLRdEn   = Wire(init = false.B)
 
