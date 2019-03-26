@@ -8,7 +8,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, RocketTileLogicalTreeNode, EBSSLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
 
@@ -70,6 +70,8 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
   override lazy val module = new RocketSubsystemModuleImp(this)
+
+  def getOMInterruptDevice(resourceBindingsMap: ResourceBindingsMap): Seq[OMInterrupt] = Nil
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)

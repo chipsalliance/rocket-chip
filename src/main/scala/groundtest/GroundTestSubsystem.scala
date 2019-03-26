@@ -5,7 +5,7 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.BaseSubsystemLogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.model.OMInterrupt
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
@@ -42,6 +42,7 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 
+  def getOMInterruptDevice(resourceBindingsMap: ResourceBindingsMap): Seq[OMInterrupt] = Nil
 }
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
