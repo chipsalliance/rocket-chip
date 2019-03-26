@@ -604,7 +604,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Registers coming from 'CONTROL' in Outer
     //--------------------------------------------------------------
 
-    val selectedHartReg = RegInit(0.U(10.W))
+    val selectedHartReg = RegInit(0.U(p(MaxHartIdBits).W))
       // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
     val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
 
@@ -1072,12 +1072,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(1 << p(MaxHartIdBits)){new flagBundle().fromBits(0.U)})
+    val flags = Wire(init = Vec.fill(1 << selectedHartReg.getWidth){new flagBundle().fromBits(0.U)})
     assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
       s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
-    when ((selectedHartReg >> log2Ceil(flags.size)) === 0.U) {
-      flags(hartSelFuncs.hartSelToHartId(selectedHartReg.extract(log2Ceil(flags.size)-1, 0))).go := goReg
-    }
+    flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
 
     for (component <- 0 until nComponents) {
       val componentSel = Wire(init = component.U)
