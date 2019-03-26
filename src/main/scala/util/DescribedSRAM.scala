@@ -36,7 +36,8 @@ object DescribedSRAM {
       data_width = data.getWidth,
       depth = size,
       description = desc,
-      write_mask_granularity = granWidth)
+      write_mask_granularity = granWidth,
+      uuid = 0)
 
     mem
   }
