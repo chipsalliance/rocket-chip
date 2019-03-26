@@ -92,20 +92,3 @@ class BaseSubsystemLogicalTreeNode extends LogicalTreeNode {
   }
 }
 
-class EBSSLogicalTreeNode(getOMInterruptDevice: (ResourceBindingsMap) => Seq[OMInterrupt]) extends LogicalTreeNode {
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    List(
-      OMCoreComplex(
-        components = components,
-        documentationName = "",
-        externalGlobalInterrupts = getOMInterruptDevice(resourceBindingsMap)
-      )
-    )
-  }
-}
-
-class SystemLogicalTreeNode extends LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    components
-  }
-}
