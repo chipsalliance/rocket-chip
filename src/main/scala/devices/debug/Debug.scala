@@ -8,6 +8,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
+import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -1071,10 +1072,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
-    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < 1024.U),
-      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
-    flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
+    val flags = Wire(init = Vec.fill(1 << p(MaxHartIdBits)){new flagBundle().fromBits(0.U)})
+    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
+      s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
+    when ((selectedHartReg >> log2Ceil(flags.size)) === 0.U) {
+      flags(hartSelFuncs.hartSelToHartId(selectedHartReg.extract(log2Ceil(flags.size)-1, 0))).go := goReg
+    }
+
     for (component <- 0 until nComponents) {
       val componentSel = Wire(init = component.U)
       flags(hartSelFuncs.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
