@@ -107,7 +107,6 @@ class RocketTile private(
   }
 
   val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen), iCacheLogicalTreeNode)
-  //LogicalModuleTree.add(rocketLogicalTree, iCacheLogicalTreeNode)
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)

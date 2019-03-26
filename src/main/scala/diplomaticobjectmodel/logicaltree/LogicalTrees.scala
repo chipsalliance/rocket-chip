@@ -3,16 +3,14 @@
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
 import freechips.rocketchip.devices.debug._
-import freechips.rocketchip.devices.tilelink.PLICParams
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, _}
-import freechips.rocketchip.rocket.{DCacheParams, ICacheParams, ScratchpadSlavePort}
 
-class CLINTLogicalTreeNode(device: SimpleDevice, f: () => OMRegisterMap) extends LogicalTreeNode {
+class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
   def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(f()))
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(f))
 
     Seq[OMComponent](
       OMCLINT(
@@ -89,7 +87,25 @@ class PLICLogicalTreeNode(device: SimpleDevice, omRegMap: () => OMRegisterMap, n
 }
 
 class BaseSubsystemLogicalTreeNode extends LogicalTreeNode {
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, cs: Seq[OMComponent]): Seq[OMComponent] = {
-    cs
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    components
+  }
+}
+
+class EBSSLogicalTreeNode(getOMInterruptDevice: (ResourceBindingsMap) => Seq[OMInterrupt]) extends LogicalTreeNode {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    List(
+      OMCoreComplex(
+        components = components,
+        documentationName = "",
+        externalGlobalInterrupts = getOMInterruptDevice(resourceBindingsMap)
+      )
+    )
+  }
+}
+
+class SystemLogicalTreeNode extends LogicalTreeNode {
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    components
   }
 }

@@ -95,14 +95,14 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     def getOMRegMap(): OMRegisterMap = omRegMap
   }
 
-  val logicalTreeNode = new CLINTLogicalTreeNode(device, module.getOMRegMap)
+  val logicalTreeNode = new CLINTLogicalTreeNode(device, module.omRegMap)
 }
 
 /** Trait that will connect a CLINT to a subsystem */
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    LogicalModuleTree.add(logicalTree, clint.logicalTreeNode)
+    LogicalModuleTree.add(logicalTreeNode, clint.logicalTreeNode)
 
     clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
     clint

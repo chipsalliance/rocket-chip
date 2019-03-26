@@ -44,7 +44,7 @@ class RocketLogicalTreeNode(
     omDTIM.orElse(omDCache)
   }
 
-  def getInterruptTargets(): Seq[OMInterruptTarget] = {
+  def getOMInterruptTargets(): Seq[OMInterruptTarget] = {
     Seq(OMInterruptTarget(
       hartId = rocketParams.hartId,
       modes = OMModes.getModes(rocketParams.core.useVM)
@@ -76,3 +76,35 @@ class RocketLogicalTreeNode(
     ))
   }
 }
+
+class RocketTileLogicalTreeNode(
+  getOMRocketInterruptTargets: () => Seq[OMInterruptTarget]) extends LogicalTreeNode {
+
+  def getIndex(cs: Seq[OMComponent]): Seq[(OMComponent, Int)] = {
+    cs.zipWithIndex.filter(_._1.isInstanceOf[OMPLIC])
+  }
+
+  def updatePlic(plic: OMPLIC): OMPLIC = {
+    val omRocketInterruptTargets: Seq[OMInterruptTarget] = getOMRocketInterruptTargets()
+
+    plic.copy(targets = omRocketInterruptTargets)
+  }
+
+  def addIntsToPlic(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    val cs = getIndex(components)
+
+    require(cs.size <= 1, "Too many Plic's")
+
+    cs.flatMap {
+      case (plic, index) =>
+        val omplic = plic.asInstanceOf[OMPLIC]
+        val updatedPlic = updatePlic(omplic)
+        components.updated(index, updatedPlic)
+    }
+  }
+
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    components
+  }
+}
+
