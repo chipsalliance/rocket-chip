@@ -747,19 +747,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // report whether there are any outstanding accesses.  disregard any
   // slave-port accesses, since they don't affect local memory ordering.
-  val s1_isSlavePortAccess = usingDataScratchpad && s1_req.phys
-  val s2_isSlavePortAccess = usingDataScratchpad && s2_req.phys
+  val s1_isSlavePortAccess = s1_req.no_xcpt
+  val s2_isSlavePortAccess = s2_req.no_xcpt
   io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
-  val s1_xcpt_valid = tlb.io.req.valid && !s1_nack
+  val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_resp, 0.U.asTypeOf(s2_tlb_resp))
 
   if (usingDataScratchpad) {
-    require(!usingVM) // therefore, req.phys means this is a slave-port access
-    when (s2_isSlavePortAccess) {
-      assert(!s2_valid || s2_hit_valid)
-      io.cpu.s2_xcpt := 0.U.asTypeOf(io.cpu.s2_xcpt)
-    }
     assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
   } else {
     ccover(tl_out.b.valid && !tl_out.b.ready, "BLOCK_B", "D$ B-channel blocked")

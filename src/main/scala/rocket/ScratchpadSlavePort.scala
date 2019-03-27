@@ -75,6 +75,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       req.addr := a.address
       req.tag := UInt(0)
       req.phys := true
+      req.no_xcpt := true
       req
     }
 
