@@ -42,6 +42,7 @@ case class TLAdapterNode(
   extends AdapterNode(TLImp)(clientFn, managerFn)
 
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)()
+case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)()
 
 object TLNameNode {
   def apply(name: ValName) = TLIdentityNode()(name)

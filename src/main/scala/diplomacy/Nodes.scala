@@ -291,11 +291,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     }
   }
 
-  lazy val oDirectPorts = oBindings.flatMap { case (i, n, _, p, s) =>
+  protected[diplomacy] lazy val oDirectPorts = oBindings.flatMap { case (i, n, _, p, s) =>
     val (start, end) = n.iPortMapping(i)
     (start until end) map { j => (j, n, p, s) }
   }
-  lazy val iDirectPorts = iBindings.flatMap { case (i, n, _, p, s) =>
+  protected[diplomacy] lazy val iDirectPorts = iBindings.flatMap { case (i, n, _, p, s) =>
     val (start, end) = n.oPortMapping(i)
     (start until end) map { j => (j, n, p, s) }
   }
@@ -476,12 +476,23 @@ class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
+  override def description = "identity"
   protected override val identity = true
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
     (out zip in) map { case ((o, _), (i, _)) => o <> i }
     dangles
   } 
+}
+
+// EphemeralNodes disappear from the final node graph
+class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
+  extends AdapterNode(imp)({ s => s }, { s => s })
+{
+  override def description = "ephemeral"
+  override def omitGraphML = true
+  override def oForward(x: Int) = Some(iDirectPorts(x) match { case (i, n, _, _) => (i, n) })
+  override def iForward(x: Int) = Some(oDirectPorts(x) match { case (i, n, _, _) => (i, n) })
 }
 
 class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
