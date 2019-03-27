@@ -182,6 +182,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
+  protected[diplomacy] def iForward(x: Int): Option[(Int, InwardNode[DI, UI, BI])] = None
   protected[diplomacy] val diParams: Seq[DI] // from connected nodes
   protected[diplomacy] val uiParams: Seq[UI] // from this node
 
@@ -210,6 +211,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
+  protected[diplomacy] def oForward(x: Int): Option[(Int, OutwardNode[DO, UO, BO])] = None
   protected[diplomacy] val uoParams: Seq[UO] // from connected nodes
   protected[diplomacy] val doParams: Seq[DO] // from this node
 }
@@ -289,14 +291,29 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     }
   }
 
-  lazy val oPorts = oBindings.flatMap { case (i, n, _, p, s) =>
+  lazy val oDirectPorts = oBindings.flatMap { case (i, n, _, p, s) =>
     val (start, end) = n.iPortMapping(i)
     (start until end) map { j => (j, n, p, s) }
   }
-  lazy val iPorts = iBindings.flatMap { case (i, n, _, p, s) =>
+  lazy val iDirectPorts = iBindings.flatMap { case (i, n, _, p, s) =>
     val (start, end) = n.oPortMapping(i)
     (start until end) map { j => (j, n, p, s) }
   }
+
+  // Ephemeral nodes have in_degree = out_degree
+  // Thus, there must exist an Eulerian path and the below algorithms terminate
+  private def oTrace(tuple: (Int, InwardNode[DO, UO, BO], Parameters, SourceInfo)): (Int, InwardNode[DO, UO, BO], Parameters, SourceInfo) =
+    tuple match { case (i, n, p, s) => n.iForward(i) match {
+      case None => (i, n, p, s)
+      case Some ((j, m)) => oTrace((j, m, p, s))
+    } }
+  private def iTrace(tuple: (Int, OutwardNode[DI, UI, BI], Parameters, SourceInfo)): (Int, OutwardNode[DI, UI, BI], Parameters, SourceInfo) =
+    tuple match { case (i, n, p, s) => n.oForward(i) match {
+      case None => (i, n, p, s)
+      case Some ((j, m)) => iTrace((j, m, p, s))
+    } }
+  lazy val oPorts = oDirectPorts.map(oTrace)
+  lazy val iPorts = iDirectPorts.map(iTrace)
 
   private var oParamsCycleGuard = false
   protected[diplomacy] lazy val diParams: Seq[DI] = iPorts.map { case (i, n, _, _) => n.doParams(i) }
