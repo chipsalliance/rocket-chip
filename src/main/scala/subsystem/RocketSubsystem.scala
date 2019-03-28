@@ -29,8 +29,7 @@ case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(Rock
 trait HasRocketTiles extends HasTiles
     with CanHavePeripheryPLIC
     with CanHavePeripheryCLINT
-    with HasPeripheryDebug {
-  this: BaseSubsystem =>
+    with HasPeripheryDebug { this: BaseSubsystem =>
   val module: HasRocketTilesModuleImp
 
   protected val rocketTileParams = p(RocketTilesKey)
