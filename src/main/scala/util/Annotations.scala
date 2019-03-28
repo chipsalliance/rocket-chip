@@ -23,7 +23,7 @@ case class SRAMAnnotation(target: ComponentName,
   depth: BigInt,
   description: String,
   write_mask_granularity: Int,
-  uuid: Long) extends SingleTargetAnnotation[ComponentName] {
+  idhash: Int=0) extends SingleTargetAnnotation[ComponentName] {
   def duplicate(n: ComponentName) = this.copy(n)
 }
 
@@ -114,7 +114,7 @@ object Annotated {
     depth: BigInt,
     description: String,
     write_mask_granularity: Int,
-    uuid: Long): Unit = {
+    idhash: ()=>Int = ()=>0): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = SRAMAnnotation(
       component.toNamed,
       address_width = address_width,
@@ -123,7 +123,7 @@ object Annotated {
       depth = depth,
       description = description,
       write_mask_granularity = write_mask_granularity,
-      uuid = uuid
+      idhash = idhash()
     )})}
 
   def interrupts(component: InstanceId, name: String, interrupts: Seq[Int]): Unit = {
