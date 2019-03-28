@@ -8,6 +8,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
+import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -295,7 +296,14 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val DMCONTROLRdData = Wire(init = DMCONTROLReg)
 
     val DMCONTROLWrDataVal = Wire(init = 0.U(32.W))
-    val DMCONTROLWrData = (new DMCONTROLFields()).fromBits(DMCONTROLWrDataVal)
+    val DMCONTROLWrData = {
+      // Mask off unused hart ID bits to eliminate some flops
+      val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
+      val fields = DMCONTROLWrDataVal.asTypeOf(new DMCONTROLFields)
+      val res = Wire(init = fields)
+      res.hartsello := fields.hartsello & hartsel_mask
+      res
+    }
     val DMCONTROLWrEn   = Wire(init = false.B)
     val DMCONTROLRdEn   = Wire(init = false.B)
 
@@ -603,12 +611,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Registers coming from 'CONTROL' in Outer
     //--------------------------------------------------------------
 
-    val selectedHartReg = RegInit(0.U(10.W))
+    val selectedHartReg = RegInit(0.U(p(MaxHartIdBits).W))
       // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
     val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
 
-    when (io.innerCtrl.fire()){
-      selectedHartReg := io.innerCtrl.bits.hartsel
+    if (nComponents > 1) {
+      when (io.innerCtrl.fire()){
+        selectedHartReg := io.innerCtrl.bits.hartsel
+      }
     }
 
     if (supportHartArray) {
@@ -1073,10 +1083,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
-    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < 1024.U),
-      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
+    val flags = Wire(init = Vec.fill(1 << selectedHartReg.getWidth){new flagBundle().fromBits(0.U)})
+    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
+      s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
     flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
+
     for (component <- 0 until nComponents) {
       val componentSel = Wire(init = component.U)
       flags(hartSelFuncs.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
