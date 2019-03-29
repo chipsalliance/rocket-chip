@@ -91,8 +91,6 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"),
         RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
     )
-
-    def getOMRegMap(): OMRegisterMap = omRegMap
   }
 
   val logicalTreeNode = new CLINTLogicalTreeNode(device, module.omRegMap)

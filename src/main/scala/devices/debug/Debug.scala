@@ -296,14 +296,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val DMCONTROLRdData = Wire(init = DMCONTROLReg)
 
     val DMCONTROLWrDataVal = Wire(init = 0.U(32.W))
-    val DMCONTROLWrData = {
-      // Mask off unused hart ID bits to eliminate some flops
-      val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
-      val fields = DMCONTROLWrDataVal.asTypeOf(new DMCONTROLFields)
-      val res = Wire(init = fields)
-      res.hartsello := fields.hartsello & hartsel_mask
-      res
-    }
+    val DMCONTROLWrData = (new DMCONTROLFields()).fromBits(DMCONTROLWrDataVal)
     val DMCONTROLWrEn   = Wire(init = false.B)
     val DMCONTROLRdEn   = Wire(init = false.B)
 
@@ -611,14 +604,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Registers coming from 'CONTROL' in Outer
     //--------------------------------------------------------------
 
-    val selectedHartReg = RegInit(0.U(p(MaxHartIdBits).W))
-      // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
+    val selectedHartReg = RegInit(0.U(10.W))
+    // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
     val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
 
-    if (nComponents > 1) {
-      when (io.innerCtrl.fire()){
-        selectedHartReg := io.innerCtrl.bits.hartsel
-      }
+    when (io.innerCtrl.fire()) {
+      selectedHartReg := io.innerCtrl.bits.hartsel
     }
 
     if (supportHartArray) {
@@ -1027,8 +1018,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_SBADDRESS3 << 2) -> sbAddrFields(3) 
     )
 
-    def getOMRegMap(): OMRegisterMap = omRegMap
-
     // Abstract data mem is written by both the tile link interface and DMI...
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
       when (dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
@@ -1083,9 +1072,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(1 << selectedHartReg.getWidth){new flagBundle().fromBits(0.U)})
-    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
-      s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
+    val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
+    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < 1024.U),
+      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
     flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
 
     for (component <- 0 until nComponents) {
@@ -1452,6 +1441,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
   }
 
-  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.getOMRegMap,
+  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.omRegMap,
     p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }

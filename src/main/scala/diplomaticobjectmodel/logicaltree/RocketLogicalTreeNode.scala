@@ -56,7 +56,7 @@ class RocketLogicalTreeNode(
 
     val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
 
-    val omICache = icacheLTN.iCache(resourceBindingsMap) // TODO hack
+    val omICache = icacheLTN.iCache(resourceBindingsMap)
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),

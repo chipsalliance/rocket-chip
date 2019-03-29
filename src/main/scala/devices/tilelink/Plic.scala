@@ -307,8 +307,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
-
-  def getOMRegMap(): OMRegisterMap = module.omRegMap
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
