@@ -442,6 +442,13 @@ object ResourceAnchors
     }
   }
 
+  val chosen = new Device {
+    def describe(resources: ResourceBindings): Description =
+      Description("chosen", Map() ++
+        resources("uart").headOption.map { case Binding(_, value) =>
+          (s"stdout-path" -> Seq(value))})
+  }
+
   val aliases = new Device {
     def describe(resources: ResourceBindings): Description =
       Description("aliases", Map() ++
