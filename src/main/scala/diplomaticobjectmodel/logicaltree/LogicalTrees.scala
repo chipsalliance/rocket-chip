@@ -104,9 +104,3 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) =
     )
   }
 }
-
-class SystemLogicalTreeNode extends LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    components
-  }
-}

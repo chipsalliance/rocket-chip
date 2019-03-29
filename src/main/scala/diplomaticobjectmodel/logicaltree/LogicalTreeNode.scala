@@ -48,6 +48,7 @@ object LogicalModuleTree {
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
       node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
+
     getOMComponentTree(root)
   }
 }
