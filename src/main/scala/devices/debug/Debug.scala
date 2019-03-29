@@ -605,10 +605,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     //--------------------------------------------------------------
 
     val selectedHartReg = RegInit(0.U(10.W))
-    // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
+      // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
     val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
 
-    when (io.innerCtrl.fire()) {
+    when (io.innerCtrl.fire()){
       selectedHartReg := io.innerCtrl.bits.hartsel
     }
 
