@@ -51,7 +51,7 @@ trait HasRocketTiles extends HasTiles
 
   rocketTiles.map {
     r =>
-      val treeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
+      def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
       LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
   }
 

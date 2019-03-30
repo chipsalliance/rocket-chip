@@ -58,7 +58,7 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModul
   }
 }
 
-class PLICLogicalTreeNode(device: SimpleDevice, omRegMap: => OMRegisterMap, nPriorities: Int) extends LogicalTreeNode {
+class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, nPriorities: => Int) extends LogicalTreeNode {
   def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(omRegMap))
     val ints = DiplomaticObjectModelAddressing.describeInterrupts(device.describe(resourceBindings).name, resourceBindings)
