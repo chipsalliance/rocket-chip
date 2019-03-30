@@ -24,42 +24,50 @@ case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APB
         nodePath      = m.nodePath,
         //TODO why and how should I do this adjust for APB?
         // Also, shouldn't I use supportsPutPartial because of PSTRB?
-        supportsWrite = m.supportsPutFull,//adjust(m.supportsPutFull),
-        supportsRead  = m.supportsGet)},//adjust(m.supportsGet))},
+        supportsWrite = m.supportsPutPartial.intersect(TransferSizes(1, mp.beatBytes)),
+        supportsRead  = m.supportsGet.intersect(TransferSizes(1, mp.beatBytes)))},
     beatBytes = mp.beatBytes)
-  }) {
-  //TODO: Shouldn't there be a requirement that TL side is wider than APB side?
-}
+  })
 
 class APBToTL()(implicit p: Parameters) extends LazyModule
 {
   val node = APBToTLNode()
 
+  
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.manager.beatBytes
 
       //-----------------------------------------------
       // Flow Control
-      out.a.valid := in.psel && in.penable
-      in.pready := in.psel & in.penable & out.d.valid
-      out.d.ready := in.psel && in.penable // No backpressure to APB Master
+      // We don't want to handle the case where the data is returned immediately
+      // on the same cycle that we send the transaction. Require and verify.
+      require (edgeOut.manager.minLatency >= 1)
+      assert (!(in.psel && !in.penable && out.d.valid))
+
+      val in_flight_reg = RegInit(false.B)
+      out.a.valid := in.psel && !in_flight_reg
+      in.pready := out.d.valid
+      out.d.ready := true.B
+
+      when (out.a.fire()){in_flight_reg := true.B}
+      when (out.d.fire()){in_flight_reg := false.B}
 
       // Write
-      // Question -- do I want PutPartial here or PutFull?
-      // I was thinking PutPartial because of the pstrb masking.
+      // PutPartial because of pstrb masking.
       out.a.bits.opcode  := Mux(in.pwrite, TLMessages.PutPartialData, TLMessages.Get)
       out.a.bits.param   := UInt(0)
       out.a.bits.size    := UInt(log2Ceil(in.params.dataBits/8))
       out.a.bits.source  := UInt(0)
-      out.a.bits.address := in.paddr
+      // TL requires addresses be aligned to their size.
+      out.a.bits.address := ~(~in.paddr | (beatBytes-1).U)
+      // The double negative above is to work around Chisel's broken implementation of widening ~x.
+      assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
       out.a.bits.data    := in.pwdata
-      val pstrbFill = beatBytes / (in.params.dataBits/8)
-      out.a.bits.mask    := MaskGen(out.a.bits.address, out.a.bits.size, beatBytes) | Cat(Seq.fill(pstrbFill)(in.pstrb).reverse)
+      out.a.bits.mask    := Mux(in.pwrite, in.pstrb, ~0.U(beatBytes.W))
       out.a.bits.corrupt := Bool(false)
-      assert (in.pprot === 0.U, "Can't support APB PPROT != 0 in APB2TL conversion")
+      // Note: we ignore in.pprot
       // Read
-      // TODO: do I need to slice this? What if they aren't same width?
       in.prdata := out.d.bits.data
 
       // Error
