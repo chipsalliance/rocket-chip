@@ -34,10 +34,4 @@ object LogicalModuleTree {
 
     getOMComponentTree(root)
   }
-
-  def x: Unit = {
-    val name = this.getClass.getName
-    val hash = name.hashCode
-
-  }
 }
