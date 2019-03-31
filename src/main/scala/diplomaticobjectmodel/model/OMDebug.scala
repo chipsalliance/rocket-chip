@@ -6,6 +6,7 @@ sealed trait DebugInterfaceType extends OMEnum
 case object JTAG extends DebugInterfaceType
 case object CJTAG extends DebugInterfaceType
 case object DMI extends DebugInterfaceType
+case object APB extends DebugInterfaceType
 
 case class OMDebug(
   memoryRegions: Seq[OMMemoryRegion],
@@ -19,10 +20,11 @@ case class OMDebug(
 
 object OMDebug {
 
-  def getDebugInterfaceType(jtag: Boolean, cjtag: Boolean, dmi: Boolean): DebugInterfaceType = {
+  def getDebugInterfaceType(jtag: Boolean, cjtag: Boolean, dmi: Boolean, apb: Boolean): DebugInterfaceType = {
     if (jtag) { JTAG }
     else if (cjtag) { CJTAG }
     else if (dmi) { DMI }
+    else if (apb) { APB }
     else { throw new IllegalArgumentException }
   }
 }

@@ -31,7 +31,7 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
   }
 }
 
-class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTreeNode {
+class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean, exportDebugAPB: Boolean) extends LogicalTreeNode {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(f))
     val cfg : DebugModuleParams = debugModuleParams
@@ -48,7 +48,7 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModul
         ),
         nAbstractDataWords = cfg.nAbstractDataWords,
         nProgramBufferWords = cfg.nProgramBufferWords,
-        interfaceType = OMDebug.getDebugInterfaceType(exportDebugJTAG, exportDebugCJTAG, exportDebugDMI),
+        interfaceType = OMDebug.getDebugInterfaceType(exportDebugJTAG, exportDebugCJTAG, exportDebugDMI, exportDebugAPB),
       )
     )
   }
