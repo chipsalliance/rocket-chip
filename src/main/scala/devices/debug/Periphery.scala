@@ -9,6 +9,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
@@ -36,6 +37,9 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   */
 trait HasPeripheryDebug { this: BaseSubsystem =>
   val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
+
+  LogicalModuleTree.add(logicalTreeNode, debug.logicalTreeNode)
+
   debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
   val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
   debug.dmInner.dmInner.customNode := debugCustomXbar.node
@@ -43,9 +47,6 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
     fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
   }
-
-  def getOMDebugModule(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
-    debug.device.getOMComponents(resourceBindingsMap)
 }
 
 trait HasPeripheryDebugModuleImp extends LazyModuleImp {

@@ -8,11 +8,10 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterruptTarget}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util._
+
 
 // TODO: how specific are these to RocketTiles?
 case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
@@ -50,15 +49,15 @@ trait HasRocketTiles extends HasTiles
     rocket
   }
 
+  rocketTiles.map {
+    r =>
+      def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
+      LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
+  }
+
   def coreMonitorBundles = (rocketTiles map { t =>
     t.module.core.rocketImpl.coreMonitorBundle
   }).toList
-
-  def getOMRocketInterruptTargets(): Seq[OMInterruptTarget] =
-    rocketTiles.flatMap(c => c.cpuDevice.getInterruptTargets())
-
-  def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] =
-    rocketTiles.flatMap(c => c.cpuDevice.getOMComponents(resourceBindingsMap))
 }
 
 trait HasRocketTilesModuleImp extends HasTilesModuleImp
@@ -70,6 +69,8 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
   override lazy val module = new RocketSubsystemModuleImp(this)
+
+  def getOMInterruptDevice(resourceBindingsMap: ResourceBindingsMap): Seq[OMInterrupt] = Nil
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
