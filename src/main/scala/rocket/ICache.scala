@@ -56,7 +56,12 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
+  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
+    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+      val resourceBindings = resourceBindingsMap.map.get(this)
+      Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
+    }
+  }
 
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =

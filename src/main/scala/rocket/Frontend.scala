@@ -14,7 +14,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{ICacheLogicalTreeNode}
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -350,8 +349,6 @@ trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   tlMasterXbar.node := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
   nPTWPorts += 1
-
-  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(frontend.icache.device, tileParams.icache.get)
 }
 
 trait HasICacheFrontendModule extends CanHavePTWModule {
