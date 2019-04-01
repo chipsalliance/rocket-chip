@@ -12,7 +12,7 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
+case object TileVisibilityNodeKey extends Field[TLIdentityNode]
 case object TileKey extends Field[TileParams]
 case object ResetVectorBits extends Field[Int]
 case object MaxHartIdBits extends Field[Int]
@@ -151,7 +151,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   def this(tileParams: TileParams, crossing: ClockCrossingType, lookup: LookupByHartIdImpl, p: Parameters) = {
     this(crossing, p.alterMap(Map(
       TileKey -> tileParams,
-      TileVisibilityNodeKey -> TLEphemeralNode()(ValName("tile_master")),
+      TileVisibilityNodeKey -> TLIdentityNode()(ValName("tile_master")),
       LookupByHartId -> lookup
     )))
   }
