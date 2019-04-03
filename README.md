@@ -27,30 +27,28 @@ the RISC-V Rocket Core. For more information on Rocket Chip, please consult our 
 ### Setting up the RISCV environment variable
 
 To build the rocket-chip repository, you must point the RISCV
-environment variable to your riscv-tools installation directory.
+environment variable to your rocket-tools installation directory.
 
     $ export RISCV=/path/to/riscv/toolchain/installation
 
-The riscv-tools repository known to work with rocket-chip is noted
-in the file riscv-tools.hash. However, any recent riscv-tools should work.
-You can build riscv-tools as follows:
+The rocket-tools repository known to work with rocket-chip is noted
+in the file riscv-tools.hash. However, any recent rocket-tools should work.
+You can build rocket-tools as follows:
 
-    $ cd rocket-chip/riscv-tools
+    $ git clone https://github.com/freechipsproject/rocket-tools
+    $ cd rocket-tools
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
     $ export MAKEFLAGS="$MAKEFLAGS -jN" # Assuming you have N cores on your host system
     $ ./build.sh
     $ ./build-rv32ima.sh (if you are using RV32).
 
-For more information (or if you run into any issues), please consult the
-[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
-
 ### Install Necessary Dependencies
 
 You may need to install some additional packages to use this repository.
 Rather than list all dependencies here, please see the appropriate section of the READMEs for each of the subprojects:
 
-* [riscv-tools "Ubuntu Packages Needed"](https://github.com/riscv/riscv-tools/blob/priv-1.10/README.md#quickstart)
+* [rocket-tools "Ubuntu Packages Needed"](https://github.com/freechipsproject/rocket-tools/blob/master/README.md)
 * [chisel3 "Installation"](https://github.com/ucb-bar/chisel3#installation)
 
 ### Building The Project
@@ -97,9 +95,9 @@ you also need to keep the submodules and tools up to date.
     $ # Make sure the submodules have the correct versions
     $ git submodule update --init --recursive
 
-If riscv-tools version changes, you should recompile and install riscv-tools according to the directions in the [riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+If rocket-tools version changes, you should recompile and install rocket-tools according to the directions in the [rocket-tools/README](https://github.com/freechipsproject/rocket-tools/blob/master/README.md).
 
-    $ cd riscv-tools
+    $ cd rocket-tools
     $ ./build.sh
     $ ./build-rv32ima.sh (if you are using RV32)
 
@@ -138,9 +136,9 @@ Hardfloat holds Chisel code that generates parameterized IEEE 754-2008 compliant
 floating-point units used for fused multiply-add operations, conversions
 between integer and floating-point numbers, and conversions between
 floating-point conversions with different precision.
-* **riscv-tools**
-([https://github.com/riscv/riscv-tools](https://github.com/riscv/riscv-tools)):
-We tag a version of the RISC-V software ecosystem that works with the RTL committed in this repository.
+* **rocket-tools**
+([https://github.com/freechipsproject/rocket-tools](https://github.com/freechipsproject/rocket-tools)):
+We tag a version of RISC-V software tools that work with the RTL committed in this repository.
 * **torture**
 ([https://github.com/ucb-bar/riscv-torture](https://github.com/ucb-bar/riscv-torture)):
 This module is used to generate and execute constrained random instruction streams that can
@@ -240,9 +238,9 @@ points to the rocket-chip repository.
     $ git submodule update --init
 
 Before going any further, you must point the RISCV environment variable
-to your riscv-tools installation directory. If you do not yet have
-riscv-tools installed, follow the directions in the
-[riscv-tools/README](https://github.com/riscv/riscv-tools/blob/master/README.md).
+to your rocket-tools installation directory. If you do not yet have
+rocket-tools installed, follow the directions in the
+[rocket-tools/README](https://github.com/freechipsproject/rocket-tools/blob/master/README.md).
 
     export RISCV=/path/to/install/riscv/toolchain
 
@@ -553,7 +551,7 @@ Please note also that when debugging with GDB, the .elf file is not actually loa
 
 ### 4) Launch OpenOCD
 
-You will need a RISC-V Enabled OpenOCD binary. This is installed with riscv-tools in `$(RISCV)/bin/openocd`, or can be compiled manually from riscv-openocd. OpenOCD requires a configuration file, in which we define the RBB port we will use, which is in our case `9823`.
+You will need a RISC-V Enabled OpenOCD binary. This is installed with rocket-tools in `$(RISCV)/bin/openocd`, or can be compiled manually from riscv-openocd. OpenOCD requires a configuration file, in which we define the RBB port we will use, which is in our case `9823`.
 
     $ cat cemulator.cfg 
     interface remote_bitbang
