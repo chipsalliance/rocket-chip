@@ -3,6 +3,7 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
+import diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.tilelink.TLPLIC
 import freechips.rocketchip.diplomacy._
@@ -37,7 +38,7 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 }
 
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   // These are wrappers around the standard buses available in all subsytems, where
