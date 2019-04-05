@@ -37,12 +37,12 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
     val device = new MemoryDevice
 
     val memAXI4Node = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
-      val base = AddressSet(memPortParams.base, memPortParams.size-1)
+      val base = AddressSet.misaligned(memPortParams.base, memPortParams.size)
       val filter = AddressSet(channel * mbus.blockBytes, ~((nMemoryChannels-1) * mbus.blockBytes))
 
       AXI4SlavePortParameters(
         slaves = Seq(AXI4SlaveParameters(
-          address       = base.intersect(filter).toList,
+          address       = base.flatMap(_.intersect(filter)),
           resources     = device.reg,
           regionType    = RegionType.UNCACHED, // cacheable
           executable    = true,
