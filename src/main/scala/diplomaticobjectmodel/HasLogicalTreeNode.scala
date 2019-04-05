@@ -1,4 +1,7 @@
-package diplomaticobjectmodel
+// See LICENSE.SiFive for license details.
+
+package freechips.rocketchip.diplomaticobjectmodel
+
 
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 
