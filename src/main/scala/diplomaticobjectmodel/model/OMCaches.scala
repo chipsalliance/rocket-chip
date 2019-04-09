@@ -11,7 +11,6 @@ trait OMCache extends OMDevice {
   def dataMemorySizeBytes: Int
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
-  def nTLBEntries: Int
 }
 
 case class OMICache(
