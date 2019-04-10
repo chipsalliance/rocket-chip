@@ -64,11 +64,23 @@ def dependOnChisel(prj: Project) = {
 
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
   .settings(crossScalaVersions := Seq("2.12.4"))
+  .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
+  .settings(publishArtifact := false)
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
-  .dependsOn(hardfloat, `rocket-macros`)
-  .aggregate(hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
+  .dependsOn(hardfloat % "compile-internal;test-internal")
+  .dependsOn(`rocket-macros` % "compile-internal;test-internal")
+  .settings(
+      aggregate := false,
+      // Include macro classes, resources, and sources in main jar.
+      mappings in (Compile, packageBin) ++= (mappings in (hardfloat, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
+      exportJars := true
+  )
+
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
