@@ -9,6 +9,9 @@ import freechips.rocketchip.diplomacy.DiplomaticSRAM
 import Chisel._
 import chisel3.SyncReadMem
 import freechips.rocketchip.amba.axi4.AXI4RAM
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNodeKey}
+import freechips.rocketchip.diplomaticobjectmodel.model.OMMemory
 
 import scala.math.log10
 
@@ -18,7 +21,7 @@ object DescribedSRAM {
     desc: String,
     size: Int, // depth
     data: T
-  ): SyncReadMem[T] = {
+  )( implicit p: Parameters): SyncReadMem[T] = {
 
     val mem = SeqMem(size, data)
 
@@ -37,6 +40,17 @@ object DescribedSRAM {
       depth = size,
       description = desc,
       write_mask_granularity = granWidth)
+
+
+    val logicalTreeNode = OMMemory(
+      description = desc,
+      addressWidth = log2Ceil(size),
+      dataWidth = data.getWidth,
+      depth = size,
+      writeMaskGranularity = granWidth
+    )
+
+    LogicalModuleTree.add(p(LogicalTreeNodeKey))
 
     mem
   }
