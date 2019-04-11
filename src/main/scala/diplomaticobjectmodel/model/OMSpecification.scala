@@ -7,9 +7,3 @@ case class OMSpecification(
   version: String,
   _types: Seq[String] = Seq("OMSpecification")
 )
-
-trait OMCustomExtensionSpecification{
-  def name: String
-  def version: String
-  def _types: Seq[String] = Seq("OMCustomExtensionSpecification", "OMSpecification")
-}
