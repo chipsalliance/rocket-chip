@@ -28,7 +28,6 @@ case object RV32I extends OMBaseInstructionSet
 case object RV64I extends OMBaseInstructionSet
 case object RV128I extends OMBaseInstructionSet
 
-
 case class Xsifivecflushdlone(
   name: String,
   version: String,

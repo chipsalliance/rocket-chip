@@ -9,7 +9,6 @@ sealed trait PrivilegedArchitectureExtension extends OMEnum
 case object MachineLevelISA extends PrivilegedArchitectureExtension
 case object SupervisorLevelISA extends PrivilegedArchitectureExtension
 
-
 object PrivilegedArchitectureExtensions {
   val specifications = Map[PrivilegedArchitectureExtension, String](
     MachineLevelISA -> "Machine-Level ISA",
