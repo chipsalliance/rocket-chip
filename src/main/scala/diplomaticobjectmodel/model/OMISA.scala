@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import diplomaticobjectmodel.model.CustomISAExtensions.XsifivecflushdloneKey
-import diplomaticobjectmodel.model.{CustomISAExtensions, OMCustomExtensionSpecification}
+
 import freechips.rocketchip.rocket.RocketCoreParams
 import freechips.rocketchip.tile.CoreParams
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
@@ -28,12 +27,6 @@ case object RV32I extends OMBaseInstructionSet
 case object RV64I extends OMBaseInstructionSet
 case object RV128I extends OMBaseInstructionSet
 
-case class Xsifivecflushdlone(
-  name: String,
-  version: String,
-  override val _types: Seq[String] = Seq("OMXsifivecflushdlone", "OMCustomExtensionSpecification", "OMSpecification")
-) extends OMCustomExtensionSpecification
-
 case class OMISA(
   xLen: Int,
   baseSpecification: OMSpecification,
@@ -52,10 +45,10 @@ case class OMISA(
 
 object OMISA {
   def customExtensions(coreParams: CoreParams): List[OMCustomExtensionSpecification] = {
-    val cflush = coreParams.haveCFlush.option(CustomISAExtensions.customSpecifications(XsifivecflushdloneKey)(""))
-    List[Option[OMCustomExtensionSpecification]](
-      cflush
-    ).flatten
+    val extensions = new CustomISAExtensions()
+
+    extensions.add(XsifivecflushdloneKey, "version") // TODO
+    extensions.get()
   }
 
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
