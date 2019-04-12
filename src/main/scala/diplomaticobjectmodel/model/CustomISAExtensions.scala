@@ -13,9 +13,10 @@ object CustomISAExtensions {
   trait OMCustomExtensionType extends OMEnum
   case object XsifivecflushdloneKey extends OMCustomExtensionType
 
-  val cflush: (String) => OMCustomExtensionSpecification = (s: String) => Xsifivecflushdlone("SiFive Extension for Cache Flush", s)
+  def cflush: (String) => OMCustomExtensionSpecification = (s: String) => Xsifivecflushdlone("SiFive Extension for Cache Flush", s)
 
   val customSpecifications = Map[OMCustomExtensionType, (String) => OMCustomExtensionSpecification](
     XsifivecflushdloneKey -> cflush
   )
+
 }
