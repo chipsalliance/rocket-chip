@@ -72,7 +72,8 @@ class RocketLogicalTreeNode(
       nBreakpoints = coreParams.nBreakpoints,
       branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
       dcache = omDCache,
-      icache = Some(omICache)
+      icache = Some(omICache),
+      hasSCIE = coreParams.useSCIE
     ))
   }
 }
