@@ -44,7 +44,7 @@ case class OMISA(
 ) extends OMCompoundType
 
 object OMISA {
-  def customExtensions(coreParams: CoreParams): List[OMCustomExtensionSpecification] = {
+  def customExtensions(): List[OMCustomExtensionSpecification] = {
     val extensions = new CustomISAExtensions()
 
     extensions.add(XsifivecflushdloneKey, "version") // TODO
@@ -87,7 +87,7 @@ object OMISA {
       u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
       addressTranslationModes = Seq(addressTranslationModes),
-      customExtensions = customExtensions(coreParams)
+      customExtensions = customExtensions()
     )
   }
 }
