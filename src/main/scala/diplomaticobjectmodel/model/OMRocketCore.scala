@@ -51,8 +51,8 @@ object OMCaches {
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
       dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode(_)),
-      tagECC = p.tagECC.map(OMECC.getCode(_)),
+      dataECC = p.dataECC.map(OMECC.getCode),
+      tagECC = p.tagECC.map(OMECC.getCode),
       nTLBEntries = p.nTLBEntries
     )
   }
