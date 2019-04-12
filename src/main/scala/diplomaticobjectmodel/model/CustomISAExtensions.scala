@@ -12,34 +12,7 @@ trait OMCustomExtensionSpecification{
 }
 
 case class Xsifivecflushdlone(
-  name: String,
-  version: String,
+  version: String = "0.1",
+  name: String = "Cache Flush/Power Down Instructions custom extension specification",
   override val _types: Seq[String] = Seq("OMXsifivecflushdlone", "OMCustomExtensionSpecification", "OMSpecification")
 ) extends OMCustomExtensionSpecification
-
-
-trait OMCustomExtensionType extends OMEnum
-case object XsifivecflushdloneKey extends OMCustomExtensionType
-
-object CustomExtensionsLibrary {
-
-  private def cflushFunc: (String) => OMCustomExtensionSpecification = (s: String) => Xsifivecflushdlone("SiFive Extension for Cache Flush", s)
-
-  private val lib = Map[OMCustomExtensionType, (String) => OMCustomExtensionSpecification](
-    (XsifivecflushdloneKey -> cflushFunc)
-  )
-
-  def get(key: OMCustomExtensionType): (String) => OMCustomExtensionSpecification =
-    lib.get(key).getOrElse(throw new IllegalArgumentException("Error: key: $key not found in custom extension library."))
-}
-
-class CustomISAExtensions {
-  private val customSpecifications = mutable.ArrayBuffer[OMCustomExtensionSpecification]()
-
-  def add(key: OMCustomExtensionType, version: String): Unit = {
-    val f = CustomExtensionsLibrary.get(key)(version)
-    customSpecifications += f
-  }
-
-  def get(): List[OMCustomExtensionSpecification] = customSpecifications.toList
-}

@@ -45,10 +45,9 @@ case class OMISA(
 
 object OMISA {
   def customExtensions(): List[OMCustomExtensionSpecification] = {
-    val extensions = new CustomISAExtensions()
-
-    extensions.add(XsifivecflushdloneKey, "version") // TODO
-    extensions.get()
+    List(
+      Xsifivecflushdlone()
+    )
   }
 
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
