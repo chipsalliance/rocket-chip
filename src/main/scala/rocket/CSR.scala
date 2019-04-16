@@ -160,7 +160,7 @@ class PerfCounterIO(implicit p: Parameters) extends CoreBundle
   val inc = UInt(INPUT, log2Ceil(1+retireWidth))
 }
 
-class TracedInstruction(implicit p: Parameters) extends CoreBundle {
+class TracedInstruction(implicit p: Parameters) extends CoreBundle with Clocked {
   val valid = Bool()
   val iaddr = UInt(width = coreMaxAddrBits)
   val insn = UInt(width = iLen)
@@ -813,7 +813,7 @@ class CSRFile(
             val newBPC = readModifyWriteCSR(io.rw.cmd, bp.control.asUInt, io.rw.wdata).asTypeOf(bp.control)
             val dMode = newBPC.dmode && reg_debug && (prevDMode || !prevChain)
             bp.control.dmode := dMode
-            bp.control.action := dMode && newBPC.action
+            bp.control.action := Fill(3, (dMode || newBPC.action(2,1).orR)) & newBPC.action
             bp.control.chain := newBPC.chain && !(prevChain || nextChain) && (dMode || !nextDMode)
           }
         }
@@ -865,7 +865,7 @@ class CSRFile(
     if (!usingUser) bpc.u := false
     if (!usingVM && !usingUser) bpc.m := true
     when (reset) {
-      bpc.action := false
+      bpc.action := 0.U
       bpc.dmode := false
       bpc.chain := false
       bpc.r := false
@@ -881,6 +881,8 @@ class CSRFile(
   }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
+    t.clock := clock
+    t.reset := reset
     t.exception := io.retire >= i && exception
     t.valid := io.retire > i || t.exception
     t.insn := insn

@@ -174,6 +174,10 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
+  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch()))
+  val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
+  bpwatchNode := bpwatchSourceNode
+
   def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
