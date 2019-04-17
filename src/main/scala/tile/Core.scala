@@ -30,6 +30,7 @@ trait CoreParams {
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
+  val useBPWatch: Boolean
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean

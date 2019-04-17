@@ -813,7 +813,7 @@ class CSRFile(
             val newBPC = readModifyWriteCSR(io.rw.cmd, bp.control.asUInt, io.rw.wdata).asTypeOf(bp.control)
             val dMode = newBPC.dmode && reg_debug && (prevDMode || !prevChain)
             bp.control.dmode := dMode
-            bp.control.action := Fill(3, (dMode || newBPC.action(2,1).orR)) & newBPC.action
+            when (dMode || (newBPC.action > 1.U)) { bp.control.action := newBPC.action }.otherwise { bp.control.action := 0.U }
             bp.control.chain := newBPC.chain && !(prevChain || nextChain) && (dMode || !nextDMode)
           }
         }

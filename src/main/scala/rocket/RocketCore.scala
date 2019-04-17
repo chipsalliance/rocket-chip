@@ -25,6 +25,7 @@ case class RocketCoreParams(
   useSCIE: Boolean = false,
   nLocalInterrupts: Int = 0,
   nBreakpoints: Int = 1,
+  useBPWatch: Boolean = false,
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
   haveBasicCounters: Boolean = true,
