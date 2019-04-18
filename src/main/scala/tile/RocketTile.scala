@@ -139,6 +139,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Pass through various external constants and reports
   outer.traceSourceNode.bundle <> core.io.trace
+  outer.bpwatchSourceNode.bundle <> core.io.bpwatch
   core.io.hartid := constants.hartid
   outer.dcache.module.io.hartid := constants.hartid
   outer.frontend.module.io.hartid := constants.hartid
