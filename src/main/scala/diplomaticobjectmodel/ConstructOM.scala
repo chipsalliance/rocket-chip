@@ -7,9 +7,14 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.util.ElaborationArtefacts
 
-case object ConstructOM {
-  def constructOM(resourceBindingsMap: => ResourceBindingsMap): Unit = {
-    val om: Seq[OMComponent] = LogicalModuleTree.bind(resourceBindingsMap)
+object ConstructOM {
+  private var resourceBindingsMap: () => ResourceBindingsMap = _
+
+  def apply(rbm: () => ResourceBindingsMap): Unit = resourceBindingsMap = rbm
+
+  def constructOM(): Unit = {
+    val om: Seq[OMComponent] = LogicalModuleTree.bind(resourceBindingsMap())
     ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(om))
   }
 }
+

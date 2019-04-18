@@ -2,10 +2,14 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
+import Chisel.Data
+import freechips.rocketchip.amba.axi4.AXI4RAM
+import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, DiplomaticObjectModelUtils}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, _}
+import freechips.rocketchip.util.DescribedSRAM
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -95,5 +99,76 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) =
         externalGlobalInterrupts = getOMInterruptDevice(resourceBindingsMap)
       )
     )
+  }
+}
+
+case class OMSRAMData[T<: Data](
+  data: T,
+  resourceBindings: ResourceBindings,
+  architecture: RAMArchitecture,
+  description: String,
+  depth: Int,
+  ecc: Option[OMECC] = None,
+  hasAtomics: Option[Boolean] = None
+)
+
+class SRAMLogicalTreeNode[T<: Data](
+  sram: OMSRAMData[T]
+) extends LogicalTreeNode {
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    Seq(
+      DiplomaticObjectModelAddressing.makeOMMemory(
+        data = sram.data,
+        resourceBindings = sram.resourceBindings,
+        architecture = sram.architecture,
+        description = sram.description,
+        depth = sram.depth,
+        ecc = sram.ecc,
+        hasAtomics = sram.hasAtomics
+      )
+    )
+  }
+}
+
+class ImpLogicalTreeNode extends LogicalTreeNode {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] =
+    children
+}
+
+class TestHarnessLogicalTreeNode extends LogicalTreeNode {
+  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
+    Seq(OMTestHarness( components = children))
+  }
+}
+
+case object DeviceKey extends Field[Option[Device]](
+  None
+)
+
+case object ParentLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
+  None
+)
+
+case object TestHarnessLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
+  None
+)
+
+class TestSoCLogicalTreeNode extends LogicalTreeNode {
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = children
+}
+
+object ParentTreeNode {
+  /**
+    * Add the parent tree node to the Parameters so that the children can access the tree node via the params
+    * @param p
+    * @return
+    */
+  def set(pltnOpt: Option[LogicalTreeNode], ltn: LogicalTreeNode)(implicit p: Parameters): Parameters = {
+    pltnOpt match {
+      case None => p
+      case Some(pltn) =>
+        LogicalModuleTree.add(pltn, ltn)
+        p.alterPartial { case ParentLogicalTreeNodeKey => Some(ltn) }
+    }
   }
 }

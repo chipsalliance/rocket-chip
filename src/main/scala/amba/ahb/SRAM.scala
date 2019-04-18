@@ -30,6 +30,11 @@ class AHBRAM(
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
     val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val width = beatBytes*8 // TODO Wes/Henry?
+    val lanes = beatBytes // TODO Wes/Henry?
+    val size = 32 // 1 << addrBits.size // TODO Wes/Henry?
+    val bits = width
+    val addrBits = List[Bool]()(32) // (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)// TODO Wes/Henry?
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ
@@ -99,4 +104,6 @@ class AHBRAM(
     in.hresp     := Mux(d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
+
+
 }

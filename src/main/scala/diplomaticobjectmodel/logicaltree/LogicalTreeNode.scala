@@ -24,7 +24,7 @@ object LogicalModuleTree {
 
   def root: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
-    assert(roots.size == 1, "Logical Tree contains more than one root.")
+    assert(roots.size <= 2, "Logical Tree contains more than two roots.")
     roots.head
   }
 
@@ -36,5 +36,3 @@ object LogicalModuleTree {
     getOMComponentTree(root)
   }
 }
-
-case object LogicalTreeNodeKey extends Field[LogicalTreeNode]

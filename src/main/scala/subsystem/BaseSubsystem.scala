@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{SubSystemLogicalTreeNode, _}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterrupt}
 import freechips.rocketchip.util._
 

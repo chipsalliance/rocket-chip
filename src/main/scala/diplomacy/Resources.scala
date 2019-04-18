@@ -183,11 +183,14 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
   with DeviceClocks
   with DeviceRegName
 {
+  var resourceBindings: Option[ResourceBindings] = None
+
   override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
 
   var deviceNamePlusAddress: String = ""
 
   def describe(resources: ResourceBindings): Description = {
+    resourceBindings = Some(resources)
     val name = describeName(devname, resources)  // the generated device name in device tree
     val int = describeInterrupts(resources)      // interrupt description
     val clocks = describeClocks(resources)

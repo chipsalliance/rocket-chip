@@ -180,24 +180,36 @@ object DiplomaticObjectModelAddressing {
   }
 
   def makeOMMemory[T <: Data](
-      desc: String,
+      data: T,
+      resourceBindings: ResourceBindings,
+      architecture: RAMArchitecture,
+      description: String,
       depth: Int,
-      data: T
+      ecc: Option[OMECC] = None,
+      hasAtomics: Option[Boolean] = None
     ): OMMemory = {
 
+      val memoryRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, None)
+
       val granWidth = data match {
-        case v: Vec[_] => v.head.getWidth
+          case v: Vec[_] => v.head.getWidth
         case d => d.getWidth
       }
 
       OMMemory(
-        description = desc,
+        memoryRegions = memoryRegions,
+        interrupts = Nil,
+        rtlModule = None,
+        architecture = architecture,
+        description = description,
         addressWidth = log2Ceil(depth),
         dataWidth = data.getWidth,
         depth = depth,
-        writeMaskGranularity = granWidth
+        writeMaskGranularity = granWidth,
+        ecc = ecc,
+        hasAtomics = hasAtomics
       )
-    }
+  }
 
   private def getInterruptNumber(r: ResourceValue): BigInt = {
     r match {
