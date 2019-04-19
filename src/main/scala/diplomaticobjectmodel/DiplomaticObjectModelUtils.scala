@@ -189,7 +189,7 @@ object DiplomaticObjectModelAddressing {
       hasAtomics: Option[Boolean] = None
     ): OMMemory = {
 
-      val memoryRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, None)
+      val memoryRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions(description, resourceBindings, None)
 
       val granWidth = data match {
           case v: Vec[_] => v.head.getWidth

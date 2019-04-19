@@ -3,13 +3,11 @@
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
 import Chisel.Data
-import freechips.rocketchip.amba.axi4.AXI4RAM
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, DiplomaticObjectModelUtils}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, _}
-import freechips.rocketchip.util.DescribedSRAM
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -102,7 +100,7 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) =
   }
 }
 
-case class OMSRAMData[T<: Data](
+case class OMSRAMData[T <: Data](
   data: T,
   resourceBindings: ResourceBindings,
   architecture: RAMArchitecture,
@@ -112,10 +110,9 @@ case class OMSRAMData[T<: Data](
   hasAtomics: Option[Boolean] = None
 )
 
-class SRAMLogicalTreeNode[T<: Data](
-  sram: OMSRAMData[T]
-) extends LogicalTreeNode {
+class SRAMLogicalTreeNode[T <: Data](sramFunc: () => OMSRAMData[T]) extends LogicalTreeNode {
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    val sram = sramFunc()
     Seq(
       DiplomaticObjectModelAddressing.makeOMMemory(
         data = sram.data,
@@ -135,7 +132,7 @@ class ImpLogicalTreeNode extends LogicalTreeNode {
     children
 }
 
-class TestHarnessLogicalTreeNode extends LogicalTreeNode {
+class TestSoCLogicalTreeNode extends LogicalTreeNode {
   override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
     Seq(OMTestHarness( components = children))
   }
@@ -148,14 +145,6 @@ case object DeviceKey extends Field[Option[Device]](
 case object ParentLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
   None
 )
-
-case object TestHarnessLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
-  None
-)
-
-class TestSoCLogicalTreeNode extends LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = children
-}
 
 object ParentTreeNode {
   /**

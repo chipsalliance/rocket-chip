@@ -34,7 +34,6 @@ class AHBRAM(
     val lanes = beatBytes // TODO Wes/Henry?
     val size = 32 // 1 << addrBits.size // TODO Wes/Henry?
     val bits = width
-    val addrBits = List[Bool]()(32) // (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)// TODO Wes/Henry?
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ

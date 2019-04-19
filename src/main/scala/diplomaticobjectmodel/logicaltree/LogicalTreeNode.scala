@@ -12,7 +12,12 @@ trait LogicalTreeNode {
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent]
 }
 
+class RootLogicalTreeNode extends LogicalTreeNode {
+def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = children
+}
+
 object LogicalModuleTree {
+  val rootLTN = new RootLogicalTreeNode()
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
   def add(parent: LogicalTreeNode, child: => LogicalTreeNode): Unit = {
     val treeOpt = tree.get(parent)
