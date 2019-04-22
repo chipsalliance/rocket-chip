@@ -309,7 +309,8 @@ case class TLBundleParameters(
   dataBits:    Int,
   sourceBits:  Int,
   sinkBits:    Int,
-  sizeBits:    Int)
+  sizeBits:    Int,
+  hasBCE:      Boolean)
 {
   // Chisel has issues with 0-width wires
   require (addressBits >= 1)
@@ -327,7 +328,8 @@ case class TLBundleParameters(
       max(dataBits,    x.dataBits),
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
-      max(sizeBits,    x.sizeBits))
+      max(sizeBits,    x.sizeBits),
+      hasBCE ||        x.hasBCE)
 }
 
 object TLBundleParameters
@@ -337,7 +339,8 @@ object TLBundleParameters
     dataBits    = 8,
     sourceBits  = 1,
     sinkBits    = 1,
-    sizeBits    = 1)
+    sizeBits    = 1,
+    hasBCE      = false)
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
@@ -347,7 +350,8 @@ object TLBundleParameters
       dataBits    = manager.beatBytes * 8,
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),
-      sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1))
+      sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
+      hasBCE      = client.anySupportProbe && manager.anySupportAcquireB)
 }
 
 case class TLEdgeParameters(
