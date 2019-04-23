@@ -18,6 +18,7 @@ case class RocketCoreParams(
   bootFreqHz: BigInt = 0,
   useVM: Boolean = true,
   useUser: Boolean = false,
+  useUserInterrupts: Boolean = false,
   useDebug: Boolean = true,
   useAtomics: Boolean = true,
   useAtomicsOnlyForIO: Boolean = false,

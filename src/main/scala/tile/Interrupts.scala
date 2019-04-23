@@ -15,6 +15,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
   val msip = Bool()
   val meip = Bool()
   val seip = usingVM.option(Bool())
+  val ueip = usingUserInterrupts.option(Bool())
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
 }
 
@@ -52,11 +53,12 @@ trait SinksExternalInterrupts { this: BaseTile =>
   //         also match the order which things are connected to the
   //         per-tile crossbar in subsystem.HasTiles.connectInterrupts
 
-  // debug, msip, mtip, meip, seip, lip offsets in CSRs
+  // debug, msip, mtip, meip, seip, ueip, lip offsets in CSRs
   def csrIntMap: List[Int] = {
     val nlips = tileParams.core.nLocalInterrupts
-    val seip = if (usingVM) Seq(9) else Nil
-    List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
+    val seip = usingVM.option(9)
+    val ueip = usingVM.option(8)
+    List(65535, 3, 7, 11) ++ seip ++ ueip ++ List.tabulate(nlips)(_ + 16)
   }
 
   // go from flat diplomatic Interrupts to bundled TileInterrupts

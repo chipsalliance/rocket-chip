@@ -246,16 +246,17 @@ class CSRFile(
   val reg_dcsr = Reg(init=reset_dcsr)
 
   val (supported_interrupts, delegable_interrupts) = {
+    require(!(usingVM && usingUserInterrupts), "user-mode interrupts not supported with supervisor mode")
     val sup = Wire(new MIP)
-    sup.usip := false
+    sup.usip := Bool(usingUserInterrupts)
     sup.ssip := Bool(usingVM)
     sup.hsip := false
     sup.msip := true
-    sup.utip := false
+    sup.utip := Bool(usingUserInterrupts)
     sup.stip := Bool(usingVM)
     sup.htip := false
     sup.mtip := true
-    sup.ueip := false
+    sup.ueip := Bool(usingUserInterrupts)
     sup.seip := Bool(usingVM)
     sup.heip := false
     sup.meip := true
@@ -318,6 +319,12 @@ class CSRFile(
   val reg_satp = Reg(new PTBR)
   val reg_wfi = withClock(io.ungated_clock) { Reg(init=Bool(false)) }
 
+  val reg_uepc = Reg(UInt(width = vaddrBitsExtended))
+  val reg_ucause = Reg(UInt(width = xLen))
+  val reg_utval = Reg(UInt(width = vaddrBitsExtended))
+  val reg_uscratch = Reg(UInt(width = xLen))
+  val reg_utvec = Reg(UInt(width = if (usingVM) vaddrBits else mtvecWidth))
+
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
 
@@ -334,6 +341,8 @@ class CSRFile(
   mip.meip := io.interrupts.meip
   // seip is the OR of reg_mip.seip and the actual line from the PLIC
   io.interrupts.seip.foreach { mip.seip := reg_mip.seip || _ }
+  // ueip is the OR of reg_mip.ueip and the actual line from the PLIC
+  io.interrupts.ueip.foreach { mip.ueip := reg_mip.ueip || _ }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
   val high_interrupts = io.interrupts.buserror.map(_ << CSR.busErrorIntCause).getOrElse(0.U)
@@ -365,6 +374,7 @@ class CSRFile(
   val read_mstatus = io.status.asUInt()(xLen-1,0)
   val read_mtvec = formTVec(reg_mtvec).padTo(xLen)
   val read_stvec = formTVec(reg_stvec).sextTo(xLen)
+  val read_utvec = if (usingVM) formTVec(reg_utvec).sextTo(xLen) else formTVec(reg_utvec).padTo(xLen)
 
   val read_mapping = LinkedHashMap[Int,Bits](
     CSRs.tselect -> reg_tselect,
@@ -428,6 +438,23 @@ class CSRFile(
     }
   }
 
+  if (usingUserInterrupts) {
+    val read_uie = reg_mie & reg_mideleg
+    val read_uip = read_mip & reg_mideleg
+    val read_ustatus = Wire(init = 0.U.asTypeOf(new MStatus))
+    read_ustatus.upie := io.status.upie
+    read_ustatus.uie := io.status.uie
+
+    read_mapping += CSRs.ustatus -> (read_ustatus.asUInt())(xLen-1,0)
+    read_mapping += CSRs.uip -> read_uip.asUInt
+    read_mapping += CSRs.uie -> read_uie.asUInt
+    read_mapping += CSRs.uscratch -> reg_uscratch
+    read_mapping += CSRs.ucause -> reg_ucause
+    read_mapping += CSRs.utval -> reg_utval.sextTo(xLen)
+    read_mapping += CSRs.uepc -> readEPC(reg_uepc).sextTo(xLen)
+    read_mapping += CSRs.utvec -> read_utvec
+  }
+
   if (usingVM) {
     val read_sie = reg_mie & reg_mideleg
     val read_sip = read_mip & reg_mideleg
@@ -453,6 +480,9 @@ class CSRFile(
     read_mapping += CSRs.sepc -> readEPC(reg_sepc).sextTo(xLen)
     read_mapping += CSRs.stvec -> read_stvec
     read_mapping += CSRs.scounteren -> reg_scounteren
+  }
+
+  if (usingVM || usingUserInterrupts) {
     read_mapping += CSRs.mideleg -> reg_mideleg
     read_mapping += CSRs.medeleg -> reg_medeleg
   }
@@ -533,14 +563,18 @@ class CSRFile(
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
   val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
-  val delegate = Bool(usingVM) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
+  val (delegate_s, delegate_u) = {
+    require(!(usingVM && usingUserInterrupts))
+    val delegate_from_m = reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), reg_mideleg(cause_lsbs), reg_medeleg(cause_lsbs))
+    (usingVM.B && delegate_from_m, usingUserInterrupts.B && delegate_from_m)
+  }
   def mtvecBaseAlign = 2
   def mtvecInterruptAlign = {
     require(reg_mip.getWidth <= xLen)
     log2Ceil(xLen)
   }
   val notDebugTVec = {
-    val base = Mux(delegate, read_stvec, read_mtvec)
+    val base = Mux(delegate_u, read_utvec, Mux(delegate_s, read_stvec, read_mtvec))
     val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
     val interruptVec = Cat(base >> (mtvecInterruptAlign + mtvecBaseAlign), interruptOffset)
     val doVector = base(0) && cause(cause.getWidth-1) && (cause_lsbs >> mtvecInterruptAlign) === 0
@@ -573,8 +607,6 @@ class CSRFile(
   assert(!reg_singleStepped || io.retire === UInt(0))
 
   val epc = formEPC(io.pc)
-  val noCause :: mCause :: hCause :: sCause :: uCause :: Nil = Enum(5)
-  val xcause_dest = Wire(init = noCause)
 
   when (exception) {
     when (trapToDebug) {
@@ -585,10 +617,16 @@ class CSRFile(
         reg_dcsr.prv := trimPrivilege(reg_mstatus.prv)
         new_prv := PRV.M
       }
-    }.elsewhen (delegate) {
+    }.elsewhen (delegate_u) {
+      reg_uepc := epc
+      reg_ucause := cause
+      reg_utval := io.tval
+      reg_mstatus.upie := reg_mstatus.uie
+      reg_mstatus.uie := false
+      new_prv := PRV.U
+    }.elsewhen (delegate_s) {
       reg_sepc := epc
       reg_scause := cause
-      xcause_dest := sCause
       reg_stval := io.tval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
@@ -597,7 +635,6 @@ class CSRFile(
     }.otherwise {
       reg_mepc := epc
       reg_mcause := cause
-      xcause_dest := mCause
       reg_mtval := io.tval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
@@ -610,7 +647,8 @@ class CSRFile(
     val en = exception && (supported_interrupts & (BigInt(1) << i).U) =/= 0 && cause === (BigInt(1) << (xLen - 1)).U + i
     val delegable = (delegable_interrupts & (BigInt(1) << i).U) =/= 0
     cover(en, s"INTERRUPT_M_$i")
-    cover(en && delegable && delegate, s"INTERRUPT_S_$i")
+    cover(en && delegable && delegate_s, s"INTERRUPT_S_$i")
+    cover(en && delegable && delegate_u, s"INTERRUPT_U_$i")
   }
   for (i <- 0 until xLen) {
     val supported_exceptions: BigInt = 0x87e |
@@ -620,12 +658,18 @@ class CSRFile(
     if (((supported_exceptions >> i) & 1) != 0) {
       val en = exception && cause === i
       cover(en, s"EXCEPTION_M_$i")
-      cover(en && delegate, s"EXCEPTION_S_$i")
+      cover(en && delegate_s, s"EXCEPTION_S_$i")
+      cover(en && delegate_u, s"EXCEPTION_S_$i")
     }
   }
 
   when (insn_ret) {
-    when (Bool(usingVM) && !io.rw.addr(9)) {
+    when (Bool(usingUserInterrupts) && !io.rw.addr(8)) {
+      reg_mstatus.uie := reg_mstatus.upie
+      reg_mstatus.upie := true
+      new_prv := PRV.U
+      io.evec := readEPC(reg_uepc)
+    }.elsewhen (Bool(usingVM) && !io.rw.addr(9)) {
       reg_mstatus.sie := reg_mstatus.spie
       reg_mstatus.spie := true
       reg_mstatus.spp := PRV.U
@@ -719,11 +763,17 @@ class CSRFile(
       // in read_mip, since read_mip.seip is the OR of reg_mip.seip and
       // io.interrupts.seip.  We don't want the value on the PLIC line to
       // inadvertently be OR'd into read_mip.seip.
+      // Analogous comments apply to ueip.
       val new_mip = readModifyWriteCSR(io.rw.cmd, reg_mip.asUInt, io.rw.wdata).asTypeOf(new MIP)
       if (usingVM) {
         reg_mip.ssip := new_mip.ssip
         reg_mip.stip := new_mip.stip
         reg_mip.seip := new_mip.seip
+      }
+      if (usingUserInterrupts) {
+        reg_mip.usip := new_mip.usip
+        reg_mip.utip := new_mip.utip
+        reg_mip.ueip := new_mip.ueip
       }
     }
     when (decoded_addr(CSRs.mie))      { reg_mie := wdata & supported_interrupts }
@@ -796,6 +846,17 @@ class CSRFile(
     }
     if (usingUser) {
       when (decoded_addr(CSRs.mcounteren)) { reg_mcounteren := wdata & UInt(delegable_counters) }
+    }
+    if (usingUserInterrupts) {
+      when (decoded_addr(CSRs.uip)) {
+        val new_uip = new MIP().fromBits((read_mip & ~reg_mideleg) | (wdata & reg_mideleg))
+        reg_mip.usip := new_uip.usip
+      }
+      when (decoded_addr(CSRs.uscratch)) { reg_uscratch := wdata }
+      when (decoded_addr(CSRs.uepc))     { reg_uepc := formEPC(wdata) }
+      when (decoded_addr(CSRs.utvec))    { reg_utvec := wdata }
+      when (decoded_addr(CSRs.ucause))   { reg_ucause := wdata & UInt((BigInt(1) << (xLen-1)) + 31) /* only implement 5 LSBs and MSB */ }
+      when (decoded_addr(CSRs.utval))    { reg_utval := wdata(vaddrBitsExtended-1,0) }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }

@@ -2,17 +2,16 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import freechips.rocketchip.util._
+
 sealed trait OMPrivilegeMode extends OMEnum
 case object OMMachineMode extends OMPrivilegeMode
 case object OMSupervisorMode extends OMPrivilegeMode
 case object OMUserMode extends OMPrivilegeMode
 
 object OMModes {
-  def getModes(useVM: Boolean): Seq[OMPrivilegeMode] = {
-    useVM match {
-      case false => Seq(OMMachineMode)
-      case true => Seq(OMMachineMode, OMSupervisorMode)
-    }
+  def getModes(useVM: Boolean, useUserInterrupts: Boolean): Seq[OMPrivilegeMode] = {
+    Seq(OMMachineMode) ++ useVM.option(OMSupervisorMode) ++ useUserInterrupts.option(OMUserMode)
   }
 }
 

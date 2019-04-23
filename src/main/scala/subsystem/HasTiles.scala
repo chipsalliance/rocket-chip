@@ -99,6 +99,13 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
           .getOrElse { NullIntSource() }
     }
 
+    //    From PLIC: "ueip" (only if user-mode interrupts are enabled)
+    if (tile.tileParams.core.useUserInterrupts) {
+      tile.crossIntIn() :=
+        plicOpt .map { _.intnode }
+          .getOrElse { NullIntSource() }
+    }
+
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
     // (they are connected to tile.intInwardNode in a seperate trait)
 

@@ -38,6 +38,10 @@ trait HasNonDiplomaticTileParameters {
 
   def usingVM: Boolean = tileParams.core.useVM
   def usingUser: Boolean = tileParams.core.useUser || usingVM
+  def usingUserInterrupts: Boolean = {
+    require(usingUser)
+    tileParams.core.useUserInterrupts
+  }
   def usingDebug: Boolean = tileParams.core.useDebug
   def usingRoCC: Boolean = !p(BuildRoCC).isEmpty
   def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0

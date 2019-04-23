@@ -15,6 +15,7 @@ trait CoreParams {
   val bootFreqHz: BigInt
   val useVM: Boolean
   val useUser: Boolean
+  val useUserInterrupts: Boolean
   val useDebug: Boolean
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
