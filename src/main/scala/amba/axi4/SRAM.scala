@@ -16,19 +16,20 @@ class AXI4RAM(
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
     wcorrupt: Boolean = false)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName) {
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+  {
   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
-      address = List(address) ++ errors,
-      resources = resources,
-      regionType = RegionType.UNCACHED,
-      executable = executable,
-      supportsRead = TransferSizes(1, beatBytes),
+      address       = List(address) ++ errors,
+      resources     = resources,
+      regionType    = RegionType.UNCACHED,
+      executable    = executable,
+      supportsRead  = TransferSizes(1, beatBytes),
       supportsWrite = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
-    beatBytes = beatBytes,
-    wcorrupt = wcorrupt,
-    minLatency = 1)))
+      beatBytes     = beatBytes,
+      wcorrupt      = wcorrupt,
+      minLatency    = 1)))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)

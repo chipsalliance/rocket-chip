@@ -7,7 +7,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, RAMArchitecture, _}
+import freechips.rocketchip.diplomaticobjectmodel.model._
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -117,7 +117,7 @@ class SRAMLogicalTreeNode[T <: Data](description: String, architecture: RAMArchi
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
     Seq(
       DiplomaticObjectModelAddressing.makeOMMemory(
-        description = description,
+        desc = description,
         depth = depth,
         data = Vec(lanes, UInt(width = bits)),
         resourceBindings = Some(rbm().map(device())),
