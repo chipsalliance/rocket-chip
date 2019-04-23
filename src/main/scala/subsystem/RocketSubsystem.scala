@@ -49,6 +49,9 @@ trait HasRocketTiles extends HasTiles
     rocket
   }
 
+  def getOMRocketInterruptTargets(): Seq[OMInterruptTarget] =
+    rocketTiles.flatMap(c => c.rocketLogicalTree.getOMInterruptTargets())
+
   rocketTiles.map {
     r =>
       def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
