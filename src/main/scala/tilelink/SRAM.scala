@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMAPBRAM, OMTLRAM}
 import freechips.rocketchip.util._
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
@@ -57,7 +58,7 @@ class TLRAM(
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
 
-    val (mem, device) = makeSinglePortedByteWriteSeqMem(size, lanes, bits)
+    val mem = makeSinglePortedByteWriteSeqMem("test harness memory - tlram", OMTLRAM, size, lanes, bits)
 
     /* This block uses a two-stage pipeline; A=>D
      * Both stages vie for access to the single SRAM port.

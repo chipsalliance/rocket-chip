@@ -2,12 +2,12 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import Chisel.Data
+import Chisel.{Data, UInt, Vec}
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, DiplomaticObjectModelUtils}
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, _}
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, RAMArchitecture, _}
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -110,18 +110,20 @@ case class OMSRAMData[T <: Data](
   hasAtomics: Option[Boolean] = None
 )
 
-class SRAMLogicalTreeNode[T <: Data](sramFunc: () => OMSRAMData[T]) extends LogicalTreeNode {
+class SRAMLogicalTreeNode[T <: Data](description: String, architecture: RAMArchitecture, depth: Int, lanes: Int, bits: Int, device: () => Device,
+  ecc: Option[OMECC] = None,
+  hasAtomics: Option[Boolean] = None) extends LogicalTreeNode {
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    val sram = sramFunc()
+
     Seq(
       DiplomaticObjectModelAddressing.makeOMMemory(
-        data = sram.data,
-        resourceBindings = sram.resourceBindings,
-        architecture = sram.architecture,
-        description = sram.description,
-        depth = sram.depth,
-        ecc = sram.ecc,
-        hasAtomics = sram.hasAtomics
+        data = Vec(lanes, UInt(width = bits)),
+        resourceBindings = resourceBindingsMap.map(device()),
+        architecture = architecture,
+        description = description,
+        depth = depth,
+        ecc = ecc,
+        hasAtomics = hasAtomics
       )
     )
   }
@@ -143,6 +145,10 @@ case object DeviceKey extends Field[Option[Device]](
 )
 
 case object ParentLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
+  None
+)
+
+case object ResourceBindingsMapLogicalTreeNodeKey extends Field[Option[ResourceBindingsMap]](
   None
 )
 

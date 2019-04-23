@@ -32,7 +32,7 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem(size: Int, lanes: Int = beatBytes, bits: Int = 8)(implicit paramters: Parameters) = {
+  def makeSinglePortedByteWriteSeqMem(description: String, architecture: RAMArchitecture, size: Int, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
     val mem =  DescribedSRAM(
       name = devName.getOrElse("mem"),
@@ -41,7 +41,16 @@ abstract class DiplomaticSRAM(
       data = Vec(lanes, UInt(width = bits))
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
-    
-    (mem, device)
+
+    p(ResourceBindingsMapLogicalTreeNodeKey).foreach {
+      rbm =>
+        p(ParentLogicalTreeNodeKey).foreach {
+          ptn =>
+            def sramLogicalTreeNode: LogicalTreeNode = new SRAMLogicalTreeNode(description, architecture, size, lanes, bits, () => device)
+            LogicalModuleTree.add(ptn, sramLogicalTreeNode)
+        }
+    }
+
+    mem
   }
 }

@@ -5,6 +5,7 @@ package freechips.rocketchip.amba.ahb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMAHBRAM, OMTLRAM}
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
@@ -29,11 +30,8 @@ class AHBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
-    val width = beatBytes*8 // TODO Wes/Henry?
-    val lanes = beatBytes // TODO Wes/Henry?
-    val size = 32 // 1 << addrBits.size // TODO Wes/Henry?
-    val bits = width
+    val size = 1 << mask.filter(b=>b).size
+    val mem = makeSinglePortedByteWriteSeqMem("test harness memory - ahbram", OMAHBRAM, size)
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ

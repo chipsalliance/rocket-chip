@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMTLRAM
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMAPBRAM, OMTLRAM}
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
@@ -32,12 +32,7 @@ class APBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
-    val width = beatBytes*8 // TODO Wes/Henry?
-    val lanes = beatBytes   // TODO Wes/Henry?
-    val addrBits = List[Boolean]()(32) // (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2) // TODO Wes/Henry?
-    val size = 32 // 1 << addrBits.size // TODO Wes/Henry?
-    val bits = width
+    val mem = makeSinglePortedByteWriteSeqMem("test harness memory - apbram", OMAPBRAM, 1 << mask.filter(b=>b).size)
 
     val paddr = Cat((mask zip (in.paddr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val legal = address.contains(in.paddr)

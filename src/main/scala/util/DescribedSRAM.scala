@@ -24,6 +24,8 @@ object DescribedSRAM {
       case d => d.getWidth
     }
 
+    val f = () => mem.toNamed.toString.hashCode
+
     Annotated.srams(
       component = mem,
       name = name,
