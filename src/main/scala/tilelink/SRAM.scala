@@ -58,7 +58,7 @@ class TLRAM(
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
 
-    val mem = makeSinglePortedByteWriteSeqMem("test harness memory - tlram", OMTLRAM, size, lanes, bits)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem("test harness memory - tlram", OMTLRAM, size, lanes, bits)
 
     /* This block uses a two-stage pipeline; A=>D
      * Both stages vie for access to the single SRAM port.

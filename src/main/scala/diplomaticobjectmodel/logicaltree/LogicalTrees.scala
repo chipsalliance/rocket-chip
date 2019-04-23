@@ -111,17 +111,17 @@ case class OMSRAMData[T <: Data](
 )
 
 class SRAMLogicalTreeNode[T <: Data](description: String, architecture: RAMArchitecture, depth: Int, lanes: Int, bits: Int, device: () => Device,
+  rbm: () => ResourceBindingsMap,
   ecc: Option[OMECC] = None,
   hasAtomics: Option[Boolean] = None) extends LogicalTreeNode {
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-
     Seq(
       DiplomaticObjectModelAddressing.makeOMMemory(
-        data = Vec(lanes, UInt(width = bits)),
-        resourceBindings = resourceBindingsMap.map(device()),
-        architecture = architecture,
         description = description,
         depth = depth,
+        data = Vec(lanes, UInt(width = bits)),
+        resourceBindings = Some(rbm().map(device())),
+        architecture = Some(architecture),
         ecc = ecc,
         hasAtomics = hasAtomics
       )

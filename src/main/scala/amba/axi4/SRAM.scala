@@ -32,7 +32,7 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val mem = makeSinglePortedByteWriteSeqMem("test harness memory - apbram", OMAXI4RAM, 1 << mask.filter(b=>b).size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem("test harness memory - apbram", OMAXI4RAM, 1 << mask.filter(b=>b).size)
 
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b => b).size, UInt(width = 2))) else None
 

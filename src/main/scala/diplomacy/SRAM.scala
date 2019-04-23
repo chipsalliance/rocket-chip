@@ -46,11 +46,17 @@ abstract class DiplomaticSRAM(
       rbm =>
         p(ParentLogicalTreeNodeKey).foreach {
           ptn =>
-            def sramLogicalTreeNode: LogicalTreeNode = new SRAMLogicalTreeNode(description, architecture, size, lanes, bits, () => device)
+            def sramLogicalTreeNode: LogicalTreeNode = new SRAMLogicalTreeNode(description, architecture, size, lanes, bits, () => device, () => rbm)
             LogicalModuleTree.add(ptn, sramLogicalTreeNode)
         }
     }
 
-    mem
+    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
+      description = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
+      depth = size,
+      data = Vec(lanes, UInt(width = bits))
+    )
+
+    (mem, Seq(omMem))
   }
 }

@@ -31,7 +31,7 @@ class AHBRAM(
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
     val size = 1 << mask.filter(b=>b).size
-    val mem = makeSinglePortedByteWriteSeqMem("test harness memory - ahbram", OMAHBRAM, size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem("test harness memory - ahbram", OMAHBRAM, size)
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ
