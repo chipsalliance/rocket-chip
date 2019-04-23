@@ -286,7 +286,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       )
     }
 
-    val omRegMap: OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
+    val omRegMap : OMRegisterMap = node.regmap((priorityRegFields ++ pendingRegFields ++ enableRegFields ++ hartRegFields):_*)
 
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
