@@ -182,34 +182,19 @@ object DiplomaticObjectModelAddressing {
   def makeOMMemory[T <: Data](
     desc: String,
     depth: Int,
-    data: T,
-    resourceBindings: Option[ResourceBindings]= None,
-    architecture: Option[RAMArchitecture]= None,
-    ecc: Option[OMECC] = None,
-    hasAtomics: Option[Boolean] = None
+    data: T
   ): OMMemory = {
-      val memoryRegions : Seq[OMMemoryRegion]= resourceBindings match {
-        case Some(rbm) => DiplomaticObjectModelAddressing.getOMMemoryRegions(desc, rbm, None)
-        case None => Nil
-      }
-
       val granWidth = data match {
         case v: Vec[_] => v.head.getWidth
         case d => d.getWidth
       }
 
       OMMemory(
-        memoryRegions = memoryRegions,
-        interrupts = Nil,
-        rtlModule = None,
         description = desc,
         depth = depth,
-        architecture = architecture,
         addressWidth = log2Ceil(depth),
         dataWidth = data.getWidth,
-        writeMaskGranularity = granWidth,
-        ecc = ecc,
-        hasAtomics = hasAtomics
+        writeMaskGranularity = granWidth
       )
   }
 

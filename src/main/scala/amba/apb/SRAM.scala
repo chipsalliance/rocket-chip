@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMAPBRAM, OMTLRAM}
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
@@ -17,8 +17,9 @@ class APBRAM(
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
     fuzzReady: Boolean = false,
-    fuzzError: Boolean = false)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+    fuzzError: Boolean = false,
+    logicalTreeNode: Option[LogicalTreeNode] = None)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, logicalTreeNode)
 {
   val node = APBSlaveNode(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(

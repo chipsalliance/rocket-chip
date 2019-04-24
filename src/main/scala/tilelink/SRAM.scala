@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMAPBRAM, OMTLRAM}
 import freechips.rocketchip.util._
 
@@ -20,9 +21,10 @@ class TLRAM(
     executable: Boolean = true,
     atomics: Boolean = false,
     beatBytes: Int = 4,
+    logicalTreeNode: Option[LogicalTreeNode] = None,
     ecc: ECCParams = ECCParams(),
-    val devName: Option[String] = None,
-  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+    val devName: Option[String] = None
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, logicalTreeNode)
 {
   val eccBytes = ecc.bytes
   val code = ecc.code
@@ -223,11 +225,12 @@ object TLRAM
     executable: Boolean = true,
     atomics: Boolean = false,
     beatBytes: Int = 4,
+    logicalTreeNode: Option[LogicalTreeNode] = None,
     ecc: ECCParams = ECCParams(),
     devName: Option[String] = None,
   )(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, cacheable, executable, atomics, beatBytes, ecc, devName))
+    val ram = LazyModule(new TLRAM(address, cacheable, executable, atomics, beatBytes, logicalTreeNode, ecc, devName))
     ram.node
   }
 }

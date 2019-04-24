@@ -5,7 +5,8 @@ package freechips.rocketchip.amba.ahb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMAHBRAM, OMTLRAM}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
@@ -15,8 +16,9 @@ class AHBRAM(
     beatBytes: Int = 4,
     fuzzHreadyout: Boolean = false,
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+    errors: Seq[AddressSet] = Nil,
+    logicalTreeNode: Option[LogicalTreeNode] = None)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, logicalTreeNode)
 {
   val node = AHBSlaveNode(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
@@ -30,7 +32,9 @@ class AHBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem("test harness memory - ahbram", OMAHBRAM, 1 << mask.filter(b=>b).size)
+    val lanes: Int = beatBytes
+    val bits: Int = 8
+    val SRAMInfo[Vec[UInt]](mem, omMem) = makeSinglePortedByteWriteSeqMem(Vec(lanes, UInt(width = bits)), "test harness memory - ahbram", OMAHBRAM, 1 << mask.filter(b=>b).size)
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ

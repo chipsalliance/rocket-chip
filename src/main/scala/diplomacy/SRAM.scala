@@ -3,16 +3,24 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.SyncReadMem
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
+case class SRAMInfo[T <: Data](
+  mem: SyncReadMem[T],
+  omMem: OMMemory,
+  sramLogicalTreeNodes: Option[SRAMLogicalTreeNode] = None
+)
+
 abstract class DiplomaticSRAM(
     address: AddressSet,
     beatBytes: Int,
-    devName: Option[String])(implicit p: Parameters) extends LazyModule
+    devName: Option[String],
+    logicalTreeNode: Option[LogicalTreeNode] = None)(implicit p: Parameters) extends LazyModule
 {
   val device = devName
     .map(new SimpleDevice(_, Seq("sifive,sram0")))
@@ -32,32 +40,29 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem(description: String, architecture: RAMArchitecture, size: Int, lanes: Int = beatBytes, bits: Int = 8) =
-  {
+  def makeSinglePortedByteWriteSeqMem[T <: Data](data: T, description: String, architecture: RAMArchitecture, size: Int):
+  SRAMInfo[T] ={
     // We require the address range to include an entire beat (for the write mask)
     val mem =  DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
-      data = Vec(lanes, UInt(width = bits))
+      data = data
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
 
-    p(ResourceBindingsMapLogicalTreeNodeKey).foreach {
+    val sramLogicalTreeNodes = p(ResourceBindingsMapLogicalTreeNodeKey).flatMap {
       rbm =>
-        p(ParentLogicalTreeNodeKey).foreach {
+        p(ParentLogicalTreeNodeKey).map {
           ptn =>
             def sramLogicalTreeNode: LogicalTreeNode = new SRAMLogicalTreeNode(description, architecture, size, lanes, bits, () => device, () => rbm)
             LogicalModuleTree.add(ptn, sramLogicalTreeNode)
+            sramLogicalTreeNode
         }
     }
 
-    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
-      desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
-      depth = size,
-      data = Vec(lanes, UInt(width = bits))
-    )
+    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(desc = "mem", depth = size, data = Vec(lanes, UInt(width = bits)))
 
-    (mem, Seq(omMem))
+    (mem, omMem, sramLogicalTreeNodes)
   }
 }
