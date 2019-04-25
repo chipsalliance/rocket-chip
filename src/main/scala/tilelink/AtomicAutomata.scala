@@ -32,15 +32,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       val managers = edgeOut.manager.managers
       val beatBytes = edgeOut.manager.beatBytes
 
-      // This is necessary (though not sufficient) for correctness:
-      edgeOut.manager.findTreeViolation() match {
-        case None => ()
-        case Some(node) => require(edgeOut.manager.isTree, s"AtomicAutomata can only be placed infront of a tree of diplomatic nodes (${node.name} has parents ${node.inputs.map(_._1.name)})")
-      }
-      // You also need to know that the slaves don't have an internal masters that can get between the read and write
-
       // To which managers are we adding atomic support?
-      val ourSupport = TransferSizes(1, edgeOut.manager.beatBytes)
+      val ourSupport = TransferSizes(1, beatBytes)
       val managersNeedingHelp = managers.filter { m =>
         m.supportsPutFull.contains(ourSupport) &&
         m.supportsGet.contains(ourSupport) &&
@@ -48,7 +41,16 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
          (arithmetic && !m.supportsArithmetic.contains(ourSupport)) ||
          !passthrough) // we will do atomics for everyone we can
       }
-      // We cannot add atomcis to a non-FIFO manager
+
+      // Managers that need help with atomics must necessarily have this node as the root of a tree in the node graph.
+      // (But they must also ensure no sideband operations can get between the read and write.)
+      val violations = managersNeedingHelp.flatMap(_.findTreeViolation).map { node => (node.name, node.inputs.map(_._1.name)) }
+      require(violations.isEmpty,
+        s"AtomicAutomata can only help nodes for which it is at the root of a diplomatic node tree," +
+        "but the following violations were found:\n" +
+        violations.map(v => s"(${v._1} has parents ${v._2})").mkString("\n"))
+
+      // We cannot add atomics to a non-FIFO manager
       managersNeedingHelp foreach { m => require (m.fifoId.isDefined) }
       // We need to preserve FIFO semantics across FIFO domains, not managers
       // Suppose you have Put(42) Atomic(+1) both inflight; valid results: 42 or 43
