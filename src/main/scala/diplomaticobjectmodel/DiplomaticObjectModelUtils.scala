@@ -182,7 +182,8 @@ object DiplomaticObjectModelAddressing {
   def makeOMMemory[T <: Data](
     desc: String,
     depth: Int,
-    data: T
+    data: T,
+    hashVal: () => Int
   ): OMMemory = {
       val granWidth = data match {
         case v: Vec[_] => v.head.getWidth
@@ -194,7 +195,8 @@ object DiplomaticObjectModelAddressing {
         depth = depth,
         addressWidth = log2Ceil(depth),
         dataWidth = data.getWidth,
-        writeMaskGranularity = granWidth
+        writeMaskGranularity = granWidth,
+        hashVal = hashVal
       )
   }
 

@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
+import Chisel.{Data, _}
 import chisel3.SyncReadMem
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
@@ -12,8 +12,8 @@ import freechips.rocketchip.util.DescribedSRAM
 
 case class SRAMInfo[T <: Data](
   mem: SyncReadMem[T],
-  omMem: OMMemory,
-  sramLogicalTreeNodes: Option[SRAMLogicalTreeNode] = None
+  omMem: Seq[OMMemory],
+  sramLogicalTreeNodes: Option[SRAMLogicalTreeNode[T]] = None
 )
 
 abstract class DiplomaticSRAM(
@@ -39,30 +39,40 @@ abstract class DiplomaticSRAM(
 
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
-  // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem[T <: Data](data: T, description: String, architecture: RAMArchitecture, size: Int):
-  SRAMInfo[T] ={
-    // We require the address range to include an entire beat (for the write mask)
-    val mem =  DescribedSRAM(
-      name = devName.getOrElse("mem"),
-      desc = devName.getOrElse("mem"),
-      size = size,
-      data = data
-    )
-    devName.foreach(n => mem.suggestName(n.split("-").last))
-
-    val sramLogicalTreeNodes = p(ResourceBindingsMapLogicalTreeNodeKey).flatMap {
+  def makeSRAMLogicalTreeNode[T <: Data](omMemory: OMMemory): Option[SRAMLogicalTreeNode[T]] = {
+    p(ResourceBindingsMapLogicalTreeNodeKey).flatMap {
       rbm =>
         p(ParentLogicalTreeNodeKey).map {
           ptn =>
-            def sramLogicalTreeNode: LogicalTreeNode = new SRAMLogicalTreeNode(description, architecture, size, lanes, bits, () => device, () => rbm)
-            LogicalModuleTree.add(ptn, sramLogicalTreeNode)
+            def sramLogicalTreeNode: SRAMLogicalTreeNode[T] = new SRAMLogicalTreeNode[T](omMemory)
             sramLogicalTreeNode
         }
     }
+  }
 
-    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(desc = "mem", depth = size, data = Vec(lanes, UInt(width = bits)))
+  // Use single-ported memory with byte-write enable
+  def makeSinglePortedByteWriteSeqMem[T <: Data](data: T, description: String, architecture: RAMArchitecture, size: Int,
+    logicalTreeNode: Option[LogicalTreeNode]):
+  SRAMInfo[T] ={
+    // We require the address range to include an entire beat (for the write mask)
+    val mem =  DescribedSRAM(name = devName.getOrElse("mem"), desc = devName.getOrElse("mem"), size = size, data = data)
 
-    (mem, omMem, sramLogicalTreeNodes)
+    val f= () => module.toNamed.toString.hashCode
+
+    val omMemory: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(desc = "mem", depth = size, data = data, hashVal = f)
+
+    val sramLogicalTreeNode: Option[SRAMLogicalTreeNode[T]] = makeSRAMLogicalTreeNode[T](omMemory)
+
+    sramLogicalTreeNode.foreach {
+      childLTN =>
+        logicalTreeNode match {
+          case Some(parentLTN) =>
+            LogicalModuleTree.add(parentLTN, childLTN)
+          case _ => None
+      }
+    }
+
+    SRAMInfo(mem, Seq(omMemory), sramLogicalTreeNode)
   }
 }
+
