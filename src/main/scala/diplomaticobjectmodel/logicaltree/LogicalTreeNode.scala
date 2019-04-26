@@ -19,7 +19,7 @@ def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMCo
 object LogicalModuleTree {
   val resourceScopes = collection.mutable.Map[LogicalTreeNode, () => ResourceBindingsMap]()
 
-  val rootLTN = new RootLogicalTreeNode()
+  val root = new RootLogicalTreeNode()
 
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
 
@@ -37,7 +37,7 @@ object LogicalModuleTree {
     resourceBindingsMap.map(addResourceScope(child, _))
   }
 
-  def root: LogicalTreeNode = {
+  def rootLogicalTreeNode: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
     assert(roots.size <= 2, "Logical Tree contains more than two roots.")
     roots.head
@@ -53,6 +53,6 @@ object LogicalModuleTree {
       node.getOMComponents(rbm, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
-    getOMComponentTree(root)
+    getOMComponentTree(rootLogicalTreeNode)
   }
 }

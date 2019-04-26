@@ -148,18 +148,3 @@ case object ParentLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
   None
 )
 
-object ParentTreeNode {
-  /**
-    * Add the parent tree node to the Parameters so that the children can access the tree node via the params
-    * @param p
-    * @return
-    */
-  def set(pltnOpt: Option[LogicalTreeNode], ltn: LogicalTreeNode)(implicit p: Parameters): Parameters = {
-    pltnOpt match {
-      case None => p
-      case Some(pltn) =>
-        LogicalModuleTree.add(pltn, ltn)
-        p.alterPartial { case ParentLogicalTreeNodeKey => Some(ltn) }
-    }
-  }
-}
