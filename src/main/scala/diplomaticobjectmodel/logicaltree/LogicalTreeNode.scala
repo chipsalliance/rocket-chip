@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.config.Field
+
 import freechips.rocketchip.diplomacy.ResourceBindingsMap
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 

@@ -10,7 +10,7 @@ import freechips.rocketchip.util.ElaborationArtefacts
 object ConstructOM {
   private var resourceBindingsMap: () => ResourceBindingsMap = _
 
-  def apply(rbm: () => ResourceBindingsMap): Unit = resourceBindingsMap = rbm
+  def setBindingsMap(rbm: () => ResourceBindingsMap): Unit = resourceBindingsMap = rbm
 
   def constructOM(): Unit = {
     val om: Seq[OMComponent] = LogicalModuleTree.bind(resourceBindingsMap())
