@@ -13,7 +13,7 @@ import freechips.rocketchip.util.DescribedSRAM
 case class SRAMInfo[T <: Data](
   mem: SyncReadMem[T],
   omMem: Seq[OMMemory],
-  sramLogicalTreeNodes: Option[SRAMLogicalTreeNode[T]] = None
+  sramLogicalTreeNodes: Option[MemoryLogicalTreeNode[T]] = None
 )
 
 abstract class DiplomaticSRAM(
@@ -39,21 +39,15 @@ abstract class DiplomaticSRAM(
 
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
-  def makeSRAMLogicalTreeNode[T <: Data](omMemory: OMMemory): Option[SRAMLogicalTreeNode[T]] = {
-    p(ResourceBindingsMapLogicalTreeNodeKey).flatMap {
-      rbm =>
-        p(ParentLogicalTreeNodeKey).map {
-          ptn =>
-            def sramLogicalTreeNode: SRAMLogicalTreeNode[T] = new SRAMLogicalTreeNode[T](omMemory)
-            sramLogicalTreeNode
-        }
-    }
+  def makeMemoryLogicalTreeNode[T <: Data](omMemory: OMMemory, logicalTreeNode: LogicalTreeNode): MemoryLogicalTreeNode[T] = {
+    def sramLogicalTreeNode: MemoryLogicalTreeNode[T] = new MemoryLogicalTreeNode[T](omMemory)
+    LogicalModuleTree.add(logicalTreeNode, sramLogicalTreeNode)
+    sramLogicalTreeNode
   }
 
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem[T <: Data](data: T, description: String, architecture: RAMArchitecture, size: Int,
-    logicalTreeNode: Option[LogicalTreeNode]):
-  SRAMInfo[T] ={
+    logicalTreeNode: Option[LogicalTreeNode]): SRAMInfo[T] ={
     // We require the address range to include an entire beat (for the write mask)
     val mem =  DescribedSRAM(name = devName.getOrElse("mem"), desc = devName.getOrElse("mem"), size = size, data = data)
 
@@ -61,7 +55,10 @@ abstract class DiplomaticSRAM(
 
     val omMemory: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(desc = "mem", depth = size, data = data, hashVal = f)
 
-    val sramLogicalTreeNode: Option[SRAMLogicalTreeNode[T]] = makeSRAMLogicalTreeNode[T](omMemory)
+    val sramLogicalTreeNode: Option[MemoryLogicalTreeNode[T]] = logicalTreeNode match {
+      case Some(ltn) => Some(makeMemoryLogicalTreeNode[T](omMemory, ltn))
+      case None => None
+    }
 
     sramLogicalTreeNode.foreach {
       childLTN =>

@@ -5,7 +5,7 @@ package freechips.rocketchip.amba.ahb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
@@ -17,7 +17,8 @@ class AHBRAM(
     fuzzHreadyout: Boolean = false,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
-    logicalTreeNode: Option[LogicalTreeNode] = None)
+    logicalTreeNode: Option[LogicalTreeNode] = None,
+    getResourceBindingsMap: Option[() => ResourceBindingsMap] = None)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, logicalTreeNode)
 {
   val node = AHBSlaveNode(Seq(AHBSlavePortParameters(
@@ -30,12 +31,18 @@ class AHBRAM(
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
     beatBytes  = beatBytes)))
 
+  val testMemoryLogicalTreeNode = new TestMemoryLogicalTreeNode(() => device, OMAHBRAM)
+
+  getResourceBindingsMap.foreach(LogicalModuleTree.addResourceScope(testMemoryLogicalTreeNode, _))
+
+  logicalTreeNode.foreach(LogicalModuleTree.add(_, testMemoryLogicalTreeNode))
+
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
     val lanes: Int = beatBytes
     val bits: Int = 8
     val sramInfo: SRAMInfo[Vec[UInt]] = makeSinglePortedByteWriteSeqMem[Vec[UInt]](Vec(lanes, UInt(width = bits)),
-      "test harness memory - ahbram", OMAHBRAM, 1 << mask.filter(b=>b).size, logicalTreeNode)
+      "test harness memory - ahbram", OMAHBRAM, 1 << mask.filter(b=>b).size, Some(testMemoryLogicalTreeNode))
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ

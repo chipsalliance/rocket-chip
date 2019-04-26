@@ -118,7 +118,7 @@ object DiplomaticObjectModelAddressing {
   }
 
   def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
-    require(resourceBindingsMap.map.contains(device))
+    require(resourceBindingsMap.map.contains(device), s"""""")
     val resourceBindings = resourceBindingsMap.map.get(device)
     resourceBindings.map { case rb => fn(rb) }.getOrElse(Nil)
   }
