@@ -60,7 +60,7 @@ class TLRAM(
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
 
-    val sramInfo: SRAMInfo[Vec[UInt]] = makeSinglePortedByteWriteSeqMem[Vec[UInt]](Vec(lanes, UInt(width = bits)),
+    val mem = makeSinglePortedByteWriteSeqMem[Vec[UInt]](Vec(lanes, UInt(width = bits)),
       "test harness memory - tlram", OMTLRAM, size, logicalTreeNode)
 
     /* This block uses a two-stage pipeline; A=>D
@@ -209,8 +209,8 @@ class TLRAM(
       if (code.canDetect) code.encode(d, p) else code.encode(d)
     })
 
-    d_raw_data := sramInfo.mem.read(addr, ren)
-    when (wen) { sramInfo.mem.write(addr, coded, sel) }
+    d_raw_data := mem.read(addr, ren)
+    when (wen) { mem.write(addr, coded, sel) }
 
     // Tie off unused channels
     in.b.valid := Bool(false)

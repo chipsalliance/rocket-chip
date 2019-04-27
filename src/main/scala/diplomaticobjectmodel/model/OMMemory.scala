@@ -9,6 +9,6 @@ case class OMMemory(
   depth: Int,
   writeMaskGranularity: Int,
   rtlModule: Option[OMRTLModule] = None,
-  hashVal: () => Int,
+  hashVal: Int,
   _types: Seq[String] = Seq("OMMemory")
 ) extends OMComponent

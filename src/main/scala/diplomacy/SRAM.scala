@@ -39,37 +39,27 @@ abstract class DiplomaticSRAM(
 
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
-  def makeMemoryLogicalTreeNode[T <: Data](omMemory: OMMemory, logicalTreeNode: LogicalTreeNode): MemoryLogicalTreeNode[T] = {
-    def sramLogicalTreeNode: MemoryLogicalTreeNode[T] = new MemoryLogicalTreeNode[T](omMemory)
-    LogicalModuleTree.add(logicalTreeNode, sramLogicalTreeNode)
-    sramLogicalTreeNode
+  def makeMemoryLogicalTreeNode[T <: Data](
+    describedSRAM: DescribedSRAM[T],
+    logicalTreeNode: LogicalTreeNode): MemoryLogicalTreeNode[T] = {
+      def sramLogicalTreeNode: MemoryLogicalTreeNode[T] = new MemoryLogicalTreeNode(describedSRAM)
+      LogicalModuleTree.add(logicalTreeNode, sramLogicalTreeNode)
+      sramLogicalTreeNode
   }
 
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem[T <: Data](data: T, description: String, architecture: RAMArchitecture, size: Int,
-    logicalTreeNode: Option[LogicalTreeNode]): SRAMInfo[T] ={
+    logicalTreeNode: Option[LogicalTreeNode]): SyncReadMem[T] ={
     // We require the address range to include an entire beat (for the write mask)
-    val mem =  DescribedSRAM(name = devName.getOrElse("mem"), desc = devName.getOrElse("mem"), size = size, data = data)
+    val describedSRAM = DescribedSRAM.build(name = devName.getOrElse("mem"), desc = devName.getOrElse("mem"), size = size, data = data)
 
-    val f= () => module.toNamed.toString.hashCode
-
-    val omMemory: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(desc = "mem", depth = size, data = data, hashVal = f)
-
-    val sramLogicalTreeNode: Option[MemoryLogicalTreeNode[T]] = logicalTreeNode match {
-      case Some(ltn) => Some(makeMemoryLogicalTreeNode[T](omMemory, ltn))
-      case None => None
+    logicalTreeNode.map {
+      case parentLTN =>
+        val childLTN = makeMemoryLogicalTreeNode(describedSRAM, parentLTN)
+        LogicalModuleTree.add(parentLTN, childLTN)
     }
 
-    sramLogicalTreeNode.foreach {
-      childLTN =>
-        logicalTreeNode match {
-          case Some(parentLTN) =>
-            LogicalModuleTree.add(parentLTN, childLTN)
-          case _ => None
-      }
-    }
-
-    SRAMInfo(mem, Seq(omMemory), sramLogicalTreeNode)
+    describedSRAM.mem
   }
 }
 

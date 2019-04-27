@@ -36,7 +36,7 @@ class AXI4RAM(
     val (in, _) = node.in(0)
     val lanes: Int = beatBytes
     val bits: Int = 8
-    val sramInfo: SRAMInfo[Vec[UInt]] = makeSinglePortedByteWriteSeqMem(Vec(lanes, UInt(width = bits)),
+    val mem = makeSinglePortedByteWriteSeqMem(Vec(lanes, UInt(width = bits)),
       "test harness memory - apbram", OMAXI4RAM, 1 << mask.filter(b=>b).size, logicalTreeNode)
 
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b => b).size, UInt(width = 2))) else None
@@ -63,7 +63,7 @@ class AXI4RAM(
 
     val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
     when (in.aw.fire() && w_sel0) {
-      sramInfo.mem.write(w_addr, wdata, in.w.bits.strb.asBools)
+      mem.write(w_addr, wdata, in.w.bits.strb.asBools)
       corrupt.foreach { _.write(w_addr, in.w.bits.corrupt.get.asUInt) }
     }
 
@@ -89,7 +89,7 @@ class AXI4RAM(
     }
 
     val ren = in.ar.fire()
-    val rdata = sramInfo.mem.readAndHold(r_addr, ren)
+    val rdata = mem.readAndHold(r_addr, ren)
     val rcorrupt = corrupt.map(_.readAndHold(r_addr, ren)(0)).getOrElse(Bool(false))
 
     in. r.valid := r_full

@@ -3,11 +3,13 @@
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
 import Chisel.{Data, UInt, Vec}
+import chisel3.SyncReadMem
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.util.DescribedSRAM
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -100,8 +102,13 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) =
   }
 }
 
-class MemoryLogicalTreeNode[T <: Data](omMemory: OMMemory) extends LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = Seq(omMemory)
+class MemoryLogicalTreeNode[T <: Data](sram: DescribedSRAM[T]) extends LogicalTreeNode {
+
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    val omMemory = DiplomaticObjectModelAddressing.makeOMMemory(sram)
+
+    Seq(omMemory)
+  }
 }
 
 class ImpLogicalTreeNode extends LogicalTreeNode {
@@ -139,10 +146,6 @@ class TestSoCLogicalTreeNode extends LogicalTreeNode {
     Seq(OMTestHarness( components = children))
   }
 }
-
-case object DeviceKey extends Field[Option[Device]](
-  None
-)
 
 case object ParentLogicalTreeNodeKey extends Field[Option[LogicalTreeNode]](
   None

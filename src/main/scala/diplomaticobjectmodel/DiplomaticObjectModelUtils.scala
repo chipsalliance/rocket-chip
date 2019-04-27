@@ -5,9 +5,10 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
+import chisel3.SyncReadMem
 import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.util.{Code, ElaborationArtefacts}
+import freechips.rocketchip.util.{Code, DescribedSRAM, ElaborationArtefacts}
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{CustomSerializer, Extraction, NoTypeHints}
@@ -180,23 +181,15 @@ object DiplomaticObjectModelAddressing {
   }
 
   def makeOMMemory[T <: Data](
-    desc: String,
-    depth: Int,
-    data: T,
-    hashVal: () => Int
+    sram: DescribedSRAM[T]
   ): OMMemory = {
-      val granWidth = data match {
-        case v: Vec[_] => v.head.getWidth
-        case d => d.getWidth
-      }
-
       OMMemory(
-        description = desc,
-        depth = depth,
-        addressWidth = log2Ceil(depth),
-        dataWidth = data.getWidth,
-        writeMaskGranularity = granWidth,
-        hashVal = hashVal
+        description = sram.desc,
+        depth = sram.depth,
+        addressWidth = log2Ceil(sram.depth),
+        dataWidth = sram.dataWidth,
+        writeMaskGranularity = sram.granWidth,
+        hashVal = sram.hash()
       )
   }
 

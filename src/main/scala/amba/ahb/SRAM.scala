@@ -41,7 +41,7 @@ class AHBRAM(
     val (in, _) = node.in(0)
     val lanes: Int = beatBytes
     val bits: Int = 8
-    val sramInfo: SRAMInfo[Vec[UInt]] = makeSinglePortedByteWriteSeqMem[Vec[UInt]](Vec(lanes, UInt(width = bits)),
+    val mem = makeSinglePortedByteWriteSeqMem(Vec(lanes, UInt(width = bits)),
       "test harness memory - ahbram", OMAHBRAM, 1 << mask.filter(b=>b).size, Some(testMemoryLogicalTreeNode))
 
     // The mask and address during the address phase
@@ -76,12 +76,12 @@ class AHBRAM(
     // Decide if the SRAM port is used for reading or (potentially) writing
     val read = a_request && !a_write
     // In case we choose to stall, we need to hold the read data
-    val d_rdata = sramInfo.mem.readAndHold(a_address, read)
+    val d_rdata = mem.readAndHold(a_address, read)
     val d_legal = RegEnable(a_legal, in.hreadyout)
     // Whenever the port is not needed for reading, execute pending writes
     when (!read && p_valid) {
       p_valid := Bool(false)
-      sramInfo.mem.write(p_address, p_wdata, p_mask.asBools)
+      mem.write(p_address, p_wdata, p_mask.asBools)
     }
 
     // Record the request for later?
