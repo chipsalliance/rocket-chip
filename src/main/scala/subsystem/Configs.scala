@@ -289,9 +289,11 @@ class WithExtMemSize(n: Long) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
 })
 
-class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
+class WithDTS(model: String, compat: Seq[String], build: String, config: String) extends Config((site, here, up) => {
   case DTSModel => model
   case DTSCompat => compat
+  case DTSBuild => build
+  case DTSConfig => config
 })
 
 class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {

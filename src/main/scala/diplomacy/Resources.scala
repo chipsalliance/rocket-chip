@@ -388,11 +388,15 @@ object ResourceAnchors
     def describe(resources: ResourceBindings): Description = {
       val width = resources("width").map(_.value)
       val model = resources("model").map(_.value)
+      val build = resources("build").map(_.value)
+      val config = resources("config").map(_.value)
       val compat = resources("compat").map(_.value)
       Description("/", Map(
         "#address-cells" -> width,
         "#size-cells"    -> width,
         "model"          -> model,
+	"config"	 -> config,
+	"build"		 -> build,
         "compatible"     -> compat))
     }
   }

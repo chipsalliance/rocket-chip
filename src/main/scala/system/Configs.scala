@@ -17,7 +17,7 @@ class BaseConfig extends Config(
   new WithDefaultMMIOPort() ++
   new WithDefaultSlavePort() ++
   new WithTimebase(BigInt(1000000)) ++ // 1 MHz
-  new WithDTS("freechips,rocketchip-unknown", Nil) ++
+  new WithDTS("freechips,rocketchip-unknown", Nil, "nobuild", "noconfig") ++
   new WithNExtTopInterrupts(2) ++
   new BaseSubsystemConfig()
 )

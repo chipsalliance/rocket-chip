@@ -7,6 +7,8 @@ import sys.process._
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 case object DTSModel    extends Field[String]
+case object DTSBuild    extends Field[String]
+case object DTSConfig   extends Field[String]
 case object DTSCompat   extends Field[Seq[String]] // -dev, -soc
 case object DTSTimebase extends Field[BigInt](0)   // Clock frequency of clint RTC (use 0 if you don't know it)
 
