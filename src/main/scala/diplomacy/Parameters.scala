@@ -321,11 +321,30 @@ object UserBits {
   def extract[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt): Seq[UserBitField[T]] = meta match {
     case Nil => Nil
     case head :: tail => {
-      meta.scanLeft((head, 0)) {
+      tail.scanLeft((head, 0)) {
         case ((x, base), y) => (y, base+x.width)
       }.collect {
         case (x: T, y) => UserBitField(x, userBits(y+x.width-1, y))
       }
+    }
+  }
+  def inject[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt, seq: Seq[UInt]): UInt = meta match {
+    case Nil => userBits
+    case head :: tail => {
+      val elts = tail.scanLeft((head, 0)) {
+        case ((x, base), y) => (y, base+x.width)
+      }
+      val mask = ~UInt(elts.collect {
+        case (x: T, y) => ((BigInt(1) << x.width) - 1) << y
+      }.foldLeft(BigInt(0)) {
+        case (b, a) => b | a
+      }, width = elts.last._2)
+      val concat = elts.zip(seq).collect {
+        case ((x: T, y), v) => (v|UInt(0, width=x.width))(x.width-1, 0) << y
+      }.foldLeft(UInt(0)) {
+        case (b, a) => b | a
+      }
+      (userBits & mask) | concat
     }
   }
 }

@@ -85,6 +85,7 @@ case class TLManagerParameters(
   def isTree = findTreeViolation() == None
 
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
 }
 
@@ -255,6 +256,7 @@ case class TLClientParameters(
     supportsPutPartial.max).max
 
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
 }
 

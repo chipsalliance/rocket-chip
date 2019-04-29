@@ -317,6 +317,16 @@ class TLEdgeOut(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
+  // Set the contents of user bits
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): Vec[UInt] = {
+    val value = Wire(Vec(client.endSourceId, UInt(width = client.userBitWidth)))
+    client.clients.foreach { c =>
+      val upd = c.putUser[T](x, seq)
+      c.sourceId.range.foreach { id => value(id) := upd }
+    }
+    value
+  }
+
   // Transfers
   def AcquireBlock(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
     require (manager.anySupportAcquireB)
