@@ -4,6 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
+import scala.reflect.ClassTag
 
 /** Options for memory regions */
 object RegionType {
@@ -305,4 +306,26 @@ trait DirectedBuffers[T] {
   def copyIn(x: BufferParams): T
   def copyOut(x: BufferParams): T
   def copyInOut(x: BufferParams): T
+}
+
+trait UserBits {
+  def width: Int
+  require (width >= 0)
+}
+
+case class PadUserBits(width: Int) extends UserBits
+
+case class UserBitField[T <: UserBits](tag: T, value: UInt)
+
+object UserBits {
+  def extract[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt): Seq[UserBitField[T]] = meta match {
+    case Nil => Nil
+    case head :: tail => {
+      meta.scanLeft((head, 0)) {
+        case ((x, base), y) => (y, base+x.width)
+      }.collect {
+        case (x: T, y) => UserBitField(x, userBits(y+x.width-1, y))
+      }
+    }
+  }
 }

@@ -7,6 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import scala.reflect.ClassTag
 
 class TLEdge(
   client:  TLClientPortParameters,
@@ -564,6 +565,66 @@ class TLEdgeIn(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
+  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
+  // The i'th returned sequence element corresponds to the i'th occurence for each client
+  def getUserSeq[T <: UserBits : ClassTag](bits: TLBundleA): Seq[ValidIO[UInt]] = {
+    require (bits.params.aUserBits == bundle.aUserBits)
+    client.clients.map { c =>
+      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
+    }.transpose.map { seq =>
+      val nbits = seq.map(_._2.tag.width).max
+      val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
+      val valid = Wire(init = Vec.fill(client.endSourceId) { Bool(false) })
+      seq.foreach { case (sources, UserBitField(tag, value)) =>
+        sources.range.foreach { id =>
+          valid(id) := Bool(true)
+          value(id) := value
+        }
+      }
+      val out = Wire(Valid(UInt(width = nbits)))
+      out.valid := valid(bits.source)
+      out.bits  := value(bits.source)
+      out
+    }
+  }
+
+  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
+  // The i'th returned sequence element corresponds to the i'th occurence for each client
+  def getUserOrElse[T <: UserBits : ClassTag](bits: TLBundleA, default: UInt): Seq[UInt] = {
+    require (bits.params.aUserBits == bundle.aUserBits)
+    client.clients.map { c =>
+      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
+    }.transpose.map { seq =>
+      val nbits = seq.map(_._2.tag.width).max
+      val init = (default | UInt(0, width = nbits))(nbits-1, 0)
+      val value = Wire(init = Vec.fill(client.endSourceId) { init })
+      seq.foreach { case (sources, UserBitField(tag, value)) =>
+        sources.range.foreach { id =>
+          value(id) := value
+        }
+      }
+      value(bits.source)
+    }
+  }
+
+  // Extract type-T user bits from every client (each client MUST have exactly one occurrence)
+  def getUser[T <: UserBits : ClassTag](bits: TLBundleA): UInt = {
+    require (bits.params.aUserBits == bundle.aUserBits)
+    val seq = client.clients.map { c =>
+      val x = c.getUser[T](bits.user.get)
+      require (x.size == 1, "getUser called on a client ${c.name} with ${x.size} matching fields")
+      (c.sourceId, x.head)
+    }
+    val nbits = seq.map(_._2.tag.width).max
+    val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
+    seq.foreach { case (sources, UserBitField(tag, value)) =>
+      sources.range.foreach { id =>
+        value(id) := value
+      }
+    }
+    value(bits.source)
+  }
+
   // Transfers
   def Probe(fromAddress: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {
     require (client.anySupportProbe)
