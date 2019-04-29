@@ -204,7 +204,7 @@ case class TLManagerPortParameters(
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
 
-  // add some user bits to the same offset for every manager
+  // add some user bits to the same highest offset for every manager
   val userBitWidth = managers.map(_.userBitWidth).max
   def addUser[T <: UserBits](userBits: T): TLManagerPortParameters = {
     this.copy(managers = managers.map { m =>
@@ -327,7 +327,7 @@ case class TLClientPortParameters(
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
   val supportsHint       = safety_helper(_.supportsHint)       _
 
-  // add some user bits to the same offset for every client
+  // add some user bits to the same highest offset for every client
   val userBitWidth = clients.map(_.userBitWidth).max
   def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
     this.copy(clients = clients.map { c =>

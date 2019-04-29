@@ -318,16 +318,17 @@ case class PadUserBits(width: Int) extends UserBits
 case class UserBitField[T <: UserBits](tag: T, value: UInt)
 
 object UserBits {
+  // Highest index fields are returned first in the output
   def extract[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt): Seq[UserBitField[T]] = meta match {
     case Nil => Nil
-    case head :: tail => {
+    case head :: tail =>
       tail.scanLeft((head, 0)) {
         case ((x, base), y) => (y, base+x.width)
       }.collect {
         case (x: T, y) => UserBitField(x, userBits(y+x.width-1, y))
-      }
-    }
+      }.reverse
   }
+  // Fills highest indexed fields from the front of 'seq' input
   def inject[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt, seq: Seq[UInt]): UInt = meta match {
     case Nil => userBits
     case head :: tail => {
@@ -339,7 +340,7 @@ object UserBits {
       }.foldLeft(BigInt(0)) {
         case (b, a) => b | a
       }, width = elts.last._2)
-      val concat = elts.zip(seq).collect {
+      val concat = elts.reverse.zip(seq).collect {
         case ((x: T, y), v) => (v|UInt(0, width=x.width))(x.width-1, 0) << y
       }.foldLeft(UInt(0)) {
         case (b, a) => b | a

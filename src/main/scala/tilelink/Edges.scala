@@ -317,7 +317,7 @@ class TLEdgeOut(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
-  // Set the contents of user bits
+  // Set the contents of user bits; seq fills the highest-index match first
   def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): Vec[UInt] = {
     val value = Wire(Vec(client.endSourceId, UInt(width = client.userBitWidth)))
     client.clients.foreach { c =>
@@ -576,7 +576,7 @@ class TLEdgeIn(
   extends TLEdge(client, manager, params, sourceInfo)
 {
   // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
-  // The i'th returned sequence element corresponds to the i'th occurence for each client
+  // The first returned sequence element corresponds to the highest-index occurence for each client
   def getUserSeq[T <: UserBits : ClassTag](bits: TLBundleA): Seq[ValidIO[UInt]] = {
     require (bits.params.aUserBits == bundle.aUserBits)
     client.clients.map { c =>
@@ -599,7 +599,7 @@ class TLEdgeIn(
   }
 
   // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
-  // The i'th returned sequence element corresponds to the i'th occurence for each client
+  // The first returned sequence element corresponds to the highest-index occurence for each client
   def getUserOrElse[T <: UserBits : ClassTag](bits: TLBundleA, default: UInt): Seq[UInt] = {
     require (bits.params.aUserBits == bundle.aUserBits)
     client.clients.map { c =>
@@ -617,12 +617,12 @@ class TLEdgeIn(
     }
   }
 
-  // Extract type-T user bits from every client (each client MUST have exactly one occurrence)
-  def getUser[T <: UserBits : ClassTag](bits: TLBundleA): UInt = {
+  // Extract highest-index type-T user bits from every client
+  def getUserHead[T <: UserBits : ClassTag](bits: TLBundleA): UInt = {
     require (bits.params.aUserBits == bundle.aUserBits)
     val seq = client.clients.map { c =>
       val x = c.getUser[T](bits.user.get)
-      require (x.size == 1, "getUser called on a client ${c.name} with ${x.size} matching fields")
+      require (!x.isEmpty, "getUser called on a client ${c.name} with no matching fields")
       (c.sourceId, x.head)
     }
     val nbits = seq.map(_._2.tag.width).max
