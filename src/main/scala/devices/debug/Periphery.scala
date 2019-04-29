@@ -196,6 +196,9 @@ object Debug {
       sj.reset := r
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
     }
+    debug.apb.foreach { apb =>
+      require(false, "No support for connectDebug for an APB debug connection.")
+    }
     debug.psd.foreach { _ <> psd }
     debug.disableDebug.foreach { x => x := Bool(false) }
   }
