@@ -53,14 +53,12 @@ class TLRAM(
   lazy val module = new LazyModuleImp(this) {
     val (in, edge) = node.in(0)
 
+    val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
     val width = code.width(eccBytes*8)
     val lanes = beatBytes/eccBytes
     val size = 1 << addrBits.size
-    val bits = width
 
-    val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
-
-    val mem = makeSinglePortedByteWriteSeqMem[Vec[UInt]](Vec(lanes, UInt(width = bits)),
+    val mem = makeSinglePortedByteWriteSeqMem[Vec[UInt]](Vec(lanes, UInt(width = width)),
       "test harness memory - tlram", OMTLRAM, size, logicalTreeNode)
 
     /* This block uses a two-stage pipeline; A=>D
@@ -209,8 +207,8 @@ class TLRAM(
       if (code.canDetect) code.encode(d, p) else code.encode(d)
     })
 
-    d_raw_data := mem.read(addr, ren)
-    when (wen) { mem.write(addr, coded, sel) }
+    d_raw_data := mem.mem.read(addr, ren)
+    when (wen) { mem.mem.write(addr, coded, sel) }
 
     // Tie off unused channels
     in.b.valid := Bool(false)

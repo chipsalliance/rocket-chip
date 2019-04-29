@@ -76,12 +76,12 @@ class AHBRAM(
     // Decide if the SRAM port is used for reading or (potentially) writing
     val read = a_request && !a_write
     // In case we choose to stall, we need to hold the read data
-    val d_rdata = mem.readAndHold(a_address, read)
+    val d_rdata = mem.mem.readAndHold(a_address, read)
     val d_legal = RegEnable(a_legal, in.hreadyout)
     // Whenever the port is not needed for reading, execute pending writes
     when (!read && p_valid) {
       p_valid := Bool(false)
-      mem.write(p_address, p_wdata, p_mask.asBools)
+      mem.mem.write(p_address, p_wdata, p_mask.asBools)
     }
 
     // Record the request for later?

@@ -43,11 +43,11 @@ class APBRAM(
 
     val read = in.psel && !in.penable && !in.pwrite
     when (in.psel && !in.penable && in.pwrite && legal) {
-      mem.write(paddr, Vec.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.asBools)
+      mem.mem.write(paddr, Vec.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.asBools)
     }
 
     in.pready  := Bool(!fuzzReady) || LFSRNoiseMaker(1)(0)
     in.pslverr := RegEnable(!legal, !in.penable) || (Bool(fuzzError) && LFSRNoiseMaker(1)(0))
-    in.prdata  := mem.readAndHold(paddr, read).asUInt
+    in.prdata  := mem.mem.readAndHold(paddr, read).asUInt
   }
 }

@@ -39,27 +39,19 @@ abstract class DiplomaticSRAM(
 
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
-  def makeMemoryLogicalTreeNode[T <: Data](
-    describedSRAM: DescribedSRAM[T],
-    logicalTreeNode: LogicalTreeNode): MemoryLogicalTreeNode[T] = {
-      def sramLogicalTreeNode: MemoryLogicalTreeNode[T] = new MemoryLogicalTreeNode(describedSRAM)
-      LogicalModuleTree.add(logicalTreeNode, sramLogicalTreeNode)
-      sramLogicalTreeNode
-  }
-
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem[T <: Data](data: T, description: String, architecture: RAMArchitecture, size: Int,
-    logicalTreeNode: Option[LogicalTreeNode]): SyncReadMem[T] ={
+    logicalTreeNode: Option[LogicalTreeNode]): DescribedSRAM[T] = {
     // We require the address range to include an entire beat (for the write mask)
     val describedSRAM = DescribedSRAM.build(name = devName.getOrElse("mem"), desc = devName.getOrElse("mem"), size = size, data = data)
 
     logicalTreeNode.map {
       case parentLTN =>
-        val childLTN = makeMemoryLogicalTreeNode(describedSRAM, parentLTN)
-        LogicalModuleTree.add(parentLTN, childLTN)
+        def sramLogicalTreeNode: MemoryLogicalTreeNode[T] = new MemoryLogicalTreeNode(describedSRAM)
+        LogicalModuleTree.add(parentLTN, new MemoryLogicalTreeNode(describedSRAM))
     }
 
-    describedSRAM.mem
+    describedSRAM
   }
 }
 
