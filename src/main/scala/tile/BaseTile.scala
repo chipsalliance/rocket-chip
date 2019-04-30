@@ -108,7 +108,9 @@ trait HasNonDiplomaticTileParameters {
         "tlb-split" -> Nil,
         "mmu-type"  -> s"riscv,sv$maxSVAddrBits".asProperty)
 
-    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ incoherent
+    val pmp = if (tileParams.core.nPMPs > 0) Map("riscv,pmpregions" -> tileParams.core.nPMPs.asProperty) else Nil
+
+    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent
   }
 
 }
