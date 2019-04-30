@@ -339,7 +339,7 @@ object UserBits {
         case (x: T, y) => ((BigInt(1) << x.width) - 1) << y
       }.foldLeft(BigInt(0)) {
         case (b, a) => b | a
-      }, width = elts.last._2)
+      }, width = meta.map(_.width).sum)
       val concat = elts.reverse.zip(seq).collect {
         case ((x: T, y), v) => (v|UInt(0, width=x.width))(x.width-1, 0) << y
       }.foldLeft(UInt(0)) {
