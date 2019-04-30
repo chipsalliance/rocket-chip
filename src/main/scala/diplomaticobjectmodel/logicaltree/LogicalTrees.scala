@@ -103,17 +103,9 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) =
 }
 
 class MemoryLogicalTreeNode[T <: Data](sram: DescribedSRAM[T]) extends LogicalTreeNode {
-
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    val omMemory = DiplomaticObjectModelAddressing.makeOMMemory(sram)
-
-    Seq(omMemory)
+    Seq(DiplomaticObjectModelAddressing.makeOMMemory(sram))
   }
-}
-
-class ImpLogicalTreeNode extends LogicalTreeNode {
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] =
-    children
 }
 
 class TestMemoryLogicalTreeNode(device: () => Device, ramArchitecture: RAMArchitecture) extends LogicalTreeNode {
@@ -134,10 +126,9 @@ class TestMemoryLogicalTreeNode(device: () => Device, ramArchitecture: RAMArchit
   }
 
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    val c = DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindingsMap, getOMTestMemory)
-    val cc = components.map(_.asInstanceOf[OMMemory])
-    val children = c.toList.head.asInstanceOf[OMTestMemory].copy( memories = cc).asInstanceOf[OMComponent]
-    Seq(children)
+    val testMemories = DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindingsMap, getOMTestMemory)
+    val omMemories = components.map(_.asInstanceOf[OMMemory])
+    testMemories.map(_.asInstanceOf[OMTestMemory].copy( memories = omMemories))
   }
 }
 
