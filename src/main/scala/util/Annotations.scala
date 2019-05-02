@@ -19,7 +19,7 @@ case class SRAMAnnotation(target: Named,
   address_width: Int,
   name: String,
   data_width: Int,
-  depth: Int,
+  depth: BigInt,
   description: String,
   write_mask_granularity: Int) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
@@ -109,7 +109,7 @@ object Annotated {
     name: String,
     address_width: Int,
     data_width: Int,
-    depth: Int,
+    depth: BigInt,
     description: String,
     write_mask_granularity: Int): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = SRAMAnnotation(
