@@ -105,7 +105,7 @@ class DebugLogicalTreeNode(
         hasHartInfo = true,
         hasAbstractauto = true,
         cfgStrPtrValid = false,
-        nHaltSummaryRegisters = 0,
+        nHaltSummaryRegisters = 2,
         nHaltGroups = cfg.nHaltGroups,
         nExtTriggers = cfg.nExtTriggers,
         hasResetHaltReq = true,
