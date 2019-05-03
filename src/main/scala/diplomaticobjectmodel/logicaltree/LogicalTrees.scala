@@ -6,7 +6,8 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, _}
+import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.tile.MaxHartIdBits
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -32,45 +33,19 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
   }
 }
 
-class DebugCSRsLogicalTreeNode(
-  device: SimpleDevice,
-  f: => OMRegisterMap,
-  p: Parameters
-) extends LogicalTreeNode {
-  def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
-      .getOMMemoryRegions("Debug", resourceBindings, Some(f))
-    val cfg: DebugModuleParams = p(DebugModuleParams)
-
-    Seq[OMComponent](
-      OMDebugCSRs(
-        nDebugScratchRegisters = 0,
-        nTriggers = 0,
-        supportedOMTriggerTypes = Nil, // List[List[OMTriggerType]], // Each trigger could support different types
-        nTriggerChainDepth = 0,
-        dscrXdebugver = 0,
-        modeMTdataAccessible = Nil, // List[Boolean],
-        hasMcontrolHit = Nil, //  List[Boolean],
-        supportedMcontrolActions = Nil //  List[TriggerMatchAction], // What to do if trigger hits
-      )
-    )
-  }
-
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
-  }
-}
-
 class DebugLogicalTreeNode(
   device: SimpleDevice,
-  f: => OMRegisterMap,
-  p: Parameters,
-  m: () => TLDebugModule
-) extends LogicalTreeNode {
+  dmOuter: () => TLDebugModuleOuterAsync,
+  dmInner: () => TLDebugModuleInnerAsync
+)(implicit val p: Parameters) extends LogicalTreeNode {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
+    val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
+    val omRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val cfg: DebugModuleParams = dmInner().dmInner.getCfg()
+
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
-      .getOMMemoryRegions("Debug", resourceBindings, Some(f))
-    val cfg : m.cfg
+      .getOMMemoryRegions("Debug", resourceBindings, Some(omRegMap))
 
     Seq[OMComponent](
       OMDebug(
@@ -83,7 +58,7 @@ class DebugLogicalTreeNode(
           )
         ),
         interfaceType = OMDebug.getOMDebugInterfaceType(p),
-        nSupportedHarts = m.nComponents,
+        nSupportedHarts = nComponents,
         nAbstractDataWords = cfg.nAbstractDataWords,
         nProgramBufferWords = cfg.nProgramBufferWords,
         nDMIAddressSizeBits = cfg.nDMIAddrSize,
@@ -112,7 +87,7 @@ class DebugLogicalTreeNode(
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
-        hasCustom = m.needsCustom,
+        hasCustom = needCustom,
         hasAbstractPostIncrement = false,
         hasAbstractPostExec = false,
         hasClockGate = cfg.clockGate
