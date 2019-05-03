@@ -40,34 +40,18 @@ case object ExceptionTrigger extends OMTriggerType
 
 sealed trait TriggerMatchAction extends OMEnum
 
-object OMDebug {
-  def getOMDebugInterfaceType(p: Parameters): OMDebugInterfaceType = {
-    if (p(ExportDebugJTAG)) { JTAG }
-    else if (p(ExportDebugCJTAG)) { CJTAG }
-    else if (p(ExportDebugDMI)) { DMI }
-//    else if (p(ExportDebugAPB)) { APB } // TODO
-    else { throw new IllegalArgumentException }
-  }
-}
-
 // This goes into the Core
 case class OMDebugCSRs(
- nDebugScratchRegisters: Int,
- nTriggers: Int,
- supportedOMTriggerTypes: List[List[OMTriggerType]], // Each trigger could support different types
- nTriggerChainDepth: Int,
- dscrXdebugver: Int,
- modeMTdataAccessible: List[Boolean],
- hasMcontrolHit: List[Boolean],
- supportedMcontrolActions: List[TriggerMatchAction], // What to do if trigger hits
+  nDebugScratchRegisters: Int,
+  nTriggers: Int,
+  supportedOMTriggerTypes: List[List[OMTriggerType]], // Each trigger could support different types
+  nTriggerChainDepth: Int,
+  dscrXdebugver: Int,
+  modeMTdataAccessible: List[Boolean],
+  hasMcontrolHit: List[Boolean],
+  supportedMcontrolActions: List[TriggerMatchAction], // What to do if trigger hits
   _types: Seq[String] = Seq("OMDebugCRSs", "OMDevice", "OMComponent", "OMCompoundType")
-) extends OMCompoundType
-
-case class OMDebugTransport(
-  interfaceType: OMDebugInterfaceType,
-  _types: Seq[String] = Seq("OMDebugTransport", "OMDevice", "OMComponent", "OMCompoundType")
-) extends OMCompoundType
-// This goes into debug transport and/or Debug Module
+) extends OMComponent
 
 // These directly come from RISC-V Debug Spec 0.14
 case class OMDebug(
@@ -110,3 +94,13 @@ case class OMDebug(
   hasAbstractPostExec: Boolean,
   hasClockGate: Boolean
 ) extends OMDevice
+
+object OMDebug {
+  def getOMDebugInterfaceType(p: Parameters): OMDebugInterfaceType = {
+    if (p(ExportDebugJTAG)) { JTAG }
+    else if (p(ExportDebugCJTAG)) { CJTAG }
+    else if (p(ExportDebugDMI)) { DMI }
+    //    else if (p(ExportDebugAPB)) { APB } // TODO
+    else { throw new IllegalArgumentException }
+  }
+}

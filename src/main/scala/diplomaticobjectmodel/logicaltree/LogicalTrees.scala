@@ -32,6 +32,35 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
   }
 }
 
+class DebugCSRsLogicalTreeNode(
+  device: SimpleDevice,
+  f: => OMRegisterMap,
+  p: Parameters
+) extends LogicalTreeNode {
+  def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
+      .getOMMemoryRegions("Debug", resourceBindings, Some(f))
+    val cfg: DebugModuleParams = p(DebugModuleParams)
+
+    Seq[OMComponent](
+      OMDebugCSRs(
+        nDebugScratchRegisters = 0,
+        nTriggers = 0,
+        supportedOMTriggerTypes = Nil, // List[List[OMTriggerType]], // Each trigger could support different types
+        nTriggerChainDepth = 0,
+        dscrXdebugver = 0,
+        modeMTdataAccessible = Nil, // List[Boolean],
+        hasMcontrolHit = Nil, //  List[Boolean],
+        supportedMcontrolActions = Nil //  List[TriggerMatchAction], // What to do if trigger hits
+      )
+    )
+  }
+
+  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
+  }
+}
+
 class DebugLogicalTreeNode(
   device: SimpleDevice,
   f: => OMRegisterMap,
