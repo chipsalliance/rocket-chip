@@ -32,27 +32,6 @@ case object APB extends OMDebugInterfaceType
 sealed trait OMDebugAuthenticationType extends OMEnum
 case object NONE extends OMDebugAuthenticationType
 
-sealed trait OMTriggerType extends OMEnum
-case object MatchControlTrigger extends OMTriggerType
-case object InstructionCountTrigger extends OMTriggerType
-case object InterruptTrigger extends OMTriggerType
-case object ExceptionTrigger extends OMTriggerType
-
-sealed trait TriggerMatchAction extends OMEnum
-
-// This goes into the Core
-case class OMDebugCSRs(
-  nDebugScratchRegisters: Int,
-  nTriggers: Int,
-  supportedOMTriggerTypes: List[List[OMTriggerType]], // Each trigger could support different types
-  nTriggerChainDepth: Int,
-  dscrXdebugver: Int,
-  modeMTdataAccessible: List[Boolean],
-  hasMcontrolHit: List[Boolean],
-  supportedMcontrolActions: List[TriggerMatchAction], // What to do if trigger hits
-  _types: Seq[String] = Seq("OMDebugCRSs", "OMDevice", "OMComponent", "OMCompoundType")
-) extends OMComponent
-
 // These directly come from RISC-V Debug Spec 0.14
 case class OMDebug(
   memoryRegions: Seq[OMMemoryRegion],
