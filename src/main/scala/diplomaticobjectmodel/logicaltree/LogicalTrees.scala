@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
+import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
@@ -31,10 +32,16 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
   }
 }
 
-class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTreeNode {
+class DebugLogicalTreeNode(
+  device: SimpleDevice,
+  f: => OMRegisterMap,
+  p: Parameters,
+  hasCustom: => Boolean
+) extends LogicalTreeNode {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(f))
-    val cfg : DebugModuleParams = debugModuleParams
+    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
+      .getOMMemoryRegions("Debug", resourceBindings, Some(f))
+    val cfg : DebugModuleParams = p(DebugModuleParams)
 
     Seq[OMComponent](
       OMDebug(
@@ -46,10 +53,42 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModul
             version = "0.13"
           )
         ),
+        interfaceType = OMDebug.getOMDebugInterfaceType(p),
+        nSupportedHarts = 0,
         nAbstractDataWords = cfg.nAbstractDataWords,
         nProgramBufferWords = cfg.nProgramBufferWords,
-        interfaceType = OMDebug.getDebugInterfaceType(exportDebugJTAG, exportDebugCJTAG, exportDebugDMI),
-      )
+        nDMIAddressSizeBits = cfg.nDMIAddrSize,
+        hasSystemBusAccess = false,
+        supportsQuickAccess = cfg.supportQuickAccess,
+        supportsHartArray = cfg.supportHartArray,
+        hasImplicitEbreak = cfg.hasImplicitEbreak,
+        sbcsSBAVersion = 1, // This should just always be 1. 0 has tons of issues.
+        sbaAddressSizeBits = cfg.maxSupportedSBAccess,
+        hasSBAccess8 = cfg.maxSupportedSBAccess >= 8,
+        hasSBAccess16 = cfg.maxSupportedSBAccess >= 16,
+        hasSBAccess32 = cfg.maxSupportedSBAccess >= 32,
+        hasSBAccess64 = cfg.maxSupportedSBAccess >= 64,
+        hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
+        hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
+        authenticationType = NONE,
+        nHartsellenBits = 0, // Number of actually implemented bits of Hartsel
+        hasHartInfo = false,
+        //supportedHartArrayWindowBits: List[Int], -- Getting rid of this because it makes no sense.
+        hasAbstractauto = false,
+        cfgStrPtrValid = false,
+        nHaltSummaryRegisters = 0,
+        nHaltGroups = cfg.nHaltGroups,
+        nExtTriggers = cfg.nExtTriggers,
+        hasResetHaltReq = false,
+        hasHartReset = false,
+        hasAbstractAccessFPU = false,
+        hasAbstractAccessCSR = false,
+        hasAbstractAccessMemory = false,
+        hasCustom = hasCustom,
+        hasAbstractPostIncrement = false,
+        hasAbstractPostExec = false,
+        hasClockGate = false
+    )
     )
   }
 

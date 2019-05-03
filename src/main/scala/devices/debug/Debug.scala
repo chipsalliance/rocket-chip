@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.devices.debug
 
+
 import Chisel._
 import chisel3.experimental._
 import freechips.rocketchip.config._
@@ -16,6 +17,7 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -1450,6 +1452,9 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
   }
 
-  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.omRegMap,
-    p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
+  val logicalTreeNode = new DebugLogicalTreeNode(
+    device,
+    dmInner.dmInner.module.omRegMap,
+    p,
+    dmInner.dmInner.module.needCustom)
 }
