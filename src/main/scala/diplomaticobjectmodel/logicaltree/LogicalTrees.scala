@@ -65,13 +65,12 @@ class DebugLogicalTreeNode(
   device: SimpleDevice,
   f: => OMRegisterMap,
   p: Parameters,
-  nSupportedHarts: => Int,
-  hasCustom: => Boolean
+  m: () => TLDebugModule
 ) extends LogicalTreeNode {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
       .getOMMemoryRegions("Debug", resourceBindings, Some(f))
-    val cfg : DebugModuleParams = p(DebugModuleParams)
+    val cfg : m.cfg
 
     Seq[OMComponent](
       OMDebug(
@@ -84,7 +83,7 @@ class DebugLogicalTreeNode(
           )
         ),
         interfaceType = OMDebug.getOMDebugInterfaceType(p),
-        nSupportedHarts = nSupportedHarts(),
+        nSupportedHarts = m.nComponents,
         nAbstractDataWords = cfg.nAbstractDataWords,
         nProgramBufferWords = cfg.nProgramBufferWords,
         nDMIAddressSizeBits = cfg.nDMIAddrSize,
@@ -101,7 +100,7 @@ class DebugLogicalTreeNode(
         hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
         hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
         authenticationType = NONE,
-        nHartsellenBits = 0, // Number of actually implemented bits of Hartsel
+        nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
         hasHartInfo = true,
         hasAbstractauto = true,
         cfgStrPtrValid = false,
@@ -113,7 +112,7 @@ class DebugLogicalTreeNode(
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
-        hasCustom = hasCustom,
+        hasCustom = m.needsCustom,
         hasAbstractPostIncrement = false,
         hasAbstractPostExec = false,
         hasClockGate = cfg.clockGate
