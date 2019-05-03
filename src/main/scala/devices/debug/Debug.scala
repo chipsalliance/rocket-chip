@@ -1455,6 +1455,5 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
   val logicalTreeNode = new DebugLogicalTreeNode(
     device,
     dmInner.dmInner.module.omRegMap,
-    p,
-    dmInner.dmInner.module.needCustom)
+    dmInner.dmInner.module)
 }

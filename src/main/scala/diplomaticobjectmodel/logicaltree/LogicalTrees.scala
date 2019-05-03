@@ -65,12 +65,12 @@ class DebugLogicalTreeNode(
   device: SimpleDevice,
   f: => OMRegisterMap,
   p: Parameters,
-  hasCustom: => Boolean
+  m: () => TLDebugModule
 ) extends LogicalTreeNode {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
       .getOMMemoryRegions("Debug", resourceBindings, Some(f))
-    val cfg : DebugModuleParams = p(DebugModuleParams)
+    val cfg : m.cfg
 
     Seq[OMComponent](
       OMDebug(
@@ -83,15 +83,15 @@ class DebugLogicalTreeNode(
           )
         ),
         interfaceType = OMDebug.getOMDebugInterfaceType(p),
-        nSupportedHarts = 0,
+        nSupportedHarts = m.nComponents,
         nAbstractDataWords = cfg.nAbstractDataWords,
         nProgramBufferWords = cfg.nProgramBufferWords,
         nDMIAddressSizeBits = cfg.nDMIAddrSize,
-        hasSystemBusAccess = false,
+        hasSystemBusAccess = cfg.hasBusMaster,
         supportsQuickAccess = cfg.supportQuickAccess,
         supportsHartArray = cfg.supportHartArray,
         hasImplicitEbreak = cfg.hasImplicitEbreak,
-        sbcsSBAVersion = 1, // This should just always be 1. 0 has tons of issues.
+        sbcsSBAVersion = 1,
         sbaAddressSizeBits = cfg.maxSupportedSBAccess,
         hasSBAccess8 = cfg.maxSupportedSBAccess >= 8,
         hasSBAccess16 = cfg.maxSupportedSBAccess >= 16,
@@ -100,23 +100,22 @@ class DebugLogicalTreeNode(
         hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
         hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
         authenticationType = NONE,
-        nHartsellenBits = 0, // Number of actually implemented bits of Hartsel
-        hasHartInfo = false,
-        //supportedHartArrayWindowBits: List[Int], -- Getting rid of this because it makes no sense.
-        hasAbstractauto = false,
+        nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
+        hasHartInfo = true,
+        hasAbstractauto = true,
         cfgStrPtrValid = false,
-        nHaltSummaryRegisters = 0,
+        nHaltSummaryRegisters = 2,
         nHaltGroups = cfg.nHaltGroups,
         nExtTriggers = cfg.nExtTriggers,
-        hasResetHaltReq = false,
+        hasResetHaltReq = true,
         hasHartReset = false,
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
-        hasCustom = hasCustom,
+        hasCustom = m.needsCustom,
         hasAbstractPostIncrement = false,
         hasAbstractPostExec = false,
-        hasClockGate = false
+        hasClockGate = cfg.clockGate
     )
     )
   }
