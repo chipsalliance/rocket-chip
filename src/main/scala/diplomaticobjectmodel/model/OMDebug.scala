@@ -6,23 +6,6 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug.{DebugModuleParams, ExportDebugCJTAG, ExportDebugDMI, ExportDebugJTAG}
 
-//sealed trait OMDebugInterfaceType extends OMOMEnum
-//case object JTAG extends OMDebugInterfaceType
-//case object CJTAG extends OMDebugInterfaceType
-//case object DMI extends OMDebugInterfaceType
-//
-//case class OMDebug(
-//  memoryRegions: Seq[OMMemoryRegion],
-//  interrupts: Seq[OMInterrupt],
-//  specifications: List[OMSpecification],
-//  nAbstractDataWords: Int,,
-//  nProgramBufferWords: Int,,
-//  interfaceType: OMDebugInterfaceType,
-//  _types: Seq[String] = Seq("OMDebug", "OMDevice", "OMComponent", "OMCompoundType")
-//)  extends OMDevice
-//
-
-
 sealed trait OMDebugInterfaceType extends OMEnum
 case object JTAG extends OMDebugInterfaceType
 case object CJTAG extends OMDebugInterfaceType
