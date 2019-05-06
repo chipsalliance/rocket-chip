@@ -3,31 +3,38 @@
 
 package freechips.rocketchip.util
 
-import chisel3.internal.InstanceId
-import freechips.rocketchip.util.Annotated
-import freechips.rocketchip.diplomacy.DiplomaticSRAM
+
 import Chisel._
 import chisel3.SyncReadMem
-import freechips.rocketchip.amba.axi4.AXI4RAM
 
-import scala.math.log10
+case class DescribedSRAM[T <: Data](
+  name: String,
+  desc: String,
+  depth: Int,
+  dataWidth: Int,
+  mem: SyncReadMem[T],
+  granWidth: Int,
+) {
+  def hash: () => Int = () => mem.toNamed.toString.hashCode
+}
 
 object DescribedSRAM {
-  def apply[T <: Data](
+  private def granWidth[T <: Data](data: T): Int = {
+    data match {
+      case v: Vec[_] => v.head.getWidth
+      case d => d.getWidth
+    }
+  }
+
+  private def mem[T <: Data](
     name: String,
     desc: String,
     size: BigInt, // depth
     data: T
   ): SyncReadMem[T] = {
-
     val mem = SeqMem(size, data)
 
     mem.suggestName(name)
-
-    val granWidth = data match {
-      case v: Vec[_] => v.head.getWidth
-      case d => d.getWidth
-    }
 
     Annotated.srams(
       component = mem,
@@ -36,8 +43,33 @@ object DescribedSRAM {
       data_width = data.getWidth,
       depth = size,
       description = desc,
-      write_mask_granularity = granWidth)
+      write_mask_granularity = granWidth(data))
 
     mem
+  }
+
+  def apply[T <: Data](
+    name: String,
+    desc: String,
+    size: Int, // depth
+    data: T
+  ): SyncReadMem[T] = {
+    mem(name, desc, size, data)
+  }
+
+  def build[T <: Data](
+    name: String,
+    desc: String,
+    size: Int, // depth
+    data: T
+  ): DescribedSRAM[T] = {
+    new DescribedSRAM[T](
+      name = name,
+      desc = desc,
+      depth = size,
+      dataWidth = data.getWidth,
+      mem = mem(name, desc, size, data),
+      granWidth = granWidth(data)
+    )
   }
 }

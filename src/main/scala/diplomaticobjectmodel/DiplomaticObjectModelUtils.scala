@@ -183,14 +183,14 @@ object DiplomaticObjectModelAddressing {
       desc: String,
       depth: BigInt,
       data: T
-    ): OMMemory = {
+    ): OMSRAM = {
 
       val granWidth = data match {
         case v: Vec[_] => v.head.getWidth
         case d => d.getWidth
       }
 
-      OMMemory(
+      OMSRAM(
         description = desc,
         addressWidth = log2Ceil(depth),
         dataWidth = data.getWidth,
