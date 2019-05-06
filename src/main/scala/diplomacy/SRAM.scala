@@ -33,7 +33,7 @@ abstract class DiplomaticSRAM(
 
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem(
-    parentLogicalTreeNode: LogicalTreeNode,
+    parentLogicalTreeNode: Option[LogicalTreeNode],
     architecture: RAMArchitecture,
     size: Int,
     lanes: Int = beatBytes,
@@ -55,8 +55,11 @@ abstract class DiplomaticSRAM(
       data = Vec(lanes, UInt(width = bits))
     )
 
-    def sramLogicalTreeNode: MemoryLogicalTreeNode = new MemoryLogicalTreeNode(Seq(omMem))
-    LogicalModuleTree.add(parentLogicalTreeNode, sramLogicalTreeNode)
+    parentLogicalTreeNode.map {
+      case parentLTN =>
+        def sramLogicalTreeNode: MemoryLogicalTreeNode = new MemoryLogicalTreeNode(Seq(omMem))
+        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
+    }
 
     (mem, Seq(omMem))
   }

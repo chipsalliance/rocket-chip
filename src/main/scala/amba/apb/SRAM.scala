@@ -11,8 +11,8 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class APBRAM(
-    parentLogicalTreeNode: LogicalTreeNode,
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,

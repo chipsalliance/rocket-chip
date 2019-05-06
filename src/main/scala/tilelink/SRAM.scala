@@ -16,8 +16,8 @@ class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with 
 }
 
 class TLRAM(
-    parentLogicalTreeNode: LogicalTreeNode,
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     cacheable: Boolean = true,
     executable: Boolean = true,
     atomics: Boolean = false,
@@ -217,6 +217,7 @@ class TLRAM(
 object TLRAM
 {
   def apply(
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     address: AddressSet,
     cacheable: Boolean = true,
     executable: Boolean = true,
@@ -226,7 +227,7 @@ object TLRAM
     devName: Option[String] = None,
   )(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, cacheable, executable, atomics, beatBytes, ecc, devName))
+    val ram = LazyModule(new TLRAM(address, parentLogicalTreeNode, cacheable, executable, atomics, beatBytes, ecc, devName))
     ram.node
   }
 }

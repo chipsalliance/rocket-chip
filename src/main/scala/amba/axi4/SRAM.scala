@@ -10,8 +10,8 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMAXI4RAM
 import freechips.rocketchip.util._
 
 class AXI4RAM(
-    parentLogicalTreeNode: LogicalTreeNode,
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -103,13 +103,14 @@ object AXI4RAM
 {
   def apply(
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil)
   (implicit p: Parameters) =
   {
-    val axi4ram = LazyModule(new AXI4RAM(address, executable, beatBytes, devName, errors))
+    val axi4ram = LazyModule(new AXI4RAM(address, parentLogicalTreeNode, executable, beatBytes, devName, errors))
     axi4ram.node
   }
 }

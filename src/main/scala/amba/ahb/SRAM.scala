@@ -11,8 +11,8 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class AHBRAM(
-    parentLogicalTreeNode: LogicalTreeNode,
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     fuzzHreadyout: Boolean = false,
