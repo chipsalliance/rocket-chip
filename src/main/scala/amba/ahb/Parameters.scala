@@ -36,6 +36,7 @@ case class AHBSlaveParameters(
       x = executable,
       c = false,
       a = false))
+  }
 }
 
 case class AHBSlavePortParameters(

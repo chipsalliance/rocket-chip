@@ -9,5 +9,5 @@ case class OMSRAM(
   depth: Int,
   writeMaskGranularity: Int,
   _types: Seq[String] = Seq("OMSRAM")
-)
+) extends OMComponent
 
