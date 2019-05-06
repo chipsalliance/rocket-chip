@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.devices.debug
 
+
 import Chisel._
 import chisel3.experimental._
 import freechips.rocketchip.config._
@@ -16,6 +17,7 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -271,6 +273,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     require (intnode.edges.in.size == 0, "Debug Module does not accept interrupts")
 
     val nComponents = intnode.out.size
+    def getNComponents = () => nComponents
+
     val supportHartArray = cfg.supportHartArray && (nComponents > 1)    // no hart array if only one hart
 
     val io = IO(new Bundle {
@@ -521,6 +525,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   import DMI_RegAddrs._
 
   val cfg = p(DebugModuleParams)
+  def getCfg = () => cfg
   val hartSelFuncs = p(DebugModuleHartSelKey)
 
   val dmiNode = TLRegisterNode(
@@ -1036,6 +1041,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // ... and also by custom register read (if implemented)
     val (customs, customParams) = customNode.in.unzip
     val needCustom = (customs.size > 0) && (customParams.head.addrs.size > 0)
+    def getNeedCustom = () => needCustom
+
     if (needCustom) {
       val (custom, customP) = customNode.in.head
       require(customP.width % 8 == 0, s"Debug Custom width must be divisible by 8, not ${customP.width}")
@@ -1450,6 +1457,9 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
   }
 
-  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.omRegMap,
-    p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
+  val logicalTreeNode = new DebugLogicalTreeNode(
+    device,
+    () => dmOuter,
+    () => dmInner
+  )
 }

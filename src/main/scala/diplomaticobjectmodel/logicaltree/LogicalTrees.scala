@@ -2,10 +2,12 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
+import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, _}
+import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.tile.MaxHartIdBits
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
 
@@ -31,10 +33,19 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
   }
 }
 
-class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTreeNode {
+class DebugLogicalTreeNode(
+  device: SimpleDevice,
+  dmOuter: () => TLDebugModuleOuterAsync,
+  dmInner: () => TLDebugModuleInnerAsync
+)(implicit val p: Parameters) extends LogicalTreeNode {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(f))
-    val cfg : DebugModuleParams = debugModuleParams
+    val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
+    val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
+    val omRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val cfg: DebugModuleParams = dmInner().dmInner.getCfg()
+
+    val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
+      .getOMMemoryRegions("Debug", resourceBindings, Some(omRegMap))
 
     Seq[OMComponent](
       OMDebug(
@@ -46,10 +57,41 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModul
             version = "0.13"
           )
         ),
+        interfaceType = OMDebug.getOMDebugInterfaceType(p),
+        nSupportedHarts = nComponents,
         nAbstractDataWords = cfg.nAbstractDataWords,
         nProgramBufferWords = cfg.nProgramBufferWords,
-        interfaceType = OMDebug.getDebugInterfaceType(exportDebugJTAG, exportDebugCJTAG, exportDebugDMI),
-      )
+        nDMIAddressSizeBits = cfg.nDMIAddrSize,
+        hasSystemBusAccess = cfg.hasBusMaster,
+        supportsQuickAccess = cfg.supportQuickAccess,
+        supportsHartArray = cfg.supportHartArray,
+        hasImplicitEbreak = cfg.hasImplicitEbreak,
+        sbcsSBAVersion = 1,
+        sbaAddressSizeBits = cfg.maxSupportedSBAccess,
+        hasSBAccess8 = cfg.maxSupportedSBAccess >= 8,
+        hasSBAccess16 = cfg.maxSupportedSBAccess >= 16,
+        hasSBAccess32 = cfg.maxSupportedSBAccess >= 32,
+        hasSBAccess64 = cfg.maxSupportedSBAccess >= 64,
+        hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
+        hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
+        authenticationType = NONE,
+        nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
+        hasHartInfo = true,
+        hasAbstractauto = true,
+        cfgStrPtrValid = false,
+        nHaltSummaryRegisters = 2,
+        nHaltGroups = cfg.nHaltGroups,
+        nExtTriggers = cfg.nExtTriggers,
+        hasResetHaltReq = true,
+        hasHartReset = false,
+        hasAbstractAccessFPU = false,
+        hasAbstractAccessCSR = false,
+        hasAbstractAccessMemory = false,
+        hasCustom = needCustom,
+        hasAbstractPostIncrement = false,
+        hasAbstractPostExec = false,
+        hasClockGate = cfg.clockGate
+    )
     )
   }
 
