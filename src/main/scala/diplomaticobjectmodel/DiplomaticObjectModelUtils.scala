@@ -181,7 +181,7 @@ object DiplomaticObjectModelAddressing {
 
   def makeOMMemory[T <: Data](
       desc: String,
-      depth: Int,
+      depth: BigInt,
       data: T
     ): OMMemory = {
 
