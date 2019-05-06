@@ -73,6 +73,7 @@ case class AHBBundleParameters(
   val burstBits = AHBParameters.burstBits
   val protBits  = AHBParameters.protBits
   val sizeBits  = AHBParameters.sizeBits
+  val userBits  = AHBParameters.userBits
 
   def union(x: AHBBundleParameters) =
     AHBBundleParameters(

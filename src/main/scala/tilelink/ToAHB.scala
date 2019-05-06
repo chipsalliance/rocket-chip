@@ -159,6 +159,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       out.hprot     := PROT_DEFAULT
       out.hwdata    := RegEnable(send.data, out.hreadyout)
 
+      in.a.bits.user.map { out.hauser := _}
+
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
       // presented it on D as valid.  We also can't back-pressure AHB in the
