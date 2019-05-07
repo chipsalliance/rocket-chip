@@ -82,14 +82,14 @@ class DebugLogicalTreeNode(
         nHaltSummaryRegisters = 2,
         nHaltGroups = cfg.nHaltGroups,
         nExtTriggers = cfg.nExtTriggers,
-        hasResetHaltReq = true,
+        hasResetHaltReq = false,
         hasHartReset = false,
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
         hasCustom = needCustom,
         hasAbstractPostIncrement = false,
-        hasAbstractPostExec = false,
+        hasAbstractPostExec = true,
         hasClockGate = cfg.clockGate
     )
     )
