@@ -40,11 +40,6 @@ object ISAExtensions {
   )
 
   def specVersion(extension: OMExtensionType, version: String): OMSpecification = OMSpecification(specifications(extension), version)
-
-  def customExtensions(coreParams: CoreParams): List[OMCustomExtensionSpecification] = {
-    val cflush = coreParams.haveCFlush.option(Xsifivecflushdlone("", ""))
-    List[Option[OMCustomExtensionSpecification]](cflush).flatten
-  }
 }
 
 

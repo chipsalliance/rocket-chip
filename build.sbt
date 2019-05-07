@@ -9,7 +9,7 @@ enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  version      := "1.2-032519-SNAPSHOT",
+  version      := "1.2-050719-SNAPSHOT",
   scalaVersion := "2.12.4",
   crossScalaVersions := Seq("2.12.4"),
   parallelExecution in Global := false,
@@ -55,7 +55,7 @@ lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 def dependOnChisel(prj: Project) = {
   if (sys.props.contains("ROCKET_USE_MAVEN")) {
     prj.settings(
-      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-032519-SNAPSHOT")
+      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-050719-SNAPSHOT")
     )
   } else {
     prj.dependsOn(chisel)
@@ -64,11 +64,23 @@ def dependOnChisel(prj: Project) = {
 
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
   .settings(crossScalaVersions := Seq("2.12.4"))
+  .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
+  .settings(publishArtifact := false)
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
-  .dependsOn(hardfloat, `rocket-macros`)
-  .aggregate(hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
+  .dependsOn(hardfloat % "compile-internal;test-internal")
+  .dependsOn(`rocket-macros` % "compile-internal;test-internal")
+  .settings(
+      aggregate := false,
+      // Include macro classes, resources, and sources in main jar.
+      mappings in (Compile, packageBin) ++= (mappings in (hardfloat, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
+      exportJars := true
+  )
+
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")

@@ -8,12 +8,13 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
+import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 object DsbBusConsts {
@@ -295,7 +296,14 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val DMCONTROLRdData = Wire(init = DMCONTROLReg)
 
     val DMCONTROLWrDataVal = Wire(init = 0.U(32.W))
-    val DMCONTROLWrData = (new DMCONTROLFields()).fromBits(DMCONTROLWrDataVal)
+    val DMCONTROLWrData = {
+      // Mask off unused hart ID bits to eliminate some flops
+      val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
+      val fields = DMCONTROLWrDataVal.asTypeOf(new DMCONTROLFields)
+      val res = Wire(init = fields)
+      res.hartsello := fields.hartsello & hartsel_mask
+      res
+    }
     val DMCONTROLWrEn   = Wire(init = false.B)
     val DMCONTROLRdEn   = Wire(init = false.B)
 
@@ -603,12 +611,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Registers coming from 'CONTROL' in Outer
     //--------------------------------------------------------------
 
-    val selectedHartReg = RegInit(0.U(10.W))
+    val selectedHartReg = RegInit(0.U(p(MaxHartIdBits).W))
       // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
     val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
 
-    when (io.innerCtrl.fire()){
-      selectedHartReg := io.innerCtrl.bits.hartsel
+    if (nComponents > 1) {
+      when (io.innerCtrl.fire()){
+        selectedHartReg := io.innerCtrl.bits.hartsel
+      }
     }
 
     if (supportHartArray) {
@@ -1071,10 +1081,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(1024){new flagBundle().fromBits(0.U)})
-    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < 1024.U),
-      "HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < 1024 for it to work.");
+    val flags = Wire(init = Vec.fill(1 << selectedHartReg.getWidth){new flagBundle().fromBits(0.U)})
+    assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
+      s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
     flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
+
     for (component <- 0 until nComponents) {
       val componentSel = Wire(init = component.U)
       flags(hartSelFuncs.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
@@ -1404,31 +1415,6 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMDebug)
-    }
-
-    def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("Debug", resourceBindings, Some(dmInner.dmInner.module.omRegMap))
-      val cfg : DebugModuleParams = p(DebugModuleParams)
-
-      Seq[OMComponent](
-        OMDebug(
-          memoryRegions = memRegions,
-          interrupts = Nil,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC-V Debug Specification",
-              version = "0.13"
-            )
-          ),
-          nAbstractDataWords = cfg.nAbstractDataWords,
-          nProgramBufferWords = cfg.nProgramBufferWords,
-          interfaceType = OMDebug.getDebugInterfaceType(p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI)),
-        )
-      )
-    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
@@ -1462,6 +1448,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
-
   }
+
+  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.omRegMap,
+    p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
 }

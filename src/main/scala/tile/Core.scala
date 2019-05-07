@@ -30,6 +30,7 @@ trait CoreParams {
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
+  val useBPWatch: Boolean
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean
@@ -105,6 +106,7 @@ trait HasCoreIO extends HasTileParameters {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch).asOutput
     val cease = Bool().asOutput
   }
 }
