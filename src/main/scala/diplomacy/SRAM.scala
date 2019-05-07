@@ -12,6 +12,7 @@ import freechips.rocketchip.util.DescribedSRAM
 abstract class DiplomaticSRAM(
     address: AddressSet,
     beatBytes: Int,
+    parentLogicalTreeNode: Option[LogicalTreeNode],
     devName: Option[String])(implicit p: Parameters) extends LazyModule
 {
   val device = devName
@@ -33,7 +34,6 @@ abstract class DiplomaticSRAM(
 
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem(
-    parentLogicalTreeNode: Option[LogicalTreeNode],
     architecture: RAMArchitecture,
     size: Int,
     lanes: Int = beatBytes,

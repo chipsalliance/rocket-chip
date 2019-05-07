@@ -17,7 +17,7 @@ class AXI4RAM(
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
     wcorrupt: Boolean = false)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, parentLogicalTreeNode, devName)
 {
   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
@@ -34,7 +34,7 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(parentLogicalTreeNode, OMAXI4RAM, 1 << mask.filter(b=>b).size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(OMAXI4RAM, 1 << mask.filter(b=>b).size)
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
