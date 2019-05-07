@@ -16,15 +16,15 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a sram. */
-case class SRAMAnnotation(target: ComponentName,
+case class SRAMAnnotation(target: ReferenceTarget,
   address_width: Int,
   name: String,
   data_width: Int,
   depth: BigInt,
   description: String,
   write_mask_granularity: Int,
-  idhash: Int=0) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(n)
+  idhash: Int=0) extends SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget) = this.copy(n)
 }
 
 /** Record a set of interrupts. */
