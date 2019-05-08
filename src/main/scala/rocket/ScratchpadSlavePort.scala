@@ -28,7 +28,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     Seq(TLManagerParameters(
       address            = address,
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHEABLE,
+      regionType         = RegionType.IDEMPOTENT,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
       supportsLogical    = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,

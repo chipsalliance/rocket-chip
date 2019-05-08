@@ -10,6 +10,7 @@ import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class AHBRAM(
     address: AddressSet,
+    cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
     fuzzHreadyout: Boolean = false,
@@ -21,7 +22,7 @@ class AHBRAM(
     Seq(AHBSlaveParameters(
       address       = List(address) ++ errors,
       resources     = resources,
-      regionType    = RegionType.UNCACHED,
+      regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),

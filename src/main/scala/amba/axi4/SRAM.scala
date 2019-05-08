@@ -9,6 +9,7 @@ import freechips.rocketchip.util._
 
 class AXI4RAM(
     address: AddressSet,
+    cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -20,7 +21,7 @@ class AXI4RAM(
     Seq(AXI4SlaveParameters(
       address       = List(address) ++ errors,
       resources     = resources,
-      regionType    = RegionType.UNCACHED,
+      regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes),
       supportsWrite = TransferSizes(1, beatBytes),
