@@ -12,7 +12,7 @@ import AHBParameters._
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImp)(
   dFn = { case TLClientPortParameters(clients, minLatency) =>
-    val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) }
+    val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath,userBits = c.userBits) }
     AHBMasterPortParameters(masters)
   },
   uFn = { case AHBSlavePortParameters(slaves, beatBytes) =>
@@ -159,7 +159,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       out.hprot     := PROT_DEFAULT
       out.hwdata    := RegEnable(send.data, out.hreadyout)
 
-      in.a.bits.user.map { out.hauser := _}
+      in.a.bits.user.map { i => out.hauser.map { _ := i} }
 
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
