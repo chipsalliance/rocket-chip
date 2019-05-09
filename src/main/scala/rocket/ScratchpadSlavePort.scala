@@ -19,9 +19,9 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
   }
 
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
-    def getMemory(p: DCacheParams, resourceBindingsMap: ResourceBindingsMap): OMDCache = {
-      val resourceBindings = resourceBindingsMap.map.get(this)
-      OMCaches.dcache(p, resourceBindings)
+    def getMemory(p: DCacheParams): OMDCache = {
+      val resourceBindings = BindingScope.getResourceBindings(this)
+      OMCaches.dcache(p, Some(resourceBindings))
     }
   }
 

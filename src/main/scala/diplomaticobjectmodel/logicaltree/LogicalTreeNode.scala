@@ -2,13 +2,17 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.ResourceBindingsMap
+import freechips.rocketchip.diplomacy.{BindingScope, Device, ResourceBindings, ResourceBindingsMap}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 
 import scala.collection.mutable
 
-trait LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent]
+abstract class LogicalTreeNode(protected val deviceOpt: Option[() => Device]) {
+  def getOMComponents(children: Seq[OMComponent] = Nil): Seq[OMComponent]
+  def resourceBindings: ResourceBindings = deviceOpt match {
+    case Some(device) => BindingScope.getResourceBindings(device())
+    case None => ResourceBindings()
+  }
 }
 
 object LogicalModuleTree {
@@ -27,9 +31,10 @@ object LogicalModuleTree {
     roots.head
   }
 
-  def bind(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
+  def bind(): Seq[OMComponent] = {
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+
+      node.getOMComponents(tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
     getOMComponentTree(root)

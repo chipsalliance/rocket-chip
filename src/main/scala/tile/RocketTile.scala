@@ -106,7 +106,7 @@ class RocketTile private(
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
   }
 
-  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen), iCacheLogicalTreeNode)
+  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(() => cpuDevice, rocketParams, dtim_adapter, p(XLen), iCacheLogicalTreeNode)
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)

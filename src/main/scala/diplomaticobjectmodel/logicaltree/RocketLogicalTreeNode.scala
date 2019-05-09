@@ -2,42 +2,43 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.{LazyModule, ResourceBindingsMap, SimpleDevice}
+import freechips.rocketchip.diplomacy.{BindingScope, Device, LazyModule, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.rocket.{DCacheParams, Frontend, ICacheParams, ScratchpadSlavePort}
 import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 
 
-class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: ICacheParams) extends LogicalTreeNode {
-  def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): OMICache = {
-    getOMComponents(resourceBindingsMap) match {
+class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: ICacheParams) extends LogicalTreeNode(Some(() => device)) {
+  def getOMICacheFromBindings(): OMICache = {
+    getOMComponents() match {
       case Seq() => throw new IllegalArgumentException
       case Seq(h) => h.asInstanceOf[OMICache]
       case _ => throw new IllegalArgumentException
     }
   }
 
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
-    val resourceBindings = resourceBindingsMap.map.get(device)
-    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
+  override   def getOMComponents(children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
+    val resourceBindings = BindingScope.getResourceBindings(device)
+
+    Seq[OMComponent](OMCaches.icache(icacheParams, this.resourceBindings))
   }
 
-  def iCache(resourceBindingsMap: ResourceBindingsMap): OMICache = {
-    val resourceBindings = resourceBindingsMap.map.get(device)
+  def iCache(): OMICache = {
+    val resourceBindings = BindingScope.getResourceBindings(device)
     OMCaches.icache(icacheParams, resourceBindings)
   }
 }
 
 class RocketLogicalTreeNode(
-  device: SimpleDevice,
+  device: () => Device,
   rocketParams: RocketTileParams,
   dtim_adapter: Option[ScratchpadSlavePort],
   XLen: Int,
   icacheLTN: ICacheLogicalTreeNode
-) extends LogicalTreeNode {
+) extends LogicalTreeNode(Some(device)) {
 
-  def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
-    val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
+  def getOMDCacheFromBindings(dCacheParams: DCacheParams): Option[OMDCache] = {
+    val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams))
     val omDCache: Option[OMDCache] = rocketParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
     require(!(omDTIM.isDefined && omDCache.isDefined))
 
@@ -51,12 +52,12 @@ class RocketLogicalTreeNode(
     ))
   }
 
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+  override   def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
-    val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
+    val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_)}
 
-    val omICache = icacheLTN.iCache(resourceBindingsMap)
+    val omICache = icacheLTN.iCache()
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),
@@ -79,7 +80,7 @@ class RocketLogicalTreeNode(
 }
 
 class RocketTileLogicalTreeNode(
-  getOMRocketInterruptTargets: () => Seq[OMInterruptTarget]) extends LogicalTreeNode {
+  getOMRocketInterruptTargets: () => Seq[OMInterruptTarget]) extends LogicalTreeNode(None) {
 
   def getIndex(cs: Seq[OMComponent]): Seq[(OMComponent, Int)] = {
     cs.zipWithIndex.filter(_._1.isInstanceOf[OMPLIC])
@@ -104,7 +105,7 @@ class RocketTileLogicalTreeNode(
     }
   }
 
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+  override   def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
     components
   }
 }

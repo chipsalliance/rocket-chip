@@ -274,7 +274,7 @@ trait BindingScope
 {
   this: LazyModule =>
 
-  BindingScope.resourceBindingsMaps.+=:(this)
+  BindingScope.add(this)
 
   private val parentScope = BindingScope.find(parent)
   protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
@@ -389,12 +389,23 @@ trait BindingScope
 
 object BindingScope
 {
-  var resourceBindingsMaps = new collection.mutable.ArrayBuffer[BindingScope]()
   protected[diplomacy] var active: Option[BindingScope] = None
   protected[diplomacy] def find(m: Option[LazyModule] = LazyModule.scope): Option[BindingScope] = m.flatMap {
     case x: BindingScope => find(x.parent).orElse(Some(x))
     case x => find(x.parent)
   }
+
+  private var bindingsScopes = new collection.mutable.ArrayBuffer[BindingScope]()
+
+  def add(bs: BindingScope) =   BindingScope.bindingsScopes.+=:(bs)
+
+  def getResourceBindings(device: Device) = {
+    val bs = bindingsScopes.find(bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse(
+          throw new IllegalArgumentException(s"""Device not found = $device in BindingScope.resourceBindingsMaps"""))
+
+    bs.getResourceBindingsMap.map.get(device).getOrElse(ResourceBindings())
+  }
+
 }
 
 object ResourceBinding

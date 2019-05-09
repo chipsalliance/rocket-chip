@@ -2,12 +2,11 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-case class OMSRAM(
+case class OMMemory(
   description: String,
   addressWidth: Int,
   dataWidth: Int,
   depth: BigInt,
   writeMaskGranularity: Int,
-  _types: Seq[String] = Seq("OMSRAM")
-) extends OMComponent
-
+  _types: Seq[String] = Seq("OMMemory")
+)
