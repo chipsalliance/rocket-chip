@@ -73,6 +73,6 @@ abstract class DiplomaticSRAM(
       data = Vec(lanes, UInt(width = bits))
     )
 
-    (mem, omMem)
+    (mem, Seq(omMem))
   }
 }
