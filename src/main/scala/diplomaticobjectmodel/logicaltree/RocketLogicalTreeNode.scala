@@ -2,29 +2,18 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.{BindingScope, Device, LazyModule, ResourceBindingsMap, SimpleDevice}
+import freechips.rocketchip.diplomacy.{BindingScope, Device, LazyModule, ResourceBindings, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.rocket.{DCacheParams, Frontend, ICacheParams, ScratchpadSlavePort}
 import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 
 
 class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: ICacheParams) extends LogicalTreeNode(Some(() => device)) {
-  def getOMICacheFromBindings(): OMICache = {
-    getOMComponents() match {
-      case Seq() => throw new IllegalArgumentException
-      case Seq(h) => h.asInstanceOf[OMICache]
-      case _ => throw new IllegalArgumentException
-    }
+  override   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
+    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
   }
 
-  override   def getOMComponents(children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
-    val resourceBindings = BindingScope.getResourceBindings(device)
-
-    Seq[OMComponent](OMCaches.icache(icacheParams, this.resourceBindings))
-  }
-
-  def iCache(): OMICache = {
-    val resourceBindings = BindingScope.getResourceBindings(device)
+  def iCache(resourceBindings: ResourceBindings): OMICache = {
     OMCaches.icache(icacheParams, resourceBindings)
   }
 }
@@ -52,12 +41,12 @@ class RocketLogicalTreeNode(
     ))
   }
 
-  override   def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
+  override   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
     val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_)}
 
-    val omICache = icacheLTN.iCache()
+    val omICache = icacheLTN.iCache(resourceBindings)
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),
@@ -105,8 +94,8 @@ class RocketTileLogicalTreeNode(
     }
   }
 
-  override   def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-    components
+  override   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+    children
   }
 }
 

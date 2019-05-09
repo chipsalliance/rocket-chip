@@ -8,11 +8,8 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import scala.collection.mutable
 
 abstract class LogicalTreeNode(protected val deviceOpt: Option[() => Device]) {
-  def getOMComponents(children: Seq[OMComponent] = Nil): Seq[OMComponent]
-  def resourceBindings: ResourceBindings = deviceOpt match {
-    case Some(device) => BindingScope.getResourceBindings(device())
-    case None => ResourceBindings()
-  }
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent]
+  def getDevice = deviceOpt
 }
 
 object LogicalModuleTree {
@@ -31,10 +28,15 @@ object LogicalModuleTree {
     roots.head
   }
 
+  def resourceBindings(deviceOpt: Option[() => Device]): ResourceBindings = deviceOpt match {
+    case Some(device) => BindingScope.getResourceBindings(device())
+    case None => ResourceBindings()
+  }
+
   def bind(): Seq[OMComponent] = {
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
 
-      node.getOMComponents(tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+      node.getOMComponents(resourceBindings(node.getDevice), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
     getOMComponentTree(root)

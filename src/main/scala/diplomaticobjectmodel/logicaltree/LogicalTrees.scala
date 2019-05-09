@@ -28,9 +28,9 @@ class CLINTLogicalTreeNode(device: Device, f: => OMRegisterMap) extends LogicalT
     )
   }
 
-  def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-    val resourceBindings = BindingScope.getResourceBindings(device)
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, getOMCLINT)
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMCLINT)
   }
 }
 
@@ -56,9 +56,9 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModul
     )
   }
 
-    def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-      val resourceBindings = BindingScope.getResourceBindings(device)
-      DiplomaticObjectModelAddressing.getOMComponentHelper(device, getOMDebug)
+    def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+
+      DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMDebug)
   }
 }
 
@@ -85,17 +85,17 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
     )
   }
 
-    def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
-      val resourceBindings = BindingScope.getResourceBindings(device)
-      DiplomaticObjectModelAddressing.getOMComponentHelper(device, getOMPLIC)
+    def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+
+      DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMPLIC)
   }
 }
 
 class SubSystemLogicalTreeNode(var getOMInterruptDevice: () => Seq[OMInterrupt] = () => Nil) extends LogicalTreeNode(None) {
-  override   def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
+  override   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
-        components = components,
+        components = children,
         documentationName = "",
         externalGlobalInterrupts = getOMInterruptDevice()
       )
@@ -128,14 +128,14 @@ class BusMemoryLogicalTreeNode(
     Seq(omBusMemory)
   }
 
-  def getOMComponents(components: Seq[OMComponent]): Seq[OMComponent] = {
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
       val resourceBindings = BindingScope.getResourceBindings(device())
-      DiplomaticObjectModelAddressing.getOMComponentHelper(device(), getOMBusMemory)
+      DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindings, getOMBusMemory)
   }
 }
 
 class TestSoCLogicalTreeNode extends LogicalTreeNode(None) {
-  override   def getOMComponents(children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
+  override   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
     Seq(OMTestHarness( components = children))
   }
 }

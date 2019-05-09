@@ -117,8 +117,7 @@ object DiplomaticObjectModelAddressing {
     resourceBindingsMap.map.get(device)
   }
 
-  def getOMComponentHelper(device: Device, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
-    val resourceBindings = BindingScope.getResourceBindings(device)
+  def getOMComponentHelper(device: Device, resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
     fn(resourceBindings)
   }
 
@@ -255,5 +254,9 @@ object DiplomaticObjectModelAddressing {
       numberAtReceiver = getInterruptNumber(binding.value),
       name = name
     )
+  }
+
+  def getOMMemRegions(device: Device, resourceBindings: ResourceBindings, devName: Option[String]): Seq[OMMemoryRegion] = {
+    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings)
   }
 }
