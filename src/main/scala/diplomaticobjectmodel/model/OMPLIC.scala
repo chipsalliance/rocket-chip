@@ -31,3 +31,13 @@ case class OMPLIC(
   targets: Seq[OMInterruptTarget],
   _types: Seq[String] = Seq("OMPLIC", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
+
+object OMPLIC {
+  def getMode(length: Int): Seq[OMPrivilegeMode] = {
+    length match {
+      case 1 => Seq(OMMachineMode)
+      case 2 => Seq(OMMachineMode,OMSupervisorMode)
+      case _ => throw new IllegalArgumentException
+    }
+  }
+}
