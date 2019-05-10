@@ -16,7 +16,7 @@ object DescribedSRAM {
   def apply[T <: Data](
     name: String,
     desc: String,
-    size: Int, // depth
+    size: BigInt, // depth
     data: T
   ): SyncReadMem[T] = {
 

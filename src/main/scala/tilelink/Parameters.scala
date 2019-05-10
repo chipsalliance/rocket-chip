@@ -8,6 +8,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByIntoSeq}
 import scala.math.max
+import scala.reflect.ClassTag
 
 case class TLManagerParameters(
   address:            Seq[AddressSet],
@@ -24,6 +25,7 @@ case class TLManagerParameters(
   supportsPutFull:    TransferSizes = TransferSizes.none,
   supportsPutPartial: TransferSizes = TransferSizes.none,
   supportsHint:       TransferSizes = TransferSizes.none,
+  userBits:           Seq[UserBits] = Nil,
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
   mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
   mayDenyPut:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
@@ -81,6 +83,10 @@ case class TLManagerParameters(
     case node => node.inputs.size != 1
   }
   def isTree = findTreeViolation() == None
+
+  def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
+  val userBitWidth = userBits.map(_.width).sum
 }
 
 case class TLManagerPortParameters(
@@ -197,6 +203,19 @@ case class TLManagerPortParameters(
 
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
+
+  // add some user bits to the same highest offset for every manager
+  val userBitWidth = managers.map(_.userBitWidth).max
+  def addUser[T <: UserBits](userBits: T): TLManagerPortParameters = {
+    this.copy(managers = managers.map { m =>
+      val extra = if (m.userBitWidth == userBitWidth) {
+        Seq(userBits)
+      } else {
+        Seq(PadUserBits(userBitWidth - m.userBitWidth), userBits)
+      }
+      m.copy(userBits = m.userBits ++ extra)
+    })
+  }
 }
 
 case class TLClientParameters(
@@ -212,7 +231,8 @@ case class TLClientParameters(
   supportsGet:         TransferSizes   = TransferSizes.none,
   supportsPutFull:     TransferSizes   = TransferSizes.none,
   supportsPutPartial:  TransferSizes   = TransferSizes.none,
-  supportsHint:        TransferSizes   = TransferSizes.none)
+  supportsHint:        TransferSizes   = TransferSizes.none,
+  userBits:            Seq[UserBits]   = Nil)
 {
   require (!sourceId.isEmpty)
   require (!visibility.isEmpty)
@@ -234,6 +254,10 @@ case class TLClientParameters(
     supportsGet.max,
     supportsPutFull.max,
     supportsPutPartial.max).max
+
+  def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
+  val userBitWidth = userBits.map(_.width).sum
 }
 
 case class TLClientPortParameters(
@@ -302,6 +326,19 @@ case class TLClientPortParameters(
   val supportsPutFull    = safety_helper(_.supportsPutFull)    _
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
   val supportsHint       = safety_helper(_.supportsHint)       _
+
+  // add some user bits to the same highest offset for every client
+  val userBitWidth = clients.map(_.userBitWidth).max
+  def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
+    this.copy(clients = clients.map { c =>
+      val extra = if (c.userBitWidth == userBitWidth) {
+        Seq(userBits)
+      } else {
+        Seq(PadUserBits(userBitWidth - c.userBitWidth), userBits)
+      }
+      c.copy(userBits = c.userBits ++ extra)
+    })
+  }
 }
 
 case class TLBundleParameters(
@@ -310,6 +347,8 @@ case class TLBundleParameters(
   sourceBits:  Int,
   sinkBits:    Int,
   sizeBits:    Int,
+  aUserBits:   Int,
+  dUserBits:   Int,
   hasBCE:      Boolean)
 {
   // Chisel has issues with 0-width wires
@@ -318,6 +357,8 @@ case class TLBundleParameters(
   require (sourceBits  >= 1)
   require (sinkBits    >= 1)
   require (sizeBits    >= 1)
+  require (aUserBits   >= 0)
+  require (dUserBits   >= 0)
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
@@ -329,6 +370,8 @@ case class TLBundleParameters(
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
       max(sizeBits,    x.sizeBits),
+      max(aUserBits,   x.aUserBits),
+      max(dUserBits,   x.dUserBits),
       hasBCE ||        x.hasBCE)
 }
 
@@ -340,6 +383,8 @@ object TLBundleParameters
     sourceBits  = 1,
     sinkBits    = 1,
     sizeBits    = 1,
+    aUserBits   = 0,
+    dUserBits   = 0,
     hasBCE      = false)
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
@@ -351,6 +396,8 @@ object TLBundleParameters
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),
       sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
+      aUserBits   = client .userBitWidth,
+      dUserBits   = manager.userBitWidth,
       hasBCE      = client.anySupportProbe && manager.anySupportAcquireB)
 }
 

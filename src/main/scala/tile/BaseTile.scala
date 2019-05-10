@@ -50,6 +50,7 @@ trait HasNonDiplomaticTileParameters {
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
   def pgLevels: Int = p(PgLevels)
+  def maxSVAddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
   def minPgLevels: Int = {
     val res = xLen match { case 32 => 2; case 64 => 3 }
     require(pgLevels >= res)
@@ -105,13 +106,11 @@ trait HasNonDiplomaticTileParameters {
 
     val mmu = if (!tileParams.core.useVM) Nil else Map(
         "tlb-split" -> Nil,
-        "mmu-type"  -> (p(PgLevels) match {
-          case 2 => "riscv,sv32"
-          case 3 => "riscv,sv39"
-          case 4 => "riscv,sv48"
-        }).asProperty)
+        "mmu-type"  -> s"riscv,sv$maxSVAddrBits".asProperty)
 
-    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ incoherent
+    val pmp = if (tileParams.core.nPMPs > 0) Map("riscv,pmpregions" -> tileParams.core.nPMPs.asProperty) else Nil
+
+    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent
   }
 
 }
@@ -125,7 +124,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   def paddrBits: Int = tlBundleParams.addressBits
   def vaddrBits: Int =
     if (usingVM) {
-      val v = pgIdxBits + pgLevels * pgLevelBits
+      val v = maxSVAddrBits
       require(v == xLen || xLen > v && v > paddrBits)
       v
     } else {
