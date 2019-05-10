@@ -115,10 +115,10 @@ class BusMemoryLogicalTreeNode(
     val Description(name, mapping) = device().describe(resourceBindings)
 
     val omBusMemory = OMBusMemory(
-      memoryRegions = Nil, //  Seq[OMMemoryRegion],
-      interrupts = Nil, //: Seq[OMInterrupt],
-      specifications = Nil, //: List[OMSpecification],
-      busProtocol = Some(new AXI4(busProtocolSpecification)), // busProtocol,
+      memoryRegions = memRegions,
+      interrupts = Nil,
+      specifications = Nil,
+      busProtocol = Some(busProtocol),
       dataECC = dataECC.getOrElse(OMECC.Identity),
       hasAtomics = hasAtomics.getOrElse(false),
       memories = omSRAMs
@@ -131,12 +131,6 @@ class BusMemoryLogicalTreeNode(
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
       val resourceBindings = BindingScope.getResourceBindings(device())
       DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindings, getOMBusMemory)
-  }
-}
-
-class TestSoCLogicalTreeNode extends LogicalTreeNode(None) {
-  override   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
-    Seq(OMTestHarness( components = children))
   }
 }
 
