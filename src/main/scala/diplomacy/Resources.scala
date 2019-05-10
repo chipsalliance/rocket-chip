@@ -178,7 +178,7 @@ object DiplomacyUtils {
   * @param devname      the base device named used in device name generation.
   * @param devcompat    a list of compatible devices. See device tree property "compatible".
   */
-class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
+class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
   with DeviceInterrupts
   with DeviceClocks
   with DeviceRegName
@@ -278,7 +278,8 @@ trait BindingScope
 
   private val parentScope = BindingScope.find(parent)
   protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
-  protected[diplomacy] var resourceBindings: Seq[(Resource, Option[Device], ResourceValue)] = Nil
+  //protected[diplomacy]
+  var resourceBindings: Seq[(Resource, Option[Device], ResourceValue)] = Nil
 
   private case class ExpandedValue(path: Seq[String], labels: Seq[String], value: Seq[ResourceValue])
   private lazy val eval: Unit = {
@@ -395,17 +396,24 @@ object BindingScope
     case x => find(x.parent)
   }
 
-  private var bindingsScopes = new collection.mutable.ArrayBuffer[BindingScope]()
+  private var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()
 
-  def add(bs: BindingScope) =   BindingScope.bindingsScopes.+=:(bs)
+  def add(bs: BindingScope) = BindingScope.bindingScopes.+=:(bs)
 
-  def getResourceBindings(device: Device) = {
-    val bs = bindingsScopes.find(bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse(
-          throw new IllegalArgumentException(s"""Device not found = $device in BindingScope.resourceBindingsMaps"""))
+ // private var resourceBindingsMaps: Set[ResourceBindingsMap] = new collection.mutable.Set[ResourceBindingsMap]()
 
-    bs.getResourceBindingsMap.map.get(device).getOrElse(ResourceBindings())
+  def getResourceBindings(device: Device): ResourceBindings = {
+    val bindingScope = bindingScopes.find( bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse {
+      bindingScopes.foreach { s =>
+        val stuff = s.getResourceBindingsMap.map.keys.collect { case x: SimpleDevice => x }
+        println(s"BS: ${stuff.map(_.devname)}")
+      }
+      println(s"Device = ${device.asInstanceOf[SimpleDevice].devname} ")
+
+      throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
+    }
+    bindingScope.getResourceBindingsMap.map.get(device).getOrElse(ResourceBindings())
   }
-
 }
 
 object ResourceBinding

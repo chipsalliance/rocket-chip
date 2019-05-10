@@ -12,8 +12,15 @@ abstract class LogicalTreeNode(protected val deviceOpt: Option[() => Device]) {
   def getDevice = deviceOpt
 }
 
+class GenericLogicalTreeNode extends LogicalTreeNode(None) {
+  override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] =
+    children
+}
+
 object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
+  val root = new GenericLogicalTreeNode()
+
   def add(parent: LogicalTreeNode, child: => LogicalTreeNode): Unit = {
     val treeOpt = tree.get(parent)
     val treeNode = treeOpt.map{
@@ -22,7 +29,7 @@ object LogicalModuleTree {
     tree.put(parent, treeNode)
   }
 
-  def root: LogicalTreeNode = {
+  def rootLogicalTreeNode: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
     assert(roots.size == 1, "Logical Tree contains more than one root.")
     roots.head
@@ -39,6 +46,6 @@ object LogicalModuleTree {
       node.getOMComponents(resourceBindings(node.getDevice), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
-    getOMComponentTree(root)
+    getOMComponentTree(rootLogicalTreeNode)
   }
 }
