@@ -54,7 +54,8 @@ case class OMDebug(
   hasCustom: Boolean, // (This makes some registers visible in the non-standard extensions range. More info would be necessary for exactly what registers)
   hasAbstractPostIncrement: Boolean,
   hasAbstractPostExec: Boolean,
-  hasClockGate: Boolean
+  hasClockGate: Boolean,
+  _types: Seq[String] = Seq("OMDebug", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
 
 object OMDebug {
