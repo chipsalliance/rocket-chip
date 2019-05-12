@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 
 import freechips.rocketchip.config._
-import freechips.rocketchip.devices.debug.{DebugModuleParams, ExportDebugCJTAG, ExportDebugDMI, ExportDebugJTAG}
+import freechips.rocketchip.devices.debug.{DebugModuleParams, ExportDebugCJTAG, ExportDebugDMI, ExportDebugJTAG, ExportDebugAPB}
 
 sealed trait OMDebugInterfaceType extends OMEnum
 case object JTAG extends OMDebugInterfaceType
@@ -63,7 +63,7 @@ object OMDebug {
     if (p(ExportDebugJTAG)) { JTAG }
     else if (p(ExportDebugCJTAG)) { CJTAG }
     else if (p(ExportDebugDMI)) { DMI }
-    //    else if (p(ExportDebugAPB)) { APB } // TODO
+    else if (p(ExportDebugAPB)) { APB }
     else { throw new IllegalArgumentException }
   }
 }
