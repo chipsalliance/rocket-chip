@@ -407,8 +407,8 @@ class CSRFile(
       read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
       if (usingUser) read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
       if (xLen == 32) {
-        read_mapping += (i + CSR.firstMHPCH) -> c // mhpmcounterNh
-        if (usingUser) read_mapping += (i + CSR.firstHPCH) -> c // hpmcounterNh
+        read_mapping += (i + CSR.firstMHPCH) -> (c >> 32) // mhpmcounterNh
+        if (usingUser) read_mapping += (i + CSR.firstHPCH) -> (c >> 32) // hpmcounterNh
       }
     }
 
