@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.{BindingScope, Device, ResourceBindings, ResourceBindingsMap}
+import freechips.rocketchip.diplomacy.BindingScope.bindingScopes
+import freechips.rocketchip.diplomacy.{BindingScope, Device, ResourceBindings, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 
 import scala.collection.mutable
@@ -35,16 +36,38 @@ object LogicalModuleTree {
     roots.head
   }
 
+  def getResourceBindings(device: Device): ResourceBindings = {
+    val bindingScope = bindingScopes.find( bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse {
+      bindingScopes.foreach { s =>
+        val stuff = s.getResourceBindingsMap.map.keys.collect { case x: SimpleDevice => x }
+        println(s"BS: ${stuff.map(_.devname)}")
+      }
+      println(s"Device = ${device.asInstanceOf[SimpleDevice].devname} ")
+
+      throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
+    }
+    bindingScope.getResourceBindingsMap.map.get(device).getOrElse(ResourceBindings())
+  }
+
   def resourceBindings(deviceOpt: Option[() => Device]): ResourceBindings = deviceOpt match {
-    case Some(device) => BindingScope.getResourceBindings(device())
+    case Some(device) => getResourceBindings(device())
     case None => ResourceBindings()
+  }
+
+  def cache() = {
+    val l = BindingScope.bindingScopes.map{
+      case bs => (bs, bs.getResourceBindingsMap)
+    }
+
+    l.toMap
   }
 
   def bind(): Seq[OMComponent] = {
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-
       node.getOMComponents(resourceBindings(node.getDevice), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
+
+    private val resourceBindingsMaps: Set[ResourceBindingsMap] = cache()
 
     getOMComponentTree(rootLogicalTreeNode)
   }

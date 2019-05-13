@@ -21,7 +21,7 @@ abstract class DiplomaticSRAM(
     .getOrElse(new MemoryDevice())
 
   def getOMMemRegions(): Seq[OMMemoryRegion] = {
-    val resourceBindings = BindingScope.getResourceBindings(device)
+    val resourceBindings = LogicalModuleTree.getResourceBindings(device)
     DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings)
   }
 

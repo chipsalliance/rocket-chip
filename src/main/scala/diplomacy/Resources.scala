@@ -396,24 +396,9 @@ object BindingScope
     case x => find(x.parent)
   }
 
-  private var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()
+  var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()
 
   def add(bs: BindingScope) = BindingScope.bindingScopes.+=:(bs)
-
- // private var resourceBindingsMaps: Set[ResourceBindingsMap] = new collection.mutable.Set[ResourceBindingsMap]()
-
-  def getResourceBindings(device: Device): ResourceBindings = {
-    val bindingScope = bindingScopes.find( bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse {
-      bindingScopes.foreach { s =>
-        val stuff = s.getResourceBindingsMap.map.keys.collect { case x: SimpleDevice => x }
-        println(s"BS: ${stuff.map(_.devname)}")
-      }
-      println(s"Device = ${device.asInstanceOf[SimpleDevice].devname} ")
-
-      throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
-    }
-    bindingScope.getResourceBindingsMap.map.get(device).getOrElse(ResourceBindings())
-  }
 }
 
 object ResourceBinding

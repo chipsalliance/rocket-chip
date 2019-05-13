@@ -29,7 +29,6 @@ class CLINTLogicalTreeNode(device: Device, f: => OMRegisterMap) extends LogicalT
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-
     DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMCLINT)
   }
 }
@@ -129,7 +128,7 @@ class BusMemoryLogicalTreeNode(
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-      val resourceBindings = BindingScope.getResourceBindings(device())
+      val resourceBindings = LogicalModuleTree.getResourceBindings(device())
       DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindings, getOMBusMemory)
   }
 }
