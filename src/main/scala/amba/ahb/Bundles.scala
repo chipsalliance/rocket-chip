@@ -23,6 +23,7 @@ class AHBBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   val hburst    = UInt(OUTPUT, width = params.burstBits)
   val hprot     = UInt(OUTPUT, width = params.protBits)
   val hwdata    = UInt(OUTPUT, width = params.dataBits)
+  val hauser    = if ( params.userBits > 0) Some(UInt(OUTPUT, width = params.userBits)) else None
 
   val hreadyout = Bool(INPUT)
   val hresp     = Bool(INPUT)
@@ -42,6 +43,7 @@ class AHBBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
         hwrite    := Bool(false)
         haddr     := UInt(0)
         hsize     := UInt(0)
+        hauser.map {_:= UInt(0)}
         hburst    := AHBParameters.BURST_SINGLE
         hprot     := AHBParameters.PROT_DEFAULT
         hwdata    := UInt(0)
