@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
-import freechips.rocketchip.diplomaticobjectmodel.model.OMAXI4RAM
+import freechips.rocketchip.diplomaticobjectmodel.model.AXI4_Lite
 import freechips.rocketchip.util._
 
 class AXI4RAM(
@@ -34,7 +34,12 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(OMAXI4RAM, 1 << mask.filter(b=>b).size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(
+      size = 1 << mask.filter(b=>b).size,
+      busProtocol = Some(new AXI4_Lite(None)),
+      dataECC = None, //OMECC.identity,
+      hasAtomics = None
+    )
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)

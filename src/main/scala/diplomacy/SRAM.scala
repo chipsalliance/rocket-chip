@@ -3,13 +3,10 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.core.SyncReadMem
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-<<<<<<< HEAD
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNode}
-=======
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNode, MemoryLogicalTreeNode}
->>>>>>> 2ca43d17... fixing
+import freechips.rocketchip.diplomaticobjectmodel._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
@@ -23,10 +20,9 @@ abstract class DiplomaticSRAM(
     .map(new SimpleDevice(_, Seq("sifive,sram0")))
     .getOrElse(new MemoryDevice())
 
-  def getOMMemRegions(resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = {
-    val resourceBindings = DiplomaticObjectModelAddressing.getResourceBindings(device, resourceBindingsMap)
-    require(resourceBindings.isDefined)
-    resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), _)).getOrElse(Nil) // TODO name source???
+  def getOMMemRegions(): Seq[OMMemoryRegion] = {
+    val resourceBindings = LogicalModuleTree.getResourceBindings(device)
+    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings)
   }
 
   val resources = device.reg("mem")
@@ -38,15 +34,15 @@ abstract class DiplomaticSRAM(
 
   // Use single-ported memory with byte-write enable
   def makeSinglePortedByteWriteSeqMem(
-    architecture: RAMArchitecture,
     size: Int,
     lanes: Int = beatBytes,
     bits: Int = 8,
-    ecc: Option[OMECC] = None,
-    hasAtomics: Option[Boolean] = None) = {
+    busProtocol: Option[OMProtocol],
+    dataECC: Option[OMECC] = None,
+    hasAtomics: Option[Boolean] = None)= { // chisel3.SyncReadMem[Vec[Chisel.UInt]]
     // We require the address range to include an entire beat (for the write mask)
 
-    val mem =  DescribedSRAM(
+    val mem = DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,

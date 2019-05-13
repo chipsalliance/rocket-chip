@@ -5,7 +5,7 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
+import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, BindingScope, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.{Code, ElaborationArtefacts}
 import org.json4s.jackson.JsonMethods.pretty
@@ -117,10 +117,8 @@ object DiplomaticObjectModelAddressing {
     resourceBindingsMap.map.get(device)
   }
 
-  def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
-    require(resourceBindingsMap.map.contains(device))
-    val resourceBindings = resourceBindingsMap.map.get(device)
-    resourceBindings.map { case rb => fn(rb) }.getOrElse(Nil)
+  def getOMComponentHelper(device: Device, resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
+    fn(resourceBindings)
   }
 
   private def omPerms(p: ResourcePermissions): OMPermissions = {
@@ -179,7 +177,7 @@ object DiplomaticObjectModelAddressing {
     }.flatten.toSeq
   }
 
-  def makeOMMemory[T <: Data](
+  def makeOMSRAM[T <: Data](
       desc: String,
       depth: BigInt,
       data: T
@@ -198,6 +196,26 @@ object DiplomaticObjectModelAddressing {
         writeMaskGranularity = granWidth
       )
     }
+
+  def makeOMMemory[T <: Data](
+    desc: String,
+    depth: BigInt,
+    data: T
+  ): OMMemory = {
+
+    val granWidth = data match {
+      case v: Vec[_] => v.head.getWidth
+      case d => d.getWidth
+    }
+
+    OMMemory(
+      description = desc,
+      addressWidth = log2Ceil(depth),
+      dataWidth = data.getWidth,
+      depth = depth,
+      writeMaskGranularity = granWidth
+    )
+  }
 
   private def getInterruptNumber(r: ResourceValue): BigInt = {
     r match {
@@ -236,5 +254,9 @@ object DiplomaticObjectModelAddressing {
       numberAtReceiver = getInterruptNumber(binding.value),
       name = name
     )
+  }
+
+  def getOMMemRegions(device: Device, resourceBindings: ResourceBindings, devName: Option[String]): Seq[OMMemoryRegion] = {
+    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings)
   }
 }

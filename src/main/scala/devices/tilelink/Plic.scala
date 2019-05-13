@@ -13,6 +13,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNode, PLICLogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -65,7 +66,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 case object PLICKey extends Field[Option[PLICParams]](None)
 
 /** Platform-Level Interrupt Controller */
-class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
+class TLPLIC(params: PLICParams, beatBytes: Int, logicalTreeNode: LogicalTreeNode)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
   val device: SimpleDevice = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
@@ -307,6 +308,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
       cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
+
+  val getPLICLogicalTree = new PLICLogicalTreeNode(device, module.omRegMap, nPriorities)
+  LogicalModuleTree.add(logicalTreeNode, getPLICLogicalTree)
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
@@ -335,7 +339,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 /** Trait that will connect a PLIC to a subsystem */
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
-    val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
+    val plic = LazyModule(new TLPLIC(params, cbus.beatBytes, logicalTreeNode))
     plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
     plic.intnode :=* ibus.toPLIC
     plic

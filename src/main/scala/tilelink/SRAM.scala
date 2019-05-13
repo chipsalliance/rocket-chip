@@ -7,7 +7,7 @@ import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
-import freechips.rocketchip.diplomaticobjectmodel.model.OMTLRAM
+import freechips.rocketchip.diplomaticobjectmodel.model.AHB_Lite
 import freechips.rocketchip.util._
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
@@ -56,7 +56,14 @@ class TLRAM(
     val width = code.width(eccBytes*8)
     val lanes = beatBytes/eccBytes
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(OMTLRAM, 1 << addrBits.size, lanes, width)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(
+      size = 1 << addrBits.size,
+      lanes = lanes,
+      bits = width,
+      busProtocol = Some(new AHB_Lite(None)),
+      dataECC = None, //OMECC.identity,
+      hasAtomics = None
+    )
 
     /* This block uses a two-stage pipeline; A=>D
      * Both stages vie for access to the single SRAM port.

@@ -57,9 +57,9 @@ object OMCaches {
     )
   }
 
-  def icache(p: ICacheParams, resourceBindings: Option[ResourceBindings]): OMICache = {
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings): OMICache = {
     OMICache(
-      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", _)).getOrElse(Nil),
+      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", resourceBindings),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
