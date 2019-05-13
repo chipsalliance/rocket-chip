@@ -5,7 +5,11 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+<<<<<<< HEAD
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNode}
+=======
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNode, MemoryLogicalTreeNode}
+>>>>>>> 2ca43d17... fixing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
@@ -33,20 +37,21 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem( size: Int,
+  def makeSinglePortedByteWriteSeqMem(
+    architecture: RAMArchitecture,
+    size: Int,
     lanes: Int = beatBytes,
     bits: Int = 8,
-    busProtocol: Option[OMProtocol],
-    dataECC: Option[OMECC] = None,
+    ecc: Option[OMECC] = None,
     hasAtomics: Option[Boolean] = None) = {
     // We require the address range to include an entire beat (for the write mask)
+
     val mem =  DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
       data = Vec(lanes, UInt(width = bits))
     )
-    devName.foreach(n => mem.suggestName(n.split("-").last))
 
     val omSRAM: OMSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
       desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
@@ -65,4 +70,13 @@ abstract class DiplomaticSRAM(
           busProtocolSpecification = None)
         LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
     }
+
+    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
+      desc = "mem",
+      depth = size,
+      data = Vec(lanes, UInt(width = bits))
+    )
+
+    (mem, Seq(omMem))
+  }
 }

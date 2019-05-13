@@ -5,18 +5,21 @@ package freechips.rocketchip.amba.apb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.model.OMAPBRAM
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class APBRAM(
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
     fuzzReady: Boolean = false,
     fuzzError: Boolean = false)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, parentLogicalTreeNode, devName)
 {
   val node = APBSlaveNode(Seq(APBSlavePortParameters(
     Seq(APBSlaveParameters(
@@ -30,7 +33,7 @@ class APBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(OMAPBRAM, 1 << mask.filter(b=>b).size)
 
     val paddr = Cat((mask zip (in.paddr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val legal = address.contains(in.paddr)

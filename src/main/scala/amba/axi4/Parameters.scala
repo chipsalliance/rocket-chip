@@ -6,11 +6,14 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
 import freechips.rocketchip.util.AsyncQueueParams
+
 import scala.math.max
 
 case class AXI4SlaveParameters(
   address:       Seq[AddressSet],
+  parentLogicalTreeNode: Option[LogicalTreeNode] = None,
   resources:     Seq[Resource] = Nil,
   regionType:    RegionType.T  = RegionType.GET_EFFECTS,
   executable:    Boolean       = false, // processor can execute from this memory

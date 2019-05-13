@@ -177,9 +177,9 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) =
   }
 }
 
-class MemoryLogicalTreeNode[T <: Data](sram: DescribedSRAM[T]) extends LogicalTreeNode {
+class MemoryLogicalTreeNode(omMem: Seq[OMSRAM]) extends LogicalTreeNode {
   def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    Seq(DiplomaticObjectModelAddressing.makeOMMemory(sram))
+    omMem
   }
 }
 

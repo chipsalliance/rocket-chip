@@ -6,6 +6,8 @@ import Chisel._
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.model.OMTLRAM
 import freechips.rocketchip.util._
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
@@ -15,13 +17,14 @@ class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with 
 
 class TLRAM(
     address: AddressSet,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     cacheable: Boolean = true,
     executable: Boolean = true,
     atomics: Boolean = false,
     beatBytes: Int = 4,
     ecc: ECCParams = ECCParams(),
     val devName: Option[String] = None,
-  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, parentLogicalTreeNode, devName)
 {
   val eccBytes = ecc.bytes
   val code = ecc.code
@@ -53,7 +56,7 @@ class TLRAM(
     val width = code.width(eccBytes*8)
     val lanes = beatBytes/eccBytes
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << addrBits.size, lanes, width)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(OMTLRAM, 1 << addrBits.size, lanes, width)
 
     /* This block uses a two-stage pipeline; A=>D
      * Both stages vie for access to the single SRAM port.
@@ -214,6 +217,7 @@ class TLRAM(
 object TLRAM
 {
   def apply(
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     address: AddressSet,
     cacheable: Boolean = true,
     executable: Boolean = true,
@@ -223,7 +227,7 @@ object TLRAM
     devName: Option[String] = None,
   )(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, cacheable, executable, atomics, beatBytes, ecc, devName))
+    val ram = LazyModule(new TLRAM(address, parentLogicalTreeNode, cacheable, executable, atomics, beatBytes, ecc, devName))
     ram.node
   }
 }
