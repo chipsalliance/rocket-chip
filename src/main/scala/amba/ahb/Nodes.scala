@@ -33,6 +33,8 @@ object AHBImpMaster extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortP
 
 // Nodes implemented inside modules
 case class AHBMasterSourceNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpMaster)(portParams)
+case class AHBSlaveSourceNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpSlave)(portParams)
+case class AHBMasterSinkNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpMaster)(portParams)
 case class AHBSlaveSinkNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpSlave)(portParams)
 case class AHBMasterIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpMaster)()
 case class AHBSlaveIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpSlave)()
