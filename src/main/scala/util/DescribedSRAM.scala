@@ -12,6 +12,15 @@ import freechips.rocketchip.amba.axi4.AXI4RAM
 
 import scala.math.log10
 
+object DescribedSRAMIdAssigner {
+  private var nextId: Int = 0
+  def genId(): Int = this.synchronized {
+    val id = nextId
+    nextId += 1
+    id
+  }
+}
+
 object DescribedSRAM {
   def apply[T <: Data](
     name: String,
@@ -29,7 +38,7 @@ object DescribedSRAM {
       case d => d.getWidth
     }
 
-    val f = () => mem.toNamed.toString.hashCode
+    val f = () => DescribedSRAMIdAssigner.genId()
 
     Annotated.srams(
       component = mem,
@@ -39,7 +48,7 @@ object DescribedSRAM {
       depth = size,
       description = desc,
       write_mask_granularity = granWidth,
-      idhash = f)
+      uid = f)
 
     mem
   }
