@@ -38,7 +38,7 @@ abstract class DiplomaticSRAM(
     size: Int,
     lanes: Int = beatBytes,
     bits: Int = 8,
-    busProtocol: Option[OMProtocol],
+    busProtocol: Option[OMProtocol] = None,
     dataECC: Option[OMECC] = None,
     hasAtomics: Option[Boolean] = None)= { // chisel3.SyncReadMem[Vec[Chisel.UInt]]
     // We require the address range to include an entire beat (for the write mask)
