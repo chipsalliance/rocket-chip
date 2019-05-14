@@ -2,12 +2,9 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-<<<<<<< HEAD
 import Chisel.Data
-=======
 import Chisel.{Data, UInt, Vec}
 import chisel3.SyncReadMem
->>>>>>> c5b783610c66985ca86c0632c84b2c2f512a0413
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
@@ -39,15 +36,11 @@ class CLINTLogicalTreeNode(device: Device, f: => OMRegisterMap) extends LogicalT
   }
 }
 
-<<<<<<< HEAD
 class DebugLogicalTreeNode(
   device: SimpleDevice,
   dmOuter: () => TLDebugModuleOuterAsync,
   dmInner: () => TLDebugModuleInnerAsync
 )(implicit val p: Parameters) extends LogicalTreeNode(Some(() => device)) {
-=======
-class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModuleParams: DebugModuleParams, exportDebugJTAG: Boolean, exportDebugCJTAG: Boolean, exportDebugDMI: Boolean) extends LogicalTreeNode(Some(() => device)) {
->>>>>>> c5b783610c66985ca86c0632c84b2c2f512a0413
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
     val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
@@ -101,13 +94,13 @@ class DebugLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap, debugModul
         hasAbstractPostIncrement = false,
         hasAbstractPostExec = true,
         hasClockGate = cfg.clockGate
-    )
+      )
     )
   }
 
-    def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
 
-      DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMDebug)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMDebug)
   }
 }
 
@@ -135,7 +128,6 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
     )
   }
 
-<<<<<<< HEAD
   private def getInterruptTargets(resourceBindings: ResourceBindings): Seq[OMInterruptTarget] = {
     case class InterruptTarget(device: Device, numberAtReceiver: BigInt)
 
@@ -171,11 +163,7 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-=======
-    def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-
->>>>>>> c5b783610c66985ca86c0632c84b2c2f512a0413
-      DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMPLIC)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMPLIC)
   }
 }
 
@@ -217,8 +205,8 @@ class BusMemoryLogicalTreeNode(
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-      val resourceBindings = LogicalModuleTree.getResourceBindings(device())
-      DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindings, getOMBusMemory)
+    val resourceBindings = LogicalModuleTree.getResourceBindings(device())
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device(), resourceBindings, getOMBusMemory)
   }
 }
 

@@ -5,20 +5,17 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import chisel3.core.SyncReadMem
 import freechips.rocketchip.config.Parameters
-<<<<<<< HEAD
 import freechips.rocketchip.diplomaticobjectmodel._
-=======
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
->>>>>>> c5b783610c66985ca86c0632c84b2c2f512a0413
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
-    address: AddressSet,
-    beatBytes: Int,
-    parentLogicalTreeNode: Option[LogicalTreeNode],
-    devName: Option[String])(implicit p: Parameters) extends LazyModule
+  address: AddressSet,
+  beatBytes: Int,
+  parentLogicalTreeNode: Option[LogicalTreeNode],
+  devName: Option[String])(implicit p: Parameters) extends LazyModule
 {
   val device = devName
     .map(new SimpleDevice(_, Seq("sifive,sram0")))
@@ -52,27 +49,6 @@ abstract class DiplomaticSRAM(
       size = size,
       data = Vec(lanes, UInt(width = bits))
     )
-<<<<<<< HEAD
-=======
-
-    val omSRAM: OMSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
-      desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
-      depth = size,
-      data = Vec(lanes, UInt(width = bits))
-    )
-
-    parentLogicalTreeNode.map {
-      case parentLTN =>
-        def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
-          device = () => device,
-          omSRAMs = Seq(omSRAM),
-          busProtocol = busProtocol.getOrElse(throw new IllegalArgumentException("Protocol not specified")),
-          dataECC = dataECC,
-          hasAtomics = hasAtomics,
-          busProtocolSpecification = None)
-        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
-    }
->>>>>>> c5b783610c66985ca86c0632c84b2c2f512a0413
 
     val omSRAM: OMSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
       desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),

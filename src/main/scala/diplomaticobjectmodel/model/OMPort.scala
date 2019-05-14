@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package sifive.enterprise.diplomaticobjectmodel.model
+package freechips.rocketchip.diplomaticobjectmodel.model
 
 import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
