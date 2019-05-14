@@ -10,7 +10,7 @@ sealed trait OMDebugInterfaceType extends OMEnum
 case object JTAG extends OMDebugInterfaceType
 case object CJTAG extends OMDebugInterfaceType
 case object DMI extends OMDebugInterfaceType
-case object APB extends OMDebugInterfaceType
+case object DebugAPB extends OMDebugInterfaceType
 
 sealed trait OMDebugAuthenticationType extends OMEnum
 case object NONE extends OMDebugAuthenticationType
@@ -63,7 +63,7 @@ object OMDebug {
     if (p(ExportDebugJTAG)) { JTAG }
     else if (p(ExportDebugCJTAG)) { CJTAG }
     else if (p(ExportDebugDMI)) { DMI }
-    else if (p(ExportDebugAPB)) { APB }
+    else if (p(ExportDebugAPB)) { DebugAPB }
     else { throw new IllegalArgumentException }
   }
 }

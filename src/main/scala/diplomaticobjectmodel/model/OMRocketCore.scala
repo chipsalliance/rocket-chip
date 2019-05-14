@@ -43,9 +43,9 @@ object OMBTB {
 }
 
 object OMCaches {
-  def dcache(p: DCacheParams, resourceBindings: Option[ResourceBindings]): OMDCache = {
+  def dcache(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
     OMDCache(
-      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("DCache", _)).getOrElse(Nil),
+      memoryRegions = (DiplomaticObjectModelAddressing.getOMMemoryRegions("DCache", resourceBindings)),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
@@ -57,9 +57,9 @@ object OMCaches {
     )
   }
 
-  def icache(p: ICacheParams, resourceBindings: Option[ResourceBindings]): OMICache = {
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings): OMICache = {
     OMICache(
-      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", _)).getOrElse(Nil),
+      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", resourceBindings),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
