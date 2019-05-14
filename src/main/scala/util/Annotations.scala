@@ -19,11 +19,12 @@ import org.json4s.jackson.JsonMethods.{pretty, render}
 case class SRAMAnnotation(target: ReferenceTarget,
   address_width: Int,
   name: String,
+  wrap_target: ReferenceTarget,
   data_width: Int,
-  depth: BigInt,
+  depth: Int,
   description: String,
   write_mask_granularity: Int,
-  idhash: Int=0) extends SingleTargetAnnotation[ReferenceTarget] {
+  idhash: Int = 0) extends SingleTargetAnnotation[ReferenceTarget] {
   def duplicate(n: ReferenceTarget) = this.copy(n)
 }
 
@@ -109,16 +110,18 @@ object Annotated {
   def srams[T <: Data](
     component: SyncReadMem[T],
     name: String,
+    wrap_target: ReferenceTarget,
     address_width: Int,
     data_width: Int,
-    depth: BigInt,
+    depth: Int,
     description: String,
     write_mask_granularity: Int,
-    idhash: ()=>Int = ()=>0): Unit = {
+    idhash: () => Int = () => 0): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = SRAMAnnotation(
       component.toNamed,
       address_width = address_width,
       name = name,
+      wrap_target = wrap_target,
       data_width = data_width,
       depth = depth,
       description = description,
