@@ -10,7 +10,7 @@ import freechips.rocketchip.util._
 import scala.math.{min, max}
 import AHBParameters._
 
-case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpSlave)(
+case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { case TLClientPortParameters(clients, minLatency) =>
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath,userBits = c.userBits) }
     AHBMasterPortParameters(masters)
@@ -146,18 +146,17 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         }
       }
 
-      out.hmastlock := Bool(false) // for now
-      out.htrans    := Mux(send.send && !send.hint,
-                         Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
-                         Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
-      out.hsel      := (send.send && !send.hint) || !send.first
-      out.hready    := out.hreadyout
-      out.hwrite    := send.write
-      out.haddr     := send.addr
-      out.hsize     := send.hsize
-      out.hburst    := send.hburst
-      out.hprot     := PROT_DEFAULT
-      out.hwdata    := RegEnable(send.data, out.hreadyout)
+      out.hlock   := Bool(false) // for now
+      out.htrans  := Mux(send.send && !send.hint,
+                       Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
+                       Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
+      out.hbusreq := (send.send && !send.hint) || !send.first
+      out.hwrite  := send.write
+      out.haddr   := send.addr
+      out.hsize   := send.hsize
+      out.hburst  := send.hburst
+      out.hprot   := PROT_DEFAULT
+      out.hwdata  := RegEnable(send.data, out.hready)
 
       in.a.bits.user.map { i => out.hauser.map { _ := i} }
 
@@ -184,23 +183,24 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val d_source  = RegEnable(send.source, a_flow && send.send)
       val d_size    = RegEnable(send.size,   a_flow && send.send)
 
-      when (out.hreadyout) {
+      when (out.hready) {
         d_valid := send.send && (send.last || !send.write)
-        when (out.hresp)  { d_denied := Bool(true) }
-        when (send.first) { d_denied := Bool(false) }
+        assert (!out.hresp(1), "TLToAHB does not support SPLIT/RETRY responses")
+        when (out.hresp(0))  { d_denied := Bool(true) }
+        when (send.first)    { d_denied := Bool(false) }
       } .elsewhen (d_hint) {
         d_valid := Bool(false)
       }
 
-      d.valid := d_valid && (out.hreadyout || d_hint)
+      d.valid := d_valid && (out.hready || d_hint)
       d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata)
       d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
-      d.bits.denied  := (out.hresp || d_denied) && d_write && !d_hint
-      d.bits.corrupt := out.hresp && !d_write && !d_hint
+      d.bits.denied  := (out.hresp(0) || d_denied) && d_write && !d_hint
+      d.bits.corrupt := out.hresp(0) && !d_write && !d_hint
 
-      // If the only operations in the pipe are Hints, don't stall based on hreadyout
+      // If the only operations in the pipe are Hints, don't stall based on hready
       val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)
-      a_flow := out.hreadyout || skip
+      a_flow := out.hready || skip
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)

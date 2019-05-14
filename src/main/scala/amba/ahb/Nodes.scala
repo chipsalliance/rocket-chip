@@ -32,12 +32,19 @@ object AHBImpMaster extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortP
 }
 
 // Nodes implemented inside modules
-case class AHBMasterNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpSlave)(portParams)
-case class AHBSlaveNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpSlave)(portParams)
-case class AHBNexusNode(
+case class AHBMasterSourceNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpMaster)(portParams)
+case class AHBSlaveSinkNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpSlave)(portParams)
+case class AHBMasterIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpMaster)()
+case class AHBSlaveIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpSlave)()
+
+case class AHBArbiterNode(
+  masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
+  slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(
+  implicit valName: ValName)
+  extends MixedNexusNode(AHBImpMaster, AHBImpSlave)(masterFn, slaveFn)
+
+case class AHBFanoutNode(
   masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
   slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(
   implicit valName: ValName)
   extends NexusNode(AHBImpSlave)(masterFn, slaveFn)
-
-case class AHBIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpSlave)()
