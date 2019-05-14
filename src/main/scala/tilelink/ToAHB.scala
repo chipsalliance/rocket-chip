@@ -81,7 +81,10 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val next = Wire(init = step)
       reg := next
 
-      // hreadyout, but progresses hints during idle bus
+      // Latch grant state
+      val granted = RegEnable(out.hgrant, out.hready)
+
+      // hready, but progresses hints during idle bus
       val a_flow = Wire(Bool())
 
       // Advance the FSM based on the result of this AHB beat
@@ -128,7 +131,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         in.a.ready := !d_block && pre.write
       } .otherwise /* new burst */ {
         a_commit := in.a.fire() // every first beat commits to a D beat answer
-        in.a.ready := !d_block
+        in.a.ready := !d_block && granted
         when (in.a.fire()) {
           post.full  := Bool(true)
           post.send  := Bool(true)
@@ -150,7 +153,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       out.htrans  := Mux(send.send && !send.hint,
                        Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
                        Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
-      out.hbusreq := (send.send && !send.hint) || !send.first
+      out.hbusreq := (send.send && !send.hint) || !send.first || (!granted && in.a.valid)
       out.hwrite  := send.write
       out.haddr   := send.addr
       out.hsize   := send.hsize
