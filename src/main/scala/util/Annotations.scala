@@ -19,9 +19,8 @@ import org.json4s.jackson.JsonMethods.{pretty, render}
 case class SRAMAnnotation(target: ReferenceTarget,
   address_width: Int,
   name: String,
-  wrap_target: ReferenceTarget,
   data_width: Int,
-  depth: Int,
+  depth: BigInt,
   description: String,
   write_mask_granularity: Int,
   idhash: Int = 0) extends SingleTargetAnnotation[ReferenceTarget] {
@@ -110,10 +109,9 @@ object Annotated {
   def srams[T <: Data](
     component: SyncReadMem[T],
     name: String,
-    wrap_target: ReferenceTarget,
     address_width: Int,
     data_width: Int,
-    depth: Int,
+    depth: BigInt,
     description: String,
     write_mask_granularity: Int,
     idhash: () => Int = () => 0): Unit = {
@@ -121,7 +119,6 @@ object Annotated {
       component.toNamed,
       address_width = address_width,
       name = name,
-      wrap_target = wrap_target,
       data_width = data_width,
       depth = depth,
       description = description,
