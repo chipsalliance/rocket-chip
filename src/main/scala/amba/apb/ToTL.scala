@@ -45,13 +45,32 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       require (edgeOut.manager.minLatency >= 1)
       assert (!(in.psel && !in.penable && out.d.valid))
 
+
+      val beat = TransferSizes(1, beatBytes)
+      // The double negative here is to work around Chisel's broken implementation of widening ~x.
+      val alignedAddr =  ~(~in.paddr | (beatBytes-1).U)
+      val dataSize = UInt(log2Ceil(in.params.dataBits/8))
+
+      // Is this access allowed? Illegal addresses are a violation of tile link protocol.
+      // If an illegal address is provided, return an error instead of sending over tile link.
+      val a_legal =
+        Mux(in.pwrite,
+          edgeOut.manager.supportsPutPartialSafe(alignedAddr, dataSize, Some(beat)),
+          edgeOut.manager.supportsGetSafe       (alignedAddr, dataSize, Some(beat)))
+
       val in_flight_reg = RegInit(false.B)
-      out.a.valid := in.psel && !in_flight_reg
-      in.pready := out.d.valid
+      val error_in_flight_reg = RegInit(false.B)
+      val in_flight = in_flight_reg || error_in_flight_reg
+
+      out.a.valid := in.psel && !in_flight && a_legal
+      in.pready := out.d.valid  || error_in_flight_reg
       out.d.ready := true.B
 
       when (out.a.fire()){in_flight_reg := true.B}
       when (out.d.fire()){in_flight_reg := false.B}
+
+      when (in.psel && !error_in_flight_reg){error_in_flight_reg := !a_legal}
+      when (error_in_flight_reg){ error_in_flight_reg := false.B }
 
       // Write
       // PutPartial because of pstrb masking.
@@ -60,8 +79,7 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       out.a.bits.size    := UInt(log2Ceil(in.params.dataBits/8))
       out.a.bits.source  := UInt(0)
       // TL requires addresses be aligned to their size.
-      out.a.bits.address := ~(~in.paddr | (beatBytes-1).U)
-      // The double negative above is to work around Chisel's broken implementation of widening ~x.
+      out.a.bits.address := alignedAddr
       assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
       out.a.bits.data    := in.pwdata
       out.a.bits.mask    := Mux(in.pwrite, in.pstrb, ~0.U(beatBytes.W))
@@ -71,7 +89,7 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       in.prdata := out.d.bits.data
 
       // Error
-      in.pslverr := out.d.bits.corrupt || out.d.bits.denied
+      in.pslverr := out.d.bits.corrupt || out.d.bits.denied || error_in_flight_reg
 
       // Unused channels
       out.b.ready := Bool(true)
