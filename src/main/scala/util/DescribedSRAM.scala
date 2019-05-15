@@ -38,8 +38,6 @@ object DescribedSRAM {
       case d => d.getWidth
     }
 
-    val f = () => DescribedSRAMIdAssigner.genId()
-
     Annotated.srams(
       component = mem,
       name = name,
@@ -48,7 +46,7 @@ object DescribedSRAM {
       depth = size,
       description = desc,
       write_mask_granularity = granWidth,
-      uid = f)
+      uid = DescribedSRAMIdAssigner.genId())
 
     mem
   }
