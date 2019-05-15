@@ -11,7 +11,7 @@ import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
 import scala.math.{min,max}
 
 case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
-  extends SinkNode(AHBImp)(Seq(AHBSlavePortParameters(
+  extends SinkNode(AHBImpSlave)(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = Seq(address),
       executable    = executable,
