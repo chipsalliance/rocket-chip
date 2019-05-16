@@ -69,9 +69,10 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       when (out.a.fire()){in_flight_reg := true.B}
       when (out.d.fire()){in_flight_reg := false.B}
 
-      when (in.psel && !error_in_flight_reg){error_in_flight_reg := !a_legal}
-      when (error_in_flight_reg){ error_in_flight_reg := false.B }
-
+      // Default to false except when actually returning error.
+      error_in_flight_reg := false.B
+      when (in.psel && !in_flight) {error_in_flight_reg := !a_legal}
+      
       // Write
       // PutPartial because of pstrb masking.
       out.a.bits.opcode  := Mux(in.pwrite, TLMessages.PutPartialData, TLMessages.Get)
