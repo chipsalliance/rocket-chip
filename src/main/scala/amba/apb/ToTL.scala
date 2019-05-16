@@ -47,9 +47,9 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       val beat = TransferSizes(beatBytes, beatBytes)
       // The double negative here is to work around Chisel's broken implementation of widening ~x.
       val aligned_addr =  ~(~in.paddr | (beatBytes-1).U)
-      require(beatBytes == log2Ceil(in.params.dataBits/8),
+      require(beatBytes == in.params.dataBits/8,
               s"TL beatBytes(${beat_bytes}) doesn't match expected APB data width(${in.params.dataBits})")
-      val data_size = UInt(beatBytes)
+      val data_size = UInt(log2Ceil(beatBytes))
       
       // Is this access allowed? Illegal addresses are a violation of tile link protocol.
       // If an illegal address is provided, return an error instead of sending over tile link.
