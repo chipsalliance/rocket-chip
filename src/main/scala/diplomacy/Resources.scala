@@ -178,7 +178,7 @@ object DiplomacyUtils {
   * @param devname      the base device named used in device name generation.
   * @param devcompat    a list of compatible devices. See device tree property "compatible".
   */
-class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
+class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
   with DeviceInterrupts
   with DeviceClocks
   with DeviceRegName
@@ -273,6 +273,8 @@ case class Resource(owner: Device, key: String)
 trait BindingScope
 {
   this: LazyModule =>
+
+  BindingScope.add(this)
 
   private val parentScope = BindingScope.find(parent)
   protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
@@ -392,6 +394,10 @@ object BindingScope
     case x: BindingScope => find(x.parent).orElse(Some(x))
     case x => find(x.parent)
   }
+
+  var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()
+
+  def add(bs: BindingScope) = BindingScope.bindingScopes.+=:(bs)
 }
 
 object ResourceBinding

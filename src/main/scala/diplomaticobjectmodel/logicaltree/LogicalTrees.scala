@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressin
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile.MaxHartIdBits
 
-class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode {
+class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode(() => Some(device)) {
 
   def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(f))
@@ -28,8 +28,8 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
     )
   }
 
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMCLINT)
+  def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMCLINT)
   }
 }
 
@@ -37,7 +37,7 @@ class DebugLogicalTreeNode(
   device: SimpleDevice,
   dmOuter: () => TLDebugModuleOuterAsync,
   dmInner: () => TLDebugModuleInnerAsync
-)(implicit val p: Parameters) extends LogicalTreeNode {
+)(implicit val p: Parameters) extends LogicalTreeNode(() => Some(device)) {
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
     val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
@@ -95,12 +95,12 @@ class DebugLogicalTreeNode(
     )
   }
 
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMDebug)
+  def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMDebug)
   }
 }
 
-class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, nPriorities: => Int) extends LogicalTreeNode {
+class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, nPriorities: => Int) extends LogicalTreeNode(() => Some(device)) {
   def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(omRegMap))
     val Description(name, mapping) = device.describe(resourceBindings)
@@ -158,18 +158,18 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
     }.toSeq.sortBy(_.hartId)
   }
 
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindingsMap, getOMPLIC)
+  def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMPLIC)
   }
 }
 
-class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindingsMap) => Seq[OMInterrupt] = (ResourceBindingsMap) => Nil) extends LogicalTreeNode {
-  override def getOMComponents(resourceBindingsMap: ResourceBindingsMap, components: Seq[OMComponent]): Seq[OMComponent] = {
+class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil) extends LogicalTreeNode(() => None) {
+  override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
         components = components,
         documentationName = "",
-        externalGlobalInterrupts = getOMInterruptDevice(resourceBindingsMap)
+        externalGlobalInterrupts = getOMInterruptDevice(resourceBindings)
       )
     )
   }
