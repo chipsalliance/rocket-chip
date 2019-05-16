@@ -22,8 +22,6 @@ case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APB
         regionType    = m.regionType,
         executable    = m.executable,
         nodePath      = m.nodePath,
-        //TODO why and how should I do this adjust for APB?
-        // Also, shouldn't I use supportsPutPartial because of PSTRB?
         supportsWrite = m.supportsPutPartial.intersect(TransferSizes(1, mp.beatBytes)),
         supportsRead  = m.supportsGet.intersect(TransferSizes(1, mp.beatBytes)))},
     beatBytes = mp.beatBytes)
@@ -46,17 +44,19 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       assert (!(in.psel && !in.penable && out.d.valid))
 
 
-      val beat = TransferSizes(1, beatBytes)
+      val beat = TransferSizes(beatBytes, beatBytes)
       // The double negative here is to work around Chisel's broken implementation of widening ~x.
-      val alignedAddr =  ~(~in.paddr | (beatBytes-1).U)
-      val dataSize = UInt(log2Ceil(in.params.dataBits/8))
-
+      val aligned_addr =  ~(~in.paddr | (beatBytes-1).U)
+      require(beatBytes == log2Ceil(in.params.dataBits/8),
+              s"TL beatBytes(${beat_bytes}) doesn't match expected APB data width(${in.params.dataBits})")
+      val data_size = UInt(beatBytes)
+      
       // Is this access allowed? Illegal addresses are a violation of tile link protocol.
       // If an illegal address is provided, return an error instead of sending over tile link.
       val a_legal =
         Mux(in.pwrite,
-          edgeOut.manager.supportsPutPartialSafe(alignedAddr, dataSize, Some(beat)),
-          edgeOut.manager.supportsGetSafe       (alignedAddr, dataSize, Some(beat)))
+          edgeOut.manager.supportsPutPartialSafe(aligned_addr, data_size, Some(beat)),
+          edgeOut.manager.supportsGetSafe       (aligned_addr, data_size, Some(beat)))
 
       val in_flight_reg = RegInit(false.B)
       val error_in_flight_reg = RegInit(false.B)
@@ -76,10 +76,10 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       // PutPartial because of pstrb masking.
       out.a.bits.opcode  := Mux(in.pwrite, TLMessages.PutPartialData, TLMessages.Get)
       out.a.bits.param   := UInt(0)
-      out.a.bits.size    := UInt(log2Ceil(in.params.dataBits/8))
+      out.a.bits.size    := data_size
       out.a.bits.source  := UInt(0)
       // TL requires addresses be aligned to their size.
-      out.a.bits.address := alignedAddr
+      out.a.bits.address := aligned_addr
       assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
       out.a.bits.data    := in.pwdata
       out.a.bits.mask    := Mux(in.pwrite, in.pstrb, ~0.U(beatBytes.W))
