@@ -609,7 +609,7 @@ class CSRFile(
   for (i <- 0 until supported_interrupts.getWidth) {
     val en = exception && (supported_interrupts & (BigInt(1) << i).U) =/= 0 && cause === (BigInt(1) << (xLen - 1)).U + i
     val delegable = (delegable_interrupts & (BigInt(1) << i).U) =/= 0
-    cover(en, s"INTERRUPT_M_$i")
+    cover(en && !delegate, s"INTERRUPT_M_$i")
     cover(en && delegable && delegate, s"INTERRUPT_S_$i")
   }
   for (i <- 0 until xLen) {
@@ -619,7 +619,7 @@ class CSRFile(
       (if (usingVM) 0xb200 else 0)
     if (((supported_exceptions >> i) & 1) != 0) {
       val en = exception && cause === i
-      cover(en, s"EXCEPTION_M_$i")
+      cover(en && !delegate, s"EXCEPTION_M_$i")
       cover(en && delegate, s"EXCEPTION_S_$i")
     }
   }
