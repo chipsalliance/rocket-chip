@@ -273,11 +273,14 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     vecData := Vec.tabulate(16) { i => io.dataIn(8*i+7,8*i) }
     muxedData := vecData(counter)
 
-    val (rdLegal,  gbits) = edge.Get(0.U, io.addrIn, io.sizeIn)
-    val (wrLegal, pfbits) = edge.Put(0.U, io.addrIn, io.sizeIn, muxedData)
+    // Need an additional check to determine if address is safe for Get/Put
+    val rdLegal_addr = edge.manager.supportsGetSafe(io.addrIn, io.sizeIn, Some(TransferSizes(1,cfg.maxSupportedSBAccess/8)))
+    val wrLegal_addr = edge.manager.supportsPutFullSafe(io.addrIn, io.sizeIn, Some(TransferSizes(1,cfg.maxSupportedSBAccess/8)))
+    val (_,  gbits) = edge.Get(0.U, io.addrIn, io.sizeIn)
+    val (_, pfbits) = edge.Put(0.U, io.addrIn, io.sizeIn, muxedData)
 
-    io.rdLegal := rdLegal
-    io.wrLegal := wrLegal
+    io.rdLegal := rdLegal_addr
+    io.wrLegal := wrLegal_addr
 
     io.sbStateOut := sbState
     when(sbState === SBReadRequest.id.U) { tl.a.bits :=  gbits  }
@@ -300,8 +303,8 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     when(~io.dmactive){
       sbState := Idle.id.U
     }.elsewhen (sbState === Idle.id.U){
-      sbState := Mux(io.rdEn && rdLegal, SBReadRequest.id.U,
-                 Mux(io.wrEn && wrLegal, SBWriteRequest.id.U, sbState))
+      sbState := Mux(io.rdEn && io.rdLegal, SBReadRequest.id.U,
+                 Mux(io.wrEn && io.wrLegal, SBWriteRequest.id.U, sbState))
     }.elsewhen (sbState === SBReadRequest.id.U){
       sbState := Mux(requestValid && requestReady, SBReadResponse.id.U, sbState) 
     }.elsewhen (sbState === SBWriteRequest.id.U){
