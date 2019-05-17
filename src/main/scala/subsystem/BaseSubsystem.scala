@@ -74,7 +74,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
     }
   }
 
-  def getOMInterruptDevice(resourceBindingsMap: ResourceBindingsMap): Seq[OMInterrupt]
+  def getOMInterruptDevice(resourceBindings: ResourceBindings): Seq[OMInterrupt]
 
   val logicalTreeNode = new SubSystemLogicalTreeNode(getOMInterruptDevice)
 }
