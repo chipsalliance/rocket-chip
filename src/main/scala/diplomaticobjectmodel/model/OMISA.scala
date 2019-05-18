@@ -44,10 +44,8 @@ case class OMISA(
 ) extends OMCompoundType
 
 object OMISA {
-  def customExtensions(): List[OMCustomExtensionSpecification] = {
-    List(
-      Xsifivecflushdlone()
-    )
+  def customExtensions(coreParams: RocketCoreParams): List[OMCustomExtensionSpecification] = {
+    if (coreParams.haveCFlush) List (Xsifivecflushdlone()) else Nil
   }
 
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
@@ -86,7 +84,7 @@ object OMISA {
       u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
       addressTranslationModes = Seq(addressTranslationModes),
-      customExtensions = customExtensions()
+      customExtensions = customExtensions(coreParams)
     )
   }
 }
