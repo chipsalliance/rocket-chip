@@ -28,10 +28,13 @@ object LogicalModuleTree {
   }
 
   def bind(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-    def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
-    }
+    if (tree.size == 0) Nil
+    else {
+      def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
+        node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+      }
 
-    getOMComponentTree(root)
+      getOMComponentTree(root)
+    }
   }
 }
