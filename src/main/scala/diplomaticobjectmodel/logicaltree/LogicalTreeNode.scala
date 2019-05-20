@@ -57,6 +57,8 @@ object LogicalModuleTree {
 
   def cache() = BindingScope.bindingScopes.map(_.getResourceBindingsMap)
 
+  def treeIsEmpty() = tree.size == 0
+
   def bind(): Seq[OMComponent] = {
     val resourceBindingsMaps = cache()
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
