@@ -26,7 +26,7 @@ module {name}(
   initial begin: init_and_load
     integer i;
     // 256 is the maximum length of $readmemh filename supported by Verilator
-    reg [255*8:0] path;
+    reg [255*8-1:0] path;
 `ifdef RANDOMIZE
   `ifdef RANDOMIZE_MEM_INIT
     for (i = 0; i < {depth}; i = i + 1) begin
