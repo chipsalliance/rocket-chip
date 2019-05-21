@@ -7,9 +7,9 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug.{DebugModuleParams, ExportDebugCJTAG, ExportDebugDMI, ExportDebugJTAG, ExportDebugAPB}
 
 sealed trait OMDebugInterfaceType extends OMEnum
-case object DebugJTAG extends OMDebugInterfaceType
-case object DebugCJTAG extends OMDebugInterfaceType
-case object DebugDMI extends OMDebugInterfaceType
+case object JTAG extends OMDebugInterfaceType
+case object CJTAG extends OMDebugInterfaceType
+case object DMI extends OMDebugInterfaceType
 case object DebugAPB extends OMDebugInterfaceType
 
 sealed trait OMDebugAuthenticationType extends OMEnum
@@ -60,9 +60,9 @@ case class OMDebug(
 
 object OMDebug {
   def getOMDebugInterfaceType(p: Parameters): OMDebugInterfaceType = {
-    if (p(ExportDebugJTAG)) { DebugJTAG }
-    else if (p(ExportDebugCJTAG)) { DebugCJTAG }
-    else if (p(ExportDebugDMI)) { DebugDMI }
+    if (p(ExportDebugJTAG)) { JTAG }
+    else if (p(ExportDebugCJTAG)) { CJTAG }
+    else if (p(ExportDebugDMI)) { DMI }
     else if (p(ExportDebugAPB)) { DebugAPB }
     else { throw new IllegalArgumentException }
   }
