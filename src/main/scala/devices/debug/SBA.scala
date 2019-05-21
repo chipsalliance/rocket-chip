@@ -90,7 +90,7 @@ object SystemBusAccessModule
         when (~dmactive) {
           a := 0.U(32.W)
         }.otherwise {
-          a := Mux(SBADDRESSWrEn(i) && !SBCSRdData.sberror && !SBCSFieldsReg.sbbusy, SBADDRESSWrData(i),
+          a := Mux(SBADDRESSWrEn(i) && !SBCSRdData.sberror && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror, SBADDRESSWrData(i),
                Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement, autoIncrementedAddr(32*i+31,32*i), a))
         }
 
@@ -130,7 +130,7 @@ object SystemBusAccessModule
           when (~dmactive) {
             d(j) := 0.U(8.W)
           }.otherwise {
-            d(j) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSRdData.sberror, SBDATAWrData(i)(8*j+7,8*j),
+            d(j) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror, SBDATAWrData(i)(8*j+7,8*j),
                     Mux(sb2tl.module.io.rdLoad(4*i+j), sb2tl.module.io.dataOut, d(j)))
           }
         }
@@ -168,8 +168,8 @@ object SystemBusAccessModule
     sbAccessError.suggestName("sbAccessError")
     sbAlignmentError.suggestName("sbAlignmentError")
 
-    sb2tl.module.io.wrEn     := tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError 
-    sb2tl.module.io.rdEn     := tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
+    sb2tl.module.io.wrEn     := tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
+    sb2tl.module.io.rdEn     := tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
     sb2tl.module.io.sizeIn   := SBCSFieldsReg.sbaccess
     sb2tl.module.io.dmactive := dmactive
 
