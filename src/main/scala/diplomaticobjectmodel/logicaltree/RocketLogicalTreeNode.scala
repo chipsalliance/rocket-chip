@@ -71,6 +71,7 @@ class RocketLogicalTreeNode(
       branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
       dcache = omDCache,
       icache = Some(omICache),
+      hasClockGate = coreParams.clockGate,
       hasSCIE = coreParams.useSCIE
     ))
   }
