@@ -5,6 +5,8 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree.cache
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemory, OMMemoryRegion, OMRTLInterface, OMRTLModule}
 import freechips.rocketchip.util.DescribedSRAM
 
@@ -18,7 +20,10 @@ abstract class DiplomaticSRAM(
     .getOrElse(new MemoryDevice())
 
   def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {
-    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings) // TODO name source???
+    val resourceBindingsMaps = cache()
+
+    val rb = LogicalModuleTree.getResourceBindings(device, resourceBindingsMaps)
+    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), rb) // TODO name source???
   }
 
   val resources = device.reg("mem")
