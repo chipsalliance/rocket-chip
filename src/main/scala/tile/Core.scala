@@ -20,6 +20,7 @@ trait CoreParams {
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
   val useSCIE: Boolean
+  val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
