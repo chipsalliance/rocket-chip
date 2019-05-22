@@ -23,10 +23,10 @@ module {name}(
   reg [{output_width_minus_1}:0] rom [0:{depth_minus_1}];
 
 
-  initial begin
+  initial begin: init_and_load
     integer i;
     // 256 is the maximum length of $readmemh filename supported by Verilator
-    reg [255:0] [7:0] path;
+    reg [255*8-1:0] path;
 `ifdef RANDOMIZE
   `ifdef RANDOMIZE_MEM_INIT
     for (i = 0; i < {depth}; i = i + 1) begin
@@ -38,7 +38,7 @@ module {name}(
       path = "{rom_hex_file}";
     end
     $readmemh(path, rom);
-  end
+  end : init_and_load
 
 
   always @(posedge clock) begin
