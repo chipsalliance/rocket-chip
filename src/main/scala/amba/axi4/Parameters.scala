@@ -31,6 +31,15 @@ case class AXI4SlaveParameters(
   // The device had better not support a transfer larger than its alignment
   require (minAlignment >= maxTransfer,
     s"minAlignment ($minAlignment) must be >= maxTransfer ($maxTransfer)")
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address, ResourcePermissions(
+      r = supportsRead,
+      w = supportsWrite,
+      x = executable,
+      c = false,
+      a = false))
+  }
 }
 
 case class AXI4SlavePortParameters(

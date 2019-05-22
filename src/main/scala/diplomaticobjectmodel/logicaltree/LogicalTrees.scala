@@ -6,7 +6,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMBusMemory, _}
 import freechips.rocketchip.tile.MaxHartIdBits
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode(() => Some(device)) {
@@ -168,7 +168,42 @@ class PLICLogicalTreeNode(
   }
 }
 
+<<<<<<< HEAD
 class SubSystemLogicalTreeNode() extends LogicalTreeNode(() => None) {
+=======
+class BusMemoryLogicalTreeNode(
+  device: Device,
+  omSRAMs: Seq[OMSRAM],
+  busProtocol: OMProtocol,
+  dataECC: Option[OMECC] = None,
+  hasAtomics: Option[Boolean] = None,
+  busProtocolSpecification: Option[OMSpecification] = None) extends LogicalTreeNode(() => Some(device)) {
+  def getOMBusMemory(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
+    val Description(name, mapping) = device.describe(resourceBindings)
+
+    val omBusMemory = OMBusMemory(
+      memoryRegions = memRegions,
+      interrupts = Nil,
+      specifications = Nil,
+      busProtocol = Some(busProtocol),
+      dataECC = dataECC.getOrElse(OMECC.Identity),
+      hasAtomics = hasAtomics.getOrElse(false),
+      memories = omSRAMs
+    )
+
+    val ints = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
+    Seq(omBusMemory)
+  }
+
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMBusMemory)
+  }
+}
+
+class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
+  extends LogicalTreeNode(() => None) {
+>>>>>>> 8fd9717b... add new ram ltn nodes
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(

@@ -6,7 +6,7 @@ import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
 import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
-import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMSRAM, _}
 import freechips.rocketchip.util.{Code, ElaborationArtefacts}
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
@@ -169,6 +169,23 @@ object DiplomaticObjectModelAddressing {
           case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, "port memory region", value, omRegMap)
         }
     }.flatten.toSeq
+  }
+
+  def makeOMSRAM(
+    desc: String,
+    width: Int,
+    depth: BigInt,
+    granWidth: Int,
+    uid: Int
+  ): OMSRAM = {
+    OMSRAM(
+      description = desc,
+      addressWidth = log2Ceil(depth),
+      dataWidth = width,
+      depth = depth,
+      writeMaskGranularity = granWidth,
+      uid = uid
+    )
   }
 
   def makeOMMemory[T <: Data](

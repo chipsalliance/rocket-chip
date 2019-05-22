@@ -24,6 +24,15 @@ case class APBSlaveParameters(
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxAddress = address.map(_.max).max
   val minAlignment = address.map(_.alignment).min
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address, ResourcePermissions(
+      r = supportsRead,
+      w = supportsWrite,
+      x = executable,
+      c = false,
+      a = false))
+  }
 }
 
 case class APBSlavePortParameters(

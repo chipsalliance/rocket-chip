@@ -9,6 +9,8 @@ import freechips.rocketchip.diplomacy.DiplomaticSRAM
 import Chisel._
 import chisel3.SyncReadMem
 import freechips.rocketchip.amba.axi4.AXI4RAM
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 
 import scala.math.log10
 
@@ -26,8 +28,9 @@ object DescribedSRAM {
     name: String,
     desc: String,
     size: BigInt, // depth
-    data: T
-  ): SyncReadMem[T] = {
+    data: T,
+    uid: Int = -1
+  ): (SyncReadMem[T], OMSRAM) = {
 
     val mem = SeqMem(size, data)
 
@@ -38,6 +41,16 @@ object DescribedSRAM {
       case d => d.getWidth
     }
 
+    val uid = DescribedSRAMIdAssigner.genId()
+
+    val omSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
+      desc = "mem-" + uid,
+      width = data.getWidth,
+      depth = size,
+      granWidth = granWidth,
+      uid = uid
+    )
+
     Annotated.srams(
       component = mem,
       name = name,
@@ -46,8 +59,9 @@ object DescribedSRAM {
       depth = size,
       description = desc,
       write_mask_granularity = granWidth,
-      uid = DescribedSRAMIdAssigner.genId())
+      uid = uid
+    )
 
-    mem
+    (mem, omSRAM)
   }
 }
