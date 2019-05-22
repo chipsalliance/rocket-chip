@@ -10,8 +10,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.util._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusErrorLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
@@ -36,8 +34,7 @@ class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors
 
 case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
 
-class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams,
-  logicalTreeNode: LogicalTreeNode)(implicit p: Parameters) extends LazyModule {
+class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit p: Parameters) extends LazyModule {
   val regWidth = 64
   val device = new SimpleDevice("bus-error-unit", Seq("sifive,buserror0"))
   val intNode = IntSourceNode(IntSourcePortSimple(resources = device.int))
@@ -117,7 +114,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams,
       RegFieldGroup(gn, Some(gd), (v zip d).map {case (r, rd) => RegField(1, r, rd)})
     def numberRegs(x: Seq[Seq[RegField]]) = x.zipWithIndex.map {case (f, i) => (i * regWidth / 8) -> f }
 
-    val omRegMap = node.regmap(numberRegs(Seq(
+    node.regmap(numberRegs(Seq(
       reg(cause, "cause", cause_desc),
       reg(value, "value", value_desc),
       reg(enable, "enable", "Event enable mask", enable_desc),
@@ -132,8 +129,5 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams,
       accrued(i) := false
       local_interrupt(i) := false
     }
-
-    val busErrorLTN = new BusErrorLogicalTreeNode(device, omRegMap)
-    LogicalModuleTree.add(logicalTreeNode, busErrorLTN)
   }
 }
