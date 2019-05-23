@@ -163,13 +163,12 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
   }
 }
 
-class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil) extends LogicalTreeNode(() => None) {
+class SubSystemLogicalTreeNode() extends LogicalTreeNode(() => None) {
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
         components = components,
-        documentationName = "",
-        externalGlobalInterrupts = getOMInterruptDevice(resourceBindings)
+        documentationName = ""
       )
     )
   }
