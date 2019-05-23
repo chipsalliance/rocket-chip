@@ -69,6 +69,9 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
   override lazy val module = new RocketSubsystemModuleImp(this)
+
+  def getOMInterruptDevice(resourceBindings: ResourceBindings): Seq[OMInterrupt] = Nil
+  def getOMGlobalInterruptSignals() = None
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)

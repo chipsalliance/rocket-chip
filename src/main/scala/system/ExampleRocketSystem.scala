@@ -37,6 +37,8 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     sbus.coupleTo("coherence_manager") { in :*= _ }
     mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
   }
+
+  override def getOMGlobalInterruptSignals() = None
 }
 
 class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends RocketSubsystemModuleImp(_outer)

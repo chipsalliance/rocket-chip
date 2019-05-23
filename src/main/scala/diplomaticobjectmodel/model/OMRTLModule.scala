@@ -7,11 +7,13 @@ trait RTLComponent extends OMCompoundType
 trait OMSignal extends RTLComponent {
   def name: String // This will always be the name of the signal on the top-level module
   def description: Option[String]
+  def uid: Int
 }
 
 case class OMClock(
   name: String,
-  description: Option[String]
+  description: Option[String],
+  uid: Int
 ) extends OMSignal
 
 case class OMClockRelationship(
@@ -34,19 +36,68 @@ case class OMRTLReset(
   synchronicity: Option[Synchronicity]
 )
 
+case class Reset(
+  description: Option[String],
+  name: String,
+  activeEdge: Option[OMSignalAssertionLevel],
+  clockName: String, // This will always be the name of the clock signal on the top-level module
+  synchronicity: Option[Synchronicity],
+  uid: Int
+) extends OMSignal
+
+// Status
+trait Status extends OMSignal {
+  def description: Option[String]
+  def name: String
+  uid: Int
+}
+
+trait OMCoreStatus extends Status {
+  def description: Option[String]
+  def name: String
+  def hartId: Int
+}
+
+case class OMHalt(
+  description: Option[String],
+  name: String,
+  hartId: Int,
+  uid: Int
+) extends OMCoreStatus
+
+case class OMWFI(
+  description: Option[String],
+  name: String,
+  hartId: Int,
+  uid: Int
+) extends OMCoreStatus
+
+// Reset Vector
 case class OMResetVector(
-  width: Int
-)
+  description: Option[String],
+  name: String,
+  width: Int,
+  uid: Int
+) extends OMSignal
 
-case class OMRTLInterface(
-  clocks: List[OMClock],
-  clockRelationships: List[OMClockRelationship],
-  resets: List[OMRTLReset]
-) extends RTLComponent
+// Interrupts
+case class OMInterruptSignal(
+  description: Option[String],
+  name: String,
+  width: Int,
+  uid: Int
+) extends OMSignal
 
-case class  OMRTLModule(
-  moduleName: String,
-  instanceName: Option[String],  // TODO: This does not exist for the top-level module because the top-level module is the only one that is not instantiated
-  hierarchicalId: Option[String],  // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
-  interface: OMRTLInterface
-)
+trait OMRTLInterface extends RTLComponent {
+  def clocks: List[OMClock]
+  def clockRelationships: List[OMClockRelationship]
+  def resets: List[OMRTLReset]
+  def statuses: List[Status]
+}
+
+trait OMRTLModule {
+  def moduleName: String
+  def instanceName: Option[String]
+  def hierarchicalId: Option[String] // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
+  def interface: OMRTLInterface
+}

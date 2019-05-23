@@ -15,6 +15,11 @@ import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+/** Record a signal. */
+case class SignalAnnotation(target: ReferenceTarget, uid: Int) extends SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget) = this.copy(n)
+}
+
 /** Record a sram. */
 case class SRAMAnnotation(target: ReferenceTarget,
   address_width: Int,
@@ -105,6 +110,13 @@ case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends Single
 
 /** Helper object containing methods for applying annotations to targets */
 object Annotated {
+
+  def signals(component: Data, uid: Int): Unit = {
+    annotate(new ChiselAnnotation {def toFirrtl: Annotation = SignalAnnotation(
+      component.toNamed.toTarget,
+      uid
+    )})
+  }
 
   def srams[T <: Data](
     component: SyncReadMem[T],

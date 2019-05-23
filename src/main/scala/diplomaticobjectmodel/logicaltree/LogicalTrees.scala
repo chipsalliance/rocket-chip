@@ -168,12 +168,13 @@ class PLICLogicalTreeNode(
   }
 }
 
-class SubSystemLogicalTreeNode() extends LogicalTreeNode(() => None) {
+class SubSystemLogicalTreeNode(getCoreComplexRTLModule: () => Option[OMCoreComplexRTLModule]) extends LogicalTreeNode(() => None) {
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
         components = components,
-        documentationName = ""
+        documentationName = "",
+        rtlModule = getCoreComplexRTLModule()
       )
     )
   }
