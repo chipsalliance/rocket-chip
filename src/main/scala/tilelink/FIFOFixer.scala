@@ -139,7 +139,7 @@ object TLFIFOFixer
 
   val all:            Policy = m => true
   val allFIFO:        Policy = m => m.fifoId.isDefined
-  val allUncacheable: Policy = m => m.regionType <= UNCACHEABLE
+  val allVolatile:    Policy = m => m.regionType <= VOLATILE
 
   def apply(policy: Policy = all)(implicit p: Parameters): TLNode =
   {

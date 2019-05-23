@@ -64,7 +64,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
-        regionType      = RegionType.UNCACHEABLE,
+        regionType      = RegionType.IDEMPOTENT,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
         supportsPutPartial = TransferSizes(1, wordBytes),
