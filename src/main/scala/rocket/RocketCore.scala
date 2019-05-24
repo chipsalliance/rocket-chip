@@ -45,6 +45,7 @@ case class RocketCoreParams(
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
+  val useRVE = false
   val pmpGranularity: Int = 4
   val fetchWidth: Int = if (useCompressed) 2 else 1
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
