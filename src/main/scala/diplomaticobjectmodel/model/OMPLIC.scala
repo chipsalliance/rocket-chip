@@ -28,6 +28,7 @@ case class OMPLIC(
   specifications: Seq[OMSpecification],
   latency: Int,
   nPriorities: Int,
+  nInterrupts: Int,
   targets: Seq[OMInterruptTarget],
   _types: Seq[String] = Seq("OMPLIC", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
