@@ -100,7 +100,11 @@ class DebugLogicalTreeNode(
   }
 }
 
-class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, nPriorities: => Int) extends LogicalTreeNode(() => Some(device)) {
+class PLICLogicalTreeNode(
+  device: => SimpleDevice,
+  omRegMap: => OMRegisterMap,
+  nPriorities: => Int,
+  nInterrupts: => Int) extends LogicalTreeNode(() => Some(device)) {
   def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(omRegMap))
     val Description(name, mapping) = device.describe(resourceBindings)
@@ -119,6 +123,7 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
         ),
         latency = 2, // TODO
         nPriorities = nPriorities,
+        nInterrupts = nInterrupts,
         targets = targets
       )
     )
@@ -163,13 +168,12 @@ class PLICLogicalTreeNode(device: => SimpleDevice, omRegMap: => OMRegisterMap, n
   }
 }
 
-class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil) extends LogicalTreeNode(() => None) {
+class SubSystemLogicalTreeNode() extends LogicalTreeNode(() => None) {
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
         components = components,
-        documentationName = "",
-        externalGlobalInterrupts = getOMInterruptDevice(resourceBindings)
+        documentationName = ""
       )
     )
   }
