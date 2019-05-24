@@ -10,7 +10,7 @@ case class PlusArgInfo(default: BigInt, docstring: String)
 
 class plusarg_reader(val format: String, val default: BigInt, val docstring: String, val width: Int) extends BlackBox(Map(
     "FORMAT"  -> StringParam(format),
-    "DEFAULT" -> RawParam(s"$width'd$default"),
+    "DEFAULT" -> IntParam(default),
     "WIDTH" -> IntParam(width)
   )) with HasBlackBoxResource {
   val io = IO(new Bundle {
