@@ -22,7 +22,12 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
     with CanHaveBuiltInDevices
     with CanAttachTLSlaves
     with CanAttachTLMasters
-    with HasTLXbarPhy {
+{
+  private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
+  def inwardNode: TLInwardNode = system_bus_xbar.node
+  def outwardNode: TLOutwardNode = system_bus_xbar.node
+  def busView: TLEdge = system_bus_xbar.node.edges.in.head
+
   attachBuiltInDevices(params)
 
   def fromTile
