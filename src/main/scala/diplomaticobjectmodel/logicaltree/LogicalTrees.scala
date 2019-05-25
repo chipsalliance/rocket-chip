@@ -178,3 +178,24 @@ class SubSystemLogicalTreeNode() extends LogicalTreeNode(() => None) {
     )
   }
 }
+
+
+class BusErrorLogicalTreeNode(device: => SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode(() => Some(device)) {
+  def getOMBusError(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val Description(name, mapping) = device.describe(resourceBindings)
+
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("BusError", resourceBindings, Some(f))
+
+    Seq[OMComponent](
+      OMBusError(
+        memoryRegions = memRegions,
+        interrupts = DiplomaticObjectModelAddressing.describeGlobalInterrupts(name, resourceBindings), // outgoing interrupts
+        specifications = Nil
+      )
+    )
+  }
+
+  def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMBusError)
+  }
+}
