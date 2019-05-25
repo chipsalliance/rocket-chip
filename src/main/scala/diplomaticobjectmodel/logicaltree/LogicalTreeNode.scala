@@ -42,7 +42,7 @@ object LogicalModuleTree {
     val rbm = maps.find {
       rbm => rbm.map.contains(device)
     }.getOrElse {
-      throw new IllegalArgumentException()
+      throw new IllegalArgumentException(s"""ResourceBindingsMap not found in BindingScope.resourceBindingsMaps""")
     }
 
     rbm.map.get(device).getOrElse(
