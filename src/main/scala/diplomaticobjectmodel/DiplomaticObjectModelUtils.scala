@@ -111,7 +111,7 @@ class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
 })
 
 object DiplomaticObjectModelAddressing {
-  def getOMComponentHelper(device: Device, resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
+  def getOMComponentHelper(resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
     fn(resourceBindings)
   }
 

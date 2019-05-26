@@ -29,7 +29,7 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMCLINT)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMCLINT)
   }
 }
 
@@ -96,7 +96,7 @@ class DebugLogicalTreeNode(
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMDebug)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMDebug)
   }
 }
 
@@ -164,7 +164,7 @@ class PLICLogicalTreeNode(
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMPLIC)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMPLIC)
   }
 }
 
