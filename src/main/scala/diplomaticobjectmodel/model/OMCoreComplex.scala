@@ -6,7 +6,7 @@ case class CoreComplexRTLInterface(
   clocks: List[OMClock] = Nil,
   clockRelationships: List[OMClockRelationship] = Nil,
   resets: List[OMRTLReset] = Nil,
-  statuses: List[Status] = Nil,
+  statuses: List[OMStatus] = Nil,
   localInterrupts: Option[OMInterruptSignal] = None,  // E.g. local_interrupts_X (all local interrupts for core X)
   globalInterrupts: Option[OMInterruptSignal] = None,  // E.g. global_interrupts
   machineExternalInterrupts: Option[OMInterruptSignal] = None,  // E.g. meip_X

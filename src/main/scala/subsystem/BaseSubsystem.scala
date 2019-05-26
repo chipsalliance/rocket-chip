@@ -76,21 +76,21 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
 
   def getCoreComplexRTLModule(): Option[OMCoreComplexRTLModule] = {
     val rtlIfc = CoreComplexRTLInterface(
-      clocks = Nil, // List[OMClock] = Nil,
-      clockRelationships = Nil, // List[OMClockRelationship] = Nil,
-      resets = Nil, // List[OMRTLReset] = Nil,
-      statuses = Nil, // List[Status] = Nil,
-      localInterrupts = None, // getOMLocalInterruptSignals, // Option[OMInterruptSignal] = None,  // E.g. local_interrupts_X (all local interrupts for core X)
-      globalInterrupts = getOMGlobalInterruptSignals(), // Option[OMInterruptSignal] = None,  // E.g. global_interrupts
-      machineExternalInterrupts = None, // Option[OMInterruptSignal] = None,  // E.g. meip_X
-      testModeSignals = Nil, // List[OMSignal] = Nil  // E.g. debug_psd_test_mode and debug_psd_test_mode_reset
+      clocks = Nil,
+      clockRelationships = Nil,
+      resets = Nil,
+      statuses = Nil,
+      localInterrupts = None, // E.g. local_interrupts_X (all local interrupts for core X)
+      globalInterrupts = getOMGlobalInterruptSignals(), // E.g. global_interrupts
+      machineExternalInterrupts = None, // E.g. meip_X
+      testModeSignals = Nil // E.g. debug_psd_test_mode and debug_psd_test_mode_reset
     )
 
     Some(OMCoreComplexRTLModule(
-      moduleName = "", // String,
-      instanceName = None, // Option[String],
-      hierarchicalId = None, // Option[String],
-      coreComplexinterface = rtlIfc, // CoreComplexRTLInterface
+      moduleName = "",
+      instanceName = None,
+      hierarchicalId = None,
+      coreComplexinterface = rtlIfc
     ))
   }
 
