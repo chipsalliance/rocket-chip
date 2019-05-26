@@ -174,4 +174,3 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => S
     )
   }
 }
-
