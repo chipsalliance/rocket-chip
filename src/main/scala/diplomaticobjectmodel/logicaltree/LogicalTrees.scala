@@ -168,9 +168,6 @@ class PLICLogicalTreeNode(
   }
 }
 
-<<<<<<< HEAD
-class SubSystemLogicalTreeNode() extends LogicalTreeNode(() => None) {
-=======
 class BusMemoryLogicalTreeNode(
   device: Device,
   omSRAMs: Seq[OMSRAM],
@@ -179,7 +176,7 @@ class BusMemoryLogicalTreeNode(
   hasAtomics: Option[Boolean] = None,
   busProtocolSpecification: Option[OMSpecification] = None) extends LogicalTreeNode(() => Some(device)) {
   def getOMBusMemory(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
+    val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
     val Description(name, mapping) = device.describe(resourceBindings)
 
     val omBusMemory = OMBusMemory(
@@ -197,13 +194,12 @@ class BusMemoryLogicalTreeNode(
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMBusMemory)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMBusMemory)
   }
 }
 
 class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
   extends LogicalTreeNode(() => None) {
->>>>>>> 8fd9717b... add new ram ltn nodes
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(

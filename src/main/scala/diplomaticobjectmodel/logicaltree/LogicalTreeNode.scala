@@ -39,14 +39,6 @@ object LogicalModuleTree {
     roots.head
   }
 
-<<<<<<< HEAD
-  def getResourceBindings(device: Device, maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = {
-    val rbm = maps.find {
-      rbm => rbm.map.contains(device)
-    }.getOrElse {
-      throw new IllegalArgumentException(s"""ResourceBindingsMap not found in BindingScope.resourceBindingsMaps""")
-    }
-=======
   def getResourceBindings(device: Device): ResourceBindings = {
     val bindingScope = bindingScopes.find( bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse {
       bindingScopes.foreach { s =>
@@ -54,7 +46,6 @@ object LogicalModuleTree {
         println(s"BS: ${stuff.map(_.devname)}")
       }
       println(s"Device = ${device.asInstanceOf[SimpleDevice].devname} ")
->>>>>>> 8fd9717b... add new ram ltn nodes
 
       throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
     }
