@@ -41,9 +41,6 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   }
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
-
-  def getOMInterruptDevice(resourceBindings: ResourceBindings): Seq[OMInterrupt] = Nil
-  def getOMGlobalInterruptSignals() = None
 }
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
