@@ -196,6 +196,6 @@ class BusErrorLogicalTreeNode(device: => SimpleDevice, f: => OMRegisterMap) exte
   }
 
   def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
-    DiplomaticObjectModelAddressing.getOMComponentHelper(device, resourceBindings, getOMBusError)
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMBusError)
   }
 }
