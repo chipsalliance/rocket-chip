@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, RocketLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree, LogicalTreeNode, RocketLogicalTreeNode}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -34,7 +34,8 @@ class RocketTile private(
       val rocketParams: RocketTileParams,
       crossing: ClockCrossingType,
       lookup: LookupByHartIdImpl,
-      q: Parameters)
+      q: Parameters,
+      logicalTreeNode: LogicalTreeNode)
     extends BaseTile(rocketParams, crossing, lookup, q)
     with SinksExternalInterrupts
     with SourcesExternalNotifications
@@ -43,8 +44,8 @@ class RocketTile private(
     with HasICacheFrontend
 {
   // Private constructor ensures altered LazyModule.p is used implicitly
-  def this(params: RocketTileParams, crossing: RocketCrossingParams, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
-    this(params, crossing.crossingType, lookup, p)
+  def this(params: RocketTileParams, crossing: RocketCrossingParams, lookup: LookupByHartIdImpl, logicalTreeNode: LogicalTreeNode)(implicit p: Parameters) =
+    this(params, crossing.crossingType, lookup, p, logicalTreeNode)
 
   val intOutwardNode = IntIdentityNode()
   val slaveNode = TLIdentityNode()
@@ -56,7 +57,7 @@ class RocketTile private(
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, xBytes))
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
-    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), logicalTreeNode))
     intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
