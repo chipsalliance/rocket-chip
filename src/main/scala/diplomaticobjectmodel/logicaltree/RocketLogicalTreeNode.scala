@@ -8,7 +8,22 @@ import freechips.rocketchip.rocket.{DCacheParams, Frontend, ICacheParams, Scratc
 import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 
 
-class ICacheLogicalTreeNode(device: SimpleDevice, icacheParams: ICacheParams) extends LogicalTreeNode(() => Some(device)) {
+/**
+ * Represents either a DCache or a DTIM.
+ *
+ * The data memory subsystem is assumed to be a DTIM if and only if deviceOpt is
+ * a Some(SimpleDevice), as a DCache would not create a Device.
+ */
+class DCacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], params: DCacheParams) extends LogicalTreeNode(() => deviceOpt) {
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+    Seq(
+      OMCaches.dcache(params, resourceBindings)
+    )
+  }
+}
+
+
+class ICacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMICacheFromBindings(resourceBindings: ResourceBindings): OMICache = {
     getOMComponents(resourceBindings) match {
       case Seq() => throw new IllegalArgumentException
@@ -30,8 +45,7 @@ class RocketLogicalTreeNode(
   device: SimpleDevice,
   rocketParams: RocketTileParams,
   dtim_adapter: Option[ScratchpadSlavePort],
-  XLen: Int,
-  icacheLTN: ICacheLogicalTreeNode
+  XLen: Int
 ) extends LogicalTreeNode(() => Some(device)) {
 
   def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindings: ResourceBindings): Option[OMDCache] = {
@@ -52,9 +66,11 @@ class RocketLogicalTreeNode(
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
 
-    val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindings)}
+    // Expect that one of the components passed in is the DCache/DTIM.
+    val omDCache = components.collectFirst { case x: OMDCache => x }.get
 
-    val omICache = icacheLTN.iCache(resourceBindings)
+    // Expect that one of the components passed in is the ICache.
+    val omICache = components.collectFirst { case x: OMICache => x }.get
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),
@@ -69,7 +85,7 @@ class RocketLogicalTreeNode(
       nLocalInterrupts = coreParams.nLocalInterrupts,
       nBreakpoints = coreParams.nBreakpoints,
       branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
-      dcache = omDCache,
+      dcache = Some(omDCache),
       icache = Some(omICache),
       hasClockGate = coreParams.clockGate,
       hasSCIE = coreParams.useSCIE
