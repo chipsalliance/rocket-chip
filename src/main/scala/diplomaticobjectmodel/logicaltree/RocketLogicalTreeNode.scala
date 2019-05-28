@@ -30,8 +30,7 @@ class RocketLogicalTreeNode(
   device: SimpleDevice,
   rocketParams: RocketTileParams,
   dtim_adapter: Option[ScratchpadSlavePort],
-  XLen: Int,
-  icacheLTN: ICacheLogicalTreeNode
+  XLen: Int
 ) extends LogicalTreeNode(() => Some(device)) {
 
   def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindings: ResourceBindings): Option[OMDCache] = {
@@ -54,7 +53,8 @@ class RocketLogicalTreeNode(
 
     val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindings)}
 
-    val omICache = icacheLTN.iCache(resourceBindings)
+    // Expect that one of the components passed in is the ICache.
+    val omICache = components.collectFirst { case x: OMICache => x }.get
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),
