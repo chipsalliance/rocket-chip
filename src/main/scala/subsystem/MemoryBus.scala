@@ -62,6 +62,6 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("memory_controller" named name) { gen := TLBuffer(buffer) := outwardNode }
+    to("memory_controller" named name) { gen := TLWidthWidget(params.beatBytes) := TLBuffer(buffer) := outwardNode }
   }
 }
