@@ -28,8 +28,7 @@ object DescribedSRAM {
     name: String,
     desc: String,
     size: BigInt, // depth
-    data: T,
-    uid: Int = -1
+    data: T
   ): (SyncReadMem[T], OMSRAM) = {
 
     val mem = SeqMem(size, data)

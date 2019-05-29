@@ -35,35 +35,28 @@ object LogicalModuleTree {
 
   def rootLogicalTreeNode: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
-    assert(roots.size <= 2, "Logical Tree contains more than two roots.")
+    assert(roots.size == 1, "Logical Tree contains more than one root.")
     roots.head
   }
 
-  def getResourceBindings(device: Device): ResourceBindings = {
-    val bindingScope = bindingScopes.find( bs => bs.getResourceBindingsMap.map.contains(device)).getOrElse {
-      bindingScopes.foreach { s =>
-        val stuff = s.getResourceBindingsMap.map.keys.collect { case x: SimpleDevice => x }
-        println(s"BS: ${stuff.map(_.devname)}")
-      }
-      println(s"Device = ${device.asInstanceOf[SimpleDevice].devname} ")
-
-      throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
+  def getResourceBindings(device: Device, maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = {
+    val rbm = maps.find {
+      rbm => rbm.map.contains(device)
+    }.getOrElse {
+      throw new IllegalArgumentException(s"""ResourceBindingsMap not found in BindingScope.resourceBindingsMaps""")
     }
-    bindingScope.getResourceBindingsMap.map.get(device).getOrElse(ResourceBindings())
+
+    rbm.map.get(device).getOrElse(
+      throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
+    )
   }
 
-  def resourceBindings(deviceOpt: () => Option[Device]): ResourceBindings = deviceOpt() match {
-    case Some(device) => getResourceBindings(device)
+  def resourceBindings(deviceOpt: () => Option[Device], maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = deviceOpt() match {
+    case Some(device) => getResourceBindings(device, maps)
     case None => ResourceBindings()
   }
 
-  def cache() = {
-    val l = BindingScope.bindingScopes.map{
-      case bs => (bs, bs.getResourceBindingsMap)
-    }
-
-    l.toMap
-  }
+  def cache() = BindingScope.bindingScopes.map(_.getResourceBindingsMap)
 
   def treeIsEmpty() = tree.size == 0
 
@@ -71,7 +64,7 @@ object LogicalModuleTree {
     val resourceBindingsMaps= cache()
 
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindings(node.getDevice), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+      node.getOMComponents(resourceBindings(node.getDevice, resourceBindingsMaps), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
     getOMComponentTree(rootLogicalTreeNode)
