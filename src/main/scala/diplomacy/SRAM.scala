@@ -5,15 +5,12 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree.cache
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.util.{DescribedSRAM, DescribedSRAMIdAssigner}
+import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
     address: AddressSet,
     beatBytes: Int,
-    parentLogicalTreeNode: Option[LogicalTreeNode],
     devName: Option[String])(implicit p: Parameters) extends LazyModule
 {
   val device = devName

@@ -19,7 +19,7 @@ class AHBRAM(
     fuzzHreadyout: Boolean = false,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, parentLogicalTreeNode, devName)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = AHBSlaveSinkNode(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(

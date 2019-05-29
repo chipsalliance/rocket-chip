@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
-import freechips.rocketchip.diplomaticobjectmodel.model.{AHB_Lite, AXI4_Lite}
+import freechips.rocketchip.diplomaticobjectmodel.model.AXI4_Lite
 import freechips.rocketchip.util._
 
 class AXI4RAM(
@@ -18,7 +18,7 @@ class AXI4RAM(
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
     wcorrupt: Boolean = false)
-  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, parentLogicalTreeNode, devName)
+  (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
@@ -132,5 +132,6 @@ object AXI4RAM
       beatBytes = beatBytes,
       devName = devName,
       errors = errors))
+    axi4ram.node
   }
 }

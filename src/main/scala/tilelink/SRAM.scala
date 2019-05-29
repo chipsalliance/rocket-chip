@@ -7,7 +7,7 @@ import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
-import freechips.rocketchip.diplomaticobjectmodel.model.{AHB_Lite, OMECC, TL_C, TL_UL}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMECC, TL_UL}
 import freechips.rocketchip.util._
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
@@ -24,7 +24,7 @@ class TLRAM(
     beatBytes: Int = 4,
     ecc: ECCParams = ECCParams(),
     val devName: Option[String] = None,
-  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, parentLogicalTreeNode, devName)
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val eccBytes = ecc.bytes
   val code = ecc.code
@@ -66,7 +66,7 @@ class TLRAM(
         def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
           device = device,
           omSRAMs = Seq(omSRAM),
-          busProtocol = new TL_C(None),
+          busProtocol = new TL_UL(None),
           dataECC = Some(OMECC.getCode(ecc)),
           hasAtomics = Some(atomics),
           busProtocolSpecification = None)
