@@ -220,7 +220,8 @@ class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
   * @param devcompat    a list of compatible devices. See device tree property "compatible".
   * @param offset       the base address of this bus.
   */
-class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) extends SimpleDevice(devname, devcompat ++ Seq("simple-bus"))
+class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0,
+  misc: Map[String, Seq[ResourceValue]]= Map()) extends SimpleDevice(devname, devcompat ++ Seq("simple-bus"))
 {
   override def describe(resources: ResourceBindings): Description = {
     val ranges = resources("ranges").collect {
@@ -242,7 +243,7 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
     deviceNamePlusAddress = devname
 
     val Description(_, mapping) = super.describe(resources)
-    Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra)
+    Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra ++ misc)
   }
 
   def ranges = Seq(Resource(this, "ranges"))
