@@ -6,7 +6,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMBusMemory, _}
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile.MaxHartIdBits
 
 class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode(() => Some(device)) {
