@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
+import freechips.rocketchip.diplomacy.BindingScope.bindingScopes
 import freechips.rocketchip.diplomacy.{BindingScope, Device, ResourceBindings, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 
@@ -60,7 +61,8 @@ object LogicalModuleTree {
   def treeIsEmpty() = tree.size == 0
 
   def bind(): Seq[OMComponent] = {
-    val resourceBindingsMaps = cache()
+    val resourceBindingsMaps= cache()
+
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
       node.getOMComponents(resourceBindings(node.getDevice, resourceBindingsMaps), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }

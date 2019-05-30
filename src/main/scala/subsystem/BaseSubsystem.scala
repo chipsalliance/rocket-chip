@@ -75,6 +75,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   }
 
   val logicalTreeNode = new SubSystemLogicalTreeNode()
+  LogicalModuleTree.add(LogicalModuleTree.root, logicalTreeNode)
 }
 
 
