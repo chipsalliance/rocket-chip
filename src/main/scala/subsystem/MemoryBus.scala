@@ -23,7 +23,8 @@ case object BroadcastKey extends Field(BroadcastParams())
 /** L2 memory subsystem configuration */
 case class BankedL2Params(
   nBanks: Int = 1,
-  coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode]) = { subsystem =>
+  coherenceManager: BareSubsystem with MBus with SBus => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode]) = {
+    subsystem =>
     implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
     val bh = LazyModule(new TLBroadcast(subsystem.mbus.blockBytes, nTrackers, bufferless))

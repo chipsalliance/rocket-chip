@@ -28,7 +28,7 @@ case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(Rock
 trait HasRocketTiles extends HasTiles
     with CanHavePeripheryPLIC
     with CanHavePeripheryCLINT
-    with HasPeripheryDebug { this: BaseSubsystem =>
+    with HasPeripheryDebug { this: BaseSubsystem with CBus with FBus with IBus with PBus =>
   val module: HasRocketTilesModuleImp
 
   protected val rocketTileParams = p(RocketTilesKey)
@@ -68,9 +68,10 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
 case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
 
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
+    with CBus with FBus with IBus with PBus
     with HasRocketTiles {
   val tiles = rocketTiles
-        
+
   // add Mask ROM devices
   val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
 

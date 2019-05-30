@@ -10,6 +10,7 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
@@ -41,7 +42,7 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   * based on a global parameter.
   */
 
-trait HasPeripheryDebug { this: BaseSubsystem =>
+trait HasPeripheryDebug { this: BareSubsystem with CBus with FBus with HasLogicalTreeNode =>
   val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
 
   LogicalModuleTree.add(logicalTreeNode, debug.logicalTreeNode)

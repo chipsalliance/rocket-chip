@@ -29,7 +29,7 @@ case object ExtIn extends Field[Option[SlavePortParams]](None)
 ///// The following traits add ports to the sytem, in some cases converting to different interconnect standards
 
 /** Adds a port to the system intended to master an AXI4 DRAM controller. */
-trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
+trait CanHaveMasterAXI4MemPort { this: BareSubsystem with MBus =>
   val module: CanHaveMasterAXI4MemPortModuleImp
 
   val memAXI4Node = p(ExtMem).map { case MemoryPortParams(memPortParams, nMemoryChannels) =>
@@ -80,7 +80,7 @@ trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
 }
 
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
-trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
+trait CanHaveMasterAXI4MMIOPort { this: BareSubsystem with SBus =>
   private val mmioPortParamsOpt = p(ExtBus)
   private val portName = "mmio_port_axi4"
   private val device = new SimpleBus(portName.kebab, Nil)
@@ -124,7 +124,7 @@ trait CanHaveMasterAXI4MMIOPortModuleImp extends LazyModuleImp {
 }
 
 /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
-trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
+trait CanHaveSlaveAXI4Port { this: BareSubsystem with FBus =>
   private val slavePortParamsOpt = p(ExtIn)
   private val portName = "slave_port_axi4"
   private val fifoBits = 1
@@ -155,7 +155,7 @@ trait CanHaveSlaveAXI4PortModuleImp extends LazyModuleImp {
 }
 
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
-trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
+trait CanHaveMasterTLMMIOPort { this: BareSubsystem with SBus =>
   private val mmioPortParamsOpt = p(ExtBus)
   private val portName = "mmio_port_tl"
   private val device = new SimpleBus(portName.kebab, Nil)
@@ -190,7 +190,7 @@ trait CanHaveMasterTLMMIOPortModuleImp extends LazyModuleImp {
 /** Adds an TL port to the system intended to be a slave on an MMIO device bus.
   * NOTE: this port is NOT allowed to issue Acquires.
   */
-trait CanHaveSlaveTLPort { this: BaseSubsystem =>
+trait CanHaveSlaveTLPort { this: BareSubsystem with SBus =>
   private val slavePortParamsOpt = p(ExtIn)
   private val portName = "slave_port_tl"
 

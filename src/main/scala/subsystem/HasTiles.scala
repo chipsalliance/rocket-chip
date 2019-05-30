@@ -13,7 +13,7 @@ import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, 
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
+trait HasTiles extends HasCoreMonitorBundles { this: BareSubsystem with SBus with CBus with PBus =>
   implicit val p: Parameters
   val tiles: Seq[BaseTile]
   protected def tileParams: Seq[TileParams] = tiles.map(_.tileParams)

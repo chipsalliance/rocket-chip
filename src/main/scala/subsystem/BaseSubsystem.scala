@@ -36,18 +36,14 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
-/** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
-  override val module: BaseSubsystemModuleImp[BaseSubsystem]
-
-  // These are wrappers around the standard buses available in all subsytems, where
-  // peripherals, tiles, ports, and other masters and slaves can attach themselves.
+/** Interrupt bus */
+trait IBus { this: BareSubsystem =>
   val ibus = new InterruptBusWrapper()
+}
+
+/** System bus */
+trait SBus { this: BareSubsystem =>
   val sbus = LazyModule(p(BuildSystemBus)(p))
-  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
-  val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
-  val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
-  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
@@ -73,12 +69,40 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
       }
     }
   }
+}
+
+/** Peripheral bus */
+trait PBus { this: BareSubsystem =>
+  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
+}
+
+/** Front bus */
+trait FBus { this: BareSubsystem =>
+  val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
+}
+
+/** Memory bus */
+trait MBus {
+  implicit val p: Parameters
+  val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
+}
+
+/** Control bus */
+trait CBus { this: BareSubsystem =>
+  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+}
+
+/** Base Subsystem class with no peripheral devices or ports added */
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
+    with SBus
+    with HasLogicalTreeNode {
+  override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   val logicalTreeNode = new SubSystemLogicalTreeNode()
 }
 
 
-abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
+abstract class BaseSubsystemModuleImp[+L <: BareSubsystem with SBus](_outer: L) extends BareSubsystemModuleImp(_outer) {
   private val mapping: Seq[AddressMapEntry] = Annotated.addressMapping(this, {
     outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }

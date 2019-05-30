@@ -5,7 +5,7 @@ package freechips.rocketchip.subsystem
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
-trait HasHierarchicalBusTopology { this: BaseSubsystem =>
+trait HasHierarchicalBusTopology { this: BaseSubsystem with CBus with FBus with MBus with PBus with SBus =>
   // The sbus masters the cbus; here we convert TL-UH -> TL-UL
   sbus.crossToBus(cbus, NoCrossing)
 

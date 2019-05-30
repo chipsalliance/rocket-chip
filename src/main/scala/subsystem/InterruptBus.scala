@@ -7,7 +7,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 
-/** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
+/** Collects interrupts from internal and external devices and feeds them into the PLIC */
 class InterruptBusWrapper(implicit p: Parameters) {
 
   val int_bus = LazyModule(new IntXbar)    // Interrupt crossbar
@@ -27,11 +27,11 @@ class InterruptBusWrapper(implicit p: Parameters) {
 /** Specifies the number of external interrupts */
 case object NExtTopInterrupts extends Field[Int](0)
 
-/** This trait adds externally driven interrupts to the system. 
+/** This trait adds externally driven interrupts to the system.
   * However, it should not be used directly; instead one of the below
   * synchronization wiring child traits should be used.
   */
-abstract trait HasExtInterrupts { this: BaseSubsystem =>
+abstract trait HasExtInterrupts { this: BareSubsystem =>
   private val device = new Device with DeviceInterrupts {
     def describe(resources: ResourceBindings): Description = {
       Description("soc/external-interrupts", describeInterrupts(resources))
@@ -45,7 +45,7 @@ abstract trait HasExtInterrupts { this: BaseSubsystem =>
 /** This trait should be used if the External Interrupts have NOT
   * already been synchronized to the Periphery (PLIC) Clock.
   */
-trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
+trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BareSubsystem with IBus =>
   if (nExtInterrupts > 0) {
     ibus.fromAsync := extInterrupts
   }
@@ -54,7 +54,7 @@ trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
 /** This trait can be used if the External Interrupts have already been synchronized
   * to the Periphery (PLIC) Clock.
   */
-trait HasSyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
+trait HasSyncExtInterrupts extends HasExtInterrupts { this: BareSubsystem with IBus =>
   if (nExtInterrupts > 0) {
     ibus.fromSync := extInterrupts
   }
@@ -70,7 +70,7 @@ trait HasExtInterruptsBundle {
 }
 
 /** This trait performs the translation from a UInt IO into Diplomatic Interrupts.
-  * The wiring must be done in the concrete LazyModuleImp. 
+  * The wiring must be done in the concrete LazyModuleImp.
   */
 trait HasExtInterruptsModuleImp extends LazyModuleImp with HasExtInterruptsBundle {
   val outer: HasExtInterrupts

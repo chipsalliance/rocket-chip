@@ -5,11 +5,12 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.subsystem.{BareSubsystem, CBus}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -97,7 +98,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 }
 
 /** Trait that will connect a CLINT to a subsystem */
-trait CanHavePeripheryCLINT { this: BaseSubsystem =>
+trait CanHavePeripheryCLINT { this: BareSubsystem with CBus with HasLogicalTreeNode =>
   val clintOpt = p(CLINTKey).map { params =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
     def getCLINTLogicalTreeNode = clint.logicalTreeNode

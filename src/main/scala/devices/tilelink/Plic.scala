@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.subsystem.{BareSubsystem, CBus, IBus}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -165,7 +165,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val enables = Seq.fill(nHarts) { enableRegs }
     val enableVec = Vec(enables.map(x => Cat(x.reverse)))
     val enableVec0 = Vec(enableVec.map(x => Cat(x, UInt(0, width=1))))
-    
+
     val maxDevs = Reg(Vec(nHarts, UInt(width = log2Ceil(nDevices+1))))
     val pendingUInt = Cat(pending.reverse)
     for (hart <- 0 until nHarts) {
@@ -271,7 +271,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
             (Bool(true), maxDevs(i))
           },
           RegWriteFn { (valid, data) =>
-            assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0), 
+            assert(completerDev === data.extract(log2Ceil(nDevices+1)-1, 0),
                    "completerDev should be consistent for all harts")
             completerDev := data.extract(log2Ceil(nDevices+1)-1, 0)
             completer(i) := valid && enableVec0(i)(completerDev)
@@ -335,7 +335,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 }
 
 /** Trait that will connect a PLIC to a subsystem */
-trait CanHavePeripheryPLIC { this: BaseSubsystem =>
+trait CanHavePeripheryPLIC { this: BareSubsystem with CBus with IBus =>
   val plicOpt  = p(PLICKey).map { params =>
     val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
     plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
