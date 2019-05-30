@@ -3,14 +3,14 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 case class CoreComplexRTLInterface(
-  clocks: List[OMClock] = Nil,
-  clockRelationships: List[OMClockRelationship] = Nil,
-  resets: List[OMRTLReset] = Nil,
-  statuses: List[OMStatus] = Nil,
-  localInterrupts: Option[OMInterruptSignal] = None,  // E.g. local_interrupts_X (all local interrupts for core X)
-  globalInterrupts: Option[OMInterruptSignal] = None,  // E.g. global_interrupts
+  clocks: Seq[OMClock] = Nil,
+  clockRelationships: Seq[OMClockRelationship] = Nil,
+  resets: Seq[OMRTLReset] = Nil,
+  statuses: Seq[OMStatus] = Nil,
+  localInterrupts: Seq[OMInterruptSignal] = Nil,  // E.g. local_interrupts_X (all local interrupts for core X)
+  globalInterrupts: Seq[OMInterruptSignal] = Nil,  // E.g. global_interrupts
   machineExternalInterrupts: Option[OMInterruptSignal] = None,  // E.g. meip_X
-  testModeSignals: List[OMSignal] = Nil  // E.g. debug_psd_test_mode and debug_psd_test_mode_reset
+  testModeSignals: Seq[OMSignal] = Nil  // E.g. debug_psd_test_mode and debug_psd_test_mode_reset
 )  extends OMRTLInterface
 
 case class OMCoreComplexRTLModule(

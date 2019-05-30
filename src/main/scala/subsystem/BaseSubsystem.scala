@@ -80,10 +80,10 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
       clockRelationships = Nil,
       resets = Nil,
       statuses = Nil,
-      localInterrupts = None, // E.g. local_interrupts_X (all local interrupts for core X)
-      globalInterrupts = None, // E.g. global_interrupts
+      localInterrupts = Nil, // E.g. local_interrupts_X (all local interrupts for core X)
+      globalInterrupts = Nil, // E.g. global_interrupts
       machineExternalInterrupts = None, // E.g. meip_X
-      testModeSignals = Nil // E.g. debug_psd_test_mode and debug_psd_test_mode_reset
+      testModeSignals = Nil // Seq(psdTestModeTesetUID,  ) // E.g. debug_psd_test_mode and debug_psd_test_mode_reset
     )
 
     Some(OMCoreComplexRTLModule(

@@ -97,10 +97,10 @@ case class OMInterruptSignal(
 ) extends OMSignal
 
 trait OMRTLInterface extends OMRTLComponent {
-  def clocks: List[OMClock]
-  def clockRelationships: List[OMClockRelationship]
-  def resets: List[OMRTLReset]
-  def statuses: List[OMStatus]
+  def clocks: Seq[OMClock]
+  def clockRelationships: Seq[OMClockRelationship]
+  def resets: Seq[OMRTLReset]
+  def statuses: Seq[OMStatus]
   def _types: Seq[String] = Seq("OMRTLInterface", "OMRTLComponent", "OMCompoundType")
 }
 
