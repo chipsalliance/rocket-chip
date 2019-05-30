@@ -27,6 +27,7 @@ case class IntAdapterNode(
   implicit valName: ValName)
   extends AdapterNode(IntImp)(sourceFn, sinkFn)
 case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)()
+case class IntEphemeralNode()(implicit valName: ValName) extends EphemeralNode(IntImp)()
 
 object IntNameNode {
   def apply(name: ValName) = IntIdentityNode()(name)

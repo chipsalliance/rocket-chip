@@ -6,7 +6,7 @@ case class OMMemory(
   description: String,
   addressWidth: Int,
   dataWidth: Int,
-  depth: Int,
+  depth: BigInt,
   writeMaskGranularity: Int,
   _types: Seq[String] = Seq("OMMemory")
 )

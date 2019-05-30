@@ -5,9 +5,11 @@ package freechips.rocketchip.subsystem
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
+import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterrupt}
 import freechips.rocketchip.util._
+
 
 case object SystemBusKey extends Field[SystemBusParams]
 case object FrontBusKey extends Field[FrontBusParams]
@@ -35,7 +37,7 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 }
 
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   // These are wrappers around the standard buses available in all subsytems, where
@@ -71,6 +73,8 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
       }
     }
   }
+
+  val logicalTreeNode = new SubSystemLogicalTreeNode()
 }
 
 

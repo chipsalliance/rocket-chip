@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+import freechips.rocketchip.util.{Code, IdentityCode, ParityCode, SECCode, SECDEDCode}
+
 trait OMCache extends OMDevice {
   def memoryRegions(): Seq[OMMemoryRegion]
   def interrupts(): Seq[OMInterrupt]
@@ -11,7 +13,6 @@ trait OMCache extends OMDevice {
   def dataMemorySizeBytes: Int
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
-  def nTLBEntries: Int
 }
 
 case class OMICache(
@@ -55,6 +56,16 @@ object OMECC {
       case "parity"   => OMECC.Parity
       case "sec"      => OMECC.SEC
       case "secded"   => OMECC.SECDED
+      case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
+    }
+  }
+
+  def getCode(code: AnyRef): OMECC = {
+    code match {
+      case _: IdentityCode => OMECC.Identity
+      case _: ParityCode   => OMECC.Parity
+      case _: SECCode      => OMECC.SEC
+      case _: SECDEDCode   => OMECC.SECDED
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }

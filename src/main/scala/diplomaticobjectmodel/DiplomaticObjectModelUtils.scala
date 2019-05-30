@@ -93,11 +93,6 @@ object DiplomaticObjectModelUtils {
       case _ => throw new IllegalArgumentException
     }
   }
-
-  def addOMArtefacts(): Unit = {
-    val domComponents = DiplomaticObjectModel.getComponents()
-    ElaborationArtefacts.add("objectModel.json", DiplomaticObjectModelUtils.toJson(domComponents))
-  }
 }
 
 class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
@@ -116,16 +111,8 @@ class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
 })
 
 object DiplomaticObjectModelAddressing {
-
-  def getResourceBindings(device: Device, resourceBindingsMap: ResourceBindingsMap): Option[ResourceBindings] = {
-    require(resourceBindingsMap.map.contains(device))
-    resourceBindingsMap.map.get(device)
-  }
-
-  def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
-    require(resourceBindingsMap.map.contains(device))
-    val resourceBindings = resourceBindingsMap.map.get(device)
-    resourceBindings.map { case rb => fn(rb) }.getOrElse(Nil)
+  def getOMComponentHelper(resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
+    fn(resourceBindings)
   }
 
   private def omPerms(p: ResourcePermissions): OMPermissions = {
@@ -168,7 +155,7 @@ object DiplomaticObjectModelAddressing {
 
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
-      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x)) =>
+      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x) || DiplomacyUtils.rangeFilter(x)) =>
         seq.map {
           case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap)
         }
@@ -177,7 +164,7 @@ object DiplomaticObjectModelAddressing {
 
   def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
     resourceBindings.map.collect {
-      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.rangeFilter(x)) =>
+      case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x) || DiplomacyUtils.rangeFilter(x)) =>
         seq.map {
           case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, "port memory region", value, omRegMap)
         }
@@ -186,7 +173,7 @@ object DiplomaticObjectModelAddressing {
 
   def makeOMMemory[T <: Data](
       desc: String,
-      depth: Int,
+      depth: BigInt,
       data: T
     ): OMMemory = {
 

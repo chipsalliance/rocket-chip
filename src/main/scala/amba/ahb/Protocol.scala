@@ -11,6 +11,8 @@ object AHBParameters
   val burstBits = 3
   val protBits  = 4
   val sizeBits  = 3  // 8*2^s
+  val userBits  = 3
+  val hrespBits = 2  // AHB full
 
   def TRANS_IDLE   = UInt(0, width = transBits) // No transfer requested, not in a burst
   def TRANS_BUSY   = UInt(1, width = transBits) // No transfer requested, in a burst

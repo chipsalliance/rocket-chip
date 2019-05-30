@@ -55,14 +55,20 @@ case class AHBSlavePortParameters(
 
 case class AHBMasterParameters(
   name:     String,
-  nodePath: Seq[BaseNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq(),
+  userBits: Seq[UserBits] = Nil){
+    val userBitsWidth = userBits.map(_.width).sum
+  }
 
 case class AHBMasterPortParameters(
-  masters: Seq[AHBMasterParameters])
+  masters: Seq[AHBMasterParameters]){
+    val userBitsWidth = masters.map(_.userBitsWidth).max
+  }
 
 case class AHBBundleParameters(
   addrBits: Int,
-  dataBits: Int)
+  dataBits: Int,
+  userBits: Int)
 {
   require (dataBits >= 8)
   require (addrBits >= 1)
@@ -73,22 +79,25 @@ case class AHBBundleParameters(
   val burstBits = AHBParameters.burstBits
   val protBits  = AHBParameters.protBits
   val sizeBits  = AHBParameters.sizeBits
+  val hrespBits = AHBParameters.hrespBits
 
   def union(x: AHBBundleParameters) =
     AHBBundleParameters(
       max(addrBits, x.addrBits),
-      max(dataBits, x.dataBits))
+      max(dataBits, x.dataBits),
+      userBits)
 }
 
 object AHBBundleParameters
 {
-  val emptyBundleParams = AHBBundleParameters(addrBits = 1, dataBits = 8)
+  val emptyBundleParams = AHBBundleParameters(addrBits = 1, dataBits = 8, userBits =0)
   def union(x: Seq[AHBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
   def apply(master: AHBMasterPortParameters, slave: AHBSlavePortParameters) =
     new AHBBundleParameters(
       addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8)
+      dataBits = slave.beatBytes * 8,
+      userBits = master.userBitsWidth)
 }
 
 case class AHBEdgeParameters(

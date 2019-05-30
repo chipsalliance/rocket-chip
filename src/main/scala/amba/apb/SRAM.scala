@@ -10,6 +10,7 @@ import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class APBRAM(
     address: AddressSet,
+    cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -22,7 +23,7 @@ class APBRAM(
     Seq(APBSlaveParameters(
       address       = List(address) ++ errors,
       resources     = resources,
-      regionType    = RegionType.UNCACHED,
+      regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable    = executable,
       supportsRead  = true,
       supportsWrite = true)),

@@ -2,7 +2,9 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+
 import freechips.rocketchip.rocket.RocketCoreParams
+import freechips.rocketchip.tile.CoreParams
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 trait OMExtensionType extends OMEnum
@@ -37,10 +39,15 @@ case class OMISA(
   u: Option[OMSpecification],
   s: Option[OMSpecification],
   addressTranslationModes: Seq[OMAddressTranslationMode],
+  customExtensions: Seq[OMCustomExtensionSpecification],
   _types: Seq[String] = Seq("OMISA", "OMCompoundType")
 ) extends OMCompoundType
 
 object OMISA {
+  def customExtensions(coreParams: RocketCoreParams): List[OMCustomExtensionSpecification] = {
+    if (coreParams.haveCFlush) List (Xsifivecflushdlone()) else Nil
+  }
+
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
       case 32 => RV32I
@@ -63,7 +70,7 @@ object OMISA {
         case 32 => Sv32
         case 64 => Sv39
         case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
-      }
+    }
 
     OMISA(
       xLen = xLen,
@@ -76,7 +83,8 @@ object OMISA {
       c = coreParams.useCompressed.option(isaExtSpec(C, " 2.0")),
       u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
-      addressTranslationModes = Seq(addressTranslationModes)
+      addressTranslationModes = Seq(addressTranslationModes),
+      customExtensions = customExtensions(coreParams)
     )
   }
 }

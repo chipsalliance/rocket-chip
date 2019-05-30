@@ -16,7 +16,7 @@ CXX ?= g++
 CXXFLAGS := -O1
 JVM_MEMORY ?= 2G
 
-SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar ++2.12.4
+SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 ROCKET_CLASSES ?= "$(base_dir)/target/scala-2.12/classes:$(base_dir)/chisel3/target/scala-2.12/*"

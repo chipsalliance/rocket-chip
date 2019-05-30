@@ -4,21 +4,23 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
+import scala.reflect.ClassTag
 
-/** Options for memory regions */
+/** Options for describing the attributes of memory regions */
 object RegionType {
   // Define the 'more relaxed than' ordering
-  val cases = Seq(CACHED, TRACKED, UNCACHED, UNCACHEABLE, PUT_EFFECTS, GET_EFFECTS)
+  val cases = Seq(CACHED, TRACKED, UNCACHED, IDEMPOTENT, VOLATILE, PUT_EFFECTS, GET_EFFECTS)
   sealed trait T extends Ordered[T] {
     def compare(that: T): Int = cases.indexOf(that) compare cases.indexOf(this)
   }
 
-  case object CACHED      extends T
-  case object TRACKED     extends T
-  case object UNCACHED    extends T // not cached yet, but could be
-  case object UNCACHEABLE extends T // may spontaneously change contents
-  case object PUT_EFFECTS extends T // PUT_EFFECTS => UNCACHEABLE
-  case object GET_EFFECTS extends T // GET_EFFECTS => PUT_EFFECTS
+  case object CACHED      extends T // an intermediate agent may have cached a copy of the region for you
+  case object TRACKED     extends T // the region may have been cached by another master, but coherence is being provided
+  case object UNCACHED    extends T // the region has not been cached yet, but should be cached when possible
+  case object IDEMPOTENT  extends T // gets return most recently put content, but content should not be cached
+  case object VOLATILE    extends T // content may change without a put, but puts and gets have no side effects
+  case object PUT_EFFECTS extends T // puts produce side effects and so must not be combined/delayed
+  case object GET_EFFECTS extends T // gets produce side effects and so must not be issued speculatively
 }
 
 // A non-empty half-open range; [start, end)
@@ -305,4 +307,46 @@ trait DirectedBuffers[T] {
   def copyIn(x: BufferParams): T
   def copyOut(x: BufferParams): T
   def copyInOut(x: BufferParams): T
+}
+
+trait UserBits {
+  def width: Int
+  require (width >= 0)
+}
+
+case class PadUserBits(width: Int) extends UserBits
+
+case class UserBitField[T <: UserBits](tag: T, value: UInt)
+
+object UserBits {
+  // Highest index fields are returned first in the output
+  def extract[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt): Seq[UserBitField[T]] = meta match {
+    case Nil => Nil
+    case head :: tail =>
+      tail.scanLeft((head, 0)) {
+        case ((x, base), y) => (y, base+x.width)
+      }.collect {
+        case (x: T, y) => UserBitField(x, userBits(y+x.width-1, y))
+      }.reverse
+  }
+  // Fills highest indexed fields from the front of 'seq' input
+  def inject[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt, seq: Seq[UInt]): UInt = meta match {
+    case Nil => userBits
+    case head :: tail => {
+      val elts = tail.scanLeft((head, 0)) {
+        case ((x, base), y) => (y, base+x.width)
+      }
+      val mask = ~UInt(elts.collect {
+        case (x: T, y) => ((BigInt(1) << x.width) - 1) << y
+      }.foldLeft(BigInt(0)) {
+        case (b, a) => b | a
+      }, width = meta.map(_.width).sum)
+      val concat = elts.reverse.zip(seq).collect {
+        case ((x: T, y), v) => (v|UInt(0, width=x.width))(x.width-1, 0) << y
+      }.foldLeft(UInt(0)) {
+        case (b, a) => b | a
+      }
+      (userBits & mask) | concat
+    }
+  }
 }

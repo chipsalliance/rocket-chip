@@ -10,6 +10,7 @@ import freechips.rocketchip.diplomacy._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 class WithDebugSBASystem extends freechips.rocketchip.subsystem.WithDebugSBA
+class WithDebugAPB extends freechips.rocketchip.subsystem.WithDebugAPB
 
 class BaseConfig extends Config(
   new WithDefaultMemPort() ++

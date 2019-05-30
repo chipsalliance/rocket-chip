@@ -12,11 +12,20 @@ import freechips.rocketchip.amba.axi4.AXI4RAM
 
 import scala.math.log10
 
+object DescribedSRAMIdAssigner {
+  private var nextId: Int = 0
+  def genId(): Int = this.synchronized {
+    val id = nextId
+    nextId += 1
+    id
+  }
+}
+
 object DescribedSRAM {
   def apply[T <: Data](
     name: String,
     desc: String,
-    size: Int, // depth
+    size: BigInt, // depth
     data: T
   ): SyncReadMem[T] = {
 
@@ -36,7 +45,8 @@ object DescribedSRAM {
       data_width = data.getWidth,
       depth = size,
       description = desc,
-      write_mask_granularity = granWidth)
+      write_mask_granularity = granWidth,
+      uid = DescribedSRAMIdAssigner.genId())
 
     mem
   }

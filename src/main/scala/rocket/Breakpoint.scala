@@ -12,8 +12,8 @@ class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
   val ttype = UInt(width = 4)
   val dmode = Bool()
   val maskmax = UInt(width = 6)
-  val reserved = UInt(width = xLen-24)
-  val action = Bool()
+  val reserved = UInt(width = xLen - (if (coreParams.useBPWatch) 26 else 24))
+  val action = UInt(width = (if (coreParams.useBPWatch) 3 else 1))
   val chain = Bool()
   val zero = UInt(width = 2)
   val tmatch = UInt(width = 2)
@@ -47,6 +47,11 @@ class BP(implicit p: Parameters) extends CoreBundle()(p) {
     Mux(control.tmatch(1), rangeAddressMatch(x), pow2AddressMatch(x))
 }
 
+class BPWatch extends Bundle() {
+  val valid = Bool()
+  val action = UInt(width = 3)
+}
+
 class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val status = new MStatus().asInput
@@ -59,6 +64,7 @@ class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
     val debug_if = Bool(OUTPUT)
     val debug_ld = Bool(OUTPUT)
     val debug_st = Bool(OUTPUT)
+    val bpwatch = Vec(n, new BPWatch).asOutput
   }
 
   io.xcpt_if := false
@@ -68,16 +74,20 @@ class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.debug_ld := false
   io.debug_st := false
 
-  io.bp.foldLeft((Bool(true), Bool(true), Bool(true))) { case ((ri, wi, xi), bp) =>
+  (io.bpwatch zip io.bp).foldLeft((Bool(true), Bool(true), Bool(true))) { case ((ri, wi, xi), (bpw, bp)) =>
     val en = bp.control.enabled(io.status)
     val r = en && bp.control.r && bp.addressMatch(io.ea)
     val w = en && bp.control.w && bp.addressMatch(io.ea)
     val x = en && bp.control.x && bp.addressMatch(io.pc)
     val end = !bp.control.chain
+    val action = bp.control.action
 
-    when (end && r && ri) { io.xcpt_ld := !bp.control.action; io.debug_ld := bp.control.action }
-    when (end && w && wi) { io.xcpt_st := !bp.control.action; io.debug_st := bp.control.action }
-    when (end && x && xi) { io.xcpt_if := !bp.control.action; io.debug_if := bp.control.action }
+    bpw.action := action
+    bpw.valid := false.B
+
+    when (end && r && ri) { io.xcpt_ld := (action === 0.U); io.debug_ld := (action === 1.U); bpw.valid := true.B }
+    when (end && w && wi) { io.xcpt_st := (action === 0.U); io.debug_st := (action === 1.U); bpw.valid := true.B }
+    when (end && x && xi) { io.xcpt_if := (action === 0.U); io.debug_if := (action === 1.U); bpw.valid := true.B }
 
     (end || r, end || w, end || x)
   }

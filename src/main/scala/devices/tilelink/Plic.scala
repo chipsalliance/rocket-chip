@@ -13,8 +13,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -81,32 +79,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
     }
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
-    }
-
-    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
-      val ints = DiplomaticObjectModelAddressing.describeInterrupts(describe(resourceBindings).name, resourceBindings)
-      val Description(name, mapping) = describe(resourceBindings)
-
-      Seq[OMComponent](
-        OMPLIC(
-          memoryRegions = memRegions,
-          interrupts = ints,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
-              version = "1.10"
-            )
-          ),
-          latency = 2, // TODO
-          nPriorities = nPriorities,
-          targets = Nil
-        )
-      )
-    }
   }
 
   val node : TLRegisterNode = TLRegisterNode(
@@ -151,6 +123,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val interrupts = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
     val harts = io_harts.flatten
+
+    def getNInterrupts = interrupts.size
 
     println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>

@@ -9,6 +9,7 @@ import freechips.rocketchip.util._
 
 class AXI4RAM(
     address: AddressSet,
+    cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -20,7 +21,7 @@ class AXI4RAM(
     Seq(AXI4SlaveParameters(
       address       = List(address) ++ errors,
       resources     = resources,
-      regionType    = RegionType.UNCACHED,
+      regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes),
       supportsWrite = TransferSizes(1, beatBytes),
@@ -31,7 +32,7 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1L << mask.filter(b=>b).size)
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
@@ -100,13 +101,20 @@ object AXI4RAM
 {
   def apply(
     address: AddressSet,
+    cacheable: Boolean = true,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil)
   (implicit p: Parameters) =
   {
-    val axi4ram = LazyModule(new AXI4RAM(address, executable, beatBytes, devName, errors))
+    val axi4ram = LazyModule(new AXI4RAM(
+      address = address,
+      cacheable = cacheable,
+      executable = executable,
+      beatBytes = beatBytes,
+      devName = devName,
+      errors = errors))
     axi4ram.node
   }
 }

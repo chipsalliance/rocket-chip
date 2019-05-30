@@ -5,6 +5,8 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree.cache
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemory, OMMemoryRegion, OMRTLInterface, OMRTLModule}
 import freechips.rocketchip.util.DescribedSRAM
 
@@ -17,10 +19,11 @@ abstract class DiplomaticSRAM(
     .map(new SimpleDevice(_, Seq("sifive,sram0")))
     .getOrElse(new MemoryDevice())
 
-  def getOMMemRegions(resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = {
-    val resourceBindings = DiplomaticObjectModelAddressing.getResourceBindings(device, resourceBindingsMap)
-    require(resourceBindings.isDefined)
-    resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), _)).getOrElse(Nil) // TODO name source???
+  def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {
+    val resourceBindingsMaps = cache()
+
+    val rb = LogicalModuleTree.getResourceBindings(device, resourceBindingsMaps)
+    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), rb) // TODO name source???
   }
 
   val resources = device.reg("mem")
@@ -31,7 +34,7 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem(size: Int, lanes: Int = beatBytes, bits: Int = 8) = {
+  def makeSinglePortedByteWriteSeqMem(size: BigInt, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
     val mem =  DescribedSRAM(
       name = devName.getOrElse("mem"),
