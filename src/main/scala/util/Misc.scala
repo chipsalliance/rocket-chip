@@ -6,6 +6,8 @@ package freechips.rocketchip.util
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import scala.math._
+import chisel3.util.random.LFSR
+
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle
 
@@ -154,7 +156,7 @@ object Random
   }
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 
-  private def randomizer = LFSR16()
+  private def randomizer = LFSR(16)
   private def partition(value: UInt, slices: Int) =
     Seq.tabulate(slices)(i => value < UInt(((i + 1) << value.getWidth) / slices))
 }

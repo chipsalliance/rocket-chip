@@ -4,6 +4,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.util.random.LFSR
 
 abstract class ReplacementPolicy {
   def way: UInt
@@ -14,7 +15,7 @@ abstract class ReplacementPolicy {
 class RandomReplacement(ways: Int) extends ReplacementPolicy {
   private val replace = Wire(Bool())
   replace := Bool(false)
-  val lfsr = LFSR16(replace)
+  val lfsr = LFSR(16)(replace)
 
   def way = Random(ways, lfsr)
   def miss = replace := Bool(true)

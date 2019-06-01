@@ -7,6 +7,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import chisel3.util.random.LFSR
 
 class MasterMuxNode(uFn: Seq[TLClientPortParameters] => TLClientPortParameters)(implicit valName: ValName) extends TLCustomNode
 {
@@ -122,7 +123,7 @@ class TLMasterMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz1.module.io.finished && fuzz2.module.io.finished
-    mux.module.io.bypass := LFSR64(Bool(true))(0)
+    mux.module.io.bypass := LFSR(64)(Bool(true))(0)
   }
 }
 

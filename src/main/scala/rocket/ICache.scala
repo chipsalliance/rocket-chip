@@ -15,6 +15,9 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import chisel3.util.random.LFSR
+
+
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -168,7 +171,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val repl_way = if (isDM) UInt(0) else {
     // pick a way that is not used by the scratchpad
-    val v0 = LFSR16(refill_fire)(log2Up(nWays)-1,0)
+    val v0 = LFSR(16)(refill_fire)(log2Up(nWays)-1,0)
     var v = v0
     for (i <- log2Ceil(nWays) - 1 to 0 by -1) {
       val mask = nWays - (BigInt(1) << (i + 1))
