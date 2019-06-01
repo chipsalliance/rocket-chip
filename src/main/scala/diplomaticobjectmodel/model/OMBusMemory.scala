@@ -9,5 +9,6 @@ case class OMBusMemory(
   busProtocol: Option[OMProtocol] = None,
   dataECC: OMECC = OMECC.Identity,
   hasAtomics: Boolean = false,
-  memories: Seq[OMSRAM]
+  memories: Seq[OMSRAM],
+  _types: Seq[String] = Seq("OMBusMemory", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
