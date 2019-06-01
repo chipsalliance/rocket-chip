@@ -1,0 +1,84 @@
+#--------------------------------------------------------------------
+# Verilator Generation
+#--------------------------------------------------------------------
+firrtl = $(generated_dir)/$(long_name).fir
+verilog = \
+  $(generated_dir)/$(long_name).v \
+  $(generated_dir)/$(long_name).behav_srams.v \
+
+.SECONDARY: $(firrtl) $(verilog)
+
+$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
+
+%.v %.conf: %.fir $(FIRRTL_JAR)
+	mkdir -p $(dir $@)
+	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) -o $*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$*.conf -faf $*.anno.json -td $(generated_dir)/$(long_name)/
+
+$(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(VLSI_MEM_GEN)
+	cd $(generated_dir) && \
+	$(VLSI_MEM_GEN) $(generated_dir)/$(long_name).conf > $@.tmp && \
+	mv -f $@.tmp $@
+
+# Build and install our own Verilator, to work around versionining issues.
+VERILATOR_VERSION=4.008
+VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
+VERILATOR_TARGET := $(abspath verilator/install/bin/verilator)
+INSTALLED_VERILATOR ?= $(VERILATOR_TARGET)
+$(VERILATOR_TARGET): $(VERILATOR_SRCDIR)/bin/verilator
+	$(MAKE) -C $(VERILATOR_SRCDIR) installbin installdata
+	touch $@
+
+$(VERILATOR_SRCDIR)/bin/verilator: $(VERILATOR_SRCDIR)/Makefile
+	$(MAKE) -C $(VERILATOR_SRCDIR) verilator_bin
+	touch $@
+
+$(VERILATOR_SRCDIR)/Makefile: $(VERILATOR_SRCDIR)/configure
+	mkdir -p $(dir $@)
+	cd $(dir $@) && ./configure --prefix=$(abspath verilator/install)
+
+$(VERILATOR_SRCDIR)/configure: verilator/verilator-$(VERILATOR_VERSION).tar.gz
+	rm -rf $(dir $@)
+	mkdir -p $(dir $@)
+	cat $^ | tar -xz --strip-components=1 -C $(dir $@)
+	touch $@
+
+verilator/verilator-$(VERILATOR_VERSION).tar.gz:
+	mkdir -p $(dir $@)
+	wget http://www.veripool.org/ftp/verilator-$(VERILATOR_VERSION).tgz -O $@
+
+verilator: $(INSTALLED_VERILATOR)
+
+# Run Verilator to produce a fast binary to emulate this circuit.
+VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
+VERILATOR_THREADS ?= 2
+VERILATOR_FLAGS := --top-module $(MODEL) \
+  +define+PRINTF_COND=\$$c\(\"verbose\",\"\&\&\"\,\"done_reset\"\) \
+  +define+RANDOMIZE_GARBAGE_ASSIGN \
+  +define+STOP_COND=\$$c\(\"done_reset\"\) --assert \
+  --output-split 20000 \
+  --output-split-cfuncs 20000 \
+  --threads $(VERILATOR_THREADS) -Wno-UNOPTTHREADS \
+	-Wno-STMTDLY --x-assign unique \
+  -I$(vsrc) \
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
+cppfiles = $(addprefix $(csrc)/, $(addsuffix .cc, $(CXXSRCS)))
+headers = $(wildcard $(csrc)/*.h)
+
+model_header = $(generated_dir)/$(long_name)/V$(MODEL).h
+model_header_debug = $(generated_dir_debug)/$(long_name)/V$(MODEL).h
+
+$(emu): $(verilog) $(cppfiles) $(headers) $(INSTALLED_VERILATOR)
+	mkdir -p $(generated_dir)/$(long_name)
+	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir)/$(long_name) \
+	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-CFLAGS "-I$(generated_dir) -include $(model_header)"
+	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir)/$(long_name) -f V$(MODEL).mk
+
+$(emu_debug): $(verilog) $(cppfiles) $(headers) $(generated_dir)/$(long_name).d $(INSTALLED_VERILATOR)
+	mkdir -p $(generated_dir_debug)/$(long_name)
+	$(VERILATOR) $(VERILATOR_FLAGS) -Mdir $(generated_dir_debug)/$(long_name)  --trace \
+	-o $(abspath $(sim_dir))/$@ $(verilog) $(cppfiles) -LDFLAGS "$(LDFLAGS)" \
+	-CFLAGS "-I$(generated_dir_debug) -include $(model_header_debug)"
+	$(MAKE) VM_PARALLEL_BUILDS=1 -C $(generated_dir_debug)/$(long_name) -f V$(MODEL).mk
