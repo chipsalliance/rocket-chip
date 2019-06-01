@@ -16,6 +16,11 @@ import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
  */
 class DCacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], params: DCacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+    deviceOpt match {
+      case Some(device) => require(!resourceBindings.map.isEmpty, s"""ERROR: Memory region ${device.devname} is empty""")
+      case None =>
+    }
+
     Seq(
       OMCaches.dcache(params, resourceBindings)
     )
@@ -47,14 +52,6 @@ class RocketLogicalTreeNode(
   dtim_adapter: Option[ScratchpadSlavePort],
   XLen: Int
 ) extends LogicalTreeNode(() => Some(device)) {
-
-  def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindings: ResourceBindings): Option[OMDCache] = {
-    val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindings))
-    val omDCache: Option[OMDCache] = rocketParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, resourceBindings))
-    require(!(omDTIM.isDefined && omDCache.isDefined))
-
-    omDTIM.orElse(omDCache)
-  }
 
   def getOMInterruptTargets(): Seq[OMInterruptTarget] = {
     Seq(OMInterruptTarget(

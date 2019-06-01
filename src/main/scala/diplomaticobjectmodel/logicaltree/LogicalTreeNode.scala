@@ -51,7 +51,8 @@ object LogicalModuleTree {
   }
 
   def resourceBindings(deviceOpt: () => Option[Device], maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = deviceOpt() match {
-    case Some(device) => getResourceBindings(device, maps)
+    case Some(device) =>
+      getResourceBindings(device, maps)
     case None => ResourceBindings()
   }
 
@@ -62,7 +63,8 @@ object LogicalModuleTree {
   def bind(): Seq[OMComponent] = {
     val resourceBindingsMaps = cache()
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindings(node.getDevice, resourceBindingsMaps), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+      val rbs = resourceBindings(node.getDevice, resourceBindingsMaps)
+      node.getOMComponents(rbs, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
     getOMComponentTree(rootLogicalTreeNode)

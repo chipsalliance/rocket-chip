@@ -125,9 +125,10 @@ object DiplomaticObjectModelAddressing {
     )
   }
 
-  private def omAddressSets(ranges: Seq[AddressSet]): Seq[OMAddressSet] = {
+  private def omAddressSets(ranges: Seq[AddressSet], name: String): Seq[OMAddressSet] = {
     ranges.map {
       case AddressSet(base, mask) =>
+        require(mask != 0, s"""ERROR: omAddressSets: $name is mask is 0""")
         OMAddressSet(base = base, mask = mask)
     }
   }
@@ -135,8 +136,8 @@ object DiplomaticObjectModelAddressing {
   private def omMemoryRegion(name: String, description: String, value: ResourceValue, omRegMap: Option[OMRegisterMap]): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
-        (omAddressSets(rm.address),rm.permissions)
-      case ra: ResourceAddress => (omAddressSets(ra.address), ra.permissions)
+        (omAddressSets(rm.address, name),rm.permissions)
+      case ra: ResourceAddress => (omAddressSets(ra.address, name), ra.permissions)
       case _ => throw new IllegalArgumentException()
     }
 
