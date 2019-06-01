@@ -46,7 +46,7 @@ object OMBTB {
 object OMCaches {
   def dcache(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
     OMDCache(
-      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DCache", resourceBindings),
+      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DTIM", resourceBindings),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
