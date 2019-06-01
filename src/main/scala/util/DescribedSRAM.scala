@@ -4,7 +4,6 @@
 package freechips.rocketchip.util
 
 import chisel3.internal.InstanceId
-import freechips.rocketchip.util.Annotated
 import freechips.rocketchip.diplomacy.DiplomaticSRAM
 import Chisel._
 import chisel3.SyncReadMem

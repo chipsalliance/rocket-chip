@@ -28,13 +28,13 @@ case class SRAMAnnotation(target: ReferenceTarget,
 }
 
 /** Record a set of interrupts. */
-case class InterruptsPortAnnotation(target: Named, name: String, interruptIndexes: Seq[Int]) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+case class InterruptsPortAnnotation(target: Target, name: String, interruptIndexes: Seq[Int]) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(n)
 }
 
 /** Record a case class that was used to parameterize this target. */
-case class GlobalConstantsAnnotation(target: Named, xLen: Int) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+case class GlobalConstantsAnnotation(target: Target, xLen: Int) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(n)
 }
 
 case class GlobalConstantsChiselAnnotation[T <: Product](target: InstanceId, xLen: Int) extends ChiselAnnotation {
@@ -42,8 +42,8 @@ case class GlobalConstantsChiselAnnotation[T <: Product](target: InstanceId, xLe
 }
 
 /** Record a case class that was used to parameterize this target. */
-case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+case class ParamsAnnotation(target: Target, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(n)
 }
 
 case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) extends ChiselAnnotation {
@@ -52,8 +52,8 @@ case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) e
 }
 
 /** Record an address map. */
-case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], label: String) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+case class AddressMapAnnotation(target: Target, mapping: Seq[AddressMapEntry], label: String) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(n)
 
   def toUVM: String =
     s"// Instance Name: ${target.serialize}\n" +
@@ -66,13 +66,13 @@ case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], la
 }
 
 /** Record a conversion of TL source ids to AXI4 ids. */
-case class TLToAXI4IdMapAnnotation(target: Named, mapping: Seq[TLToAXI4IdMapEntry]) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+case class TLToAXI4IdMapAnnotation(target: Target, mapping: Seq[TLToAXI4IdMapEntry]) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(n)
 }
 
 /** Marks this module as a candidate for register retiming */
-case class RetimeModuleAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(n)
+case class RetimeModuleAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(n)
 }
 
 /** Annotation capturing information about port slave devices. */
@@ -89,18 +89,18 @@ case class SlaveAddressMapChiselAnnotation(
 
 /** Record information about a top-level port of the design */
 case class TopLevelPortAnnotation(
-  target: ComponentName,
+  target: Target,
   protocol: String,
   tags: Seq[String],
   names: Seq[String],
   width: Int,
-  address: Seq[AddressSet]) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName): TopLevelPortAnnotation = this.copy(n)
+  address: Seq[AddressSet]) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target): TopLevelPortAnnotation = this.copy(n)
 }
 
 /** Record the resetVector. */
-case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
+case class ResetVectorAnnotation(target: Target, resetVec: BigInt) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target): ResetVectorAnnotation = this.copy(n)
 }
 
 /** Helper object containing methods for applying annotations to targets */
@@ -175,7 +175,7 @@ trait DontTouch { self: RawModule =>
   // TODO: this is a workaround for firrtl #756
   def dontTouch(data: Data): Unit = data match {
      case agg: Aggregate => agg.getElements.foreach(dontTouch)
-     case elt: Element => chisel3.core.dontTouch(elt)
+     case elt: Element => chisel3.experimental.dontTouch(elt)
   }
 
   /** Marks every port as don't touch
@@ -200,9 +200,9 @@ trait ShouldBeRetimed { self: RawModule =>
 }
 
 case class RegFieldDescMappingAnnotation(
-  target: ModuleName,
-  regMappingSer: RegistersSer) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName): RegFieldDescMappingAnnotation = this.copy(target = n)
+  target: Target,
+  regMappingSer: RegistersSer) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target): RegFieldDescMappingAnnotation = this.copy(target = n)
 }
 
 object InterruptsPortAnnotation {
