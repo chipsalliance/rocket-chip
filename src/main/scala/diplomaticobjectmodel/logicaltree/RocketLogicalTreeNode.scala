@@ -17,7 +17,7 @@ import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
 class DCacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], params: DCacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
     deviceOpt.foreach {
-      device => require(!resourceBindings.map.isEmpty, s"""ERROR: Memory region ${device.devname} is empty""")
+      device => require(!resourceBindings.map.isEmpty, s"""ResourceBindings map for ${device.devname} is empty""")
     }
 
     Seq(
