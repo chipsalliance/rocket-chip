@@ -18,11 +18,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     this(Seq(address), coreDataBytes, usingAtomics)
   }
 
-  val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
-    def getMemory(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
-      OMCaches.dcache(p, resourceBindings)
-    }
-  }
+  val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(

@@ -64,7 +64,8 @@ object LogicalModuleTree {
     val resourceBindingsMaps= cache()
 
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindings(node.getDevice, resourceBindingsMaps), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+      val rbs = resourceBindings(node.getDevice, resourceBindingsMaps)
+      node.getOMComponents(rbs, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
     getOMComponentTree(rootLogicalTreeNode)
