@@ -44,7 +44,7 @@ class AsyncResetReg(resetValue: Int = 0)
     val rst = Bool(INPUT)
   }
 
-  setResource("/vsrc/AsyncResetReg.v")
+  addResource("/vsrc/AsyncResetReg.v")
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{
