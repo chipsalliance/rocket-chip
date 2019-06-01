@@ -128,7 +128,7 @@ object DiplomaticObjectModelAddressing {
   private def omAddressSets(ranges: Seq[AddressSet], name: String): Seq[OMAddressSet] = {
     ranges.map {
       case AddressSet(base, mask) =>
-        require(mask != 0, s"""ERROR: omAddressSets: $name is mask is 0""")
+        require(mask != 0, s"omAddressSets: $name has invalid mask of 0")
         OMAddressSet(base = base, mask = mask)
     }
   }

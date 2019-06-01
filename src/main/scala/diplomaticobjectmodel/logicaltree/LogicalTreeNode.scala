@@ -51,8 +51,7 @@ object LogicalModuleTree {
   }
 
   def resourceBindings(deviceOpt: () => Option[Device], maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = deviceOpt() match {
-    case Some(device) =>
-      getResourceBindings(device, maps)
+    case Some(device) => getResourceBindings(device, maps)
     case None => ResourceBindings()
   }
 
