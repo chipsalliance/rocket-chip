@@ -20,6 +20,7 @@ trait CoreParams {
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
   val useSCIE: Boolean
+  val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
@@ -30,6 +31,7 @@ trait CoreParams {
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
+  val useBPWatch: Boolean
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean
@@ -105,6 +107,7 @@ trait HasCoreIO extends HasTileParameters {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch).asOutput
     val cease = Bool().asOutput
   }
 }

@@ -153,8 +153,8 @@ class FloppedLanePositionedQueueModule[T <: Data](gen: T, lanes: Int, rows: Int,
 
   val hi_mask = enq_mask(2*lanes-1, lanes)
   val lo_mask = enq_mask(lanes-1, 0)
-  val b0_mask = Mux(enq_row(0), hi_mask, lo_mask).toBools
-  val b1_mask = Mux(enq_row(0), lo_mask, hi_mask).toBools
+  val b0_mask = Mux(enq_row(0), hi_mask, lo_mask).asBools
+  val b1_mask = Mux(enq_row(0), lo_mask, hi_mask).asBools
   val b0_row  = enq_row1 >> 1
   val b1_row  = enq_row  >> 1
 

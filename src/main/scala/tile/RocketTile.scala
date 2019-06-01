@@ -7,10 +7,11 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTreeNode, LogicalModuleTree, LogicalTreeNode, RocketLogicalTreeNode}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
+import freechips.rocketchip.subsystem.RocketCrossingParams
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -29,27 +30,34 @@ case class RocketTileParams(
   require(dcache.isDefined)
 }
 
-class RocketTile(
-    val rocketParams: RocketTileParams,
-    crossing: ClockCrossingType)
-  (implicit p: Parameters) extends BaseTile(rocketParams, crossing)(p)
+class RocketTile private(
+      val rocketParams: RocketTileParams,
+      crossing: ClockCrossingType,
+      lookup: LookupByHartIdImpl,
+      q: Parameters,
+      logicalTreeNode: LogicalTreeNode)
+    extends BaseTile(rocketParams, crossing, lookup, q)
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
     with HasHellaCache
-    with HasICacheFrontend {
+    with HasICacheFrontend
+{
+  // Private constructor ensures altered LazyModule.p is used implicitly
+  def this(params: RocketTileParams, crossing: RocketCrossingParams, lookup: LookupByHartIdImpl, logicalTreeNode: LogicalTreeNode)(implicit p: Parameters) =
+    this(params, crossing.crossingType, lookup, p, logicalTreeNode)
 
   val intOutwardNode = IntIdentityNode()
   val slaveNode = TLIdentityNode()
-  val masterNode = TLIdentityNode()
+  val masterNode = visibilityNode
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map(s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet(s, d.dataScratchpadBytes-1), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
+    LazyModule(new ScratchpadSlavePort(AddressSet.misaligned(s, d.dataScratchpadBytes), xBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO)))
   }
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, xBytes))
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
-    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), logicalTreeNode))
     intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
@@ -75,58 +83,11 @@ class RocketTile(
   val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
     "sifive,itim" -> frontend.icache.device.asProperty))).getOrElse(Nil)
 
-  val cpuDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
+  val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
       Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
-    }
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val cores = getOMRocketCores(resourceBindingsMap)
-      cores
-    }
-
-    def getOMICacheFromBindings(resourceBindingsMap: ResourceBindingsMap): Option[OMICache] = {
-      rocketParams.icache.map(i => frontend.icache.device.getOMComponents(resourceBindingsMap) match {
-        case Seq() => throw new IllegalArgumentException
-        case Seq(h) => h.asInstanceOf[OMICache]
-        case _ => throw new IllegalArgumentException
-      })
-    }
-
-    def getOMDCacheFromBindings(dCacheParams: DCacheParams, resourceBindingsMap: ResourceBindingsMap): Option[OMDCache] = {
-      val omDTIM: Option[OMDCache] = dtim_adapter.map(_.device.getMemory(dCacheParams, resourceBindingsMap))
-      val omDCache: Option[OMDCache] = tileParams.dcache.filterNot(_.scratch.isDefined).map(OMCaches.dcache(_, None))
-
-      require(!(omDTIM.isDefined && omDCache.isDefined))
-
-      omDTIM.orElse(omDCache)
-    }
-
-    def getOMRocketCores(resourceBindingsMap: ResourceBindingsMap): Seq[OMRocketCore] = {
-      val coreParams = rocketParams.core
-
-      val omICache = getOMICacheFromBindings(resourceBindingsMap)
-
-      val omDCache = rocketParams.dcache.flatMap{ getOMDCacheFromBindings(_, resourceBindingsMap)}
-
-      Seq(OMRocketCore(
-        isa = OMISA.rocketISA(coreParams, xLen),
-        mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, xLen)},
-        fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
-        performanceMonitor = PerformanceMonitor.permon(coreParams),
-        pmp = OMPMP.pmp(coreParams),
-        documentationName = "TODO",
-        hartIds = Seq(hartId),
-        hasVectoredInterrupts = true,
-        interruptLatency = 4,
-        nLocalInterrupts = coreParams.nLocalInterrupts,
-        nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
-        dcache = omDCache,
-        icache = omICache
-      ))
     }
   }
 
@@ -145,6 +106,11 @@ class RocketTile(
     if (!rocketParams.boundaryBuffers) super.makeSlaveBoundaryBuffers
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
   }
+
+  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen))
+  val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(dtim_adapter.map(_.device), rocketParams.dcache.get)
+  LogicalModuleTree.add(rocketLogicalTree, iCacheLogicalTreeNode)
+  LogicalModuleTree.add(rocketLogicalTree, dCacheLogicalTreeNode)
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
@@ -177,6 +143,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Pass through various external constants and reports
   outer.traceSourceNode.bundle <> core.io.trace
+  outer.bpwatchSourceNode.bundle <> core.io.bpwatch
   core.io.hartid := constants.hartid
   outer.dcache.module.io.hartid := constants.hartid
   outer.frontend.module.io.hartid := constants.hartid

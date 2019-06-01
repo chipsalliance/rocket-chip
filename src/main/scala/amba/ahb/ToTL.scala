@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.MaskGen
 
-case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImp, TLImp)(
+case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSlave, TLImp)(
   dFn = { case AHBMasterPortParameters(masters) =>
     TLClientPortParameters(clients = masters.map { m =>
       TLClientParameters(name = m.name, nodePath = m.nodePath)

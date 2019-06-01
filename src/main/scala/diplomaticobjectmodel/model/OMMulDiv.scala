@@ -28,7 +28,7 @@ object OMMulDiv {
     val divMinLatency =
       if (md.divUnroll > 0) {
         if (md.divEarlyOut) { 3 }
-        else { 1 + xLen/md.divUnroll }
+        else { 2 }
       }
       else { xLen }
 

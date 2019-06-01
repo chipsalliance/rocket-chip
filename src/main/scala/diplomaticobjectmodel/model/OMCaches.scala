@@ -2,12 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-sealed trait OMECC extends OMBaseType
-
-case object Identity extends OMECC
-case object Parity extends OMECC
-case object SEC extends OMECC
-case object SECDED extends OMECC
+import freechips.rocketchip.util.{Code, IdentityCode, ParityCode, SECCode, SECDEDCode}
 
 trait OMCache extends OMDevice {
   def memoryRegions(): Seq[OMMemoryRegion]
@@ -18,7 +13,6 @@ trait OMCache extends OMDevice {
   def dataMemorySizeBytes: Int
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
-  def nTLBEntries: Int
 }
 
 case class OMICache(
@@ -48,13 +42,30 @@ case class OMDCache(
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
+case class OMECC(code: String) extends OMEnum
+
 object OMECC {
+  val Identity = OMECC("Identity")
+  val Parity = OMECC("Parity")
+  val SEC = OMECC("SEC")
+  val SECDED = OMECC("SECDED")
+
   def getCode(code: String): OMECC = {
     code.toLowerCase match {
-      case "identity" => Identity
-      case "parity"   => Parity
-      case "sec"      => SEC
-      case "secded"   => SECDED
+      case "identity" => OMECC.Identity
+      case "parity"   => OMECC.Parity
+      case "sec"      => OMECC.SEC
+      case "secded"   => OMECC.SECDED
+      case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
+    }
+  }
+
+  def getCode(code: AnyRef): OMECC = {
+    code match {
+      case _: IdentityCode => OMECC.Identity
+      case _: ParityCode   => OMECC.Parity
+      case _: SECCode      => OMECC.SEC
+      case _: SECDEDCode   => OMECC.SECDED
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }

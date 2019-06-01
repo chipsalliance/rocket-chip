@@ -56,12 +56,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val resourceBindings = resourceBindingsMap.map.get(this)
-      Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
-    }
-  }
+  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
 
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
@@ -69,7 +64,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
-        regionType      = RegionType.UNCACHEABLE,
+        regionType      = RegionType.IDEMPOTENT,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
         supportsPutPartial = TransferSizes(1, wordBytes),
@@ -183,7 +178,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = DescribedSRAM(
+  val (tag_array, omSRAM) = DescribedSRAM(
     name = "tag_array",
     desc = "ICache Tag Array",
     size = nSets,
@@ -232,7 +227,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     val (tl_error, tag) = Split(enc_tag.uncorrected, tagBits)
     val tagMatch = s1_vb && tag === s1_tag
     s1_tag_disparity(i) := s1_vb && enc_tag.error
-    s1_tl_error(i) := tagMatch && tl_error.toBool
+    s1_tl_error(i) := tagMatch && tl_error.asBool
     s1_tag_hit(i) := tagMatch || scratchpadHit
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
@@ -249,7 +244,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       )
   }
 
-  for ((data_array, i) <- data_arrays zipWithIndex) {
+  for (((data_array, omSRAM), i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))

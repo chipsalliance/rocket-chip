@@ -28,6 +28,8 @@ case class OMRocketCore(
   branchPredictor: Option[OMRocketBranchPredictor],
   dcache: Option[OMDCache],
   icache: Option[OMICache],
+  hasClockGate: Boolean,
+  hasSCIE: Boolean,
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore
 
@@ -42,23 +44,23 @@ object OMBTB {
 }
 
 object OMCaches {
-  def dcache(p: DCacheParams, resourceBindings: Option[ResourceBindings]): OMDCache = {
+  def dcache(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
     OMDCache(
-      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("DCache", _)).getOrElse(Nil),
+      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DTIM", resourceBindings),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
       dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode(_)),
-      tagECC = p.tagECC.map(OMECC.getCode(_)),
+      dataECC = p.dataECC.map(OMECC.getCode),
+      tagECC = p.tagECC.map(OMECC.getCode),
       nTLBEntries = p.nTLBEntries
     )
   }
 
-  def icache(p: ICacheParams, resourceBindings: Option[ResourceBindings]): OMICache = {
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings): OMICache = {
     OMICache(
-      memoryRegions = resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions("ICache", _)).getOrElse(Nil),
+      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", resourceBindings),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,

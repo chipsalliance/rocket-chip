@@ -51,6 +51,9 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
   }
 }
 
+case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
+case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
+
 case class BundleBridgeNexus[T <: Data]()(implicit valName: ValName) extends NexusNode(new BundleBridgeImp[T])(
   dFn = seq => seq.head,
   uFn = _ => BundleBridgeNull(),
@@ -78,8 +81,9 @@ class BundleBroadcast[T <: Data]()(implicit p: Parameters) extends LazyModule
 
 object BundleBroadcast
 {
-  def apply[T <: Data]()(implicit p: Parameters): BundleBridgeNexus[T] = {
+  def apply[T <: Data](name: Option[String] = None)(implicit p: Parameters): BundleBridgeNexus[T] = {
     val broadcast = LazyModule(new BundleBroadcast[T])
+    name.map(broadcast.suggestName)
     broadcast.node
   }
 }

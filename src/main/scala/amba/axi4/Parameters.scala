@@ -31,6 +31,15 @@ case class AXI4SlaveParameters(
   // The device had better not support a transfer larger than its alignment
   require (minAlignment >= maxTransfer,
     s"minAlignment ($minAlignment) must be >= maxTransfer ($maxTransfer)")
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address, ResourcePermissions(
+      r = supportsRead,
+      w = supportsWrite,
+      x = executable,
+      c = false,
+      a = false))
+  }
 }
 
 case class AXI4SlavePortParameters(
@@ -145,4 +154,16 @@ case class AXI4AsyncBundleParameters(async: AsyncQueueParams, base: AXI4BundlePa
 case class AXI4AsyncEdgeParameters(master: AXI4AsyncMasterPortParameters, slave: AXI4AsyncSlavePortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
   val bundle = AXI4AsyncBundleParameters(slave.async, AXI4BundleParameters(master.base, slave.base))
+}
+
+case class AXI4BufferParams(
+  aw: BufferParams = BufferParams.none,
+  w:  BufferParams = BufferParams.none,
+  b:  BufferParams = BufferParams.none,
+  ar: BufferParams = BufferParams.none,
+  r:  BufferParams = BufferParams.none
+) extends DirectedBuffers[AXI4BufferParams] {
+  def copyIn(x: BufferParams) = this.copy(b = x, r = x)
+  def copyOut(x: BufferParams) = this.copy(aw = x, ar = x, w = x)
+  def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
 }
