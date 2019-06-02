@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import Chisel._
 
+// TODO: rewrite CRC
 object CRC
 {
   // A divisor of 0x1d5 is interpretted to be x^8 + x^7 + x^6 + x^4 + x^2 + 1
@@ -13,7 +14,7 @@ object CRC
   def apply(divisor: BigInt, coefficient: UInt, width: Integer): UInt = {
     require (divisor > 0 && divisor.testBit(0))
     require (width > 0)
-    assert (coefficient >> width === UInt(0))
+    assert(coefficient >> width === UInt(0))
     val n = log2Floor(divisor)
     val m = width
     if (m <= n) return coefficient

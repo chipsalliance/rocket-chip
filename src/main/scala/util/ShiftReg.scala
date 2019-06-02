@@ -43,7 +43,7 @@ abstract class AbstractPipelineReg(w: Int = 1) extends Module {
 }
 
 object AbstractPipelineReg {
-  def apply[T <: Chisel.Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
+  def apply[T <: Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
     val chain = Module(gen)
     name.foreach {
       chain.suggestName(_)
@@ -76,16 +76,16 @@ class AsyncResetShiftReg(w: Int = 1,
 }
 
 object AsyncResetShiftReg {
-  def apply[T <: Chisel.Data](in: T, depth: Int, init: Int = 0, name: Option[String] = None): T =
+  def apply[T <: Data](in: T, depth: Int, init: Int = 0, name: Option[String] = None): T =
     AbstractPipelineReg(new AsyncResetShiftReg(in.getWidth, depth, init), in, name)
 
-  def apply[T <: Chisel.Data](in: T, depth: Int, name: Option[String]): T =
+  def apply[T <: Data](in: T, depth: Int, name: Option[String]): T =
     apply(in, depth, 0, name)
 
-  def apply[T <: Chisel.Data](in: T, depth: Int, init: T, name: Option[String]): T =
+  def apply[T <: Data](in: T, depth: Int, init: T, name: Option[String]): T =
     apply(in, depth, init.litValue.toInt, name)
 
-  def apply[T <: Chisel.Data](in: T, depth: Int, init: T): T =
+  def apply[T <: Data](in: T, depth: Int, init: T): T =
     apply(in, depth, init.litValue.toInt, None)
 }
 
@@ -100,16 +100,16 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1,
 }
 
 object AsyncResetSynchronizerShiftReg {
-  def apply[T <: Chisel.Data](in: T, depth: Int, init: Int = 0, name: Option[String] = None): T =
+  def apply[T <: Data](in: T, depth: Int, init: Int = 0, name: Option[String] = None): T =
     AbstractPipelineReg(new AsyncResetSynchronizerShiftReg(in.getWidth, depth, init), in, name)
 
-  def apply[T <: Chisel.Data](in: T, depth: Int, name: Option[String]): T =
+  def apply[T <: Data](in: T, depth: Int, name: Option[String]): T =
     apply(in, depth, 0, name)
 
-  def apply[T <: Chisel.Data](in: T, depth: Int, init: T, name: Option[String]): T =
+  def apply[T <: Data](in: T, depth: Int, init: T, name: Option[String]): T =
     apply(in, depth, init.litValue.toInt, name)
 
-  def apply[T <: Chisel.Data](in: T, depth: Int, init: T): T =
+  def apply[T <: Data](in: T, depth: Int, init: T): T =
     apply(in, depth, init.litValue.toInt, None)
 }
 
@@ -133,7 +133,7 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineRe
 
 
 object SynchronizerShiftReg {
-  def apply[T <: Chisel.Data](in: T,
+  def apply[T <: Data](in: T,
                               sync: Int = 3,
                               name: Option[String] = None): T = {
     if (sync == 0) in
@@ -153,7 +153,7 @@ class SyncResetSynchronizerShiftReg(w: Int = 1,
 }
 
 object SyncResetSynchronizerShiftReg {
-  def apply[T <: Chisel.Data](in: T,
+  def apply[T <: Data](in: T,
                               sync: Int = 3,
                               init: T,
                               name: Option[String] = None): T =

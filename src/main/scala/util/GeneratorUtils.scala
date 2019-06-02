@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 import chisel3.experimental.RawModule
 import chisel3.internal.firrtl.Circuit
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
@@ -14,15 +14,16 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
 
 /** Representation of the information this Generator needs to collect from external sources. */
-case class ParsedInputNames(
-    targetDir: String,
-    topModuleProject: String,
-    topModuleClass: String,
-    configProject: String,
-    configs: String) {
+case class ParsedInputNames(targetDir: String,
+                            topModuleProject: String,
+                            topModuleClass: String,
+                            configProject: String,
+                            configs: String) {
   val configClasses: Seq[String] = configs.split('_')
+
   def prepend(prefix: String, suffix: String) =
-    if (prefix == "" || prefix == "_root_") suffix else (prefix + "." + suffix)
+    if (prefix == "" || prefix == "_root_") suffix else prefix + "." + suffix
+
   val fullConfigClasses: Seq[String] = configClasses.map(x => prepend(configProject, x))
   val fullTopModuleClass: String = prepend(topModuleProject, topModuleClass)
 }
@@ -37,7 +38,7 @@ trait HasGeneratorUtilities {
         Class.forName(currentName).newInstance.asInstanceOf[Config]
       } catch {
         case e: java.lang.ClassNotFoundException =>
-          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it?""", e)
+          throw new Exception(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it?""", e)
       }
       currentConfig ++ config
     })
@@ -50,8 +51,8 @@ trait HasGeneratorUtilities {
   def elaborate(fullTopModuleClassName: String, params: Parameters): Circuit = {
     val top = () =>
       Class.forName(fullTopModuleClassName)
-          .getConstructor(classOf[Parameters])
-          .newInstance(params) match {
+        .getConstructor(classOf[Parameters])
+        .newInstance(params) match {
         case m: RawModule => m
         case l: LazyModule => LazyModule(l).module
       }
@@ -128,7 +129,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   /** Output files created as a side-effect of elaboration */
   def generateArtefacts {
     ElaborationArtefacts.files.foreach { case (extension, contents) =>
-      writeOutputFile(td, s"$longName.$extension", contents ())
+      writeOutputFile(td, s"$longName.$extension", contents())
     }
   }
 
@@ -149,6 +150,8 @@ object ElaborationArtefacts {
   }
 
   def contains(extension: String): Boolean = {
-    files.foldLeft(false)((t, s) => {s._1 == extension | t})
+    files.foldLeft(false)((t, s) => {
+      s._1 == extension | t
+    })
   }
 }

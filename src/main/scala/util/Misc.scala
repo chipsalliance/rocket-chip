@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import scala.math._
 
@@ -11,7 +12,7 @@ class ParameterizedBundle(implicit p: Parameters) extends Bundle
 
 trait Clocked extends Bundle {
   val clock = Clock()
-  val reset = Bool()  
+  val reset = Bool()
 }
 
 object DecoupledHelper {
@@ -23,6 +24,7 @@ class DecoupledHelper(val rvs: Seq[Bool]) {
     require(rvs.contains(exclude), "Excluded Bool not present in DecoupledHelper! Note that DecoupledHelper uses referential equality for exclusion! If you don't want to exclude anything, use fire()!")
     (rvs.filter(_ ne exclude) ++ includes).reduce(_ && _)
   }
+
   def fire() = {
     rvs.reduce(_ && _)
   }
@@ -60,59 +62,64 @@ object ValidMux {
   def apply[T <: Data](v1: ValidIO[T], v2: ValidIO[T]*): ValidIO[T] = {
     apply(v1 +: v2.toSeq)
   }
+
   def apply[T <: Data](valids: Seq[ValidIO[T]]): ValidIO[T] = {
     val out = Wire(Valid(valids.head.bits.cloneType))
     out.valid := valids.map(_.valid).reduce(_ || _)
     out.bits := MuxCase(valids.head.bits,
-      valids.map(v => (v.valid -> v.bits)))
+      valids.map(v => v.valid -> v.bits))
     out
   }
 }
 
-object Str
-{
+object Str {
   def apply(s: String): UInt = {
     var i = BigInt(0)
     require(s.forall(validChar _))
     for (c <- s)
       i = (i << 8) | c
-    UInt(i, s.length*8)
+    i.U((s.length * 8).W)
   }
+
   def apply(x: Char): UInt = {
     require(validChar(x))
     UInt(x.toInt, 8)
   }
+
   def apply(x: UInt): UInt = apply(x, 10)
+
   def apply(x: UInt, radix: Int): UInt = {
-    val rad = UInt(radix)
+    val rad = radix.U
     val w = x.getWidth
     require(w > 0)
 
     var q = x
     var s = digit(q % rad)
-    for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
+    for (i <- 1 until ceil(log(2) / log(radix) * w).toInt) {
       q = q / rad
-      s = Cat(Mux(Bool(radix == 10) && q === UInt(0), Str(' '), digit(q % rad)), s)
+      s = Cat(Mux((radix == 10).B && q === 0.U, Str(' '), digit(q % rad)), s)
     }
     s
   }
+
   def apply(x: SInt): UInt = apply(x, 10)
+
   def apply(x: SInt, radix: Int): UInt = {
-    val neg = x < SInt(0)
+    val neg = x < 0.S
     val abs = x.abs.asUInt
     if (radix != 10) {
       Cat(Mux(neg, Str('-'), Str(' ')), Str(abs, radix))
     } else {
-      val rad = UInt(radix)
+      val rad = radix.U
       val w = abs.getWidth
       require(w > 0)
 
       var q = abs
       var s = digit(q % rad)
       var needSign = neg
-      for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
+      for (_ <- 1 until ceil(log(2) / log(radix) * w).toInt) {
         q = q / rad
-        val placeSpace = q === UInt(0)
+        val placeSpace = q === 0.U
         val space = Mux(needSign, Str('-'), Str(' '))
         needSign = needSign && !placeSpace
         s = Cat(Mux(placeSpace, space, digit(q % rad)), s)
@@ -121,40 +128,45 @@ object Str
     }
   }
 
-  private def digit(d: UInt): UInt = Mux(d < UInt(10), Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
+  private def digit(d: UInt): UInt = Mux(d < 10.U, Str('0') + d, Str(('a' - 10).toChar) + d)(7, 0)
+
   private def validChar(x: Char) = x == (x & 0xFF)
 }
 
-object Split
-{
-  def apply(x: UInt, n0: Int) = {
+object Split {
+  def apply(x: UInt, n0: Int): (UInt, UInt) = {
     val w = x.getWidth
-    (x.extract(w-1,n0), x.extract(n0-1,0))
+    (x.extract(w - 1, n0), x.extract(n0 - 1, 0))
   }
+
   def apply(x: UInt, n1: Int, n0: Int) = {
     val w = x.getWidth
-    (x.extract(w-1,n1), x.extract(n1-1,n0), x.extract(n0-1,0))
+    (x.extract(w - 1, n1), x.extract(n1 - 1, n0), x.extract(n0 - 1, 0))
   }
+
   def apply(x: UInt, n2: Int, n1: Int, n0: Int) = {
     val w = x.getWidth
-    (x.extract(w-1,n2), x.extract(n2-1,n1), x.extract(n1-1,n0), x.extract(n0-1,0))
+    (x.extract(w - 1, n2), x.extract(n2 - 1, n1), x.extract(n1 - 1, n0), x.extract(n0 - 1, 0))
   }
 }
 
-object Random
-{
+object Random {
   def apply(mod: Int, random: UInt): UInt = {
-    if (isPow2(mod)) random.extract(log2Ceil(mod)-1,0)
-    else PriorityEncoder(partition(apply(1 << log2Up(mod*8), random), mod))
+    if (isPow2(mod)) random.extract(log2Ceil(mod) - 1, 0)
+    else PriorityEncoder(partition(apply(1 << log2Up(mod * 8), random), mod))
   }
+
   def apply(mod: Int): UInt = apply(mod, randomizer)
+
   def oneHot(mod: Int, random: UInt): UInt = {
-    if (isPow2(mod)) UIntToOH(random(log2Up(mod)-1,0))
-    else PriorityEncoderOH(partition(apply(1 << log2Up(mod*8), random), mod)).asUInt
+    if (isPow2(mod)) UIntToOH(random(log2Up(mod) - 1, 0))
+    else PriorityEncoderOH(partition(apply(1 << log2Up(mod * 8), random), mod)).asUInt
   }
+
   def oneHot(mod: Int): UInt = oneHot(mod, randomizer)
 
   private def randomizer = LFSR16()
+
   private def partition(value: UInt, slices: Int) =
     Seq.tabulate(slices)(i => value < UInt(((i + 1) << value.getWidth) / slices))
 }
@@ -173,15 +185,16 @@ object Majority {
 
 object PopCountAtLeast {
   private def two(x: UInt): (Bool, Bool) = x.getWidth match {
-    case 1 => (x.asBool, Bool(false))
+    case 1 => (x.asBool, false.B)
     case n =>
       val half = x.getWidth / 2
       val (leftOne, leftTwo) = two(x(half - 1, 0))
       val (rightOne, rightTwo) = two(x(x.getWidth - 1, half))
       (leftOne || rightOne, leftTwo || rightTwo || (leftOne && rightOne))
   }
+
   def apply(x: UInt, n: Int): Bool = n match {
-    case 0 => Bool(true)
+    case 0 => true.B
     case 1 => x.orR
     case 2 => two(x)._2
     case 3 => PopCount(x) >= UInt(n)
@@ -194,21 +207,21 @@ object PopCountAtLeast {
 // groupBy applies an interleaved OR reduction; groupBy=2 take 0010 => 01
 object MaskGen {
   def apply(addr_lo: UInt, lgSize: UInt, beatBytes: Int, groupBy: Int = 1): UInt = {
-    require (groupBy >= 1 && beatBytes >= groupBy)
-    require (isPow2(beatBytes) && isPow2(groupBy))
+    require(groupBy >= 1 && beatBytes >= groupBy)
+    require(isPow2(beatBytes) && isPow2(groupBy))
     val lgBytes = log2Ceil(beatBytes)
-    val sizeOH = UIntToOH(lgSize | 0.U(log2Up(beatBytes).W), log2Up(beatBytes)) | UInt(groupBy*2 - 1)
+    val sizeOH = UIntToOH(lgSize | 0.U(log2Up(beatBytes).W), log2Up(beatBytes)) | UInt(groupBy * 2 - 1)
 
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {
-        Seq((lgSize >= UInt(lgBytes), Bool(true)))
+        Seq((lgSize >= lgBytes.U, true.B))
       } else {
-        val sub = helper(i-1)
+        val sub = helper(i - 1)
         val size = sizeOH(lgBytes - i)
         val bit = addr_lo(lgBytes - i)
         val nbit = !bit
-        Seq.tabulate (1 << i) { j =>
-          val (sub_acc, sub_eq) = sub(j/2)
+        Seq.tabulate(1 << i) { j =>
+          val (sub_acc, sub_eq) = sub(j / 2)
           val eq = sub_eq && (if (j % 2 == 1) bit else nbit)
           val acc = sub_acc || (size && eq)
           (acc, eq)
@@ -216,7 +229,7 @@ object MaskGen {
       }
     }
 
-    if (groupBy == beatBytes) UInt(1) else
-      Cat(helper(lgBytes-log2Ceil(groupBy)).map(_._1).reverse)
+    if (groupBy == beatBytes) 1.U else
+      Cat(helper(lgBytes - log2Ceil(groupBy)).map(_._1).reverse)
   }
 }

@@ -3,14 +3,8 @@
 
 package freechips.rocketchip.util
 
-import chisel3.internal.InstanceId
-import freechips.rocketchip.util.Annotated
-import freechips.rocketchip.diplomacy.DiplomaticSRAM
-import Chisel._
-import chisel3.SyncReadMem
-import freechips.rocketchip.amba.axi4.AXI4RAM
-
-import scala.math.log10
+import chisel3._
+import chisel3.util.log2Ceil
 
 object DescribedSRAM {
   def apply[T <: Data](
@@ -20,7 +14,7 @@ object DescribedSRAM {
     data: T
   ): SyncReadMem[T] = {
 
-    val mem = SeqMem(size, data)
+    val mem = SyncReadMem(size, data)
 
     mem.suggestName(name)
 

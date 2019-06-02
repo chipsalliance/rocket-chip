@@ -2,20 +2,18 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 
-class IdentityModule[T <: Data](gen: T) extends Module
-{
-  val io = new Bundle {
-    val in = gen.cloneType.flip
-    val out = gen.cloneType
-  }
+class IdentityModule[T <: Data](gen: T) extends Module {
+  val io = IO(new Bundle {
+    val in = Input(gen.cloneType)
+    val out = Output(gen.cloneType)
+  })
 
   io.out := io.in
 }
 
-object IdentityModule
-{
+object IdentityModule {
   def apply[T <: Data](x: T): T = {
     val identity = Module(new IdentityModule(x))
     identity.io.in := x

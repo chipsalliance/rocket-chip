@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy.{BundleBridgeEphemeralNode, ValName}
 

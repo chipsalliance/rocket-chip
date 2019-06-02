@@ -2,19 +2,20 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import scala.collection.mutable.{HashMap}
 
 case class ROMConfig(name: String, depth: Int, width: Int)
 
 class BlackBoxedROM(c: ROMConfig) extends BlackBox {
-  val io = new Bundle {
-    val clock = Clock(INPUT)
-    val address = UInt(INPUT, log2Ceil(c.depth))
-    val oe = Bool(INPUT)
-    val me = Bool(INPUT)
-    val q = UInt(OUTPUT, c.width)
-  }
+  val io = IO(new Bundle {
+    val clock = Input(Clock())
+    val address = Input(UInt(log2Ceil(c.depth).W))
+    val oe = Input(Bool())
+    val me = Input(Bool())
+    val q = Output(UInt(c.width.W))
+  })
 
   override def desiredName: String = c.name
 }
