@@ -42,31 +42,35 @@ case class OMDCache(
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
-case class OMECC(code: String) extends OMEnum
+trait OMECC{
+  def _types: Seq[String]
+}
+
+case class OMECCIdentity(_types: Seq[String] = Seq("Identity", "OMECC", "OMEnum", "OMBaseType", "Product", "Equals", "Serializable", "Object")) extends OMECC
+case class OMECCParity(_types: Seq[String] = Seq("Parity", "OMECC", "OMEnum", "OMBaseType", "Product", "Equals", "Serializable", "Object")) extends OMECC
+case class OMECCSEC(_types: Seq[String] = Seq("SEC", "OMECC", "OMEnum", "OMBaseType", "Product", "Equals", "Serializable", "Object")) extends OMECC
+case class OMECCSECDED(_types: Seq[String] = Seq("SECDED", "OMECC", "OMEnum", "OMBaseType", "Product", "Equals", "Serializable", "Object")) extends OMECC
 
 object OMECC {
-  val Identity = OMECC("Identity")
-  val Parity = OMECC("Parity")
-  val SEC = OMECC("SEC")
-  val SECDED = OMECC("SECDED")
-
-  def getCode(code: String): OMECC = {
+  def convertStringToOMECC(code: String): OMECC = {
     code.toLowerCase match {
-      case "identity" => OMECC.Identity
-      case "parity"   => OMECC.Parity
-      case "sec"      => OMECC.SEC
-      case "secded"   => OMECC.SECDED
+      case "identity" => OMECCIdentity()
+      case "parity"   => OMECCParity()
+      case "sec"      => OMECCSEC()
+      case "secded"   => OMECCSECDED()
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }
 
-  def getCode(code: AnyRef): OMECC = {
+  def convertCodeToOMECC(code: Code): OMECC = {
     code match {
-      case _: IdentityCode => OMECC.Identity
-      case _: ParityCode   => OMECC.Parity
-      case _: SECCode      => OMECC.SEC
-      case _: SECDEDCode   => OMECC.SECDED
+      case _: IdentityCode => OMECCIdentity()
+      case _: ParityCode   => OMECCParity()
+      case _: SECCode      => OMECCSEC()
+      case _: SECDEDCode   => OMECCSECDED()
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }
 }
+
+

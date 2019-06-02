@@ -52,8 +52,8 @@ object OMCaches {
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
       dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode),
-      tagECC = p.tagECC.map(OMECC.getCode),
+      dataECC = p.dataECC.map(OMECC.convertStringToOMECC),
+      tagECC = p.tagECC.map(OMECC.convertStringToOMECC),
       nTLBEntries = p.nTLBEntries
     )
   }
@@ -66,8 +66,8 @@ object OMCaches {
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
       dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode),
-      tagECC = p.tagECC.map(OMECC.getCode),
+      dataECC = p.dataECC.map(OMECC.convertStringToOMECC),
+      tagECC = p.tagECC.map(OMECC.convertStringToOMECC),
       nTLBEntries = p.nTLBEntries,
       maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
     )

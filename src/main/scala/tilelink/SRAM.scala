@@ -67,7 +67,7 @@ class TLRAM(
           device = device,
           omSRAMs = Seq(omSRAM),
           busProtocol = new TL_UL(None),
-          dataECC = Some(OMECC.getCode(ecc)),
+          dataECC = Some(OMECC.convertCodeToOMECC(ecc.code)),
           hasAtomics = Some(atomics),
           busProtocolSpecification = None)
         LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)

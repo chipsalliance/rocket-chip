@@ -85,13 +85,7 @@ object DiplomaticObjectModelUtils {
 
   def convertCode(code: Code): Option[OMECC] = {
     val x = code.toString.split('.')(3).split('@')(0)
-    x match {
-      case "SECDEDCode" => Some(OMECC.SECDED)
-      case "IdentityCode" => Some(OMECC.Identity)
-      case "ParityCode" => Some(OMECC.Parity)
-      case "SECCode" => Some(OMECC.SEC)
-      case _ => throw new IllegalArgumentException
-    }
+    Some(OMECC.convertStringToOMECC(x))
   }
 }
 
