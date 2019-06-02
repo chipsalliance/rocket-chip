@@ -82,11 +82,6 @@ object DiplomaticObjectModelUtils {
 
   def getAllClassNames(klass: Class[_]): Seq[String] =
     keepLast(getSuperClasses(klass).map(getDemangledName _))
-
-  def convertCode(code: Code): Option[OMECC] = {
-    val x = code.toString.split('.')(3).split('@')(0)
-    Some(OMECC.convertStringToOMECC(x))
-  }
 }
 
 class OMEnumSerializer extends CustomSerializer[OMEnum](format => {

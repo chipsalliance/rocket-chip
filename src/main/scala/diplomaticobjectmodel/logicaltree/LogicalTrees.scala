@@ -184,7 +184,7 @@ class BusMemoryLogicalTreeNode(
       interrupts = Nil,
       specifications = Nil,
       busProtocol = Some(busProtocol),
-      dataECC = dataECC.getOrElse(OMECCIdentity()),
+      dataECC = dataECC.getOrElse(OMECCIdentity),
       hasAtomics = hasAtomics.getOrElse(false),
       memories = omSRAMs
     )
