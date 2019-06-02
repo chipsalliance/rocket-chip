@@ -50,6 +50,7 @@ trait HasNonDiplomaticTileParameters {
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
   def pgLevels: Int = p(PgLevels)
+  def maxSVAddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
   def minPgLevels: Int = {
     val res = xLen match { case 32 => 2; case 64 => 3 }
     require(pgLevels >= res)
@@ -71,12 +72,13 @@ trait HasNonDiplomaticTileParameters {
 
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {
+    val ie = if (tileParams.core.useRVE) "e" else "i"
     val m = if (tileParams.core.mulDiv.nonEmpty) "m" else ""
     val a = if (tileParams.core.useAtomics) "a" else ""
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
-    s"rv${p(XLen)}i$m$a$f$d$c"
+    s"rv${p(XLen)}$ie$m$a$f$d$c"
   }
 
   def tileProperties: PropertyMap = {
@@ -105,13 +107,11 @@ trait HasNonDiplomaticTileParameters {
 
     val mmu = if (!tileParams.core.useVM) Nil else Map(
         "tlb-split" -> Nil,
-        "mmu-type"  -> (p(PgLevels) match {
-          case 2 => "riscv,sv32"
-          case 3 => "riscv,sv39"
-          case 4 => "riscv,sv48"
-        }).asProperty)
+        "mmu-type"  -> s"riscv,sv$maxSVAddrBits".asProperty)
 
-    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ incoherent
+    val pmp = if (tileParams.core.nPMPs > 0) Map("riscv,pmpregions" -> tileParams.core.nPMPs.asProperty) else Nil
+
+    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent
   }
 
 }
@@ -125,7 +125,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   def paddrBits: Int = tlBundleParams.addressBits
   def vaddrBits: Int =
     if (usingVM) {
-      val v = pgIdxBits + pgLevels * pgLevelBits
+      val v = maxSVAddrBits
       require(v == xLen || xLen > v && v > paddrBits)
       v
     } else {
@@ -174,6 +174,10 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
+  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch()))
+  val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
+  bpwatchNode := bpwatchSourceNode
+
   def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
@@ -203,7 +207,9 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
       "status"               -> "okay".asProperty,
       "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
       "riscv,isa"            -> isaDTS.asProperty,
-      "timebase-frequency"   -> p(DTSTimebase).asProperty)
+      "timebase-frequency"   -> p(DTSTimebase).asProperty,
+      "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty
+  )
 
   // The boundary buffering needed to cut feed-through paths is
   // microarchitecture specific, so these may need to be overridden

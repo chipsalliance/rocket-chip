@@ -59,7 +59,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       )
   }
 
-  val rdata = for ((array, i) <- data_arrays zipWithIndex) yield {
+  val rdata = for (((array, omSRAM), i) <- data_arrays zipWithIndex) yield {
     val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
       val wData = wWords(i).grouped(encBits)
@@ -104,7 +104,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
-  val tag_array = DescribedSRAM(
+  val (tag_array, omSRAM) = DescribedSRAM(
     name = "tag_array",
     desc = "DCache Tag Array",
     size = nSets,

@@ -277,6 +277,13 @@ class WithJtagDTM extends Config ((site, here, up) => {
   case ExportDebugJTAG => true
 })
 
+class WithDebugAPB extends Config ((site, here, up) => {
+  case ExportDebugDMI => false
+  case ExportDebugJTAG => false
+  case ExportDebugAPB => true
+})
+
+
 class WithDebugSBA extends Config ((site, here, up) => {
   case DebugModuleParams => up(DebugModuleParams, site).copy(hasBusMaster = true)
 })

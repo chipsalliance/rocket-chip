@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-case class OMCoreComplex(
+
+case class OMTestHarness(
   components: Seq[OMComponent],
-  documentationName: String,
-  _types: Seq[String] = Seq("OMCoreComplex", "OMComponent", "OMCompoundType")
+  _types: Seq[String] = Seq("OMTestHarness")
 ) extends OMComponent

@@ -124,6 +124,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
     val harts = io_harts.flatten
 
+    def getNInterrupts = interrupts.size
+
     println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>
       // +1 because 0 is reserved, +1-1 because the range is half-open

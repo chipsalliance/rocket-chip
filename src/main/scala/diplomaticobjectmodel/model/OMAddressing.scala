@@ -32,6 +32,13 @@ case class OMPermissions(
   _types: Seq[String] = Seq("OMPermissions", "OMCompoundType")
 ) extends OMCompoundType
 
+case class  OMRegFieldEnumeration(
+  id: BigInt,
+  name: String,
+  description: String,
+  _types: Seq[String] = Seq("OMRegFieldEnumeration", "OMCompoundType")
+) extends OMCompoundType
+
 case class OMRegFieldDesc(
   name: String,
   description: String,
@@ -41,6 +48,7 @@ case class OMRegFieldDesc(
   rdAction: Option[OMRegFieldRdAction],
   volatile: Boolean,
   resetValue: Option[BigInt],
+  enumerations: Seq[OMRegFieldEnumeration] = Seq(),
   _types: Seq[String] = Seq("OMRegFieldDesc", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -114,6 +122,17 @@ object OMRegister {
     }
   }
 
+  private def getRegFieldEnumerations(enumerations: Map[BigInt, (String, String)]): List[OMRegFieldEnumeration] = {
+    enumerations.map{
+      case (key:BigInt, (name: String, description: String)) =>
+        OMRegFieldEnumeration(
+          id = key,
+          name = name,
+          description = description
+        )
+    }.toList
+  }
+
   private def getRegFieldDesc(rf: RegField, byteOffset: Int, bitOffset: Int): Option[OMRegFieldDesc] = {
     rf.desc.map {
       rfd =>
@@ -125,7 +144,8 @@ object OMRegister {
           wrType = getRegFieldWrType(rfd),
           rdAction = getRegFieldRdAction(rfd),
           volatile = rfd.volatile,
-          resetValue = rfd.reset
+          resetValue = rfd.reset,
+          enumerations = getRegFieldEnumerations(rfd.enumerations)
         )
     }
   }

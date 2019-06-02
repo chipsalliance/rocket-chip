@@ -218,9 +218,10 @@ trait CanHaveSlaveTLPortModuleImp extends LazyModuleImp {
 /** Memory with AXI port for use in elaboratable test harnesses. */
 class SimAXIMem(edge: AXI4EdgeParameters, size: BigInt)(implicit p: Parameters) extends LazyModule {
   val node = AXI4MasterNode(List(edge.master))
-
-  val sram = LazyModule(new AXI4RAM(AddressSet(0, size-1), beatBytes = edge.bundle.dataBits/8))
-  sram.node := AXI4Buffer() := AXI4Fragmenter() := node
+  val srams = AddressSet.misaligned(0, size).map{ aSet => LazyModule(new AXI4RAM(aSet, beatBytes = edge.bundle.dataBits/8))}
+  val xbar = AXI4Xbar()
+  srams.foreach{ s => s.node := AXI4Buffer() := AXI4Fragmenter() := xbar }
+  xbar := node
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle { val axi4 = HeterogeneousBag.fromNode(node.out).flip })

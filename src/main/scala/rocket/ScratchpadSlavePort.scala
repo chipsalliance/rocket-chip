@@ -19,8 +19,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
   }
 
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
-    def getMemory(p: DCacheParams, resourceBindingsMap: ResourceBindingsMap): OMDCache = {
-      val resourceBindings = resourceBindingsMap.map.get(this)
+    def getMemory(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
       OMCaches.dcache(p, resourceBindings)
     }
   }
@@ -29,7 +28,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     Seq(TLManagerParameters(
       address            = address,
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHEABLE,
+      regionType         = RegionType.IDEMPOTENT,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
       supportsLogical    = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,

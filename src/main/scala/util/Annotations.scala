@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import chisel3._
 import chisel3.internal.InstanceId
+import chisel3.SyncReadMem
 import chisel3.experimental.{annotate, ChiselAnnotation, RawModule}
 import firrtl.annotations._
 
@@ -15,14 +16,16 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a sram. */
-case class SRAMAnnotation(target: Named,
+
+case class SRAMAnnotation(target: ReferenceTarget,
                           address_width: Int,
                           name: String,
                           data_width: Int,
-                          depth: Int,
+                          depth: BigInt,
                           description: String,
-                          write_mask_granularity: Int) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
+                          write_mask_granularity: Int,
+                          uid: Int = 0) extends SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget) = this.copy(n)
 }
 
 /** Record a set of interrupts. */
@@ -106,14 +109,14 @@ case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends Single
 /** Helper object containing methods for applying annotations to targets */
 object Annotated {
 
-  def srams(
-             component: InstanceId,
-             name: String,
-             address_width: Int,
-             data_width: Int,
-             depth: Int,
-             description: String,
-             write_mask_granularity: Int): Unit = {
+  def srams[T <: Data](component: SyncReadMem[T],
+                       name: String,
+                       address_width: Int,
+                       data_width: Int,
+                       depth: BigInt,
+                       description: String,
+                       write_mask_granularity: Int,
+                       uid: Int = 0): Unit = {
     annotate(new ChiselAnnotation {
       def toFirrtl: Annotation = SRAMAnnotation(
         component.toNamed,
@@ -122,7 +125,8 @@ object Annotated {
         data_width = data_width,
         depth = depth,
         description = description,
-        write_mask_granularity = write_mask_granularity
+        write_mask_granularity = write_mask_granularity,
+        uid = uid
       )
     })
   }

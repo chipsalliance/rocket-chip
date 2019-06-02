@@ -5,9 +5,9 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
+import freechips.rocketchip.diplomacy.{ AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.util.{Code, ElaborationArtefacts}
+import freechips.rocketchip.util.Code
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{CustomSerializer, Extraction, NoTypeHints}
@@ -111,16 +111,8 @@ class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
 })
 
 object DiplomaticObjectModelAddressing {
-
-  def getResourceBindings(device: Device, resourceBindingsMap: ResourceBindingsMap): Option[ResourceBindings] = {
-    require(resourceBindingsMap.map.contains(device))
-    resourceBindingsMap.map.get(device)
-  }
-
-  def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
-    require(resourceBindingsMap.map.contains(device))
-    val resourceBindings = resourceBindingsMap.map.get(device)
-    resourceBindings.map { case rb => fn(rb) }.getOrElse(Nil)
+  def getOMComponentHelper(resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
+    fn(resourceBindings)
   }
 
   private def omPerms(p: ResourcePermissions): OMPermissions = {
@@ -179,9 +171,26 @@ object DiplomaticObjectModelAddressing {
     }.flatten.toSeq
   }
 
+  def makeOMSRAM(
+    desc: String,
+    width: Int,
+    depth: BigInt,
+    granWidth: Int,
+    uid: Int
+  ): OMSRAM = {
+    OMSRAM(
+      description = desc,
+      addressWidth = log2Ceil(depth),
+      dataWidth = width,
+      depth = depth,
+      writeMaskGranularity = granWidth,
+      uid = uid
+    )
+  }
+
   def makeOMMemory[T <: Data](
       desc: String,
-      depth: Int,
+      depth: BigInt,
       data: T
     ): OMMemory = {
 

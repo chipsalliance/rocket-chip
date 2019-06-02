@@ -2,17 +2,29 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.ResourceBindingsMap
+import freechips.rocketchip.diplomacy.BindingScope.bindingScopes
+import freechips.rocketchip.diplomacy.{BindingScope, Device, ResourceBindings, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
-trait LogicalTreeNode {
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap, children: Seq[OMComponent] = Nil): Seq[OMComponent]
+abstract class LogicalTreeNode(protected val deviceOpt: () => Option[Device]) {
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent]
+
+  def getDevice = deviceOpt
 }
+
+class GenericLogicalTreeNode extends LogicalTreeNode(() => None) {
+  override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] =
+    children
+}
+
 
 object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
+  val root = new GenericLogicalTreeNode()
+
   def add(parent: LogicalTreeNode, child: => LogicalTreeNode): Unit = {
     val treeOpt = tree.get(parent)
     val treeNode = treeOpt.map{
@@ -21,17 +33,40 @@ object LogicalModuleTree {
     tree.put(parent, treeNode)
   }
 
-  def root: LogicalTreeNode = {
+  def rootLogicalTreeNode: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
     assert(roots.size == 1, "Logical Tree contains more than one root.")
     roots.head
   }
 
-  def bind(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-    def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindingsMap, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+  def getResourceBindings(device: Device, maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = {
+    val rbm = maps.find {
+      rbm => rbm.map.contains(device)
+    }.getOrElse {
+      throw new IllegalArgumentException(s"""ResourceBindingsMap not found in BindingScope.resourceBindingsMaps""")
     }
 
-    getOMComponentTree(root)
+    rbm.map.get(device).getOrElse(
+      throw new IllegalArgumentException(s"""Device not found = ${device.asInstanceOf[SimpleDevice].devname} in BindingScope.resourceBindingsMaps""")
+    )
+  }
+
+  def resourceBindings(deviceOpt: () => Option[Device], maps: ArrayBuffer[ResourceBindingsMap]): ResourceBindings = deviceOpt() match {
+    case Some(device) => getResourceBindings(device, maps)
+    case None => ResourceBindings()
+  }
+
+  def cache() = BindingScope.bindingScopes.map(_.getResourceBindingsMap)
+
+  def treeIsEmpty() = tree.size == 0
+
+  def bind(): Seq[OMComponent] = {
+    val resourceBindingsMaps= cache()
+
+    def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
+      node.getOMComponents(resourceBindings(node.getDevice, resourceBindingsMaps), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+    }
+
+    getOMComponentTree(rootLogicalTreeNode)
   }
 }

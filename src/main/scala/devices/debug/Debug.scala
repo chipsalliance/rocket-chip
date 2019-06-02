@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.devices.debug
 
+
 import Chisel._
 import chisel3.experimental._
 import freechips.rocketchip.config._
@@ -16,6 +17,8 @@ import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.amba.apb.{APBToTL, APBFanout}
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -271,6 +274,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     require (intnode.edges.in.size == 0, "Debug Module does not accept interrupts")
 
     val nComponents = intnode.out.size
+    def getNComponents = () => nComponents
+
     val supportHartArray = cfg.supportHartArray && (nComponents > 1)    // no hart array if only one hart
 
     val io = IO(new Bundle {
@@ -484,15 +489,32 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
 class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends LazyModule {
 
-  val dmi2tl = LazyModule(new DMIToTL())
   val dmiXbar = LazyModule (new TLXbar())
+
+  val dmi2tlOpt = (!p(ExportDebugAPB)).option({
+    val dmi2tl = LazyModule(new DMIToTL())
+    dmiXbar.node := dmi2tl.node
+    dmi2tl
+  })
+
+  val apbNodeOpt = p(ExportDebugAPB).option({
+    val apb2tl = LazyModule(new APBToTL())
+    val apb2tlBuffer = LazyModule(new TLBuffer(BufferParams.pipe))
+    val apbXbar = LazyModule(new APBFanout())
+    val apbRegs = LazyModule(new APBDebugRegisters())
+
+    apbRegs.node := apbXbar.node
+    apb2tl.node  := apbXbar.node
+    apb2tlBuffer.node := apb2tl.node
+    dmiXbar.node := apb2tlBuffer.node
+
+    apbXbar.node
+  })
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
   val intnode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
   val dmiInnerNode = TLAsyncCrossingSource() := dmiXbar.node
-
-  dmiXbar.node := dmi2tl.node
   dmOuter.dmiNode := dmiXbar.node
   
   lazy val module = new LazyModuleImp(this) {
@@ -500,13 +522,14 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     val nComponents = dmOuter.intnode.edges.out.size
 
     val io = IO(new Bundle {
-      val dmi   = new DMIIO()(p).flip()
+      val dmi   = (!p(ExportDebugAPB)).option(new DMIIO()(p).flip())
+      // Optional APB Interface is fully diplomatic so is not listed here.
       val ctrl = new DebugCtrlBundle(nComponents)
       val innerCtrl = new AsyncBundle(new DebugInternalBundle(nComponents), AsyncQueueParams.singleton())
       val hgDebugInt = Vec(nComponents, Bool()).asInput
     })
 
-    dmi2tl.module.io.dmi <> io.dmi
+    dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
@@ -521,6 +544,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   import DMI_RegAddrs._
 
   val cfg = p(DebugModuleParams)
+  def getCfg = () => cfg
   val hartSelFuncs = p(DebugModuleHartSelKey)
 
   val dmiNode = TLRegisterNode(
@@ -1036,6 +1060,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // ... and also by custom register read (if implemented)
     val (customs, customParams) = customNode.in.unzip
     val needCustom = (customs.size > 0) && (customParams.head.addrs.size > 0)
+    def getNeedCustom = () => needCustom
+
     if (needCustom) {
       val (custom, customP) = customNode.in.head
       require(customP.width % 8 == 0, s"Debug Custom width must be divisible by 8, not ${customP.width}")
@@ -1422,6 +1448,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val node = dmInner.tlNode
   val intnode = dmOuter.intnode
+  val apbNodeOpt = dmOuter.apbNodeOpt
 
   dmInner.dmiNode := dmOuter.dmiInnerNode
 
@@ -1430,14 +1457,23 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     val io = IO(new Bundle {
       val ctrl = new DebugCtrlBundle(nComponents)
-      val dmi = new ClockedDMIIO().flip
+      val dmi = (!p(ExportDebugAPB)).option(new ClockedDMIIO().flip)
+      val apb_clock = p(ExportDebugAPB).option(Clock(INPUT))
+      val apb_reset = p(ExportDebugAPB).option(Bool(INPUT))
       val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
       val psd = new PSDTestMode().asInput
     })
 
-    dmOuter.module.io.dmi <> io.dmi.dmi
-    dmOuter.module.reset := io.dmi.dmiReset
-    dmOuter.module.clock := io.dmi.dmiClock
+    dmOuter.module.io.dmi.foreach { dmOuterDMI =>
+      dmOuterDMI <> io.dmi.get.dmi
+      dmOuter.module.reset := io.dmi.get.dmiReset
+      dmOuter.module.clock := io.dmi.get.dmiClock
+    }
+
+    (io.apb_clock zip io.apb_reset)  foreach { case (c, r) =>
+      dmOuter.module.reset := r
+      dmOuter.module.clock := c
+    }
 
     dmInner.module.io.innerCtrl    := dmOuter.module.io.innerCtrl
     dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
@@ -1450,6 +1486,9 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
   }
 
-  val logicalTreeNode = new DebugLogicalTreeNode(device, dmInner.dmInner.module.omRegMap,
-    p(DebugModuleParams), p(ExportDebugJTAG), p(ExportDebugCJTAG), p(ExportDebugDMI))
+  val logicalTreeNode = new DebugLogicalTreeNode(
+    device,
+    () => dmOuter,
+    () => dmInner
+  )
 }
