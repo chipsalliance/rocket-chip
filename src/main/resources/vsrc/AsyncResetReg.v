@@ -62,7 +62,7 @@ input  wire rst;
     q = _RAND[0];
     `endif // RANDOMIZE
     if (rst) begin
-      q = RESET_VALUE;
+      q = RESET_VALUE[0];
     end 
   end
 `endif
@@ -70,7 +70,7 @@ input  wire rst;
    always @(posedge clk or posedge rst) begin
 
       if (rst) begin
-         q <= RESET_VALUE;
+         q <= RESET_VALUE[0];
       end else if (en) begin
          q <= d;
       end
