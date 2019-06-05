@@ -34,6 +34,7 @@ trait HasL1CacheParameters extends HasTileParameters {
   def nTLBEntries = cacheParams.nTLBEntries
 
   def cacheDataBits = tlBundleParams.dataBits
+  def cacheDataBytes = cacheDataBits / 8
   def cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
   def refillCycles = cacheDataBeats
 }
