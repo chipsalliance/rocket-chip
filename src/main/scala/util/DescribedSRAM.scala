@@ -14,15 +14,6 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 
 import scala.math.log10
 
-object DescribedSRAMIdAssigner {
-  private var nextId: Int = 0
-  def genId(): Int = this.synchronized {
-    val id = nextId
-    nextId += 1
-    id
-  }
-}
-
 object DescribedSRAM {
   def apply[T <: Data](
     name: String,
@@ -40,7 +31,7 @@ object DescribedSRAM {
       case d => d.getWidth
     }
 
-    val uid = DescribedSRAMIdAssigner.genId()
+    val uid = 0
 
     val omSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
       desc = "mem-" + uid,
@@ -57,8 +48,7 @@ object DescribedSRAM {
       data_width = data.getWidth,
       depth = size,
       description = desc,
-      write_mask_granularity = granWidth,
-      uid = uid
+      write_mask_granularity = granWidth
     )
 
     (mem, omSRAM)
