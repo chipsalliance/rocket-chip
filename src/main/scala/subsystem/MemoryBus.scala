@@ -28,8 +28,10 @@ case class BankedL2Params(
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
     val bh = LazyModule(new TLBroadcast(subsystem.mbus.blockBytes, nTrackers, bufferless))
     val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes))
+    val ss = TLSourceShrinker(nTrackers)
     ww.node :*= bh.node
-    (bh.node, ww.node, None)
+    ss :*= ww.node
+    (bh.node, ss, None)
   }) {
   require (isPow2(nBanks) || nBanks == 0)
 }
