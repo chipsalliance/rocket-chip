@@ -50,7 +50,7 @@ object OMECC {
   val SEC = OMECC("SEC")
   val SECDED = OMECC("SECDED")
 
-  def fromCode(code: String): OMECC = {
+  def fromString(code: String): OMECC = {
     code.toLowerCase match {
       case "identity" => OMECC.Identity
       case "parity"   => OMECC.Parity
@@ -60,7 +60,7 @@ object OMECC {
     }
   }
 
-  def fromCode(code: AnyRef): OMECC = {
+  def fromCode(code: Code): OMECC = {
     code match {
       case _: IdentityCode => OMECC.Identity
       case _: ParityCode   => OMECC.Parity
