@@ -626,9 +626,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   ccover(tl_out.d.valid && !tl_out.d.ready, "BLOCK_D", "D$ D-channel blocked")
 
   // Handle an incoming TileLink Probe message
-  val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid
-  metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe || lrscBackingOff)
-  tl_out.b.ready := metaArb.io.in(6).ready && !block_probe && !s1_valid && !s2_valid
+  val block_probe_for_core_progress = blockProbeAfterGrantCount > 0 || lrscValid
+  val block_probe_for_ordering = releaseInFlight || release_ack_wait || grantInProgress
+  metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe_for_core_progress || lrscBackingOff)
+  tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid)
   metaArb.io.in(6).bits.write := false
   metaArb.io.in(6).bits.idx := probeIdx(tl_out.b.bits)
   metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, tl_out.b.bits.address)
