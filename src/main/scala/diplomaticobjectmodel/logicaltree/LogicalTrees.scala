@@ -177,7 +177,6 @@ class BusMemoryLogicalTreeNode(
   busProtocolSpecification: Option[OMSpecification] = None) extends LogicalTreeNode(() => Some(device)) {
   def getOMBusMemory(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
-    val Description(name, mapping) = device.describe(resourceBindings)
 
     val omBusMemory = OMBusMemory(
       memoryRegions = memRegions,
@@ -188,8 +187,6 @@ class BusMemoryLogicalTreeNode(
       hasAtomics = hasAtomics.getOrElse(false),
       memories = omSRAMs
     )
-
-    val ints = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
     Seq(omBusMemory)
   }
 
