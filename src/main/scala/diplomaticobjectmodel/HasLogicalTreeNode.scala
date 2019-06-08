@@ -4,7 +4,6 @@ package freechips.rocketchip.diplomaticobjectmodel
 
 
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMInterruptSignal
 
 trait HasLogicalTreeNode {
   def logicalTreeNode: LogicalTreeNode

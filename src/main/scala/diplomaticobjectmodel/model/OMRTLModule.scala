@@ -78,6 +78,14 @@ case class OMWFI(
   _types: Seq[String] = Seq("OMWFI", "OMCoreStatus", "OMStatus", "OMSignal", "OMRTLComponent", "OMCompoundType")
 ) extends OMCoreStatus
 
+case class OMTrace(
+  description: Option[String],
+  name: String,
+  hartId: Int,
+  uid: Int,
+  _types: Seq[String] = Seq("OMTrace", "OMCoreStatus", "OMStatus", "OMSignal", "OMRTLComponent", "OMCompoundType")
+) extends OMCoreStatus
+
 // Reset Vector
 case class OMResetVector(
   description: Option[String],
