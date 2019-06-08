@@ -351,7 +351,11 @@ trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
   nPTWPorts += 1
 
-  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(frontend.icache.device, tileParams.icache.get)
+  // This should be a None in the case of not having an ITIM address, when we
+  // don't actually use the device that is instantiated in the frontend.
+  private val deviceOpt = if (tileParams.icache.get.itimAddr.isDefined) Some(frontend.icache.device) else None
+
+  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(deviceOpt, tileParams.icache.get)
 }
 
 trait HasICacheFrontendModule extends CanHavePTWModule {

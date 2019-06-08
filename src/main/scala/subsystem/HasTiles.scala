@@ -140,6 +140,6 @@ trait HasTilesModuleImp extends LazyModuleImp {
     m.zipWithIndex.foreach{ case (pin, i) =>
       (outer.meipNode.get.out(i)._1)(0) := pin
     }
-    Annotated.signals(m, DescribedSRAMIdAssigner.genId())
+    //Annotated.signals(m, DescribedSRAMIdAssigner.genId())
   }
 }

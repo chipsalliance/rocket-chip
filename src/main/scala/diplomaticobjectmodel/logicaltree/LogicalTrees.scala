@@ -168,7 +168,40 @@ class PLICLogicalTreeNode(
   }
 }
 
-class SubSystemLogicalTreeNode(getCoreComplexRTLModule: () => Option[OMCoreComplexRTLModule]) extends LogicalTreeNode(() => None) {
+class BusMemoryLogicalTreeNode(
+  device: Device,
+  omSRAMs: Seq[OMSRAM],
+  busProtocol: OMProtocol,
+  dataECC: Option[OMECC] = None,
+  hasAtomics: Option[Boolean] = None,
+  busProtocolSpecification: Option[OMSpecification] = None) extends LogicalTreeNode(() => Some(device)) {
+  def getOMBusMemory(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
+
+    val omBusMemory = OMBusMemory(
+      memoryRegions = memRegions,
+      interrupts = Nil,
+      specifications = Nil,
+      busProtocol = Some(busProtocol),
+      dataECC = dataECC.getOrElse(OMECCIdentity),
+      hasAtomics = hasAtomics.getOrElse(false),
+      memories = omSRAMs
+    )
+    Seq(omBusMemory)
+  }
+
+  def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMBusMemory)
+  }
+}
+
+
+class SubSystemLogicalTreeNode(
+  getCoreComplexRTLModule: () => Option[OMCoreComplexRTLModule],
+  var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil,
+) extends LogicalTreeNode(() => None) {
+
+
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
@@ -177,5 +210,26 @@ class SubSystemLogicalTreeNode(getCoreComplexRTLModule: () => Option[OMCoreCompl
         rtlModule = getCoreComplexRTLModule()
       )
     )
+  }
+}
+
+
+class BusErrorLogicalTreeNode(device: => SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode(() => Some(device)) {
+  def getOMBusError(resourceBindings: ResourceBindings): Seq[OMComponent] = {
+    val Description(name, mapping) = device.describe(resourceBindings)
+
+    val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("BusError", resourceBindings, Some(f))
+
+    Seq[OMComponent](
+      OMBusError(
+        memoryRegions = memRegions,
+        interrupts = DiplomaticObjectModelAddressing.describeGlobalInterrupts(name, resourceBindings), // outgoing interrupts
+        specifications = Nil
+      )
+    )
+  }
+
+  def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
+    DiplomaticObjectModelAddressing.getOMComponentHelper(resourceBindings, getOMBusError)
   }
 }

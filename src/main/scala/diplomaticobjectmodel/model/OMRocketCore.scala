@@ -46,14 +46,14 @@ object OMBTB {
 object OMCaches {
   def dcache(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
     OMDCache(
-      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DCache", resourceBindings),
+      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DTIM", resourceBindings),
       interrupts = Nil,
       nSets = p.nSets,
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
       dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode),
-      tagECC = p.tagECC.map(OMECC.getCode),
+      dataECC = p.dataECC.map(OMECC.fromString),
+      tagECC = p.tagECC.map(OMECC.fromString),
       nTLBEntries = p.nTLBEntries
     )
   }
@@ -66,8 +66,8 @@ object OMCaches {
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
       dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.getCode),
-      tagECC = p.tagECC.map(OMECC.getCode),
+      dataECC = p.dataECC.map(OMECC.fromString),
+      tagECC = p.tagECC.map(OMECC.fromString),
       nTLBEntries = p.nTLBEntries,
       maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
     )

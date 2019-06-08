@@ -5,11 +5,14 @@ package freechips.rocketchip.amba.axi4
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.model.AXI4_Lite
 import freechips.rocketchip.util._
 
 class AXI4RAM(
     address: AddressSet,
     cacheable: Boolean = true,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -32,7 +35,20 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1L << mask.filter(b=>b).size)
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = 1 << mask.filter(b=>b).size)
+
+    parentLogicalTreeNode.map {
+      case parentLTN =>
+        def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
+          device = device,
+          omSRAMs = Seq(omSRAM),
+          busProtocol = new AXI4_Lite(None),
+          dataECC = None,
+          hasAtomics = None,
+          busProtocolSpecification = None)
+        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
+    }
+
     val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
@@ -102,6 +118,7 @@ object AXI4RAM
   def apply(
     address: AddressSet,
     cacheable: Boolean = true,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
