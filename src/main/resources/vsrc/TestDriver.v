@@ -3,6 +3,9 @@
 `ifndef RESET_DELAY
  `define RESET_DELAY 777.7
 `endif
+`ifndef MODEL
+ `define MODEL TestHarness
+`endif
 
 module TestDriver;
 
@@ -150,7 +153,7 @@ module TestDriver;
     end
   end
 
-  TestHarness testHarness(
+  `MODEL testHarness(
     .clock(clock),
     .reset(reset),
     .io_success(success)
