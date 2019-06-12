@@ -18,9 +18,9 @@ module TestDriver;
   reg [63:0] max_cycles = 0;
   reg [63:0] dump_start = 0;
   reg [63:0] trace_count = 0;
-  reg [1023:0] fsdbfile = 0;
-  reg [1023:0] vcdplusfile = 0;
-  reg [1023:0] vcdfile = 0;
+  reg [2047:0] fsdbfile = 0;
+  reg [2047:0] vcdplusfile = 0;
+  reg [2047:0] vcdfile = 0;
   int unsigned rand_value;
   initial
   begin
