@@ -44,15 +44,16 @@ trait HasRocketTiles extends HasTiles
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
-    connectInterrupts(rocket, Some(debug), clintOpt, plicOpt)
+
+    def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(rocket.rocketLogicalTree.getOMInterruptTargets)
+    LogicalModuleTree.add(logicalTreeNode, rocket.rocketLogicalTree)
 
     rocket
   }
 
-  rocketTiles.map {
-    r =>
-      def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
-      LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
+  // connect interrupts based on the hart ordering
+  rocketTiles.sortWith(_.tileParams.hartId < _.tileParams.hartId).map {
+    r => connectInterrupts(r, Some(debug), clintOpt, plicOpt)
   }
 
   def coreMonitorBundles = (rocketTiles map { t =>
