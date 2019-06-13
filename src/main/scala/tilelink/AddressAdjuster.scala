@@ -8,11 +8,14 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
 // mask=0 -> passthrough
-class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
+// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0
+class AddressAdjuster(mask: BigInt, forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
   // Which idss must we route within that mask?
   val ids  = AddressSet.enumerateMask(mask)
+  // forceLocal better only go one place (the low index)
+  forceLocal.foreach { as => (as.max & mask) == 0 }
 
   val node = TLNexusNode(
     clientFn = { cp => cp(0) },
@@ -62,6 +65,12 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
 
       // Ensure that every local device has a matching remote device
       val newLocal = local.managers.map { l =>
+        // Ensure device is either completely inside or outside forceLocal
+        val any_in  = forceLocal.exists { f => l.address.exists { la => f.overlaps(la) } }
+        val any_out = forceLocal.exists { f => l.address.exists { la => !f.contains(la) } }
+        require (!any_in || !any_out)
+        val fifoId = if (any_in) Some(ids.size) else Some(0)
+
         val container = remote.managers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
         require (!container.isEmpty, s"There is no remote manager which contains the addresses of ${l.name} (${l.address})")
         val r = container.get
@@ -96,7 +105,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
           mayDenyGet         = r.mayDenyGet,
           mayDenyPut         = r.mayDenyPut,
           alwaysGrantsT      = r.alwaysGrantsT,
-          fifoId             = Some(0))
+          fifoId             = fifoId)
       }
 
       val newRemote = ids.tail.zipWithIndex.flatMap { case (id, i) => remote.managers.map { r =>
@@ -129,7 +138,8 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
     }
 
     // Route A by address, but reroute unsupported operations
-    val a_local = local_address === (parent.a.bits.address & mask.U)
+    val a_local = local_address === (parent.a.bits.address & mask.U) ||
+                  forceLocal.foldLeft(false.B)(_ || _.contains(parent.a.bits.address))
     parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready)
     local .a.valid := parent.a.valid &&  a_local
     remote.a.valid := parent.a.valid && !a_local
