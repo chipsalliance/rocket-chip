@@ -316,10 +316,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val idCoverCauses = List(
     (CSR.debugTriggerCause, "DEBUG_TRIGGER"),
     (Causes.breakpoint, "BREAKPOINT"),
-    (Causes.fetch_page_fault, "FETCH_PAGE_FAULT"),
     (Causes.fetch_access, "FETCH_ACCESS"),
     (Causes.illegal_instruction, "ILLEGAL_INSTRUCTION")
-  )
+  ) ++ (if (usingVM) List(
+    (Causes.fetch_page_fault, "FETCH_PAGE_FAULT")
+  ) else Nil)
   coverExceptions(id_xcpt, id_cause, "DECODE", idCoverCauses)
 
   val dcache_bypass_data =
@@ -589,11 +590,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wbCoverCauses = List(
     (Causes.misaligned_store, "MISALIGNED_STORE"),
     (Causes.misaligned_load, "MISALIGNED_LOAD"),
-    (Causes.store_page_fault, "STORE_PAGE_FAULT"),
-    (Causes.load_page_fault, "LOAD_PAGE_FAULT"),
     (Causes.store_access, "STORE_ACCESS"),
     (Causes.load_access, "LOAD_ACCESS")
-  )
+  ) ++ (if(usingVM) List(
+    (Causes.store_page_fault, "STORE_PAGE_FAULT"),
+    (Causes.load_page_fault, "LOAD_PAGE_FAULT")
+  ) else Nil)
   coverExceptions(wb_xcpt, wb_cause, "WRITEBACK", wbCoverCauses)
 
   val wb_pc_valid = wb_reg_valid || wb_reg_replay || wb_reg_xcpt
