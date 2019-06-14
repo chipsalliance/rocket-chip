@@ -25,7 +25,7 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
   val pslverr   = Bool(INPUT)
   val prdata    = UInt(INPUT, width = params.dataBits)
 
-  def tieoff() {
+  def tieoff() = {
     pready.dir match {
       case INPUT =>
         pready  := Bool(false)

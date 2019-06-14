@@ -178,14 +178,14 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
   bpwatchNode := bpwatchSourceNode
 
-  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
+  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) = {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
         .foldRight(xbarNode)(_ :*= _)
     }
   }
-  def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
+  def connectTLSlave(node: TLNode, bytes: Int) = { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
   val visibilityNode = p(TileVisibilityNodeKey)
   protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)

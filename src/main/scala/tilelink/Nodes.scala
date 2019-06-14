@@ -21,7 +21,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 
   def render(ei: TLEdgeIn) = RenderedEdge(colour = "#000000" /* black */, label = (ei.manager.beatBytes * 8).toString)
 
-  override def monitor(bundle: TLBundle, edge: TLEdgeIn) {
+  override def monitor(bundle: TLBundle, edge: TLEdgeIn) = {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
     monitor.io.in := TLBundleSnoop(bundle, bundle)
   }

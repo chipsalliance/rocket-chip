@@ -15,7 +15,7 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
   require (0.0 <= q && q < 1)
 
   lazy val module = new LazyModuleImp(this) {
-    def feed[T <: Data](sink: IrrevocableIO[T], source: IrrevocableIO[T], noise: T) {
+    def feed[T <: Data](sink: IrrevocableIO[T], source: IrrevocableIO[T], noise: T) = {
       // irrevocable requires that we not lower valid
       val hold = RegInit(Bool(false))
       when (sink.valid)  { hold := Bool(true) }
@@ -28,7 +28,7 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
       when (!sink.valid) { sink.bits := noise }
     }
 
-    def anoise[T <: AXI4BundleA](bits: T) {
+    def anoise[T <: AXI4BundleA](bits: T) = {
       bits.id    := LFSRNoiseMaker(bits.params.idBits)
       bits.addr  := LFSRNoiseMaker(bits.params.addrBits)
       bits.len   := LFSRNoiseMaker(bits.params.lenBits)

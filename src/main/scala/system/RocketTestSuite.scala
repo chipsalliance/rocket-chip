@@ -57,9 +57,9 @@ class RegressionTestSuite(val names: LinkedHashSet[String]) extends RocketTestSu
 object TestGeneration {
   private val suites = collection.mutable.ListMap[String, RocketTestSuite]()
 
-  def addSuite(s: RocketTestSuite) { suites += (s.makeTargetName -> s) }
+  def addSuite(s: RocketTestSuite) = { suites += (s.makeTargetName -> s) }
   
-  def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
+  def addSuites(s: Seq[RocketTestSuite]) = { s.foreach(addSuite) }
 
   def generateMakefrag: String = {
     def gen(kind: String, s: Seq[RocketTestSuite]) = {

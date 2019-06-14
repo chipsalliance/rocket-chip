@@ -48,7 +48,7 @@ object Generator extends GeneratorApp {
       "rv32ui-p-sll")
 
 
-  override def addTestSuites {
+  override def addTestSuites = {
     import DefaultTestSuites._
     val xlen = params(XLen)
     // TODO: for now only generate tests for the first core in the first subsystem

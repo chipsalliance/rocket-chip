@@ -126,7 +126,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       }
     }
 
-    def insert(tag: UInt, level: UInt, entry: EntryData) {
+    def insert(tag: UInt, level: UInt, entry: EntryData) = {
       this.tag := tag
       this.level := level.extract(log2Ceil(pgLevels - superpageOnly.toInt)-1, 0)
 
@@ -135,8 +135,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       data(idx) := entry.asUInt
     }
 
-    def invalidate() { valid.foreach(_ := false) }
-    def invalidateVPN(vpn: UInt) {
+    def invalidate() = { valid.foreach(_ := false) }
+    def invalidateVPN(vpn: UInt) = {
       if (superpage) {
         when (hit(vpn)) { invalidate() }
       } else {
@@ -150,7 +150,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         }
       }
     }
-    def invalidateNonGlobal() {
+    def invalidateNonGlobal() = {
       for ((v, e) <- valid zip entry_data)
         when (!e.g) { v := false }
     }

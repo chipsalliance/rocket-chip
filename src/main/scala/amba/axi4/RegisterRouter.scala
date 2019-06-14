@@ -129,5 +129,5 @@ trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
   val controlXing: AXI4InwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  protected def regmap(mapping: RegField.Map*) = { controlNode.regmap(mapping:_*) }
 }

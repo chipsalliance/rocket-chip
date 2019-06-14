@@ -92,7 +92,7 @@ abstract class DeviceSnippet extends Device
 object Device
 {
   private var index: Int = 0
-  def skipIndexes(x: Int) { index += x }
+  def skipIndexes(x: Int) = { index += x }
 }
 
 /** A trait for devices that generate interrupts. */
@@ -259,11 +259,11 @@ class MemoryDevice extends Device with DeviceRegName
 
 case class Resource(owner: Device, key: String)
 {
-  def bind(user: Device, value: ResourceValue) {
+  def bind(user: Device, value: ResourceValue) = {
     val scope = BindingScope.active.get
     scope.resourceBindings = (this, Some(user), value) +: scope.resourceBindings
   }
-  def bind(value: ResourceValue) {
+  def bind(value: ResourceValue) = {
     val scope = BindingScope.active.get
     scope.resourceBindings = (this, None, value) +: scope.resourceBindings
   }
@@ -405,7 +405,7 @@ object ResourceBinding
   /** Add a resource callback function to the callback list BindingScope.resourceBindingFns.
     * @param block      the callback function to be added.
     */
-  def apply(block: => Unit) {
+  def apply(block: => Unit) = {
     val scope = BindingScope.find()
     require (scope.isDefined, "ResourceBinding must be called from within a BindingScope")
     scope.get.resourceBindingFns = { () => block } +: scope.get.resourceBindingFns

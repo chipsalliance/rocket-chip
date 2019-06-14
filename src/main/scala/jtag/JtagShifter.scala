@@ -22,7 +22,7 @@ class ShifterIO extends Bundle {
 
   /** Sets a output shifter IO's control signals from a input shifter IO's control signals.
     */
-  def chainControlFrom(in: ShifterIO) {
+  def chainControlFrom(in: ShifterIO) = {
     shift := in.shift
     capture := in.capture
     update := in.update

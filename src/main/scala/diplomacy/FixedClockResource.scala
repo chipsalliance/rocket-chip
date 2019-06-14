@@ -13,7 +13,7 @@ class FixedClockResource(val name: String, val freqMHz: Double, val prefix: Stri
         "compatible"         -> Seq(ResourceString("fixed-clock"))))
   }
 
-  def bind(dev: Device) {
+  def bind(dev: Device) = {
     ResourceBinding { Resource(dev, "clocks").bind(ResourceReference(device.label)) }
   }
 }

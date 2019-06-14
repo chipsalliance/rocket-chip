@@ -21,7 +21,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
     def ISOo[T <: Data](x: T): T = x.fromBits(fOut(io.iso_out, x.asUInt))
     def ISOi[T <: Data](x: T): T = x.fromBits(fIn (io.iso_in,  x.asUInt))
 
-    def ABo[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
+    def ABo[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) = {
       x.mem            := ISOo(y.mem)
       x.widx           := ISOo(y.widx)
       y.ridx           := ISOi(x.ridx)
@@ -34,7 +34,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       }
     }
 
-    def ABi[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
+    def ABi[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) = {
       x.mem            := ISOi(y.mem)
       x.widx           := ISOi(y.widx)
       y.ridx           := ISOo(x.ridx)
@@ -47,7 +47,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       }
     }
 
-    def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) {
+    def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]) = {
       x.widx           := UInt(0)
       y.ridx           := UInt(0)
       (x.index zip y.index) foreach { case (_, y) => y := UInt(0) }

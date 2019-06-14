@@ -31,11 +31,11 @@ case class CoverPropertyParameters(
 }
 
 abstract class BasePropertyLibrary {
-  def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo)
+  def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo) = {}
 }
 
 class DefaultPropertyLibrary extends BasePropertyLibrary {
-  def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo) {
+  def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo) = {
     // default is to do nothing
     Unit
   }

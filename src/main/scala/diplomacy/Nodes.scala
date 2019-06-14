@@ -27,7 +27,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
 
   // Edge functions
-  def monitor(bundle: BI, edge: EI) {}
+  def monitor(bundle: BI, edge: EI) = {}
   def render(e: EI): RenderedEdge
 
   // optional methods to track node graph
@@ -172,7 +172,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
   private var iRealized = false
 
   protected[diplomacy] def iPushed = accPI.size
-  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!iRealized, s"${context} was incorrectly connected as a sink after its .module was used" + info)
     accPI += ((index, node, binding, p, sourceInfo))
@@ -201,7 +201,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
   private var oRealized = false
 
   protected[diplomacy] def oPushed = accPO.size
-  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!oRealized, s"${context} was incorrectly connected as a source after its .module was used" + info)
     accPO += ((index, node, binding, p, sourceInfo))
@@ -396,7 +396,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   // connects the outward part of a node with the inward part of this node
-  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) = {
     val x = this // x := y
     val y = h
     val info = sourceLine(sourceInfo, " at ", "")

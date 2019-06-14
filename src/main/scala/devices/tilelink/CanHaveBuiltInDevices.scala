@@ -14,7 +14,7 @@ trait HasBuiltInDeviceParams {
 /* Optionally add some built-in devices to a bus wrapper */
 trait CanHaveBuiltInDevices { this: TLBusWrapper =>
 
-  def attachBuiltInDevices(params: HasBuiltInDeviceParams) {
+  def attachBuiltInDevices(params: HasBuiltInDeviceParams) = {
     params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
       val error = LazyModule(new TLError(
         params = dnp,

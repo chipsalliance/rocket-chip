@@ -33,7 +33,7 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
-  def reset() {
+  def reset() = {
     cfg.a := 0
     cfg.l := 0
   }

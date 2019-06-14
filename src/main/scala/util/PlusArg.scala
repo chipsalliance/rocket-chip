@@ -48,7 +48,7 @@ object PlusArg
     * to kill the simulation when count exceeds the specified integer argument.
     * Default 0 will never assert.
     */
-  def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt) {
+  def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt) = {
     PlusArgArtefacts.append(name, default, docstring)
     Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count := count
   }

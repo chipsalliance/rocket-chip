@@ -40,7 +40,7 @@ class AHBSlaveBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   val hsplit    = UInt(INPUT, width = 16)
 */
 
-  def tieoff() {
+  def tieoff() = {
     hrdata.dir match {
       case INPUT =>
         hreadyout := Bool(false)
@@ -89,7 +89,7 @@ class AHBMasterBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   val hresp   = UInt(INPUT, width = params.hrespBits)
   val hrdata  = UInt(INPUT, width = params.dataBits)
 
-  def tieoff() {
+  def tieoff() = {
     hrdata.dir match {
       case INPUT =>
         hgrant    := Bool(false)

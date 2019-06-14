@@ -72,7 +72,7 @@ abstract class LazyModule()(implicit val p: Parameters)
 
   private val index = { LazyModule.index = LazyModule.index + 1; LazyModule.index }
 
-  private def nodesGraphML(buf: StringBuilder, pad: String) {
+  private def nodesGraphML(buf: StringBuilder, pad: String) = {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
     buf ++= s"""${pad}  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">${instanceName}</y:NodeLabel></y:ShapeNode></data>\n"""
     buf ++= s"""${pad}  <data key=\"d\">${moduleName} (${pathName})</data>\n"""
@@ -87,7 +87,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     buf ++= s"""${pad}  </graph>\n"""
     buf ++= s"""${pad}</node>\n"""
   }
-  private def edgesGraphML(buf: StringBuilder, pad: String) {
+  private def edgesGraphML(buf: StringBuilder, pad: String) = {
     nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_._1.omitGraphML).foreach { case (o, edge) =>
       val RenderedEdge(colour, label, flipped) = edge
       buf ++= pad
@@ -177,7 +177,7 @@ sealed trait LazyModuleImpLike extends RawModule
     (auto, dangles)
   }
 
-  protected[diplomacy] def finishInstantiate() {
+  protected[diplomacy] def finishInstantiate() = {
     wrapper.nodes.reverse.foreach { _.finishInstantiate() }
   }
 }
@@ -267,7 +267,7 @@ object InModuleBody
     val scope = LazyModule.scope.get
     val out = new ModuleValue[T] {
       var result: Option[T] = None
-      def execute() { result = Some(body) }
+      def execute() = { result = Some(body) }
       def getWrappedValue = {
         require (result.isDefined, s"InModuleBody contents were requested before module was evaluated!")
         result.get
