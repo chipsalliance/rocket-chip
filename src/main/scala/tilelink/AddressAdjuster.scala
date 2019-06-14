@@ -66,9 +66,10 @@ class AddressAdjuster(mask: BigInt, forceLocal: Seq[AddressSet] = Nil)(implicit 
       // Ensure that every local device has a matching remote device
       val newLocal = local.managers.map { l =>
         // Ensure device is either completely inside or outside forceLocal
-        val any_in  = forceLocal.exists { f => l.address.exists { la => f.overlaps(la) } }
-        val any_out = forceLocal.exists { f => l.address.exists { la => !f.contains(la) } }
-        require (!any_in || !any_out)
+        val la = l.address.flatMap { _.intersect(AddressSet(0, ~mask)) }
+        val any_in  = forceLocal.exists { f => la.exists { a => f.overlaps(a) } }
+        val any_out = forceLocal.exists { f => la.exists { a => !f.contains(a) } }
+        require (!any_in || !any_out, s"Address adjuster cannot have partially local devices, but: $forceLocal vs ${la}")
         val fifoId = if (any_in) Some(ids.size) else Some(0)
 
         val container = remote.managers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
@@ -90,8 +91,7 @@ class AddressAdjuster(mask: BigInt, forceLocal: Seq[AddressSet] = Nil)(implicit 
         require (!l.supportsHint       || r.supportsHint,       s"Device ${l.name} (${l.address}) loses Hint support because ${r.name} does not support it")
         l.copy(
           // take the 0 setting as default for DTS output
-          address            = AddressSet.unify(l.address.flatMap(_.intersect(AddressSet(0, ~mask))) ++
-                                               (if (l == errorDev) holes else Nil)),
+          address            = AddressSet.unify(la) ++ (if (l == errorDev) holes else Nil),
           regionType         = r.regionType,
           executable         = r.executable,
           supportsAcquireT   = r.supportsAcquireT,
