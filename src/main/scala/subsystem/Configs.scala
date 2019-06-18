@@ -64,6 +64,28 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
   }
 })
 
+class WithNMedCores(n: Int) extends Config((site, here, up) => {
+  case RocketTilesKey => {
+    val med = RocketTileParams(
+      core = RocketCoreParams(fpu = None),
+      btb = None,
+      dcache = Some(DCacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        nMSHRs = 0,
+        blockBytes = site(CacheBlockBytes))),
+      icache = Some(ICacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        blockBytes = site(CacheBlockBytes))))
+    List.tabulate(n)(i => med.copy(hartId = i))
+  }
+})
+
 class WithNSmallCores(n: Int) extends Config((site, here, up) => {
   case RocketTilesKey => {
     val small = RocketTileParams(
