@@ -11,7 +11,7 @@ import APBParameters._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { case TLClientPortParameters(clients, minLatency) =>
-    val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath) }
+    val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath, userBits = c.userBits) }
     APBMasterPortParameters(masters)
   },
   uFn = { case APBSlavePortParameters(slaves, beatBytes) =>
@@ -78,6 +78,8 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       out.pprot   := PROT_DEFAULT
       out.pwdata  := a.bits.data
       out.pstrb   := Mux(a_write, a.bits.mask, UInt(0))
+
+      a.bits.user.map {i => out.pauser.map {_ := i}}
 
       a.ready := a_enable && out.pready
       d.valid := a_enable && out.pready
