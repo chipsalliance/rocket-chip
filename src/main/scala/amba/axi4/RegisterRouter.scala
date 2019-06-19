@@ -10,10 +10,19 @@ import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
 import scala.math.{min,max}
 
-case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
+case class AXI4RegisterNode(
+    address: AddressSet,
+    device:      Device,
+    deviceKey:   String  = "reg/control",
+    concurrency: Int = 0,
+    beatBytes: Int = 4,
+    undefZero: Boolean = true,
+    executable: Boolean = false)(
+    implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address       = Seq(address),
+      resources     = Seq(Resource(device, deviceKey)),
       executable    = executable,
       supportsWrite = TransferSizes(1, beatBytes),
       supportsRead  = TransferSizes(1, beatBytes),
@@ -81,9 +90,17 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
 // These convenience methods below combine to make it possible to create a AXI4
 // register mapped device from a totally abstract register mapped device.
 
-abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
+abstract class AXI4RegisterRouterBase(devname: String, devcompat: Seq[String], address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
-  val node = AXI4RegisterNode(address, concurrency, beatBytes, undefZero, executable)
+  // Allow devices to extend the DTS mapping
+  def extraResources(resources: ResourceBindings) = Map[String, Seq[ResourceValue]]()
+  val device = new SimpleDevice(devname, devcompat) {
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      Description(name, mapping ++ extraResources(resources))
+    }
+  }
+  val node = AXI4RegisterNode(address, device, "reg/control", concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
@@ -104,11 +121,19 @@ class AXI4RegModule[P, B <: AXI4RegBundleBase](val params: P, bundleBuilder: => 
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
-class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
-   (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
+class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp](
+     val base: BigInt,
+     val devname:     String,
+     val devcompat:   Seq[String],
+     val interrupts: Int = 0,
+     val size: BigInt = 4096,
+     val concurrency: Int = 0,
+     val beatBytes: Int = 4,
+     undefZero: Boolean = true,
+     executable: Boolean = false)
    (bundleBuilder: AXI4RegBundleArg => B)
    (moduleBuilder: (=> B, AXI4RegisterRouterBase) => M)(implicit p: Parameters)
-  extends AXI4RegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
+  extends AXI4RegisterRouterBase(devname, devcompat, AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
 {
   require (isPow2(size))
   // require (size >= 4096) ... not absolutely required, but highly recommended
@@ -120,6 +145,8 @@ class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
 trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
   protected val controlNode = AXI4RegisterNode(
     address = address.head,
+    device = device,
+    deviceKey = "reg/control",
     concurrency = concurrency,
     beatBytes = beatBytes,
     undefZero = undefZero,
