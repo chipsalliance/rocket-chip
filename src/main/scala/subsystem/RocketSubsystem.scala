@@ -65,14 +65,14 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
 }
 
 // Field for specifying MaskROM addition to subsystem
-case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
+case object Periphery extends Field[Seq[MaskROMParams]](Nil)
 
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
         
   // add Mask ROM devices
-  val maskROMs = p(SubsystemMaskROMKey).map { MaskROM.attach(_, cbus) }
+  val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
 
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
