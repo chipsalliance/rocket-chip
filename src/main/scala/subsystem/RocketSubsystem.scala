@@ -65,7 +65,7 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
 }
 
 // Field for specifying MaskROM addition to subsystem
-case object Periphery extends Field[Seq[MaskROMParams]](Nil)
+case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
 
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
