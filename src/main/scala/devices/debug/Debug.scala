@@ -635,12 +635,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Registers coming from 'CONTROL' in Outer
     //--------------------------------------------------------------
 
-    val selectedHartReg = RegInit(0.U(p(MaxHartIdBits).W))
+    val selectedHartReg = Reg(UInt(p(MaxHartIdBits).W))
       // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
     val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
 
     if (nComponents > 1) {
-      when (io.innerCtrl.fire()){
+      when (~io.dmactive) {
+        selectedHartReg := 0.U
+      }.elsewhen (io.innerCtrl.fire()){
         selectedHartReg := io.innerCtrl.bits.hartsel
       }
     }
@@ -713,7 +715,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val DMCS2RdEn   = Wire(init = false.B)
     val hgDebugInt  = Wire(Vec.fill(nComponents){false.B})
 
-    if (nHaltGroups > 0) {
+    if (nHaltGroups > 0) withReset(~io.dmactive) {
       val DMCS2WrData = (new DMCS2Fields()).fromBits(DMCS2WrDataVal)
       val hgBits = log2Up(nHaltGroups)
        // hgParticipate: Each entry indicates which hg that entity belongs to (1 to nHartGroups). 0 means no hg assigned.
@@ -1424,10 +1426,13 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
     withClock (gated_clock) {
       dmInner.module.clock := gated_clock
       dmInner.module.io.dmactive := dmactive_synced
-      dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
+      withReset (~dmactive_synced) {
+        dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
+      }
       dmInner.module.io.debugUnavail := io.debugUnavail
       io.hgDebugInt := dmInner.module.io.hgDebugInt
       io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+      dmiXing.module.reset := false.B  // Safe AsyncQueue is reset from DMI side only
     }
   }
 }
