@@ -155,13 +155,13 @@ case class DebugModuleHartSelFuncs (
 case object DebugModuleHartSelKey extends Field(DebugModuleHartSelFuncs())
 
 class DebugExtTriggerOut (nExtTriggers: Int) extends Bundle {
-  val req = Vec(nExtTriggers, Bool()).asOutput
-  val ack = Vec(nExtTriggers, Bool()).asInput
+  val req = Output(UInt(nExtTriggers.W))
+  val ack = Input(UInt(nExtTriggers.W))
 }
 
 class DebugExtTriggerIn (nExtTriggers: Int) extends Bundle {
-  val req = Vec(nExtTriggers, Bool()).asInput
-  val ack = Vec(nExtTriggers, Bool()).asOutput
+  val req = Input(UInt(nExtTriggers.W))
+  val ack = Output(UInt(nExtTriggers.W))
 }
 
 class DebugExtTriggerIO () (implicit val p: Parameters) extends ParameterizedBundle()(p) {
@@ -795,13 +795,17 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val hgTrigsAllAcked  = Wire(init = Vec.fill(nHaltGroups+1){ true.B})     // in which hg's have all trigouts been acked
 
       io.extTrigger.foreach {extTrigger =>
-        val trigInReq  = SynchronizerShiftReg(extTrigger.in.req,  3, Some("dm_extTriggerInReqSync"))
-        val trigOutAck = SynchronizerShiftReg(extTrigger.out.ack, 3, Some("dm_extTriggerOutAckSync"))
+        val extTriggerInReq = Wire(Vec(nExtTriggers, Bool()))
+        val extTriggerOutAck = Wire(Vec(nExtTriggers, Bool()))
+        extTriggerInReq := extTrigger.in.req.asBools
+        extTriggerOutAck := extTrigger.out.ack.asBools
+        val trigInReq  = SynchronizerShiftReg(extTriggerInReq,  3, Some("dm_extTriggerInReqSync"))
+        val trigOutAck = SynchronizerShiftReg(extTriggerOutAck, 3, Some("dm_extTriggerOutAckSync"))
         for (hg <- 1 to nHaltGroups) {
           hgTrigFiring(hg) := (trigInReq & ~RegNext(trigInReq) & hgParticipateTrig.map(_ === hg.U)).reduce(_ | _)
           hgTrigsAllAcked(hg) := (trigOutAck | hgParticipateTrig.map(_ =/= hg.U)).reduce(_ & _)
         }
-        extTrigger.in.ack := trigInReq        // acknowledge all trig in
+        extTrigger.in.ack := trigInReq.asUInt()
       }
 
       for (hg <- 1 to nHaltGroups) {
@@ -824,9 +828,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
       // For each hg that has fired, assert trigger out for all external triggers in that hg
       io.extTrigger.foreach {extTrigger =>
+        val extTriggerOutReq = Wire(Vec(cfg.nExtTriggers, Bool()))
         for (trig <- 0 until nExtTriggers) {
-          extTrigger.out.req(trig) := hgFired(hgParticipateTrig(trig))
+          extTriggerOutReq(trig) := hgFired(hgParticipateTrig(trig))
         }
+        extTrigger.out.req := extTriggerOutReq.asUInt()
       }
     }
     io.hgDebugInt := hgDebugInt
