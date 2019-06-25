@@ -96,6 +96,9 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
   outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 
+  val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
+  outer.debug.module.io.psd <> psd
+
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
@@ -110,8 +113,6 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outer.debug.module.io.dmi.get.dmi <> dtm.io.dmi
     outer.debug.module.io.dmi.get.dmiClock := sj.jtag.TCK
 
-    val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
-    outer.debug.module.io.psd <> psd
     outer.debug.module.io.dmi.get.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
     dtm
   }
