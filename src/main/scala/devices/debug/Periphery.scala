@@ -113,6 +113,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outer.debug.module.io.dmi.get.dmi <> dtm.io.dmi
     outer.debug.module.io.dmi.get.dmiClock := sj.jtag.TCK
 
+    val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
     outer.debug.module.io.dmi.get.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
     dtm
   }
