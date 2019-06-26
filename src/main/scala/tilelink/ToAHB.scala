@@ -49,6 +49,7 @@ class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params
   val hburst = UInt(width = AHBParameters.burstBits)
   val addr   = UInt(width = params.bundle.addressBits)
   val data   = UInt(width = params.bundle.dataBits)
+  val hauser = if ( params.bundle.aUserBits > 0) Some(UInt(OUTPUT, width = params.bundle.aUserBits)) else None
 }
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
@@ -146,6 +147,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
           post.hburst:= Mux(a_singleBeat, BURST_SINGLE, (a_logBeats1<<1) | UInt(1))
           post.addr  := in.a.bits.address
           post.data  := in.a.bits.data
+          post.hauser.map { _ := in.a.bits.user.get }
         }
       }
 
@@ -161,7 +163,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       out.hprot   := PROT_DEFAULT
       out.hwdata  := RegEnable(send.data, out.hready)
 
-      in.a.bits.user.map { i => out.hauser.map { _ := i} }
+      send.hauser.map { i => out.hauser.map { _ := i} }
 
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
