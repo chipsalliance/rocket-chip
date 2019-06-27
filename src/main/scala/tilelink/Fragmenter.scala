@@ -58,7 +58,15 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       name        = "TLFragmenter",
       sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
       requestFifo = true,
-      userBits    = c.clients.map( _.userBits).maxBy(_.length))))},
+      userBits    = {
+        require( c.clients.forall( _.userBits.length == c.clients(0).userBits.length ),
+          s"Length of userBits sequences of all clients must be equal.")
+        require( c.clients.forall( _.userBits.zip( c.clients(0).userBits ).forall { case (a, b) => a.width == b.width } ),
+          s"Width of corresponding userBits for all clients must match.")
+
+        c.clients(0).userBits
+      })))
+    },
     managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
 
   lazy val module = new LazyModuleImp(this) {
