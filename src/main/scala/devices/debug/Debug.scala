@@ -491,13 +491,13 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
 
   val dmiXbar = LazyModule (new TLXbar())
 
-  val dmi2tlOpt = (!p(ExportDebugAPB)).option({
+  val dmi2tlOpt = (!p(ExportDebug).apb).option({
     val dmi2tl = LazyModule(new DMIToTL())
     dmiXbar.node := dmi2tl.node
     dmi2tl
   })
 
-  val apbNodeOpt = p(ExportDebugAPB).option({
+  val apbNodeOpt = p(ExportDebug).apb.option({
     val apb2tl = LazyModule(new APBToTL())
     val apb2tlBuffer = LazyModule(new TLBuffer(BufferParams.pipe))
     val apbXbar = LazyModule(new APBFanout())
@@ -522,7 +522,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     val nComponents = dmOuter.intnode.edges.out.size
 
     val io = IO(new Bundle {
-      val dmi   = (!p(ExportDebugAPB)).option(new DMIIO()(p).flip())
+      val dmi   = (!p(ExportDebug).apb).option(new DMIIO()(p).flip())
       // Optional APB Interface is fully diplomatic so is not listed here.
       val ctrl = new DebugCtrlBundle(nComponents)
       val innerCtrl = new AsyncBundle(new DebugInternalBundle(nComponents), AsyncQueueParams.singleton())
@@ -1468,9 +1468,9 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     val io = IO(new Bundle {
       val ctrl = new DebugCtrlBundle(nComponents)
-      val dmi = (!p(ExportDebugAPB)).option(new ClockedDMIIO().flip)
-      val apb_clock = p(ExportDebugAPB).option(Clock(INPUT))
-      val apb_reset = p(ExportDebugAPB).option(Bool(INPUT))
+      val dmi = (!p(ExportDebug).apb).option(new ClockedDMIIO().flip)
+      val apb_clock = p(ExportDebug).apb.option(Clock(INPUT))
+      val apb_reset = p(ExportDebug).apb.option(Bool(INPUT))
       val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
       val psd = new PSDTestMode().asInput
     })
