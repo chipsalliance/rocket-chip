@@ -132,7 +132,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         in.a.ready := !d_block && pre.write
       } .otherwise /* new burst */ {
         a_commit := in.a.fire() // every first beat commits to a D beat answer
-        in.a.ready := !d_block && granted
+        in.a.ready := !d_block && (granted || (Bool(!aFlow) && out.hgrant && out.hready))
         when (in.a.fire()) {
           post.full  := Bool(true)
           post.send  := Bool(true)
