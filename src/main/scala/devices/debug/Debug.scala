@@ -828,7 +828,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
       // For each hg that has fired, assert trigger out for all external triggers in that hg
       io.extTrigger.foreach {extTrigger =>
-        val extTriggerOutReq = Wire(Vec(cfg.nExtTriggers, Bool()))
+        val extTriggerOutReq = RegInit(Vec.fill(cfg.nExtTriggers){false.B})
         for (trig <- 0 until nExtTriggers) {
           extTriggerOutReq(trig) := hgFired(hgParticipateTrig(trig))
         }
