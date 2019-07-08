@@ -20,6 +20,7 @@ class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
   val rd1src = UInt(width = 5.W)
   val rd1val = UInt(width = xLen.W)
   val inst = UInt(width = 32.W)
+  val cease = Bool()
 }
 
 // mark a module that has cores with CoreMonitorBundles
