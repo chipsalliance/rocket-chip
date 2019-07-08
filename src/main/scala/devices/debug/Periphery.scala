@@ -27,7 +27,7 @@ case object APB extends DebugExportProtocol
 case class DebugInterfaceParams(
   protocol: DebugExportProtocol = DMI,
   externalDisable: Boolean = false,
-  attachAsTile: Boolean =  false
+  masterAsIfTile: Boolean =  false
 ) {
   def dmi   = protocol == DMI
   def jtag  = protocol == JTAG
@@ -71,8 +71,11 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   }
 
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-    // TODO use p(ExportDebug).attachAsTile here
-    fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
+    if(p(ExportDebug).masterAsIfTile) {
+      sbus.fromTile(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
+    } else {
+      fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
+    }
   }
 }
 
