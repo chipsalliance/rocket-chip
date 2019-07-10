@@ -318,7 +318,7 @@ object TLFragmenter
   def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false)(implicit p: Parameters): TLNode =
   {
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
-    fragmenter.node
+    if (minSize <= maxSize) fragmenter.node else TLEphemeralNode()(ValName("no_fragmenter"))
   }
 
   def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)
