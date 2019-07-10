@@ -166,6 +166,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
+  val flushing_req = Reg(s1_req)
   val cached_grant_wait = Reg(init=Bool(false))
   val release_ack_wait = Reg(init=Bool(false))
   val release_ack_addr = Reg(UInt(paddrBits.W))
@@ -657,7 +658,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   if (!usingDataScratchpad) {
     when (s2_victimize) {
       assert(s2_valid_flush_line || s2_flush_valid || io.cpu.s2_nack)
-      release_state := Mux(s2_victim_dirty, s_voluntary_writeback, s_voluntary_write_meta)
+      val discard_line = s2_valid_flush_line && s2_req.size(1) || s2_flush_valid && flushing_req.size(1)
+      release_state := Mux(s2_victim_dirty && !discard_line, s_voluntary_writeback, s_voluntary_write_meta)
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
     when (s2_probe) {
@@ -837,6 +839,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (s2_valid_masked && s2_cmd_flush_all) {
       when (!flushed && !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR) {
         flushing := true
+        flushing_req := s2_req
       }
     }
 
