@@ -852,22 +852,24 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
-
-  coreMonitorBundle.clock := clock
-  coreMonitorBundle.reset := reset
-  coreMonitorBundle.hartid := io.hartid
-  coreMonitorBundle.timer := csr.io.time(31,0)
-  coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
-  coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen)
-  coreMonitorBundle.wrdst := Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0))
-  coreMonitorBundle.wrdata := rf_wdata
-  coreMonitorBundle.wren := rf_wen
-  coreMonitorBundle.rd0src := wb_reg_inst(19,15)
-  coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
-  coreMonitorBundle.rd1src := wb_reg_inst(24,20)
-  coreMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)))
-  coreMonitorBundle.inst := csr.io.trace(0).insn
   coreMonitorBundle.cease := io.cease
+  coreMonitorBundle.reg_mscratch := 0.U //FIXME
+
+  val commitTraceMonitorBundle = Wire(new CommitTraceMonitorBundle(xLen))
+  commitTraceMonitorBundle.clock := clock
+  commitTraceMonitorBundle.reset := reset
+  commitTraceMonitorBundle.hartid := io.hartid
+  commitTraceMonitorBundle.timer := csr.io.time(31,0)
+  commitTraceMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
+  commitTraceMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen)
+  commitTraceMonitorBundle.wrdst := Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0))
+  commitTraceMonitorBundle.wrdata := rf_wdata
+  commitTraceMonitorBundle.wren := rf_wen
+  commitTraceMonitorBundle.rd0src := wb_reg_inst(19,15)
+  commitTraceMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
+  commitTraceMonitorBundle.rd1src := wb_reg_inst(24,20)
+  commitTraceMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)))
+  commitTraceMonitorBundle.inst := csr.io.trace(0).insn
 
   if (enableCommitLog) {
     val t = csr.io.trace(0)
@@ -896,13 +898,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
   else {
+<<<<<<< fe6ca24f9c8ea6e4d0910eb0e28037914f8b9117
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
-         io.hartid, coreMonitorBundle.timer, coreMonitorBundle.valid,
-         coreMonitorBundle.pc,
-         Mux(coreMonitorBundle.wren, coreMonitorBundle.wrdst, UInt(0)), coreMonitorBundle.wrdata,
-         coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
-         coreMonitorBundle.rd1src, coreMonitorBundle.rd1val,
-         coreMonitorBundle.inst, coreMonitorBundle.inst)
+         io.hartid, commitTraceMonitorBundle.timer, commitTraceMonitorBundle.valid,
+         commitTraceMonitorBundle.pc,
+         Mux(commitTraceMonitorBundle.wren, commitTraceMonitorBundle.wrdst, UInt(0)), commitTraceMonitorBundle.wrdata,
+         commitTraceMonitorBundle.rd0src, commitTraceMonitorBundle.rd0val,
+         commitTraceMonitorBundle.rd1src, commitTraceMonitorBundle.rd1val,
+         commitTraceMonitorBundle.inst, commitTraceMonitorBundle.inst)
   }
 
   PlusArg.timeout(
