@@ -24,10 +24,11 @@ case object CJTAG extends DebugExportProtocol
 case object APB extends DebugExportProtocol
 
 /** Options for possible debug interfaces */
-case class DebugInterfaceParams(
+case class DebugAttachParams(
   protocol: DebugExportProtocol = DMI,
   externalDisable: Boolean = false,
-  masterAsIfTile: Boolean =  false
+  masterWhere: BaseSubsystemBusAttachment = FBUS,
+  slaveWhere: BaseSubsystemBusAttachment = CBUS
 ) {
   def dmi   = protocol == DMI
   def jtag  = protocol == JTAG
@@ -35,7 +36,7 @@ case class DebugInterfaceParams(
   def apb   = protocol == APB
 }
 
-case object ExportDebug extends Field(DebugInterfaceParams())
+case object ExportDebug extends Field(DebugAttachParams())
 
 class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) with Clocked
 
@@ -56,11 +57,12 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   */
 
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
+  private val tlbus = attach(p(ExportDebug).slaveWhere)
+  val debug = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
   LogicalModuleTree.add(logicalTreeNode, debug.logicalTreeNode)
 
-  debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
+  debug.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
   val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
   debug.dmInner.dmInner.customNode := debugCustomXbar.node
 
@@ -71,10 +73,8 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   }
 
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-    if(p(ExportDebug).masterAsIfTile) {
-      sbus.fromTile(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
-    } else {
-      fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
+    attach(p(ExportDebug).masterWhere).asInstanceOf[CanAttachTLMasters].fromPort(Some("debug_sb")){
+      FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node }
     }
   }
 }
