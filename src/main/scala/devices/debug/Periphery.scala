@@ -25,15 +25,15 @@ case object APB extends DebugExportProtocol
 
 /** Options for possible debug interfaces */
 case class DebugAttachParams(
-  protocol: DebugExportProtocol = DMI,
+  protocols: Set[DebugExportProtocol] = Set(DMI),
   externalDisable: Boolean = false,
   masterWhere: BaseSubsystemBusAttachment = FBUS,
   slaveWhere: BaseSubsystemBusAttachment = CBUS
 ) {
-  def dmi   = protocol == DMI
-  def jtag  = protocol == JTAG
-  def cjtag = protocol == CJTAG
-  def apb   = protocol == APB
+  def dmi   = protocols.contains(DMI)
+  def jtag  = protocols.contains(JTAG)
+  def cjtag = protocols.contains(CJTAG)
+  def apb   = protocols.contains(APB)
 }
 
 case object ExportDebug extends Field(DebugAttachParams())

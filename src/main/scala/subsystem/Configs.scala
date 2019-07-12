@@ -299,11 +299,11 @@ class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
 })
 
 class WithJtagDTM extends Config ((site, here, up) => {
-  case ExportDebug => up(ExportDebug, site).copy(protocol = JTAG)
+  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(JTAG))
 })
 
 class WithDebugAPB extends Config ((site, here, up) => {
-  case ExportDebug => up(ExportDebug, site).copy(protocol = APB)
+  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(APB))
 })
 
 
