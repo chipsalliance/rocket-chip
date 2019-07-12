@@ -37,7 +37,7 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 }
 
 
-sealed trait BaseSubsystemBusAttachment
+trait BaseSubsystemBusAttachment
 case object SBUS extends BaseSubsystemBusAttachment
 case object PBUS extends BaseSubsystemBusAttachment
 case object FBUS extends BaseSubsystemBusAttachment
@@ -57,7 +57,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  def attach(where: BaseSubsystemBusAttachment) = where match {
+  protected def attach(where: BaseSubsystemBusAttachment) = where match {
     case SBUS => sbus
     case PBUS => pbus
     case FBUS => fbus
