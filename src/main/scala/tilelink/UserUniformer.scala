@@ -28,13 +28,10 @@ class TLUserUniformer[T <: UserBits : ClassTag](default: UInt)(implicit p: Param
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
-      out.a.bits.user.foreach {
-        val prev = edgeIn.getUserOrElse[T](in.a.bits, 0.U)
-        val mux = edgeOut.putUser(
-          in.a.bits.user.getOrElse(default), 
-          prev.map { x: UInt => { (y: TLClientParameters) => x } }
-        )
-        _ := mux(out.a.bits.source)
+      out.a.bits.user.zip(in.a.bits.user).foreach { case (ouser, iuser) =>
+        val prev = edgeIn.getUserOrElse[T](in.a.bits, default)
+        val mux = edgeOut.putUser(iuser, prev.map { x: UInt => { (y: TLClientParameters) => x } })
+        ouser := mux(out.a.bits.source)
       }
     }
   }
