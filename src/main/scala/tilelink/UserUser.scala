@@ -17,9 +17,9 @@ class TLUserUser[T <: UserBits : ClassTag](meta: T, f: (TLBundleA, TLClientParam
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
-      out.a.bits.user.foreach {
+      out.a.bits.user.foreach { u =>
         val mux = edgeOut.putUser(in.a.bits.user.getOrElse(0.U), Seq(x => f(in.a.bits, x)))
-        _ := mux(out.a.bits.source)
+        u := mux(out.a.bits.source)
       }
     }
   }

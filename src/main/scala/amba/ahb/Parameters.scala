@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import scala.math.max
+import scala.math.{max, min}
 
 case class AHBSlaveParameters(
   address:       Seq[AddressSet],
@@ -22,6 +22,7 @@ case class AHBSlaveParameters(
     address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val minMaxTransfer = min(supportsWrite.max, supportsRead.max)
   val maxTransfer = max(supportsWrite.max, supportsRead.max)
   val maxAddress = address.map(_.max).max
   val minAlignment = address.map(_.alignment).min
@@ -46,6 +47,7 @@ case class AHBSlavePortParameters(
   require (!slaves.isEmpty)
   require (isPow2(beatBytes))
 
+  val minMaxTransfer = slaves.map(_.minMaxTransfer).min // useful for fragmentation
   val maxTransfer = slaves.map(_.maxTransfer).max
   val maxAddress = slaves.map(_.maxAddress).max
 

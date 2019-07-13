@@ -60,9 +60,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       requestFifo = true,
       userBits    = {
         require( c.clients.forall( _.userBits.length == c.clients(0).userBits.length ),
-          s"Length of userBits sequences of all clients must be equal.")
+          s"Length of userBits sequences of all clients must be equal. ${c.clients.map(x => (x.name, x.userBits.length))}")
         require( c.clients.forall( _.userBits.zip( c.clients(0).userBits ).forall { case (a, b) => a.width == b.width } ),
-          s"Width of corresponding userBits for all clients must match.")
+          s"Width of corresponding userBits for all clients must match. ${c.clients.map(x => (x.name, x.userBits))}")
 
         c.clients(0).userBits
       })))
@@ -318,7 +318,7 @@ object TLFragmenter
   def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false)(implicit p: Parameters): TLNode =
   {
     val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
-    fragmenter.node
+    if (minSize <= maxSize) fragmenter.node else TLEphemeralNode()(ValName("no_fragmenter"))
   }
 
   def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)
