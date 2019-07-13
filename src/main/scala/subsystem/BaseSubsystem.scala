@@ -36,6 +36,14 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
+
+trait BaseSubsystemBusAttachment
+case object SBUS extends BaseSubsystemBusAttachment
+case object PBUS extends BaseSubsystemBusAttachment
+case object FBUS extends BaseSubsystemBusAttachment
+case object MBUS extends BaseSubsystemBusAttachment
+case object CBUS extends BaseSubsystemBusAttachment
+
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
@@ -48,6 +56,14 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+
+  protected def attach(where: BaseSubsystemBusAttachment) = where match {
+    case SBUS => sbus
+    case PBUS => pbus
+    case FBUS => fbus
+    case MBUS => mbus
+    case CBUS => cbus
+  }
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
