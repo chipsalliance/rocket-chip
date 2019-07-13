@@ -535,7 +535,7 @@ class CSRFile(
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       is_wfi && !allow_wfi ||
       is_ret && !allow_sret ||
-      is_ret && io.rw.addr(10) && !reg_debug ||
+      is_ret && io_dec.csr(10) && !reg_debug ||
       is_sfence && !allow_sfence_vma
   }
 
