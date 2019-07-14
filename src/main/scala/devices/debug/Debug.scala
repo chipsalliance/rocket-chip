@@ -112,6 +112,7 @@ case class DebugModuleParams (
   supportHartArray   : Boolean = true,
   nHaltGroups        : Int = 1,
   nExtTriggers       : Int = 0,
+  hasCoreResets      : Boolean = false,
   hasImplicitEbreak : Boolean = false
 ) {
 
@@ -183,6 +184,7 @@ class DebugInternalBundle (val nComponents: Int)(implicit val p: Parameters) ext
   val ackhavereset = Bool()
   val hasel        = Bool()
   val hamask       = Vec(nComponents, Bool())
+  val hrmask       = Vec(nComponents, Bool())
 }
 
 /* structure for top-level Debug Module signals which aren't the bus interfaces.
@@ -282,6 +284,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       val ctrl = (new DebugCtrlBundle(nComponents))
       val innerCtrl = new DecoupledIO(new DebugInternalBundle(nComponents))
       val hgDebugInt = Vec(nComponents, Bool()).asInput
+      val coreResetReq = cfg.hasCoreResets.option(Output(Vec(nComponents, Bool())))
     })
 
     //----DMCONTROL (The whole point of 'Outer' is to maintain this register on dmiClock (e.g. TCK) domain, so that it
@@ -325,6 +328,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
         DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
         DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
         DMCONTROLNxt.hasel        := (if (supportHartArray) DMCONTROLWrData.hasel else false.B)
+        DMCONTROLNxt.hartreset    := (if (cfg.hasCoreResets) DMCONTROLWrData.hartreset else false.B)
       }
     }
 
@@ -354,6 +358,11 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val HAWINDOWWrData = (new HAWINDOWFields()).fromBits(HAWINDOWWrDataVal)
     val HAWINDOWWrEn   = Wire(init = false.B)
     val HAWINDOWRdEn   = Wire(init = false.B)
+
+    def hartSelected(hart: Int): Bool = {
+      ((io.innerCtrl.bits.hartsel === hart.U) ||
+        (if (supportHartArray) io.innerCtrl.bits.hasel && io.innerCtrl.bits.hamask(hart) else false.B))
+    }
 
     if (supportHartArray) {
       val HAWINDOWSELReset = Wire(init = (new HAWINDOWSELFields().fromBits(0.U)))
@@ -420,6 +429,32 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     }
 
     //--------------------------------------------------------------
+    // Halt-on-reset
+    //  hrmaskReg is current set of harts that should halt-on-reset
+    //    Reset state is all zeroes
+    //    Bits are set by writing 1 to DMCONTROL.setresethaltreq
+    //    Bits are cleared by writing 1 to DMCONTROL.clrresethaltreq
+    //    Spec says if both are 1, then clrresethaltreq is executed
+    //--------------------------------------------------------------
+    val hrmask    = Wire(Vec(nComponents, Bool()))
+    val hrmaskNxt = Wire(Vec(nComponents, Bool()))
+    val hrmaskReg = Wire(init = Vec(AsyncResetReg(updateData = hrmaskNxt.asUInt,
+      resetData = 0,
+      enable = true.B,
+      name = "hrmaskReg").asBools))
+
+    hrmaskNxt := hrmaskReg
+    for (component <- 0 until nComponents) {
+      when (DMCONTROLWrEn && DMCONTROLWrData.clrresethaltreq && hartSelected(component)) {
+        hrmaskNxt(component) := false.B
+      }.elsewhen (DMCONTROLWrEn && DMCONTROLWrData.setresethaltreq && hartSelected(component)) {
+        hrmaskNxt(component) := true.B
+      }
+    }
+    hrmask := hrmaskReg
+
+
+    //--------------------------------------------------------------
     // DMI register decoder for Outer
     //--------------------------------------------------------------
       // regmap addresses are byte offsets from lowest address
@@ -476,6 +511,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     io.innerCtrl.bits.hartsel      := Mux(DMCONTROLWrEn, DMCONTROLWrData.hartsello, DMCONTROLReg.hartsello)
     io.innerCtrl.bits.resumereq    := DMCONTROLWrEn & DMCONTROLWrData.resumereq    // This bit is W1
     io.innerCtrl.bits.ackhavereset := DMCONTROLWrEn & DMCONTROLWrData.ackhavereset
+    io.innerCtrl.bits.hrmask       := hrmask
     if (supportHartArray) {
       io.innerCtrl.bits.hasel        := Mux(DMCONTROLWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
       io.innerCtrl.bits.hamask       := hamask
@@ -483,7 +519,11 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
     io.ctrl.dmactive := DMCONTROLReg.dmactive
-
+    io.coreResetReq.foreach { req =>
+      for (component <- 0 until nComponents) {
+        req(component) := DMCONTROLReg.hartreset & hartSelected(component)
+      }
+    }
   }
 }
 
@@ -527,6 +567,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val ctrl = new DebugCtrlBundle(nComponents)
       val innerCtrl = new AsyncBundle(new DebugInternalBundle(nComponents), AsyncQueueParams.singleton())
       val hgDebugInt = Vec(nComponents, Bool()).asInput
+      val coreResetReq = p(DebugModuleParams).hasCoreResets.option(Output(Vec(nComponents, Bool())))
     })
 
     dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
@@ -534,6 +575,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     io.ctrl <> dmOuter.module.io.ctrl
     io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
     dmOuter.module.io.hgDebugInt := io.hgDebugInt
+    io.coreResetReq.foreach { x => dmOuter.module.io.coreResetReq.foreach {y => x := y}}
   }
 }
 
@@ -585,6 +627,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val debugUnavail = Vec(nComponents, Bool()).asInput
       val hgDebugInt = Vec(nComponents, Bool()).asOutput
       val extTrigger = (nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val coreReset  = cfg.hasCoreResets.option(Input(Vec(nComponents, Bool())))
     })
 
 
@@ -608,9 +651,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Register & Wire Declarations (which need to be pre-declared)
     //--------------------------------------------------------------
 
-    val haltedBitRegs    = RegInit(Vec.fill(nComponents){false.B})
-    val resumeReqRegs    = RegInit(Vec.fill(nComponents){false.B})
-    val haveResetBitRegs = RegInit(Vec.fill(nComponents){true.B})
+    val haltedBitRegs    = Reg(Vec(nComponents, Bool()))
+    val resumeReqRegs    = Reg(Vec(nComponents, Bool()))
+    val haveResetBitRegs = Reg(Vec(nComponents, Bool()))
 
     // --- regmapper outputs
 
@@ -647,7 +690,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       }
     }
 
-    if (supportHartArray) {
+    if (supportHartArray) withReset (~io.dmactive) {
       val hamaskZero = Wire(init = Vec.fill(nComponents){false.B})
       val hamaskReg = RegInit(Vec.fill(nComponents){false.B})
       when (io.innerCtrl.fire()){
@@ -670,6 +713,35 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         (if (supportHartArray) io.innerCtrl.bits.hasel && io.innerCtrl.bits.hamask(component) else false.B))
     }
 
+    //-------------------------------------
+    // Halt-on-reset logic
+    //  hrmask is set in dmOuter and passed in
+    //  coreResets is the core resets if that configuration is selected, otherwise it is 'reset'
+    //  Debug interrupt is generated when a reset occurs whose corresponding hrmask bit is set
+    //  Debug interrupt is maintained until the hart enters halted state
+    //-------------------------------------
+    val hrReset    = Wire(Vec.fill(nComponents) { false.B })
+    val hrDebugInt = Reg(Vec(nComponents, Bool()))
+    val hrmaskReg  = Reg(Vec(nComponents, Bool()))
+    val coreResets = Wire(Vec(nComponents, Bool()))
+
+    for (component <- 0 until nComponents) {
+      coreResets(component) := (if (cfg.hasCoreResets) SynchronizerShiftReg(io.coreReset.get(component), 3, Some(s"debug_coreReset_$component"))
+        else reset)
+    }
+
+    when (~io.dmactive) {
+      hrDebugInt := hrReset
+      hrmaskReg := hrReset
+    }.otherwise {
+      when (io.innerCtrl.fire()){
+        hrmaskReg := io.innerCtrl.bits.hrmask
+      }
+      hrDebugInt := hrmaskReg &
+        (coreResets |                      // set debugInt during reset
+        (hrDebugInt & ~haltedBitRegs))     // maintain until core halts
+    }
+
     //--------------------------------------------------------------
     // DMI Registers
     //--------------------------------------------------------------
@@ -679,6 +751,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val DMSTATUSRdData = Wire(init = (new DMSTATUSFields()).fromBits(0.U))
     DMSTATUSRdData.authenticated := true.B // Not implemented
     DMSTATUSRdData.version       := 2.U    // Version 0.13
+    DMSTATUSRdData.hasresethaltreq := true.B
 
     val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
 
@@ -702,7 +775,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     for (component <- 0 until nComponents ) {
-      when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset && hamaskWrSel(component)) {
+      when (coreResets(component)) {
+        haveResetBitRegs(component) := true.B
+      }.elsewhen (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset && hamaskWrSel(component)) {
         haveResetBitRegs(component) := false.B
       }
     }
@@ -788,7 +863,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       //  FIRED: Back to IDLE when all harts in this hg have set their haltedBitRegs
       //                     and all trig out in this hg have been acknowledged
 
-      val hgFired = RegInit(Vec.fill(nHaltGroups+1){false.B})
+      val hgFired = Reg(Vec(nHaltGroups+1, Bool()))
       val hgHartFiring     = Wire(init = Vec.fill(nHaltGroups+1){false.B})     // which hg's are firing due to hart halting
       val hgTrigFiring     = Wire(init = Vec.fill(nHaltGroups+1){false.B})     // which hg's are firing due to trig in
       val hgHartsAllHalted = Wire(init = Vec.fill(nHaltGroups+1){false.B})     // in which hg's have all harts halted
@@ -835,7 +910,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         extTrigger.out.req := extTriggerOutReq.asUInt()
       }
     }
-    io.hgDebugInt := hgDebugInt
+    io.hgDebugInt := hgDebugInt | hrDebugInt
 
 
     //TODO
@@ -993,7 +1068,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         resumeReqRegs(component) := false.B
       }.otherwise {
         // Hart Halt Notification Logic
-        when (hartHaltedWrEn) {
+        when (coreResets(component)) {
+          haltedBitRegs(component) := false.B
+          resumeReqRegs(component) := false.B
+        }.elsewhen (hartHaltedWrEn) {
           when (hartSelFuncs.hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
           }
@@ -1415,6 +1493,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
       val hgDebugInt      = Vec(getNComponents(), Bool()).asOutput
       val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val coreReset  = p(DebugModuleParams).hasCoreResets.option(Input(Vec(getNComponents(), Bool())))
       val psd = new PSDTestMode().asInput
     })
 
@@ -1438,6 +1517,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       dmInner.module.io.debugUnavail := io.debugUnavail
       io.hgDebugInt := dmInner.module.io.hgDebugInt
       io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+      io.coreReset.foreach { x => dmInner.module.io.coreReset.foreach {y => y := x}}
       dmiXing.module.reset := false.B  // Safe AsyncQueue is reset from DMI side only
     }
   }
@@ -1472,6 +1552,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
       val apb_clock = p(ExportDebug).apb.option(Clock(INPUT))
       val apb_reset = p(ExportDebug).apb.option(Bool(INPUT))
       val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val coreReset    = p(DebugModuleParams).hasCoreResets.option(Input(Vec(nComponents, Bool())))
+      val coreResetReq = p(DebugModuleParams).hasCoreResets.option(Output(Vec(nComponents, Bool())))
       val psd = new PSDTestMode().asInput
     })
 
@@ -1495,6 +1577,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+    io.coreReset.foreach { x => dmInner.module.io.coreReset.foreach {y => y := x}}
+    io.coreResetReq.foreach { x => dmOuter.module.io.coreResetReq.foreach {y => x := y}}
   }
 
   val logicalTreeNode = new DebugLogicalTreeNode(
