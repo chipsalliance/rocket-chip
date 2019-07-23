@@ -60,36 +60,12 @@ object SystemBusAccessModule
     val SBCSWrDataVal      = Wire(init = 0.U(32.W))
     val SBCSWrData         = Wire(init = new SBCSFields().fromBits(SBCSWrDataVal))
     
-    val sberrorWrEn        = Wire(init = false.B)
-    val sbreadondataWrEn   = Wire(init = false.B)
-    val sbautoincrementWrEn= Wire(init = false.B)
-    val sbaccessWrEn       = Wire(init = false.B)
-    val sbreadonaddrWrEn   = Wire(init = false.B)
-    val sbbusyerrorWrEn    = Wire(init = false.B)
+    val SBCSRdEn, SBCSWrEn = Wire(init = false.B)
+    SBCSWrEn.suggestName("SBCSWrEn")
+    SBCSRdEn.suggestName("SBCSRdEn")
 
-    val sbcsfields = RegFieldGroup("sbcs", Some("system bus access control and status"), Seq(
-      RegField.r(1, SBCSRdData.sbaccess8,   RegFieldDesc("sbaccess8",   "8-bit accesses supported",   reset=Some(if (cfg.maxSupportedSBAccess >=   8) 1 else 0))),
-      RegField.r(1, SBCSRdData.sbaccess16,  RegFieldDesc("sbaccess16",  "16-bit accesses supported",  reset=Some(if (cfg.maxSupportedSBAccess >=  16) 1 else 0))),
-      RegField.r(1, SBCSRdData.sbaccess32,  RegFieldDesc("sbaccess32",  "32-bit accesses supported",  reset=Some(if (cfg.maxSupportedSBAccess >=  32) 1 else 0))),
-      RegField.r(1, SBCSRdData.sbaccess64,  RegFieldDesc("sbaccess64",  "64-bit accesses supported",  reset=Some(if (cfg.maxSupportedSBAccess >=  64) 1 else 0))),
-      RegField.r(1, SBCSRdData.sbaccess128, RegFieldDesc("sbaccess128", "128-bit accesses supported", reset=Some(if (cfg.maxSupportedSBAccess == 128) 1 else 0))),
-      RegField.r(7, SBCSRdData.sbasize,     RegFieldDesc("sbasize",     "bits in address")),
-      WNotifyVal(3, SBCSRdData.sberror, SBCSWrData.sberror, sberrorWrEn,
-        RegFieldDesc("sberror", "system bus error", reset=Some(0), wrType=Some(RegFieldWrType.ONE_TO_CLEAR))),
-      WNotifyVal(1, SBCSRdData.sbreadondata, SBCSWrData.sbreadondata, sbreadondataWrEn,
-        RegFieldDesc("sbreadondata", "system bus read on data", reset=Some(0))),
-      WNotifyVal(1, SBCSRdData.sbautoincrement, SBCSWrData.sbautoincrement, sbautoincrementWrEn,
-        RegFieldDesc("sbautoincrement", "system bus auto-increment address", reset=Some(0))),
-      WNotifyVal(3, SBCSRdData.sbaccess, SBCSWrData.sbaccess, sbaccessWrEn,
-        RegFieldDesc("sbaccess", "system bus access size", reset=Some(2))),
-      WNotifyVal(1, SBCSRdData.sbreadonaddr, SBCSWrData.sbreadonaddr, sbreadonaddrWrEn,
-        RegFieldDesc("sbreadonaddr", "system bus read on data", reset=Some(0))),
-      RegField.r(1, SBCSRdData.sbbusy, RegFieldDesc("sbbusy", "system bus access is busy", reset=Some(0))),
-      WNotifyVal(1, SBCSRdData.sbbusyerror, SBCSWrData.sbbusyerror, sbbusyerrorWrEn,
-        RegFieldDesc("sbbusyerror", "system bus busy error", reset=Some(0), wrType=Some(RegFieldWrType.ONE_TO_CLEAR))),
-      RegField(6),
-      RegField.r(3, SBCSRdData.sbversion, RegFieldDesc("sbversion", "system bus access version", reset=Some(1))),
-    ))
+    val sbcsfields = Seq(RWNotify(32, SBCSRdData.asUInt(), SBCSWrDataVal, SBCSRdEn, SBCSWrEn,
+                        Some(RegFieldDesc("dmi_sbcs", ""))))
 
     // --- System Bus Address Registers ---
     // ADDR0 Register is required
@@ -119,7 +95,7 @@ object SystemBusAccessModule
         }
 
         Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
-          Some(RegFieldDesc("dmi_sbaddr"+i, "SBA address register", reset=Some(0), volatile=true))))
+          Some(RegFieldDesc("dmi_sbaddr"+i, "", reset=Some(0)))))
       } else {
         Seq.empty[RegField]
       }
@@ -162,7 +138,7 @@ object SystemBusAccessModule
         SBDATARdData(i) := Cat(d.reverse)
 
         Seq(RWNotify(32, SBDATARdData(i), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
-          Some(RegFieldDesc("dmi_sbdata"+i, "SBA data register", reset=Some(0), volatile=true))))
+          Some(RegFieldDesc("dmi_sbdata"+i, "", reset=Some(0)))))
       } else {
         Seq.empty[RegField]
       }
@@ -202,13 +178,13 @@ object SystemBusAccessModule
     when (~dmactive) {
       SBCSFieldsReg := SBCSFieldsRegReset
     }.otherwise {
-      SBCSFieldsReg.sbbusyerror     := Mux(sbbusyerrorWrEn && SBCSWrData.sbbusyerror,     false.B, // W1C
+      SBCSFieldsReg.sbbusyerror     := Mux(SBCSWrEn && SBCSWrData.sbbusyerror,     false.B, // W1C
                                        Mux(anyAddressWrEn && sbBusy,               true.B, // Set if a write to SBADDRESS occurs while busy
                                        Mux((anyDataRdEn || anyDataWrEn) && sbBusy, true.B, SBCSFieldsReg.sbbusyerror))) // Set if any access to SBDATA occurs while busy
-      SBCSFieldsReg.sbreadonaddr    := Mux(sbreadonaddrWrEn,    SBCSWrData.sbreadonaddr   , SBCSFieldsReg.sbreadonaddr)
-      SBCSFieldsReg.sbautoincrement := Mux(sbautoincrementWrEn, SBCSWrData.sbautoincrement, SBCSFieldsReg.sbautoincrement)
-      SBCSFieldsReg.sbreadondata    := Mux(sbreadondataWrEn,    SBCSWrData.sbreadondata   , SBCSFieldsReg.sbreadondata)
-      SBCSFieldsReg.sbaccess        := Mux(sbaccessWrEn,        SBCSWrData.sbaccess, SBCSFieldsReg.sbaccess)
+      SBCSFieldsReg.sbreadonaddr    := Mux(SBCSWrEn, SBCSWrData.sbreadonaddr   , SBCSFieldsReg.sbreadonaddr)
+      SBCSFieldsReg.sbautoincrement := Mux(SBCSWrEn, SBCSWrData.sbautoincrement, SBCSFieldsReg.sbautoincrement)
+      SBCSFieldsReg.sbreadondata    := Mux(SBCSWrEn, SBCSWrData.sbreadondata   , SBCSFieldsReg.sbreadondata)
+      SBCSFieldsReg.sbaccess        := Mux(SBCSWrEn, SBCSWrData.sbaccess, SBCSFieldsReg.sbaccess)
       SBCSFieldsReg.sbversion       := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
     }
 
@@ -219,7 +195,7 @@ object SystemBusAccessModule
         sbErrorReg(i) := 0.U
     }.otherwise {
       for (i <- 0 until 3)
-        sbErrorReg(i) := Mux(sberrorWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U(i), // W1C
+        sbErrorReg(i) := Mux(SBCSWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U(i), // W1C
                          Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), BadAddr.id.U(i), // Bad address accessed
                          Mux((tryWrEn || tryRdEn) && sbAlignmentError, AlgnError.id.U(i), // Address alignment error
                          Mux((tryWrEn || tryRdEn) && sbAccessError, BadAccess.id.U(i), // Access size error
