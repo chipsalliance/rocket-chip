@@ -314,18 +314,19 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       name = "DMCONTROL"
     )))
 
-    val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
-    val DMCONTROLWrData = Wire(init = new DMCONTROLFields().fromBits(0.U))
-    val dmactiveWrEn        = Wire(init = false.B)
-    val ndmresetWrEn        = Wire(init = false.B)
-    val clrresethaltreqWrEn = Wire(init = false.B)
-    val setresethaltreqWrEn = Wire(init = false.B)
-    val hartselloWrEn       = Wire(init = false.B)
-    val haselWrEn           = Wire(init = false.B)
-    val ackhaveresetWrEn    = Wire(init = false.B)
-    val hartresetWrEn       = Wire(init = false.B)
-    val resumereqWrEn       = Wire(init = false.B)
-    val haltreqWrEn         = Wire(init = false.B)
+    val DMCONTROLRdData = Wire(init = DMCONTROLReg)
+
+    val DMCONTROLWrDataVal = Wire(init = 0.U(32.W))
+    val DMCONTROLWrData = {
+      // Mask off unused hart ID bits to eliminate some flops
+      val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
+      val fields = DMCONTROLWrDataVal.asTypeOf(new DMCONTROLFields)
+      val res = Wire(init = fields)
+      res.hartsello := fields.hartsello & hartsel_mask
+      res
+    }
+    val DMCONTROLWrEn   = Wire(init = false.B)
+    val DMCONTROLRdEn   = Wire(init = false.B)
 
     val dmactive = DMCONTROLReg.dmactive
 
@@ -333,15 +334,19 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     when (~dmactive) {
       DMCONTROLNxt := DMCONTROLReset
     } .otherwise {
-      when (ndmresetWrEn)  { DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset }
-      when (hartselloWrEn) { DMCONTROLNxt.hartsello    := DMCONTROLWrData.hartsello & hartsel_mask}
-      when (haselWrEn)     { DMCONTROLNxt.hasel        := DMCONTROLWrData.hasel }
-      when (hartresetWrEn) { DMCONTROLNxt.hartreset    := DMCONTROLWrData.hartreset }
-      when (haltreqWrEn)   { DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq }
+      when (DMCONTROLWrEn) {
+        DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset
+        DMCONTROLNxt.hartsello    := DMCONTROLWrData.hartsello
+        DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq
+        DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
+        DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
+        DMCONTROLNxt.hasel        := (if (supportHartArray) DMCONTROLWrData.hasel else false.B)
+        DMCONTROLNxt.hartreset    := (if (cfg.hasHartResets) DMCONTROLWrData.hartreset else false.B)
+      }
     }
 
     // Put this last to override its own effects.
-    when (dmactiveWrEn) {
+    when (DMCONTROLWrEn) {
       DMCONTROLNxt.dmactive := DMCONTROLWrData.dmactive
     }
 
@@ -355,28 +360,33 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
       // The following need to be declared even if supportHartArray is false due to reference
       // at compile time by dmiNode.regmap
-    val HAWINDOWSELWrData = Wire(init = (new HAWINDOWSELFields()).fromBits(0.U))
+    val HAWINDOWSELRdData = Wire(init = (new HAWINDOWSELFields()).fromBits(0.U))
+    val HAWINDOWSELWrDataVal = Wire(init = 0.U(32.W))
+    val HAWINDOWSELWrData = (new HAWINDOWSELFields()).fromBits(HAWINDOWSELWrDataVal)
     val HAWINDOWSELWrEn   = Wire(init = false.B)
+    val HAWINDOWSELRdEn   = Wire(init = false.B)
 
     val HAWINDOWRdData = Wire(init = (new HAWINDOWFields()).fromBits(0.U))
-    val HAWINDOWWrData = Wire(init = (new HAWINDOWFields()).fromBits(0.U))
+    val HAWINDOWWrDataVal = Wire(init = 0.U(32.W))
+    val HAWINDOWWrData = (new HAWINDOWFields()).fromBits(HAWINDOWWrDataVal)
     val HAWINDOWWrEn   = Wire(init = false.B)
+    val HAWINDOWRdEn   = Wire(init = false.B)
 
     def hartSelected(hart: Int): Bool = {
       ((io.innerCtrl.bits.hartsel === hart.U) ||
         (if (supportHartArray) io.innerCtrl.bits.hasel && io.innerCtrl.bits.hamask(hart) else false.B))
     }
 
-    val HAWINDOWSELNxt = Wire(init = (new HAWINDOWSELFields().fromBits(0.U)))
-    val HAWINDOWSELReg = Wire(init = new HAWINDOWSELFields().fromBits(AsyncResetReg(updateData = HAWINDOWSELNxt.asUInt,
-      resetData = 0,
-      enable = true.B,
-      name = "HAWINDOWSELReg"
-    )))
-
     if (supportHartArray) {
       val HAWINDOWSELReset = Wire(init = (new HAWINDOWSELFields().fromBits(0.U)))
+      val HAWINDOWSELNxt = Wire(init = (new HAWINDOWSELFields().fromBits(0.U)))
+      val HAWINDOWSELReg = Wire(init = new HAWINDOWSELFields().fromBits(AsyncResetReg(updateData = HAWINDOWSELNxt.asUInt,
+        resetData = 0,
+        enable = true.B,
+        name = "HAWINDOWSELReg"
+      )))
 
+      HAWINDOWSELRdData := HAWINDOWSELReg
       HAWINDOWSELNxt := HAWINDOWSELReg
       when (~dmactive) {
         HAWINDOWSELNxt := HAWINDOWSELReset
@@ -384,7 +394,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
         when (HAWINDOWSELWrEn) {
             // Unneeded upper bits of HAWINDOWSEL are tied to 0.  Entire register is 0 if all harts fit in one window
           if (nComponents > haWindowSize) {
-            HAWINDOWSELNxt.hawindowsel := HAWINDOWSELWrData.hawindowsel & ((1 << (log2Up(nComponents) - 5)) - 1).U
+            HAWINDOWSELNxt.hawindowsel := HAWINDOWSELWrData.hawindowsel & (log2Up(nComponents) - 5).U
           } else {
             HAWINDOWSELNxt.hawindowsel := 0.U
           }
@@ -448,47 +458,13 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     hrmaskNxt := hrmaskReg
     for (component <- 0 until nComponents) {
-      when (clrresethaltreqWrEn && DMCONTROLWrData.clrresethaltreq && hartSelected(component)) {
+      when (DMCONTROLWrEn && DMCONTROLWrData.clrresethaltreq && hartSelected(component)) {
         hrmaskNxt(component) := false.B
-      }.elsewhen (setresethaltreqWrEn && DMCONTROLWrData.setresethaltreq && hartSelected(component)) {
+      }.elsewhen (DMCONTROLWrEn && DMCONTROLWrData.setresethaltreq && hartSelected(component)) {
         hrmaskNxt(component) := true.B
       }
     }
-    hrmask := Mux(clrresethaltreqWrEn | setresethaltreqWrEn, hrmaskNxt, hrmaskReg)
-
-
-    val dmControlRegFields = RegFieldGroup("dmcontrol", Some("debug module control register"), Seq(
-      WNotifyVal(1, DMCONTROLReg.dmactive,    DMCONTROLWrData.dmactive, dmactiveWrEn,
-        RegFieldDesc("dmactive", "debug module active", reset=Some(0))),
-      WNotifyVal(1, DMCONTROLReg.ndmreset,    DMCONTROLWrData.ndmreset, ndmresetWrEn,
-        RegFieldDesc("ndmreset", "debug module reset output", reset=Some(0))),
-      WNotifyVal(1, 0.U,                      DMCONTROLWrData.clrresethaltreq, clrresethaltreqWrEn,
-        RegFieldDesc("clrresethaltreq", "clear reset halt request", reset=Some(0), access=RegFieldAccessType.W)),
-      WNotifyVal(1, 0.U,                      DMCONTROLWrData.setresethaltreq, setresethaltreqWrEn,
-        RegFieldDesc("setresethaltreq", "set reset halt request",   reset=Some(0), access=RegFieldAccessType.W)),
-      RegField(12),
-      if (nComponents > 1) WNotifyVal(p(MaxHartIdBits),
-                      DMCONTROLReg.hartsello, DMCONTROLWrData.hartsello, hartselloWrEn,
-        RegFieldDesc("hartsello",       "hart select low", reset=Some(0)))
-      else RegField(1),
-      if (nComponents > 1) RegField(10-p(MaxHartIdBits))
-      else RegField(9),
-      if (supportHartArray)
-        WNotifyVal(1, DMCONTROLReg.hasel,     DMCONTROLWrData.hasel, haselWrEn,
-        RegFieldDesc("hasel",           "hart array select", reset=Some(0)))
-      else RegField(1),
-      RegField(1),
-      WNotifyVal(1, 0.U,                      DMCONTROLWrData.ackhavereset, ackhaveresetWrEn,
-        RegFieldDesc("ackhavereset",    "acknowledge reset", reset=Some(0),  access=RegFieldAccessType.W)),
-      if (cfg.hasHartResets)
-        WNotifyVal(1, DMCONTROLReg.hartreset, DMCONTROLWrData.hartreset, hartresetWrEn,
-        RegFieldDesc("hartreset",       "hart reset request", reset=Some(0)))
-      else RegField(1),
-      WNotifyVal(1, 0.U,                      DMCONTROLWrData.resumereq, resumereqWrEn,
-        RegFieldDesc("resumereq",       "resume request", reset=Some(0), access=RegFieldAccessType.W)),
-      WNotifyVal(1, DMCONTROLReg.haltreq,     DMCONTROLWrData.haltreq, haltreqWrEn,     // Spec says W, but maintaining previous behavior
-        RegFieldDesc("haltreq",         "halt request", reset=Some(0)))
-    ))
+    hrmask := hrmaskReg
 
 
     //--------------------------------------------------------------
@@ -500,13 +476,12 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     def DMI_HAWINDOW_OFFSET    = ((DMI_HAWINDOW - DMI_DMCONTROL) << 2)
 
     val omRegMap = dmiNode.regmap(
-      DMI_DMCONTROL_OFFSET   -> dmControlRegFields,
-      DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray && (nComponents > 32)) Seq(
-        WNotifyVal(log2Up(nComponents)-5, HAWINDOWSELReg.hawindowsel, HAWINDOWSELWrData.hawindowsel, HAWINDOWSELWrEn,
-        RegFieldDesc("hawindowsel", "hart array window select", reset=Some(0)))) else Nil),
-      DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(
-        WNotifyVal(if (nComponents > 31) 32 else nComponents, HAWINDOWRdData.maskdata, HAWINDOWWrData.maskdata, HAWINDOWWrEn,
-        RegFieldDesc("hawindow", "hart array window", reset=Some(0), volatile=(nComponents > 32)))) else Nil)
+      DMI_DMCONTROL_OFFSET   -> Seq(RWNotify(32, DMCONTROLRdData.asUInt(),
+        DMCONTROLWrDataVal, DMCONTROLRdEn, DMCONTROLWrEn, Some(RegFieldDesc("dmi_dmcontrol", "", reset=Some(0))))),
+      DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWSELRdData.asUInt(),
+        HAWINDOWSELWrDataVal, HAWINDOWSELRdEn, HAWINDOWSELWrEn, Some(RegFieldDesc("dmi_hawindowsel", "", reset=Some(0))))) else Nil),
+      DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWRdData.asUInt(),
+        HAWINDOWWrDataVal, HAWINDOWRdEn, HAWINDOWWrEn, Some(RegFieldDesc("dmi_hawindow", "", reset=Some(0))))) else Nil)
     )
 
     //--------------------------------------------------------------
@@ -538,22 +513,21 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       when (~dmactive) {
         debugIntNxt(component) := false.B
       }. otherwise {
-        when (haltreqWrEn && ((DMCONTROLWrData.hartsello === component.U)
+        when (DMCONTROLWrEn && ((DMCONTROLWrData.hartsello === component.U)
           || (if (supportHartArray) DMCONTROLWrData.hasel && hamask(component) else false.B))) {
           debugIntNxt(component) := DMCONTROLWrData.haltreq
         }
       }
     }
 
-    io.innerCtrl.valid := hartselloWrEn | resumereqWrEn | ackhaveresetWrEn | setresethaltreqWrEn | clrresethaltreqWrEn | haselWrEn |
-       (HAWINDOWWrEn & supportHartArray.B)
-    io.innerCtrl.bits.hartsel      := Mux(hartselloWrEn, DMCONTROLWrData.hartsello, DMCONTROLReg.hartsello)
-    io.innerCtrl.bits.resumereq    := resumereqWrEn & DMCONTROLWrData.resumereq    // This bit is W1
-    io.innerCtrl.bits.ackhavereset := ackhaveresetWrEn & DMCONTROLWrData.ackhavereset
+    io.innerCtrl.valid := DMCONTROLWrEn | (HAWINDOWWrEn & supportHartArray.B)
+    io.innerCtrl.bits.hartsel      := Mux(DMCONTROLWrEn, DMCONTROLWrData.hartsello, DMCONTROLReg.hartsello)
+    io.innerCtrl.bits.resumereq    := DMCONTROLWrEn & DMCONTROLWrData.resumereq    // This bit is W1
+    io.innerCtrl.bits.ackhavereset := DMCONTROLWrEn & DMCONTROLWrData.ackhavereset
     io.innerCtrl.bits.hrmask       := hrmask
     if (supportHartArray) {
-      io.innerCtrl.bits.hasel      := Mux(haselWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
-      io.innerCtrl.bits.hamask     := hamask
+      io.innerCtrl.bits.hasel        := Mux(DMCONTROLWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
+      io.innerCtrl.bits.hamask       := hamask
     }
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
