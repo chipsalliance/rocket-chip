@@ -19,7 +19,8 @@ case class ParsedInputNames(
     topModuleProject: String,
     topModuleClass: String,
     configProject: String,
-    configs: String) {
+    configs: String,
+    outputBaseName: Option[String]) {
   val configClasses: Seq[String] = configs.split('_')
   def prepend(prefix: String, suffix: String) =
     if (prefix == "" || prefix == "_root_") suffix else (prefix + "." + suffix)
@@ -78,15 +79,23 @@ trait HasGeneratorUtilities {
 /** Standardized command line interface for Scala entry point */
 trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val names: ParsedInputNames = {
-    require(args.size == 5, "Usage: sbt> " +
+    require(args.size == 5 || args.size == 6, "Usage: sbt> " +
       "run TargetDir TopModuleProjectName TopModuleName " +
-      "ConfigProjectName ConfigNameString")
-    ParsedInputNames(
-      targetDir = args(0),
-      topModuleProject = args(1),
-      topModuleClass = args(2),
-      configProject = args(3),
-      configs = args(4))
+      "ConfigProjectName ConfigNameString [OutputFilesBaseName]")
+    val base =
+      ParsedInputNames(
+        targetDir = args(0),
+        topModuleProject = args(1),
+        topModuleClass = args(2),
+        configProject = args(3),
+        configs = args(4),
+        outputBaseName = None)
+
+    if (args.size == 6) {
+      base.copy(outputBaseName = Some(args(5)))
+    } else {
+      base
+    }
   }
 
   // Canonical ways of building various JVM elaboration-time structures
@@ -95,7 +104,8 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val params: Parameters = config.toInstance
   lazy val circuit: Circuit = elaborate(names.fullTopModuleClass, params)
 
-  val longName: String // Exhaustive name used to interface with external build tool targets
+  // Exhaustive name used to interface with external build tool targets
+  lazy val longName: String = names.outputBaseName.getOrElse(names.configProject + "." + names.configs)
 
   /** Output FIRRTL, which an external compiler can turn into Verilog. */
   def generateFirrtl {
