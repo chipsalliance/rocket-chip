@@ -54,7 +54,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
         endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
         managers = seq.flatMap { port =>
           require (port.beatBytes == seq(0).beatBytes,
-            s"Xbar data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
+            s"Xbar ($name with parent $parent) data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
           val fifoIdMapper = fifoIdFactory()
           port.managers map { manager => manager.v1copy(
             fifoId = manager.fifoId.map(fifoIdMapper(_))
@@ -66,7 +66,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
   lazy val module = new LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
-      println (s" Your TLXbar ($name) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
+      println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
       println (s"!!! WARNING !!!")
     }
 
