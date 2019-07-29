@@ -187,6 +187,9 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   rpq.io.enq.bits := io.req_bits
   rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
+  val acked = Reg(Bool())
+  when (io.mem_grant.valid) { acked := true }
+
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
   }
@@ -207,7 +210,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   when (state === s_meta_clear && io.meta_write.ready) {
     state := s_refill_req
   }
-  when (state === s_wb_resp && io.mem_grant.valid) {
+  when (state === s_wb_resp && io.wb_req.ready && acked) {
     state := s_meta_clear
   }
   when (io.wb_req.fire()) { // s_wb_req
@@ -224,6 +227,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     req := io.req_bits
+    acked := false
     val old_coh = io.req_bits.old_meta.coh
     val needs_wb = old_coh.onCacheControl(M_FLUSH)._1
     val (is_hit, _, coh_on_hit) = old_coh.onAccess(io.req_bits.cmd)
