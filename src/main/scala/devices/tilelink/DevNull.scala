@@ -10,7 +10,7 @@ case class DevNullParams(
   address: Seq[AddressSet],
   maxAtomic: Int,
   maxTransfer: Int,
-  region: RegionType.T = RegionType.UNCACHEABLE,
+  region: RegionType.T = RegionType.VOLATILE,
   executable: Boolean = true,
   mayDenyGet: Boolean = true,
   mayDenyPut: Boolean = true,

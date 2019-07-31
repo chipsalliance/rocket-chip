@@ -59,7 +59,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       )
   }
 
-  val rdata = for ((array, i) <- data_arrays zipWithIndex) yield {
+  val rdata = for (((array, omSRAM), i) <- data_arrays zipWithIndex) yield {
     val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
       val wData = wWords(i).grouped(encBits)
@@ -104,7 +104,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val replacer = cacheParams.replacement
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
-  val tag_array = DescribedSRAM(
+  val (tag_array, omSRAM) = DescribedSRAM(
     name = "tag_array",
     desc = "DCache Tag Array",
     size = nSets,
@@ -166,8 +166,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
+  val flushing_req = Reg(s1_req)
   val cached_grant_wait = Reg(init=Bool(false))
   val release_ack_wait = Reg(init=Bool(false))
+  val release_ack_addr = Reg(UInt(paddrBits.W))
   val can_acquire_before_release = !release_ack_wait && release_queue_empty
   val release_state = Reg(init=s_ready)
   val any_pstore_valid = Wire(Bool())
@@ -626,9 +628,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   ccover(tl_out.d.valid && !tl_out.d.ready, "BLOCK_D", "D$ D-channel blocked")
 
   // Handle an incoming TileLink Probe message
-  val block_probe = releaseInFlight || grantInProgress || blockProbeAfterGrantCount > 0 || lrscValid
-  metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe || lrscBackingOff)
-  tl_out.b.ready := metaArb.io.in(6).ready && !block_probe && !s1_valid && !s2_valid
+  val block_probe_for_core_progress = blockProbeAfterGrantCount > 0 || lrscValid
+  val block_probe_for_pending_release_ack = release_ack_wait && (tl_out.b.bits.address ^ release_ack_addr)(idxMSB, idxLSB) === 0
+  val block_probe_for_ordering = releaseInFlight || block_probe_for_pending_release_ack || grantInProgress
+  metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe_for_core_progress || lrscBackingOff)
+  tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid)
   metaArb.io.in(6).bits.write := false
   metaArb.io.in(6).bits.idx := probeIdx(tl_out.b.bits)
   metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, tl_out.b.bits.address)
@@ -654,7 +658,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   if (!usingDataScratchpad) {
     when (s2_victimize) {
       assert(s2_valid_flush_line || s2_flush_valid || io.cpu.s2_nack)
-      release_state := Mux(s2_victim_dirty, s_voluntary_writeback, s_voluntary_write_meta)
+      val discard_line = s2_valid_flush_line && s2_req.size(1) || s2_flush_valid && flushing_req.size(1)
+      release_state := Mux(s2_victim_dirty && !discard_line, s_voluntary_writeback, s_voluntary_write_meta)
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
     when (s2_probe) {
@@ -705,7 +710,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       newCoh := voluntaryNewCoh
       releaseWay := s2_victim_way
       when (releaseDone) { release_state := s_voluntary_write_meta }
-      when (tl_out_c.fire() && c_first) { release_ack_wait := true }
+      when (tl_out_c.fire() && c_first) {
+        release_ack_wait := true
+        release_ack_addr := probe_bits.address
+      }
     }
     tl_out_c.bits.source := probe_bits.source
     tl_out_c.bits.address := probe_bits.address
@@ -831,6 +839,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (s2_valid_masked && s2_cmd_flush_all) {
       when (!flushed && !io.cpu.s2_kill && !release_ack_wait && !uncachedInFlight.asUInt.orR) {
         flushing := true
+        flushing_req := s2_req
       }
     }
 

@@ -24,6 +24,15 @@ case class APBSlaveParameters(
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxAddress = address.map(_.max).max
   val minAlignment = address.map(_.alignment).min
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address, ResourcePermissions(
+      r = supportsRead,
+      w = supportsWrite,
+      x = executable,
+      c = false,
+      a = false))
+  }
 }
 
 case class APBSlavePortParameters(
@@ -45,14 +54,20 @@ case class APBSlavePortParameters(
 
 case class APBMasterParameters(
   name:     String,
-  nodePath: Seq[BaseNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq(),
+  userBits: Seq[UserBits] = Nil) {
+    val userBitsWidth = userBits.map(_.width).sum
+}
 
 case class APBMasterPortParameters(
-  masters: Seq[APBMasterParameters])
+  masters: Seq[APBMasterParameters]) {
+    val userBitsWidth = masters.map(_.userBitsWidth).max
+  }
 
 case class APBBundleParameters(
   addrBits: Int,
-  dataBits: Int)
+  dataBits: Int,
+  userBits: Int = 0)
 {
   require (dataBits >= 8)
   require (addrBits >= 1)
@@ -64,18 +79,20 @@ case class APBBundleParameters(
   def union(x: APBBundleParameters) =
     APBBundleParameters(
       max(addrBits, x.addrBits),
-      max(dataBits, x.dataBits))
+      max(dataBits, x.dataBits),
+      userBits)
 }
 
 object APBBundleParameters
 {
-  val emptyBundleParams = APBBundleParameters(addrBits = 1, dataBits = 8)
+  val emptyBundleParams = APBBundleParameters(addrBits = 1, dataBits = 8, userBits = 0)
   def union(x: Seq[APBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
   def apply(master: APBMasterPortParameters, slave: APBSlavePortParameters) =
     new APBBundleParameters(
       addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8)
+      dataBits = slave.beatBytes * 8,
+      userBits = master.userBitsWidth)
 }
 
 case class APBEdgeParameters(

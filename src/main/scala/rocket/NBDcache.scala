@@ -628,7 +628,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       val resp = Wire(Vec(rowWords, Bits(width = encRowBits)))
       val r_raddr = RegEnable(io.read.bits.addr, io.read.valid)
       for (i <- 0 until resp.size) {
-        val array = DescribedSRAM(
+        val (array, omSRAM) = DescribedSRAM(
           name = s"array_${w}_${i}",
           desc = "Non-blocking DCache Data Array",
           size = nSets * refillCycles,
@@ -650,7 +650,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     }
   } else {
     for (w <- 0 until nWays) {
-      val array = DescribedSRAM(
+      val (array, omSRAM) = DescribedSRAM(
         name = s"array_${w}",
         desc = "Non-blocking DCache Data Array",
         size = nSets * refillCycles,
@@ -824,6 +824,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     when (lrsc_count > 0) {
       lrsc_count := 0
     }
+  }
+  when (s2_valid_masked && !s2_hit && s2_lrsc_addr_match) {
+    lrsc_count := 0
   }
 
   val s2_data = Wire(Vec(nWays, Bits(width=encRowBits)))

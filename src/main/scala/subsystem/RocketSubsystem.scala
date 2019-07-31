@@ -12,7 +12,6 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
 
-
 // TODO: how specific are these to RocketTiles?
 case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
 case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
@@ -40,7 +39,7 @@ trait HasRocketTiles extends HasTiles
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
   val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
-    val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams)))
+    val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams), logicalTreeNode))
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
@@ -65,12 +64,17 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
   val outer: HasRocketTiles
 }
 
+// Field for specifying MaskROM addition to subsystem
+case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
+
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
-  override lazy val module = new RocketSubsystemModuleImp(this)
+        
+  // add Mask ROM devices
+  val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
 
-  def getOMInterruptDevice(resourceBindingsMap: ResourceBindingsMap): Seq[OMInterrupt] = Nil
+  override lazy val module = new RocketSubsystemModuleImp(this)
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)

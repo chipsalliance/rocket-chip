@@ -57,7 +57,16 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     clientFn  = { c => c.copy(clients = Seq(TLClientParameters(
       name        = "TLFragmenter",
       sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
-      requestFifo = true))) },
+      requestFifo = true,
+      userBits    = {
+        require( c.clients.forall( _.userBits.length == c.clients(0).userBits.length ),
+          s"Length of userBits sequences of all clients must be equal. ${c.clients.map(x => (x.name, x.userBits.length))}")
+        require( c.clients.forall( _.userBits.zip( c.clients(0).userBits ).forall { case (a, b) => a.width == b.width } ),
+          s"Width of corresponding userBits for all clients must match. ${c.clients.map(x => (x.name, x.userBits))}")
+
+        c.clients(0).userBits
+      })))
+    },
     managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
 
   lazy val module = new LazyModuleImp(this) {
@@ -121,7 +130,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
          * get4    get4   0       ackD4   0      ackD4     0    0
          * get1    get1   0       ackD1   0      ackD1     0    0
          *
-         * put64   put16  6                                15   
+         * put64   put16  6                                15
          * put64   put16  6                                14
          * put64   put16  6                                13
          * put64   put16  6       ack16   6                12    12
@@ -252,7 +261,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val maxLgPutPartial  = Mux1H(find, maxLgPutPartials)
         val maxLgHint        = Mux1H(find, maxLgHints)
 
-        val limit = if (alwaysMin) lgMinSize else 
+        val limit = if (alwaysMin) lgMinSize else
           MuxLookup(in_a.bits.opcode, lgMinSize, Array(
             TLMessages.PutFullData    -> maxLgPutFull,
             TLMessages.PutPartialData -> maxLgPutPartial,
@@ -308,8 +317,10 @@ object TLFragmenter
 {
   def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false)(implicit p: Parameters): TLNode =
   {
-    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
-    fragmenter.node
+    if (minSize <= maxSize) {
+      val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
+      fragmenter.node
+    } else { TLEphemeralNode()(ValName("no_fragmenter")) }
   }
 
   def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)

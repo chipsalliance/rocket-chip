@@ -5,9 +5,9 @@ package freechips.rocketchip.diplomaticobjectmodel
 import java.io.{File, FileWriter}
 
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
+import freechips.rocketchip.diplomacy.{ AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceBindingsMap, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.util.{Code, ElaborationArtefacts}
+import freechips.rocketchip.util.Code
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization
 import org.json4s.{CustomSerializer, Extraction, NoTypeHints}
@@ -82,17 +82,6 @@ object DiplomaticObjectModelUtils {
 
   def getAllClassNames(klass: Class[_]): Seq[String] =
     keepLast(getSuperClasses(klass).map(getDemangledName _))
-
-  def convertCode(code: Code): Option[OMECC] = {
-    val x = code.toString.split('.')(3).split('@')(0)
-    x match {
-      case "SECDEDCode" => Some(OMECC.SECDED)
-      case "IdentityCode" => Some(OMECC.Identity)
-      case "ParityCode" => Some(OMECC.Parity)
-      case "SECCode" => Some(OMECC.SEC)
-      case _ => throw new IllegalArgumentException
-    }
-  }
 }
 
 class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
@@ -111,16 +100,8 @@ class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
 })
 
 object DiplomaticObjectModelAddressing {
-
-  def getResourceBindings(device: Device, resourceBindingsMap: ResourceBindingsMap): Option[ResourceBindings] = {
-    require(resourceBindingsMap.map.contains(device))
-    resourceBindingsMap.map.get(device)
-  }
-
-  def getOMComponentHelper(device: Device, resourceBindingsMap: ResourceBindingsMap, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
-    require(resourceBindingsMap.map.contains(device))
-    val resourceBindings = resourceBindingsMap.map.get(device)
-    resourceBindings.map { case rb => fn(rb) }.getOrElse(Nil)
+  def getOMComponentHelper(resourceBindings: ResourceBindings, fn: (ResourceBindings) => Seq[OMComponent]): Seq[OMComponent] = {
+    fn(resourceBindings)
   }
 
   private def omPerms(p: ResourcePermissions): OMPermissions = {
@@ -133,9 +114,10 @@ object DiplomaticObjectModelAddressing {
     )
   }
 
-  private def omAddressSets(ranges: Seq[AddressSet]): Seq[OMAddressSet] = {
+  private def omAddressSets(ranges: Seq[AddressSet], name: String): Seq[OMAddressSet] = {
     ranges.map {
       case AddressSet(base, mask) =>
+        require(mask != 0, s"omAddressSets: $name has invalid mask of 0")
         OMAddressSet(base = base, mask = mask)
     }
   }
@@ -143,8 +125,8 @@ object DiplomaticObjectModelAddressing {
   private def omMemoryRegion(name: String, description: String, value: ResourceValue, omRegMap: Option[OMRegisterMap]): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
-        (omAddressSets(rm.address),rm.permissions)
-      case ra: ResourceAddress => (omAddressSets(ra.address), ra.permissions)
+        (omAddressSets(rm.address, name),rm.permissions)
+      case ra: ResourceAddress => (omAddressSets(ra.address, name), ra.permissions)
       case _ => throw new IllegalArgumentException()
     }
 
@@ -177,6 +159,23 @@ object DiplomaticObjectModelAddressing {
           case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, "port memory region", value, omRegMap)
         }
     }.flatten.toSeq
+  }
+
+  def makeOMSRAM(
+    desc: String,
+    width: Int,
+    depth: BigInt,
+    granWidth: Int,
+    uid: Int
+  ): OMSRAM = {
+    OMSRAM(
+      description = desc,
+      addressWidth = log2Ceil(depth),
+      dataWidth = width,
+      depth = depth,
+      writeMaskGranularity = granWidth,
+      uid = uid
+    )
   }
 
   def makeOMMemory[T <: Data](
