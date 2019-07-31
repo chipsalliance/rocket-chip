@@ -21,8 +21,7 @@ class DCacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], params: DCacheParam
     }
 
     Seq(
-      OMCaches.dcache(params, resourceBindings)
-    )
+      OMCaches.dcache(params, resourceBindings, deviceOpt)    )
   }
 }
 
@@ -37,11 +36,11 @@ class ICacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], icacheParams: ICach
   }
 
   override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
-    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
+    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings, deviceOpt))
   }
 
   def iCache(resourceBindings: ResourceBindings): OMICache = {
-    OMCaches.icache(icacheParams, resourceBindings)
+    OMCaches.icache(icacheParams, resourceBindings, deviceOpt)
   }
 }
 

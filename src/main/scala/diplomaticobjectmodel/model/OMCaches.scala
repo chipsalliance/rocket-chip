@@ -18,6 +18,7 @@ trait OMCache extends OMDevice {
 case class OMICache(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
+  omReference: OMReference,
   nSets: Int,
   nWays: Int,
   blockSizeBytes: Int,
@@ -32,6 +33,7 @@ case class OMICache(
 case class OMDCache(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
+  omReference: OMReference,
   nSets: Int,
   nWays: Int,
   blockSizeBytes: Int,

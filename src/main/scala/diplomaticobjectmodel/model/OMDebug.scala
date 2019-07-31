@@ -19,7 +19,8 @@ case object NONE extends OMDebugAuthenticationType
 case class OMDebug(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
-  specifications: List[OMSpecification],
+   omReference: OMReference,
+specifications: List[OMSpecification],
   interfaceType: OMDebugInterfaceType,
   nSupportedHarts: Int,
   nAbstractDataWords: Int,

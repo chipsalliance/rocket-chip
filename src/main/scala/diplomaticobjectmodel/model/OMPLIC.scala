@@ -25,8 +25,9 @@ case class OMInterruptTarget(
 case class OMPLIC(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
+  omReference: OMReference,
   specifications: Seq[OMSpecification],
-  latency: Int,
+latency: Int,
   nPriorities: Int,
   nInterrupts: Int,
   targets: Seq[OMInterruptTarget],

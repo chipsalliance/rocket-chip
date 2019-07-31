@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.ResourceBindings
+import freechips.rocketchip.diplomacy.{ResourceBindings, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.rocket.{BTBParams, DCacheParams, ICacheParams}
 
@@ -44,10 +44,13 @@ object OMBTB {
 }
 
 object OMCaches {
-  def dcache(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
+  def dcache(p: DCacheParams, resourceBindings: ResourceBindings, deviceOpt: Option[SimpleDevice]): OMDCache = {
+  val omReference = DiplomaticObjectModelAddressing.getOMReference(deviceOpt)
+
     OMDCache(
       memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DTIM", resourceBindings),
       interrupts = Nil,
+      omReference = omReference,
       nSets = p.nSets,
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,
@@ -58,10 +61,13 @@ object OMCaches {
     )
   }
 
-  def icache(p: ICacheParams, resourceBindings: ResourceBindings): OMICache = {
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings, deviceOpt: Option[SimpleDevice]): OMICache = {
+  val omReference = DiplomaticObjectModelAddressing.getOMReference(deviceOpt)
+
     OMICache(
       memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", resourceBindings),
       interrupts = Nil,
+      omReference = omReference,
       nSets = p.nSets,
       nWays = p.nWays,
       blockSizeBytes = p.blockBytes,

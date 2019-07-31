@@ -236,4 +236,19 @@ object DiplomaticObjectModelAddressing {
       name = name
     )
   }
+
+  private var nextId = 0
+
+  def genUniqueID(): OMReference = this.synchronized {
+    val id = nextId
+    nextId += 1
+    new OMReference(id = id)
+  }
+
+  def getOMReference(deviceOpt : Option[Device]): OMReference = {
+    deviceOpt match {
+      case None => DiplomaticObjectModelAddressing.genUniqueID()
+      case Some(d) => d.getOMReference()
+    }
+  }
 }

@@ -18,6 +18,7 @@ class CLINTLogicalTreeNode(device: SimpleDevice, f: => OMRegisterMap) extends Lo
       OMCLINT(
         memoryRegions = memRegions,
         interrupts = Nil,
+        omReference = device.getOMReference(),
         specifications = List(
           OMSpecification(
             name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
@@ -51,6 +52,7 @@ class DebugLogicalTreeNode(
       OMDebug(
         memoryRegions = memRegions,
         interrupts = Nil,
+        omReference = device.getOMReference(),
         specifications = List(
           OMSpecification(
             name = "The RISC-V Debug Specification",
@@ -115,6 +117,7 @@ class PLICLogicalTreeNode(
       OMPLIC(
         memoryRegions = memRegions,
         interrupts = ints,
+        omReference = device.getOMReference(),
         specifications = List(
           OMSpecification(
             name = "The RISC-V Instruction Set Manual, Volume II: Privileged Architecture",
@@ -182,6 +185,7 @@ class BusMemoryLogicalTreeNode(
       memoryRegions = memRegions,
       interrupts = Nil,
       specifications = Nil,
+      omReference = device.getOMReference(),
       busProtocol = Some(busProtocol),
       dataECC = dataECC.getOrElse(OMECCIdentity),
       hasAtomics = hasAtomics.getOrElse(false),
@@ -207,7 +211,6 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => S
   }
 }
 
-
 class BusErrorLogicalTreeNode(device: => SimpleDevice, f: => OMRegisterMap) extends LogicalTreeNode(() => Some(device)) {
   def getOMBusError(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val Description(name, mapping) = device.describe(resourceBindings)
@@ -218,6 +221,7 @@ class BusErrorLogicalTreeNode(device: => SimpleDevice, f: => OMRegisterMap) exte
       OMBusError(
         memoryRegions = memRegions,
         interrupts = DiplomaticObjectModelAddressing.describeGlobalInterrupts(name, resourceBindings), // outgoing interrupts
+        omReference = device.getOMReference(),
         specifications = Nil
       )
     )

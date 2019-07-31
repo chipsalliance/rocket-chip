@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 case class OMInterrupt(
-  receiver: String, // TODO Reference
+  receiver: String,
   numberAtReceiver: BigInt,
   name: String,
   _types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")

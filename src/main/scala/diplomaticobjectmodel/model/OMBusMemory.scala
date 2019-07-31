@@ -6,6 +6,7 @@ case class OMBusMemory(
   memoryRegions: Seq[OMMemoryRegion] = Nil,
   interrupts: Seq[OMInterrupt] = Nil,
   specifications: Seq[OMSpecification] = Nil,
+  omReference: OMReference,
   busProtocol: Option[OMProtocol] = None,
   dataECC: OMECC = OMECCIdentity,
   hasAtomics: Boolean = false,

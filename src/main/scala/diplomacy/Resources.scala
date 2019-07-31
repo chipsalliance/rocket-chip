@@ -74,6 +74,10 @@ abstract class Device
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
 
+  private val uniqueID = DiplomaticObjectModelAddressing.genUniqueID()
+
+  def getOMReference(): OMReference = uniqueID
+
   def parent: Option[Device] = None
 
   /** make sure all derived devices have an unique label */
