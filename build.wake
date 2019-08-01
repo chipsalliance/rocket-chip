@@ -1,7 +1,7 @@
 
 global def hardfloatScalaModule =
   makeScalaModuleFromJSON here "hardfloat"
-  | setScalaModuleRootDir "berkeley-hardfloat"
+  | setScalaModuleRootDir "hardfloat"
   | setScalaModuleDeps (chisel3ScalaModule, Nil)
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
 
