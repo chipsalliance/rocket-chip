@@ -56,6 +56,9 @@ branches:
 
 jobs:
   include:
+    - stage: check submodules
+      script:
+        - regression/check_submodules.sh
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
@@ -70,9 +73,6 @@ jobs:
         - export CXX=g++-4.8 CC=gcc-4.8
     - &test
       stage: Test
-      script:
-        - regression/check_submodules.sh
-    - <<: *test
       script:
         - travis_wait 100 make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
         - travis_wait 100 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
