@@ -57,7 +57,7 @@ jobs:
   include:
     - stage: check submodules
       script:
-        - regression/check_submodules.sh
+        - ci-tests/check_submodules
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
