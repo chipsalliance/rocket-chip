@@ -1,11 +1,7 @@
 #!/bin/sh
 
-filter='.[]'
-filter+='|select(.name == \"$path\")'
-filter+='|select(.name == \"$name\")'
-filter+='|select(.commit == \"$sha1\")'
-filter="\"$filter\""
+filter='.[]|select(.commit == "\1")|select(.name == "\2")'
 
-git submodule foreach --quiet "jq -e $filter ../wit-manifest.json" || { \
-  echo "git submodules do not match wit dependencies!" && exit 1; \
-}
+git submodule status \
+| sed -r "s/\-([a-zA-Z0-9]+)\s([a-zA-Z0-9\-]+)/$filter/g" \
+| xargs -d '\n' -I % sh -c "jq -e '%' wit-manifest.json"
