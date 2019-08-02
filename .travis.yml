@@ -32,7 +32,6 @@ addons:
       - device-tree-compiler
       - libusb-1.0-0-dev
       - python-pexpect
-      - jq
 
 
 # blacklist private branches
