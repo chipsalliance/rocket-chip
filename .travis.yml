@@ -55,9 +55,10 @@ branches:
 
 jobs:
   include:
-    - stage: check submodules
+    - stage: wake and wit checks
       script:
         - ci-tests/check_submodules
+        - ci-tests/wake_scala_compilation
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
