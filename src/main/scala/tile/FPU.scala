@@ -257,17 +257,17 @@ object FType {
 }
 
 trait HasFPUParameters {
-  require(fLen == 32 || fLen == 64)
+  require(fLen == 0 || FType.all.exists(_.ieeeWidth == fLen))
   val fLen: Int
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
   val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
-  val minType = floatTypes.head
-  val maxType = floatTypes.last
+  def minType = floatTypes.head
+  def maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
-  val maxExpWidth = maxType.exp
-  val maxSigWidth = maxType.sig
+  def maxExpWidth = maxType.exp
+  def maxSigWidth = maxType.sig
   def typeTag(t: FType) = floatTypes.indexOf(t)
 
   private def isBox(x: UInt, t: FType): Bool = x(t.sig + t.exp, t.sig + t.exp - 4).andR
