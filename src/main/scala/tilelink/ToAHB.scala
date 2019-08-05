@@ -83,10 +83,11 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       reg := next
 
       // Latch grant state
-      val granted = RegEnable(out.hgrant, out.hready)
+      val granted = RegEnable(out.hgrant, out.hready) && out.hgrant // !!!
 
-      // hready, but progresses hints during idle bus
+      // A- and D-phase readiness
       val a_flow = Wire(Bool())
+      val d_flow = Wire(Bool())
 
       // Advance the FSM based on the result of this AHB beat
       when (send.send && !a_flow) /* retry AHB */ {
@@ -188,16 +189,14 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val d_source  = RegEnable(send.source, a_flow && send.send)
       val d_size    = RegEnable(send.size,   a_flow && send.send)
 
-      when (out.hready) {
-        d_valid := send.send && (send.last || !send.write)
+      when (d_flow) {
+        d_valid := send.send && (send.last || !send.write) && a_flow
         assert (!out.hresp(1), "TLToAHB does not support SPLIT/RETRY responses")
         when (out.hresp(0))  { d_denied := Bool(true) }
         when (send.first)    { d_denied := Bool(false) }
-      } .elsewhen (d_hint) {
-        d_valid := Bool(false)
       }
 
-      d.valid := d_valid && (out.hready || d_hint)
+      d.valid := d_valid && d_flow
       d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata)
       d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
       d.bits.denied  := (out.hresp(0) || d_denied) && d_write && !d_hint
@@ -205,7 +204,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
       // If the only operations in the pipe are Hints, don't stall based on hready
       val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)
-      a_flow := out.hready || skip
+      a_flow := (granted && out.hready) || skip
+      d_flow := out.hready || d_hint
+      assert (!d_valid || d_flow || !a_flow); // (d_valid && !d_flow) => !a_flow
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)
