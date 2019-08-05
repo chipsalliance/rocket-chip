@@ -9,6 +9,8 @@ cache:
     regression/install
     emulator/verilator
 
+dist: xenial
+
 # packages needed to build riscv-tools
 addons:
   apt:
