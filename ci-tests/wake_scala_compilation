@@ -26,7 +26,7 @@ export PATH=$PATH:$PWD/wit
 echo "Initialize Workspace"
 
 git config --global url."https://github.com/".insteadOf 'git@github.com:'
-wit --repo-path $PWD/.. init workspace -a block-inclusivecache-sifive
+wit --repo-path $PWD/.. init workspace -a rocket-chip
 cd workspace/
 
 
