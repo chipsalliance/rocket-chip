@@ -1,0 +1,3 @@
+global def config =
+  makeScalaModuleFromJSON here "config"
+  | setScalaModuleDeps (Nil)
