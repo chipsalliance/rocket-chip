@@ -67,10 +67,13 @@ lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
+lazy val `config` = (project in file("config")).settings(commonSettings)
+  .settings(publishArtifact := false)
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(hardfloat % "compile-internal;test-internal")
   .dependsOn(`rocket-macros` % "compile-internal;test-internal")
+  .dependsOn(`config` % "compile-internal;test-internal")
   .settings(
       aggregate := false,
       // Include macro classes, resources, and sources in main jar.
@@ -78,6 +81,8 @@ lazy val rocketchip = dependOnChisel(project in file("."))
       mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
       mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`config`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`config`, Compile, packageSrc)).value,
       exportJars := true
   )
 
