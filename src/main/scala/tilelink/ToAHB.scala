@@ -82,9 +82,6 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val next = Wire(init = step)
       reg := next
 
-      // Latch grant state
-      val granted = RegEnable(out.hgrant, out.hready) && out.hgrant // !!!
-
       // A- and D-phase readiness
       val a_flow = Wire(Bool())
       val d_flow = Wire(Bool())
@@ -133,7 +130,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         in.a.ready := !d_block && pre.write
       } .otherwise /* new burst */ {
         a_commit := in.a.fire() // every first beat commits to a D beat answer
-        in.a.ready := !d_block && (granted || (Bool(!aFlow) && out.hgrant && out.hready))
+        in.a.ready := !d_block
         when (in.a.fire()) {
           post.full  := Bool(true)
           post.send  := Bool(true)
@@ -152,15 +149,25 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         }
       }
 
+      val granted   = RegEnable(out.hgrant, out.hready)
+      val rebuild   = RegInit(Bool(false)) // rewrite as NSEQ       (for next-beat  EBT)
+      val increment = RegInit(Bool(false)) // rewrite as BURST_INCR (for same-burst EBT)
+      when (out.hready && granted) {
+        when (send.send)   { rebuild := Bool(false) }
+        when (!out.hgrant) { rebuild := Bool(true) }
+        when (out.hbusreq && !out.hgrant) { increment := Bool(true) }
+        when (send.send && send.last)     { increment := Bool(false) }
+      }
+
       out.hlock   := Bool(false) // for now
       out.htrans  := Mux(send.send && !send.hint,
-                       Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
-                       Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
-      out.hbusreq := (send.send && !send.hint) || !send.first || (!granted && in.a.valid)
+                       Mux(send.first || rebuild, TRANS_NONSEQ, TRANS_SEQ),
+                       Mux(send.first || rebuild, TRANS_IDLE,   TRANS_BUSY))
+      out.hbusreq := (send.send && !send.hint) || !send.first
       out.hwrite  := send.write
       out.haddr   := send.addr
       out.hsize   := send.hsize
-      out.hburst  := send.hburst
+      out.hburst  := Mux(increment, BURST_INCR, send.hburst)
       out.hprot   := PROT_DEFAULT
       out.hwdata  := RegEnable(send.data, out.hready)
 
