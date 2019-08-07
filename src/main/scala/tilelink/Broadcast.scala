@@ -123,6 +123,12 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
         tracker.probenack := in.c.fire() && c_probeack && select
       }
 
+      (trackers zip c_trackerOH) foreach { case (tracker, select) =>
+        tracker.probesack := in.c.fire() && select && (c_probeack || c_probeackdata) && (
+          in.c.bits.param === TLPermissions.TtoB ||
+          in.c.bits.param === TLPermissions.BtoB)
+      }
+
       val releaseack = Wire(in.d)
       val putfull = Wire(out.a)
 
@@ -224,6 +230,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
     val probe = UInt(INPUT, width = probeCountBits)
     val probenack = Bool(INPUT)
     val probedack = Bool(INPUT)
+    val probesack = Bool(INPUT)
     val d_last = Bool(INPUT)
     val e_last = Bool(INPUT)
     val source = UInt(OUTPUT) // the source awaiting D response
@@ -239,6 +246,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   // we send the request after all the probes we sent and before all the next probes
   val got_e   = RegInit(Bool(true))
   val sent_d  = RegInit(Bool(true))
+  val shared  = Reg(Bool())
   val opcode  = Reg(io.in_a.bits.opcode)
   val param   = Reg(io.in_a.bits.param)
   val size    = Reg(io.in_a.bits.size)
@@ -250,6 +258,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   when (io.in_a.fire() && io.in_a_first) {
     assert (idle)
     sent_d  := Bool(false)
+    shared  := Bool(false)
     got_e   := io.in_a.bits.opcode =/= TLMessages.AcquireBlock && io.in_a.bits.opcode =/= TLMessages.AcquirePerm
     opcode  := io.in_a.bits.opcode
     param   := io.in_a.bits.param
@@ -272,6 +281,10 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
     count := count - Mux(io.probenack && io.probedack, UInt(2), UInt(1))
   }
 
+  when (io.probesack) {
+    shared := Bool(true)
+  }
+
   io.idle := idle
   io.need_d := !sent_d
   io.source := source
@@ -288,10 +301,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   val probe_done = count === UInt(0)
   val acquire = opcode === TLMessages.AcquireBlock || opcode === TLMessages.AcquirePerm
 
-  val transform = MuxLookup(param, Wire(UInt(width = 2)), Array(
-    TLPermissions.NtoB -> TRANSFORM_B,
-    TLPermissions.NtoT -> TRANSFORM_T,
-    TLPermissions.BtoT -> TRANSFORM_T))
+  val transform = Mux(shared, TRANSFORM_B, TRANSFORM_T)
 
   o_data.ready := io.out_a.ready && probe_done
   io.out_a.valid := o_data.valid && probe_done
