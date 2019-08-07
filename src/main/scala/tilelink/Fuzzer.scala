@@ -35,20 +35,6 @@ class IDMapGenerator(numIds: Int) extends Module {
   assert (!io.free.valid || !(bitmap & ~clr)(io.free.bits)) // No double freeing
 }
 
-object LFSR64
-{ 
-  def apply(increment: Bool = Bool(true)): UInt =
-  { 
-    val wide = 64
-    val lfsr = Reg(UInt(width = wide)) // random initial value based on simulation seed
-    val xor = lfsr(0) ^ lfsr(1) ^ lfsr(3) ^ lfsr(4)
-    when (increment) {
-      lfsr := Mux(lfsr === UInt(0), UInt(1), Cat(xor, lfsr(wide-1,1)))
-    }
-    lfsr
-  }
-}
-
 trait HasNoiseMakerIO
 {
   val io = new Bundle {
@@ -157,7 +143,7 @@ class TLFuzzer(
 
     // Actually generate specific TL messages when it is legal to do so
     val (glegal,  gbits)  = edge.Get(src, addr, size)
-    val (pflegal, pfbits) = if(edge.manager.anySupportPutFull) { 
+    val (pflegal, pfbits) = if(edge.manager.anySupportPutFull) {
                               edge.Put(src, addr, size, data)
                             } else { (glegal, gbits) }
     val (pplegal, ppbits) = if(edge.manager.anySupportPutPartial) {
