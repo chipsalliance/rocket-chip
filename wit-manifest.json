@@ -1,7 +1,7 @@
 [
     {
         "commit": "70c1e1dd0954bb8e9d62563b8c9730bbc39d2bf0",
-        "name": "berkeley-hardfloat",
+        "name": "hardfloat",
         "source": "git@github.com:ucb-bar/berkeley-hardfloat.git"
     },
     {
@@ -18,5 +18,10 @@
         "commit": "228c9a4b7432ac52178d63b8f27fe064aec71e9c",
         "name": "firrtl",
         "source": "git@github.com:freechipsproject/firrtl.git"
+    },
+    {
+        "commit": "77195ab12aefc373ca688e0a9c4d710c13191341",
+        "name": "torture",
+        "source": "git@github.com:ucb-bar/riscv-torture.git"
     }
 ]
