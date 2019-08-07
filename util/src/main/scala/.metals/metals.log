@@ -1,0 +1,351 @@
+INFO  time: initialize in 0.5s
+WARN  no build tool detected in workspace '/home/david/work/RockChip-workspace/util/src/main/scala'. The most common cause for this problem is that the editor was opened in the wrong working directory, for example if you use sbt then the workspace directory should contain build.sbt. 
+INFO  Selected port 5034
+七月 20, 2019 7:02:05 上午 org.xnio.Xnio <clinit>
+INFO: XNIO version 3.6.5.Final
+七月 20, 2019 7:02:05 上午 org.xnio.nio.NioXnio <clinit>
+INFO: XNIO NIO Implementation Version 3.6.5.Final
+七月 20, 2019 7:02:06 上午 org.jboss.threads.Version <clinit>
+INFO: JBoss Threads version 2.3.0.Beta2
+INFO  Started Metals http server at http://127.0.0.1:5034
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/package.scala
+INFO  no build target: using presentation compiler with only scala-library
+七月 20, 2019 7:02:10 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:02:10 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/ScatterGather.scala
+七月 20, 2019 7:04:15 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build tool detected in workspace '/home/david/work/RockChip-workspace/util/src/main/scala'. The most common cause for this problem is that the editor was opened in the wrong working directory, for example if you use sbt then the workspace directory should contain build.sbt. 
+WARN  no build tool detected in workspace '/home/david/work/RockChip-workspace/util/src/main/scala'. The most common cause for this problem is that the editor was opened in the wrong working directory, for example if you use sbt then the workspace directory should contain build.sbt. 
+七月 20, 2019 7:26:51 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala
+七月 20, 2019 7:28:24 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:28:24 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 7:28:41 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:28:41 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 7:29:13 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:29:14 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 7:31:53 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:31:53 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 7:32:20 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:32:20 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/PSDTestMode.scala: 638 >= 638
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/ResetCatchAndSync.scala
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/MultiWidthFifo.scala
+七月 20, 2019 7:37:50 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:38:37 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:38:38 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:38:39 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:38:39 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:38:40 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:42:49 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/MultiWidthFifo.scala
+七月 20, 2019 7:43:56 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:43:56 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:45:07 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:45:12 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala
+七月 20, 2019 7:45:36 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 7:46:00 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:46:00 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala: 4465 >= 4465
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala: 4465 >= 4465
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 7:47:36 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala
+七月 20, 2019 7:49:21 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:49:21 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala: 3348 >= 3348
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala: 3348 >= 3348
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 7:49:37 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:49:37 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala: 3348 >= 3348
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiPortQueue.scala: 3348 >= 3348
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/ScatterGather.scala
+七月 20, 2019 7:52:21 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 7:52:21 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ScatterGather.scala: 4006 >= 4006
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ScatterGather.scala: 4006 >= 4006
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/MultiLaneQueue.scala
+七月 20, 2019 7:52:59 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:12:46 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:13:01 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:13:01 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiLaneQueue.scala: 1982 >= 1982
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiLaneQueue.scala: 1982 >= 1982
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 8:13:22 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:13:22 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiLaneQueue.scala: 1982 >= 1982
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/MultiLaneQueue.scala: 1982 >= 1982
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/LanePositionedQueue.scala
+七月 20, 2019 8:13:38 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:13:46 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:13:50 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:13:50 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:14:23 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:14:24 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+七月 20, 2019 8:14:25 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/LanePositionedQueue.scala
+七月 20, 2019 8:15:35 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:15:35 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/LanePositionedQueue.scala: 10505 >= 10505
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/LanePositionedQueue.scala: 10505 >= 10505
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 8:15:42 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:15:42 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/LanePositionedQueue.scala: 10505 >= 10505
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/LanePositionedQueue.scala: 10505 >= 10505
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala
+七月 20, 2019 8:16:20 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:16:20 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 7909 >= 7909
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 7909 >= 7909
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 8:16:25 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:16:25 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 7909 >= 7909
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 7909 >= 7909
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 8:16:45 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:16:45 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 6398 >= 6398
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 6398 >= 6398
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+七月 20, 2019 8:16:47 上午 scala.meta.internal.pc.CompilerAccess retryWithCleanCompiler
+INFO: compiler crashed due to an error in the Scala compiler, retrying with new compiler instance.
+七月 20, 2019 8:16:48 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 6398 >= 6398
+java.lang.AssertionError: assertion failed: file:///home/david/work/RockChip-workspace/util/src/main/scala/ECC.scala: 6398 >= 6398
+	at scala.reflect.internal.util.SourceFile.position(SourceFile.scala:33)
+	at scala.tools.nsc.CompilationUnits$CompilationUnit.position(CompilationUnits.scala:128)
+	at scala.meta.internal.pc.SignatureHelpProvider.signatureHelp(SignatureHelpProvider.scala:21)
+
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/GeneratorUtils.scala
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/DescribedSRAM.scala
+WARN  no build target: /home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala
+something's wrong: no file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala in Seq[<error>]RangePosition(file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala, 1973, 1973, 1993)
+something's wrong: no file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala in Seq[<error>]RangePosition(file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala, 1973, 1973, 1993)
+something's wrong: no file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala in Seq[<error>]RangePosition(file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala, 1973, 1973, 1993)
+something's wrong: no file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala in Seq[<error>]RangePosition(file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala, 2458, 2458, 2481)
+something's wrong: no file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala in Seq[<error>]RangePosition(file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala, 5344, 5344, 5367)
+七月 20, 2019 8:22:26 上午 scala.meta.internal.pc.CompilerAccess handleError
+SEVERE: null
+java.lang.NullPointerException
+	at scala.meta.internal.pc.HoverProvider.seenFromType(HoverProvider.scala:106)
+	at scala.meta.internal.pc.HoverProvider.hover(HoverProvider.scala:42)
+
+something's wrong: no file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala in Seq[<error>]RangePosition(file:///home/david/work/RockChip-workspace/util/src/main/scala/Annotations.scala, 1973, 1973, 1993)
