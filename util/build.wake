@@ -1,11 +1,23 @@
+
+def mainDeps =
+  chisel3ScalaModule,
+  apiConfigChipsallianceScalaModule,
+  Nil
+
 global def apiUtilChipsallianceScalaModule =
   makeScalaModuleFromJSON here "util"
-  | setScalaModuleDeps (chisel3ScalaModule, apiConfigChipsallianceScalaModule, Nil)
+  | setScalaModuleDeps mainDeps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+
+def testDeps =
+  chisel3ScalaModule,
+  apiUtilChipsallianceScalaModule,
+  ##apiUnittestChipsallianceScalaModule,
+  Nil
 
 global def apiUtilTestChipsallianceScalaModule =
   makeScalaModuleFromJSON here "utilunittest"
-  | setScalaModuleDeps (chisel3ScalaModule, apiUtilChipsallianceScalaModule, apiUnittestChipsallianceScalaModule, Nil)
+  | setScalaModuleDeps testDeps
   | setScalaModuleSourceDirs ("src/test/scala", Nil)
   | setScalaModuleResourceDirs ("src/test/resources", Nil)
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
