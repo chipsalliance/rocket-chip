@@ -14,6 +14,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.{DontCare, VecInit, WireInit}
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)
@@ -135,7 +136,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       data(idx) := entry.asUInt
     }
 
-    def invalidate() { valid.foreach(_ := false) }
+    def invalidate(): Entry = {
+      valid.foreach(_ := false)
+      this
+    }
+
     def invalidateVPN(vpn: UInt) {
       if (superpage) {
         when (hit(vpn)) { invalidate() }
@@ -157,9 +162,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   }
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
-  val sectored_entries = Reg(Vec(cfg.nEntries / cfg.nSectors, new Entry(cfg.nSectors, false, false)))
-  val superpage_entries = Reg(Vec(cfg.nSuperpageEntries, new Entry(1, true, true)))
-  val special_entry = (!pageGranularityPMPs).option(Reg(new Entry(1, true, false)))
+  val sectored_entries = RegInit(VecInit(Seq.fill(cfg.nEntries / cfg.nSectors)(WireInit(new Entry(cfg.nSectors, false, false), DontCare).invalidate())))
+  val superpage_entries = RegInit(VecInit(Seq.fill(cfg.nSuperpageEntries)(WireInit(new Entry(1, true, true), DontCare).invalidate())))
+  val special_entry = (!pageGranularityPMPs).option(RegInit(WireInit(new Entry(1, true, false), DontCare).invalidate()))
   def ordinary_entries = sectored_entries ++ superpage_entries
   def all_entries = ordinary_entries ++ special_entry
 
@@ -369,7 +374,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         .otherwise { e.invalidate() }
       }
     }
-    when (multipleHits || reset) {
+    when (multipleHits) {
       all_entries.foreach(_.invalidate())
     }
 

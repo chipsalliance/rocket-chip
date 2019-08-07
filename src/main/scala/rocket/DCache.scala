@@ -817,9 +817,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // flushes
-  val resetting = RegInit(false.B)
-  if (!usingDataScratchpad)
-    when (RegNext(reset)) { resetting := true }
+  val resetting = RegInit(true.B)
+  val out_of_reset = RegNext(true.B, false.B)
+  val initializing_tags = !usingDataScratchpad && resetting && out_of_reset
+
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
@@ -858,12 +859,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       }
     }
   }
-  metaArb.io.in(0).valid := resetting
+  metaArb.io.in(0).valid := initializing_tags
   metaArb.io.in(0).bits := metaArb.io.in(5).bits
   metaArb.io.in(0).bits.write := true
   metaArb.io.in(0).bits.way_en := ~UInt(0, nWays)
   metaArb.io.in(0).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, ClientMetadata.onReset).asUInt)
-  when (resetting) {
+  when (initializing_tags) {
     flushCounter := flushCounterNext
     when (flushDone) {
       resetting := false

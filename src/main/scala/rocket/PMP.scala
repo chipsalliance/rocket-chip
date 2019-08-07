@@ -33,9 +33,10 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
-  def reset() {
+  def reset(): PMPReg = {
     cfg.a := 0
     cfg.l := 0
+    this
   }
 
   def readAddr = if (pmpGranularity.log2 == PMP.lgAlign) addr else {

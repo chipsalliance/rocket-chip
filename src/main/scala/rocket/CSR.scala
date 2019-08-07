@@ -6,6 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.experimental._
+import chisel3.{DontCare, VecInit, WireInit}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -290,8 +291,8 @@ class CSRFile(
   val reg_singleStepped = Reg(Bool())
 
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
-  val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
-  val reg_pmp = Reg(Vec(nPMPs, new PMPReg))
+  val reg_bp = RegInit(VecInit(Seq.fill(1 << log2Up(nBreakpoints))(WireInit(new BP(), DontCare).reset())))
+  val reg_pmp = RegInit(VecInit(Seq.fill(nPMPs)(WireInit(new PMPReg, DontCare).reset())))
 
   val reg_mie = Reg(UInt(width = xLen))
   val (reg_mideleg, read_mideleg) = {
@@ -870,21 +871,11 @@ class CSRFile(
     if (!usingVM) bpc.s := false
     if (!usingUser) bpc.u := false
     if (!usingVM && !usingUser) bpc.m := true
-    when (reset) {
-      bpc.action := 0.U
-      bpc.dmode := false
-      bpc.chain := false
-      bpc.r := false
-      bpc.w := false
-      bpc.x := false
-    }
   }
   for (bp <- reg_bp drop nBreakpoints)
     bp := new BP().fromBits(0)
-  for (pmp <- reg_pmp) {
+  for (pmp <- reg_pmp)
     pmp.cfg.res := 0
-    when (reset) { pmp.reset() }
-  }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
     t.clock := clock

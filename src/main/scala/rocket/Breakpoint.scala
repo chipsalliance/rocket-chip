@@ -34,6 +34,16 @@ class BP(implicit p: Parameters) extends CoreBundle()(p) {
   val control = new BPControl
   val address = UInt(width = vaddrBits)
 
+  def reset(): BP = {
+    control.action := 0.U
+    control.dmode := false
+    control.chain := false
+    control.r := false
+    control.w := false
+    control.x := false
+    this
+  }
+
   def mask(dummy: Int = 0) =
     (0 until control.maskMax-1).scanLeft(control.tmatch(0))((m, i) => m && address(i)).asUInt
 
