@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
+import chisel3._
 import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
@@ -192,8 +192,8 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   // Otherwise, anonymous children (Monitors for example) will not be clocked
   val childClock = Wire(Clock())
   val childReset = Wire(Bool())
-  childClock := Bool(false).asClock
-  childReset := Bool(true)
+  childClock := false.B.asClock
+  childReset := true.B
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
   }
@@ -248,7 +248,7 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
     val ((key, data, flip), i) = tuple
     // trim trailing _0_1_2 stuff so that when we append _# we don't create collisions
     val regex = new Regex("(_[0-9]+)*$")
-    val element = if (flip) data.cloneType.flip else data.cloneType
+    val element = if (flip) Flipped(data.cloneType) else data.cloneType
     (regex.replaceAllIn(key, ""), element, i)
   }
 
