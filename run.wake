@@ -1,0 +1,11 @@
+
+def topModules =
+  rocketchipScalaModule,
+  unittestTopScalaModule,
+  Nil
+
+global def makeTopScalaModules _ =
+  map (compileScalaModule _ | getPathResult) topModules
+
+
+# wake -v 'makeTopScalaModules 0'

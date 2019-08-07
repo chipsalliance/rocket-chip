@@ -4,9 +4,10 @@ def deps =
   apiConfigChipsallianceScalaModule,
   apiUtilChipsallianceScalaModule,
   rocketchipScalaModule,
+  apiUtilUnittestChipsallianceScalaModule,
   Nil
 
-global def apiUnittestTopChipsallianceScalaModule =
+global def unittestTopScalaModule =
   def version = makeScalaVersion 12 8
   def root = here
   def name = "api-unittesttop-chipsalliance"
