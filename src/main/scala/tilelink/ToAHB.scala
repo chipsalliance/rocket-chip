@@ -54,7 +54,7 @@ class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
 // The output side always has a flow queue
-class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(implicit p: Parameters) extends LazyModule
+class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val supportsRETRY: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAHBNode(supportHints)
 
@@ -149,10 +149,13 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         }
       }
 
+      // For SPLIT/RETRY, a burst being reissued from D-phase state
+      val retry = Wire(Bool())
+
       val granted   = RegEnable(out.hgrant, out.hready)
       val rebuild   = RegInit(Bool(false)) // rewrite as NSEQ       (for next-beat  EBT)
       val increment = RegInit(Bool(false)) // rewrite as BURST_INCR (for same-burst EBT)
-      when (out.hready && granted) {
+      when (out.hready && granted && !retry) {
         when (send.send)   { rebuild := Bool(false) }
         when (!out.hgrant) { rebuild := Bool(true) }
         when (out.hbusreq && !out.hgrant) { increment := Bool(true) }
@@ -169,7 +172,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       out.hsize   := send.hsize
       out.hburst  := Mux(increment, BURST_INCR, send.hburst)
       out.hprot   := PROT_DEFAULT
-      out.hwdata  := RegEnable(send.data, out.hready)
+      out.hwdata  := RegEnable(send.data, a_flow)
 
       send.hauser.map { i => out.hauser.map { _ := i} }
 
@@ -198,7 +201,6 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
       when (d_flow) {
         d_valid := send.send && (send.last || !send.write) && a_flow
-        assert (!out.hresp(1), "TLToAHB does not support SPLIT/RETRY responses")
         when (out.hresp(0))  { d_denied := Bool(true) }
         when (send.first)    { d_denied := Bool(false) }
       }
@@ -211,9 +213,48 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
       // If the only operations in the pipe are Hints, don't stall based on hready
       val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)
-      a_flow := (granted && out.hready) || skip
-      d_flow := out.hready || d_hint
+      a_flow := ((granted && out.hready) || skip) && !retry
+      d_flow := (out.hready || d_hint) && !retry
       assert (!d_valid || d_flow || !a_flow); // (d_valid && !d_flow) => !a_flow
+
+      // On RETRY, we stall the pipeline and bypass the D-phase state back to A-phase
+      if (!supportsRETRY) {
+        assert (!d_flow || !out.hresp(1), "TLToAHB not configured with support for SPLIT/RETRY responses")
+        retry := Bool(false)
+      } else {
+        val d_full  = RegInit(Bool(false))
+        val d_retry = RegInit(Bool(false))
+        val d_idle  = RegInit(Bool(false))
+        val d_addr  = RegEnable(send.addr,  a_flow && send.send)
+        val d_hsize = RegEnable(send.hsize, a_flow && send.send)
+        retry := d_retry
+
+        when (d_flow) {
+          d_full := send.send && !send.hint && a_flow
+        }
+
+        when (out.hresp(1) && d_full) {
+          d_retry   := Bool(true)
+          d_idle    := Bool(true)
+          increment := Bool(true)
+        }
+
+        when (!out.hresp(1) && out.hready && granted) {
+          d_retry := Bool(false)
+        }
+
+        when (out.hready) {
+          d_idle  := Bool(false)
+        }
+
+        when (d_retry) {
+          out.htrans  := Mux(d_idle, TRANS_IDLE, TRANS_NONSEQ)
+          out.hbusreq := Bool(true)
+          out.hwrite  := d_write
+          out.haddr   := d_addr
+          out.hsize   := d_hsize
+        }
+      }
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)
