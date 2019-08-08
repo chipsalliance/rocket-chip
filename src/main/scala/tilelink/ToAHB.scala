@@ -82,11 +82,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val next = Wire(init = step)
       reg := next
 
-      // Latch grant state
-      val granted = RegEnable(out.hgrant, out.hready)
-
-      // hready, but progresses hints during idle bus
+      // A- and D-phase readiness
       val a_flow = Wire(Bool())
+      val d_flow = Wire(Bool())
 
       // Advance the FSM based on the result of this AHB beat
       when (send.send && !a_flow) /* retry AHB */ {
@@ -132,7 +130,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         in.a.ready := !d_block && pre.write
       } .otherwise /* new burst */ {
         a_commit := in.a.fire() // every first beat commits to a D beat answer
-        in.a.ready := !d_block && (granted || (Bool(!aFlow) && out.hgrant && out.hready))
+        in.a.ready := !d_block
         when (in.a.fire()) {
           post.full  := Bool(true)
           post.send  := Bool(true)
@@ -151,15 +149,25 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         }
       }
 
+      val granted   = RegEnable(out.hgrant, out.hready)
+      val rebuild   = RegInit(Bool(false)) // rewrite as NSEQ       (for next-beat  EBT)
+      val increment = RegInit(Bool(false)) // rewrite as BURST_INCR (for same-burst EBT)
+      when (out.hready && granted) {
+        when (send.send)   { rebuild := Bool(false) }
+        when (!out.hgrant) { rebuild := Bool(true) }
+        when (out.hbusreq && !out.hgrant) { increment := Bool(true) }
+        when (send.send && send.last)     { increment := Bool(false) }
+      }
+
       out.hlock   := Bool(false) // for now
       out.htrans  := Mux(send.send && !send.hint,
-                       Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
-                       Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
-      out.hbusreq := (send.send && !send.hint) || !send.first || (!granted && in.a.valid)
+                       Mux(send.first || rebuild, TRANS_NONSEQ, TRANS_SEQ),
+                       Mux(send.first || rebuild, TRANS_IDLE,   TRANS_BUSY))
+      out.hbusreq := (send.send && !send.hint) || !send.first
       out.hwrite  := send.write
       out.haddr   := send.addr
       out.hsize   := send.hsize
-      out.hburst  := send.hburst
+      out.hburst  := Mux(increment, BURST_INCR, send.hburst)
       out.hprot   := PROT_DEFAULT
       out.hwdata  := RegEnable(send.data, out.hready)
 
@@ -188,16 +196,14 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val d_source  = RegEnable(send.source, a_flow && send.send)
       val d_size    = RegEnable(send.size,   a_flow && send.send)
 
-      when (out.hready) {
-        d_valid := send.send && (send.last || !send.write)
+      when (d_flow) {
+        d_valid := send.send && (send.last || !send.write) && a_flow
         assert (!out.hresp(1), "TLToAHB does not support SPLIT/RETRY responses")
         when (out.hresp(0))  { d_denied := Bool(true) }
         when (send.first)    { d_denied := Bool(false) }
-      } .elsewhen (d_hint) {
-        d_valid := Bool(false)
       }
 
-      d.valid := d_valid && (out.hready || d_hint)
+      d.valid := d_valid && d_flow
       d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata)
       d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
       d.bits.denied  := (out.hresp(0) || d_denied) && d_write && !d_hint
@@ -205,7 +211,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
       // If the only operations in the pipe are Hints, don't stall based on hready
       val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)
-      a_flow := out.hready || skip
+      a_flow := (granted && out.hready) || skip
+      d_flow := out.hready || d_hint
+      assert (!d_valid || d_flow || !a_flow); // (d_valid && !d_flow) => !a_flow
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)
