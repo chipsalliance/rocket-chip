@@ -200,7 +200,7 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
 
-  def getOMSRAMS(): Seq[OMSRAM]
+  def getOMSRAMs(): Seq[OMSRAM]
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {

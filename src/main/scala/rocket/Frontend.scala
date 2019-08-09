@@ -355,7 +355,7 @@ trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   // don't actually use the device that is instantiated in the frontend.
   private val deviceOpt = if (tileParams.icache.get.itimAddr.isDefined) Some(frontend.icache.device) else None
 
-  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(deviceOpt, tileParams.icache.get, () => frontend.icache.module.data_arrays.map(_._2))
+  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(() => frontend.icache.module.data_arrays.map(_._2), deviceOpt, tileParams.icache.get)
 }
 
 trait HasICacheFrontendModule extends CanHavePTWModule {

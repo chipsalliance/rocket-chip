@@ -27,7 +27,7 @@ class DCacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[Simpl
 }
 
 
-class ICacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams, memories: () => Seq[OMSRAM]) extends LogicalTreeNode(() => deviceOpt) {
+class ICacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMICacheFromBindings(resourceBindings: ResourceBindings): OMICache = {
     getOMComponents(resourceBindings) match {
       case Seq() => throw new IllegalArgumentException

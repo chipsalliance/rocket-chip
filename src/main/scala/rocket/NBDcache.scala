@@ -671,7 +671,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 
 class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new NonBlockingDCacheModule(this)
-  override def getOMSRAMS(): Seq[OMSRAM] = Nil
+  override def getOMSRAMs(): Seq[OMSRAM] = Nil // this is just a dummy value and that we need to eventually fix it
 }
 
 class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule(outer) {

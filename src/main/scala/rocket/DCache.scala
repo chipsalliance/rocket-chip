@@ -82,7 +82,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
 
 class DCache(hartid: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this)
-  override def getOMSRAMS(): Seq[OMSRAM] = Seq(module.dcacheImpl.omSRAM) ++ module.dcacheImpl.data.data_arrays.map(_._2)
+  override def getOMSRAMs(): Seq[OMSRAM] = Seq(module.dcacheImpl.omSRAM) ++ module.dcacheImpl.data.data_arrays.map(_._2)
 }
 
 @chiselName
