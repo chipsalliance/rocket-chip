@@ -11,9 +11,15 @@ global def rocketchipMacros =
   | addMacrosParadiseCompilerPlugin
 
 global def rocketchipScalaModule =
+  def deps =
+    rocketchipMacros,
+    hardfloatScalaModule,
+    hardfloatScalaModule,
+    apiConfigChipsallianceScalaModule,
+    Nil
   makeScalaModuleFromJSON here "rocketchip"
   | setScalaModuleRootDir "rocket-chip"
-  | setScalaModuleDeps (rocketchipMacros, hardfloatScalaModule, Nil)
+  | setScalaModuleDeps deps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
   | addMacrosParadiseCompilerPlugin
 
