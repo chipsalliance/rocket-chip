@@ -28,8 +28,8 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=pbus.beatBytes))
   pbus.coupleTo("TestRAM") { testram.node := TLFragmenter(pbus) := _ }
 
-  // No PLIC in ground test and no input interrupts,
-  // so no need to connect ibus output
+  // No PLIC in ground test; so just sink the interrupts to nowhere
+  IntSinkNode(IntSinkPortSimple()) :=* ibus.toPLIC
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
