@@ -14,20 +14,20 @@ import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
  * The data memory subsystem is assumed to be a DTIM if and only if deviceOpt is
  * a Some(SimpleDevice), as a DCache would not create a Device.
  */
-class DCacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], params: DCacheParams) extends LogicalTreeNode(() => deviceOpt) {
+class DCacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], params: DCacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
     deviceOpt.foreach {
       device => require(!resourceBindings.map.isEmpty, s"""ResourceBindings map for ${device.devname} is empty""")
     }
 
     Seq(
-      OMCaches.dcache(params, resourceBindings)
+      OMCaches.dcache(params, resourceBindings, memories)
     )
   }
 }
 
 
-class ICacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams) extends LogicalTreeNode(() => deviceOpt) {
+class ICacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMICacheFromBindings(resourceBindings: ResourceBindings): OMICache = {
     getOMComponents(resourceBindings) match {
       case Seq() => throw new IllegalArgumentException
@@ -37,11 +37,11 @@ class ICacheLogicalTreeNode(deviceOpt: Option[SimpleDevice], icacheParams: ICach
   }
 
   override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
-    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
+    Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings, memories))
   }
 
   def iCache(resourceBindings: ResourceBindings): OMICache = {
-    OMCaches.icache(icacheParams, resourceBindings)
+    OMCaches.icache(icacheParams, resourceBindings, memories)
   }
 }
 

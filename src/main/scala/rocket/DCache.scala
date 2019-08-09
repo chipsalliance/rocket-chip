@@ -6,6 +6,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -81,6 +82,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
 
 class DCache(hartid: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(hartid)(p) {
   override lazy val module = new DCacheModule(this)
+  override def getOMSRAMs(): Seq[OMSRAM] = Seq(module.dcacheImpl.omSRAM) ++ module.dcacheImpl.data.data_arrays.map(_._2)
 }
 
 @chiselName
@@ -98,7 +100,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val gated_clock =
     if (!cacheParams.clockGate) clock
     else ClockGate(clock, clock_en_reg, "dcache_clock_gate")
-  withClock (gated_clock) { // entering gated-clock domain
+  @chiselName class DCacheModuleImpl { // entering gated-clock domain
 
   // tags
   val replacer = cacheParams.replacement
@@ -980,6 +982,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   } // leaving gated-clock domain
+  val dcacheImpl = withClock (gated_clock) { new DCacheModuleImpl }
 
   def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
   def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt
