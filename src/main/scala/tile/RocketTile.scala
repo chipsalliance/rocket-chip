@@ -80,8 +80,7 @@ class RocketTile private(
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
 
-  val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
-    "sifive,itim" -> frontend.icache.device.asProperty))).getOrElse(Nil)
+  val itimProperty = frontend.icache.itimProperty.toSeq.flatMap(p => Map("sifive,itim" -> p))
 
   val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
