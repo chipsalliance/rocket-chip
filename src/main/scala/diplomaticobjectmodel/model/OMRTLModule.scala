@@ -93,7 +93,7 @@ case class InterruptSignal(
 case class OMRTLInterface(
   clocks: Seq[OMClock],
   clockRelationships: Seq[OMClockRelationship],
-  resets: Seq[OMRTLReset],
+  resets: () => Seq[OMRTLReset],
   statuses: Seq[OMStatus]
 ) extends RTLComponent
 
