@@ -558,9 +558,17 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
     io.ctrl.dmactive := DMCONTROLReg.dmactive
-    io.hartResetReq.foreach { req =>
+
+    if (cfg.hasHartResets) {
+      val hartResetNxt = Wire(Vec(nComponents, Bool()))
+      val hartResetReg = Wire(init = Vec(AsyncResetReg(updateData = hartResetNxt.asUInt,
+        resetData = 0,
+        enable = true.B,
+        name = "hartResetReg").asBools))
+
       for (component <- 0 until nComponents) {
-        req(component) := DMCONTROLReg.hartreset & hartSelected(component)
+        hartResetNxt(component) := DMCONTROLReg.hartreset & hartSelected(component)
+        io.hartResetReq.get(component) := hartResetReg(component)
       }
     }
   }
