@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import chisel3.experimental.dontTouch
+import chisel3.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
