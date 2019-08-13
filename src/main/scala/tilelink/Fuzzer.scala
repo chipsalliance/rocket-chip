@@ -87,7 +87,8 @@ class TLFuzzer(
   },
   noModify: Boolean = false,
   overrideAddress: Option[AddressSet] = None,
-  nOrdered: Option[Int] = None)(implicit p: Parameters) extends LazyModule
+  nOrdered: Option[Int] = None,
+  userBits: Seq[UserBits] = Nil)(implicit p: Parameters) extends LazyModule
 {
 
   val clientParams = if (nOrdered.isDefined) {
@@ -97,11 +98,13 @@ class TLFuzzer(
     Seq.tabulate(n) {i =>
       TLClientParameters(name =s"OrderedFuzzer$i",
         sourceId = IdRange(i * (inFlight/n),  (i + 1)*(inFlight/n)),
+        userBits = userBits,
         requestFifo = true)
     }
   } else {
     Seq(TLClientParameters(
       name = "Fuzzer",
+      userBits = userBits,
       sourceId = IdRange(0,inFlight)
     ))
   }
