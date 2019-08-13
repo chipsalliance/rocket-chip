@@ -266,9 +266,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
 
 object TLToAHB
 {
-  def apply(aFlow: Boolean = true, supportHints: Boolean = true)(implicit p: Parameters) =
+  def apply(aFlow: Boolean = true, supportHints: Boolean = true, supportsRETRY: Boolean = true)(implicit p: Parameters) =
   {
-    val tl2ahb = LazyModule(new TLToAHB(aFlow, supportHints))
+    val tl2ahb = LazyModule(new TLToAHB(aFlow, supportHints, supportsRETRY))
     tl2ahb.node
   }
 }
