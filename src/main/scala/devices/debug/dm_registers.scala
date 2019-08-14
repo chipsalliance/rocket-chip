@@ -6,30 +6,13 @@ import Chisel._
 // 'make chisel'
 
 object DMI_RegAddrs {
-  /* The address of this register will not change in the future, because it
-        contains \Fversion.  It has changed from version 0.11 of this spec.
-
-        This register reports status for the overall debug module
-        as well as the currently selected harts, as defined in \Fhasel.
-
-        Harts are nonexistent if they will never be part of this system, no
-        matter how long a user waits. Eg. in a simple single-hart system only
-        one hart exists, and all others are nonexistent. Debuggers may assume
-        that a system has no harts with indexes higher than the first
-        nonexistent one.
-
-        Harts are unavailable if they might exist/become available at a later
-        time, or if there are other harts with higher indexes than this one. Eg.
-        in a multi-hart system some might temporarily be powered down, or a
-        system might support hot-swapping harts. Systems with very large number
-        of harts may permanently disable some during manufacturing, leaving
-        holes in the otherwise continuous hart index space. In order to let the
-        debugger discover all harts, they must show up as unavailable even if
-        there is no chance of them ever becoming available.
+  /* This register reports status for the overall Debug Module as well as
+        the currently selected harts, as defined in \Fhasel.  Its address will
+        not change in the future, because it contains \Fversion.
   */
   def DMI_DMSTATUS =  0x11
 
-  /* This register controls the overall debug module
+  /* This register controls the overall Debug Module
         as well as the currently selected harts, as defined in \Fhasel.
 
 \label{hartsel}
@@ -40,7 +23,24 @@ object DMI_RegAddrs {
         width of \Fhartsel is called {\tt HARTSELLEN}. It must be at least 0
         and at most 20. A debugger should discover {\tt HARTSELLEN} by writing
         all ones to \Fhartsel (assuming the maximum size) and reading back the
-        value to see which bits were actually set.
+        value to see which bits were actually set. Debuggers must not change
+        \Fhartsel while an abstract command is executing.
+
+        \begin{commentary}
+        There are separate \Fsetresethaltreq and \Fclrresethaltreq bits so that
+        it is possible to write \Rdmcontrol without changing the halt-on-reset
+        request bit for each selected hart, when not all selected harts have
+        the same configuration.
+        \end{commentary}
+
+        On any given write, a debugger may only write 1 to at most one of the
+        following bits: \Fresumereq, \Fhartreset, \Fackhavereset,
+        \Fsetresethaltreq, and \Fclrresethaltreq. The others must be written 0.
+
+\label{resethaltreq}
+\index{resethaltreq}
+        \Fresethaltreq is an optional internal bit of per-hart state that cannot be
+        read, but can be written with \Fsetresethaltreq and \Fclrresethaltreq.
   */
   def DMI_DMCONTROL =  0x10
 
@@ -74,12 +74,21 @@ object DMI_RegAddrs {
   */
   def DMI_HAWINDOW =  0x15
 
+  /* Writing this register while an abstract command is executing causes
+        \Fcmderr to be set to 1 (busy) if it is 0.
+
+        \begin{commentary}
+            \Fdatacount must be at least 1 to support RV32 harts, 2 to support
+            RV64 harts, or 4 to support RV128 harts.
+        \end{commentary}
+  */
   def DMI_ABSTRACTCS =  0x16
 
   /* Writes to this register cause the corresponding abstract command to be
         executed.
 
-        Writing while an abstract command is executing causes \Fcmderr to be set.
+        Writing this register while an abstract command is executing causes
+        \Fcmderr to be set to 1 (busy) if it is 0.
 
         If \Fcmderr is non-zero, writes to this register are ignored.
 
@@ -94,34 +103,37 @@ object DMI_RegAddrs {
   */
   def DMI_COMMAND =  0x17
 
-  /* This register is optional. Including it allows more efficient burst accesses.
-      Debugger can attempt to set bits and read them back to determine if the functionality is supported.
+  /* This register is optional. Including it allows more efficient burst
+        accesses.  A debugger can detect whether it is support by setting bits
+        and reading them back.
+
+        Writing this register while an abstract command is executing causes
+        \Fcmderr to be set to 1 (busy) if it is 0.
   */
   def DMI_ABSTRACTAUTO =  0x18
 
-  /* When {\tt devtreevalid} is set, reading this register returns bits 31:0
-      of the Device Tree address. Reading the other {\tt devtreeaddr}
+  /* When \Fconfstrptrvalid is set, reading this register returns bits 31:0
+      of the configuration string pointer. Reading the other {\tt confstrptr}
       registers returns the upper bits of the address.
 
       When system bus mastering is implemented, this must be an
       address that can be used with the System Bus Access module. Otherwise,
       this must be an address that can be used to access the
-      Device Tree from the hart with ID 0.
+      configuration string from the hart with ID 0.
 
-      If {\tt devtreevalid} is 0, then the {\tt devtreeaddr} registers
+      If \Fconfstrptrvalid is 0, then the {\tt confstrptr} registers
       hold identifier information which is not
       further specified in this document.
 
-      The Device Tree itself is described in the RISC-V Privileged
-      Specification.
+      The configuration string itself is described in the Privileged Spec.
   */
-  def DMI_DEVTREEADDR0 =  0x19
+  def DMI_CONFSTRPTR0 =  0x19
 
-  def DMI_DEVTREEADDR1 =  0x1a
+  def DMI_CONFSTRPTR1 =  0x1a
 
-  def DMI_DEVTREEADDR2 =  0x1b
+  def DMI_CONFSTRPTR2 =  0x1b
 
-  def DMI_DEVTREEADDR3 =  0x1c
+  def DMI_CONFSTRPTR3 =  0x1c
 
   /* If there is more than one DM accessible on this DMI, this register
         contains the base address of the next one in the chain, or 0 if this is
@@ -131,12 +143,12 @@ object DMI_RegAddrs {
 
   /* \Rdatazero through \Rdataeleven are basic read/write registers that may
         be read or changed by abstract commands. \Fdatacount indicates how many
-        of them are implemented, starting at \Rsbdatazero, counting up.
+        of them are implemented, starting at \Rdatazero, counting up.
         Table~\ref{tab:datareg} shows how abstract commands use these
         registers.
 
         Accessing these registers while an abstract command is executing causes
-        \Fcmderr to be set.
+        \Fcmderr to be set to 1 (busy) if it is 0.
 
         Attempts to write them while \Fbusy is set does not change their value.
 
@@ -154,7 +166,7 @@ object DMI_RegAddrs {
         implemented starting at \Rprogbufzero, counting up.
 
         Accessing these registers while an abstract command is executing causes
-        \Fcmderr to be set.
+        \Fcmderr to be set to 1 (busy) if it is 0.
 
         Attempts to write them while \Fbusy is set does not change their value.
   */
@@ -162,7 +174,7 @@ object DMI_RegAddrs {
 
   def DMI_PROGBUF15 =  0x2f
 
-  /* This register serves as a 32-bit serial port to the authentication
+  /* This register serves as a 32-bit serial port to/from the authentication
         module.
 
         When \Fauthbusy is clear, the debugger can communicate with the
@@ -170,6 +182,11 @@ object DMI_RegAddrs {
         separate mechanism to signal overflow/underflow.
   */
   def DMI_AUTHDATA =  0x30
+
+  /* This register contains DM control and status bits that didn't easily
+        fit in \Rdmcontrol and \Rdmstatus. All are optional.
+  */
+  def DMI_DMCS2 =  0x32
 
   /* Each bit in this read-only register indicates whether one specific hart
         is halted or not. Unavailable/nonexistent harts are not considered to
@@ -220,13 +237,6 @@ object DMI_RegAddrs {
   */
   def DMI_HALTSUM3 =  0x35
 
-  /* If \Fsbasize is less than 97, then this register is not present.
-
-        When the system bus master is busy, writes to this register will set
-        \Fsbbusyerror and don't do anything else.
-  */
-  def DMI_SBADDRESS3 =  0x37
-
   def DMI_SBCS =  0x38
 
   /* If \Fsbasize is 0, then this register is not present.
@@ -259,6 +269,13 @@ object DMI_RegAddrs {
   */
   def DMI_SBADDRESS2 =  0x3b
 
+  /* If \Fsbasize is less than 97, then this register is not present.
+
+        When the system bus master is busy, writes to this register will set
+        \Fsbbusyerror and don't do anything else.
+  */
+  def DMI_SBADDRESS3 =  0x37
+
   /* If all of the {\tt sbaccess} bits in \Rsbcs are 0, then this register
         is not present.
 
@@ -282,8 +299,10 @@ object DMI_RegAddrs {
         \begin{steps}{Reads from this register start the following:}
             \item ``Return'' the data.
             \item Set \Fsbbusy.
+            \item If \Fsbreadondata is set, perform a system bus read from the
+            address contained in {\tt sbaddress}, placing the result in {\tt
+            sbdata}.
             \item If \Fsbautoincrement is set, increment {\tt sbaddress}.
-            \item If \Fsbreadondata is set, perform another system bus read.
             \item Clear \Fsbbusy.
         \end{steps}
 
@@ -333,29 +352,33 @@ class DMSTATUSFields extends Bundle {
 
   val reserved1 = UInt(2.W)
 
-  /* This field is 1 when all currently selected harts have been reset but the reset has not been acknowledged.
+  /* This field is 1 when all currently selected harts have been reset
+            and reset has not been acknowledged for any of them.
   */
   val allhavereset = Bool()
 
-  /* This field is 1 when any currently selected hart has been reset but the reset has not been acknowledged.
+  /* This field is 1 when at least one currently selected hart has been
+            reset and reset has not been acknowledged for that hart.
   */
   val anyhavereset = Bool()
 
   /* This field is 1 when all currently selected harts have acknowledged
-            the previous resume request.
+            their last resume request.
   */
   val allresumeack = Bool()
 
   /* This field is 1 when any currently selected hart has acknowledged
-            the previous resume request.
+            its last resume request.
   */
   val anyresumeack = Bool()
 
-  /* This field is 1 when all currently selected harts do not exist in this system.
+  /* This field is 1 when all currently selected harts do not exist in
+            this platform.
   */
   val allnonexistent = Bool()
 
-  /* This field is 1 when any currently selected hart does not exist in this system.
+  /* This field is 1 when any currently selected hart does not exist in
+            this platform.
   */
   val anynonexistent = Bool()
 
@@ -383,9 +406,12 @@ class DMSTATUSFields extends Bundle {
   */
   val anyhalted = Bool()
 
-  /* 0 when authentication is required before using the DM.  1 when the
-            authentication check has passed. On components that don't implement
-            authentication, this bit must be preset as 1.
+  /* 0: Authentication is required before using the DM.
+
+            1: The authentication check has passed.
+
+            On components that don't implement authentication, this bit must be
+            preset as 1.
   */
   val authenticated = Bool()
 
@@ -400,15 +426,19 @@ class DMSTATUSFields extends Bundle {
   */
   val authbusy = Bool()
 
-  val reserved2 = UInt(1.W)
-
-  /* 0: \Rdevtreeaddrzero--\Rdevtreeaddrthree hold information which
-            is not relevant to the Device Tree.
-
-            1: \Rdevtreeaddrzero--\Rdevtreeaddrthree registers hold the address of the
-            Device Tree.
+  /* 1 if this Debug Module supports halt-on-reset functionality
+            controllable by the \Fsetresethaltreq and \Fclrresethaltreq bits.
+            0 otherwise.
   */
-  val devtreevalid = Bool()
+  val hasresethaltreq = Bool()
+
+  /* 0: \Rconfstrptrzero--\Rconfstrptrthree hold information which
+            is not relevant to the configuration string.
+
+            1: \Rconfstrptrzero--\Rconfstrptrthree hold the address of the
+            configuration string.
+  */
+  val confstrptrvalid = Bool()
 
   /* 0: There is no Debug Module present.
 
@@ -427,23 +457,22 @@ class DMSTATUSFields extends Bundle {
 
 class DMCONTROLFields extends Bundle {
 
-  /* Writes the halt request bit for all currently selected harts.
-            When set to 1, each selected hart will halt if it is not currently
-            halted.
+  /* Writing 0 clears the halt request bit for all currently selected
+            harts. This may cancel outstanding halt requests for those harts.
 
-            Writing 1 or 0 has no effect on a hart which is already halted, but
-            the bit must be cleared to 0 before the hart is resumed.
+            Writing 1 sets the halt request bit for all currently selected
+            harts. Running harts will halt whenever their halt request bit is
+            set.
 
             Writes apply to the new value of \Fhartsel and \Fhasel.
   */
   val haltreq = Bool()
 
-  /* Writes the resume request bit for all currently selected harts.
-            When set to 1, each selected hart will resume if it is currently
-            halted.
+  /* Writing 1 causes the currently selected harts to resume once, if
+            they are halted when the write occurs. It also clears the resume
+            ack bit for those harts.
 
-            The resume request bit is ignored while the halt request bit is
-            set.
+            \Fresumereq is ignored if \Fhaltreq is set.
 
             Writes apply to the new value of \Fhartsel and \Fhasel.
   */
@@ -453,6 +482,9 @@ class DMCONTROLFields extends Bundle {
             selected harts.  To perform a reset the debugger writes 1, and then
             writes 0 to deassert the reset signal.
 
+            While this bit is 1, the debugger must not change which harts are
+            selected.
+
             If this feature is not implemented, the bit always stays 0, so
             after writing 1 the debugger can read the register back to see if
             the feature is supported.
@@ -461,8 +493,9 @@ class DMCONTROLFields extends Bundle {
   */
   val hartreset = Bool()
 
-  /* Writing 1 to this bit clears the {\tt havereset} bits for
-            any selected harts.
+  /* 0: No effect.
+
+            1: Clears {\tt havereset} for any selected harts.
 
             Writes apply to the new value of \Fhartsel and \Fhasel.
   */
@@ -470,12 +503,13 @@ class DMCONTROLFields extends Bundle {
 
   val reserved0 = UInt(1.W)
 
-  /* Selects the  definition of currently selected harts.
+  /* Selects the definition of currently selected harts.
 
-            0: There is a single currently selected hart, that selected by \Fhartsel.
+            0: There is a single currently selected hart, that is selected by \Fhartsel.
 
-            1: There may be multiple currently selected harts -- that selected by \Fhartsel,
-               plus those selected by the hart array mask register.
+            1: There may be multiple currently selected harts -- the hart
+            selected by \Fhartsel, plus those selected by the hart array mask
+            register.
 
             An implementation which does not implement the hart array mask register
             must tie this field to 0. A debugger which wishes to use the hart array
@@ -494,7 +528,27 @@ class DMCONTROLFields extends Bundle {
   */
   val hartselhi = UInt(10.W)
 
-  val reserved1 = UInt(4.W)
+  val reserved1 = UInt(2.W)
+
+  /* This optional field writes the halt-on-reset request bit for all
+            currently selected harts, unless \Fclrresethaltreq is
+            simultaneously set to 1.
+            When set to 1, each selected hart will halt upon the next deassertion
+            of its reset. The halt-on-reset request bit is not automatically
+            cleared. The debugger must write to \Fclrresethaltreq to clear it.
+
+            Writes apply to the new value of \Fhartsel and \Fhasel.
+
+            If \Fhasresethaltreq is 0, this field is not implemented.
+  */
+  val setresethaltreq = Bool()
+
+  /* This optional field clears the halt-on-reset request bit for all
+            currently selected harts.
+
+            Writes apply to the new value of \Fhartsel and \Fhasel.
+  */
+  val clrresethaltreq = Bool()
 
   /* This bit controls the reset signal from the DM to the rest of the
             system. The signal should reset every part of the system, including
@@ -515,15 +569,16 @@ class DMCONTROLFields extends Bundle {
             1: The module functions normally.
 
             No other mechanism should exist that may result in resetting the
-            Debug Module after power up, including the platform's system reset
-            or Debug Transport reset signals.
+            Debug Module after power up, with the possible (but not
+            recommended) exception of a global reset signal that resets the
+            entire platform.
 
-            A debugger may pulse this bit low to get the debug module into a
+            A debugger may pulse this bit low to get the Debug Module into a
             known state.
 
-            Implementations may use this bit to aid debugging, for example by
-            preventing the Debug Module from being power gated while debugging
-            is active.
+            Implementations may pay attention to this bit to further aid
+            debugging, for example by preventing the Debug Module from being
+            power gated while debugging is active.
   */
   val dmactive = Bool()
 
@@ -542,8 +597,8 @@ class HARTINFOFields extends Bundle {
 
   val reserved1 = UInt(3.W)
 
-  /* 0: The {\tt data} registers are shadowed in the hart by CSR
-            registers. Each CSR register is XLEN bits in size, and corresponds
+  /* 0: The {\tt data} registers are shadowed in the hart by CSRs.
+            Each CSR is DXLEN bits in size, and corresponds
             to a single argument, per Table~\ref{tab:datareg}.
 
             1: The {\tt data} registers are shadowed in the hart's memory map.
@@ -551,7 +606,7 @@ class HARTINFOFields extends Bundle {
   */
   val dataaccess = Bool()
 
-  /* If \Fdataaccess is 0: Number of CSR registers dedicated to
+  /* If \Fdataaccess is 0: Number of CSRs dedicated to
             shadowing the {\tt data} registers.
 
             If \Fdataaccess is 1: Number of 32-bit words in the memory map
@@ -577,7 +632,7 @@ class HAWINDOWSELFields extends Bundle {
   val reserved0 = UInt(17.W)
 
   /* The high bits of this field may be tied to 0, depending on how large
-          the array mask register is.  Eg. on a system with 48 harts only bit 0
+          the array mask register is.  E.g.\ on a system with 48 harts only bit 0
           of this field may actually be writable.
   */
   val hawindowsel = UInt(15.W)
@@ -613,20 +668,26 @@ class ABSTRACTCSFields extends Bundle {
             they are cleared by writing 1 to them. No abstract command is
             started until the value is reset to 0.
 
+            This field only contains a valid value if \Fbusy is 0.
+
             0 (none): No error.
 
             1 (busy): An abstract command was executing while \Rcommand,
-            \Rabstractcs, \Rabstractauto was written, or when one
+            \Rabstractcs, or \Rabstractauto was written, or when one
             of the {\tt data} or {\tt progbuf} registers was read or written.
+            This status is only written if \Fcmderr contains 0.
 
             2 (not supported): The requested command is not supported,
             regardless of whether the hart is running or not.
 
             3 (exception): An exception occurred while executing the command
-            (eg. while executing the Program Buffer).
+            (e.g.\ while executing the Program Buffer).
 
             4 (halt/resume): The abstract command couldn't execute because the
-            hart wasn't in the required state (running/halted).
+            hart wasn't in the required state (running/halted), or unavailable.
+
+            5 (bus): The abstract command failed due to a bus error (e.g.\ 
+            alignment, access size, or timeout).
 
             7 (other): The command failed for another reason.
   */
@@ -635,7 +696,7 @@ class ABSTRACTCSFields extends Bundle {
   val reserved3 = UInt(4.W)
 
   /* Number of {\tt data} registers that are implemented as part of the
-            abstract command interface. Valid sizes are 0 - 12.
+            abstract command interface. Valid sizes are 1 -- 12.
   */
   val datacount = UInt(4.W)
 
@@ -657,21 +718,23 @@ class COMMANDFields extends Bundle {
 
 class ABSTRACTAUTOFields extends Bundle {
 
-  /* When a bit in this field is 1, read or write accesses to the corresponding {\tt progbuf} word
-          cause the command in \Rcommand to be executed again.
+  /* When a bit in this field is 1, read or write accesses to the
+            corresponding {\tt progbuf} word cause the command in \Rcommand to
+            be executed again.
   */
   val autoexecprogbuf = UInt(16.W)
 
   val reserved0 = UInt(4.W)
 
-  /* When a bit in this field is 1, read or write accesses to the corresponding {\tt data} word
-          cause the command in \Rcommand to be executed again.
+  /* When a bit in this field is 1, read or write accesses to the
+            corresponding {\tt data} word cause the command in \Rcommand to be
+            executed again.
   */
   val autoexecdata = UInt(12.W)
 
 }
 
-class DEVTREEADDR0Fields extends Bundle {
+class CONFSTRPTR0Fields extends Bundle {
 
   val addr = UInt(32.W)
 
@@ -701,6 +764,52 @@ class AUTHDATAFields extends Bundle {
 
 }
 
+class DMCS2Fields extends Bundle {
+
+  val reserved0 = UInt(21.W)
+
+  /* This field contains the currently selected external trigger.
+
+            If a non-existent trigger value is written here, the hardware will
+            change it to a valid one or 0 if no external triggers exist.
+  */
+  val exttrigger = UInt(4.W)
+
+  /* When \Fhgselect is 0, contains the halt group of the hart
+            specified by \Fhartsel.
+
+            When \Fhgselect is 1, contains the halt group of the external
+            trigger selected by \Fexttrigger.
+
+            Writes only have an effect if \Fhgwrite is also written 1.
+
+            An implementation may tie any number of upper bits in this field to
+            0. If halt groups aren't implemented, then this entire field
+            is 0.
+  */
+  val haltgroup = UInt(5.W)
+
+  /* When \Fhgselect is 0, writing 1 changes the halt group of all
+            selected harts to the value written to \Fhaltgroup.
+
+            When \Fhgselect is 1, writing 1 changes the halt group of the
+            external trigger selected by \Fexttrigger to the value written to
+            \Fhaltgroup.
+
+            Writing 0 has no effect.
+  */
+  val hgwrite = Bool()
+
+  /* 0: Operate on harts.
+
+            1: Operate on external triggers.
+
+            If there are no external triggers, this field must be tied to 0.
+  */
+  val hgselect = Bool()
+
+}
+
 class HALTSUM0Fields extends Bundle {
 
   val haltsum0 = UInt(32.W)
@@ -725,15 +834,6 @@ class HALTSUM3Fields extends Bundle {
 
 }
 
-class SBADDRESS3Fields extends Bundle {
-
-  /* Accesses bits 127:96 of the physical address in {\tt sbaddress} (if
-            the system address bus is that wide).
-  */
-  val address = UInt(32.W)
-
-}
-
 class SBCSFields extends Bundle {
 
   /* 0: The System Bus interface conforms to mainline drafts of this
@@ -752,8 +852,8 @@ class SBCSFields extends Bundle {
             already in progress (while \Fsbbusy is set). It remains set until
             it's explicitly cleared by the debugger.
 
-            While this field is non-zero, no more system bus accesses can be
-            initiated by the debug module.
+            While this field is set, no more system bus accesses can be
+            initiated by the Debug Module.
   */
   val sbbusyerror = Bool()
 
@@ -762,8 +862,9 @@ class SBCSFields extends Bundle {
             bit goes high immediately when a read or write is requested for any
             reason, and does not go low until the access is fully completed.
 
-            To avoid race conditions, debuggers must not try to clear \Fsberror
-            until they read \Fsbbusy as 0.
+            Writes to \Rsbcs while \Fsbbusy is high result in undefined
+            behavior.  A debugger must not write to \Rsbcs until it reads
+            \Fsbbusy as 0.
   */
   val sbbusy = Bool()
 
@@ -785,7 +886,7 @@ class SBCSFields extends Bundle {
             4: 128-bit
 
             If \Fsbaccess has an unsupported value when the DM starts a bus
-            access, the access is not performed and \Fsberror is set to 3.
+            access, the access is not performed and \Fsberror is set to 4.
   */
   val sbaccess = UInt(3.W)
 
@@ -799,13 +900,13 @@ class SBCSFields extends Bundle {
   */
   val sbreadondata = Bool()
 
-  /* When the debug module's system bus
-            master causes a bus error, this field gets set. The bits in this
+  /* When the Debug Module's system bus
+            master encounters an error, this field gets set. The bits in this
             field remain set until they are cleared by writing 1 to them.
             While this field is non-zero, no more system bus accesses can be
-            initiated by the debug module.
+            initiated by the Debug Module.
 
-            An implementation may report "Other" (7) for any error condition.
+            An implementation may report ``Other'' (7) for any error condition.
 
             0: There was no bus error.
 
@@ -868,6 +969,15 @@ class SBADDRESS1Fields extends Bundle {
 class SBADDRESS2Fields extends Bundle {
 
   /* Accesses bits 95:64 of the physical address in {\tt sbaddress} (if
+            the system address bus is that wide).
+  */
+  val address = UInt(32.W)
+
+}
+
+class SBADDRESS3Fields extends Bundle {
+
+  /* Accesses bits 127:96 of the physical address in {\tt sbaddress} (if
             the system address bus is that wide).
   */
   val address = UInt(32.W)

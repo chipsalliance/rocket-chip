@@ -2,78 +2,61 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.{Parameters}
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 case class BusAtomics(
   arithmetic: Boolean = true,
-  buffer: BufferParams = BufferParams.default
+  buffer: BufferParams = BufferParams.default,
+  widenBytes: Option[Int] = None
 )
 
 case class PeripheryBusParams(
-  beatBytes: Int,
-  blockBytes: Int,
-  atomics: Option[BusAtomics] = Some(BusAtomics()),
-  sbusCrossingType: ClockCrossingType = SynchronousCrossing(), // relative to sbus
-  frequency: BigInt = BigInt(100000000) // 100 MHz as default bus frequency
-) extends HasTLBusParams
-
-case object PeripheryBusKey extends Field[PeripheryBusParams]
+    beatBytes: Int,
+    blockBytes: Int,
+    atomics: Option[BusAtomics] = Some(BusAtomics()),
+    frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
+    zeroDevice: Option[AddressSet] = None,
+    errorDevice: Option[DevNullParams] = None,
+    replicatorMask: BigInt = 0)
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
+  with HasRegionReplicatorParams
 
 class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     extends TLBusWrapper(params, "periphery_bus")
-    with HasClockDomainCrossing
+    with CanHaveBuiltInDevices
     with CanAttachTLSlaves {
 
-  private val in_xbar = LazyModule(new TLXbar)
-  private val out_xbar = LazyModule(new TLXbar)
-  private val atomics = params.atomics.map { pa =>
-    TLBuffer(pa.buffer) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
-  }.getOrElse(TLNameNode("no_atomics"))
+  private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+  private val node: TLNode = params.atomics.map { pa =>
+    val in_xbar = LazyModule(new TLXbar)
+    val out_xbar = LazyModule(new TLXbar)
+    val fixer_node =
+      if (params.replicatorMask == 0) fixer.node else { fixer.node :*= RegionReplicator(params.replicatorMask) }
+    (out_xbar.node
+      :*= fixer_node
+      :*= TLBuffer(pa.buffer)
+      :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
+          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
+        } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
+      :*= in_xbar.node)
+  } .getOrElse { TLXbar() :*= fixer.node }
 
-  out_xbar.node :*= atomics :*= in_xbar.node
+  def inwardNode: TLInwardNode = node
+  def outwardNode: TLOutwardNode = node
+  def busView: TLEdge = fixer.node.edges.in.head
 
-  def inwardNode: TLInwardNode = in_xbar.node
-  def outwardNode: TLOutwardNode = out_xbar.node
-
-  def crossFromSystemBus(gen: (=> TLInwardNode) => NoHandle) {
-    from("sbus") {
-      val from_sbus = this.crossIn(inwardNode)
-      gen(from_sbus(params.sbusCrossingType))
-    }
-  }
-
-  def crossFromControlBus(gen: (=> TLInwardNode) => NoHandle) {
-    from("cbus") {
-      val from_cbus = this.crossIn(inwardNode)
-      gen(from_cbus(params.sbusCrossingType))
-    }
-  }
-
-  def fromOtherMaster[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
-        TLNameNode(name)): InwardNodeHandle[D,U,E,B] = {
-    from("master" named name) {
-      inwardNode :=* TLBuffer(buffer) :=* gen
-    }
-  }
+  attachBuiltInDevices(params)
 
   def toTile
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => TLInwardNode): NoHandle = {
     to("tile" named name) { FlipRendering { implicit p =>
-      gen :*= TLBuffer(buffer) :*= outwardNode
+      gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }}
   }
-
-  def toSlaveBus(name: String): (=> TLInwardNode) => NoHandle =
-    gen => to(s"bus_named_$name") {
-      (gen
-        :*= TLWidthWidget(params.beatBytes)
-        :*= outwardNode)
-    }
 }

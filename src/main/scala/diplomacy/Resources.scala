@@ -3,7 +3,10 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel.log2Ceil
-import scala.collection.immutable.{ListMap,SortedMap}
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
+
+import scala.collection.immutable.{ListMap, SortedMap}
 import scala.collection.mutable.HashMap
 
 sealed trait ResourceValue
@@ -64,10 +67,13 @@ case class ResourceBindings(map: Map[String, Seq[Binding]] = Map.empty)
   */
 case class Description(name: String, mapping: Map[String, Seq[ResourceValue]])
 
+case class ResourceBindingsMap(map: Map[Device, ResourceBindings])
+
 abstract class Device
 {
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
+
   def parent: Option[Device] = None
 
   /** make sure all derived devices have an unique label */
@@ -139,12 +145,12 @@ trait DeviceRegName
 {
   this: Device =>
   def describeName(devname: String, resources: ResourceBindings): String = {
-    val reg = resources.map.filterKeys(regFilter)
+    val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
     if (reg.isEmpty) {
       devname
     } else {
-      val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
-      val mainreg = reg.find(x => regName(x._1) == "control").getOrElse(reg.head)._2
+      val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
+      val mainreg = reg.find(x => DiplomacyUtils.regName(x._1) == "control").getOrElse(reg.head)._2
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
         case x: ResourceAddress => s"${devname}@${x.address.head.base.toString(16)}"
@@ -156,7 +162,11 @@ trait DeviceRegName
   def reg(name: String): Seq[Resource] = Seq(Resource(this, "reg/" + name))
   def reg: Seq[Resource] = Seq(Resource(this, "reg"))
 
+}
+
+object DiplomacyUtils {
   def regFilter(name: String): Boolean = name == "reg" || name.take(4) == "reg/"
+  def rangeFilter(name: String): Boolean = name == "ranges"
   def regName(name: String): Option[String] = {
     val keys = name.split("/")
     require (keys.size >= 1 && keys.size <= 2 && keys(0) == "reg", s"Invalid reg name '${name}'")
@@ -168,12 +178,15 @@ trait DeviceRegName
   * @param devname      the base device named used in device name generation.
   * @param devcompat    a list of compatible devices. See device tree property "compatible".
   */
-class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
+class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
   with DeviceInterrupts
   with DeviceClocks
   with DeviceRegName
 {
   override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
+
+  var deviceNamePlusAddress: String = ""
+
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
     val int = describeInterrupts(resources)      // interrupt description
@@ -182,8 +195,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
     def optDef(x: String, seq: Seq[ResourceValue]) = if (seq.isEmpty) None else Some(x -> seq)
     val compat = optDef("compatible", devcompat.map(ResourceString(_))) // describe the list of compatiable devices
 
-    val reg = resources.map.filterKeys(regFilter)
-    val (named, bulk) = reg.partition { case (k, v) => regName(k).isDefined }
+    val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
+    val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
     // We need to be sure that each named reg has exactly one AddressRange associated to it
     named.foreach {
       case (k, Seq(Binding(_, value: ResourceAddress))) =>
@@ -193,8 +206,10 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
         require (false, s"DTS device $name has $k = $seq, must be a single ResourceAddress!")
     }
 
-    val names = optDef("reg-names", named.map(x => ResourceString(regName(x._1).get)).toList) // names of the named address space
+    val names = optDef("reg-names", named.map(x => ResourceString(DiplomacyUtils.regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
+
+    deviceNamePlusAddress = name
 
     Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
   }
@@ -224,19 +239,20 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
       "#size-cells"      -> ofInt((log2Ceil(maxSize) + 31) / 32),
       "ranges"           -> ranges)
 
+    deviceNamePlusAddress = devname
+
     val Description(_, mapping) = super.describe(resources)
     Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra)
   }
 
   def ranges = Seq(Resource(this, "ranges"))
 }
-
 /** A generic memory block. */
 class MemoryDevice extends Device with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
     Description(describeName("memory", resources), ListMap(
-      "reg"         -> resources.map.filterKeys(regFilter).flatMap(_._2).map(_.value).toList,
+      "reg"         -> resources.map.filterKeys(DiplomacyUtils.regFilter).flatMap(_._2).map(_.value).toList,
       "device_type" -> Seq(ResourceString("memory"))))
   }
 }
@@ -257,6 +273,8 @@ case class Resource(owner: Device, key: String)
 trait BindingScope
 {
   this: LazyModule =>
+
+  BindingScope.add(this)
 
   private val parentScope = BindingScope.find(parent)
   protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
@@ -331,9 +349,7 @@ trait BindingScope
   /** Generate the device tree. */
   def bindingTree: ResourceMap = {
     eval
-    val map: Map[Device, ResourceBindings] =
-      resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
-        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct)))
+    val map: Map[Device, ResourceBindings] = getResourceBindingsMap.map
     val descs: HashMap[Device, Description] = HashMap.empty
     def getDesc(dev: Device): Description = {
       if (descs.contains(dev)) {
@@ -357,6 +373,16 @@ trait BindingScope
     ResourceMap(SortedMap("/" -> tree))
   }
 
+  /** Generate the ResourceBindingsMap which stores each device's ResourceBindings
+    *
+    * @return
+    */
+  def getResourceBindingsMap: ResourceBindingsMap = {
+    eval
+    ResourceBindingsMap(map = resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
+        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct))))
+  }
+
   /** Collect resource addresses from tree. */
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
 }
@@ -368,6 +394,10 @@ object BindingScope
     case x: BindingScope => find(x.parent).orElse(Some(x))
     case x => find(x.parent)
   }
+
+  var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()
+
+  def add(bs: BindingScope) = BindingScope.bindingScopes.+=:(bs)
 }
 
 object ResourceBinding

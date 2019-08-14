@@ -4,6 +4,7 @@ package freechips.rocketchip
 
 import Chisel._
 import scala.math.min
+import scala.collection.{immutable, mutable}
 
 package object util {
   implicit class UnzippableOption[S, T](val x: Option[(S, T)]) {
@@ -112,10 +113,22 @@ package object util {
       else Cat(UInt(0, n - x.getWidth), x)
     }
 
+    // Like UInt.apply(hi, lo), but returns 0.U for zero-width extracts
     def extract(hi: Int, lo: Int): UInt = {
+      require(hi >= lo-1)
       if (hi == lo-1) UInt(0)
       else x(hi, lo)
     }
+
+    // Like Some(UInt.apply(hi, lo)), but returns None for zero-width extracts
+    def extractOption(hi: Int, lo: Int): Option[UInt] = {
+      require(hi >= lo-1)
+      if (hi == lo-1) None
+      else Some(x(hi, lo))
+    }
+
+    // like x & ~y, but first truncate or zero-extend y to x's width
+    def andNot(y: UInt): UInt = x & ~(y | (x & 0.U))
 
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
 
@@ -147,6 +160,13 @@ package object util {
       (0 until x.getWidth by width).map(base => x(base + width - 1, base))
 
     def inRange(base: UInt, bounds: UInt) = x >= base && x < bounds
+
+    def ## (y: Option[UInt]): UInt = y.map(x ## _).getOrElse(x)
+  }
+
+  implicit class OptionUIntToAugmentedOptionUInt(val x: Option[UInt]) extends AnyVal {
+    def ## (y: UInt): UInt = x.map(_ ## y).getOrElse(y)
+    def ## (y: Option[UInt]): Option[UInt] = x.map(_ ## y)
   }
 
   implicit class BooleanToAugmentedBoolean(val x: Boolean) extends AnyVal {
@@ -188,6 +208,28 @@ package object util {
     helper(1, x)(width-1, 0)
   }
 
-  def OptimizationBarrier(x: UInt): UInt = ~(~x)
-  def OptimizationBarrier[T <: Data](x: T): T = OptimizationBarrier(x.asUInt).asTypeOf(x)
+  def OptimizationBarrier[T <: Data](in: T): T = {
+    val foo = Module(new Module {
+      val io = IO(new Bundle {
+        val x = Input(in)
+        val y = Output(in)
+      })
+      io.y := io.x
+    })
+    foo.io.x := in
+    foo.io.y
+  }
+
+  /** Similar to Seq.groupBy except this returns a Seq instead of a Map
+    * Useful for deterministic code generation
+    */
+  def groupByIntoSeq[A, K](xs: Seq[A])(f: A => K): immutable.Seq[(K, immutable.Seq[A])] = {
+    val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
+    for (x <- xs) {
+      val key = f(x)
+      val l = map.getOrElseUpdate(key, mutable.ListBuffer.empty[A])
+      l += x
+    }
+    map.view.map({ case (k, vs) => k -> vs.toList }).toList
+  }
 }

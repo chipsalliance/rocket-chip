@@ -7,6 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import scala.reflect.ClassTag
 
 class TLEdge(
   client:  TLClientPortParameters,
@@ -270,6 +271,43 @@ class TLEdge(
   }
   def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
   def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
+
+  // This is a very expensive circuit; use only if you really mean it!
+  def inFlight(x: TLBundle): (UInt, UInt) = {
+    val flight = RegInit(UInt(0, width = log2Ceil(3*client.endSourceId+1)))
+    val bce = manager.anySupportAcquireB && client.anySupportProbe
+
+    val (a_first, a_last, _) = firstlast(x.a)
+    val (b_first, b_last, _) = firstlast(x.b)
+    val (c_first, c_last, _) = firstlast(x.c)
+    val (d_first, d_last, _) = firstlast(x.d)
+    val (e_first, e_last, _) = firstlast(x.e)
+
+    val (a_request, a_response) = (isRequest(x.a.bits), isResponse(x.a.bits))
+    val (b_request, b_response) = (isRequest(x.b.bits), isResponse(x.b.bits))
+    val (c_request, c_response) = (isRequest(x.c.bits), isResponse(x.c.bits))
+    val (d_request, d_response) = (isRequest(x.d.bits), isResponse(x.d.bits))
+    val (e_request, e_response) = (isRequest(x.e.bits), isResponse(x.e.bits))
+
+    val a_inc = x.a.fire() && a_first && a_request
+    val b_inc = x.b.fire() && b_first && b_request
+    val c_inc = x.c.fire() && c_first && c_request
+    val d_inc = x.d.fire() && d_first && d_request
+    val e_inc = x.e.fire() && e_first && e_request
+    val inc = Cat(Seq(a_inc, d_inc) ++ (if (bce) Seq(b_inc, c_inc, e_inc) else Nil))
+
+    val a_dec = x.a.fire() && a_last && a_response
+    val b_dec = x.b.fire() && b_last && b_response
+    val c_dec = x.c.fire() && c_last && c_response
+    val d_dec = x.d.fire() && d_last && d_response
+    val e_dec = x.e.fire() && e_last && e_response
+    val dec = Cat(Seq(a_dec, d_dec) ++ (if (bce) Seq(b_dec, c_dec, e_dec) else Nil))
+
+    val next_flight = flight + PopCount(inc) - PopCount(dec)
+    flight := next_flight
+
+    (flight, next_flight)
+  }
 }
 
 class TLEdgeOut(
@@ -279,6 +317,16 @@ class TLEdgeOut(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
+  // Set the contents of user bits; seq fills the highest-index match first
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[TLClientParameters => UInt]): Vec[UInt] = {
+    val value = Wire(Vec(client.endSourceId, UInt(width = client.userBitWidth)))
+    client.clients.foreach { c =>
+      val upd = c.putUser[T](x, seq.map(_(c)))
+      c.sourceId.range.foreach { id => value(id) := upd }
+    }
+    value
+  }
+
   // Transfers
   def AcquireBlock(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
     require (manager.anySupportAcquireB)
@@ -527,6 +575,73 @@ class TLEdgeIn(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
+  private def myTranspose[T](x: Seq[Seq[T]]): Seq[Seq[T]] = {
+    val todo = x.filter(!_.isEmpty)
+    val heads = todo.map(_.head)
+    val tails = todo.map(_.tail)
+    if (todo.isEmpty) Nil else { heads +: myTranspose(tails) }
+  }
+
+  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
+  // The first returned sequence element corresponds to the highest-index occurence for each client
+  def getUserSeq[T <: UserBits : ClassTag](bits: TLBundleA): Seq[ValidIO[UInt]] = {
+    require (bits.params.aUserBits == bundle.aUserBits)
+    myTranspose(client.clients.map { c =>
+      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
+    }).map { seq =>
+      val nbits = seq.map(_._2.tag.width).max
+      val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
+      val valid = Wire(init = Vec.fill(client.endSourceId) { Bool(false) })
+      seq.foreach { case (sources, UserBitField(tag, field)) =>
+        sources.range.foreach { id =>
+          valid(id) := Bool(true)
+          value(id) := field
+        }
+      }
+      val out = Wire(Valid(UInt(width = nbits)))
+      out.valid := valid(bits.source)
+      out.bits  := value(bits.source)
+      out
+    }
+  }
+
+  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
+  // The first returned sequence element corresponds to the highest-index occurence for each client
+  def getUserOrElse[T <: UserBits : ClassTag](bits: TLBundleA, default: UInt): Seq[UInt] = {
+    require (bits.params.aUserBits == bundle.aUserBits)
+    myTranspose(client.clients.map { c =>
+      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
+    }).map { seq =>
+      val nbits = seq.map(_._2.tag.width).max
+      val init = (default | UInt(0, width = nbits))(nbits-1, 0)
+      val value = Wire(init = Vec.fill(client.endSourceId) { init })
+      seq.foreach { case (sources, UserBitField(tag, field)) =>
+        sources.range.foreach { id =>
+          value(id) := field
+        }
+      }
+      value(bits.source)
+    }
+  }
+
+  // Extract highest-index type-T user bits from every client
+  def getUserHead[T <: UserBits : ClassTag](bits: TLBundleA): UInt = {
+    require (bits.params.aUserBits == bundle.aUserBits)
+    val seq = client.clients.map { c =>
+      val x = c.getUser[T](bits.user.get)
+      require (!x.isEmpty, "getUser called on a client ${c.name} with no matching fields")
+      (c.sourceId, x.head)
+    }
+    val nbits = seq.map(_._2.tag.width).max
+    val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
+    seq.foreach { case (sources, UserBitField(tag, field)) =>
+      sources.range.foreach { id =>
+        value(id) := field
+      }
+    }
+    value(bits.source)
+  }
+
   // Transfers
   def Probe(fromAddress: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {
     require (client.anySupportProbe)

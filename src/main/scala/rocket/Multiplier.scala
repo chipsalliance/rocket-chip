@@ -72,7 +72,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
     FN_REMU   -> List(N, Y, N, N))
   val cmdMul :: cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(io.req.bits.fn, List(X, X, X, X),
-      (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.toBool)
+      (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
 
   require(w == 32 || w == 64)
   def halfWidth(req: MultiplierReq) = Bool(w > 32) && req.dw === DW_32
@@ -195,7 +195,7 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Modu
     FN_MULHU  -> List(Y, N, N),
     FN_MULHSU -> List(Y, Y, N))
   val cmdHi :: lhsSigned :: rhsSigned :: Nil =
-    DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.toBool)
+    DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.asBool)
   val cmdHalf = Bool(width > 32) && in.bits.dw === DW_32
 
   val lhs = Cat(lhsSigned && in.bits.in1(width-1), in.bits.in1).asSInt

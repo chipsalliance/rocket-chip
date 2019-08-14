@@ -19,6 +19,8 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
+  val useSCIE: Boolean
+  val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
@@ -29,14 +31,16 @@ trait CoreParams {
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
+  val useBPWatch: Boolean
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean
   val misaWritable: Boolean
+  val haveCFlush: Boolean
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
-  val tileControlAddr: Option[BigInt]
+  def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
@@ -54,6 +58,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
+  val usingSCIE = coreParams.useSCIE
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth
@@ -89,7 +94,7 @@ abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundl
   with HasCoreParameters
 
 class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
-  val buserror = coreParams.tileControlAddr.map(a => Bool())
+  val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
 trait HasCoreIO extends HasTileParameters {
@@ -102,5 +107,7 @@ trait HasCoreIO extends HasTileParameters {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
+    val cease = Bool().asOutput
   }
 }

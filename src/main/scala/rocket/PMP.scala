@@ -7,6 +7,7 @@ import Chisel.ImplicitConversions._
 import freechips.rocketchip.config._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 class PMPConfig extends Bundle {
   val l = Bool()
@@ -32,9 +33,14 @@ class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
   val cfg = new PMPConfig
   val addr = UInt(width = paddrBits - PMP.lgAlign)
 
+  def reset() {
+    cfg.a := 0
+    cfg.l := 0
+  }
+
   def readAddr = if (pmpGranularity.log2 == PMP.lgAlign) addr else {
     val mask = ((BigInt(1) << (pmpGranularity.log2 - PMP.lgAlign)) - 1).U
-    Mux(napot, addr | mask, ~(~addr | mask))
+    Mux(napot, addr | (mask >> 1), ~(~addr | mask))
   }
   def napot = cfg.a(1)
   def torNotNAPOT = cfg.a(0)
@@ -156,10 +162,25 @@ class PMPChecker(lgMaxSize: Int)(implicit p: Parameters) extends CoreModule()(p)
     val hit = pmp.hit(io.addr, io.size, lgMaxSize, prevPMP)
     val ignore = default && !pmp.cfg.l
     val aligned = pmp.aligned(io.addr, io.size, lgMaxSize, prevPMP)
+
+    for ((name, idx) <- Seq("no", "TOR", "NA4", "NAPOT").zipWithIndex)
+      cover(pmp.cfg.a === idx, s"The cfg access is set to ${name} access ", "Cover PMP access mode setting")
+
+    cover(pmp.cfg.l === 0x1, s"The cfg lock is set to high ", "Cover PMP lock mode setting")
+   
+    // Not including Write and no Read permission as the combination is reserved
+    for ((name, idx) <- Seq("no", "RO", "", "RW", "X", "RX", "", "RWX").zipWithIndex; if name.nonEmpty)
+      cover((Cat(pmp.cfg.x, pmp.cfg.w, pmp.cfg.r) === idx), s"The permission is set to ${name} access ", "Cover PMP access permission setting") 
+
+    for ((name, idx) <- Seq("", "TOR", "NA4", "NAPOT").zipWithIndex; if name.nonEmpty) {
+      cover(!ignore && hit && aligned && pmp.cfg.a === idx, s"The access matches ${name} mode ", "Cover PMP access")
+      cover(pmp.cfg.l && hit && aligned && pmp.cfg.a === idx, s"The access matches ${name} mode with lock bit high", "Cover PMP access with lock bit")
+    }
+
     val cur = Wire(init = pmp)
-    cur.cfg.r := (aligned && pmp.cfg.r) || ignore
-    cur.cfg.w := (aligned && pmp.cfg.w) || ignore
-    cur.cfg.x := (aligned && pmp.cfg.x) || ignore
+    cur.cfg.r := aligned && (pmp.cfg.r || ignore)
+    cur.cfg.w := aligned && (pmp.cfg.w || ignore)
+    cur.cfg.x := aligned && (pmp.cfg.x || ignore)
     Mux(hit, cur, prev)
   }
 

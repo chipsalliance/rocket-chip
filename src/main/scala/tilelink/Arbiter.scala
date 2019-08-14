@@ -42,6 +42,8 @@ object TLArbiter
   def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*) {
     if (sources.isEmpty) {
       sink.valid := Bool(false)
+    } else if (sources.size == 1) {
+      sink <> sources.head._2
     } else {
       val pairs = sources.toList
       val beatsIn = pairs.map(_._1)
@@ -55,7 +57,7 @@ object TLArbiter
       // Who wants access to the sink?
       val valids = sourcesIn.map(_.valid)
       // Arbitrate amongst the requests
-      val readys = Vec(policy(valids.size, Cat(valids.reverse), latch).toBools)
+      val readys = Vec(policy(valids.size, Cat(valids.reverse), latch).asBools)
       // Which request wins arbitration?
       val winner = Vec((readys zip valids) map { case (r,v) => r&&v })
 
@@ -77,15 +79,10 @@ object TLArbiter
       val muxState = Mux(idle, winner, state)
       state := muxState
 
-      if (sources.size > 1) {
-        val allowed = Mux(idle, readys, state)
-        (sourcesIn zip allowed) foreach { case (s, r) =>
-          s.ready := sink.ready && r
-        }
-      } else {
-        sourcesIn(0).ready := sink.ready
+      val allowed = Mux(idle, readys, state)
+      (sourcesIn zip allowed) foreach { case (s, r) =>
+        s.ready := sink.ready && r
       }
-
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
       sink.bits := Mux1H(muxState, sourcesIn.map(_.bits))
     }

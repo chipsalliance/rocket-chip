@@ -24,7 +24,7 @@ trait ExampleModule extends HasRegMap
   val pending = RegInit(UInt(0xf, width = 4))
 
   io.gpio := state
-  interrupts := pending.toBools
+  interrupts := pending.asBools
 
   regmap(
     0 -> Seq(

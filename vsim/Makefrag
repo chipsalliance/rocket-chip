@@ -9,6 +9,7 @@ bb_vsrcs = \
     $(vsrc)/ClockDivider2.v \
     $(vsrc)/ClockDivider3.v \
     $(vsrc)/AsyncResetReg.v \
+    $(vsrc)/EICG_wrapper.v \
 
 sim_vsrcs = \
     $(generated_dir)/$(long_name).v \
@@ -56,6 +57,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_GARBAGE_ASSIGN \
 	+define+RANDOMIZE_INVALID_ASSIGN \
 	+define+RANDOMIZE_DELAY=2 \
+	+define+MODEL=$(MODEL) \
 	+libext+.v \
 
 #--------------------------------------------------------------------

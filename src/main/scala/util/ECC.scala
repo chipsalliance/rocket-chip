@@ -193,6 +193,12 @@ trait CanHaveErrors extends Bundle {
   val uncorrectable: Option[ValidIO[UInt]]
 }
 
+case class ECCParams(
+  bytes: Int = 1,
+  code: Code = new IdentityCode,
+  notifyErrors: Boolean = false,
+)
+
 object Code {
   def fromString(s: Option[String]): Code = fromString(s.getOrElse("none"))
   def fromString(s: String): Code = s.toLowerCase match {

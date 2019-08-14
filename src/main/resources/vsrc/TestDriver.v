@@ -3,6 +3,9 @@
 `ifndef RESET_DELAY
  `define RESET_DELAY 777.7
 `endif
+`ifndef MODEL
+ `define MODEL TestHarness
+`endif
 
 module TestDriver;
 
@@ -18,9 +21,9 @@ module TestDriver;
   reg [63:0] max_cycles = 0;
   reg [63:0] dump_start = 0;
   reg [63:0] trace_count = 0;
-  reg [1023:0] fsdbfile = 0;
-  reg [1023:0] vcdplusfile = 0;
-  reg [1023:0] vcdfile = 0;
+  reg [2047:0] fsdbfile = 0;
+  reg [2047:0] vcdplusfile = 0;
+  reg [2047:0] vcdfile = 0;
   int unsigned rand_value;
   initial
   begin
@@ -139,7 +142,7 @@ module TestDriver;
       if (success)
       begin
         if (verbose)
-          $fdisplay(stderr, "Completed after %d simulation cycles", trace_count);
+          $fdisplay(stderr, "*** PASSED *** Completed after %d simulation cycles", trace_count);
         `VCDPLUSCLOSE
 `ifdef TESTBENCH_IN_UVM
         finish_request = 1;
@@ -150,7 +153,7 @@ module TestDriver;
     end
   end
 
-  TestHarness testHarness(
+  `MODEL testHarness(
     .clock(clock),
     .reset(reset),
     .io_success(success)

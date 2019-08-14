@@ -8,11 +8,11 @@ import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
-import scala.math.max
 
 case class DCacheParams(
     nSets: Int = 64,
@@ -27,8 +27,10 @@ case class DCacheParams(
     nRPQ: Int = 16,
     nMMIOs: Int = 1,
     blockBytes: Int = 64,
+    separateUncachedResp: Boolean = false,
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
+    clockGate: Boolean = false,
     scratch: Option[BigInt] = None) extends L1CacheParams {
 
   def tagCode: Code = Code.fromString(tagECC)
@@ -42,7 +44,8 @@ case class DCacheParams(
     "Scratchpad only allowed in direct-mapped cache.")
   require((!scratch.isDefined || nMSHRs == 0),
     "Scratchpad only allowed in blocking cache.")
-  require(isPow2(nSets), s"nSets($nSets) must be pow2")
+  if (scratch.isEmpty)
+    require(isPow2(nSets), s"nSets($nSets) must be pow2")
 }
 
 trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParameters {
@@ -79,7 +82,6 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
     require(rowBits == cacheDataBits, s"rowBits($rowBits) != cacheDataBits($cacheDataBits)")
   // would need offset addr for puts if data width < xlen
   require(xLen <= cacheDataBits, s"xLen($xLen) > cacheDataBits($cacheDataBits)")
-  require(!usingVM || untagBits <= pgIdxBits, s"untagBits($untagBits) > pgIdxBits($pgIdxBits)")
 }
 
 abstract class L1HellaCacheModule(implicit val p: Parameters) extends Module
@@ -94,7 +96,8 @@ trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
   val tag  = Bits(width = dcacheReqTagBits)
   val cmd  = Bits(width = M_SZ)
-  val typ  = Bits(width = MT_SZ)
+  val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
+  val signed = Bool()
 }
 
 trait HasCoreData extends HasCoreParameters {
@@ -103,6 +106,7 @@ trait HasCoreData extends HasCoreParameters {
 
 class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
   val phys = Bool()
+  val no_alloc = Bool()
 }
 
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
@@ -138,6 +142,12 @@ class HellaCachePerfEvents extends Bundle {
   val release = Bool()
   val grant = Bool()
   val tlbMiss = Bool()
+  val blocked = Bool()
+  val canAcceptStoreThenLoad = Bool()
+  val canAcceptStoreThenRMW = Bool()
+  val canAcceptLoadThenLoad = Bool()
+  val storeBufferEmptyAfterLoad = Bool()
+  val storeBufferEmptyAfterStore = Bool()
 }
 
 // interface between D$ and processor/DTLB
@@ -148,38 +158,49 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
   val s2_nack_cause_raw = Bool(INPUT) // reason for nack is store-load RAW hazard (performance hint)
   val s2_kill = Bool(OUTPUT) // kill req from two cycles ago
+  val s2_uncached = Bool(INPUT) // advisory signal that the access is MMIO
+  val s2_paddr = UInt(INPUT, paddrBits) // translated address
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val s2_xcpt = (new HellaCacheExceptions).asInput
+  val uncached_resp = tileParams.dcache.get.separateUncachedResp.option(Decoupled(new HellaCacheResp).flip)
   val ordered = Bool(INPUT)
   val perf = new HellaCachePerfEvents().asInput
+
+  val keep_clock_enabled = Bool(OUTPUT) // should D$ avoid clock-gating itself?
+  val clock_enabled = Bool(INPUT) // is D$ currently being clocked?
 }
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
 abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule {
-  private val cfg = p(TileKey).dcache.get
-  val firstMMIO = max(1, cfg.nMSHRs)
+  private val tileParams = p(TileKey)
+  protected val cfg = tileParams.dcache.get
+
+  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters(
+    name          = s"Core ${hartid} DCache",
+    sourceId      = IdRange(0, 1 max cfg.nMSHRs),
+    supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
+
+  protected def mmioClientParameters = Seq(TLClientParameters(
+    name          = s"Core ${hartid} DCache MMIO",
+    sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
+    requestFifo   = true))
+
+  def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
   val node = TLClientNode(Seq(TLClientPortParameters(
-    clients = cfg.scratch.map { _ => Seq(
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache MMIO",
-        sourceId      = IdRange(0, cfg.nMMIOs),
-        requestFifo   = true))
-    } getOrElse { Seq(
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache",
-         sourceId      = IdRange(0, firstMMIO),
-         supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes)),
-      TLClientParameters(
-        name          = s"Core ${hartid} DCache MMIO",
-        sourceId      = IdRange(firstMMIO, firstMMIO+cfg.nMMIOs),
-        requestFifo   = true))
-    },
+    cacheClientParameters ++ mmioClientParameters,
     minLatency = 1)))
+
   val module: HellaCacheModule
+
+  def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.IDEMPOTENT)
+
+  require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
+
+  def getOMSRAMs(): Seq[OMSRAM]
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
@@ -197,10 +218,11 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
   dontTouch(io.cpu.s1_data)
 
-  private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
+  private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allVolatile)
   fifoManagers.foreach { m =>
     require (m.fifoId == fifoManagers.head.fifoId,
-      s"IOMSHRs must be FIFO for all regions with effects, but HellaCache sees ${m.nodePath.map(_.name)}")
+      s"IOMSHRs must be FIFO for all regions with effects, but HellaCache sees\n"+
+      s"${m.nodePath.map(_.name)}\nversus\n${fifoManagers.head.nodePath.map(_.name)}")
   }
 }
 
@@ -209,18 +231,18 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
 trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
-  def findScratchpadFromICache: Option[AddressSet]
   var nDCachePorts = 0
-  val dcache: HellaCache = LazyModule(
+  lazy val dcache: HellaCache = LazyModule(
     if(tileParams.dcache.get.nMSHRs == 0) {
-      new DCache(hartId, findScratchpadFromICache _, p(RocketCrossingKey).head.knownRatio)
+      new DCache(hartId, crossing)
     } else { new NonBlockingDCache(hartId) })
 
   tlMasterXbar.node := dcache.node
 }
 
 trait HasHellaCacheModule {
-  val outer: HasHellaCache
+  val outer: HasHellaCache with HasTileParameters
+  implicit val p: Parameters
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
@@ -263,8 +285,8 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).asUInt
-  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.asSInt).toBools
-  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.asSInt).toBools
+  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.asSInt).asBools
+  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.asSInt).asBools
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth

@@ -62,7 +62,7 @@ class AXI4Xbar(
 
     // W follows the path dictated by the AW Q
     for (i <- 0 until io_in.size) { awIn(i).io.enq.bits := requestAWIO(i).asUInt }
-    val requestWIO = awIn.map { q => if (io_out.size > 1) q.io.deq.bits.toBools else Seq(Bool(true)) }
+    val requestWIO = awIn.map { q => if (io_out.size > 1) q.io.deq.bits.asBools else Seq(Bool(true)) }
 
     // We need an intermediate size of bundle with the widest possible identifiers
     val wide_bundle = AXI4BundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))
@@ -245,7 +245,7 @@ object AXI4Arbiter
     val valids = sources.map(_.valid)
     val anyValid = valids.reduce(_ || _)
     // Arbitrate amongst the requests
-    val readys = Vec(policy(valids.size, Cat(valids.reverse), idle).toBools)
+    val readys = Vec(policy(valids.size, Cat(valids.reverse), idle).asBools)
     // Which request wins arbitration?
     val winner = Vec((readys zip valids) map { case (r,v) => r&&v })
 

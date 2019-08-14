@@ -13,6 +13,8 @@ import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.dontTouch
+import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.model._
 
 case class ICacheParams(
     nSets: Int = 64,
@@ -54,14 +56,31 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
+  val itim_control_offset = size - icacheParams.nSets * icacheParams.blockBytes
+
+  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
+    override def describe(resources: ResourceBindings): Description = {
+     val Description(name, mapping) = super.describe(resources)
+     val Seq(Binding(_, ResourceAddress(address, perms))) = resources("reg/mem")
+     val base_address = address.head.base
+     val mem_part = AddressSet.misaligned(base_address, itim_control_offset)
+     val control_part = AddressSet.misaligned(base_address + itim_control_offset, size - itim_control_offset)
+     val extra = Map(
+       "reg-names" -> Seq(ResourceString("mem"), ResourceString("control")),
+       "reg" -> Seq(ResourceAddress(mem_part, perms), ResourceAddress(control_part, perms)))
+     Description(name, mapping ++ extra)
+    }
+  }
+
+  def itimProperty: Option[Seq[ResourceValue]] = icacheParams.itimAddr.map(_ => device.asProperty)
+
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
     TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
-        regionType      = RegionType.UNCACHEABLE,
+        regionType      = RegionType.IDEMPOTENT,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
         supportsPutPartial = TransferSizes(1, wordBytes),
@@ -97,6 +116,9 @@ class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
 
   val errors = new ICacheErrors
   val perf = new ICachePerfEvents().asOutput
+
+  val clock_enabled = Bool(INPUT)
+  val keep_clock_enabled = Bool(OUTPUT)
 }
 
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
@@ -172,7 +194,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = DescribedSRAM(
+  val (tag_array, omSRAM) = DescribedSRAM(
     name = "tag_array",
     desc = "ICache Tag Array",
     size = nSets,
@@ -221,7 +243,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     val (tl_error, tag) = Split(enc_tag.uncorrected, tagBits)
     val tagMatch = s1_vb && tag === s1_tag
     s1_tag_disparity(i) := s1_vb && enc_tag.error
-    s1_tl_error(i) := tagMatch && tl_error.toBool
+    s1_tl_error(i) := tagMatch && tl_error.asBool
     s1_tag_hit(i) := tagMatch || scratchpadHit
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
@@ -238,7 +260,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       )
   }
 
-  for ((data_array, i) <- data_arrays zipWithIndex) {
+  for (((data_array, omSRAM), i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))
@@ -306,7 +328,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
       tl_in.map { tl =>
         val respValid = RegInit(false.B)
-        tl.a.ready := !(tl_out.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid || respValid)
+        tl.a.ready := !(tl_out.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid || respValid || !io.clock_enabled)
         val s1_a = RegEnable(tl.a.bits, s0_slaveValid)
         s2_full_word_write := edge_in.get.hasData(s1_a) && s1_a.mask.andR
         when (s0_slaveValid) {
@@ -417,6 +439,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   when (refill_done) { refill_valid := false.B}
 
   io.perf.acquire := refill_fire
+  io.keep_clock_enabled :=
+    tl_in.map(tl => tl.a.valid || tl.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid).getOrElse(false.B) || // ITIM
+    s1_valid || s2_valid || refill_valid || send_hint || hint_outstanding // I$
 
   ccover(!send_hint && (tl_out.a.valid && !tl_out.a.ready), "MISS_A_STALL", "I$ miss blocked by A-channel")
   ccover(invalidate && refill_valid, "FLUSH_DURING_MISS", "I$ flushed during miss")

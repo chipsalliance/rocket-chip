@@ -3,10 +3,20 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import freechips.rocketchip.config.{Parameters, Field}
+import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterrupt}
 import freechips.rocketchip.util._
+
+
+case object SystemBusKey extends Field[SystemBusParams]
+case object FrontBusKey extends Field[FrontBusParams]
+case object PeripheryBusKey extends Field[PeripheryBusParams]
+case object ControlBusKey extends Field[PeripheryBusParams]
+case object MemoryBusKey extends Field[MemoryBusParams]
+case object BankedL2Key extends Field(BankedL2Params())
 
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
 
@@ -26,8 +36,16 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
+
+trait BaseSubsystemBusAttachment
+case object SBUS extends BaseSubsystemBusAttachment
+case object PBUS extends BaseSubsystemBusAttachment
+case object FBUS extends BaseSubsystemBusAttachment
+case object MBUS extends BaseSubsystemBusAttachment
+case object CBUS extends BaseSubsystemBusAttachment
+
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   // These are wrappers around the standard buses available in all subsytems, where
@@ -36,43 +54,19 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val sbus = LazyModule(p(BuildSystemBus)(p))
   val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
+  val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
+  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  // The sbus masters the pbus; here we convert TL-UH -> TL-UL
-  pbus.crossFromControlBus { sbus.control_bus.toSlaveBus("pbus") }
-
-  // The fbus masters the sbus; both are TL-UH or TL-C
-  FlipRendering { implicit p =>
-    fbus.crossToSystemBus { sbus.fromMasterBus("fbus") }
+  protected def attach(where: BaseSubsystemBusAttachment) = where match {
+    case SBUS => sbus
+    case PBUS => pbus
+    case FBUS => fbus
+    case MBUS => mbus
+    case CBUS => cbus
   }
 
-  // The sbus masters the mbus; here we convert TL-C -> TL-UH
-  private val mbusParams = p(MemoryBusKey)
-  private val l2Params = p(BankedL2Key)
-  val MemoryBusParams(memBusBeatBytes, memBusBlockBytes) = mbusParams
-  val BankedL2Params(nMemoryChannels, nBanksPerChannel, coherenceManager) = l2Params
-  val nBanks = l2Params.nBanks
-  val cacheBlockBytes = memBusBlockBytes
-  // TODO: the below call to coherenceManager should be wrapped in a LazyScope here,
-  //       but plumbing halt is too annoying for now.
-  private val (in, out, halt) = coherenceManager(this)
-  def memBusCanCauseHalt: () => Option[Bool] = halt
-
-  require (isPow2(nMemoryChannels) || nMemoryChannels == 0)
-  require (isPow2(nBanksPerChannel))
-  require (isPow2(memBusBlockBytes))
-
-  private val mask = ~BigInt((nBanks-1) * memBusBlockBytes)
-  val memBuses = Seq.tabulate(nMemoryChannels) { channel =>
-    val mbus = LazyModule(new MemoryBus(mbusParams)(p))
-    for (bank <- 0 until nBanksPerChannel) {
-      val offset = (bank * nMemoryChannels) + channel
-      ForceFanout(a = true) { implicit p => sbus.toMemoryBus { in } }
-      mbus.fromCoherenceManager(None) { TLFilter(TLFilter.mSelectIntersect(AddressSet(offset * memBusBlockBytes, mask))) } := out
-    }
-    mbus
-  }
-
-  lazy val topManagers = ManagerUnification(sbus.busView.manager.managers)
+  // Collect information for use in DTS
+  lazy val topManagers = sbus.unifyManagers
   ResourceBinding {
     val managers = topManagers
     val max = managers.flatMap(_.address).map(_.max).max
@@ -95,6 +89,8 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
       }
     }
   }
+
+  val logicalTreeNode = new SubSystemLogicalTreeNode()
 }
 
 

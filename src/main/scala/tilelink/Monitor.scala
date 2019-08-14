@@ -29,6 +29,12 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
+  def visible(address: UInt, source: UInt, edge: TLEdge) =
+    edge.client.clients.map { c =>
+      !c.sourceId.contains(source) ||
+      c.visibility.map(_.contains(address)).reduce(_ || _)
+    }.reduce(_ && _)
+
   def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
     assert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
@@ -36,6 +42,8 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
+
+    assert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
     when (bundle.opcode === TLMessages.AcquireBlock) {
       assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
@@ -112,6 +120,8 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
   def legalizeFormatB(bundle: TLBundleB, edge: TLEdge) {
     assert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
+
+    assert (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
 
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
@@ -191,6 +201,8 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
+
+    assert (visible(edge.address(bundle), bundle.source, edge), "'C' channel carries an address illegal for the specified bank visibility")
 
     when (bundle.opcode === TLMessages.ProbeAck) {
       assert (address_ok, "'C' channel ProbeAck carries unmanaged address" + extra)

@@ -60,11 +60,12 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       // Look for an Error device to redirect bad requests
       val errorDevs = edgeOut.manager.managers.filter(_.nodePath.last.lazyModule.className == "TLError")
       require (!errorDevs.isEmpty, "There is no TLError reachable from AXI4ToTL. One must be instantiated.")
-      val error = errorDevs.head.address.head.base
-      require (errorDevs.head.supportsPutPartial.contains(edgeOut.manager.maxTransfer),
-        s"Error device supports ${errorDevs.head.supportsPutPartial} PutPartial but must support ${edgeOut.manager.maxTransfer}")
-      require (errorDevs.head.supportsGet.contains(edgeOut.manager.maxTransfer),
-        s"Error device supports ${errorDevs.head.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
+      val errorDev = errorDevs.maxBy(_.maxTransfer)
+      val error = errorDev.address.head.base
+      require (errorDev.supportsPutPartial.contains(edgeOut.manager.maxTransfer),
+        s"Error device supports ${errorDev.supportsPutPartial} PutPartial but must support ${edgeOut.manager.maxTransfer}")
+      require (errorDev.supportsGet.contains(edgeOut.manager.maxTransfer),
+        s"Error device supports ${errorDev.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
 
       val r_out = Wire(out.a)
       val r_size1 = in.ar.bits.bytes1()
@@ -80,7 +81,7 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       r_out.bits := edgeOut.Get(r_id, r_addr, r_size)._2
 
       val r_sel = UIntToOH(in.ar.bits.id, numIds)
-      (r_sel.toBools zip r_count) foreach { case (s, r) =>
+      (r_sel.asBools zip r_count) foreach { case (s, r) =>
         when (in.ar.fire() && s) { r := r + UInt(1) }
       }
 
@@ -101,7 +102,7 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       in.w.bits.corrupt.foreach { w_out.bits.corrupt := _ }
 
       val w_sel = UIntToOH(in.aw.bits.id, numIds)
-      (w_sel.toBools zip w_count) foreach { case (s, r) =>
+      (w_sel.asBools zip w_count) foreach { case (s, r) =>
         when (in.aw.fire() && s) { r := r + UInt(1) }
       }
 
@@ -138,7 +139,7 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       val b_allow = b_count(in.b.bits.id) =/= w_count(in.b.bits.id)
       val b_sel = UIntToOH(in.b.bits.id, numIds)
 
-      (b_sel.toBools zip b_count) foreach { case (s, r) =>
+      (b_sel.asBools zip b_count) foreach { case (s, r) =>
         when (in.b.fire() && s) { r := r + UInt(1) }
       }
 
