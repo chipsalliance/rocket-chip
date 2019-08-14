@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import freechips.rocketchip.config.{Field, Parameters}
+import chipsalliance.rocketchip.config.{Field, Parameters}
 
 case object ClockGateImpl extends Field[() => ClockGate](() => new EICG_wrapper)
 

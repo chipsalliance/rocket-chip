@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import chipsalliance.rocketchip.config.Parameters
 
 /** A generalized locking RR arbiter that addresses the limitations of the
  *  version in the Chisel standard library */

@@ -4,7 +4,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import chipsalliance.rocketchip.config.Parameters
 import scala.math._
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle
