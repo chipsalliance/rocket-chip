@@ -4,7 +4,7 @@ def deps =
   apiConfigChipsallianceScalaModule,
   libraryUtilChipsallianceScalaModule,
   rocketchipScalaModule,
-  apiUtilUnittestChipsallianceScalaModule,
+  libraryUtilUnittestChipsallianceScalaModule,
   Nil
 
 global def unittestTopScalaModule =
