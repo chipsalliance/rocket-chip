@@ -17,6 +17,8 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.5.3"),
+  //libraryDependencies += "net.openhft" % "chronicle-map" % "4.16.3",
+  libraryDependencies += "com.lihaoyi" %% "upickle" % "0.7.5",
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 )
 
