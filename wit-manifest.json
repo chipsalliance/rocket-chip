@@ -25,7 +25,7 @@
         "source": "git@github.com:ucb-bar/riscv-torture.git"
     },
     {
-        "commit": "f17bd5b9ab5f3e14435072802339665165514d73",
+        "commit": "d619ca850846d2ec36da64bf8a28e7d9a3d9ed1b",
         "name": "api-config-chipsalliance",
         "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
     }

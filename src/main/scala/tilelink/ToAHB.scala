@@ -54,7 +54,7 @@ class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
 // The output side always has a flow queue
-class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(implicit p: Parameters) extends LazyModule
+class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val supportsRETRY: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val node = TLToAHBNode(supportHints)
 
@@ -82,11 +82,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val next = Wire(init = step)
       reg := next
 
-      // Latch grant state
-      val granted = RegEnable(out.hgrant, out.hready)
-
-      // hready, but progresses hints during idle bus
+      // A- and D-phase readiness
       val a_flow = Wire(Bool())
+      val d_flow = Wire(Bool())
 
       // Advance the FSM based on the result of this AHB beat
       when (send.send && !a_flow) /* retry AHB */ {
@@ -132,7 +130,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         in.a.ready := !d_block && pre.write
       } .otherwise /* new burst */ {
         a_commit := in.a.fire() // every first beat commits to a D beat answer
-        in.a.ready := !d_block && (granted || (Bool(!aFlow) && out.hgrant && out.hready))
+        in.a.ready := !d_block
         when (in.a.fire()) {
           post.full  := Bool(true)
           post.send  := Bool(true)
@@ -151,17 +149,30 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
         }
       }
 
+      // For SPLIT/RETRY, a burst being reissued from D-phase state
+      val retry = Wire(Bool())
+
+      val granted   = RegEnable(out.hgrant, out.hready)
+      val rebuild   = RegInit(Bool(false)) // rewrite as NSEQ       (for next-beat  EBT)
+      val increment = RegInit(Bool(false)) // rewrite as BURST_INCR (for same-burst EBT)
+      when (out.hready && granted && !retry) {
+        when (send.send)   { rebuild := Bool(false) }
+        when (!out.hgrant) { rebuild := Bool(true) }
+        when (out.hbusreq && !out.hgrant) { increment := Bool(true) }
+        when (send.send && send.last)     { increment := Bool(false) }
+      }
+
       out.hlock   := Bool(false) // for now
       out.htrans  := Mux(send.send && !send.hint,
-                       Mux(send.first, TRANS_NONSEQ, TRANS_SEQ),
-                       Mux(send.first, TRANS_IDLE,   TRANS_BUSY))
-      out.hbusreq := (send.send && !send.hint) || !send.first || (!granted && in.a.valid)
+                       Mux(send.first || rebuild, TRANS_NONSEQ, TRANS_SEQ),
+                       Mux(send.first || rebuild, TRANS_IDLE,   TRANS_BUSY))
+      out.hbusreq := (send.send && !send.hint) || !send.first
       out.hwrite  := send.write
       out.haddr   := send.addr
       out.hsize   := send.hsize
-      out.hburst  := send.hburst
+      out.hburst  := Mux(increment, BURST_INCR, send.hburst)
       out.hprot   := PROT_DEFAULT
-      out.hwdata  := RegEnable(send.data, out.hready)
+      out.hwdata  := RegEnable(send.data, a_flow)
 
       send.hauser.map { i => out.hauser.map { _ := i} }
 
@@ -188,16 +199,13 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
       val d_source  = RegEnable(send.source, a_flow && send.send)
       val d_size    = RegEnable(send.size,   a_flow && send.send)
 
-      when (out.hready) {
-        d_valid := send.send && (send.last || !send.write)
-        assert (!out.hresp(1), "TLToAHB does not support SPLIT/RETRY responses")
+      when (d_flow) {
+        d_valid := send.send && (send.last || !send.write) && a_flow
         when (out.hresp(0))  { d_denied := Bool(true) }
         when (send.first)    { d_denied := Bool(false) }
-      } .elsewhen (d_hint) {
-        d_valid := Bool(false)
       }
 
-      d.valid := d_valid && (out.hready || d_hint)
+      d.valid := d_valid && d_flow
       d.bits  := edgeIn.AccessAck(d_source, d_size, out.hrdata)
       d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
       d.bits.denied  := (out.hresp(0) || d_denied) && d_write && !d_hint
@@ -205,7 +213,48 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
       // If the only operations in the pipe are Hints, don't stall based on hready
       val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)
-      a_flow := out.hready || skip
+      a_flow := ((granted && out.hready) || skip) && !retry
+      d_flow := (out.hready || d_hint) && !retry
+      assert (!d_valid || d_flow || !a_flow); // (d_valid && !d_flow) => !a_flow
+
+      // On RETRY, we stall the pipeline and bypass the D-phase state back to A-phase
+      if (!supportsRETRY) {
+        assert (!d_flow || !out.hresp(1), "TLToAHB not configured with support for SPLIT/RETRY responses")
+        retry := Bool(false)
+      } else {
+        val d_full  = RegInit(Bool(false))
+        val d_retry = RegInit(Bool(false))
+        val d_idle  = RegInit(Bool(false))
+        val d_addr  = RegEnable(send.addr,  a_flow && send.send)
+        val d_hsize = RegEnable(send.hsize, a_flow && send.send)
+        retry := d_retry
+
+        when (d_flow) {
+          d_full := send.send && !send.hint && a_flow
+        }
+
+        when (out.hresp(1) && d_full) {
+          d_retry   := Bool(true)
+          d_idle    := Bool(true)
+          increment := Bool(true)
+        }
+
+        when (!out.hresp(1) && out.hready && granted) {
+          d_retry := Bool(false)
+        }
+
+        when (out.hready) {
+          d_idle  := Bool(false)
+        }
+
+        when (d_retry) {
+          out.htrans  := Mux(d_idle, TRANS_IDLE, TRANS_NONSEQ)
+          out.hbusreq := Bool(true)
+          out.hwrite  := d_write
+          out.haddr   := d_addr
+          out.hsize   := d_hsize
+        }
+      }
 
       // AHB has no cache coherence
       in.b.valid := Bool(false)
@@ -217,9 +266,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true)(impl
 
 object TLToAHB
 {
-  def apply(aFlow: Boolean = true, supportHints: Boolean = true)(implicit p: Parameters) =
+  def apply(aFlow: Boolean = true, supportHints: Boolean = true, supportsRETRY: Boolean = true)(implicit p: Parameters) =
   {
-    val tl2ahb = LazyModule(new TLToAHB(aFlow, supportHints))
+    val tl2ahb = LazyModule(new TLToAHB(aFlow, supportHints, supportsRETRY))
     tl2ahb.node
   }
 }

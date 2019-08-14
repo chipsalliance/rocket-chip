@@ -12,4 +12,4 @@
 	url = https://github.com/ucb-bar/firrtl.git
 [submodule "api-config-chipsalliance"]
 	path = api-config-chipsalliance
-	url = git@github.com:chipsalliance/api-config-chipsalliance.git
+	url = https://github.com/chipsalliance/api-config-chipsalliance.git
