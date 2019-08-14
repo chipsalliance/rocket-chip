@@ -4,10 +4,12 @@ def deps =
   apiConfigChipsallianceScalaModule,
   Nil
 
-global def apiUtilChipsallianceScalaModule =
+global def libraryUtilChipsallianceScalaModule =
   def version = makeScalaVersion 12 8
   def root = here
-  def name = "api-util-chipsalliance"
+  def name = "library-util-chipsalliance"
   makeScalaModule name here version
   | setScalaModuleDeps deps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+
+global def utilScalaModule = libraryUtilChipsallianceScalaModule

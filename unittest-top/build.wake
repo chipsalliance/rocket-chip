@@ -2,7 +2,7 @@
 def deps =
   chisel3ScalaModule,
   apiConfigChipsallianceScalaModule,
-  apiUtilChipsallianceScalaModule,
+  libraryUtilChipsallianceScalaModule,
   rocketchipScalaModule,
   apiUtilUnittestChipsallianceScalaModule,
   Nil
