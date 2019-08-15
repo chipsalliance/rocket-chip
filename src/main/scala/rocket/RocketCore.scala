@@ -22,6 +22,7 @@ case class RocketCoreParams(
   useAtomics: Boolean = true,
   useAtomicsOnlyForIO: Boolean = false,
   useCompressed: Boolean = true,
+  useRVE: Boolean = false,
   useSCIE: Boolean = false,
   nLocalInterrupts: Int = 0,
   nBreakpoints: Int = 1,
@@ -45,7 +46,6 @@ case class RocketCoreParams(
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
-  val useRVE = false
   val pmpGranularity: Int = 4
   val fetchWidth: Int = if (useCompressed) 2 else 1
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
@@ -243,16 +243,22 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   ibuf.io.kill := take_pc
 
   require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
+  require(!(coreParams.useRVE && coreParams.fpu.nonEmpty), "Can't select both RVE and floating-point")
   val id_ctrl = Wire(new IntCtrlSigs()).decode(id_inst(0), decode_table)
-  val id_raddr3 = id_expanded_inst(0).rs3
-  val id_raddr2 = id_expanded_inst(0).rs2
-  val id_raddr1 = id_expanded_inst(0).rs1
-  val id_waddr  = id_expanded_inst(0).rd
+  val lgNXRegs = if (coreParams.useRVE) 4 else 5
+  val regAddrMask = (1 << lgNXRegs) - 1
+
+  def decodeReg(x: UInt) = (x.extract(x.getWidth-1, lgNXRegs).asBool, x(lgNXRegs-1, 0))
+  val (id_raddr3_illegal, id_raddr3) = decodeReg(id_expanded_inst(0).rs3)
+  val (id_raddr2_illegal, id_raddr2) = decodeReg(id_expanded_inst(0).rs2)
+  val (id_raddr1_illegal, id_raddr1) = decodeReg(id_expanded_inst(0).rs1)
+  val (id_waddr_illegal,  id_waddr)  = decodeReg(id_expanded_inst(0).rd)
+
   val id_load_use = Wire(Bool())
   val id_reg_fence = Reg(init=Bool(false))
   val id_ren = IndexedSeq(id_ctrl.rxs1, id_ctrl.rxs2)
   val id_raddr = IndexedSeq(id_raddr1, id_raddr2)
-  val rf = new RegFile(31, xLen)
+  val rf = new RegFile(regAddrMask, xLen)
   val id_rs = id_raddr.map(rf.read _)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
@@ -277,6 +283,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
+    id_raddr2_illegal && !id_ctrl.scie && id_ctrl.rxs2 ||
+    id_raddr1_illegal && !id_ctrl.scie && id_ctrl.rxs1 ||
+    id_waddr_illegal && !id_ctrl.scie && id_ctrl.wxd ||
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
     id_ctrl.scie && !(id_scie_decoder.unpipelined || id_scie_decoder.pipelined) ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
@@ -329,9 +338,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     else wb_reg_wdata
 
   // detect bypass opportunities
-  val ex_waddr = ex_reg_inst(11,7)
-  val mem_waddr = mem_reg_inst(11,7)
-  val wb_waddr = wb_reg_inst(11,7)
+  val ex_waddr = ex_reg_inst(11,7) & regAddrMask
+  val mem_waddr = mem_reg_inst(11,7) & regAddrMask
+  val wb_waddr = wb_reg_inst(11,7) & regAddrMask
   val bypass_sources = IndexedSeq(
     (Bool(true), UInt(0), UInt(0)), // treat reading x0 as a bypass
     (ex_reg_valid && ex_ctrl.wxd, ex_waddr, mem_reg_wdata),
@@ -772,7 +781,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.imem.btb_update.bits.isValid := mem_cfi
   io.imem.btb_update.bits.cfiType :=
     Mux((mem_ctrl.jal || mem_ctrl.jalr) && mem_waddr(0), CFIType.call,
-    Mux(mem_ctrl.jalr && mem_reg_inst(19,15) === BitPat("b00?01"), CFIType.ret,
+    Mux(mem_ctrl.jalr && (mem_reg_inst(19,15) & regAddrMask) === BitPat("b00?01"), CFIType.ret,
     Mux(mem_ctrl.jal || mem_ctrl.jalr, CFIType.jump,
     CFIType.branch)))
   io.imem.btb_update.bits.target := io.imem.req.bits.pc
