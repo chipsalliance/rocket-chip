@@ -1,0 +1,4 @@
+build-rules/sbt/project/target/
+build-rules/sbt/target/
+*.swp
+*~

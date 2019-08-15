@@ -1,0 +1,18 @@
+global def libraryUtilChipsallianceRootDir = simplify "{here}/../.."
+
+
+def deps =
+  chisel3ScalaModule,
+  apiConfigChipsallianceScalaModule,
+  Nil
+
+global def libraryUtilChipsallianceScalaModule =
+  def version = makeScalaVersion 12 8
+  def root = "{libraryUtilChipsallianceRootDir}/design/craft"
+  def name = "library-util-chipsalliance"
+  makeScalaModule name root version
+  | setScalaModuleDeps deps
+  | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+  | setScalaModuleSourceDirs ("src", Nil)
+
+global def utilScalaModule = libraryUtilChipsallianceScalaModule

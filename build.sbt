@@ -70,11 +70,19 @@ lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
+
+lazy val `library-util-chipsalliance` = (project in file("library-util-chipsalliance/build-rules/sbt"))
+  .settings(commonSettings)
+  .settings(publishArtifact := false)
+  .dependsOn(chisel)
+  .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
+  
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
   .dependsOn(hardfloat % "compile-internal;test-internal")
   .dependsOn(`rocket-macros` % "compile-internal;test-internal")
+  .dependsOn(`library-util-chipsalliance` % "compile-internal;test-internal")
   .settings(
       aggregate := false,
       // Include macro classes, resources, and sources in main jar.
@@ -84,6 +92,8 @@ lazy val rocketchip = dependOnChisel(project in file("."))
       mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
       mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`library-util-chipsalliance`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`library-util-chipsalliance`, Compile, packageSrc)).value,
       exportJars := true
   )
 
