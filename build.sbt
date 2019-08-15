@@ -76,7 +76,9 @@ lazy val `library-util-chipsalliance` = (project in file("library-util-chipsalli
   .settings(publishArtifact := false)
   .dependsOn(chisel)
   .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
-  
+
+
+
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
@@ -97,6 +99,39 @@ lazy val rocketchip = dependOnChisel(project in file("."))
       exportJars := true
   )
 
+lazy val `library-utilunittest-chipsalliance` = (project in file("library-utilunittest-chipsalliance/build-rules/sbt"))
+  .settings(commonSettings)
+  .settings(publishArtifact := false)
+  .dependsOn(chisel)
+  .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
+  .dependsOn(`library-util-chipsalliance` % "compile-internal;test-internal")
+  .dependsOn(rocketchip % "compile-internal;test-internal")
+
+lazy val `api-unittesttop-chipsalliance` = (project in file("api-unittesttop-chipsalliance/build-rules/sbt"))
+  .settings(commonSettings)
+  .settings(publishArtifact := false)
+  .dependsOn(chisel)
+  .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
+  .dependsOn(`library-util-chipsalliance` % "compile-internal;test-internal")
+  .dependsOn(rocketchip % "compile-internal;test-internal")
+  .dependsOn(`library-utilunittest-chipsalliance` % "compile-internal;test-internal")
+  .settings(
+      aggregate := true,
+      // Include macro classes, resources, and sources in main jar.
+      mappings in (Compile, packageBin) ++= (mappings in (`api-config-chipsalliance`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`api-config-chipsalliance`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (hardfloat, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`library-util-chipsalliance`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`library-util-chipsalliance`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`library-utilunittest-chipsalliance`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`library-utilunittest-chipsalliance`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (rocketchip, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (rocketchip, Compile, packageSrc)).value,
+      exportJars := true
+  )
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
