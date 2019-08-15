@@ -1,2 +1,2 @@
-# api-config-chipsalliance
+# library-util-chipsalliance
 

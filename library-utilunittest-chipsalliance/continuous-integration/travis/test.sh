@@ -13,7 +13,7 @@ cd workspace/
 echo "Compile Scala"
 
 wake --init .
-wake --no-tty -j1 -dv 'compileScalaModule libraryUtilChipsallianceScalaModule | getPathResult'
+wake --no-tty -j1 -dv 'compileScalaModule libraryUtilUnittestChipsallianceScalaModule | getPathResult'
 
 cd library-utilunittest-chipsalliance/build-rules/sbt
 #sbt compile
