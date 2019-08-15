@@ -1,3 +1,4 @@
+global def apiUnittestTopChipsallianceRootDir = simplify "{here}/../.."
 
 def deps =
   chisel3ScalaModule,
@@ -7,10 +8,13 @@ def deps =
   libraryUtilUnittestChipsallianceScalaModule,
   Nil
 
-global def unittestTopScalaModule =
+global def apiunittestTopChipsallianceScalaModule =
   def version = makeScalaVersion 12 8
-  def root = here
+  def root = "{apiUnittestTopChipsallianceRootDir}/design/craft"
   def name = "api-unittesttop-chipsalliance"
   makeScalaModule name root version
   | setScalaModuleDeps deps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+  | setScalaModuleSourceDirs ("src", Nil)
+
+global def unittestTopScalaModule = apiunittestTopChipsallianceScalaModule

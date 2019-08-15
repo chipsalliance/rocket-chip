@@ -13,5 +13,6 @@ global def libraryUtilUnittestChipsallianceScalaModule =
   makeScalaModule name root version
   | setScalaModuleDeps deps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+  | setScalaModuleSourceDirs ("src", Nil)
 
 global def utiltestScalaModule = libraryUtilUnittestChipsallianceScalaModule
