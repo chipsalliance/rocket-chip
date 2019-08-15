@@ -1,0 +1,28 @@
+language: scala
+scala:
+  - 2.12.8
+
+os:
+  - linux
+
+addons:
+  apt:
+    packages:
+    - libre2-dev
+    - python3-pip
+    - makedev
+    - fuse
+    - libfuse-dev
+    - libsqlite3-dev
+    - libgmp-dev
+    - libncurses5-dev
+    - pkg-config
+    - git
+    - g++
+    - gcc
+    - libtool-bin
+
+install:
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then source continuous-integration/travis/install_deps_linux.sh; fi
+
+script: ./continuous-integration/travis/test.sh
