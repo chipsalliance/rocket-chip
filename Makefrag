@@ -37,7 +37,7 @@ src_path := src/main/scala
 resources := $(base_dir)/src/main/resources
 csrc := $(resources)/csrc
 vsrc := $(resources)/vsrc
-default_submodules := . hardfloat chisel3 api-config-sifive/design/craft api-unittesttop-chipsalliance/design/craft library-util-chipsalliance/design/craft library-utilunittest-chipsalliance/design/craft
+default_submodules := . hardfloat chisel3 api-config-sifive/design/craft library-util-chipsalliance/design/craft 
 chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
 
 disasm := 2>

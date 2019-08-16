@@ -1,2 +1,0 @@
-# api-unittesttop-chipsalliance
-
