@@ -7,16 +7,18 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.interrupts._
-
-
-@deprecated("Only use this trait if you are confident you island will only ever be crossed to a single clock", "rocket-chip 1.3")
-trait HasCrossing extends CrossesToOnlyOneClockDomain { this: LazyModule => }
+@deprecated(
+  "Only use this trait if you are confident you island will only ever be crossed to a single clock",
+  "rocket-chip 1.3"
+)
+trait HasCrossing extends CrossesToOnlyOneClockDomain { this: LazyModule =>
+}
 
 /** Given a constant crossing type, define a bunch of helper methods for
-  * crossing to all the procotols.
-  * Note: only use this if you don't care that all signals of a given protocol
-  *       type will have the same name prefixes (e.g. "tl_in_xing_*").
-  */
+ * crossing to all the procotols.
+ * Note: only use this if you don't care that all signals of a given protocol
+ *       type will have the same name prefixes (e.g. "tl_in_xing_*").
+ */
 trait CrossesToOnlyOneClockDomain extends HasClockDomainCrossing { this: LazyModule =>
 
   def crossing: ClockCrossingType
@@ -25,7 +27,7 @@ trait CrossesToOnlyOneClockDomain extends HasClockDomainCrossing { this: LazyMod
     val tlInXing = this.crossIn(n)
     tlInXing(crossing)
   }
-  
+
   def crossTLOut(n: TLOutwardNode)(implicit p: Parameters): TLOutwardNode = {
     val tlOutXing = this.crossOut(n)
     tlOutXing(crossing)
@@ -53,4 +55,6 @@ trait CrossesToOnlyOneClockDomain extends HasClockDomainCrossing { this: LazyMod
 }
 
 /** A convenient way of creating a LazyScope with a particular uniform clock relationship */
-class CrossingWrapper(val crossing: ClockCrossingType)(implicit p: Parameters) extends SimpleLazyModule with CrossesToOnlyOneClockDomain
+class CrossingWrapper(val crossing: ClockCrossingType)(implicit p: Parameters)
+    extends SimpleLazyModule
+    with CrossesToOnlyOneClockDomain

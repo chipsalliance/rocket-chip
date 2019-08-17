@@ -9,27 +9,27 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   require(entries > 1)
 
   val do_flow = Wire(Bool())
-  val do_enq = io.enq.fire() && !do_flow
-  val do_deq = io.deq.fire() && !do_flow
+  val do_enq  = io.enq.fire() && !do_flow
+  val do_deq  = io.deq.fire() && !do_flow
 
-  val maybe_full = Reg(init=Bool(false))
-  val enq_ptr = Counter(do_enq, entries)._1
+  val maybe_full          = Reg(init = Bool(false))
+  val enq_ptr             = Counter(do_enq, entries)._1
   val (deq_ptr, deq_done) = Counter(do_deq, entries)
-  when (do_enq =/= do_deq) { maybe_full := do_enq }
+  when(do_enq =/= do_deq) { maybe_full := do_enq }
 
-  val ptr_match = enq_ptr === deq_ptr
-  val empty = ptr_match && !maybe_full
-  val full = ptr_match && maybe_full
+  val ptr_match  = enq_ptr === deq_ptr
+  val empty      = ptr_match && !maybe_full
+  val full       = ptr_match && maybe_full
   val atLeastTwo = full || enq_ptr - deq_ptr >= UInt(2)
   do_flow := empty && io.deq.ready
 
   val ram = SeqMem(entries, data)
-  when (do_enq) { ram.write(enq_ptr, io.enq.bits) }
+  when(do_enq) { ram.write(enq_ptr, io.enq.bits) }
 
   // BUG! does not hold the output of the SRAM when !ready
   // ... However, HellaQueue is correct due to the pipe stage
-  val ren = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
-  val raddr = Mux(io.deq.valid, Mux(deq_done, UInt(0), deq_ptr + UInt(1)), deq_ptr)
+  val ren           = io.deq.ready && (atLeastTwo || !io.deq.valid && !empty)
+  val raddr         = Mux(io.deq.valid, Mux(deq_done, UInt(0), deq_ptr + UInt(1)), deq_ptr)
   val ram_out_valid = Reg(next = ren)
 
   io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
@@ -54,5 +54,3 @@ object HellaQueue {
     q.io.deq
   }
 }
-
-

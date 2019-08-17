@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-
 case class OMBusError(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],

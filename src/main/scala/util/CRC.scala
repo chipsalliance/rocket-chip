@@ -4,16 +4,15 @@ package freechips.rocketchip.util
 
 import Chisel._
 
-object CRC
-{
+object CRC {
   // A divisor of 0x1d5 is interpretted to be x^8 + x^7 + x^6 + x^4 + x^2 + 1
   // Let n be the highest term in the divisor; n=8 in 0x1d5.
   // Then, this function calculates c mod d, returning an n-bit UInt.
   // coefficient.width must be <= width
   def apply(divisor: BigInt, coefficient: UInt, width: Integer): UInt = {
-    require (divisor > 0 && divisor.testBit(0))
-    require (width > 0)
-    assert (coefficient >> width === UInt(0))
+    require(divisor > 0 && divisor.testBit(0))
+    require(width > 0)
+    assert(coefficient >> width === UInt(0))
     val n = log2Floor(divisor)
     val m = width
     if (m <= n) return coefficient
@@ -25,9 +24,15 @@ object CRC
       i <- (n until m).reverse
       j <- 0 to n
       if divisor.testBit(j)
-    } array(i-(n-j)) ^= array(i)
+    } array(i - (n - j)) ^= array(i)
     // Construct the circuit
-    Cat(Seq.tabulate(n) { i => (UInt(array(i)) & coefficient).xorR } .reverse)
+    Cat(
+      Seq
+        .tabulate(n) { i =>
+          (UInt(array(i)) & coefficient).xorR
+        }
+        .reverse
+    )
   }
 
   // Find more great CRC polynomials here: https://users.ece.cmu.edu/~koopman/crc/

@@ -8,18 +8,14 @@ import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressin
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
-abstract class DiplomaticSRAM(
-    address: AddressSet,
-    beatBytes: Int,
-    devName: Option[String])(implicit p: Parameters) extends LazyModule
-{
+abstract class DiplomaticSRAM(address: AddressSet, beatBytes: Int, devName: Option[String])(implicit p: Parameters)
+    extends LazyModule {
   val device = devName
     .map(new SimpleDevice(_, Seq("sifive,sram0")))
     .getOrElse(new MemoryDevice())
 
-  def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {
+  def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] =
     DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings) // TODO name source???
-  }
 
   val resources = device.reg("mem")
 
@@ -32,7 +28,7 @@ abstract class DiplomaticSRAM(
   def makeSinglePortedByteWriteSeqMem(size: BigInt, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
 
-    val (mem, omSRAM) =  DescribedSRAM(
+    val (mem, omSRAM) = DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,

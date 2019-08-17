@@ -38,18 +38,17 @@ object ReduceOthers {
   def apply(x: Seq[(Bool, Bool)]) {
     (x.map(_._1) zip apply(x.map(_._2))) foreach { case (w, x) => w := x }
   }
-  private def helper(x: Seq[Bool]): (Seq[Bool], Bool) = {
+  private def helper(x: Seq[Bool]): (Seq[Bool], Bool) =
     if (x.size <= 1) {
       (Seq.fill(x.size) { Bool(true) }, x.headOption.getOrElse(Bool(true)))
     } else if (x.size <= 3) {
       (Seq.tabulate(x.size) { i =>
-        (x.take(i) ++ x.drop(i+1)).reduce(_ && _)
+        (x.take(i) ++ x.drop(i + 1)).reduce(_ && _)
       }, x.reduce(_ && _))
     } else {
       val (half, all) = helper(x.grouped(2).map(_.reduce(_ && _)).toList)
       (Seq.tabulate(x.size) { i =>
-        if ((i ^ 1) >= x.size) half(i/2) else x(i ^ 1) && half(i / 2)
+        if ((i ^ 1) >= x.size) half(i / 2) else x(i ^ 1) && half(i / 2)
       }, all)
     }
-  }
 }

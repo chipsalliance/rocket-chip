@@ -6,43 +6,47 @@ import Chisel._
 import chisel3.experimental.RawModule
 import chisel3.internal.firrtl.Circuit
 // TODO: better job of Makefrag generation for non-RocketChip testing platforms
-import java.io.{File, FileWriter}
+import java.io.{ File, FileWriter }
 
 import firrtl.annotations.JsonProtocol
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
+import freechips.rocketchip.system.{ DefaultTestSuites, TestGeneration }
 
 /** Representation of the information this Generator needs to collect from external sources. */
 case class ParsedInputNames(
-    targetDir: String,
-    topModuleProject: String,
-    topModuleClass: String,
-    configProject: String,
-    configs: String,
-    outputBaseName: Option[String]) {
+  targetDir: String,
+  topModuleProject: String,
+  topModuleClass: String,
+  configProject: String,
+  configs: String,
+  outputBaseName: Option[String]
+) {
   val configClasses: Seq[String] = configs.split('_')
   def prepend(prefix: String, suffix: String) =
     if (prefix == "" || prefix == "_root_") suffix else (prefix + "." + suffix)
   val fullConfigClasses: Seq[String] = configClasses.map(x => prepend(configProject, x))
-  val fullTopModuleClass: String = prepend(topModuleProject, topModuleClass)
+  val fullTopModuleClass: String     = prepend(topModuleProject, topModuleClass)
 }
 
 /** Common utilities we supply to all Generators. In particular, supplies the
-  * canonical ways of building various JVM elaboration-time structures.
-  */
+ * canonical ways of building various JVM elaboration-time structures.
+ */
 trait HasGeneratorUtilities {
-  def getConfig(fullConfigClassNames: Seq[String]): Config = {
-    new Config(fullConfigClassNames.foldRight(Parameters.empty) { case (currentName, config) =>
-      val currentConfig = try {
-        Class.forName(currentName).newInstance.asInstanceOf[Config]
-      } catch {
-        case e: java.lang.ClassNotFoundException =>
-          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it?""", e)
-      }
-      currentConfig ++ config
+  def getConfig(fullConfigClassNames: Seq[String]): Config =
+    new Config(fullConfigClassNames.foldRight(Parameters.empty) {
+      case (currentName, config) =>
+        val currentConfig = try {
+          Class.forName(currentName).newInstance.asInstanceOf[Config]
+        } catch {
+          case e: java.lang.ClassNotFoundException =>
+            throwException(
+              s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it?""",
+              e
+            )
+        }
+        currentConfig ++ config
     })
-  }
 
   def getParameters(names: Seq[String]): Parameters = getParameters(getConfig(names))
 
@@ -50,10 +54,11 @@ trait HasGeneratorUtilities {
 
   def elaborate(fullTopModuleClassName: String, params: Parameters): Circuit = {
     val top = () =>
-      Class.forName(fullTopModuleClassName)
-          .getConstructor(classOf[Parameters])
-          .newInstance(params) match {
-        case m: RawModule => m
+      Class
+        .forName(fullTopModuleClassName)
+        .getConstructor(classOf[Parameters])
+        .newInstance(params) match {
+        case m: RawModule  => m
         case l: LazyModule => LazyModule(l).module
       }
 
@@ -66,11 +71,12 @@ trait HasGeneratorUtilities {
       circuit.components flatMap { m =>
         m.id match {
           case rom: BlackBoxedROM => Some((rom.name, ROMGenerator.lookup(rom)))
-          case _ => None
+          case _                  => None
         }
       }
-    configs foreach { case (name, c) =>
-      res append s"name ${name} depth ${c.depth} width ${c.width}\n"
+    configs foreach {
+      case (name, c) =>
+        res append s"name ${name} depth ${c.depth} width ${c.width}\n"
     }
     res.toString
   }
@@ -79,9 +85,12 @@ trait HasGeneratorUtilities {
 /** Standardized command line interface for Scala entry point */
 trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val names: ParsedInputNames = {
-    require(args.size == 5 || args.size == 6, "Usage: sbt> " +
-      "run TargetDir TopModuleProjectName TopModuleName " +
-      "ConfigProjectName ConfigNameString [OutputFilesBaseName]")
+    require(
+      args.size == 5 || args.size == 6,
+      "Usage: sbt> " +
+        "run TargetDir TopModuleProjectName TopModuleName " +
+        "ConfigProjectName ConfigNameString [OutputFilesBaseName]"
+    )
     val base =
       ParsedInputNames(
         targetDir = args(0),
@@ -89,7 +98,8 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
         topModuleClass = args(2),
         configProject = args(3),
         configs = args(4),
-        outputBaseName = None)
+        outputBaseName = None
+      )
 
     if (args.size == 6) {
       base.copy(outputBaseName = Some(args(5)))
@@ -99,10 +109,10 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   }
 
   // Canonical ways of building various JVM elaboration-time structures
-  lazy val td: String = names.targetDir
-  lazy val config: Config = getConfig(names.fullConfigClasses)
+  lazy val td: String         = names.targetDir
+  lazy val config: Config     = getConfig(names.fullConfigClasses)
   lazy val params: Parameters = config.toInstance
-  lazy val circuit: Circuit = elaborate(names.fullTopModuleClass, params)
+  lazy val circuit: Circuit   = elaborate(names.fullTopModuleClass, params)
 
   // Exhaustive name used to interface with external build tool targets
   lazy val longName: String = names.outputBaseName.getOrElse(names.configProject + "." + names.configs)
@@ -114,7 +124,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
 
   def generateAnno {
     val annotationFile = new File(td, s"$longName.anno.json")
-    val af = new FileWriter(annotationFile)
+    val af             = new FileWriter(annotationFile)
     af.write(JsonProtocol.serialize(circuit.annotations.map(_.toFirrtl)))
     af.close()
   }
@@ -137,13 +147,14 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
 
   /** Output files created as a side-effect of elaboration */
   def generateArtefacts {
-    ElaborationArtefacts.files.foreach { case (extension, contents) =>
-      writeOutputFile(td, s"$longName.$extension", contents ())
+    ElaborationArtefacts.files.foreach {
+      case (extension, contents) =>
+        writeOutputFile(td, s"$longName.$extension", contents())
     }
   }
 
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
-    val f = new File(targetDir, fname)
+    val f  = new File(targetDir, fname)
     val fw = new FileWriter(f)
     fw.write(contents)
     fw.close
@@ -158,7 +169,6 @@ object ElaborationArtefacts {
     files = (extension, () => contents) +: files
   }
 
-  def contains(extension: String): Boolean = {
-    files.foldLeft(false)((t, s) => {s._1 == extension | t})
-  }
+  def contains(extension: String): Boolean =
+    files.foldLeft(false)((t, s) => { s._1 == extension | t })
 }

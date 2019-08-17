@@ -9,4 +9,3 @@ trait OMEnum extends OMBaseType
 trait OMCompoundType extends OMBaseType
 
 trait OMComponent extends OMCompoundType
-

@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.regmapper
 
-import chisel3.experimental.{ChiselAnnotation, RawModule, RunFirrtlTransform}
+import chisel3.experimental.{ ChiselAnnotation, RawModule, RunFirrtlTransform }
 import firrtl.annotations._
-import firrtl.{CircuitForm, CircuitState, LowForm, Transform}
+import firrtl.{ CircuitForm, CircuitState, LowForm, Transform }
 
 case class RegFieldDescSer(
   byteOffset: String,

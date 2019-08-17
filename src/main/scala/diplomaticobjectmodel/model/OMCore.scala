@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-trait OMCore extends OMComponent{
+trait OMCore extends OMComponent {
   def isa: OMISA
   def mulDiv: Option[OMMulDiv]
   def performanceMonitor: Option[OMPerformanceMonitor]
