@@ -174,7 +174,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
-  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch()))
+  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch(tileParams.core.retireWidth)))
   val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
   bpwatchNode := bpwatchSourceNode
 

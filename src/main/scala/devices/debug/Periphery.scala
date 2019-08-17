@@ -16,24 +16,39 @@ import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink._
 
+/** Protocols used for communicating with external debugging tools */
+sealed trait DebugExportProtocol
+case object DMI extends DebugExportProtocol
+case object JTAG extends DebugExportProtocol
+case object CJTAG extends DebugExportProtocol
+case object APB extends DebugExportProtocol
+
 /** Options for possible debug interfaces */
-case object ExportDebugDMI extends Field[Boolean](true)
-case object ExportDebugJTAG extends Field[Boolean](false)
-case object ExportDebugCJTAG extends Field[Boolean](false)
-case object ExportDebugAPB extends Field[Boolean](false)
-case object ExportDisableDebug extends Field[Boolean](false)
+case class DebugAttachParams(
+  protocols: Set[DebugExportProtocol] = Set(DMI),
+  externalDisable: Boolean = false,
+  masterWhere: BaseSubsystemBusAttachment = FBUS,
+  slaveWhere: BaseSubsystemBusAttachment = CBUS
+) {
+  def dmi   = protocols.contains(DMI)
+  def jtag  = protocols.contains(JTAG)
+  def cjtag = protocols.contains(CJTAG)
+  def apb   = protocols.contains(APB)
+}
+
+case object ExportDebug extends Field(DebugAttachParams())
 
 class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) with Clocked
 
 class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
-  val clockeddmi = p(ExportDebugDMI).option(new ClockedDMIIO().flip)
-  val systemjtag = p(ExportDebugJTAG).option(new SystemJTAGIO)
-  val apb = p(ExportDebugAPB).option(new ClockedAPBBundle(APBBundleParameters(addrBits=12, dataBits=32)).flip)
+  val clockeddmi = p(ExportDebug).dmi.option(new ClockedDMIIO().flip)
+  val systemjtag = p(ExportDebug).jtag.option(new SystemJTAGIO)
+  val apb = p(ExportDebug).apb.option(new ClockedAPBBundle(APBBundleParameters(addrBits=12, dataBits=32)).flip)
   //------------------------------
   val ndreset    = Bool(OUTPUT)
   val dmactive   = Bool(OUTPUT)
   val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
-  val disableDebug = p(ExportDisableDebug).option(Bool(INPUT))
+  val disableDebug = p(ExportDebug).externalDisable.option(Bool(INPUT))
 }
 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
@@ -42,22 +57,25 @@ class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with 
   */
 
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  val debug = LazyModule(new TLDebugModule(cbus.beatBytes))
+  private val tlbus = attach(p(ExportDebug).slaveWhere)
+  val debug = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
   LogicalModuleTree.add(logicalTreeNode, debug.logicalTreeNode)
 
-  debug.node := cbus.coupleTo("debug"){ TLFragmenter(cbus) := _ }
+  debug.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
   val debugCustomXbar = LazyModule( new DebugCustomXbar(outputRequiresInput = false))
   debug.dmInner.dmInner.customNode := debugCustomXbar.node
 
-  val apbDebugNodeOpt = p(ExportDebugAPB).option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
+  val apbDebugNodeOpt = p(ExportDebug).apb.option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
 
   (apbDebugNodeOpt zip debug.apbNodeOpt) foreach { case (master, slave) =>
     slave := master
   }
 
   debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-    fbus.fromPort(Some("debug_sb")){ FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node } }
+    attach(p(ExportDebug).masterWhere).asInstanceOf[CanAttachTLMasters].fromPort(Some("debug_sb")){
+      FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node }
+    }
   }
 }
 
@@ -96,6 +114,9 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
   outer.debug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 
+  val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
+  outer.debug.module.io.psd <> psd
+
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
@@ -111,7 +132,6 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outer.debug.module.io.dmi.get.dmiClock := sj.jtag.TCK
 
     val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
-    outer.debug.module.io.psd <> psd
     outer.debug.module.io.dmi.get.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
     dtm
   }

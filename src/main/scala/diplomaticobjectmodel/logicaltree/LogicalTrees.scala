@@ -82,8 +82,8 @@ class DebugLogicalTreeNode(
         nHaltSummaryRegisters = 2,
         nHaltGroups = cfg.nHaltGroups,
         nExtTriggers = cfg.nExtTriggers,
-        hasResetHaltReq = false,
-        hasHartReset = false,
+        hasResetHaltReq = true,
+        hasHartReset = cfg.hasHartResets,
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
@@ -177,19 +177,16 @@ class BusMemoryLogicalTreeNode(
   busProtocolSpecification: Option[OMSpecification] = None) extends LogicalTreeNode(() => Some(device)) {
   def getOMBusMemory(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
-    val Description(name, mapping) = device.describe(resourceBindings)
 
     val omBusMemory = OMBusMemory(
       memoryRegions = memRegions,
       interrupts = Nil,
       specifications = Nil,
       busProtocol = Some(busProtocol),
-      dataECC = dataECC.getOrElse(OMECC.Identity),
+      dataECC = dataECC.getOrElse(OMECCIdentity),
       hasAtomics = hasAtomics.getOrElse(false),
       memories = omSRAMs
     )
-
-    val ints = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
     Seq(omBusMemory)
   }
 

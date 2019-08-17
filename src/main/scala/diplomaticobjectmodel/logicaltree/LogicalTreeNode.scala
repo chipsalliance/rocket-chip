@@ -23,7 +23,6 @@ class GenericLogicalTreeNode extends LogicalTreeNode(() => None) {
 
 object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
-  val root = new GenericLogicalTreeNode()
 
   def add(parent: LogicalTreeNode, child: => LogicalTreeNode): Unit = {
     val treeOpt = tree.get(parent)

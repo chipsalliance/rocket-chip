@@ -535,6 +535,7 @@ class CSRFile(
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       is_wfi && !allow_wfi ||
       is_ret && !allow_sret ||
+      is_ret && io_dec.csr(10) && !reg_debug ||
       is_sfence && !allow_sfence_vma
   }
 
@@ -627,14 +628,15 @@ class CSRFile(
     cover(en && delegable && delegate, s"INTERRUPT_S_$i")
   }
   for (i <- 0 until xLen) {
-    val supported_exceptions: BigInt = 0x87e |
+    val supported_exceptions: BigInt = 0x8fe |
       (if (usingCompressed && !coreParams.misaWritable) 0 else 1) |
       (if (usingUser) 0x100 else 0) |
       (if (usingVM) 0xb200 else 0)
     if (((supported_exceptions >> i) & 1) != 0) {
       val en = exception && cause === i
+      val delegable = (delegable_exceptions & (BigInt(1) << i).U) =/= 0
       cover(en && !delegate, s"EXCEPTION_M_$i")
-      cover(en && delegate, s"EXCEPTION_S_$i")
+      cover(en && delegable && delegate, s"EXCEPTION_S_$i")
     }
   }
 

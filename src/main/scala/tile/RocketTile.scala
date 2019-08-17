@@ -80,8 +80,7 @@ class RocketTile private(
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
 
-  val itimProperty = tileParams.icache.flatMap(_.itimAddr.map(i => Map(
-    "sifive,itim" -> frontend.icache.device.asProperty))).getOrElse(Nil)
+  val itimProperty = frontend.icache.itimProperty.toSeq.flatMap(p => Map("sifive,itim" -> p))
 
   val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
@@ -108,7 +107,7 @@ class RocketTile private(
   }
 
   val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen))
-  val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(dtim_adapter.map(_.device), rocketParams.dcache.get)
+  val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(() => dcache.getOMSRAMs(), dtim_adapter.map(_.device), rocketParams.dcache.get)
   LogicalModuleTree.add(rocketLogicalTree, iCacheLogicalTreeNode)
   LogicalModuleTree.add(rocketLogicalTree, dCacheLogicalTreeNode)
 }

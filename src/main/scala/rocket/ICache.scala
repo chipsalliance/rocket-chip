@@ -59,7 +59,23 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
-  val device = new SimpleDevice("itim", Seq("sifive,itim0"))
+  val itim_control_offset = size - icacheParams.nSets * icacheParams.blockBytes
+
+  val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
+    override def describe(resources: ResourceBindings): Description = {
+     val Description(name, mapping) = super.describe(resources)
+     val Seq(Binding(_, ResourceAddress(address, perms))) = resources("reg/mem")
+     val base_address = address.head.base
+     val mem_part = AddressSet.misaligned(base_address, itim_control_offset)
+     val control_part = AddressSet.misaligned(base_address + itim_control_offset, size - itim_control_offset)
+     val extra = Map(
+       "reg-names" -> Seq(ResourceString("mem"), ResourceString("control")),
+       "reg" -> Seq(ResourceAddress(mem_part, perms), ResourceAddress(control_part, perms)))
+     Description(name, mapping ++ extra)
+    }
+  }
+
+  def itimProperty: Option[Seq[ResourceValue]] = icacheParams.itimAddr.map(_ => device.asProperty)
 
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =

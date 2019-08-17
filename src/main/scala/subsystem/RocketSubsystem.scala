@@ -12,7 +12,6 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
 
-
 // TODO: how specific are these to RocketTiles?
 case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
 case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
@@ -65,9 +64,16 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
   val outer: HasRocketTiles
 }
 
+// Field for specifying MaskROM addition to subsystem
+case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
+
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
+        
+  // add Mask ROM devices
+  val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
+
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 

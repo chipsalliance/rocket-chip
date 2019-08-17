@@ -7,6 +7,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -669,7 +670,8 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 }
 
 class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
-  override lazy val module = new NonBlockingDCacheModule(this) 
+  override lazy val module = new NonBlockingDCacheModule(this)
+  override def getOMSRAMs(): Seq[OMSRAM] = Nil // this is just a dummy value and that we need to eventually fix it
 }
 
 class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule(outer) {
@@ -824,6 +826,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
     when (lrsc_count > 0) {
       lrsc_count := 0
     }
+  }
+  when (s2_valid_masked && !s2_hit && s2_lrsc_addr_match) {
+    lrsc_count := 0
   }
 
   val s2_data = Wire(Vec(nWays, Bits(width=encRowBits)))

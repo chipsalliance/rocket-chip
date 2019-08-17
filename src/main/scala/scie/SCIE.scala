@@ -186,6 +186,17 @@ class SCIEPipelined(xLen: Int) extends BlackBox(Map("XLEN" -> xLen)) with HasBla
       |  /* Drive the output. */
       |  assign rd = result;
       |
+      | /* Suppress Xs at simulation start */
+      | `ifdef RANDOMIZE_REG_INIT
+      | initial begin
+      |   `ifndef VERILATOR
+      |   #`RANDOMIZE_DELAY begin end
+      |   `endif
+      |   absolute_differences = {(XLEN / 32){`RANDOM}};
+      |   funct3_0 = absolute_differences[0];
+      | end
+      | `endif
+      |
       |endmodule
      """.stripMargin)
 }

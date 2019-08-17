@@ -20,6 +20,7 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
   val pprot     = UInt(OUTPUT, width = params.protBits)
   val pwdata    = UInt(OUTPUT, width = params.dataBits)
   val pstrb     = UInt(OUTPUT, width = params.dataBits/8)
+  val pauser    = if (params.userBits > 0) Some(UInt(OUTPUT, width = params.userBits)) else None
 
   val pready    = Bool(INPUT)
   val pslverr   = Bool(INPUT)
@@ -37,6 +38,7 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
         pprot   := APBParameters.PROT_DEFAULT
         pwdata  := UInt(0)
         pstrb   := UInt(0)
+        pauser.map {_ := UInt(0)}
       case _ =>
     }
   }

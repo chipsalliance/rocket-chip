@@ -196,7 +196,7 @@ class TLFuzzer(
 
     // Wire up Fuzzer flow control
     val a_gen = if (nOperations>0) num_reqs =/= UInt(0) else Bool(true)
-    out.a.valid := a_gen && legal && (!a_first || idMap.io.alloc.valid)
+    out.a.valid := !reset && a_gen && legal && (!a_first || idMap.io.alloc.valid)
     idMap.io.alloc.ready := a_gen && legal && a_first && out.a.ready
     idMap.io.free.valid := d_first && out.d.fire()
     idMap.io.free.bits := out.d.bits.source
