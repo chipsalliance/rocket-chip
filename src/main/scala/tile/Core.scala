@@ -42,7 +42,7 @@ trait CoreParams {
   val mtvecWritable: Boolean
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
-  def instBytes: Int = instBits / 8
+  def instBytes: Int  = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
 }
@@ -52,34 +52,34 @@ trait HasCoreParameters extends HasTileParameters {
 
   val fLen = coreParams.fpu.map(_.fLen).getOrElse(0)
 
-  val usingMulDiv = coreParams.mulDiv.nonEmpty
-  val usingFPU = coreParams.fpu.nonEmpty
-  val usingAtomics = coreParams.useAtomics
+  val usingMulDiv           = coreParams.mulDiv.nonEmpty
+  val usingFPU              = coreParams.fpu.nonEmpty
+  val usingAtomics          = coreParams.useAtomics
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
-  val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
-  val usingCompressed = coreParams.useCompressed
-  val usingSCIE = coreParams.useSCIE
+  val usingAtomicsInCache   = usingAtomics && !usingAtomicsOnlyForIO
+  val usingCompressed       = coreParams.useCompressed
+  val usingSCIE             = coreParams.useSCIE
 
   val retireWidth = coreParams.retireWidth
-  val fetchWidth = coreParams.fetchWidth
+  val fetchWidth  = coreParams.fetchWidth
   val decodeWidth = coreParams.decodeWidth
 
-  val fetchBytes = coreParams.fetchBytes
-  val coreInstBits = coreParams.instBits
-  val coreInstBytes = coreInstBits/8
-  val coreDataBits = xLen max fLen
-  val coreDataBytes = coreDataBits/8
+  val fetchBytes      = coreParams.fetchBytes
+  val coreInstBits    = coreParams.instBits
+  val coreInstBytes   = coreInstBits / 8
+  val coreDataBits    = xLen max fLen
+  val coreDataBytes   = coreDataBits / 8
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
 
-  val nBreakpoints = coreParams.nBreakpoints
-  val nPMPs = coreParams.nPMPs
+  val nBreakpoints   = coreParams.nBreakpoints
+  val nPMPs          = coreParams.nPMPs
   val pmpGranularity = coreParams.pmpGranularity
-  val nPerfCounters = coreParams.nPerfCounters
-  val mtvecInit = coreParams.mtvecInit
-  val mtvecWritable = coreParams.mtvecWritable
+  val nPerfCounters  = coreParams.nPerfCounters
+  val mtvecInit      = coreParams.mtvecInit
+  val mtvecWritable  = coreParams.mtvecWritable
 
   val coreDCacheReqTagBits = 6
-  val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
+  val dcacheReqTagBits     = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
@@ -87,11 +87,9 @@ trait HasCoreParameters extends HasTileParameters {
 
 }
 
-abstract class CoreModule(implicit val p: Parameters) extends Module
-  with HasCoreParameters
+abstract class CoreModule(implicit val p: Parameters) extends Module with HasCoreParameters
 
-abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
-  with HasCoreParameters
+abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p) with HasCoreParameters
 
 class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
   val buserror = tileParams.beuAddr.map(a => Bool())
@@ -101,13 +99,13 @@ trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
   val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
     val interrupts = new CoreInterrupts().asInput
-    val imem  = new FrontendIO
-    val dmem = new HellaCacheIO
-    val ptw = new DatapathPTWIO().flip
-    val fpu = new FPUCoreIO().flip
-    val rocc = new RoCCCoreIO().flip
-    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
-    val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
-    val cease = Bool().asOutput
+    val imem       = new FrontendIO
+    val dmem       = new HellaCacheIO
+    val ptw        = new DatapathPTWIO().flip
+    val fpu        = new FPUCoreIO().flip
+    val rocc       = new RoCCCoreIO().flip
+    val trace      = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val bpwatch    = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
+    val cease      = Bool().asOutput
   }
 }

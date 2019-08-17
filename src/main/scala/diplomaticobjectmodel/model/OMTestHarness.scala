@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-
 case class OMTestHarness(
   components: Seq[OMComponent],
   _types: Seq[String] = Seq("OMTestHarness")

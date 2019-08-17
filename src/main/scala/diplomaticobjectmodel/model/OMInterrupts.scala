@@ -7,5 +7,4 @@ case class OMInterrupt(
   numberAtReceiver: BigInt,
   name: String,
   _types: Seq[String] = Seq("OMInterrupt", "OMCompoundType")
-)  extends OMCompoundType
-
+) extends OMCompoundType

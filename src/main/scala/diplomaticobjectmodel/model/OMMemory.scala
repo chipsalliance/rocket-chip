@@ -10,4 +10,3 @@ case class OMMemory(
   writeMaskGranularity: Int,
   _types: Seq[String] = Seq("OMMemory")
 )
-

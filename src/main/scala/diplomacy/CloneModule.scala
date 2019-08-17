@@ -6,29 +6,26 @@
 package chisel3.shim
 
 import Chisel._
-import chisel3.experimental.{RawModule, MultiIOModule, BaseModule}
+import chisel3.experimental.{ BaseModule, MultiIOModule, RawModule }
 import chisel3.internal.Builder
 import chisel3.core.UserModule
-import chisel3.internal.firrtl.{Command, DefInstance}
+import chisel3.internal.firrtl.{ Command, DefInstance }
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
-class ClonePorts protected[shim](elts: Data*) extends Record
-{
-  val elements = ListMap(elts.map(d => d.instanceName -> d.chiselCloneType): _*)
+class ClonePorts protected[shim] (elts: Data*) extends Record {
+  val elements             = ListMap(elts.map(d => d.instanceName -> d.chiselCloneType): _*)
   def apply(field: String) = elements(field)
-  override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
+  override def cloneType   = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
 }
 
-class CloneModule private (model: RawModule) extends BlackBox
-{
+class CloneModule private (model: RawModule) extends BlackBox {
   import CloneModule._
   override def desiredName = model.name
-  val io = IO(new ClonePorts(model.getPorts.map(_.id): _*))
+  val io                   = IO(new ClonePorts(model.getPorts.map(_.id): _*))
 }
 
-object CloneModule
-{
+object CloneModule {
   def apply(model: BaseModule): ClonePorts = {
     // Create the 'BlackBox' stand-in
     val mod = Module(new CloneModule(model.asInstanceOf[RawModule]))
@@ -39,7 +36,7 @@ object CloneModule
     val commands = method.invoke(Builder.forcedUserModule).asInstanceOf[ArrayBuffer[Command]]
     val victimIdx = commands.lastIndexWhere {
       case DefInstance(_, kill, _) => mod eq kill
-      case _ => false
+      case _                       => false
     }
     val victim = commands(victimIdx).asInstanceOf[DefInstance]
     val standin = new DefInstance(victim.sourceInfo, model, victim.ports) {

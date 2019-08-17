@@ -13,7 +13,7 @@ object CustomCSR {
 }
 
 class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
-  val wen = Bool()
+  val wen   = Bool()
   val wdata = UInt(xLen.W)
   val value = UInt(xLen.W)
 }
@@ -21,10 +21,10 @@ class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
 class CustomCSRs(implicit p: Parameters) extends CoreBundle {
   // Not all cores have these CSRs, but those that do should follow the same
   // numbering conventions.  So we list them here but default them to None.
-  protected def bpmCSRId = 0x7c0
+  protected def bpmCSRId                  = 0x7c0
   protected def bpmCSR: Option[CustomCSR] = None
 
-  protected def chickenCSRId = 0x7c1
+  protected def chickenCSRId                  = 0x7c1
   protected def chickenCSR: Option[CustomCSR] = None
 
   // If you override this, you'll want to concatenate super.decls
@@ -32,11 +32,11 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
 
   val csrs = Vec(decls.size, new CustomCSRIO)
 
-  def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
-  def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
+  def flushBTB               = getOrElse(bpmCSR, _.wen, false.B)
+  def bpmStatic              = getOrElse(bpmCSR, _.value(0), false.B)
   def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), true.B)
   def disableICacheClockGate = getOrElse(chickenCSR, _.value(1), true.B)
-  def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), true.B)
+  def disableCoreClockGate   = getOrElse(chickenCSR, _.value(2), true.B)
 
   protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
     val idx = decls.indexWhere(_.id == id)
