@@ -6,7 +6,6 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMCaches, OMComponent, OMDCache}
 import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
