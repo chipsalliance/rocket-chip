@@ -13,7 +13,7 @@ trait OMCache extends OMDevice {
   def dataMemorySizeBytes: Int
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
-  def memories: () => Seq[OMSRAM]
+  def memories: Seq[OMSRAM]
 }
 
 case class OMICache(
@@ -27,7 +27,7 @@ case class OMICache(
   tagECC: Option[OMECC],
   nTLBEntries: Int,
   maxTimSize: Int,
-  memories: () => Seq[OMSRAM],
+  memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMICache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
@@ -41,7 +41,7 @@ case class OMDCache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
-  memories: () => Seq[OMSRAM],
+  memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
