@@ -10,7 +10,7 @@ import chisel3.{Data, SyncReadMem, Vec}
 import chisel3.util.log2Ceil
 import freechips.rocketchip.amba.axi4.AXI4RAM
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMSRAM, OMRTLModule}
 
 import scala.math.log10
 
@@ -34,11 +34,12 @@ object DescribedSRAM {
     val uid = 0
 
     val omSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
-      desc = "mem-" + uid,
+      desc = desc,
       width = data.getWidth,
       depth = size,
       granWidth = granWidth,
-      uid = uid
+      uid = uid,
+      rtlModule = OMRTLModule(name)
     )
 
     Annotated.srams(
