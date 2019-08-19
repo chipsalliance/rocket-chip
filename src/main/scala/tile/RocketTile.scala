@@ -107,7 +107,7 @@ class RocketTile private(
   }
 
   val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen))
-  val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(() => dcache.getOMSRAMs(), dtim_adapter.map(_.device), rocketParams.dcache.get)
+  val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(dcache, dtim_adapter.map(_.device), rocketParams.dcache.get)
   LogicalModuleTree.add(rocketLogicalTree, iCacheLogicalTreeNode)
   LogicalModuleTree.add(rocketLogicalTree, dCacheLogicalTreeNode)
 }
