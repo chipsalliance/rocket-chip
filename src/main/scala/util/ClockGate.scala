@@ -10,6 +10,7 @@ case object ClockGateImpl extends Field[() => ClockGate](() => new EICG_wrapper)
 abstract class ClockGate extends BlackBox {
   val io = IO(new Bundle{
     val in = Input(Clock())
+    val test_en = Input(Bool())
     val en = Input(Bool())
     val out = Output(Clock())
   })
@@ -23,6 +24,7 @@ object ClockGate {
     val cg = Module(p(ClockGateImpl)())
     name.foreach(cg.suggestName(_))
     cg.io.in := in
+    cg.io.test_en := false.B
     cg.io.en := en
     cg.io.out
   }
