@@ -6,7 +6,8 @@
 package chisel3.shim
 
 import Chisel._
-import chisel3.experimental.{RawModule, MultiIOModule, BaseModule}
+import chisel3.{RawModule, MultiIOModule}
+import chisel3.experimental.BaseModule
 import chisel3.internal.Builder
 import chisel3.core.UserModule
 import chisel3.internal.firrtl.{Command, DefInstance}

@@ -3,8 +3,8 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndReset}
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import chisel3.{RawModule, MultiIOModule, withClockAndReset}
+import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap,ListMap}
 import scala.util.matching._
