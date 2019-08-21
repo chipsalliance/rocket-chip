@@ -128,6 +128,7 @@ case class DebugModuleParams (
     // TODO: Check that quick access requirements are met.
   }
 
+  def address = AddressSet(0, 0xFFF) // This is required for correct functionality; it's not configurable.
 }
 
 object DefaultDebugModuleParams {
@@ -647,7 +648,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   )
 
   val tlNode = TLRegisterNode(
-    address=Seq(AddressSet(0, 0xFFF)), // This is required for correct functionality, it's not configurable.
+    address=Seq(cfg.address),
     device=device,
     beatBytes=beatBytes,
     executable=true
