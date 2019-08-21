@@ -3,49 +3,49 @@
 package freechips.rocketchip.regmapper
 
 import Chisel._
-import chisel3.util.{ Irrevocable }
+import chisel3.util.{Irrevocable}
 
-import freechips.rocketchip.util.{ AsyncQueue, AsyncQueueParams, AsyncResetRegVec }
+import freechips.rocketchip.util.{AsyncQueue,AsyncQueueParams,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing extends Module {
   val io = new Bundle {
-    val bypass                 = Bool(INPUT)
-    val master_request_valid   = Bool(INPUT)
-    val master_request_ready   = Bool(OUTPUT)
-    val master_response_valid  = Bool(OUTPUT)
-    val master_response_ready  = Bool(INPUT)
-    val crossing_request_valid = Bool(OUTPUT)
-    val crossing_request_ready = Bool(INPUT)
+    val bypass                  = Bool(INPUT)
+    val master_request_valid    = Bool(INPUT)
+    val master_request_ready    = Bool(OUTPUT)
+    val master_response_valid   = Bool(OUTPUT)
+    val master_response_ready   = Bool(INPUT)
+    val crossing_request_valid  = Bool(OUTPUT)
+    val crossing_request_ready  = Bool(INPUT)
     // ... no crossing_response_ready; we are always ready
   }
 
   val busy   = RegInit(Bool(false))
   val bypass = Reg(Bool())
 
-  when(io.crossing_request_ready || Mux(busy, bypass, io.bypass)) {
+  when (io.crossing_request_ready || Mux(busy, bypass, io.bypass)) {
     busy := Mux(busy, !io.master_response_ready, io.master_request_valid)
   }
 
-  when(io.master_request_valid && io.master_request_ready) {
+  when (io.master_request_valid && io.master_request_ready) {
     bypass := io.bypass
   }
 
   io.crossing_request_valid := io.master_request_valid && !io.bypass && !busy
-  io.master_request_ready := (io.bypass || io.crossing_request_ready) && !busy
-  io.master_response_valid := (bypass || io.crossing_request_ready) && busy
+  io.master_request_ready   := (io.bypass || io.crossing_request_ready) && !busy
+  io.master_response_valid  := (bypass    || io.crossing_request_ready) &&  busy
 }
 
 class RegisterCrossingAssertion extends Module {
   val io = new Bundle {
     val master_bypass = Bool(INPUT)
-    val slave_reset   = Bool(INPUT)
+    val slave_reset = Bool(INPUT)
   }
 
   val up = RegInit(Bool(false))
   up := !io.slave_reset
 
-  assert(io.master_bypass || !up || !io.slave_reset)
+  assert (io.master_bypass || !up || !io.slave_reset)
 }
 
 // RegField should support connecting to one of these
@@ -78,11 +78,11 @@ class RegisterWriteIO[T <: Data](gen: T) extends Bundle {
 
 class RegisterWriteCrossingIO[T <: Data](gen: T) extends Bundle {
   // Master clock domain
-  val master_clock = Clock(INPUT)
-  val master_reset = Bool(INPUT)
-  val master_port  = new RegisterWriteIO(gen)
+  val master_clock   = Clock(INPUT)
+  val master_reset   = Bool(INPUT)
+  val master_port    = new RegisterWriteIO(gen)
   // Bypass requests from the master to be noops
-  val master_bypass = Bool(INPUT)
+  val master_bypass  = Bool(INPUT)
   // Slave clock domain
   val slave_clock    = Clock(INPUT)
   val slave_reset    = Bool(INPUT)
@@ -93,7 +93,7 @@ class RegisterWriteCrossingIO[T <: Data](gen: T) extends Bundle {
 class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   val io = new RegisterWriteCrossingIO(gen)
   // The crossing must only allow one item inflight at a time
-  val control  = Module(new BusyRegisterCrossing)
+  val control = Module(new BusyRegisterCrossing)
   val crossing = Module(new AsyncQueue(gen, AsyncQueueParams.singleton(sync)))
 
   control.clock := io.master_clock
@@ -104,9 +104,9 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   crossing.io.deq_reset := io.slave_reset
 
   control.io.bypass := io.master_bypass
-  control.io.master_request_valid := io.master_port.request.valid
+  control.io.master_request_valid  := io.master_port.request.valid
   control.io.master_response_ready := io.master_port.response.ready
-  io.master_port.request.ready := control.io.master_request_ready
+  io.master_port.request.ready  := control.io.master_request_ready
   io.master_port.response.valid := control.io.master_response_valid
 
   control.io.crossing_request_ready := crossing.io.enq.ready
@@ -134,11 +134,11 @@ class RegisterReadIO[T <: Data](gen: T) extends Bundle {
 
 class RegisterReadCrossingIO[T <: Data](gen: T) extends Bundle {
   // Master clock domain
-  val master_clock = Clock(INPUT)
-  val master_reset = Bool(INPUT)
-  val master_port  = new RegisterReadIO(gen)
+  val master_clock   = Clock(INPUT)
+  val master_reset   = Bool(INPUT)
+  val master_port    = new RegisterReadIO(gen)
   // Bypass requests from the master to be noops
-  val master_bypass = Bool(INPUT)
+  val master_bypass  = Bool(INPUT)
   // Slave clock domain
   val slave_clock    = Clock(INPUT)
   val slave_reset    = Bool(INPUT)
@@ -148,7 +148,7 @@ class RegisterReadCrossingIO[T <: Data](gen: T) extends Bundle {
 class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   val io = new RegisterReadCrossingIO(gen)
   // The crossing must only allow one item inflight at a time
-  val control  = Module(new BusyRegisterCrossing)
+  val control = Module(new BusyRegisterCrossing)
   val crossing = Module(new AsyncQueue(gen, AsyncQueueParams.singleton(sync)))
 
   control.clock := io.master_clock
@@ -159,9 +159,9 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   crossing.io.enq_reset := io.slave_reset
 
   control.io.bypass := io.master_bypass
-  control.io.master_request_valid := io.master_port.request.valid
+  control.io.master_request_valid  := io.master_port.request.valid
   control.io.master_response_ready := io.master_port.response.ready
-  io.master_port.request.ready := control.io.master_request_ready
+  io.master_port.request.ready  := control.io.master_request_ready
   io.master_port.response.valid := control.io.master_response_valid
 
   control.io.crossing_request_ready := crossing.io.deq.valid
@@ -179,13 +179,14 @@ class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
 }
 
 /** Wrapper to create an
- *  asynchronously reset slave register which can be
- *  both read and written
- *  using crossing FIFOs.
- *  The reset and allow assertion & de-assertion
- *  should be synchronous to their respective
- *  domains.
- */
+  *  asynchronously reset slave register which can be 
+  *  both read and written 
+  *  using crossing FIFOs.
+  *  The reset and allow assertion & de-assertion 
+  *  should be synchronous to their respective 
+  *  domains. 
+  */
+
 object AsyncRWSlaveRegField {
 
   def apply(
@@ -193,7 +194,7 @@ object AsyncRWSlaveRegField {
     master_reset: Bool,
     slave_clock: Clock,
     slave_reset: Bool,
-    width: Int,
+    width:  Int,
     init: Int,
     name: Option[String] = None,
     master_bypass: Bool = Bool(true),
@@ -205,26 +206,26 @@ object AsyncRWSlaveRegField {
     async_slave_reg.reset := slave_reset
     async_slave_reg.clock := slave_clock
 
-    val wr_crossing = Module(new RegisterWriteCrossing(UInt(width = width)))
+    val wr_crossing = Module (new RegisterWriteCrossing(UInt(width = width)))
     name.foreach(n => wr_crossing.suggestName(s"${n}_wcrossing"))
 
-    wr_crossing.io.master_clock := master_clock
-    wr_crossing.io.master_reset := master_reset
+    wr_crossing.io.master_clock  := master_clock
+    wr_crossing.io.master_reset  := master_reset
     wr_crossing.io.master_bypass := master_bypass
-    wr_crossing.io.slave_clock := slave_clock
-    wr_crossing.io.slave_reset := slave_reset
+    wr_crossing.io.slave_clock   := slave_clock
+    wr_crossing.io.slave_reset   := slave_reset
 
     async_slave_reg.io.en := wr_crossing.io.slave_valid
-    async_slave_reg.io.d := wr_crossing.io.slave_register
+    async_slave_reg.io.d  := wr_crossing.io.slave_register
 
-    val rd_crossing = Module(new RegisterReadCrossing(UInt(width = width)))
+    val rd_crossing = Module (new RegisterReadCrossing(UInt(width = width )))
     name.foreach(n => rd_crossing.suggestName(s"${n}_rcrossing"))
 
-    rd_crossing.io.master_clock := master_clock
-    rd_crossing.io.master_reset := master_reset
+    rd_crossing.io.master_clock  := master_clock
+    rd_crossing.io.master_reset  := master_reset
     rd_crossing.io.master_bypass := master_bypass
-    rd_crossing.io.slave_clock := slave_clock
-    rd_crossing.io.slave_reset := slave_reset
+    rd_crossing.io.slave_clock   := slave_clock
+    rd_crossing.io.slave_reset   := slave_reset
 
     rd_crossing.io.slave_register := async_slave_reg.io.q
 

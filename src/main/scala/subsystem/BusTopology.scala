@@ -19,9 +19,9 @@ trait HasHierarchicalBusTopology { this: BaseSubsystem =>
 
   // The sbus masters the mbus; here we convert TL-C -> TL-UH
   private val BankedL2Params(nBanks, coherenceManager) = p(BankedL2Key)
-  private val (in, out, halt)                          = coherenceManager(this)
+  private val (in, out, halt) = coherenceManager(this)
   if (nBanks != 0) {
     sbus.coupleTo("coherence_manager") { in :*= _ }
-    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks - 1)) :*= out }
+    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
   }
 }

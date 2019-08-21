@@ -2,20 +2,21 @@
 
 package freechips.rocketchip
 
-import chisel3.internal.sourceinfo.{ SourceInfo, SourceLine, UnlocatableSourceInfo }
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import freechips.rocketchip.config.Parameters
 import scala.language.implicitConversions
 
-package object diplomacy {
+package object diplomacy
+{
   type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = NodeHandle[D, U, E, B, D, U, E, B]
 
   def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
     case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
-    case _                               => ""
+    case _ => ""
   }
 
   def bitIndexes(x: BigInt, tail: Seq[Int] = Nil): Seq[Int] = {
-    require(x >= 0)
+    require (x >= 0)
     if (x == 0) {
       tail.reverse
     } else {
@@ -24,7 +25,7 @@ package object diplomacy {
     }
   }
 
-  implicit class BigIntHexContext(val sc: StringContext) extends AnyVal {
+  implicit class BigIntHexContext(private val sc: StringContext) extends AnyVal {
     def x(args: Any*): BigInt = {
       val orig = sc.s(args: _*)
       BigInt(orig.replace("_", ""), 16)
@@ -32,7 +33,7 @@ package object diplomacy {
   }
 
   type PropertyOption = Option[(String, Seq[ResourceValue])]
-  type PropertyMap    = Iterable[(String, Seq[ResourceValue])]
+  type PropertyMap = Iterable[(String, Seq[ResourceValue])]
 
   implicit class IntToProperty(x: Int) {
     def asProperty: Seq[ResourceValue] = Seq(ResourceInt(BigInt(x)))
@@ -50,18 +51,15 @@ package object diplomacy {
     def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
   }
 
-  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) =
-    body(p.alterPartial {
-      case MonitorsEnabled => true
-    })
-  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) =
-    body(p.alterPartial {
-      case MonitorsEnabled => false
-    })
-  def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) =
-    body(p.alterPartial {
-      case RenderFlipped => !p(RenderFlipped)
-    })
+  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case MonitorsEnabled => true
+  })
+  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case MonitorsEnabled => false
+  })
+  def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
+    case RenderFlipped => !p(RenderFlipped)
+  })
 
   implicit def moduleValue[T](value: ModuleValue[T]): T = value.getWrappedValue
 

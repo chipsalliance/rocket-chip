@@ -18,33 +18,20 @@ class RegionReplicator(mask: BigInt = 0)(implicit p: Parameters) extends LazyMod
   def ids = AddressSet.enumerateMask(mask)
 
   val node = TLAdapterNode(
-    clientFn = { cp =>
-      cp
-    },
-    managerFn = { mp =>
-      mp.copy(managers = mp.managers.map { m =>
-        m.copy(address = m.address.flatMap { a =>
-          ids.map { id =>
-            AddressSet(a.base | id, a.mask)
-          }
-        })
-      })
-    }
-  )
+    clientFn  = { cp => cp },
+    managerFn = { mp => mp.copy(managers = mp.managers.map { m => m.copy(
+      address = m.address.flatMap { a => ids.map { id => 
+        AddressSet(a.base | id, a.mask) } })})})
 
   lazy val module = new LazyModuleImp(this) {
-    (node.in zip node.out) foreach {
-      case ((in, edgeIn), (out, edgeOut)) =>
-        out <> in
-        out.a.bits.address := ~(~in.a.bits.address | mask.U)
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out <> in
+      out.a.bits.address := ~(~in.a.bits.address | mask.U)
 
-        // We can't support probes; we don't have the required information
-        edgeOut.manager.managers.foreach { m =>
-          require(
-            m.regionType < RegionType.TRACKED,
-            s"${m.name} has regionType ${m.regionType}, which requires Probe support a RegionReplicator cannot provide"
-          )
-        }
+      // We can't support probes; we don't have the required information
+      edgeOut.manager.managers.foreach { m =>
+        require (m.regionType < RegionType.TRACKED, s"${m.name} has regionType ${m.regionType}, which requires Probe support a RegionReplicator cannot provide")
+      }
     }
   }
 }

@@ -3,9 +3,9 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.util.{ Irrevocable, IrrevocableIO }
 
-object AXI4Parameters {
+object AXI4Parameters
+{
   // These are all fixed by the AXI4 standard:
   val lenBits   = 8
   val sizeBits  = 3

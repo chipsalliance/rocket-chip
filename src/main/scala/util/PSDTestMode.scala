@@ -4,13 +4,12 @@ package freechips.rocketchip.util
 
 import Chisel._
 import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy.{ BundleBridgeEphemeralNode, ValName }
+import freechips.rocketchip.diplomacy.{BundleBridgeEphemeralNode, ValName}
 
 case object IncludePSDTest extends Field[Boolean](false)
-case object PSDTestModeBroadcastKey
-    extends Field(
-      BundleBridgeEphemeralNode[PSDTestMode]()(ValName("global_psd_test_mode"))
-    )
+case object PSDTestModeBroadcastKey extends Field(
+  BundleBridgeEphemeralNode[PSDTestMode]()(ValName("global_psd_test_mode"))
+)
 
 class PSDTestMode extends Bundle {
   val test_mode       = Bool()

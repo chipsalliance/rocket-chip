@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 import freechips.rocketchip.diplomacy.ResourceBindings
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.rocket.{ BTBParams, DCacheParams, ICacheParams }
+import freechips.rocketchip.rocket.{BTBParams, DCacheParams, ICacheParams}
 
 case class OMRocketBranchPredictor(
   nBtbEntries: Int,
@@ -34,16 +34,17 @@ case class OMRocketCore(
 ) extends OMCore
 
 object OMBTB {
-  def makeOMI(p: BTBParams): OMRocketBranchPredictor =
+  def makeOMI(p: BTBParams): OMRocketBranchPredictor = {
     OMRocketBranchPredictor(
       nBtbEntries = p.nEntries,
       nBhtEntries = p.bhtParams.map(_.nEntries).getOrElse(0),
       nRasEntries = p.nRAS
     )
+  }
 }
 
 object OMCaches {
-  def dcache(p: DCacheParams, resourceBindings: ResourceBindings, memories: () => Seq[OMSRAM]): OMDCache =
+  def dcache(p: DCacheParams, resourceBindings: ResourceBindings, memories: () => Seq[OMSRAM]): OMDCache = {
     OMDCache(
       memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DTIM", resourceBindings),
       interrupts = Nil,
@@ -54,10 +55,11 @@ object OMCaches {
       dataECC = p.dataECC.map(OMECC.fromString),
       tagECC = p.tagECC.map(OMECC.fromString),
       nTLBEntries = p.nTLBEntries,
-      memories = memories
+      memories = memories,
     )
+  }
 
-  def icache(p: ICacheParams, resourceBindings: ResourceBindings, memories: () => Seq[OMSRAM]): OMICache =
+  def icache(p: ICacheParams, resourceBindings: ResourceBindings, memories: () => Seq[OMSRAM]): OMICache = {
     OMICache(
       memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", resourceBindings),
       interrupts = Nil,
@@ -68,8 +70,9 @@ object OMCaches {
       dataECC = p.dataECC.map(OMECC.fromString),
       tagECC = p.tagECC.map(OMECC.fromString),
       nTLBEntries = p.nTLBEntries,
-      maxTimSize = p.nSets * (p.nWays - 1) * p.blockBytes,
-      memories = memories
+      maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes,
+      memories = memories,
     )
+  }
 
 }

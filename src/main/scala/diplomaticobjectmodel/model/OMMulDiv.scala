@@ -15,29 +15,22 @@ case class OMMulDiv(
   _types: Seq[String] = Seq("OMMulDiv", "OMComponent", "OMCompoundType")
 ) extends OMComponent
 
+
 object OMMulDiv {
   def makeOMI(md: MulDivParams, xLen: Int): OMMulDiv = {
     val mulMinLatency =
       if (md.mulUnroll > 0) {
-        if (md.mulEarlyOut) {
-          2
-        } else {
-          xLen / md.mulUnroll
-        }
-      } else {
-        xLen
+        if (md.mulEarlyOut) { 2 }
+        else { xLen/md.mulUnroll }
       }
+      else { xLen }
 
     val divMinLatency =
       if (md.divUnroll > 0) {
-        if (md.divEarlyOut) {
-          3
-        } else {
-          2
-        }
-      } else {
-        xLen
+        if (md.divEarlyOut) { 3 }
+        else { 2 }
       }
+      else { xLen }
 
     OMMulDiv(
       divideBitsPerCycle = md.divUnroll,

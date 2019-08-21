@@ -7,14 +7,14 @@ import chisel3.util.HasBlackBoxResource
 import chisel3.experimental.withClock
 
 /** This black-boxes a Clock Divider by 2.
- * The output clock is phase-aligned to the input clock.
- * If you use this in synthesis, make sure your sdc
- * declares that you want it to do the same.
- *
- * Because Chisel does not support
- * blocking assignments, it is impossible
- * to create a deterministic divided clock.
- */
+  * The output clock is phase-aligned to the input clock.
+  * If you use this in synthesis, make sure your sdc
+  * declares that you want it to do the same.
+  *
+  * Because Chisel does not support
+  * blocking assignments, it is impossible
+  * to create a deterministic divided clock.
+  */
 class ClockDivider2 extends BlackBox with HasBlackBoxResource {
   val io = new Bundle {
     val clk_out = Clock(OUTPUT)
@@ -44,9 +44,8 @@ class Pow2ClockDivider(pow2: Int) extends Module {
   } else {
     val dividers = Seq.fill(pow2) { Module(new ClockDivider2) }
 
-    dividers.init.zip(dividers.tail).map {
-      case (last, next) =>
-        next.io.clk_in := last.io.clk_out
+    dividers.init.zip(dividers.tail).map { case (last, next) =>
+      next.io.clk_in := last.io.clk_out
     }
 
     dividers.head.io.clk_in := clock
@@ -55,6 +54,6 @@ class Pow2ClockDivider(pow2: Int) extends Module {
 }
 
 object Pow2ClockDivider {
-  def apply(pow2: Int): Clock                  = Module(new Pow2ClockDivider(pow2)).io.clock_out
+  def apply(pow2: Int): Clock = Module(new Pow2ClockDivider(pow2)).io.clock_out
   def apply(clock_in: Clock, pow2: Int): Clock = withClock(clock_in) { apply(pow2) }
 }

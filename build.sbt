@@ -7,25 +7,28 @@ import sys.process._
 
 enablePlugins(PackPlugin)
 
+val scalaMain = "2.12.9"
+
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version := "1.2-SNAPSHOT",
-  scalaVersion := "2.12.8",
-  crossScalaVersions := Seq("2.12.8"),
+  scalaVersion := scalaMain,
+  crossScalaVersions := Seq(scalaMain),
   parallelExecution in Global := false,
   traceLevel := 15,
   maxErrors := 3,
-  addCompilerPlugin(scalafixSemanticdb),
+  scalacOptions ++= Seq(
+    "-Yrangepos",
+    "-Ywarn-unused-import"
+  ),
   scalacOptions ++= Seq(
     "-deprecation",
     "-unchecked",
-    "-Xsource:2.11",
-    "-Yrangepos",
-    "-Ywarn-unused",
-    "-Ywarn-unused-import"
+    "-Xsource:2.11"
   ),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect"   % scalaVersion.value),
-  libraryDependencies ++= Seq("org.json4s"     %% "json4s-jackson" % "3.6.1"),
+  libraryDependencies ++= Seq("org.json4s"     %% "json4s-jackson" % "3.6.7"),
+addCompilerPlugin(scalafixSemanticdb),
   addCompilerPlugin("org.scalamacros"          % "paradise"        % "2.1.1" cross CrossVersion.full),
   publishMavenStyle := true,
   publishArtifact in Test := false,
@@ -76,7 +79,7 @@ lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance
   .settings(publishArtifact := false)
 lazy val hardfloat = dependOnChisel(project)
   .settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.12.8"))
+  .settings(crossScalaVersions := Seq(scalaMain))
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros"))
   .settings(commonSettings)
@@ -118,8 +121,9 @@ lazy val chipSettings = Seq(
   }
 )
 
-addCommandAlias("fix", "all compile:scalafix test:scalafix")
-//addCommandAlias("lint", "all compile:scalafixTest test:scalafixTest")
 
-addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
-addCommandAlias("chk", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
+addCommandAlias("com", "all compile test:compile it:compile")
+addCommandAlias("lint", "; compile:scalafix --check ; test:scalafix --check")
+addCommandAlias("fix", "all compile:scalafix test:scalafix")
+addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; test:scalafmtAll")
+addCommandAlias("chk", "; scalafmtSbtCheck; scalafmtCheck; test:scalafmtCheck")

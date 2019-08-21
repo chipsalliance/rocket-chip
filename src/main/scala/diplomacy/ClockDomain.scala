@@ -2,5 +2,4 @@
 
 package freechips.rocketchip.diplomacy
 
-trait HasClockDomainCrossing extends LazyScope { this: LazyModule =>
-}
+trait HasClockDomainCrossing extends LazyScope { this: LazyModule => }

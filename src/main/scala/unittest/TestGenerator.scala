@@ -6,7 +6,8 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
-abstract class LazyUnitTest(implicit p: Parameters) extends LazyModule { self =>
+abstract class LazyUnitTest(implicit p: Parameters) extends LazyModule
+{ self =>
   protected def finished: Bool
 
   lazy val module = new LazyModuleImp(this) {
@@ -16,12 +17,14 @@ abstract class LazyUnitTest(implicit p: Parameters) extends LazyModule { self =>
 }
 
 // FYI, you can call .finished on a Seq[LazyUnitTest]
-class TestGenerator(gen: LazyModule => Seq[LazyUnitTest]) {
-  def apply(lm: LazyModule)    = gen(lm)
-  def ++(other: TestGenerator) = new TestGenerator(gen = lm => gen(lm) ++ other(lm))
+class TestGenerator(gen: LazyModule => Seq[LazyUnitTest])
+{
+  def apply(lm: LazyModule) = gen(lm)
+  def ++ (other: TestGenerator) = new TestGenerator(gen = lm => gen(lm) ++ other(lm))
 }
 
-object TestGenerator {
+object TestGenerator
+{
   def apply(matcher: PartialFunction[LazyModule, Seq[LazyUnitTest]]): TestGenerator =
     new TestGenerator(gen = matcher.lift(_).getOrElse(Nil))
   def recurse(other: TestGenerator): TestGenerator = {

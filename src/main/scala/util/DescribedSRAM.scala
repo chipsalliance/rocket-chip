@@ -3,16 +3,11 @@
 
 package freechips.rocketchip.util
 
-import chisel3.internal.InstanceId
-import freechips.rocketchip.util.Annotated
-import freechips.rocketchip.diplomacy.DiplomaticSRAM
-import chisel3.{ Data, SyncReadMem, Vec }
+import chisel3.{Data, SyncReadMem, Vec}
 import chisel3.util.log2Ceil
-import freechips.rocketchip.amba.axi4.AXI4RAM
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 
-import scala.math.log10
 
 object DescribedSRAM {
   def apply[T <: Data](
@@ -28,7 +23,7 @@ object DescribedSRAM {
 
     val granWidth = data match {
       case v: Vec[_] => v.head.getWidth
-      case d         => d.getWidth
+      case d => d.getWidth
     }
 
     val uid = 0

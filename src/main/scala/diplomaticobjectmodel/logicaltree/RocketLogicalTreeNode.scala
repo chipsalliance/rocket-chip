@@ -2,10 +2,11 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.{ LazyModule, ResourceBindings, ResourceBindingsMap, SimpleDevice }
+import freechips.rocketchip.diplomacy.{ResourceBindings, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.rocket.{ DCacheParams, Frontend, ICacheParams, ScratchpadSlavePort }
-import freechips.rocketchip.tile.{ RocketTileParams, TileParams, XLen }
+import freechips.rocketchip.rocket.{DCacheParams, ICacheParams, ScratchpadSlavePort}
+import freechips.rocketchip.tile.RocketTileParams
+
 
 /**
  * Represents either a DCache or a DTIM.
@@ -13,11 +14,10 @@ import freechips.rocketchip.tile.{ RocketTileParams, TileParams, XLen }
  * The data memory subsystem is assumed to be a DTIM if and only if deviceOpt is
  * a Some(SimpleDevice), as a DCache would not create a Device.
  */
-class DCacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], params: DCacheParams)
-    extends LogicalTreeNode(() => deviceOpt) {
+class DCacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], params: DCacheParams) extends LogicalTreeNode(() => deviceOpt) {
   def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent]): Seq[OMComponent] = {
-    deviceOpt.foreach { device =>
-      require(!resourceBindings.map.isEmpty, s"""ResourceBindings map for ${device.devname} is empty""")
+    deviceOpt.foreach {
+      device => require(!resourceBindings.map.isEmpty, s"""ResourceBindings map for ${device.devname} is empty""")
     }
 
     Seq(
@@ -26,20 +26,23 @@ class DCacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[Simpl
   }
 }
 
-class ICacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams)
-    extends LogicalTreeNode(() => deviceOpt) {
-  def getOMICacheFromBindings(resourceBindings: ResourceBindings): OMICache =
+
+class ICacheLogicalTreeNode(memories: () => Seq[OMSRAM], deviceOpt: Option[SimpleDevice], icacheParams: ICacheParams) extends LogicalTreeNode(() => deviceOpt) {
+  def getOMICacheFromBindings(resourceBindings: ResourceBindings): OMICache = {
     getOMComponents(resourceBindings) match {
-      case Seq()  => throw new IllegalArgumentException
+      case Seq() => throw new IllegalArgumentException
       case Seq(h) => h.asInstanceOf[OMICache]
-      case _      => throw new IllegalArgumentException
+      case _ => throw new IllegalArgumentException
     }
+  }
 
-  override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] =
+  override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
     Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings, memories))
+  }
 
-  def iCache(resourceBindings: ResourceBindings): OMICache =
+  def iCache(resourceBindings: ResourceBindings): OMICache = {
     OMCaches.icache(icacheParams, resourceBindings, memories)
+  }
 }
 
 class RocketLogicalTreeNode(
@@ -49,13 +52,12 @@ class RocketLogicalTreeNode(
   XLen: Int
 ) extends LogicalTreeNode(() => Some(device)) {
 
-  def getOMInterruptTargets(): Seq[OMInterruptTarget] =
-    Seq(
-      OMInterruptTarget(
-        hartId = rocketParams.hartId,
-        modes = OMModes.getModes(rocketParams.core.useVM)
-      )
-    )
+  def getOMInterruptTargets(): Seq[OMInterruptTarget] = {
+    Seq(OMInterruptTarget(
+      hartId = rocketParams.hartId,
+      modes = OMModes.getModes(rocketParams.core.useVM)
+    ))
+  }
 
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     val coreParams = rocketParams.core
@@ -66,38 +68,33 @@ class RocketLogicalTreeNode(
     // Expect that one of the components passed in is the ICache.
     val omICache = components.collectFirst { case x: OMICache => x }.get
 
-    Seq(
-      OMRocketCore(
-        isa = OMISA.rocketISA(coreParams, XLen),
-        mulDiv = coreParams.mulDiv.map { md =>
-          OMMulDiv.makeOMI(md, XLen)
-        },
-        fpu = coreParams.fpu.map { f =>
-          OMFPU(fLen = f.fLen)
-        },
-        performanceMonitor = PerformanceMonitor.perfmon(coreParams),
-        pmp = OMPMP.pmp(coreParams),
-        documentationName = rocketParams.name.getOrElse("rocket"),
-        hartIds = Seq(rocketParams.hartId),
-        hasVectoredInterrupts = true,
-        interruptLatency = 4,
-        nLocalInterrupts = coreParams.nLocalInterrupts,
-        nBreakpoints = coreParams.nBreakpoints,
-        branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
-        dcache = Some(omDCache),
-        icache = Some(omICache),
-        hasClockGate = coreParams.clockGate,
-        hasSCIE = coreParams.useSCIE
-      )
-    )
+    Seq(OMRocketCore(
+      isa = OMISA.rocketISA(coreParams, XLen),
+      mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, XLen)},
+      fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
+      performanceMonitor = PerformanceMonitor.perfmon(coreParams),
+      pmp = OMPMP.pmp(coreParams),
+      documentationName = rocketParams.name.getOrElse("rocket"),
+      hartIds = Seq(rocketParams.hartId),
+      hasVectoredInterrupts = true,
+      interruptLatency = 4,
+      nLocalInterrupts = coreParams.nLocalInterrupts,
+      nBreakpoints = coreParams.nBreakpoints,
+      branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
+      dcache = Some(omDCache),
+      icache = Some(omICache),
+      hasClockGate = coreParams.clockGate,
+      hasSCIE = coreParams.useSCIE
+    ))
   }
 }
 
-class RocketTileLogicalTreeNode(getOMRocketInterruptTargets: () => Seq[OMInterruptTarget])
-    extends LogicalTreeNode(() => None) {
+class RocketTileLogicalTreeNode(
+  getOMRocketInterruptTargets: () => Seq[OMInterruptTarget]) extends LogicalTreeNode(() => None) {
 
-  def getIndex(cs: Seq[OMComponent]): Seq[(OMComponent, Int)] =
+  def getIndex(cs: Seq[OMComponent]): Seq[(OMComponent, Int)] = {
     cs.zipWithIndex.filter(_._1.isInstanceOf[OMPLIC])
+  }
 
   def updatePlic(plic: OMPLIC): OMPLIC = {
     val omRocketInterruptTargets: Seq[OMInterruptTarget] = getOMRocketInterruptTargets()
@@ -112,12 +109,14 @@ class RocketTileLogicalTreeNode(getOMRocketInterruptTargets: () => Seq[OMInterru
 
     cs.flatMap {
       case (plic, index) =>
-        val omplic      = plic.asInstanceOf[OMPLIC]
+        val omplic = plic.asInstanceOf[OMPLIC]
         val updatedPlic = updatePlic(omplic)
         components.updated(index, updatedPlic)
     }
   }
 
-  override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] =
+  override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     components
+  }
 }
+
