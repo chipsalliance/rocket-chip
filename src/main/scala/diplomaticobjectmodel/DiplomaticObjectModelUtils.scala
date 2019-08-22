@@ -167,7 +167,7 @@ object DiplomaticObjectModelAddressing {
     depth: BigInt,
     granWidth: Int,
     uid: Int,
-    rtlModule: OMRTLModule = OMRTLModule("")
+    rtlModule: OMRTLModule = OMRTLModule()
   ): OMSRAM = {
     OMSRAM(
       description = desc,

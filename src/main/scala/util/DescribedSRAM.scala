@@ -39,7 +39,7 @@ object DescribedSRAM {
       depth = size,
       granWidth = granWidth,
       uid = uid,
-      rtlModule = OMRTLModule(name)
+      rtlModule = OMRTLModule(moduleName=name)
     )
 
     Annotated.srams(
