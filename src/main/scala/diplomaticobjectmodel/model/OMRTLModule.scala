@@ -41,7 +41,8 @@ case class OMResetVector(
 case class OMRTLInterface(
   clocks: List[OMClock],
   clockRelationships: List[OMClockRelationship],
-  resets: List[OMRTLReset]
+  resets: List[OMRTLReset],
+  _types: Seq[String] = Seq("OMRTLInterface")
 ) extends RTLComponent
 
 
@@ -56,5 +57,6 @@ case class  OMRTLModule(
   moduleName: String = "",
   instanceName: Option[String] = None,  // TODO: This does not exist for the top-level module because the top-level module is the only one that is not instantiated
   hierarchicalId: Option[String] = None,  // Full dotted path from the root, where the root is described as a module name while all other path components are instance names
-  interface: OMRTLInterface = OMRTLInterface(List(), List(), List())
+  interface: OMRTLInterface = OMRTLInterface(List(), List(), List()),
+  _types: Seq[String] = Seq("OMRTLModule", "OMRTLComponent")
 )
