@@ -45,6 +45,8 @@ trait CoreParams {
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
+
+  def dcacheReqTagBits: Int = 6
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -77,9 +79,6 @@ trait HasCoreParameters extends HasTileParameters {
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable
-
-  val coreDCacheReqTagBits = 6
-  val dcacheReqTagBits = coreDCacheReqTagBits + log2Ceil(dcacheArbPorts)
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.

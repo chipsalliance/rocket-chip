@@ -344,7 +344,7 @@ class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(imp
       new BlackBox( Map( "xLen" -> IntParam(xLen),
                          "PRV_SZ" -> IntParam(PRV.SZ),
                          "coreMaxAddrBits" -> IntParam(coreMaxAddrBits),
-                         "dcacheReqTagBits" -> IntParam(dcacheReqTagBits),
+                         "dcacheReqTagBits" -> IntParam(coreParams.dcacheReqTagBits),
                          "M_SZ" -> IntParam(M_SZ),
                          "mem_req_bits_size_width" -> IntParam(roccIo.mem.req.bits.size.getWidth),
                          "coreDataBits" -> IntParam(coreDataBits),

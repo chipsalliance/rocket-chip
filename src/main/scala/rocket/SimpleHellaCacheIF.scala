@@ -20,7 +20,7 @@ class SimpleHellaCacheIFReplayQueue(depth: Int)
     with HasL1HellaCacheParameters {
   val io = new Bundle {
     val req = Decoupled(new HellaCacheReq).flip
-    val nack = Valid(Bits(width = coreDCacheReqTagBits)).flip
+    val nack = Valid(Bits(width = coreParams.dcacheReqTagBits)).flip
     val resp = Valid(new HellaCacheResp).flip
     val replay = Decoupled(new HellaCacheReq)
   }

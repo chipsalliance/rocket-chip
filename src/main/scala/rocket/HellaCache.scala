@@ -94,7 +94,7 @@ abstract class L1HellaCacheBundle(implicit val p: Parameters) extends Parameteri
 
 trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
-  val tag  = Bits(width = dcacheReqTagBits)
+  val tag  = Bits(width = coreParams.dcacheReqTagBits + log2Ceil(dcacheArbPorts))
   val cmd  = Bits(width = M_SZ)
   val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
   val signed = Bool()
