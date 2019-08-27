@@ -195,7 +195,7 @@ class BusMemoryLogicalTreeNode(
   }
 }
 
-class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
+class SubsystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
   extends LogicalTreeNode(() => None) {
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
