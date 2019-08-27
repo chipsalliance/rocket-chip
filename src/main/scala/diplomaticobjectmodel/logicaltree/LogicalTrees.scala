@@ -74,7 +74,7 @@ class DebugLogicalTreeNode(
         hasSBAccess64 = cfg.maxSupportedSBAccess >= 64,
         hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
         hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
-        authenticationType = NONE,
+        authenticationType = (if (cfg.hasAuthentication) PASSTHRU else NONE),
         nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
         hasHartInfo = true,
         hasAbstractauto = true,

@@ -30,7 +30,7 @@ import SBErrorCode._
 
 object SystemBusAccessModule
 {
-  def apply(sb2tl: SBToTL, dmactive: Bool)(implicit p: Parameters):
+  def apply(sb2tl: SBToTL, dmactive: Bool, dmAuthenticated: Bool)(implicit p: Parameters):
     (Seq[RegField], Seq[Seq[RegField]], Seq[Seq[RegField]]) =
   {
     import SBErrorCode._
@@ -111,7 +111,7 @@ object SystemBusAccessModule
 
     val sbaddrfields: Seq[Seq[RegField]] = SBADDRESSFieldsReg.zipWithIndex.map { case(a,i) =>
       if(hasAddr(i)) {
-        when (~dmactive) {
+        when (~dmactive || ~dmAuthenticated) {
           a := 0.U(32.W)
         }.otherwise {
           a := Mux(SBADDRESSWrEn(i) && !SBCSRdData.sberror && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror, SBADDRESSWrData(i),
@@ -151,7 +151,7 @@ object SystemBusAccessModule
       if(hasData(i)) {
         // For data registers, load enable per-byte
         for (j <- 0 to 3) {
-          when (~dmactive) {
+          when (~dmactive || ~dmAuthenticated) {
             d(j) := 0.U(8.W)
           }.otherwise {
             d(j) := Mux(SBDATAWrEn(i) && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror, SBDATAWrData(i)(8*j+7,8*j),
@@ -192,14 +192,14 @@ object SystemBusAccessModule
     sbAccessError.suggestName("sbAccessError")
     sbAlignmentError.suggestName("sbAlignmentError")
 
-    sb2tl.module.io.wrEn     := tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
-    sb2tl.module.io.rdEn     := tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
+    sb2tl.module.io.wrEn     := dmAuthenticated && tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
+    sb2tl.module.io.rdEn     := dmAuthenticated && tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
     sb2tl.module.io.sizeIn   := SBCSFieldsReg.sbaccess
     sb2tl.module.io.dmactive := dmactive
 
     val sbBusy = (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
 
-    when (~dmactive) {
+    when (~dmactive || ~dmAuthenticated) {
       SBCSFieldsReg := SBCSFieldsRegReset
     }.otherwise {
       SBCSFieldsReg.sbbusyerror     := Mux(sbbusyerrorWrEn && SBCSWrData.sbbusyerror,     false.B, // W1C
@@ -214,7 +214,7 @@ object SystemBusAccessModule
 
     // sbErrorReg has a per-bit load enable since each bit can be individually cleared by writing a 1 to it
     val sbErrorReg = Reg(Vec(4, UInt(1.W)))
-    when(~dmactive) {
+    when(~dmactive || ~dmAuthenticated) {
       for (i <- 0 until 3)
         sbErrorReg(i) := 0.U
     }.otherwise {
@@ -236,6 +236,10 @@ object SystemBusAccessModule
     SBCSRdData.sbbusy      := sbBusy
     SBCSRdData.sberror     := sbErrorReg.asUInt
     
+    when (~dmAuthenticated) {    // Read value must be 0 if not authenticated
+      SBCSRdData := 0.U.asTypeOf(new SBCSFields())
+    }
+
     cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
     cover(SBCSFieldsReg.sbbusy === 3.U, "SBCS Cover", "sbbusyerror alignment error")
 
