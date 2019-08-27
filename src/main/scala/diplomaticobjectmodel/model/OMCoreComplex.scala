@@ -10,6 +10,6 @@ case object CoreComplexResetTypeSeparateCoreAndUncoreSynchronous extends OMCoreC
 case class OMCoreComplex(
   components: Seq[OMComponent],
   documentationName: String,
-  resetType: OMCoreComplexResetType,
+  resetType: Option[OMCoreComplexResetType],
   _types: Seq[String] = Seq("OMCoreComplex", "OMComponent", "OMCompoundType")
 ) extends OMComponent
