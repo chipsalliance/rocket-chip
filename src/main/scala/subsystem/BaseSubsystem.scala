@@ -90,7 +90,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
     }
   }
 
-  val logicalTreeNode = new SubSystemLogicalTreeNode()
+  lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
 }
 
 
