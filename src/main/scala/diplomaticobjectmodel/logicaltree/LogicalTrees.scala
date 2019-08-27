@@ -201,7 +201,8 @@ class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => S
     List(
       OMCoreComplex(
         components = components,
-        documentationName = ""
+        documentationName = "",
+        resetType = freechips.rocketchip.diplomaticobjectmodel.model.CoreComplexResetTypeUnspecified
       )
     )
   }
