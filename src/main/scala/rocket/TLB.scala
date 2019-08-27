@@ -283,7 +283,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val cmd_read = isRead(io.req.bits.cmd)
   val cmd_write = isWrite(io.req.bits.cmd)
   val cmd_write_perms = cmd_write ||
-    Bool(coreParams.haveCFlush) && io.req.bits.cmd === M_FLUSH_ALL // not a write, but needs write permissions
+    io.req.bits.cmd.isOneOf(M_FLUSH_ALL, M_WOK) // not a write, but needs write permissions
 
   val lrscAllowed = Mux(Bool(usingDataScratchpad || usingAtomicsOnlyForIO), 0.U, c_array)
   val ae_array =
