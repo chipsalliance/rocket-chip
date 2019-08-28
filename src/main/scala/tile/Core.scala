@@ -19,6 +19,7 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
+  val useVector: Boolean = false
   val useSCIE: Boolean
   val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
@@ -47,6 +48,10 @@ trait CoreParams {
   def lrscCycles: Int
 
   def dcacheReqTagBits: Int = 6
+
+  def vLen: Int = 0
+  def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
+  def vMemDataBits: Int = 0
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -60,6 +65,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
+  val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
 
   val retireWidth = coreParams.retireWidth
@@ -69,7 +75,7 @@ trait HasCoreParameters extends HasTileParameters {
   val fetchBytes = coreParams.fetchBytes
   val coreInstBits = coreParams.instBits
   val coreInstBytes = coreInstBits/8
-  val coreDataBits = xLen max fLen
+  val coreDataBits = xLen max fLen max vMemDataBits
   val coreDataBytes = coreDataBits/8
   val coreMaxAddrBits = paddrBits max vaddrBitsExtended
 
@@ -79,6 +85,17 @@ trait HasCoreParameters extends HasTileParameters {
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable
+
+  def vLen = coreParams.vLen
+  def eLen = coreParams.eLen(xLen, fLen)
+  def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
+  def maxVLMax = vLen
+
+  if (usingVector) {
+    require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
+    require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
+    require(vMemDataBits >= eLen && vLen % vMemDataBits == 0, s"vMemDataBits ($vMemDataBits) must divide vLen ($vLen) and be no less than eLen ($eLen)")
+  }
 
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
