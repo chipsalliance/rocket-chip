@@ -24,21 +24,19 @@ class AHBSlaveBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   val hburst    = UInt(OUTPUT, width = params.burstBits)
   val hwrite    = Bool(OUTPUT)
   val hprot     = UInt(OUTPUT, width = params.protBits)
-  val hauser    = if ( params.userBits > 0) Some(UInt(OUTPUT, width = params.userBits)) else None
+  val hauser    = if (params.userBits > 0) Some(UInt(OUTPUT, width = params.userBits)) else None
   val haddr     = UInt(OUTPUT, width = params.addrBits)
 
   // D-phase signals from arbiter to slave
   val hwdata    = UInt(OUTPUT, width = params.dataBits)
 
   // D-phase signals from slave to arbiter
-  val hresp     = Bool(INPUT)
+  val hresp     = UInt(INPUT, width = params.hrespBits)
   val hrdata    = UInt(INPUT, width = params.dataBits)
 
   // Split signals
-/*
-  val hmaster   = UInt(OUTPUT, width = 4)
-  val hsplit    = UInt(INPUT, width = 16)
-*/
+  val hmaster   = if (params.lite) None else Some(UInt(OUTPUT, width = 4))
+  val hsplit    = if (params.lite) None else Some(UInt(INPUT, width = 16))
 
   def tieoff() {
     hrdata.dir match {
@@ -66,12 +64,18 @@ class AHBSlaveBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
 class AHBMasterBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
 {
   // Control signals from master to arbiter
-  val hlock   = Bool(OUTPUT) // AHBSlave: hmastlock
-  val hbusreq = Bool(OUTPUT) // AHBSlave: hsel
+  val hmastlock = if (params.lite) Some(Bool(OUTPUT)) else None
+  val hlock     = if (params.lite) None else Some(Bool(OUTPUT))
+  val hbusreq   = if (params.lite) None else Some(Bool(OUTPUT))
 
   // Flow control from arbiter to master
-  val hgrant  = Bool(INPUT) // AHBSlave: always true
-  val hready  = Bool(INPUT) // AHBSlave: hreadyout
+  val hgrant  = if (params.lite) None else Some(Bool(INPUT))
+  val hready  = Bool(INPUT)
+
+  // Handy methods that don't care about lite
+  def lock():   Bool = if (params.lite) hmastlock.get else hlock.get
+  def busreq(): Bool = if (params.lite) Wire(init = Bool(true)) else hbusreq.get
+  def grant():  Bool = if (params.lite) Wire(init = Bool(true)) else hgrant.get
 
   // A-phase signals from master to arbiter
   val htrans  = UInt(OUTPUT, width = params.transBits)
@@ -79,7 +83,7 @@ class AHBMasterBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   val hburst  = UInt(OUTPUT, width = params.burstBits)
   val hwrite  = Bool(OUTPUT)
   val hprot   = UInt(OUTPUT, width = params.protBits)
-  val hauser  = if ( params.userBits > 0) Some(UInt(OUTPUT, width = params.userBits)) else None
+  val hauser  = if (params.userBits > 0) Some(UInt(OUTPUT, width = params.userBits)) else None
   val haddr   = UInt(OUTPUT, width = params.addrBits)
 
   // D-phase signals from master to arbiter
@@ -92,13 +96,13 @@ class AHBMasterBundle(params: AHBBundleParameters) extends AHBBundleBase(params)
   def tieoff() {
     hrdata.dir match {
       case INPUT =>
-        hgrant    := Bool(false)
+        hgrant.foreach { _ := Bool(false) }
         hready    := Bool(false)
         hresp     := AHBParameters.RESP_OKAY
         hrdata    := UInt(0)
       case OUTPUT =>
-        hlock     := Bool(false)
-        hbusreq   := Bool(false)
+        lock()     := Bool(false)
+        busreq()   := Bool(false)
         htrans    := AHBParameters.TRANS_IDLE
         hsize     := UInt(0)
         hburst    := AHBParameters.BURST_SINGLE

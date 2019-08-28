@@ -17,6 +17,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
     if (node.edges.in.size >= 1) {
       require (node.edges.in.size == 1, "AHBFanout does not support multiple masters")
       require (node.edges.out.size > 0, "AHBFanout requires at least one slave")
+      node.edges.out.foreach { eo => require (eo.slave.lite, s"AHBFanout only supports AHB-Lite slaves (${eo.slave.slaves.map(_.name)})") }
 
       // Require consistent bus widths
       val (io_out, edgesOut) = node.out.unzip
@@ -39,6 +40,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
       (a_sel zip io_out) foreach { case (sel, out) =>
         out := in
         out.hsel := in.hsel && sel
+        out.hmaster.map { _ := UInt(0) }
       }
 
       in.hreadyout := !Mux1H(d_sel, io_out.map(!_.hreadyout))
@@ -61,21 +63,22 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
       val (in,  _) = node.in(0)
       val (out, _) = node.out(0)
 
-      out.hmastlock := in.hlock
-      out.hsel      := in.hbusreq
+      out.hmastlock := in.lock()
+      out.hsel      := in.busreq()
       out.hready    := out.hreadyout
       in.hready     := out.hreadyout
-      in.hgrant     := Bool(true)
       out.htrans    := in.htrans
       out.hsize     := in.hsize
       out.hburst    := in.hburst
       out.hwrite    := in.hwrite
       out.hprot     := in.hprot
-      out.hauser.map { _ := in.hauser.get }
       out.haddr     := in.haddr
       out.hwdata    := in.hwdata
       in.hrdata     := out.hrdata
       in.hresp      := out.hresp // zero-extended
+      in.hgrant.foreach { _ := Bool(true) }
+      out.hauser.foreach { _ := in.hauser.get }
+      out.hmaster.foreach { _ := UInt(0) }
     }
   }
 }

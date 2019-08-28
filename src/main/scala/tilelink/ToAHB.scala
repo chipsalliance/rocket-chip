@@ -15,7 +15,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
     val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath,userBits = c.userBits) }
     AHBMasterPortParameters(masters)
   },
-  uFn = { case AHBSlavePortParameters(slaves, beatBytes) =>
+  uFn = { case AHBSlavePortParameters(slaves, beatBytes, lite) =>
     val managers = slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
@@ -152,21 +152,21 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       // For SPLIT/RETRY, a burst being reissued from D-phase state
       val retry = Wire(Bool())
 
-      val granted   = RegEnable(out.hgrant, out.hready)
+      val granted   = RegEnable(out.grant(), out.hready)
       val rebuild   = RegInit(Bool(false)) // rewrite as NSEQ       (for next-beat  EBT)
       val increment = RegInit(Bool(false)) // rewrite as BURST_INCR (for same-burst EBT)
       when (out.hready && granted && !retry) {
-        when (send.send)   { rebuild := Bool(false) }
-        when (!out.hgrant) { rebuild := Bool(true) }
-        when (out.hbusreq && !out.hgrant) { increment := Bool(true) }
-        when (send.send && send.last)     { increment := Bool(false) }
+        when (send.send)    { rebuild := Bool(false) }
+        when (!out.grant()) { rebuild := Bool(true) }
+        when (out.busreq() && !out.grant()) { increment := Bool(true) }
+        when (send.send && send.last)       { increment := Bool(false) }
       }
 
-      out.hlock   := Bool(false) // for now
+      out.lock()  := Bool(false) // for now
+      out.busreq():= (send.send && !send.hint) || !send.first
       out.htrans  := Mux(send.send && !send.hint,
                        Mux(send.first || rebuild, TRANS_NONSEQ, TRANS_SEQ),
                        Mux(send.first || rebuild, TRANS_IDLE,   TRANS_BUSY))
-      out.hbusreq := (send.send && !send.hint) || !send.first
       out.hwrite  := send.write
       out.haddr   := send.addr
       out.hsize   := send.hsize
@@ -218,7 +218,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       assert (!d_valid || d_flow || !a_flow); // (d_valid && !d_flow) => !a_flow
 
       // On RETRY, we stall the pipeline and bypass the D-phase state back to A-phase
-      if (!supportsRETRY) {
+      if (edgeOut.slave.lite) {
+        retry := Bool(false)
+      } else if (!supportsRETRY) {
         assert (!d_flow || !out.hresp(1), "TLToAHB not configured with support for SPLIT/RETRY responses")
         retry := Bool(false)
       } else {
@@ -248,8 +250,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
         }
 
         when (d_retry) {
+          out.busreq():= Bool(true)
           out.htrans  := Mux(d_idle, TRANS_IDLE, TRANS_NONSEQ)
-          out.hbusreq := Bool(true)
           out.hwrite  := d_write
           out.haddr   := d_addr
           out.hsize   := d_hsize
