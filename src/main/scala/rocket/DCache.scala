@@ -476,8 +476,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val access_address = s2_req.addr
   val a_size = s2_req.size
   val a_data = Fill(beatWords, pstore1_data)
+  val a_mask = pstore1_mask << (access_address.extract(beatBytes.log2-1, wordBytes.log2) << 3)
   val get     = edge.Get(a_source, access_address, a_size)._2
   val put     = edge.Put(a_source, access_address, a_size, a_data)._2
+  val putpartial = edge.Put(a_source, access_address, a_size, a_data, a_mask)._2
   val atomics = if (edge.manager.anySupportLogical) {
     MuxLookup(s2_req.cmd, Wire(new TLBundleA(edge.bundle)), Array(
       M_XA_SWAP -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.SWAP)._2,
@@ -496,7 +498,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   tl_out_a.valid := !io.cpu.s2_kill && ((s2_valid_cached_miss && (Bool(cacheParams.acquireBeforeRelease) || !s2_victim_dirty)) || s2_valid_uncached_pending)
-  tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param), Mux(!s2_write, get, Mux(!s2_read, put, atomics)))
+  tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param),
+    Mux(!s2_write, get,
+    Mux(s2_req.cmd === M_PWR, putpartial,
+    Mux(!s2_read, put, atomics))))
 
   // Set pending bits for outstanding TileLink transaction
   val a_sel = UIntToOH(a_source, maxUncachedInFlight+mmioOffset) >> mmioOffset
@@ -814,6 +819,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     })
   } else if (!usingAtomics) {
     assert(!(s1_valid_masked && s1_read && s1_write), "unsupported D$ operation")
+  }
+
+  if (coreParams.useVector) {
+    edge.manager.managers.foreach { m =>
+      // Statically ensure that no-allocate accesses are permitted.
+      // We could consider turning some of these into dynamic PMA checks.
+      require(!m.supportsAcquireB || m.supportsGet, "With a vector unit, cacheable memory must support Get")
+      require(!m.supportsAcquireT || m.supportsPutPartial, "With a vector unit, cacheable memory must support PutPartial")
+      require(!m.supportsPutFull || m.supportsPutPartial, "With a vector unit, writable memory must support PutPartial")
+    }
   }
 
   // flushes
