@@ -119,18 +119,19 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   val s2_req_fire = Reg(next = s1_req_fire)
   val s1_req_tag = Reg(next = io.cache.req.bits.tag)
   val s2_req_tag = Reg(next = s1_req_tag)
-  val s2_kill = Reg(next = io.cache.s1_kill)
+
+  assert(!RegNext(io.cache.s2_nack) || !s2_req_fire || io.cache.s2_nack)
+  assert(!io.cache.s2_nack || !io.cache.req.ready)
 
   io.cache.req <> req_arb.io.out
-  io.cache.s1_kill := io.cache.s2_nack
+  io.cache.s1_kill := false.B
   io.cache.s1_data.data := RegEnable(req_arb.io.out.bits.data, s0_req_fire)
   io.cache.s2_kill := false.B
 
-  replayq.io.nack.valid := (io.cache.s2_nack || s2_kill) && s2_req_fire
+  replayq.io.nack.valid := io.cache.s2_nack && s2_req_fire
   replayq.io.nack.bits := s2_req_tag
   replayq.io.resp := io.cache.resp
   io.requestor.resp := io.cache.resp
 
-  assert(!RegNext(RegNext(io.cache.req.fire())) || !io.cache.s2_xcpt.asUInt.orR,
-         "SimpleHellaCacheIF exception")
+  assert(!s2_req_fire || !io.cache.s2_xcpt.asUInt.orR, "SimpleHellaCacheIF exception")
 }

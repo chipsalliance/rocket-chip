@@ -959,7 +959,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   amoalu.io.rhs := s2_req.data
 
   // nack it like it's hot
-  val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss ||
+  val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss || io.cpu.s2_nack ||
                 s1_req.addr(idxMSB,idxLSB) === prober.io.meta_write.bits.idx && !prober.io.req.ready
   val s2_nack_hit = RegEnable(s1_nack, s1_valid || s1_replay)
   when (s2_nack_hit) { mshrs.io.req.valid := Bool(false) }
@@ -976,7 +976,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   // after a nack, block until nack condition resolves to save energy
   val block_miss = Reg(init=Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
-  when (block_miss) {
+  when (block_miss || s1_nack) {
     io.cpu.req.ready := Bool(false)
   }
 
