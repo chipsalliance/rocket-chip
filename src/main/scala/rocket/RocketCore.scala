@@ -11,7 +11,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.scie._
-import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(

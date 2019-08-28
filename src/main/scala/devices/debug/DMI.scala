@@ -5,7 +5,6 @@ package freechips.rocketchip.devices.debug
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 

@@ -6,8 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import scala.math.min
 
 /** Adds a /dev/null slave that generates TL error response messages */
 class TLError(params: DevNullParams, beatBytes: Int = 4)(implicit p: Parameters)

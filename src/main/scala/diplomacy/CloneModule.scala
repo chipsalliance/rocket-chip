@@ -22,7 +22,6 @@ class ClonePorts protected[shim](elts: Data*) extends Record
 
 class CloneModule private (model: RawModule) extends BlackBox
 {
-  import CloneModule._
   override def desiredName = model.name
   val io = IO(new ClonePorts(model.getPorts.map(_.id): _*))
 }

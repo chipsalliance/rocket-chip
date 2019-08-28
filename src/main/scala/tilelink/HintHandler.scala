@@ -3,12 +3,10 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.Repeater
 import freechips.rocketchip.devices.tilelink.TLROM
-import scala.math.min
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
 class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule

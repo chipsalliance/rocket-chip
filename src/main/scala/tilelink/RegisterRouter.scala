@@ -4,15 +4,14 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.experimental.RawModule
-import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegister, OMRegisterMap}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescsAnno, HeterogeneousBag}
+import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescsAnno}
 
-import scala.math.{max, min}
+import scala.math.min
 
 case class TLRegisterNode(
     address:     Seq[AddressSet],
@@ -93,7 +92,7 @@ case class TLRegisterNode(
     OMRegister.convert(mapping = mapping:_*)
   }
 
-  def genRegDescsJson(mapping: RegField.Map*) {
+  def genRegDescsJson(mapping: RegField.Map*): Unit = {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
@@ -186,5 +185,5 @@ trait HasTLControlRegMap { this: RegisterRouter[_] =>
   val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  protected def regmap(mapping: RegField.Map*): Unit = { controlNode.regmap(mapping:_*) }
 }

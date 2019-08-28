@@ -6,7 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
-import scala.math.{min, max}
 import APBParameters._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
@@ -40,7 +39,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.slave.beatBytes
-      val lgBytes = log2Ceil(beatBytes)
+      log2Ceil(beatBytes)
 
       // APB has no cache coherence
       in.b.valid := Bool(false)

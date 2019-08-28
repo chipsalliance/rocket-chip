@@ -3,13 +3,12 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.TLDebugModule
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, CLINTConsts, TLPLIC, PLICKey}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartId, LookupByHartIdImpl, TileParams, HasExternallyDrivenTileConstants}
+import freechips.rocketchip.tile.{BaseTile, TileParams}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -43,7 +42,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   val tileCeaseSinkNode = IntSinkNode(IntSinkPortSimple())
   tileCeaseSinkNode := tileCeaseXbarNode
 
-  protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
+  protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams): Unit = {
     sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
         crossing.master.cork
           .map { u => TLCacheCork(unsafe = u) }
@@ -52,7 +51,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
     }
   }
 
-  protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
+  protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName): Unit = {
 
     DisableMonitors { implicit p =>
       cbus.toTile(tile.tileParams.name) {
@@ -67,7 +66,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
     }
   }
 
-  protected def connectInterrupts(tile: BaseTile, debugOpt: Option[TLDebugModule], clintOpt: Option[CLINT], plicOpt: Option[TLPLIC]) {
+  protected def connectInterrupts(tile: BaseTile, debugOpt: Option[TLDebugModule], clintOpt: Option[CLINT], plicOpt: Option[TLPLIC]): Unit = {
     // Handle all the different types of interrupts crossing to or from the tile:
     // NOTE: The order of calls to := matters! They must match how interrupts
     //       are decoded from tile.intInwardNode inside the tile. For this reason,

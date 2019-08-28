@@ -3,10 +3,8 @@
 
 package freechips.rocketchip.system
 
-import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.diplomacy._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 class WithDebugSBASystem extends freechips.rocketchip.subsystem.WithDebugSBA

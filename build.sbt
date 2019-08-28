@@ -10,14 +10,17 @@ enablePlugins(PackPlugin)
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2-SNAPSHOT",
-  scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.12.4"),
+  scalaVersion := "2.12.9",
+  crossScalaVersions := Seq("2.12.9"),
   parallelExecution in Global := false,
   traceLevel   := 15,
+  maxErrors    := 5,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
+  scalacOptions ++= Seq("-Ywarn-unused", "-Yrangepos"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
-  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
-  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.7"),
+  addCompilerPlugin(scalafixSemanticdb),
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -71,7 +74,7 @@ lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance
   .settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.12.4"))
+  .settings(crossScalaVersions := Seq("2.12.9"))
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
@@ -113,3 +116,6 @@ lazy val chipSettings = Seq(
   }
 )
 
+addCommandAlias("com", "all compile test:compile")
+addCommandAlias("fix", "all compile:scalafix test:scalafix")
+addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; test:scalafmtAll")

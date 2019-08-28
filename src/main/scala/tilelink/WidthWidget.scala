@@ -6,7 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule
@@ -29,7 +28,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val limit   = UIntToOH1(size, keepBits) >> dropBits
 
       val count  = RegInit(UInt(0, width = countBits))
-      val first  = count === UInt(0)
+      count === UInt(0)
       val last   = count === limit || !hasData
       val enable = Seq.tabulate(ratio) { i => !((count ^ UInt(i)) & limit).orR }
 

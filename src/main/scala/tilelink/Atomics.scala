@@ -4,8 +4,6 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 
-import TLMessages._
-import TLPermissions._
 
 class Atomics(params: TLBundleParameters) extends Module
 {

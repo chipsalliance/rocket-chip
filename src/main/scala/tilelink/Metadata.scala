@@ -4,7 +4,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.rocket.constants.MemoryOpConstants
 import freechips.rocketchip.util._
 

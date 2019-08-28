@@ -5,8 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import chisel3.experimental.dontTouch
-import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.subsystem._
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._

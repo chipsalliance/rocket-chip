@@ -6,7 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyModule
 {

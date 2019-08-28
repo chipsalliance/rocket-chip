@@ -108,11 +108,11 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   lazy val longName: String = names.outputBaseName.getOrElse(names.configProject + "." + names.configs)
 
   /** Output FIRRTL, which an external compiler can turn into Verilog. */
-  def generateFirrtl {
+  def generateFirrtl: Unit = {
     Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
   }
 
-  def generateAnno {
+  def generateAnno: Unit = {
     val annotationFile = new File(td, s"$longName.anno.json")
     val af = new FileWriter(annotationFile)
     af.write(JsonProtocol.serialize(circuit.annotations.map(_.toFirrtl)))
@@ -120,23 +120,23 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
   }
 
   /** Output software test Makefrags, which provide targets for integration testing. */
-  def generateTestSuiteMakefrags {
+  def generateTestSuiteMakefrags: Unit = {
     addTestSuites
     writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Subsystem-specific test suites
   }
 
-  def addTestSuites {
+  def addTestSuites: Unit = {
     TestGeneration.addSuite(DefaultTestSuites.groundtest64("p"))
     TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
     TestGeneration.addSuite(DefaultTestSuites.singleRegression)
   }
 
-  def generateROMs {
+  def generateROMs: Unit = {
     writeOutputFile(td, s"$longName.rom.conf", enumerateROMs(circuit))
   }
 
   /** Output files created as a side-effect of elaboration */
-  def generateArtefacts {
+  def generateArtefacts: Unit = {
     ElaborationArtefacts.files.foreach { case (extension, contents) =>
       writeOutputFile(td, s"$longName.$extension", contents ())
     }
@@ -154,7 +154,7 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
 object ElaborationArtefacts {
   var files: Seq[(String, () => String)] = Nil
 
-  def add(extension: String, contents: => String) {
+  def add(extension: String, contents: => String): Unit = {
     files = (extension, () => contents) +: files
   }
 

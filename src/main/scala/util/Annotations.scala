@@ -261,7 +261,7 @@ object GenRegDescsAnno {
 
     val moduleName = rawModule.name
     val baseHex = s"0x${baseAddress.toInt.toHexString}"
-    val displayName = s"${moduleName}.${baseHex}"
+    s"${moduleName}.${baseHex}"
 
     val regFieldSers = mapping.flatMap {
       case (byteOffset, seq) =>

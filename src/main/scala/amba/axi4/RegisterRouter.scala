@@ -7,8 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
-import scala.math.{min,max}
+import freechips.rocketchip.util.MaskGen
 
 case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
@@ -129,5 +128,5 @@ trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
   val controlXing: AXI4InwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  protected def regmap(mapping: RegField.Map*): Unit = { controlNode.regmap(mapping:_*) }
 }

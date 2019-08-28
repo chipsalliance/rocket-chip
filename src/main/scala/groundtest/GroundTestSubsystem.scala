@@ -5,13 +5,10 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMInterrupt
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.tile._
 
-import scala.math.max
 
 case object TileId extends Field[Int]
 

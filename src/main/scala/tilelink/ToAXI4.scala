@@ -7,7 +7,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
-import scala.math.{min, max}
 
 class TLtoAXI4IdMap(tl: TLClientPortParameters, axi4: AXI4MasterPortParameters) {
   private val axiDigits = String.valueOf(axi4.endId-1).length()

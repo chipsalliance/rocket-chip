@@ -100,7 +100,7 @@ object SparsePrefixSum extends PrefixSum {
 }
 
 object TestPrefixSums {
-  def testSize(size: Int) {
+  def testSize(size: Int): Unit = {
     val input = Seq.tabulate(size) { i => Seq(i) }
     var last: Int = 0
     var value: Vector[Seq[Int]] = Vector.empty
@@ -135,5 +135,5 @@ object TestPrefixSums {
     println(s"PrefixSums correct for size ${size}")
   }
 
-  def test { Seq.tabulate(519){i=>i}.foreach(testSize) }
+  def test: Unit = { Seq.tabulate(519){i=>i}.foreach(testSize) }
 }

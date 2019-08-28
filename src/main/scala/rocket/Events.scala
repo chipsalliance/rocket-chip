@@ -11,11 +11,11 @@ class EventSet(gate: (UInt, UInt) => Bool, events: Seq[(String, () => Bool)]) {
   def size = events.size
   def hits = events.map(_._2()).asUInt
   def check(mask: UInt) = gate(mask, hits)
-  def dump() {
+  def dump(): Unit = {
     for (((name, _), i) <- events.zipWithIndex)
       when (check(1.U << i)) { printf(s"Event $name\n") }
   }
-  def withCovers {
+  def withCovers: Unit = {
     events.zipWithIndex.foreach {
       case ((name, func), i) => cover(gate((1.U << i), (func() << i)), name)
     }

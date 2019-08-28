@@ -56,7 +56,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val clients = edgeIn.client.clients
-      val managers = edgeOut.manager.managers
+      edgeOut.manager.managers
       val lineShift = log2Ceil(lineBytes)
 
       import TLBroadcastConstants._
@@ -168,7 +168,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
       // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
       val freeTrackers = Vec(trackers.map { t => t.idle }).asUInt
-      val freeTracker = freeTrackers.orR()
+      freeTrackers.orR()
       val matchTrackers = Vec(trackers.map { t => t.line === in.a.bits.address >> lineShift }).asUInt
       val matchTracker = matchTrackers.orR()
       val allocTracker = freeTrackers & ~(leftOR(freeTrackers) << 1)

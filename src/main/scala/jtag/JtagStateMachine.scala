@@ -4,7 +4,6 @@ package freechips.rocketchip.jtag
 
 import Chisel._
 import chisel3.{Input, Output}
-import chisel3.experimental.withReset
 
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.util.{AsyncResetRegVec}

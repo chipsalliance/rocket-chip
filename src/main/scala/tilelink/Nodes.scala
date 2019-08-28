@@ -7,7 +7,6 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{AsyncQueueParams,RationalDirection}
-import scala.collection.mutable.ListBuffer
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => new TLMonitor(args))
 
@@ -21,7 +20,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 
   def render(ei: TLEdgeIn) = RenderedEdge(colour = "#000000" /* black */, label = (ei.manager.beatBytes * 8).toString)
 
-  override def monitor(bundle: TLBundle, edge: TLEdgeIn) {
+  override def monitor(bundle: TLBundle, edge: TLEdgeIn): Unit = {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
     monitor.io.in := TLBundleSnoop(bundle, bundle)
   }

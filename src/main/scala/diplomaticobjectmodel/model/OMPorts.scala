@@ -2,9 +2,8 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap}
+import freechips.rocketchip.diplomacy.ResourceBindings
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model._
 
 sealed trait PortType extends OMEnum
 case object SystemPortType extends PortType

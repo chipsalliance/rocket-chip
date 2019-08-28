@@ -7,7 +7,6 @@ import chisel3.util.{ReadyValidIO}
 
 import org.json4s.JsonDSL._
 import org.json4s.JsonAST.JValue
-import org.json4s.jackson.JsonMethods.{pretty, render}
 
 import freechips.rocketchip.util.{SimpleRegIO}
 

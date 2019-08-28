@@ -3,15 +3,13 @@
 package freechips.rocketchip.devices.debug
 
 import Chisel._
-import chisel3.core.{IntParam, Input, Output}
+import chisel3.core.IntParam
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink._
@@ -209,10 +207,10 @@ object Debug {
       psd: PSDTestMode = new PSDTestMode().fromBits(0.U))
       (implicit p: Parameters): Unit =  {
     debug.clockeddmi.foreach { d =>
-      val dtm = Module(new SimDTM).connect(c, r, d, out)
+      Module(new SimDTM).connect(c, r, d, out)
     }
     debug.systemjtag.foreach { sj =>
-      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
+      Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
       sj.reset := r
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
     }

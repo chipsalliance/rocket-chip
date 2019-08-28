@@ -3,7 +3,6 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 
-import scala.collection.mutable
 
 trait OMCustomExtensionSpecification{
   def name: String

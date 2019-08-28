@@ -5,7 +5,7 @@ package freechips.rocketchip.amba.axi4
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import scala.math.{min,max}
+import scala.math.max
 
 class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 {

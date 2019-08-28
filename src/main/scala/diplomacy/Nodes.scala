@@ -5,9 +5,7 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Parameters,Field}
-import freechips.rocketchip.util.HeterogeneousBag
 import scala.collection.mutable.ListBuffer
-import scala.util.matching._
 
 case object MonitorsEnabled extends Field[Boolean](true)
 case object RenderFlipped extends Field[Boolean](false)
@@ -27,7 +25,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
 
   // Edge functions
-  def monitor(bundle: BI, edge: EI) {}
+  def monitor(bundle: BI, edge: EI): Unit = {}
   def render(e: EI): RenderedEdge
 
   // optional methods to track node graph
@@ -172,7 +170,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
   private var iRealized = false
 
   protected[diplomacy] def iPushed = accPI.size
-  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!iRealized, s"${context} was incorrectly connected as a sink after its .module was used" + info)
     accPI += ((index, node, binding, p, sourceInfo))
@@ -201,7 +199,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
   private var oRealized = false
 
   protected[diplomacy] def oPushed = accPO.size
-  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!oRealized, s"${context} was incorrectly connected as a source after its .module was used" + info)
     accPO += ((index, node, binding, p, sourceInfo))
@@ -283,8 +281,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
-      val oTotal = oSum.lastOption.getOrElse(0)
-      val iTotal = iSum.lastOption.getOrElse(0)
+      oSum.lastOption.getOrElse(0)
+      iSum.lastOption.getOrElse(0)
       (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
     } catch {
       case c: StarCycleException => throw c.copy(loop = context +: c.loop)
@@ -396,10 +394,10 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   // connects the outward part of a node with the inward part of this node
-  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val x = this // x := y
     val y = h
-    val info = sourceLine(sourceInfo, " at ", "")
+    sourceLine(sourceInfo, " at ", "")
     val i = x.iPushed
     val o = y.oPushed
     y.oPush(i, x, binding match {

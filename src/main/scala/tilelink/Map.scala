@@ -5,7 +5,6 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import scala.math.{min,max}
 
 // Moves the AddressSets of slave devices around
 // Combine with TLFilter to remove slaves or reduce their size

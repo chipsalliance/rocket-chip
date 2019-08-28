@@ -7,7 +7,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
 
 /** BasicBusBlocker uses a single bit register to control whether
   * accesses of all types are allowed to proceed or bypassed to

@@ -5,8 +5,6 @@ package freechips.rocketchip.regmapper
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tilelink._
 
 case class RegisterRouterParams(
   name: String,

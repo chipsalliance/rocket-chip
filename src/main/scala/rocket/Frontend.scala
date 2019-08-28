@@ -7,9 +7,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.experimental._
 import freechips.rocketchip.config._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._

@@ -8,7 +8,6 @@ import scala.collection.SortedMap
 // import chisel3._
 import Chisel._
 import chisel3.core.{Input, Output}
-import chisel3.util._
 import chisel3.experimental.withReset
 
 import freechips.rocketchip.config.Parameters
@@ -246,7 +245,7 @@ object JtagTapGenerator {
       controllerInternal.io.dataChainIn := bypassChain.io.chainOut
     }
 
-    def mapInSelect(x: (Chain, Bool)) {
+    def mapInSelect(x: (Chain, Bool)): Unit = {
       val (chain, select) = x
       when (select) {
         chain.io.chainIn := controllerInternal.io.dataChainOut

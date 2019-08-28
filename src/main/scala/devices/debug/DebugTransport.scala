@@ -6,7 +6,6 @@ import Chisel._
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
-import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 
 case class JtagDTMConfig (

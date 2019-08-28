@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
@@ -14,7 +13,7 @@ trait HasBuiltInDeviceParams {
 /* Optionally add some built-in devices to a bus wrapper */
 trait CanHaveBuiltInDevices { this: TLBusWrapper =>
 
-  def attachBuiltInDevices(params: HasBuiltInDeviceParams) {
+  def attachBuiltInDevices(params: HasBuiltInDeviceParams): Unit = {
     params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
       val error = LazyModule(new TLError(
         params = dnp,

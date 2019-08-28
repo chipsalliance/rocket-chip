@@ -2,11 +2,11 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.{LazyModule, ResourceBindings, ResourceBindingsMap, SimpleDevice}
+import freechips.rocketchip.diplomacy.{ResourceBindings, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.rocket.{DCacheParams, Frontend, HellaCache, ICache, ICacheParams, ScratchpadSlavePort}
-import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
+import freechips.rocketchip.rocket.{DCacheParams, HellaCache, ICache, ICacheParams, ScratchpadSlavePort}
+import freechips.rocketchip.tile.RocketTileParams
 
 
 /**

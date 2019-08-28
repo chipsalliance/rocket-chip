@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers, MuxSeq}
 import freechips.rocketchip.util.property._
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.internal.sourceinfo.SourceInfo
 
 // A bus agnostic register interface to a register-based device
 
