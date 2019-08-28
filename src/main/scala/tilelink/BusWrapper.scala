@@ -28,6 +28,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
+  require(blockBytes % beatBytes == 0)
 
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
