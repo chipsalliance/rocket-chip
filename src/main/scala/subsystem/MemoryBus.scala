@@ -55,7 +55,7 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
 
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
   def inwardNode: TLInwardNode =
-    if (params.replicatorMask == 0) xbar.node else { xbar.node :*= RegionReplicator(params.replicatorMask) }
+    if (params.replicatorMask == 0) xbar.node else { xbar.node :=* RegionReplicator(params.replicatorMask) }
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
   attachBuiltInDevices(params)
