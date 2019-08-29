@@ -29,7 +29,8 @@ class AHBRAM(
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
-    beatBytes  = beatBytes)))
+    beatBytes  = beatBytes,
+    lite = true)))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
