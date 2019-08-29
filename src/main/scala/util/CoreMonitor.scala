@@ -10,6 +10,7 @@ import chisel3._
 class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
   val cease = Bool()
   val reg_mscratch = UInt(width = xLen.W)
+  val hartid = UInt(width = xLen.W)
 }
 
 // mark a module that has cores with CoreMonitorBundles

@@ -854,6 +854,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
   coreMonitorBundle.cease := io.cease
   coreMonitorBundle.reg_mscratch := 0.U //FIXME
+  coreMonitorBundle.hartid := io.hartid
 
   val commitTraceMonitorBundle = Wire(new CommitTraceMonitorBundle(xLen))
   commitTraceMonitorBundle.clock := clock
