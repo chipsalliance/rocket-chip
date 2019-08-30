@@ -174,6 +174,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle with Clocked 
 class CSRDecodeIO extends Bundle {
   val csr = UInt(INPUT, CSR.ADDRSZ)
   val fp_illegal = Bool(OUTPUT)
+  val vector_illegal = Bool(OUTPUT)
   val fp_csr = Bool(OUTPUT)
   val rocc_illegal = Bool(OUTPUT)
   val read_illegal = Bool(OUTPUT)
@@ -221,6 +222,58 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
+
+  val vector = usingVector.option(new Bundle {
+    val vconfig = new VConfig().asOutput
+    val vstart = UInt(maxVLMax.log2.W).asOutput
+    val set_vconfig = Valid(new VConfig).flip
+    val set_vstart = Valid(vstart).flip
+  })
+}
+
+class VConfig(implicit p: Parameters) extends CoreBundle {
+  val vl = UInt((maxVLMax.log2 + 1).W)
+  val vtype = new VType
+}
+
+object VType {
+  private def fromUInt(that: UInt, ignore_vill: Boolean)(implicit p: Parameters): VType = {
+    val res = 0.U.asTypeOf(new VType)
+    val in = that.asTypeOf(res)
+    res.vill := (in.max_vsew < in.vsew) || in.reserved =/= 0 || in.vill
+    when (!res.vill || ignore_vill) {
+      res.vsew := in.vsew(log2Ceil(1 + in.max_vsew) - 1, 0)
+      res.vlmul := in.vlmul
+    }
+    res
+  }
+
+  def fromUInt(that: UInt)(implicit p: Parameters): VType = fromUInt(that, false)
+
+  def computeVL(avl: UInt, vtype: UInt, currentVL: UInt, useCurrentVL: Bool, useZero: Bool)(implicit p: Parameters): UInt =
+    VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useZero)
+}
+
+class VType(implicit p: Parameters) extends CoreBundle {
+  val vill = Bool()
+  val reserved = UInt((xLen - 6).W)
+  val vsew = UInt(3.W)
+  val vlmul = UInt(2.W)
+
+  val max_vsew = log2Ceil(eLen/8)
+
+  def minVLMax = maxVLMax / eLen
+  def vlMax: UInt = (maxVLMax >> (this.vsew +& ~this.vlmul)).andNot(minVLMax-1)
+  def vlMaxInBytes: UInt = maxVLMax >> ~this.vlmul
+
+  def vl(avl: UInt, currentVL: UInt, useCurrentVL: Bool, useZero: Bool): UInt = {
+    val atLeastMaxVLMax = Mux(useCurrentVL, currentVL >= maxVLMax, avl >= maxVLMax)
+    val avl_lsbs = Mux(useCurrentVL, currentVL, avl)(maxVLMax.log2 - 1, 0)
+
+    val atLeastVLMax = atLeastMaxVLMax || (avl_lsbs & (-maxVLMax.S >> (this.vsew +& ~this.vlmul)).asUInt.andNot(minVLMax-1)).orR
+    val isZero = vill || useZero
+    Mux(!isZero && atLeastVLMax, vlMax, 0.U) | Mux(!isZero && !atLeastVLMax, avl_lsbs, 0.U)
+  }
 }
 
 class CSRFile(
@@ -333,6 +386,8 @@ class CSRFile(
 
   val reg_fflags = Reg(UInt(width = 5))
   val reg_frm = Reg(UInt(width = 3))
+  val reg_vconfig = usingVector.option(Reg(new VConfig))
+  val reg_vstart = usingVector.option(Reg(UInt(maxVLMax.log2.W)))
 
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
@@ -395,21 +450,24 @@ class CSRFile(
     CSRs.mcause -> reg_mcause,
     CSRs.mhartid -> io.hartid)
 
-  val debug_csrs = LinkedHashMap[Int,Bits](
+  val debug_csrs = if (!usingDebug) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
-  val fp_csrs = LinkedHashMap[Int,Bits](
+  val fp_csrs = if (!usingFPU) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.fflags -> reg_fflags,
     CSRs.frm -> reg_frm,
     CSRs.fcsr -> Cat(reg_frm, reg_fflags))
 
-  if (usingDebug)
-    read_mapping ++= debug_csrs
+  val vector_csrs = if (!usingVector) LinkedHashMap() else LinkedHashMap[Int,Bits](
+    CSRs.vstart -> reg_vstart.get,
+    CSRs.vtype -> reg_vconfig.get.vtype.asUInt,
+    CSRs.vl -> reg_vconfig.get.vl)
 
-  if (usingFPU)
-    read_mapping ++= fp_csrs
+  read_mapping ++= debug_csrs
+  read_mapping ++= fp_csrs
+  read_mapping ++= vector_csrs
 
   if (coreParams.haveBasicCounters) {
     read_mapping += CSRs.mcycle -> reg_cycle
@@ -512,9 +570,12 @@ class CSRFile(
     DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
 
   for (io_dec <- io.decode) {
+    def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
+    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(io_dec.csr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
+
     val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: Nil =
       DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
-    def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
+
     val allow_wfi = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
     val allow_sret = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
@@ -522,13 +583,15 @@ class CSRFile(
     val allow_counter = (reg_mstatus.prv > PRV.S || read_mcounteren(counter_addr)) &&
       (!usingVM || reg_mstatus.prv >= PRV.S || read_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
-    io_dec.fp_csr := Bool(usingFPU) && DecodeLogic(io_dec.csr, fp_csrs.keys.toList.map(_.U), (read_mapping -- fp_csrs.keys.toList).keys.toList.map(_.U))
+    io_dec.vector_illegal := false.B // TODO: mstatus.VS field not yet defined
+    io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
       !decodeAny(read_mapping) ||
       io_dec.csr === CSRs.satp && !allow_sfence_vma ||
       (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
-      Bool(usingDebug) && decodeAny(debug_csrs) && !reg_debug ||
+      decodeFast(debug_csrs.keys.toList) && !reg_debug ||
+      decodeFast(vector_csrs.keys.toList) && io_dec.vector_illegal ||
       io_dec.fp_csr && io_dec.fp_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
     io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mtval || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.stval)
@@ -856,6 +919,26 @@ class CSRFile(
         reg := (wdata & mask) | (reg & ~mask)
         io.wen := true
       }
+    }
+    if (usingVector) {
+      when (decoded_addr(CSRs.vstart)) { reg_vstart.get := wdata }
+    }
+  }
+
+  io.vector.map { vio =>
+    when (vio.set_vconfig.valid) {
+      assert(vio.set_vconfig.bits.vl <= vio.set_vconfig.bits.vtype.vlMax)
+      reg_vconfig.get := vio.set_vconfig.bits
+    }
+    when (vio.set_vstart.valid) {
+      reg_vstart.get := vio.set_vstart.bits
+    }
+    vio.vstart := reg_vstart.get
+    vio.vconfig := reg_vconfig.get
+
+    when (reset.toBool) {
+      reg_vconfig.get.vtype := 0.U.asTypeOf(new VType)
+      reg_vconfig.get.vtype.vill := true
     }
   }
 
