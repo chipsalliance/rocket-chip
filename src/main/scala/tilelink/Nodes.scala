@@ -32,30 +32,48 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
-trait overrideFormatNode extends BaseNode
+trait TLFormatNode extends BaseNode
 {
   def edges: Edges[List[TLEdgeIn], List[TLEdgeOut]]
-  override def formatNode() = "Input Edge (edges.in.head.manager): \nanySupportAcquireT = " + edges.in.head.manager.anySupportAcquireT +
-  "\nanySupportAcquireB = " + edges.in.head.manager.anySupportAcquireB +
-  "\nanySupportArithmetic = " + edges.in.head.manager.anySupportArithmetic +
-  "\nanySupportLogical = " + edges.in.head.manager.anySupportLogical +
-  "\nanySupportGet = " + edges.in.head.manager.anySupportGet +
-  "\nanySupportPutFull = " + edges.in.head.manager.anySupportPutFull +
-  "\nanySupportPutPartial = " + edges.in.head.manager.anySupportPutPartial +
-  "\nanySupportHint = " + edges.in.head.manager.anySupportHint
+  override def formatNode() = edges.in.map(currEdge =>
+  currEdge.manager.managers.map(currManager => 
+  "Input Edges (edges.in.map.manager.managers.map):\nManager Address" + currManager.address +
+  "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+  "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+  "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+  "\nsupportsLogical = " + currManager.supportsLogical +
+  "\nsupportsGet = " + currManager.supportsGet +
+  "\nsupportsPutFull = " + currManager.supportsPutFull +
+  "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+  "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString + edges.out.map(currEdge =>
+  currEdge.client.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):\nClient Name:" + currClient.name +
+  (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+  "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+  "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+  "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+  "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+  "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+  "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+  "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+  "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString
 }
 
-case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams)
-
-case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with overrideFormatNode
+case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
+//{
+//  override def formatNode() = "Output Edge (edges.out.head.client): \nanyEmitAcquireT = " + edges.out.head.client.anyEmitAcquireT +
+//  "\nanyEmitAcquireB = " + edges.out.head.client.anyEmitAcquireB +
+//  "\nanyEmitArithmetic = " + edges.out.head.client.anyEmitArithmetic +
+//  "\nanyEmitLogical = " + edges.out.head.client.anyEmitLogical
+//}
+case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with TLFormatNode
 case class TLAdapterNode(
   clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
   managerFn: TLManagerPortParameters => TLManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLImp)(clientFn, managerFn) with overrideFormatNode
-case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)() with overrideFormatNode
+  extends AdapterNode(TLImp)(clientFn, managerFn) with TLFormatNode
+case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)() with TLFormatNode
 
-case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)() with overrideFormatNode
+case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)() with TLFormatNode
 
 object TLNameNode {
   def apply(name: ValName) = TLIdentityNode()(name)
@@ -67,10 +85,10 @@ case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
   managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters)(
   implicit valName: ValName)
-  extends NexusNode(TLImp)(clientFn, managerFn) with overrideFormatNode
+  extends NexusNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
 abstract class TLCustomNode(implicit valName: ValName)
-  extends CustomNode(TLImp) with overrideFormatNode
+  extends CustomNode(TLImp) with TLFormatNode
 
 // Asynchronous crossings
 

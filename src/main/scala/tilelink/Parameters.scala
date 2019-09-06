@@ -10,12 +10,25 @@ import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByInt
 import scala.math.max
 import scala.reflect.ClassTag
 
+case class TLManagerEmissionSizes(
+  emitsProbe:   TransferSizes   = TransferSizes.none,
+  emitsArithmetic: TransferSizes   = TransferSizes.none,
+  emitsLogical:    TransferSizes   = TransferSizes.none,
+  emitsGet:        TransferSizes   = TransferSizes.none,
+  emitsPutFull:    TransferSizes   = TransferSizes.none,
+  emitsPutPartial: TransferSizes   = TransferSizes.none,
+  emitsHint:       TransferSizes   = TransferSizes.none
+)
+
 case class TLManagerParameters(
   address:            Seq[AddressSet],
   resources:          Seq[Resource] = Seq(),
   regionType:         RegionType.T  = RegionType.GET_EFFECTS,
   executable:         Boolean       = false, // processor can execute from this memory
   nodePath:           Seq[BaseNode] = Seq(),
+
+  knownToEmit: Option[TLManagerEmissionSizes] = None,
+
   // Supports both Acquire+Release+Finish of these sizes
   supportsAcquireT:   TransferSizes = TransferSizes.none,
   supportsAcquireB:   TransferSizes = TransferSizes.none,
@@ -218,14 +231,28 @@ case class TLManagerPortParameters(
   }
 }
 
+case class TLClientEmissionSizes(
+  emitsAcquireT:   TransferSizes   = TransferSizes.none,
+  emitsAcquireB:   TransferSizes   = TransferSizes.none,
+  emitsArithmetic: TransferSizes   = TransferSizes.none,
+  emitsLogical:    TransferSizes   = TransferSizes.none,
+  emitsGet:        TransferSizes   = TransferSizes.none,
+  emitsPutFull:    TransferSizes   = TransferSizes.none,
+  emitsPutPartial: TransferSizes   = TransferSizes.none,
+  emitsHint:       TransferSizes   = TransferSizes.none
+)
+
 case class TLClientParameters(
   name:                String,
   sourceId:            IdRange         = IdRange(0,1),
   nodePath:            Seq[BaseNode]   = Seq(),
   requestFifo:         Boolean         = false, // only a request, not a requirement. applies to A, not C.
   visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
+
+  knownToEmit: Option[TLClientEmissionSizes] = None,
+
   // Supports both Probe+Grant of these sizes
-  supportsProbe:       TransferSizes   = TransferSizes.none,
+  supportsProbe:       TransferSizes   = TransferSizes.none, //These are from the manager on the B channel.
   supportsArithmetic:  TransferSizes   = TransferSizes.none,
   supportsLogical:     TransferSizes   = TransferSizes.none,
   supportsGet:         TransferSizes   = TransferSizes.none,
@@ -284,6 +311,15 @@ case class TLClientPortParameters(
     }
   }
 
+  val anyEmitAcquireT: Option[Boolean]      = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireT.none)    .reduce(_ || _))
+  val anyEmitAcquireB: Option[Boolean]      = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireB.none)    .reduce(_ || _))
+  val anyEmitArithmetic: Option[Boolean]    = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsArithmetic.none)  .reduce(_ || _))
+  val anyEmitLogical: Option[Boolean]       = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsLogical.none)     .reduce(_ || _))
+  val anyEmitGet: Option[Boolean]           = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsGet.none)         .reduce(_ || _))
+  val anyEmitPutFull: Option[Boolean]       = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutFull.none)     .reduce(_ || _))
+  val anyEmitPutPartial: Option[Boolean]    = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutPartial.none)  .reduce(_ || _))
+  val anyEmitHint: Option[Boolean]          = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsHint.none)        .reduce(_ || _))
+
   // Operation sizes supported by all inward Clients
   val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
   val allSupportArithmetic = clients.map(_.supportsArithmetic).reduce(_ intersect _)
@@ -317,6 +353,44 @@ case class TLClientPortParameters(
       Mux1H(find(id), clients.map(member(_).containsLg(lgSize)))
     }
   }
+
+  private def emitHelper(
+      safe:    Boolean,
+      member:  TLClientParameters => TransferSizes,
+      address: UInt,
+      lgSize:  UInt,
+      range:   Option[TransferSizes]): Bool = {
+    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
+    val supportCases = groupByIntoSeq(clients)(m => trim(member(m))).map { case (k, vs) =>
+      k -> vs.flatMap(_.visibility)
+    }
+    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
+    simplified.map { case (s, a) =>
+      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      a.map(_.contains(address)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
+  }
+
+  // Check for emitting of a given operation at a specific address
+  def emitsAcquireTSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsAcquireT,   address, lgSize, range)
+  def emitsAcquireBSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsAcquireB,   address, lgSize, range)
+  def emitsArithmeticSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsArithmetic, address, lgSize, range)
+  def emitsLogicalSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsLogical,    address, lgSize, range)
+  def emitsGetSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsGet,        address, lgSize, range)
+  def emitsPutFullSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsPutFull,    address, lgSize, range)
+  def emitsPutPartialSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsPutPartial, address, lgSize, range)
+  def emitsHintSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsHint,       address, lgSize, range)
+
+  def emitsAcquireTFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsAcquireT,   address, lgSize, range)
+  def emitsAcquireBFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsAcquireB,   address, lgSize, range)
+  def emitsArithmeticFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsArithmetic, address, lgSize, range)
+  def emitsLogicalFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsLogical,    address, lgSize, range)
+  def emitsGetFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsGet,        address, lgSize, range)
+  def emitsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsPutFull,    address, lgSize, range)
+  def emitsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsPutPartial, address, lgSize, range)
+  def emitsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsHint,       address, lgSize, range)
 
   // Check for support of a given operation at a specific id
   val supportsProbe      = safety_helper(_.supportsProbe)      _

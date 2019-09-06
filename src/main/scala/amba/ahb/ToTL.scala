@@ -11,7 +11,17 @@ import freechips.rocketchip.util.MaskGen
 case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSlave, TLImp)(
   dFn = { case AHBMasterPortParameters(masters) =>
     TLClientPortParameters(clients = masters.map { m =>
-      TLClientParameters(name = m.name, nodePath = m.nodePath)
+      TLClientParameters(name = m.name, nodePath = m.nodePath,
+        knownToEmit = Some(TLClientEmissionSizes(
+          emitsAcquireT = TransferSizes.none,
+          emitsAcquireB = TransferSizes.none,
+          emitsArithmetic = TransferSizes.none,
+          emitsLogical = TransferSizes.none,
+          emitsGet = TransferSizes(1, 4),
+          emitsPutFull = TransferSizes(1, 4),
+          emitsPutPartial = TransferSizes.none,
+          emitsHint = TransferSizes.none
+          )))
     })
   },
   uFn = { mp => AHBSlavePortParameters(
