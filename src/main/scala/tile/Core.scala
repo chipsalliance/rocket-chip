@@ -77,7 +77,7 @@ trait HasCoreParameters extends HasTileParameters {
   val coreInstBytes = coreInstBits/8
   val coreDataBits = xLen max fLen max vMemDataBits
   val coreDataBytes = coreDataBits/8
-  val coreMaxAddrBits = paddrBits max vaddrBitsExtended
+  def coreMaxAddrBits = paddrBits max vaddrBitsExtended
 
   val nBreakpoints = coreParams.nBreakpoints
   val nPMPs = coreParams.nPMPs
