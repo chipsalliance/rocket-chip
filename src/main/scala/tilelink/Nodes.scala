@@ -36,8 +36,8 @@ trait TLFormatNode extends BaseNode
 {
   def edges: Edges[List[TLEdgeIn], List[TLEdgeOut]]
   override def formatNode() = edges.in.map(currEdge =>
-  currEdge.manager.managers.map(currManager => 
-  "Input Edges (edges.in.map.manager.managers.map):\nManager Address" + currManager.address +
+  "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.beatBytes + "\n" + currEdge.manager.managers.map(currManager =>
+  "Input Edges (edges.in.map.manager.managers.map):\nManager Address = " + currManager.address +
   "\nsupportsAcquireT = " + currManager.supportsAcquireT +
   "\nsupportsAcquireB = " + currManager.supportsAcquireB +
   "\nsupportsArithmetic = " + currManager.supportsArithmetic +
