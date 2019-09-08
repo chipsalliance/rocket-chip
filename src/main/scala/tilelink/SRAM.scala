@@ -24,7 +24,7 @@ class TLRAM(
     beatBytes: Int = 4,
     ecc: ECCParams = ECCParams(),
     val devName: Option[String] = None,
-    val compatName: String = "sifive,sram0"
+    val dtsCompat: Option[Seq[String]] = None
   )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, compatName)
 {
   val eccBytes = ecc.bytes

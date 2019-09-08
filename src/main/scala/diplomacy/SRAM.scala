@@ -12,10 +12,10 @@ abstract class DiplomaticSRAM(
     address: AddressSet,
     beatBytes: Int,
     devName: Option[String],
-    compatName: String = "sifive,sram0")(implicit p: Parameters) extends LazyModule
+    dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule
 {
   val device = devName
-    .map(new SimpleDevice(_, Seq(compatName)))
+    .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
     .getOrElse(new MemoryDevice())
 
   def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {
