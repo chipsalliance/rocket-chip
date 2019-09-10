@@ -17,7 +17,8 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
       executable    = executable,
       supportsWrite = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)),
       supportsRead  = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)))),
-    beatBytes  = beatBytes)))
+    beatBytes  = beatBytes,
+    lite = true)))
 {
   require (address.contiguous)
 

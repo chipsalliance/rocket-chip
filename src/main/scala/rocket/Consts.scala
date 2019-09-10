@@ -73,6 +73,7 @@ trait MemoryOpConstants {
   def M_PRODUCE = UInt("b10010") // write back dirty data and cede W permissions
   def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
   def M_SFENCE  = UInt("b10100") // flush TLB
+  def M_WOK     = UInt("b10111") // check write permissions but don't perform a write
 
   def isAMOLogical(cmd: UInt) = cmd.isOneOf(M_XA_SWAP, M_XA_XOR, M_XA_OR, M_XA_AND)
   def isAMOArithmetic(cmd: UInt) = cmd.isOneOf(M_XA_ADD, M_XA_MIN, M_XA_MAX, M_XA_MINU, M_XA_MAXU)

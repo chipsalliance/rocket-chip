@@ -7,6 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
+// From Arbiter to Slave
 object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
 {
   def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
@@ -19,6 +20,7 @@ object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortPa
    pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
+// From Master to Arbiter
 object AHBImpMaster extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBMasterBundle]
 {
   def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
@@ -39,12 +41,26 @@ case class AHBSlaveSinkNode(portParams: Seq[AHBSlavePortParameters])(implicit va
 case class AHBMasterIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpMaster)()
 case class AHBSlaveIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpSlave)()
 
+case class AHBMasterAdapterNode(
+  masterFn:       AHBMasterPortParameters => AHBMasterPortParameters,
+  slaveFn:        AHBSlavePortParameters  => AHBSlavePortParameters)(
+  implicit valName: ValName)
+  extends AdapterNode(AHBImpMaster)(masterFn, slaveFn)
+
+case class AHBSlaveAdapterNode(
+  masterFn:       AHBMasterPortParameters => AHBMasterPortParameters,
+  slaveFn:        AHBSlavePortParameters  => AHBSlavePortParameters)(
+  implicit valName: ValName)
+  extends AdapterNode(AHBImpMaster)(masterFn, slaveFn)
+
+// From Master to Arbiter to Slave
 case class AHBArbiterNode(
   masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
   slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(
   implicit valName: ValName)
   extends MixedNexusNode(AHBImpMaster, AHBImpSlave)(masterFn, slaveFn)
 
+// Combine multiple Slaves into one logical Slave (suitable to attach to an Arbiter)
 case class AHBFanoutNode(
   masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
   slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(

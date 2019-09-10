@@ -809,7 +809,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   io.dmem.req.valid     := ex_reg_valid && ex_ctrl.mem
   val ex_dcache_tag = Cat(ex_waddr, ex_ctrl.fp)
-  require(coreDCacheReqTagBits >= ex_dcache_tag.getWidth)
+  require(coreParams.dcacheReqTagBits >= ex_dcache_tag.getWidth)
   io.dmem.req.bits.tag  := ex_dcache_tag
   io.dmem.req.bits.cmd  := ex_ctrl.mem_cmd
   io.dmem.req.bits.size := ex_reg_mem_size
