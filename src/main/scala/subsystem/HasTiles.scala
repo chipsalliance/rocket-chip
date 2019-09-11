@@ -89,7 +89,6 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
 
     plicOpt match {
       case Some(plic) => {
-        println("In the plic case ")
         //    From PLIC: "meip"
         tile.crossIntIn() :=
           plicOpt .map { _.intnode }
@@ -110,7 +109,6 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
        }
       }
       case None => { 
-        println("In the No-plic case ")
         tile.crossIntIn() := NullIntSource()
       }
     }
