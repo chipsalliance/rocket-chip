@@ -47,6 +47,7 @@ trait TLFormatNode extends BaseNode
   "\nsupportsPutPartial = " + currManager.supportsPutPartial +
   "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString + edges.out.map(currEdge =>
   currEdge.client.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):\nClient Name:" + currClient.name +
+  "\nvisibility = " + currClient.visibility +
   (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
   "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
   "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
