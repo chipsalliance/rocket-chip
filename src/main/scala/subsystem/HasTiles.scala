@@ -87,28 +87,38 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
       clintOpt.map { _.intnode }
         .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
 
-    //    From PLIC: "meip"
-    tile.crossIntIn() :=
-      plicOpt .map { _.intnode }
-        .getOrElse { meipNode.get }
+    plicOpt match {
+      case Some(plic) => {
+        println("In the plic case ")
+        //    From PLIC: "meip"
+        tile.crossIntIn() :=
+          plicOpt .map { _.intnode }
+            .getOrElse { meipNode.get }
 
-    //    From PLIC: "seip" (only if vm/supervisor mode is enabled)
-    if (tile.tileParams.core.useVM) {
-      tile.crossIntIn() :=
-        plicOpt .map { _.intnode }
-          .getOrElse { NullIntSource() }
+        //    From PLIC: "seip" (only if vm/supervisor mode is enabled)
+        if (tile.tileParams.core.useVM) {
+          tile.crossIntIn() :=
+            plicOpt .map { _.intnode }
+              .getOrElse { NullIntSource() }
+        }
+    // 4. Interrupts coming out of the tile are sent to the PLIC,
+    //    so might need to be synchronized depending on the Tile's crossing type.
+       plicOpt.foreach { plic =>
+         FlipRendering { implicit p =>
+           plic.intnode :=* tile.crossIntOut()
+         }
+       }
+      }
+      case None => { 
+        println("In the No-plic case ")
+        tile.crossIntIn() := NullIntSource()
+      }
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
     // (they are connected to tile.intInwardNode in a seperate trait)
 
-    // 4. Interrupts coming out of the tile are sent to the PLIC,
-    //    so might need to be synchronized depending on the Tile's crossing type.
-    plicOpt.foreach { plic =>
-      FlipRendering { implicit p =>
-        plic.intnode :=* tile.crossIntOut()
-      }
-    }
+
 
     // 5. Reports of tile status are collected without needing to be clock-crossed
     tileHaltXbarNode := tile.haltNode
