@@ -14,6 +14,7 @@ case object DebugAPB extends OMDebugInterfaceType
 
 sealed trait OMDebugAuthenticationType extends OMEnum
 case object NONE extends OMDebugAuthenticationType
+case object PASSTHRU extends OMDebugAuthenticationType
 
 // These directly come from RISC-V Debug Spec 0.14
 case class OMDebug(
