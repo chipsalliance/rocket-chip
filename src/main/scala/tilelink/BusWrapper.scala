@@ -29,6 +29,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
 
+  /* If you violate this requirement, you will have a rough time.
+   * The codebase is riddled with the assumption that this is true.
+   */
+  require(blockBytes >= beatBytes)
+
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
   def busView: TLEdge

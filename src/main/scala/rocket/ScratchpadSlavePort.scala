@@ -39,6 +39,8 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       val dmem = new HellaCacheIO
     })
 
+    require(coreDataBytes * 8 == io.dmem.resp.bits.data.getWidth, "ScratchpadSlavePort is misconfigured: coreDataBytes must match D$ data width")
+
     val (tl_in, edge) = node.in(0)
 
     val s_ready :: s_wait1 :: s_wait2 :: s_replay :: s_grant :: Nil = Enum(UInt(), 5)
@@ -75,6 +77,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       req.addr := a.address
       req.tag := UInt(0)
       req.phys := true
+      req.no_xcpt := true
       req
     }
 

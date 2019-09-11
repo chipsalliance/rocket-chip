@@ -118,8 +118,8 @@ object SystemBusAccessModule
                Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement, autoIncrementedAddr(32*i+31,32*i), a))
         }
 
-        Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
-          Some(RegFieldDesc("dmi_sbaddr"+i, "SBA address register", reset=Some(0), volatile=true))))
+        RegFieldGroup("dmi_sbaddr"+i, Some("SBA Address Register"), Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
+          Some(RegFieldDesc("dmi_sbaddr"+i, "SBA address register", reset=Some(0), volatile=true)))))
       } else {
         Seq.empty[RegField]
       }
@@ -161,8 +161,8 @@ object SystemBusAccessModule
 
         SBDATARdData(i) := Cat(d.reverse)
 
-        Seq(RWNotify(32, SBDATARdData(i), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
-          Some(RegFieldDesc("dmi_sbdata"+i, "SBA data register", reset=Some(0), volatile=true))))
+        RegFieldGroup("dmi_sbdata"+i, Some("SBA Data Register"), Seq(RWNotify(32, SBDATARdData(i), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
+          Some(RegFieldDesc("dmi_sbdata"+i, "SBA data register", reset=Some(0), volatile=true)))))
       } else {
         Seq.empty[RegField]
       }
