@@ -6,7 +6,6 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMCaches, OMComponent, OMDCache}
 import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -18,18 +17,13 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     this(Seq(address), coreDataBytes, usingAtomics)
   }
 
-  val device = new SimpleDevice("dtim", Seq("sifive,dtim0")) {
-    def getMemory(p: DCacheParams, resourceBindingsMap: ResourceBindingsMap): OMDCache = {
-      val resourceBindings = resourceBindingsMap.map.get(this)
-      OMCaches.dcache(p, resourceBindings)
-    }
-  }
+  val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
 
   val node = TLManagerNode(Seq(TLManagerPortParameters(
     Seq(TLManagerParameters(
       address            = address,
       resources          = device.reg("mem"),
-      regionType         = RegionType.UNCACHEABLE,
+      regionType         = RegionType.IDEMPOTENT,
       executable         = true,
       supportsArithmetic = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
       supportsLogical    = if (usingAtomics) TransferSizes(4, coreDataBytes) else TransferSizes.none,
@@ -44,6 +38,8 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     val io = IO(new Bundle {
       val dmem = new HellaCacheIO
     })
+
+    require(coreDataBytes * 8 == io.dmem.resp.bits.data.getWidth, "ScratchpadSlavePort is misconfigured: coreDataBytes must match D$ data width")
 
     val (tl_in, edge) = node.in(0)
 
@@ -81,6 +77,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       req.addr := a.address
       req.tag := UInt(0)
       req.phys := true
+      req.no_xcpt := true
       req
     }
 

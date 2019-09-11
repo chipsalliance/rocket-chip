@@ -56,12 +56,23 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
     name = s"Core ${hartId} ICache")))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
+  val itim_control_offset = size - icacheParams.nSets * icacheParams.blockBytes
+
   val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      val resourceBindings = resourceBindingsMap.map.get(this)
-      Seq[OMComponent](OMCaches.icache(icacheParams, resourceBindings))
+    override def describe(resources: ResourceBindings): Description = {
+     val Description(name, mapping) = super.describe(resources)
+     val Seq(Binding(_, ResourceAddress(address, perms))) = resources("reg/mem")
+     val base_address = address.head.base
+     val mem_part = AddressSet.misaligned(base_address, itim_control_offset)
+     val control_part = AddressSet.misaligned(base_address + itim_control_offset, size - itim_control_offset)
+     val extra = Map(
+       "reg-names" -> Seq(ResourceString("mem"), ResourceString("control")),
+       "reg" -> Seq(ResourceAddress(mem_part, perms), ResourceAddress(control_part, perms)))
+     Description(name, mapping ++ extra)
     }
   }
+
+  def itimProperty: Option[Seq[ResourceValue]] = icacheParams.itimAddr.map(_ => device.asProperty)
 
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
@@ -69,7 +80,7 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
       Seq(TLManagerParameters(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
-        regionType      = RegionType.UNCACHEABLE,
+        regionType      = RegionType.IDEMPOTENT,
         executable      = true,
         supportsPutFull = TransferSizes(1, wordBytes),
         supportsPutPartial = TransferSizes(1, wordBytes),
@@ -183,7 +194,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  val tag_array = DescribedSRAM(
+  val (tag_array, omSRAM) = DescribedSRAM(
     name = "tag_array",
     desc = "ICache Tag Array",
     size = nSets,
@@ -192,9 +203,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
+  val refillError = tl_out.d.bits.corrupt || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
     // For AccessAckData, denied => corrupt
-    val enc_tag = tECC.encode(Cat(tl_out.d.bits.corrupt, refill_tag))
+    val enc_tag = tECC.encode(Cat(refillError, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
 
     ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
@@ -202,6 +214,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
+    accruedRefillError := refillError
     // clear bit when refill starts so hit-under-miss doesn't fetch bad data
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), refill_done && !invalidated)
   }
@@ -249,7 +262,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       )
   }
 
-  for ((data_array, i) <- data_arrays zipWithIndex) {
+  for (((data_array, omSRAM), i) <- data_arrays zipWithIndex) {
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))

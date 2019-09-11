@@ -2,7 +2,9 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
+
 import freechips.rocketchip.rocket.RocketCoreParams
+import freechips.rocketchip.tile.CoreParams
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 trait OMExtensionType extends OMEnum
@@ -25,12 +27,6 @@ case object RV32I extends OMBaseInstructionSet
 case object RV64I extends OMBaseInstructionSet
 case object RV128I extends OMBaseInstructionSet
 
-case class Xsifivecflushdlone(
-  name: String,
-  version: String,
-  override val _types: Seq[String] = Seq("OMXsifivecflushdlone", "OMCustomExtensionSpecification", "OMSpecification")
-) extends OMCustomExtensionSpecification
-
 case class OMISA(
   xLen: Int,
   baseSpecification: OMSpecification,
@@ -48,6 +44,10 @@ case class OMISA(
 ) extends OMCompoundType
 
 object OMISA {
+  def customExtensions(coreParams: RocketCoreParams): List[OMCustomExtensionSpecification] = {
+    if (coreParams.haveCFlush) List (Xsifivecflushdlone()) else Nil
+  }
+
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
       case 32 => RV32I
@@ -84,7 +84,7 @@ object OMISA {
       u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
       addressTranslationModes = Seq(addressTranslationModes),
-      customExtensions = ISAExtensions.customExtensions(coreParams)
+      customExtensions = customExtensions(coreParams)
     )
   }
 }

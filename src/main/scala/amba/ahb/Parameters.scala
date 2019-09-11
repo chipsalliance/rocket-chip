@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import scala.math.max
+import scala.math.{max, min}
 
 case class AHBSlaveParameters(
   address:       Seq[AddressSet],
@@ -22,21 +22,33 @@ case class AHBSlaveParameters(
     address.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y)) }
 
   val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val minMaxTransfer = min(supportsWrite.max, supportsRead.max)
   val maxTransfer = max(supportsWrite.max, supportsRead.max)
   val maxAddress = address.map(_.max).max
   val minAlignment = address.map(_.alignment).min
 
   // The device had better not support a transfer larger than it's alignment
   require (minAlignment >= maxTransfer)
+
+  def toResource: ResourceAddress = {
+    ResourceAddress(address, ResourcePermissions(
+      r = supportsRead,
+      w = supportsWrite,
+      x = executable,
+      c = false,
+      a = false))
+  }
 }
 
 case class AHBSlavePortParameters(
   slaves:    Seq[AHBSlaveParameters],
-  beatBytes: Int)
+  beatBytes: Int,
+  lite:      Boolean)
 {
   require (!slaves.isEmpty)
   require (isPow2(beatBytes))
 
+  val minMaxTransfer = slaves.map(_.minMaxTransfer).min // useful for fragmentation
   val maxTransfer = slaves.map(_.maxTransfer).max
   val maxAddress = slaves.map(_.maxAddress).max
 
@@ -55,14 +67,21 @@ case class AHBSlavePortParameters(
 
 case class AHBMasterParameters(
   name:     String,
-  nodePath: Seq[BaseNode] = Seq())
+  nodePath: Seq[BaseNode] = Seq(),
+  userBits: Seq[UserBits] = Nil){
+    val userBitsWidth = userBits.map(_.width).sum
+  }
 
 case class AHBMasterPortParameters(
-  masters: Seq[AHBMasterParameters])
+  masters: Seq[AHBMasterParameters]){
+    val userBitsWidth = masters.map(_.userBitsWidth).max
+  }
 
 case class AHBBundleParameters(
   addrBits: Int,
-  dataBits: Int)
+  dataBits: Int,
+  userBits: Int,
+  lite:     Boolean)
 {
   require (dataBits >= 8)
   require (addrBits >= 1)
@@ -73,22 +92,30 @@ case class AHBBundleParameters(
   val burstBits = AHBParameters.burstBits
   val protBits  = AHBParameters.protBits
   val sizeBits  = AHBParameters.sizeBits
+  val hrespBits = if (lite) 1 else AHBParameters.hrespBits
 
-  def union(x: AHBBundleParameters) =
+  def union(x: AHBBundleParameters) = {
+    require (x.lite == lite)
     AHBBundleParameters(
       max(addrBits, x.addrBits),
-      max(dataBits, x.dataBits))
+      max(dataBits, x.dataBits),
+      userBits,
+      lite)
+  }
 }
 
 object AHBBundleParameters
 {
-  val emptyBundleParams = AHBBundleParameters(addrBits = 1, dataBits = 8)
-  def union(x: Seq[AHBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
+  val emptyBundleParams = AHBBundleParameters(addrBits = 1, dataBits = 8, userBits = 0, lite = true)
+  def union(x: Seq[AHBBundleParameters]) =
+    if (x.isEmpty) emptyBundleParams else x.tail.foldLeft(x.head)((x,y) => x.union(y))
 
   def apply(master: AHBMasterPortParameters, slave: AHBSlavePortParameters) =
     new AHBBundleParameters(
       addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8)
+      dataBits = slave.beatBytes * 8,
+      userBits = master.userBitsWidth,
+      lite     = slave.lite)
 }
 
 case class AHBEdgeParameters(

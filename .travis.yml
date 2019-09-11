@@ -9,6 +9,8 @@ cache:
     regression/install
     emulator/verilator
 
+dist: xenial
+
 # packages needed to build riscv-tools
 addons:
   apt:
@@ -32,6 +34,7 @@ addons:
       - device-tree-compiler
       - libusb-1.0-0-dev
       - python-pexpect
+      - libre2-dev
 
 
 # blacklist private branches
@@ -55,6 +58,10 @@ branches:
 
 jobs:
   include:
+    - stage: wake and wit checks
+      script:
+        - ci-tests/check_submodules
+        - ci-tests/wake_scala_compilation
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
@@ -102,4 +109,4 @@ jobs:
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
     - <<: *test
       script:
-        - make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
+        - travis_wait 80 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G

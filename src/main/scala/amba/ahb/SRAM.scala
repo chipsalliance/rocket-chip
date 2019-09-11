@@ -5,11 +5,15 @@ package freechips.rocketchip.amba.ahb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.model.AHB_Lite
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class AHBRAM(
     address: AddressSet,
+    cacheable: Boolean = true,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     fuzzHreadyout: Boolean = false,
@@ -17,19 +21,32 @@ class AHBRAM(
     errors: Seq[AddressSet] = Nil)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
-  val node = AHBSlaveNode(Seq(AHBSlavePortParameters(
+  val node = AHBSlaveSinkNode(Seq(AHBSlavePortParameters(
     Seq(AHBSlaveParameters(
       address       = List(address) ++ errors,
       resources     = resources,
-      regionType    = RegionType.UNCACHED,
+      regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
-    beatBytes  = beatBytes)))
+    beatBytes  = beatBytes,
+    lite = true)))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = 1 << mask.filter(b=>b).size)
+
+    parentLogicalTreeNode.map {
+      case parentLTN =>
+        def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
+          device = device,
+          omSRAMs = Seq(omSRAM),
+          busProtocol = new AHB_Lite(None),
+          dataECC = None,
+          hasAtomics = None,
+          busProtocolSpecification = None)
+        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
+    }
 
     // The mask and address during the address phase
     val a_access    = in.htrans === AHBParameters.TRANS_NONSEQ || in.htrans === AHBParameters.TRANS_SEQ
@@ -96,7 +113,7 @@ class AHBRAM(
 
     // Finally, the outputs
     in.hreadyout := Mux(disable_ahb_fuzzing, Bool(true), { if(fuzzHreadyout) { !d_request || LFSRNoiseMaker(1)(0) }  else { Bool(true) }} )
-    in.hresp     := Mux(d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
+    in.hresp     := Mux(!d_request || d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
 }

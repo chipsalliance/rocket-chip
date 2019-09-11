@@ -8,7 +8,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.rocket.{DCache, RocketCoreParams}
+import freechips.rocketchip.rocket.{DCache, NonBlockingDCache, RocketCoreParams}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import scala.collection.mutable.ListBuffer
@@ -41,7 +41,10 @@ abstract class GroundTestTile private (params: GroundTestTileParams, x: ClockCro
   val haltNode: IntOutwardNode = IntIdentityNode()
   val wfiNode: IntOutwardNode = IntIdentityNode()
 
-  val dcacheOpt = params.dcache.map { dc => LazyModule(new DCache(0, crossing)) }
+  val dcacheOpt = params.dcache.map { dc => LazyModule(
+    if (dc.nMSHRs == 0) new DCache(hartId, crossing)
+    else new NonBlockingDCache(hartId))
+  }
 
   override lazy val module = new GroundTestTileModuleImp(this)
 }

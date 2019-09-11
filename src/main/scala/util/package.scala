@@ -12,7 +12,7 @@ package object util {
   }
 
   implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
-    def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
+    def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).orR
   
     def isOneOf(u1: UInt, u2: UInt*): Bool = isOneOf(u1 +: u2.toSeq)
   }
@@ -128,7 +128,7 @@ package object util {
     }
 
     // like x & ~y, but first truncate or zero-extend y to x's width
-    def andNot(y: UInt): UInt = x & ~Wire(t = x, init = y)
+    def andNot(y: UInt): UInt = x & ~(y | (x & 0.U))
 
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
 
@@ -187,6 +187,7 @@ package object util {
   def OH1ToOH(x: UInt): UInt = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
   def OH1ToUInt(x: UInt): UInt = OHToUInt(OH1ToOH(x))
   def UIntToOH1(x: UInt, width: Int): UInt = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
+  def UIntToOH1(x: UInt): UInt = UIntToOH1(x, (1 << x.getWidth) - 1)
 
   def trailingZeros(x: Int): Option[Int] = if (x > 0) Some(log2Ceil(x & -x)) else None
 

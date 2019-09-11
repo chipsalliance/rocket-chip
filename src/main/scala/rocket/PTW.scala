@@ -190,7 +190,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       override def cloneType = new Entry().asInstanceOf[this.type]
     }
 
-    val ram =  DescribedSRAM(
+    val (ram, omSRAM) =  DescribedSRAM(
       name = "l2_tlb_ram",
       desc = "L2 TLB",
       size = coreParams.nL2TLBEntries,

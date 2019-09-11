@@ -13,6 +13,7 @@ import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+import freechips.rocketchip.devices.debug.DebugModuleParams
 import chisel3.internal.sourceinfo.SourceInfo
 
 case object PgLevels extends Field[Int](2)
@@ -184,21 +185,23 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val mpu_ppn = Mux(do_refill, refill_ppn,
                 Mux(vm_enabled && special_entry.nonEmpty, special_entry.map(_.ppn(vpn)).getOrElse(0.U), io.req.bits.vaddr >> pgIdxBits))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
+  val mpu_priv = Mux[UInt](Bool(usingVM) && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S, Cat(io.ptw.status.debug, priv))
   val pmp = Module(new PMPChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
   pmp.io.size := io.req.bits.size
   pmp.io.pmp := (io.ptw.pmp: Seq[PMP])
-  pmp.io.prv := Mux(Bool(usingVM) && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S, priv)
+  pmp.io.prv := mpu_priv
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && edge.manager.fastProperty(mpu_physaddr, member, (b:Boolean) => Bool(b))
   val cacheable = fastCheck(_.supportsAcquireT) && (instruction || !usingDataScratchpad)
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
-  val prot_r = fastCheck(_.supportsGet) && pmp.io.r
-  val prot_w = fastCheck(_.supportsPutFull) && pmp.io.w
+  val deny_access_to_debug = mpu_priv <= PRV.M && p(DebugModuleParams).address.contains(mpu_physaddr)
+  val prot_r = fastCheck(_.supportsGet) && !deny_access_to_debug && pmp.io.r
+  val prot_w = fastCheck(_.supportsPutFull) && !deny_access_to_debug && pmp.io.w
   val prot_al = fastCheck(_.supportsLogical)
   val prot_aa = fastCheck(_.supportsArithmetic)
-  val prot_x = fastCheck(_.executable) && pmp.io.x
+  val prot_x = fastCheck(_.executable) && !deny_access_to_debug && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
   val sector_hits = sectored_entries.map(_.sectorHit(vpn))
@@ -280,7 +283,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val cmd_read = isRead(io.req.bits.cmd)
   val cmd_write = isWrite(io.req.bits.cmd)
   val cmd_write_perms = cmd_write ||
-    Bool(coreParams.haveCFlush) && io.req.bits.cmd === M_FLUSH_ALL // not a write, but needs write permissions
+    io.req.bits.cmd.isOneOf(M_FLUSH_ALL, M_WOK) // not a write, but needs write permissions
 
   val lrscAllowed = Mux(Bool(usingDataScratchpad || usingAtomicsOnlyForIO), 0.U, c_array)
   val ae_array =

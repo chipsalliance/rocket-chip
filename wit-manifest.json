@@ -1,0 +1,32 @@
+[
+    {
+        "commit": "3ca9cc7901b91ddccf3fcfd686aa7a93ed48d84f",
+        "name": "hardfloat",
+        "source": "git@github.com:ucb-bar/berkeley-hardfloat.git"
+    },
+    {
+        "commit": "258e0bd41ddc8811725d51192a8fffb133b6f1c8",
+        "name": "api-chisel3-sifive",
+        "source": "git@github.com:sifive/api-chisel3-sifive.git"
+    },
+    {
+        "commit": "e1aa5f3f5c0cdeb204047c3ca50801d9f7ea25f1",
+        "name": "chisel3",
+        "source": "git@github.com:freechipsproject/chisel3.git"
+    },
+    {
+        "commit": "228c9a4b7432ac52178d63b8f27fe064aec71e9c",
+        "name": "firrtl",
+        "source": "git@github.com:freechipsproject/firrtl.git"
+    },
+    {
+        "commit": "77195ab12aefc373ca688e0a9c4d710c13191341",
+        "name": "torture",
+        "source": "git@github.com:ucb-bar/riscv-torture.git"
+    },
+    {
+        "commit": "d619ca850846d2ec36da64bf8a28e7d9a3d9ed1b",
+        "name": "api-config-chipsalliance",
+        "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
+    }
+]

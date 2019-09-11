@@ -18,11 +18,11 @@ TORTURE_CONFIG ?= default
 TOP ?= ..
 
 # The directory that tools get checked out into
-RISCV_TOOLS = $(abspath $(TOP))/riscv-tools
+RISCV_TOOLS = $(abspath $(TOP))/rocket-tools
 
 # The hash of the tools that we're using
 TOOLS_HASH ?= $(shell cat $(TOP)/riscv-tools.hash)
-$(info Using riscv-tools of $(TOOLS_HASH))
+$(info Using rocket-tools of $(TOOLS_HASH))
 
 # The directory that the tools get built into.
 RISCV ?= install/$(TOOLS_HASH)
@@ -126,7 +126,7 @@ vsim-bmark-tests: $(VSIM_BMARK_TEST_STAMPS)
 vsim-regression-tests: $(VSIM_REGRESSION_TEST_STAMPS)
 vsim-torture: $(VSIM_TORTURE_STAMPS)
 
-submodule_names = chisel3 firrtl torture hardfloat $(ROCKETCHIP_ADDONS)
+submodule_names = chisel3 firrtl torture hardfloat api-config-chipsalliance $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:
@@ -134,22 +134,24 @@ stamps/other-submodules.stamp:
 	git -C $(abspath $(TOP)) submodule update --init --recursive $(submodule_names)
 	date > $@
 
-stamps/riscv-tools_checkout.stamp:
+stamps/rocket-tools_checkout.stamp:
 	mkdir -p $(dir $@)
-	git -C $(abspath $(TOP)) clone -n https://github.com/riscv/riscv-tools.git
+	git -C $(abspath $(TOP)) clone -n https://github.com/freechipsproject/rocket-tools.git
 	git -C $(RISCV_TOOLS) checkout $(TOOLS_HASH)
-	git -C $(RISCV_TOOLS) submodule update --init --recursive
+	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim riscv-fesvr riscv-tests riscv-pk riscv-openocd
+	git -C $(RISCV_TOOLS) submodule update --init riscv-gnu-toolchain
+	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils-gdb riscv-gcc riscv-newlib
 	rm -f $(RISCV_TOOLS)/.travis.yml
 	mkdir -p $(dir $@)
 	date > $@
 
-# riscv-tools_checkout.stamp is an order-only prerequisite:
+# rocket-tools_checkout.stamp is an order-only prerequisite:
 # https://www.gnu.org/software/make/manual/make.html#Prerequisite-Types
 # This means that the rule will be executed, but it will /not/ be
 # evaluated as a depenency for install.stamp. This is needed because
 # the timestamp on install.stamp will be older than the checkout stamp
 # anytime we restore the installation area from cache in travisci.
-$(RISCV)/install.stamp: | stamps/riscv-tools_checkout.stamp
+$(RISCV)/install.stamp: | stamps/rocket-tools_checkout.stamp
 	mkdir -p $(dir $@)
 	+cd $(RISCV_TOOLS); RISCV=$(abspath $(RISCV)) ./build.sh
 	date > $@
@@ -235,7 +237,7 @@ stamps/%/emulator-torture-$(TORTURE_CONFIG).stamp: stamps/%/emulator-debug.stamp
 
 # If this is defined empty, then all tests would run.
 JTAG_DTM_TEST ?= MemTest64
-GDBSERVER = $(abspath $(TOP))/riscv-tools/riscv-tests/debug/gdbserver.py \
+GDBSERVER = $(abspath $(TOP))/rocket-tools/riscv-tests/debug/gdbserver.py \
 	    --print-failures \
 	    --print-log-names
 
@@ -257,7 +259,7 @@ endif
 
 JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
 
-stamps/riscv-tests.stamp: stamps/riscv-tools_checkout.stamp
+stamps/riscv-tests.stamp: stamps/rocket-tools_checkout.stamp
 	mkdir -p $(dir $@)
 	date > $@
 

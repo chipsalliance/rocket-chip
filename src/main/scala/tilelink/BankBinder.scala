@@ -33,16 +33,21 @@ case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCus
       supportsHint       = c.supportsHint       intersect maxXfer)})}
 
   def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] =
-    (p zip ids) map { case (mp, id) => mp.copy(managers = mp.managers.map { m => m.copy(
-      address            = m.address.flatMap { a => a.intersect(AddressSet(id, ~mask))},
-      supportsAcquireT   = m.supportsAcquireT   intersect maxXfer,
-      supportsAcquireB   = m.supportsAcquireB   intersect maxXfer,
-      supportsArithmetic = m.supportsArithmetic intersect maxXfer,
-      supportsLogical    = m.supportsLogical    intersect maxXfer,
-      supportsGet        = m.supportsGet        intersect maxXfer,
-      supportsPutFull    = m.supportsPutFull    intersect maxXfer,
-      supportsPutPartial = m.supportsPutPartial intersect maxXfer,
-      supportsHint       = m.supportsHint       intersect maxXfer)})}
+    (p zip ids) map { case (mp, id) => mp.copy(managers = mp.managers.flatMap { m =>
+      val addresses = m.address.flatMap(a => a.intersect(AddressSet(id, ~mask)))
+      if (addresses.nonEmpty)
+        Some(m.copy(
+          address            = addresses,
+          supportsAcquireT   = m.supportsAcquireT   intersect maxXfer,
+          supportsAcquireB   = m.supportsAcquireB   intersect maxXfer,
+          supportsArithmetic = m.supportsArithmetic intersect maxXfer,
+          supportsLogical    = m.supportsLogical    intersect maxXfer,
+          supportsGet        = m.supportsGet        intersect maxXfer,
+          supportsPutFull    = m.supportsPutFull    intersect maxXfer,
+          supportsPutPartial = m.supportsPutPartial intersect maxXfer,
+          supportsHint       = m.supportsHint       intersect maxXfer))
+      else None
+    })}
 }
 
 /* A BankBinder is used to divide contiguous memory regions into banks, suitable for a cache  */

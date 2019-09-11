@@ -5,9 +5,11 @@ package freechips.rocketchip.subsystem
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
+import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterrupt}
 import freechips.rocketchip.util._
+
 
 case object SystemBusKey extends Field[SystemBusParams]
 case object FrontBusKey extends Field[FrontBusParams]
@@ -34,8 +36,16 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
+
+trait BaseSubsystemBusAttachment
+case object SBUS extends BaseSubsystemBusAttachment
+case object PBUS extends BaseSubsystemBusAttachment
+case object FBUS extends BaseSubsystemBusAttachment
+case object MBUS extends BaseSubsystemBusAttachment
+case object CBUS extends BaseSubsystemBusAttachment
+
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   // These are wrappers around the standard buses available in all subsytems, where
@@ -46,6 +56,14 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+
+  protected def attach(where: BaseSubsystemBusAttachment) = where match {
+    case SBUS => sbus
+    case PBUS => pbus
+    case FBUS => fbus
+    case MBUS => mbus
+    case CBUS => cbus
+  }
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
@@ -71,6 +89,8 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem {
       }
     }
   }
+
+  lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
 }
 
 

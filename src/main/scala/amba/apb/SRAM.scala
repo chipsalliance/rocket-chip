@@ -5,11 +5,15 @@ package freechips.rocketchip.amba.apb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.model.APB
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
 class APBRAM(
     address: AddressSet,
+    cacheable: Boolean = true,
+    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -22,7 +26,7 @@ class APBRAM(
     Seq(APBSlaveParameters(
       address       = List(address) ++ errors,
       resources     = resources,
-      regionType    = RegionType.UNCACHED,
+      regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable    = executable,
       supportsRead  = true,
       supportsWrite = true)),
@@ -30,7 +34,19 @@ class APBRAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val (mem, omMem) = makeSinglePortedByteWriteSeqMem(1 << mask.filter(b=>b).size)
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = 1 << mask.filter(b=>b).size)
+
+    parentLogicalTreeNode.map {
+      case parentLTN =>
+        def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
+          device = device,
+          omSRAMs = Seq(omSRAM),
+          busProtocol = new APB(None),
+          dataECC = None,
+          hasAtomics = None,
+          busProtocolSpecification = None)
+        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
+    }
 
     val paddr = Cat((mask zip (in.paddr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val legal = address.contains(in.paddr)

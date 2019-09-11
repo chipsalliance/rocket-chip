@@ -86,7 +86,6 @@ object Generator extends GeneratorApp {
     }
   }
 
-  val longName = names.configProject + "." + names.configs
   generateFirrtl
   generateAnno
   generateTestSuiteMakefrags

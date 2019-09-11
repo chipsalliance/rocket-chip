@@ -18,6 +18,11 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  resolvers ++= Seq(
+    Resolver.sonatypeRepo("snapshots"),
+    Resolver.sonatypeRepo("releases"),
+    Resolver.mavenLocal
+  ),
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
@@ -62,13 +67,31 @@ def dependOnChisel(prj: Project) = {
   }
 }
 
+lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
+  .settings(commonSettings)
+  .settings(publishArtifact := false)
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
   .settings(crossScalaVersions := Seq("2.12.4"))
+  .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
+  .settings(publishArtifact := false)
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
-  .dependsOn(hardfloat, `rocket-macros`)
-  .aggregate(hardfloat, `rocket-macros`) // <-- means the running task on rocketchip is also run by aggregate tasks
+  .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
+  .dependsOn(hardfloat % "compile-internal;test-internal")
+  .dependsOn(`rocket-macros` % "compile-internal;test-internal")
+  .settings(
+      aggregate := false,
+      // Include macro classes, resources, and sources in main jar.
+      mappings in (Compile, packageBin) ++= (mappings in (`api-config-chipsalliance`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`api-config-chipsalliance`, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (hardfloat, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
+      mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
+      exportJars := true
+  )
+
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
