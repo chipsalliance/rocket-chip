@@ -112,8 +112,8 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
     //  occurred.
     // TODO: write some sort of sanity check assertion for users
     // that denote don't reset when there is activity
-//    assert (!(reset || !sio.sink_reset_n) || !io.enq.valid, "Enque while sink is reset and AsyncQueueSource is unprotected")
-//    assert (!reset_rise || prev_idx_match.asBool, "Sink reset while AsyncQueueSource not empty")
+    //    assert (!(reset || !sio.sink_reset_n) || !io.enq.valid, "Enqueue while sink is reset and AsyncQueueSource is unprotected")
+    //    assert (!reset_rise || prev_idx_match.asBool, "Sink reset while AsyncQueueSource not empty")
   }
 }
 
@@ -164,14 +164,14 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
     source_ready := source_valid.io.out
     sio.sink_reset_n := !reset.asBool
 
-    val reset_and_extend = !source_ready || !sio.source_reset_n || reset.asBool
-    val reset_and_extend_prev = RegNext(reset_and_extend, true.B)
-    val reset_rise = !reset_and_extend_prev && reset_and_extend
-    val prev_idx_match = AsyncResetReg(updateData=(io.async.widx===io.async.ridx), resetData=0)
-
     // TODO: write some sort of sanity check assertion for users
     // that denote don't reset when there is activity
-//    assert (!reset_rise || prev_idx_match.asBool, "Source reset while AsyncQueueSink not empty")
+    // 
+    // val reset_and_extend = !source_ready || !sio.source_reset_n || reset.asBool
+    // val reset_and_extend_prev = RegNext(reset_and_extend, true.B)
+    // val reset_rise = !reset_and_extend_prev && reset_and_extend
+    // val prev_idx_match = AsyncResetReg(updateData=(io.async.widx===io.async.ridx), resetData=0)
+    // assert (!reset_rise || prev_idx_match.asBool, "Source reset while AsyncQueueSink not empty")
   }
 }
 
