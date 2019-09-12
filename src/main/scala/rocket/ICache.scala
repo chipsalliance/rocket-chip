@@ -134,7 +134,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val dECC = cacheParams.dataCode
 
   require(isPow2(nSets) && isPow2(nWays))
-  require(!usingVM || pgIdxBits >= untagBits)
+  require(!usingVM || pgIdxBits >= untagBits, s"I$$ set size must not exceed ${1<<(pgIdxBits-10)} KiB; got ${(outer.size/nWays)>>10} KiB")
 
   val scratchpadOn = RegInit(false.B)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
