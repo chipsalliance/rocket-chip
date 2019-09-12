@@ -35,18 +35,9 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 trait TLFormatNode extends BaseNode
 {
   def edges: Edges[List[TLEdgeIn], List[TLEdgeOut]]
-  override def formatNode() = edges.in.map(currEdge =>
-  "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.beatBytes + "\n" + currEdge.manager.managers.map(currManager =>
-  "Input Edges (edges.in.map.manager.managers.map):\nManager Address = " + currManager.address +
-  "\nsupportsAcquireT = " + currManager.supportsAcquireT +
-  "\nsupportsAcquireB = " + currManager.supportsAcquireB +
-  "\nsupportsArithmetic = " + currManager.supportsArithmetic +
-  "\nsupportsLogical = " + currManager.supportsLogical +
-  "\nsupportsGet = " + currManager.supportsGet +
-  "\nsupportsPutFull = " + currManager.supportsPutFull +
-  "\nsupportsPutPartial = " + currManager.supportsPutPartial +
-  "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString + edges.out.map(currEdge =>
-  currEdge.client.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):\nClient Name:" + currClient.name +
+  override def formatNode() = "TileLink Node\n" + edges.out.map(currEdge =>
+  currEdge.client.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+  "\nClient Name = " + currClient.name +
   "\nvisibility = " + currClient.visibility +
   (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
   "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
@@ -56,7 +47,19 @@ trait TLFormatNode extends BaseNode
   "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
   "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
   "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
-  "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString
+  "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+  "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.beatBytes + "\n" + currEdge.manager.managers.map(currManager =>
+  "Input Edges (edges.in.map.manager.managers.map):" +
+  "\nManager Name = " + currManager.name +
+  "\nManager Address = " + currManager.address +
+  "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+  "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+  "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+  "\nsupportsLogical = " + currManager.supportsLogical +
+  "\nsupportsGet = " + currManager.supportsGet +
+  "\nsupportsPutFull = " + currManager.supportsPutFull +
+  "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+  "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
 }
 
 case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
@@ -93,6 +96,36 @@ abstract class TLCustomNode(implicit valName: ValName)
 
 // Asynchronous crossings
 
+trait TLAsyncFormatNode extends BaseNode
+{
+  def edges: Edges[List[TLAsyncEdgeParameters], List[TLAsyncEdgeParameters]]
+  override def formatNode() = edges.out.map(currEdge =>
+  currEdge.client.base.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+  "\nClient Name = " + currClient.name +
+  "\nvisibility = " + currClient.visibility +
+  (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+  "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+  "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+  "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+  "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+  "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+  "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+  "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+  "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+  "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.base.beatBytes + "\n" + currEdge.manager.base.managers.map(currManager =>
+  "Input Edges (edges.in.map.manager.managers.map):" +
+  "\nManager Name = " + currManager.name +
+  "\nManager Address = " + currManager.address +
+  "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+  "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+  "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+  "\nsupportsLogical = " + currManager.supportsLogical +
+  "\nsupportsGet = " + currManager.supportsGet +
+  "\nsupportsPutFull = " + currManager.supportsPutFull +
+  "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+  "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
+}
+
 object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
   def edge(pd: TLAsyncClientPortParameters, pu: TLAsyncManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = TLAsyncEdgeParameters(pd, pu, p, sourceInfo)
@@ -109,9 +142,9 @@ case class TLAsyncAdapterNode(
   clientFn:  TLAsyncClientPortParameters  => TLAsyncClientPortParameters  = { s => s },
   managerFn: TLAsyncManagerPortParameters => TLAsyncManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLAsyncImp)(clientFn, managerFn)
+  extends AdapterNode(TLAsyncImp)(clientFn, managerFn) with TLAsyncFormatNode
 
-case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)()
+case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)() with TLAsyncFormatNode
 
 object TLAsyncNameNode {
   def apply(name: ValName) = TLAsyncIdentityNode()(name)
@@ -123,13 +156,97 @@ case class TLAsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) // discard cycles in other clock domain
+    {
+      override def formatNode() = edges.out.map(currEdge =>
+      currEdge.client.base.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+      "\nClient Name = " + currClient.name +
+      "\nvisibility = " + currClient.visibility +
+      (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+      "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+      "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+      "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+      "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+      "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+      "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+      "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+      "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+      "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.beatBytes + "\n" + currEdge.manager.managers.map(currManager =>
+      "Input Edges (edges.in.map.manager.managers.map):" +
+      "\nManager Name = " + currManager.name +
+      "\nManager Address = " + currManager.address +
+      "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+      "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+      "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+      "\nsupportsLogical = " + currManager.supportsLogical +
+      "\nsupportsGet = " + currManager.supportsGet +
+      "\nsupportsPutFull = " + currManager.supportsPutFull +
+      "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+      "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
+    }
 
 case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
   extends MixedAdapterNode(TLAsyncImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = p.base.minLatency + async.sync) },
     uFn = { p => TLAsyncManagerPortParameters(async, p) })
+    {
+      override def formatNode() = edges.out.map(currEdge =>
+      currEdge.client.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+      "\nClient Name = " + currClient.name +
+      "\nvisibility = " + currClient.visibility +
+      (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+      "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+      "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+      "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+      "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+      "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+      "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+      "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+      "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+      "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.base.beatBytes + "\n" + currEdge.manager.base.managers.map(currManager =>
+      "Input Edges (edges.in.map.manager.managers.map):" +
+      "\nManager Name = " + currManager.name +
+      "\nManager Address = " + currManager.address +
+      "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+      "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+      "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+      "\nsupportsLogical = " + currManager.supportsLogical +
+      "\nsupportsGet = " + currManager.supportsGet +
+      "\nsupportsPutFull = " + currManager.supportsPutFull +
+      "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+      "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
+    }
 
 // Rationally related crossings
+
+trait TLRationalFormatNode extends BaseNode
+{
+  def edges: Edges[List[TLRationalEdgeParameters], List[TLRationalEdgeParameters]]
+  override def formatNode() = edges.out.map(currEdge =>
+  currEdge.client.base.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+  "\nClient Name = " + currClient.name +
+  "\nvisibility = " + currClient.visibility +
+  (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+  "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+  "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+  "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+  "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+  "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+  "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+  "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+  "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+  "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.base.beatBytes + "\n" + currEdge.manager.base.managers.map(currManager =>
+  "Input Edges (edges.in.map.manager.managers.map):" +
+  "\nManager Name = " + currManager.name +
+  "\nManager Address = " + currManager.address +
+  "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+  "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+  "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+  "\nsupportsLogical = " + currManager.supportsLogical +
+  "\nsupportsGet = " + currManager.supportsGet +
+  "\nsupportsPutFull = " + currManager.supportsPutFull +
+  "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+  "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
+}
 
 object TLRationalImp extends SimpleNodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
@@ -147,9 +264,9 @@ case class TLRationalAdapterNode(
   clientFn:  TLRationalClientPortParameters  => TLRationalClientPortParameters  = { s => s },
   managerFn: TLRationalManagerPortParameters => TLRationalManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLRationalImp)(clientFn, managerFn)
+  extends AdapterNode(TLRationalImp)(clientFn, managerFn) with TLRationalFormatNode
 
-case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)()
+case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)() with TLRationalFormatNode
 
 object TLRationalNameNode {
   def apply(name: ValName) = TLRationalIdentityNode()(name)
@@ -161,8 +278,62 @@ case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(
     dFn = { p => TLRationalClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = 1) }) // discard cycles from other clock domain
+    {
+      override def formatNode() = edges.out.map(currEdge =>
+      currEdge.client.base.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+      "\nClient Name = " + currClient.name +
+      "\nvisibility = " + currClient.visibility +
+      (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+      "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+      "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+      "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+      "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+      "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+      "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+      "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+      "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+      "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.beatBytes + "\n" + currEdge.manager.managers.map(currManager =>
+      "Input Edges (edges.in.map.manager.managers.map):" +
+      "\nManager Name = " + currManager.name +
+      "\nManager Address = " + currManager.address +
+      "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+      "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+      "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+      "\nsupportsLogical = " + currManager.supportsLogical +
+      "\nsupportsGet = " + currManager.supportsGet +
+      "\nsupportsPutFull = " + currManager.supportsPutFull +
+      "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+      "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
+    }
 
 case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: ValName)
   extends MixedAdapterNode(TLRationalImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = 1) },
     uFn = { p => TLRationalManagerPortParameters(direction, p) })
+    {
+      override def formatNode() = edges.out.map(currEdge =>
+      currEdge.client.clients.map(currClient => "Output Edges (edges.out.map.client.clients.map):" +
+      "\nClient Name = " + currClient.name +
+      "\nvisibility = " + currClient.visibility +
+      (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else
+      "\nemitsAcquireT = " + currClient.knownToEmit.get.emitsAcquireT +
+      "\nemitsAcquireB = " + currClient.knownToEmit.get.emitsAcquireB +
+      "\nemitsArithmetic = " + currClient.knownToEmit.get.emitsArithmetic +
+      "\nemitsLogical = " + currClient.knownToEmit.get.emitsLogical +
+      "\nemitsGet = " + currClient.knownToEmit.get.emitsGet +
+      "\nemitsPutFull = " + currClient.knownToEmit.get.emitsPutFull +
+      "\nemitsPutPartial = " + currClient.knownToEmit.get.emitsPutPartial +
+      "\nemitsHint = " + currClient.knownToEmit.get.emitsHint + "\n")).mkString).mkString + edges.in.map(currEdge =>
+      "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + currEdge.manager.base.beatBytes + "\n" + currEdge.manager.base.managers.map(currManager =>
+      "Input Edges (edges.in.map.manager.managers.map):" +
+      "\nManager Name = " + currManager.name +
+      "\nManager Address = " + currManager.address +
+      "\nsupportsAcquireT = " + currManager.supportsAcquireT +
+      "\nsupportsAcquireB = " + currManager.supportsAcquireB +
+      "\nsupportsArithmetic = " + currManager.supportsArithmetic +
+      "\nsupportsLogical = " + currManager.supportsLogical +
+      "\nsupportsGet = " + currManager.supportsGet +
+      "\nsupportsPutFull = " + currManager.supportsPutFull +
+      "\nsupportsPutPartial = " + currManager.supportsPutPartial +
+      "\nsupportsHint = " + currManager.supportsHint + "\n").mkString).mkString
+    }
