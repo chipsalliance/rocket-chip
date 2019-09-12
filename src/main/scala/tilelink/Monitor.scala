@@ -70,7 +70,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.Get) {
       assert (edge.manager.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
-      assert (edge.client.emitsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type, but client claims it cannot emit it" + extra)
+      assert (edge.client.emitsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type of a size that client claims it cannot emit" + extra)
       assert (source_ok, "'A' channel Get carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Get address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel Get carries invalid param" + extra)
@@ -80,7 +80,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.PutFullData) {
       assert (edge.manager.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
-      assert (edge.client.emitsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type, but client claims it cannot emit it" + extra)
+      assert (edge.client.emitsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type of a size that client claims it cannot emit" + extra)
       assert (source_ok, "'A' channel PutFull carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel PutFull carries invalid param" + extra)
@@ -89,7 +89,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.PutPartialData) {
       assert (edge.manager.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
-      assert (edge.client.emitsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type, but client claims it cannot emit it" + extra)
+      assert (edge.client.emitsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type of a size that client claims it cannot emit" + extra)
       assert (source_ok, "'A' channel PutPartial carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       assert (bundle.param === UInt(0), "'A' channel PutPartial carries invalid param" + extra)
@@ -98,7 +98,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
       assert (edge.manager.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
-      assert (edge.client.emitsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type, but client claims it cannot emit it" + extra)
+      assert (edge.client.emitsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type of a size that client claims it cannot emit" + extra)
       assert (source_ok, "'A' channel Arithmetic carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
       assert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
@@ -107,7 +107,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.LogicalData) {
       assert (edge.manager.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
-      assert (edge.client.emitsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type, but client claims it cannot emit it" + extra)
+      assert (edge.client.emitsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type of a size that client claims it cannot emit" + extra)
       assert (source_ok, "'A' channel Logical carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
       assert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
@@ -116,7 +116,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 
     when (bundle.opcode === TLMessages.Hint) {
       assert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
-      assert (edge.client.emitsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type, but client claims it cannot emit it" + extra)
+      assert (edge.client.emitsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type of a size that client claims it cannot emit" + extra)
       assert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       assert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
