@@ -59,13 +59,12 @@ global def makeRocketChipGeneratorOptions jars targetDir topModule configs =
 Please see the https://github.com/sifive/wake/blob/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake/tour/tuples.adoc[Wake tuple documentation]
 for more information about Tuples.
 
-The `Jars` field are the compiled Scala jars for your project, for example `rocketchipScalaModule.scalaModuleClasspath` for base Rocket Chip.
+Because the constructor is private, we use `makeRocketChipGeneratorOptions` to construct `RocketChipGeneratorOptions`:
 
-`TargetDir` is the directory where the output of the generator will be placed.
-
-`TopModuleName` is the name of the top Chisel Module, eg. `"freechips.rocketchip.system.TestHarness"`
-
-`ConfigNames` is a `List` of config classes, eg. `"freechips.rocketchip.system.DefaultConfig", Nil`
+* `jars` is a List of compiled Scala jars for your project, for example `rocketchipScalaModule.scalaModuleClasspath` for base Rocket Chip.
+* `targetDir` is the directory where the output of the generator will be placed.
+* `topModule` is the name of the top Chisel Module, eg. `"freechips.rocketchip.system.TestHarness"`
+* `configs` is a `List` of config classes, eg. `"freechips.rocketchip.system.DefaultConfig", Nil`
 
 === Example
 
@@ -136,6 +135,8 @@ Wake is still evolving so its hard for everything to be 100% synced, but the lin
 Another useful thing to look at is https://github.com/sifive/block-pio-sifive[Block PIO SiFive] which is an example repository for onboarding Verilog IP to Rocket Chip-based designs
 
 === Wake tips
+
+* Wake has https://github.com/sifive/wake/tree/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake/syntax[syntax highlighting] for Vim, Emacs, and Joe
 
 * Be sure to check out the Wake CLI `wake --help`.
 
