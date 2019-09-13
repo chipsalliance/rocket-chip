@@ -1,12 +1,8 @@
 = Rocket Chip Generator
-:toc:
-:toc-placement!:
 
 This repository contains the Rocket chip generator necessary to instantiate
 the RISC-V Rocket Core. For more information on Rocket Chip, please consult our
 http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html[technical report].
-
-toc::[]
 
 == Dependencies
 
@@ -42,6 +38,41 @@ $ wake compileScalaModule rocketchipScalaModule
 The return value of that function is the `Path` to the compile jar.
 
 == Run Rocket Chip Generator
+
+You can run the generator with the Wake rule `runRocketChipGenerator`.
+This function accepts a single `RocketChipGeneratorOptions` as an argument.
+
+----
+tuple RocketChipGeneratorOptions =
+  global Jars:          List Path
+  global TargetDir:     Path
+  global TopModuleName: String
+  global ConfigNames:   List String
+  global ExtraSources:  List Path
+  global BaseFileName:  Option String
+  
+global def makeRocketChipGeneratorOptions jars targetDir topModule configs =
+  RocketChipGeneratorOptions jars targetDir topModule configs Nil None
+----
+Please see the https://github.com/sifive/wake/blob/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake/tour/tuples.adoc[Wake tuple documentation]
+for more information about Tuples.
+
+----
+wake -v 'makeRocketChipGeneratorOptions rocketchipScalaModule.scalaModuleClasspath "output".mkdir "freechips.rocketchip.system.TestHarness" ("freechips.rocketchip.system.DefaultConfig", Nil) | runRocketChipGenerator
+----
+
+== Run Simulations
+
+The Wake rules for simulations are in the https://github.com/sifive/api-generator-sifive[API Generator SiFive] repository.
+
+You can add it to an existing Rocket Chip workspace:
+
+----
+$ wit add-pkg git@github.com:sifive/api-generator-sifive.git
+$ wit update
+----
+
+This will pull in `api-generator-sifive` as well as additional dependencies.
 
 == Tips and Tricks
 
