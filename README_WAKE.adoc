@@ -1,0 +1,50 @@
+= Rocket Chip Generator
+:toc:
+:toc-placement!:
+
+This repository contains the Rocket chip generator necessary to instantiate
+the RISC-V Rocket Core. For more information on Rocket Chip, please consult our
+http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html[technical report].
+
+toc::[]
+
+== Dependencies
+
+This repository uses version 0.10.1 of https://github.com/sifive/wit[Wit] and version 0.15.1 of https://github.com/sifive/wake[Wake].
+Please see the respective repositories and their releases to install these dependencies.
+
+== Checkout The Code
+
+This repository uses https://github.com/sifive/wit[Wit] for dependency fetching and resolution.
+Please see the https://github.com/sifive/wit/blob/v0.10.1/share/doc/wit/tutorial.md[Wit tutorial] for more information.
+
+----
+$ wit init workspace -a git@github.com:chipsalliance/rocket-chip.git
+----
+
+This will clone rocket-chip as well as resolve and fetch all dependencies.
+
+== Compile Rocket Chip
+
+It is not necessary to compile separately from invocation, but it might be useful to understand how the different pieces work.
+
+This repository uses https://github.com/sifive/wake[Wake] for orchestrating the build.
+We strongly recommend checking out the https://github.com/sifive/wake/blob/v0.15.1/share/doc/wake/tutorial.md[Wake tutorial].
+You can find the Rocket Chip Wake rules in `build.wake` within this repository.
+
+The Rocket Chip Scala code is compiled using https://github.com/sifive/api-scala-sifive[API Scala SiFive],
+and can thus be compiled with:
+
+----
+$ wake compileScalaModule rocketchipScalaModule
+----
+
+The return value of that function is the `Path` to the compile jar.
+
+== Run Rocket Chip Generator
+
+== Tips and Tricks
+
+See the https://github.com/sifive/wake/tree/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake[Wake `share/doc` directory] for documentation.
+Note that this link is to a newer commit than 0.15.1 because more documentation has been written since the release.
+Wake is still evolving so its hard for everything to be 100% synced, but the linked documentation should be compatible at time of writing.
