@@ -39,6 +39,8 @@ The return value of that function is the `Path` to the compile jar.
 
 == Run Rocket Chip Generator
 
+=== API
+
 You can run the generator with the Wake rule `runRocketChipGenerator`.
 This function accepts a single `RocketChipGeneratorOptions` as an argument.
 
@@ -57,8 +59,50 @@ global def makeRocketChipGeneratorOptions jars targetDir topModule configs =
 Please see the https://github.com/sifive/wake/blob/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake/tour/tuples.adoc[Wake tuple documentation]
 for more information about Tuples.
 
+The `Jars` field are the compiled Scala jars for your project, for example `rocketchipScalaModule.scalaModuleClasspath` for base Rocket Chip.
+
+`TargetDir` is the directory where the output of the generator will be placed.
+
+`TopModuleName` is the name of the top Chisel Module, eg. `"freechips.rocketchip.system.TestHarness"`
+
+`ConfigNames` is a `List` of config classes, eg. `"freechips.rocketchip.system.DefaultConfig", Nil`
+
+=== Example
+
 ----
-wake -v 'makeRocketChipGeneratorOptions rocketchipScalaModule.scalaModuleClasspath "output".mkdir "freechips.rocketchip.system.TestHarness" ("freechips.rocketchip.system.DefaultConfig", Nil) | runRocketChipGenerator
+wake -v 'makeRocketChipGeneratorOptions rocketchipScalaModule.scalaModuleClasspath "output".mkdir' \
+  '"freechips.rocketchip.system.TestHarness" ("freechips.rocketchip.system.DefaultConfig", Nil) | runRocketChipGenerator'
+----
+
+This may look kind of scary, so let us unpack it.
+
+Wake supports arbitrary expressions on the command-line, and as this seemingly crazy command-line could be expressed as Wake functions
+
+----
+global def myBuild =
+  def classpath = rocketchipScalaModule.scalaModuleClasspath
+  def targetDir = mkdir "output"
+  def top = "freechips.rocketchip.system.TestHarness"
+  def configs = "freechips.rocketchip.system.DefaultConfig", Nil
+  makeRocketChipGeneratorOptions classpath targetDir top configs
+  | runRocketChipGenerator
+----
+
+This is generally more clear and is how Rocket Chip-based designs should be built in practice.
+
+=== Return Type
+
+The return type of of `runRocketChipGenerator` is a `RocketChipGeneratorOutputs`.
+It provides the following accessors for its contents:
+
+----
+global def getRocketChipGeneratorOutputsDTS             = ...
+global def getRocketChipGeneratorOutputsFirrtlFile      = ...
+global def getRocketChipGeneratorOutputsFirrtlAnnoFile  = ...
+global def getRocketChipGeneratorOutputsRomConf         = ...
+global def getRocketChipGeneratorOutputsAllOutputs      = ...
+global def getRocketChipGeneratorOutputsInputOptions    = ...
+global def getRocketChipGeneratorOutputsObjectModelFile = ...
 ----
 
 == Run Simulations
@@ -79,3 +123,31 @@ This will pull in `api-generator-sifive` as well as additional dependencies.
 See the https://github.com/sifive/wake/tree/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake[Wake `share/doc` directory] for documentation.
 Note that this link is to a newer commit than 0.15.1 because more documentation has been written since the release.
 Wake is still evolving so its hard for everything to be 100% synced, but the linked documentation should be compatible at time of writing.
+
+=== Specific recommended reading:
+
+* https://github.com/sifive/wit/blob/v0.10.1/share/doc/wit/tutorial.md[Wit tutorial]
+* https://github.com/sifive/wake/blob/v0.15.1/share/doc/wake/tutorial.md[Wake tutorial]
+* https://github.com/sifive/wake/blob/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake/quickref.md[Wake Quickref]
+* https://github.com/sifive/wake/blob/a0d99f15cf806f917d64714934d337b392d36f26/share/doc/wake/tour/tuples.adoc[Wake Tuple Docs]
+* https://github.com/sifive/api-scala-sifive/tree/aafc0a430db848f063ed906ba84b1ddfab56ca29[API Scala SiFive documentation]
+* https://sifive.github.io/wake/[Annotated Wake Standard Library]
+
+Another useful thing to look at is https://github.com/sifive/block-pio-sifive[Block PIO SiFive] which is an example repository for onboarding Verilog IP to Rocket Chip-based designs
+
+=== Wake tips
+
+* Be sure to check out the Wake CLI `wake --help`.
+
+* Turn on verbose with `-v`. You can use this to see the type of a function, eg. `wake -v map`.
+
+* See all global variables with `-g`, this can be combined with `grep` to see available functions for a given type, try
+----
+$ wake -g | grep ScalaModule
+----
+
+* You can see the job that created a file with `wake -o <file>`, and jobs that use a file as input with `wake -i <file>`
+
+* You can combine `-o` and `-i` with `-s` to create an exectuable bash script that runs a job.
+
+* By default, Wake does not maintain a stack trace, use `-d|--debug` to have Wake create one.
