@@ -61,14 +61,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
       knownToEmit = if (!c.clients.forall(_.knownToEmit != None)) None else
         Some(TLClientEmissionSizes(
-        emitsAcquireT = c.clients.map(x => x.knownToEmit.get.emitsAcquireT).reduce(_ combine _),
-        emitsAcquireB = c.clients.map(x => x.knownToEmit.get.emitsAcquireB).reduce(_ combine _),
-        emitsArithmetic = c.clients.map(x => x.knownToEmit.get.emitsArithmetic).reduce(_ combine _),
-        emitsLogical = c.clients.map(x => x.knownToEmit.get.emitsLogical).reduce(_ combine _),
-        emitsGet = c.clients.map(x => x.knownToEmit.get.emitsGet).reduce(_ combine _),
-        emitsPutFull = c.clients.map(x => x.knownToEmit.get.emitsPutFull).reduce(_ combine _),
-        emitsPutPartial = c.clients.map(x => x.knownToEmit.get.emitsPutPartial).reduce(_ combine _),
-        emitsHint = c.clients.map(x => x.knownToEmit.get.emitsHint).reduce(_ combine _)
+        emitsAcquireT = c.clients.map(x => x.knownToEmit.get.emitsAcquireT).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsAcquireB = c.clients.map(x => x.knownToEmit.get.emitsAcquireB).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsArithmetic = c.clients.map(x => x.knownToEmit.get.emitsArithmetic).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsLogical = c.clients.map(x => x.knownToEmit.get.emitsLogical).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsGet = c.clients.map(x => x.knownToEmit.get.emitsGet).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsPutFull = c.clients.map(x => x.knownToEmit.get.emitsPutFull).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsPutPartial = c.clients.map(x => x.knownToEmit.get.emitsPutPartial).reduce(_ combine _) intersect TransferSizes(minSize, maxSize),
+        emitsHint = c.clients.map(x => x.knownToEmit.get.emitsHint).reduce(_ combine _) intersect TransferSizes(minSize, maxSize)
         )),
 
       userBits    = {
