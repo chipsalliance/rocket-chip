@@ -63,12 +63,6 @@ trait TLFormatNode extends BaseNode
 }
 
 case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
-//{
-//  override def formatNode() = "Output Edge (edges.out.head.client): \nanyEmitAcquireT = " + edges.out.head.client.anyEmitAcquireT +
-//  "\nanyEmitAcquireB = " + edges.out.head.client.anyEmitAcquireB +
-//  "\nanyEmitArithmetic = " + edges.out.head.client.anyEmitArithmetic +
-//  "\nanyEmitLogical = " + edges.out.head.client.anyEmitLogical
-//}
 case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with TLFormatNode
 case class TLAdapterNode(
   clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },

@@ -11,7 +11,7 @@ import scala.math.max
 import scala.reflect.ClassTag
 
 case class TLManagerEmissionSizes(
-  emitsProbe:   TransferSizes   = TransferSizes.none,
+  emitsProbe:      TransferSizes   = TransferSizes.none,
   emitsArithmetic: TransferSizes   = TransferSizes.none,
   emitsLogical:    TransferSizes   = TransferSizes.none,
   emitsGet:        TransferSizes   = TransferSizes.none,
@@ -271,6 +271,9 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutFull))
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
+
+  // require(if (knownToEmit != None) knownToEmit.get.emitsAcquireT.contains(supportsProbe) else true)
+  // require(if (knownToEmit != None) knownToEmit.get.emitsAcquireB.contains(supportsProbe) else true)
 
   visibility.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
 
