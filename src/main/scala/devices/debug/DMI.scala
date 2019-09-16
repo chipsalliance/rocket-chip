@@ -82,7 +82,8 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug",
   knownToEmit = Some(TLClientEmissionSizes(
     emitsGet = TransferSizes(4, 4),
-    emitsPutFull = TransferSizes(4, 4)
+    emitsPutFull = TransferSizes(4, 4),
+    emitsPutPartial = TransferSizes(4, 4)
   ))
   )))))
 
