@@ -272,8 +272,8 @@ case class TLClientParameters(
   require (supportsProbe.contains(supportsPutPartial))
   require (supportsProbe.contains(supportsHint))
 
-  // require(if (knownToEmit != None) knownToEmit.get.emitsAcquireT.contains(supportsProbe) else true)
-  // require(if (knownToEmit != None) knownToEmit.get.emitsAcquireB.contains(supportsProbe) else true)
+  require(knownToEmit.forall(supportsProbe.contains(_.emitsAcquireT)))
+  require(knownToEmit.forall(supportsProbe.contains(_.emitsAcquireB)))
 
   visibility.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
 
