@@ -140,16 +140,14 @@ object TLAsyncNameNode {
 case class TLAsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
-    uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) // discard cycles in other clock domain
-    {
+    uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) { // discard cycles in other clock domain
       override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
     }
 
 case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
   extends MixedAdapterNode(TLAsyncImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = p.base.minLatency + async.sync) },
-    uFn = { p => TLAsyncManagerPortParameters(async, p) })
-    {
+    uFn = { p => TLAsyncManagerPortParameters(async, p) }) {
       override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
     }
 
@@ -188,15 +186,13 @@ object TLRationalNameNode {
 case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(
     dFn = { p => TLRationalClientPortParameters(p) },
-    uFn = { p => p.base.copy(minLatency = 1) }) // discard cycles from other clock domain
-    {
+    uFn = { p => p.base.copy(minLatency = 1) }) { // discard cycles from other clock domain
       override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
     }
 
 case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: ValName)
   extends MixedAdapterNode(TLRationalImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = 1) },
-    uFn = { p => TLRationalManagerPortParameters(direction, p) })
-    {
+    uFn = { p => TLRationalManagerPortParameters(direction, p) }) {
       override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
     }
