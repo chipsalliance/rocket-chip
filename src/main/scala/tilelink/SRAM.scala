@@ -93,6 +93,7 @@ class TLRAM(
     val d_read      = Reg(Bool())
     val d_atomic    = Reg(Bool())
     val d_address   = Reg(UInt(width = addrBits.size))
+    val d_rd_mask   = MaskGen(d_address, d_size, beatBytes)
     val d_rmw_mask  = Reg(UInt(width = beatBytes))
     val d_rmw_data  = Reg(UInt(width = 8*beatBytes))
     val d_poison    = Reg(Bool())
@@ -102,8 +103,8 @@ class TLRAM(
     val d_decoded       = d_raw_data.map(lane => code.decode(lane))
     val d_corrected     = Cat(d_decoded.map(_.corrected).reverse)
     val d_uncorrected   = Cat(d_decoded.map(_.uncorrected).reverse)
-    val d_correctable   = d_decoded.map(_.correctable)
-    val d_uncorrectable = d_decoded.map(_.uncorrectable)
+    val d_correctable   = d_decoded.map(_.correctable)   & d_rd_mask.grouped(eccBytes).map(_.orR)
+    val d_uncorrectable = d_decoded.map(_.uncorrectable) & d_rd_mask.grouped(eccBytes).map(_.orR)
     val d_need_fix      = d_correctable.reduce(_ || _)
     val d_error         = d_uncorrectable.reduce(_ || _)
 
