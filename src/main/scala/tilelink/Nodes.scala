@@ -42,7 +42,7 @@ object FormatNodeDefinition {
                   (getManagerPort: A => TLManagerPortParameters): String =
     edges.out.map(currEdge =>
       getClients(currEdge).map(currClient => 
-        s"""Output Edges (edges.out.map.client.clients.map):
+        s"""Output Edges:
           |Client Name = ${currClient.name}
           |visibility = ${currClient.visibility}
           |""".stripMargin + 
@@ -60,9 +60,9 @@ object FormatNodeDefinition {
       ).mkString
     ).mkString +
     edges.in.map(currEdge =>
-          "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + getManagerPort(currEdge).beatBytes + "\n" +
+          s"Input Edge ManagerPort Beatbytes = ${getManagerPort(currEdge).beatBytes}\n" +
           getManagerPort(currEdge).managers.map(currManager =>
-            s"""Input Edges (edges.in.map.manager.managers.map):
+            s"""Input Edges:
               |Manager Name = ${currManager.name}
               |Manager Address = ${currManager.address}
               |supportsAcquireT = ${currManager.supportsAcquireT}
