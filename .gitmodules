@@ -1,6 +1,9 @@
 [submodule "hardfloat"]
 	path = hardfloat
 	url = https://github.com/ucb-bar/berkeley-hardfloat.git
+	branch = 1.2.x
+	firrtl = 1.2.x
+	chisel3 = 3.2.x
 [submodule "torture"]
 	path = torture
 	url = https://github.com/ucb-bar/riscv-torture.git
