@@ -94,7 +94,7 @@ abstract class BaseNode(implicit val valName: ValName)
   }
 
   def description: String
-  def formatNode(): String = ""
+  def formatNode: String = ""
 
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
