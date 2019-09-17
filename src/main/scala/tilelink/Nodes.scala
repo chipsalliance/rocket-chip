@@ -56,7 +56,9 @@ object FormatNodeDefinition {
               |emitsPutPartial = ${currClient.knownToEmit.get.emitsPutPartial}
               |emitsHint = ${currClient.knownToEmit.get.emitsHint}
               |""".stripMargin
-          })).mkString).mkString +
+          })
+      ).mkString
+    ).mkString +
     edges.in.map(currEdge =>
           "Input Edge Manager Beatbytes (edges.in.map.manager.beatBytes): = " + getManagerPort(currEdge).beatBytes + "\n" +
           getManagerPort(currEdge).managers.map(currManager =>
@@ -72,7 +74,8 @@ object FormatNodeDefinition {
               |supportsPutPartial = ${currManager.supportsPutPartial}
               |supportsHint = ${currManager.supportsHint}
               |""".stripMargin
-            ).mkString).mkString
+          ).mkString
+    ).mkString
 }
 
 trait TLFormatNode extends HasFormatNode[TLEdgeIn, TLEdgeOut] {
