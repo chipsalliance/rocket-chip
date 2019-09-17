@@ -142,7 +142,7 @@ case class TLAsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
     dFn = { p => TLAsyncClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) // discard cycles in other clock domain
     {
-      override def formatNode() = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
     }
 
 case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
@@ -150,7 +150,7 @@ case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
     dFn = { p => p.base.copy(minLatency = p.base.minLatency + async.sync) },
     uFn = { p => TLAsyncManagerPortParameters(async, p) })
     {
-      override def formatNode() = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
     }
 
 // Rationally related crossings
@@ -190,7 +190,7 @@ case class TLRationalSourceNode()(implicit valName: ValName)
     dFn = { p => TLRationalClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = 1) }) // discard cycles from other clock domain
     {
-      override def formatNode() = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
     }
 
 case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: ValName)
@@ -198,5 +198,5 @@ case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: Va
     dFn = { p => p.base.copy(minLatency = 1) },
     uFn = { p => TLRationalManagerPortParameters(direction, p) })
     {
-      override def formatNode() = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
     }
