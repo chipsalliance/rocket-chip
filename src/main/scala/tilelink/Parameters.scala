@@ -314,14 +314,14 @@ case class TLClientPortParameters(
     }
   }
 
-  val anyEmitAcquireT: Option[Boolean]      = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireT.none)    .reduce(_ || _))
-  val anyEmitAcquireB: Option[Boolean]      = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireB.none)    .reduce(_ || _))
-  val anyEmitArithmetic: Option[Boolean]    = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsArithmetic.none)  .reduce(_ || _))
-  val anyEmitLogical: Option[Boolean]       = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsLogical.none)     .reduce(_ || _))
-  val anyEmitGet: Option[Boolean]           = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsGet.none)         .reduce(_ || _))
-  val anyEmitPutFull: Option[Boolean]       = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutFull.none)     .reduce(_ || _))
-  val anyEmitPutPartial: Option[Boolean]    = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutPartial.none)  .reduce(_ || _))
-  val anyEmitHint: Option[Boolean]          = if (!clients.forall(_.knownToEmit != None)) None else Some(clients.map(!_.knownToEmit.get.emitsHint.none)        .reduce(_ || _))
+  val anyEmitAcquireT: Option[Boolean]      = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireT.none)    .reduce(_ || _))
+  val anyEmitAcquireB: Option[Boolean]      = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireB.none)    .reduce(_ || _))
+  val anyEmitArithmetic: Option[Boolean]    = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsArithmetic.none)  .reduce(_ || _))
+  val anyEmitLogical: Option[Boolean]       = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsLogical.none)     .reduce(_ || _))
+  val anyEmitGet: Option[Boolean]           = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsGet.none)         .reduce(_ || _))
+  val anyEmitPutFull: Option[Boolean]       = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutFull.none)     .reduce(_ || _))
+  val anyEmitPutPartial: Option[Boolean]    = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutPartial.none)  .reduce(_ || _))
+  val anyEmitHint: Option[Boolean]          = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsHint.none)        .reduce(_ || _))
 
   // Operation sizes supported by all inward Clients
   val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
@@ -377,23 +377,23 @@ case class TLClientPortParameters(
   }
 
   // Check for emitting of a given operation at a specific address
-  def emitsAcquireTSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsAcquireT,   address, lgSize, range)
-  def emitsAcquireBSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsAcquireB,   address, lgSize, range)
-  def emitsArithmeticSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsArithmetic, address, lgSize, range)
-  def emitsLogicalSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsLogical,    address, lgSize, range)
-  def emitsGetSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsGet,        address, lgSize, range)
-  def emitsPutFullSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsPutFull,    address, lgSize, range)
-  def emitsPutPartialSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsPutPartial, address, lgSize, range)
-  def emitsHintSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(true, _.knownToEmit.get.emitsHint,       address, lgSize, range)
+  def emitsAcquireTSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsAcquireT,   address, lgSize, range)
+  def emitsAcquireBSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsAcquireB,   address, lgSize, range)
+  def emitsArithmeticSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsArithmetic, address, lgSize, range)
+  def emitsLogicalSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsLogical,    address, lgSize, range)
+  def emitsGetSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsGet,        address, lgSize, range)
+  def emitsPutFullSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsPutFull,    address, lgSize, range)
+  def emitsPutPartialSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsPutPartial, address, lgSize, range)
+  def emitsHintSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(true, _.knownToEmit.get.emitsHint,       address, lgSize, range)
 
-  def emitsAcquireTFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsAcquireT,   address, lgSize, range)
-  def emitsAcquireBFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsAcquireB,   address, lgSize, range)
-  def emitsArithmeticFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsArithmetic, address, lgSize, range)
-  def emitsLogicalFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsLogical,    address, lgSize, range)
-  def emitsGetFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsGet,        address, lgSize, range)
-  def emitsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsPutFull,    address, lgSize, range)
-  def emitsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsPutPartial, address, lgSize, range)
-  def emitsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (!clients.forall(_.knownToEmit != None)) true.B else emitHelper(false, _.knownToEmit.get.emitsHint,       address, lgSize, range)
+  def emitsAcquireTFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsAcquireT,   address, lgSize, range)
+  def emitsAcquireBFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsAcquireB,   address, lgSize, range)
+  def emitsArithmeticFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsArithmetic, address, lgSize, range)
+  def emitsLogicalFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsLogical,    address, lgSize, range)
+  def emitsGetFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsGet,        address, lgSize, range)
+  def emitsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsPutFull,    address, lgSize, range)
+  def emitsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsPutPartial, address, lgSize, range)
+  def emitsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = if (clients.exists(_.knownToEmit == None)) true.B else emitHelper(false, _.knownToEmit.get.emitsHint,       address, lgSize, range)
 
   // Check for support of a given operation at a specific id
   val supportsProbe      = safety_helper(_.supportsProbe)      _
