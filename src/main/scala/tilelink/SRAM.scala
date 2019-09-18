@@ -96,6 +96,7 @@ class TLRAM(
     val d_rmw_mask  = Reg(UInt(width = beatBytes))
     val d_rmw_data  = Reg(UInt(width = 8*beatBytes))
     val d_poison    = Reg(Bool())
+    val d_lanes     = Reg(UInt(width = lanes))
 
     // Decode raw unregistered SRAM output
     val d_raw_data      = Wire(Vec(lanes, Bits(width = width)))
@@ -105,7 +106,8 @@ class TLRAM(
     val d_correctable   = d_decoded.map(_.correctable)
     val d_uncorrectable = d_decoded.map(_.uncorrectable)
     val d_need_fix      = d_correctable.reduce(_ || _)
-    val d_error         = d_uncorrectable.reduce(_ || _)
+    val d_lane_error    = Cat(d_uncorrectable.reverse) & d_lanes
+    val d_error         = d_lane_error.orR
 
     notifyNode.foreach { nnode =>
       nnode.bundle.correctable.foreach { c =>
@@ -199,6 +201,7 @@ class TLRAM(
       d_address   := a_address
       d_rmw_mask  := UInt(0)
       d_poison    := in.a.bits.corrupt
+      d_lanes     := Cat(a_lanes.reverse)
       when (!a_read && (a_sublane || a_atomic)) {
         d_rmw_mask := in.a.bits.mask
         d_rmw_data := in.a.bits.data
