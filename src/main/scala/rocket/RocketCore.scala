@@ -852,6 +852,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
+  coreMonitorBundle.clock := clock
+  coreMonitorBundle.reset := reset
   coreMonitorBundle.cease := io.cease
   coreMonitorBundle.reg_mscratch := 0.U //FIXME
   coreMonitorBundle.hartid := io.hartid
