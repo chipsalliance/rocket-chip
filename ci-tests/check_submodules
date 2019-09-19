@@ -9,3 +9,10 @@ filter='.[]|select(.commit == "\1")|select(.name == "\2")'
 git submodule status \
 | sed -r "s/[ -+U]([a-zA-Z0-9]+) ([a-zA-Z0-9\-]+) ?.*/$filter/g" \
 | xargs -d '\n' -I % sh -c "jq -e '%' wit-manifest.json"
+
+if [ $? -eq 0 ]; then
+  echo "Submodules are in sync with wit-manifest"
+else
+  echo "ERROR! Submodules are out of sync with wit-manifest!"
+  exit 1
+fi
