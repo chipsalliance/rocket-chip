@@ -271,34 +271,18 @@ done_processing:
 
   signal(SIGTERM, handle_sigterm);
 
-  bool dump;
-  // reset for several cycles to handle pipelined reset
-  for (int i = 0; i < 10; i++) {
-    tile->reset = 1;
-    tile->clock = 0;
-    tile->eval();
-#if VM_TRACE
-    dump = tfp && trace_count >= start;
-    if (dump)
-      tfp->dump(static_cast<vluint64_t>(trace_count * 2));
-#endif
-    tile->clock = 1;
-    tile->eval();
-#if VM_TRACE
-    if (dump)
-      tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
-#endif
-    trace_count ++;
-  }
-  tile->reset = 0;
-  done_reset = true;
+  int reset_cycles = 10;
 
-  while (!dtm->done() && !jtag->done() &&
-         !tile->io_success && trace_count < max_cycles) {
+  while (trace_count < max_cycles) {
+    done_reset = trace_count >= reset_cycles;
+    if (done_reset && (dtm->done() || jtag->done() || tile->io_success))
+      break;
+
+    tile->reset = !done_reset;
     tile->clock = 0;
     tile->eval();
 #if VM_TRACE
-    dump = tfp && trace_count >= start;
+    bool dump = tfp && trace_count >= start;
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
