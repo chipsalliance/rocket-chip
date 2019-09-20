@@ -895,10 +895,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
   else {
-    printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
+    printf("C%d: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.hartid, coreMonitorBundle.timer, coreMonitorBundle.valid,
          coreMonitorBundle.pc,
-         coreMonitorBundle.wrdst, coreMonitorBundle.wrdata, coreMonitorBundle.wren,
+         Mux(coreMonitorBundle.wren, coreMonitorBundle.wrdst, UInt(0)), coreMonitorBundle.wrdata,
          coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
          coreMonitorBundle.rd1src, coreMonitorBundle.rd1val,
          coreMonitorBundle.inst, coreMonitorBundle.inst)
