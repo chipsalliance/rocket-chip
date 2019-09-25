@@ -238,11 +238,11 @@ final class TLBundleE(params: TLBundleParameters)
 
 class TLBundle(params: TLBundleParameters) extends TLBundleBase(params)
 {
-  val a = DecoupledIO(new TLBundleA(params))
-  val b = DecoupledIO(new TLBundleB(params)).flip
-  val c = DecoupledIO(new TLBundleC(params))
-  val d = DecoupledIO(new TLBundleD(params)).flip
-  val e = DecoupledIO(new TLBundleE(params))
+  val a = Decoupled(new TLBundleA(params))
+  val b = Decoupled(new TLBundleB(params)).flip
+  val c = Decoupled(new TLBundleC(params))
+  val d = Decoupled(new TLBundleD(params)).flip
+  val e = Decoupled(new TLBundleE(params))
 
   def tieoff() {
     a.ready.dir match {
