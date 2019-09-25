@@ -8,6 +8,7 @@ import chisel3.experimental.dontTouch
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -26,6 +27,7 @@ case class DCacheParams(
     nRPQ: Int = 16,
     nMMIOs: Int = 1,
     blockBytes: Int = 64,
+    separateUncachedResp: Boolean = false,
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
     clockGate: Boolean = false,
@@ -42,7 +44,8 @@ case class DCacheParams(
     "Scratchpad only allowed in direct-mapped cache.")
   require((!scratch.isDefined || nMSHRs == 0),
     "Scratchpad only allowed in blocking cache.")
-  require(isPow2(nSets), s"nSets($nSets) must be pow2")
+  if (scratch.isEmpty)
+    require(isPow2(nSets), s"nSets($nSets) must be pow2")
 }
 
 trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParameters {
@@ -91,17 +94,21 @@ abstract class L1HellaCacheBundle(implicit val p: Parameters) extends Parameteri
 
 trait HasCoreMemOp extends HasCoreParameters {
   val addr = UInt(width = coreMaxAddrBits)
-  val tag  = Bits(width = dcacheReqTagBits)
+  val tag  = Bits(width = coreParams.dcacheReqTagBits + log2Ceil(dcacheArbPorts))
   val cmd  = Bits(width = M_SZ)
-  val typ  = Bits(width = MT_SZ)
+  val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
+  val signed = Bool()
 }
 
 trait HasCoreData extends HasCoreParameters {
   val data = Bits(width = coreDataBits)
+  val mask = UInt(width = coreDataBytes)
 }
 
 class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
   val phys = Bool()
+  val no_alloc = Bool()
+  val no_xcpt = Bool()
 }
 
 class HellaCacheReq(implicit p: Parameters) extends HellaCacheReqInternal()(p) with HasCoreData
@@ -127,10 +134,7 @@ class HellaCacheExceptions extends Bundle {
   val ae = new AlignmentExceptions
 }
 
-class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) {
-  val data = UInt(width = coreDataBits)
-  val mask = UInt(width = coreDataBytes)
-}
+class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) with HasCoreData
 
 class HellaCachePerfEvents extends Bundle {
   val acquire = Bool()
@@ -153,10 +157,13 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_nack = Bool(INPUT) // req from two cycles ago is rejected
   val s2_nack_cause_raw = Bool(INPUT) // reason for nack is store-load RAW hazard (performance hint)
   val s2_kill = Bool(OUTPUT) // kill req from two cycles ago
+  val s2_uncached = Bool(INPUT) // advisory signal that the access is MMIO
+  val s2_paddr = UInt(INPUT, paddrBits) // translated address
 
   val resp = Valid(new HellaCacheResp).flip
   val replay_next = Bool(INPUT)
   val s2_xcpt = (new HellaCacheExceptions).asInput
+  val uncached_resp = tileParams.dcache.get.separateUncachedResp.option(Decoupled(new HellaCacheResp).flip)
   val ordered = Bool(INPUT)
   val perf = new HellaCachePerfEvents().asInput
 
@@ -188,10 +195,11 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
 
   val module: HellaCacheModule
 
-  def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.UNCACHEABLE)
+  def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.IDEMPOTENT)
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
-  require(!tileParams.core.haveCFlush || !tileParams.core.useVM, "CFLUSH_D_L1 instruction and virtual memory are incompatible")
+
+  def getOMSRAMs(): Seq[OMSRAM]
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
@@ -209,10 +217,11 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
   dontTouch(io.cpu.s1_data)
 
-  private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allUncacheable)
+  private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allVolatile)
   fifoManagers.foreach { m =>
     require (m.fifoId == fifoManagers.head.fifoId,
-      s"IOMSHRs must be FIFO for all regions with effects, but HellaCache sees ${m.nodePath.map(_.name)}")
+      s"IOMSHRs must be FIFO for all regions with effects, but HellaCache sees\n"+
+      s"${m.nodePath.map(_.name)}\nversus\n${fifoManagers.head.nodePath.map(_.name)}")
   }
 }
 
@@ -275,8 +284,8 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   val rst = rst_cnt < UInt(nSets)
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).asUInt
-  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.asSInt).toBools
-  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.asSInt).toBools
+  val wmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.write.bits.way_en.asSInt).asBools
+  val rmask = Mux(rst || Bool(nWays == 1), SInt(-1), io.read.bits.way_en.asSInt).asBools
   when (rst) { rst_cnt := rst_cnt+UInt(1) }
 
   val metabits = rstVal.getWidth

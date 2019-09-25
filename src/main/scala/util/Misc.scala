@@ -168,12 +168,12 @@ object Majority {
 
   def apply(in: Seq[Bool]): Bool = apply(in.toSet)
 
-  def apply(in: UInt): Bool = apply(in.toBools.toSet)
+  def apply(in: UInt): Bool = apply(in.asBools.toSet)
 }
 
 object PopCountAtLeast {
   private def two(x: UInt): (Bool, Bool) = x.getWidth match {
-    case 1 => (x.toBool, Bool(false))
+    case 1 => (x.asBool, Bool(false))
     case n =>
       val half = x.getWidth / 2
       val (leftOne, leftTwo) = two(x(half - 1, 0))

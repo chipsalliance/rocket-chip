@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
@@ -40,27 +40,6 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   // clint0 => at most 4095 devices
   val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
     override val alwaysExtended = true
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMCLINT)
-    }
-
-    def getOMCLINT(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("CLINT", resourceBindings, Some(module.omRegMap))
-
-      Seq[OMComponent](
-        OMCLINT(
-          memoryRegions = memRegions,
-          interrupts = Nil,
-          specifications = List(
-            OMSpecification(
-              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
-              version = "1.10"
-            )
-          )
-        )
-      )
-    }
   }
 
   val node: TLRegisterNode = TLRegisterNode(
@@ -113,12 +92,17 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
         RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
     )
   }
+
+  def logicalTreeNode: CLINTLogicalTreeNode = new CLINTLogicalTreeNode(device, module.omRegMap)
 }
 
 /** Trait that will connect a CLINT to a subsystem */
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
+    def getCLINTLogicalTreeNode = clint.logicalTreeNode
+    LogicalModuleTree.add(logicalTreeNode, getCLINTLogicalTreeNode)
+
     clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
     clint
   }

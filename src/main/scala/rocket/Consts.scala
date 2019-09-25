@@ -7,18 +7,6 @@ import freechips.rocketchip.util._
 import scala.math._
 
 trait ScalarOpConstants {
-  val MT_SZ = 3
-  def MT_X  = BitPat("b???")
-  def MT_B  = UInt("b000")
-  def MT_H  = UInt("b001")
-  def MT_W  = UInt("b010")
-  def MT_D  = UInt("b011")
-  def MT_BU = UInt("b100")
-  def MT_HU = UInt("b101")
-  def MT_WU = UInt("b110")
-  def mtSize(mt: UInt) = mt(MT_SZ-2, 0)
-  def mtSigned(mt: UInt) = !mt(MT_SZ-1)
-
   val SZ_BR = 3
   def BR_X    = BitPat("b???")
   def BR_EQ   = UInt(0, 3)
@@ -85,6 +73,7 @@ trait MemoryOpConstants {
   def M_PRODUCE = UInt("b10010") // write back dirty data and cede W permissions
   def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
   def M_SFENCE  = UInt("b10100") // flush TLB
+  def M_WOK     = UInt("b10111") // check write permissions but don't perform a write
 
   def isAMOLogical(cmd: UInt) = cmd.isOneOf(M_XA_SWAP, M_XA_XOR, M_XA_OR, M_XA_AND)
   def isAMOArithmetic(cmd: UInt) = cmd.isOneOf(M_XA_ADD, M_XA_MIN, M_XA_MAX, M_XA_MINU, M_XA_MAXU)

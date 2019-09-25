@@ -90,8 +90,8 @@ class MultiPortQueueTest(lanes: Int, wlanes: Int, rows: Int, cycles: Int, timeou
   enq := enq + PopCount(q.io.enq.map(_.fire()))
   deq := deq + PopCount(q.io.deq.map(_.fire()))
 
-  val enq_bits = RipplePrefixSum(enq +: valid.toBools.map(x => WireInit(UInt(bits.W), x)))(_ + _)
-  val deq_bits = RipplePrefixSum(deq +: ready.toBools.map(x => WireInit(UInt(bits.W), x)))(_ + _)
+  val enq_bits = RipplePrefixSum(enq +: valid.asBools.map(x => WireInit(UInt(bits.W), x)))(_ + _)
+  val deq_bits = RipplePrefixSum(deq +: ready.asBools.map(x => WireInit(UInt(bits.W), x)))(_ + _)
 
   for (i <- 0 until lanes) {
     q.io.enq(i).valid := valid(i)

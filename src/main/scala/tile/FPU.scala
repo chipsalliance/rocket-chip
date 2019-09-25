@@ -193,7 +193,8 @@ case class FType(exp: Int, sig: Int) {
   def ieeeWidth = exp + sig
   def recodedWidth = ieeeWidth + 1
 
-  def qNaN = UInt((BigInt(7) << (exp + sig - 3)) + (BigInt(1) << (sig - 2)), exp + sig + 1)
+  def ieeeQNaN = UInt((BigInt(1) << (ieeeWidth - 1)) - (BigInt(1) << (sig - 2)), ieeeWidth)
+  def qNaN = UInt((BigInt(7) << (exp + sig - 3)) + (BigInt(1) << (sig - 2)), recodedWidth)
   def isNaN(x: UInt) = x(sig + exp - 1, sig + exp - 3).andR
   def isSNaN(x: UInt) = isNaN(x) && !x(sig - 2)
 
@@ -231,6 +232,19 @@ case class FType(exp: Int, sig: Int) {
     Cat(sign, expOut, fractOut)
   }
 
+  private def ieeeBundle = {
+    val expWidth = exp
+    class IEEEBundle extends Bundle {
+      val sign = Bool()
+      val exp = UInt(expWidth.W)
+      val sig = UInt((ieeeWidth-expWidth-1).W)
+      override def cloneType = new IEEEBundle().asInstanceOf[this.type]
+    }
+    new IEEEBundle
+  }
+
+  def unpackIEEE(x: UInt) = x.asTypeOf(ieeeBundle)
+
   def recode(x: UInt) = hardfloat.recFNFromFN(exp, sig, x)
   def ieee(x: UInt) = hardfloat.fNFromRecFN(exp, sig, x)
 }
@@ -243,17 +257,17 @@ object FType {
 }
 
 trait HasFPUParameters {
-  require(fLen == 32 || fLen == 64)
+  require(fLen == 0 || FType.all.exists(_.ieeeWidth == fLen))
   val fLen: Int
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
   val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
-  val minType = floatTypes.head
-  val maxType = floatTypes.last
+  def minType = floatTypes.head
+  def maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
-  val maxExpWidth = maxType.exp
-  val maxSigWidth = maxType.sig
+  def maxExpWidth = maxType.exp
+  def maxSigWidth = maxType.sig
   def typeTag(t: FType) = floatTypes.indexOf(t)
 
   private def isBox(x: UInt, t: FType): Bool = x(t.sig + t.exp, t.sig + t.exp - 4).andR
@@ -680,6 +694,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val ex_reg_ctrl = RegEnable(id_ctrl, io.valid)
   val ex_ra = List.fill(3)(Reg(UInt()))
 
+  // load response
+  val load_wb = Reg(next=io.dmem_resp_val)
+  val load_wb_double = RegEnable(io.dmem_resp_type(0), io.dmem_resp_val)
+  val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
+  val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
+
   @chiselName class FPUImpl { // entering gated-clock domain
 
   val req_valid = ex_reg_valid || io.cp_req.valid
@@ -704,12 +724,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, ex_reg_ctrl)
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
-
-  // load response
-  val load_wb = Reg(next=io.dmem_resp_val)
-  val load_wb_double = RegEnable(io.dmem_resp_type(0), io.dmem_resp_val)
-  val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
-  val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
   // regfile
   val regfile = Mem(32, Bits(width = fLen+1))

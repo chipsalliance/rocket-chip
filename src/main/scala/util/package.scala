@@ -4,6 +4,7 @@ package freechips.rocketchip
 
 import Chisel._
 import scala.math.min
+import scala.collection.{immutable, mutable}
 
 package object util {
   implicit class UnzippableOption[S, T](val x: Option[(S, T)]) {
@@ -11,7 +12,7 @@ package object util {
   }
 
   implicit class UIntIsOneOf(val x: UInt) extends AnyVal {
-    def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).reduce(_||_)
+    def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).orR
   
     def isOneOf(u1: UInt, u2: UInt*): Bool = isOneOf(u1 +: u2.toSeq)
   }
@@ -127,7 +128,7 @@ package object util {
     }
 
     // like x & ~y, but first truncate or zero-extend y to x's width
-    def andNot(y: UInt): UInt = x & ~Wire(t = x, init = y)
+    def andNot(y: UInt): UInt = x & ~(y | (x & 0.U))
 
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
 
@@ -186,6 +187,7 @@ package object util {
   def OH1ToOH(x: UInt): UInt = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
   def OH1ToUInt(x: UInt): UInt = OHToUInt(OH1ToOH(x))
   def UIntToOH1(x: UInt, width: Int): UInt = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
+  def UIntToOH1(x: UInt): UInt = UIntToOH1(x, (1 << x.getWidth) - 1)
 
   def trailingZeros(x: Int): Option[Int] = if (x > 0) Some(log2Ceil(x & -x)) else None
 
@@ -207,6 +209,28 @@ package object util {
     helper(1, x)(width-1, 0)
   }
 
-  def OptimizationBarrier(x: UInt): UInt = ~(~x)
-  def OptimizationBarrier[T <: Data](x: T): T = OptimizationBarrier(x.asUInt).asTypeOf(x)
+  def OptimizationBarrier[T <: Data](in: T): T = {
+    val foo = Module(new Module {
+      val io = IO(new Bundle {
+        val x = Input(in)
+        val y = Output(in)
+      })
+      io.y := io.x
+    })
+    foo.io.x := in
+    foo.io.y
+  }
+
+  /** Similar to Seq.groupBy except this returns a Seq instead of a Map
+    * Useful for deterministic code generation
+    */
+  def groupByIntoSeq[A, K](xs: Seq[A])(f: A => K): immutable.Seq[(K, immutable.Seq[A])] = {
+    val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
+    for (x <- xs) {
+      val key = f(x)
+      val l = map.getOrElseUpdate(key, mutable.ListBuffer.empty[A])
+      l += x
+    }
+    map.view.map({ case (k, vs) => k -> vs.toList }).toList
+  }
 }

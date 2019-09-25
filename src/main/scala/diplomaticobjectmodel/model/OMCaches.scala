@@ -2,12 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-sealed trait OMECC extends OMBaseType
-
-case object Identity extends OMECC
-case object Parity extends OMECC
-case object SEC extends OMECC
-case object SECDED extends OMECC
+import freechips.rocketchip.util.{Code, IdentityCode, ParityCode, SECCode, SECDEDCode}
 
 trait OMCache extends OMDevice {
   def memoryRegions(): Seq[OMMemoryRegion]
@@ -18,7 +13,7 @@ trait OMCache extends OMDevice {
   def dataMemorySizeBytes: Int
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
-  def nTLBEntries: Int
+  def memories: Seq[OMSRAM]
 }
 
 case class OMICache(
@@ -32,6 +27,7 @@ case class OMICache(
   tagECC: Option[OMECC],
   nTLBEntries: Int,
   maxTimSize: Int,
+  memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMICache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
@@ -45,16 +41,34 @@ case class OMDCache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
+  memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
+trait OMECC extends OMEnum
+
+case object OMECCIdentity extends OMECC
+case object OMECCParity extends OMECC
+case object OMECCSEC extends OMECC
+case object OMECCSECDED extends OMECC
+
 object OMECC {
-  def getCode(code: String): OMECC = {
+  def fromString(code: String): OMECC = {
     code.toLowerCase match {
-      case "identity" => Identity
-      case "parity"   => Parity
-      case "sec"      => SEC
-      case "secded"   => SECDED
+      case "identity" => OMECCIdentity
+      case "parity"   => OMECCParity
+      case "sec"      => OMECCSEC
+      case "secded"   => OMECCSECDED
+      case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
+    }
+  }
+
+  def fromCode(code: Code): OMECC = {
+    code match {
+      case _: IdentityCode => OMECCIdentity
+      case _: ParityCode   => OMECCParity
+      case _: SECCode      => OMECCSEC
+      case _: SECDEDCode   => OMECCSECDED
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }

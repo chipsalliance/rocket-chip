@@ -8,11 +8,14 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
 // mask=0 -> passthrough
-class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
+// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0
+class AddressAdjuster(mask: BigInt, forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
   // Which idss must we route within that mask?
   val ids  = AddressSet.enumerateMask(mask)
+  // forceLocal better only go one place (the low index)
+  forceLocal.foreach { as => (as.max & mask) == 0 }
 
   val node = TLNexusNode(
     clientFn = { cp => cp(0) },
@@ -62,6 +65,13 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
 
       // Ensure that every local device has a matching remote device
       val newLocal = local.managers.map { l =>
+        // Ensure device is either completely inside or outside forceLocal
+        val la = l.address.flatMap { _.intersect(AddressSet(0, ~mask)) }
+        val any_in  = forceLocal.exists { f => la.exists { a => f.overlaps(a) } }
+        val any_out = forceLocal.exists { f => la.exists { a => !f.contains(a) } }
+        require (!any_in || !any_out, s"Address adjuster cannot have partially local devices, but: $forceLocal vs ${la}")
+        val fifoId = if (any_in) Some(ids.size) else Some(0)
+
         val container = remote.managers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
         require (!container.isEmpty, s"There is no remote manager which contains the addresses of ${l.name} (${l.address})")
         val r = container.get
@@ -81,8 +91,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
         require (!l.supportsHint       || r.supportsHint,       s"Device ${l.name} (${l.address}) loses Hint support because ${r.name} does not support it")
         l.copy(
           // take the 0 setting as default for DTS output
-          address            = AddressSet.unify(l.address.flatMap(_.intersect(AddressSet(0, ~mask))) ++
-                                               (if (l == errorDev) holes else Nil)),
+          address            = AddressSet.unify(la) ++ (if (l == errorDev) holes else Nil),
           regionType         = r.regionType,
           executable         = r.executable,
           supportsAcquireT   = r.supportsAcquireT,
@@ -96,7 +105,7 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
           mayDenyGet         = r.mayDenyGet,
           mayDenyPut         = r.mayDenyPut,
           alwaysGrantsT      = r.alwaysGrantsT,
-          fifoId             = Some(0))
+          fifoId             = fifoId)
       }
 
       val newRemote = ids.tail.zipWithIndex.flatMap { case (id, i) => remote.managers.map { r =>
@@ -124,12 +133,13 @@ class AddressAdjuster(mask: BigInt)(implicit p: Parameters) extends LazyModule {
       s"Port width mismatch ${localEdge.manager.beatBytes} (${localEdge.manager.managers.map(_.name)}) != ${remoteEdge.manager.beatBytes} (${remoteEdge.manager.managers.map(_.name)})")
 
     // Which address within the mask routes to local devices?
-    val local_address = (bits zip chip_id.bundle.toBools).foldLeft(0.U) {
+    val local_address = (bits zip chip_id.bundle.asBools).foldLeft(0.U) {
       case (acc, (bit, sel)) => acc | Mux(sel, bit.U, 0.U)
     }
 
     // Route A by address, but reroute unsupported operations
-    val a_local = local_address === (parent.a.bits.address & mask.U)
+    val a_local = local_address === (parent.a.bits.address & mask.U) ||
+                  forceLocal.foldLeft(false.B)(_ || _.contains(parent.a.bits.address))
     parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready)
     local .a.valid := parent.a.valid &&  a_local
     remote.a.valid := parent.a.valid && !a_local

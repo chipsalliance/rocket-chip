@@ -13,8 +13,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelUtils
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min
@@ -40,7 +38,7 @@ class LevelGateway extends Module {
 object PLICConsts
 {
   def maxDevices = 1023
-  def maxHarts = 15872
+  def maxMaxHarts = 15872
   def priorityBase = 0x0
   def pendingBase = 0x1000
   def enableBase = 0x2000
@@ -54,14 +52,18 @@ object PLICConsts
   def enableBase(i: Int):Int = enableOffset(i) + enableBase
   def hartBase(i: Int):Int = hartOffset(i) + hartBase
 
-  def size = hartBase(maxHarts)
-  require(hartBase >= enableBase(maxHarts))
+  def size(maxHarts: Int): Int = {
+    require(maxHarts > 0 && maxHarts <= maxMaxHarts, s"Must be: maxHarts=$maxHarts > 0 && maxHarts <= PLICConsts.maxMaxHarts=${PLICConsts.maxMaxHarts}")
+    1 << log2Ceil(hartBase(maxHarts))
+  }
+
+  require(hartBase >= enableBase(maxMaxHarts))
 }
 
-case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, intStages: Int = 0)
+case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, intStages: Int = 0, maxHarts: Int = PLICConsts.maxMaxHarts)
 {
   require (maxPriorities >= 0)
-  def address = AddressSet(baseAddress, PLICConsts.size-1)
+  def address = AddressSet(baseAddress, PLICConsts.size(maxHarts)-1)
 }
 
 case object PLICKey extends Field[Option[PLICParams]](None)
@@ -70,7 +72,7 @@ case object PLICKey extends Field[Option[PLICParams]](None)
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
-  val device = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
+  val device: SimpleDevice = new SimpleDevice("interrupt-controller", Seq("riscv,plic0")) {
     override val alwaysExtended = true
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
@@ -80,31 +82,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         "riscv,max-priority" -> Seq(ResourceInt(nPriorities)),
         "#interrupt-cells" -> Seq(ResourceInt(1)))
       Description(name, mapping ++ extra)
-    }
-
-    override def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = {
-      DiplomaticObjectModelAddressing.getOMComponentHelper(this, resourceBindingsMap, getOMPLIC)
-    }
-
-    def getOMPLIC(resourceBindings: ResourceBindings): Seq[OMComponent] = {
-      val memRegions : Seq[OMMemoryRegion]= DiplomaticObjectModelAddressing.getOMMemoryRegions("PLIC", resourceBindings, Some(module.omRegMap))
-
-      Seq[OMComponent](
-        OMPLIC(
-          memoryRegions = memRegions,
-          interrupts = Nil, // TODO
-          specifications = List(
-            OMSpecification(
-              name = "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
-              version = "1.10"
-            )
-          ),
-          latency = 2, // TODO
-          nInterrupts = 3,
-          nPriorities = params.maxPriorities,
-          targets = Nil
-        )
-      )
     }
   }
 
@@ -151,6 +128,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
     val harts = io_harts.flatten
 
+    def getNInterrupts = interrupts.size
+
     println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
     flatSources.foreach { s =>
       // +1 because 0 is reserved, +1-1 because the range is half-open
@@ -162,7 +141,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
 
     require(nDevices <= PLICConsts.maxDevices, s"Must be: nDevices=$nDevices <= PLICConsts.maxDevices=${PLICConsts.maxDevices}")
-    require(nHarts > 0 && nHarts <= PLICConsts.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICConsts.maxHarts=${PLICConsts.maxHarts}")
+    require(nHarts > 0 && nHarts <= params.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICParams.maxHarts=${params.maxHarts}")
 
     // For now, use LevelGateways for all TL2 interrupts
     val gateways = interrupts.map { case i =>
@@ -251,7 +230,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val claimer = Wire(Vec(nHarts, Bool()))
     assert((claimer.asUInt & (claimer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val claiming = Seq.tabulate(nHarts){i => Mux(claimer(i), maxDevs(i), UInt(0))}.reduceLeft(_|_)
-    val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).toBools)
+    val claimedDevs = Vec(UIntToOH(claiming, nDevices+1).asBools)
 
     ((pending zip gateways) zip claimedDevs.tail) foreach { case ((p, g), c) =>
       g.ready := !p
@@ -269,7 +248,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     assert((completer.asUInt & (completer.asUInt - UInt(1))) === UInt(0)) // One-Hot
     val completerDev = Wire(UInt(width = log2Up(nDevices + 1)))
     val completedDevs = Mux(completer.reduce(_ || _), UIntToOH(completerDev, nDevices+1), UInt(0))
-    (gateways zip completedDevs.toBools.tail) foreach { case (g, c) =>
+    (gateways zip completedDevs.asBools.tail) foreach { case (g, c) =>
        g.complete := c
     }
 
@@ -353,7 +332,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
     } else (x.head, UInt(0))
   }
 
-  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.toBools zip io.prio).map { case (p, x) => Cat(p, x) }
+  val effectivePriority = (UInt(1) << prioBits) +: (io.ip.asBools zip io.prio).map { case (p, x) => Cat(p, x) }
   val (maxPri, maxDev) = findMax(effectivePriority)
   io.max := maxPri // strips the always-constant high '1' bit
   io.dev := maxDev

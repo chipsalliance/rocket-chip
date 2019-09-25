@@ -36,8 +36,12 @@ class BasicBusBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
     val pending = RegNext(bar.module.io.pending)
 
     controlNode.regmap(
-      0 -> Seq(RegField  (32, allow)),
-      4 -> Seq(RegField.r(32, pending)))
+      0 -> Seq(RegField  (32, allow,
+        RegFieldDesc("allow",
+          "Used to enable/disable bus transactions", reset=Some(1)))),
+      4 -> Seq(RegField.r(32, pending, RegFieldDesc("pending",
+        "Indicates if bus transactions are in-flight", volatile=true)))
+    )
 
     bar.module.io.bypass := !allow
   }

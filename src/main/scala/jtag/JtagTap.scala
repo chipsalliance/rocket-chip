@@ -113,7 +113,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   val nextActiveInstruction = Wire(UInt(irLength.W))
   val activeInstruction = NegEdgeReg(clock, nextActiveInstruction, updateInstruction, name = Some("irReg"))   // 7.2.1d active instruction output latches on TCK falling edge
 
-  when (reset.toBool) {
+  when (reset.asBool) {
     nextActiveInstruction := initialInstruction.U(irLength.W)
     updateInstruction := true.B
   } .elsewhen (currState === JtagState.UpdateIR.U) {

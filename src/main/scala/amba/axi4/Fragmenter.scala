@@ -191,7 +191,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       // Merge errors from dropped B responses
       val error = RegInit(Vec.fill(edgeIn.master.endId) { UInt(0, width = AXI4Parameters.respBits)})
       in.b.bits.resp := out.b.bits.resp | error(out.b.bits.id)
-      (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).toBools) foreach { case (reg, sel) =>
+      (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).asBools) foreach { case (reg, sel) =>
         when (sel && out.b.fire()) { reg := Mux(b_last, UInt(0), reg | out.b.bits.resp) }
       }
     }

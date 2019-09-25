@@ -5,22 +5,21 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemory, OMMemoryRegion, OMRTLInterface, OMRTLModule}
+import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
     address: AddressSet,
     beatBytes: Int,
-    devName: Option[String])(implicit p: Parameters) extends LazyModule
+    devName: Option[String],
+    dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule
 {
   val device = devName
-    .map(new SimpleDevice(_, Seq("sifive,sram0")))
+    .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
     .getOrElse(new MemoryDevice())
 
-  def getOMMemRegions(resourceBindingsMap: ResourceBindingsMap): Seq[OMMemoryRegion] = {
-    val resourceBindings = DiplomaticObjectModelAddressing.getResourceBindings(device, resourceBindingsMap)
-    require(resourceBindings.isDefined)
-    resourceBindings.map(DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), _)).getOrElse(Nil) // TODO name source???
+  def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {
+    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings) // TODO name source???
   }
 
   val resources = device.reg("mem")
@@ -31,9 +30,10 @@ abstract class DiplomaticSRAM(
   def mask: List[Boolean] = bigBits(address.mask >> log2Ceil(beatBytes))
 
   // Use single-ported memory with byte-write enable
-  def makeSinglePortedByteWriteSeqMem(size: Int, lanes: Int = beatBytes, bits: Int = 8) = {
+  def makeSinglePortedByteWriteSeqMem(size: BigInt, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
-    val mem =  DescribedSRAM(
+
+    val (mem, omSRAM) =  DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
@@ -47,6 +47,6 @@ abstract class DiplomaticSRAM(
       data = Vec(lanes, UInt(width = bits))
     )
 
-    (mem, Seq(omMem))
+    (mem, omSRAM, Seq(omMem))
   }
 }

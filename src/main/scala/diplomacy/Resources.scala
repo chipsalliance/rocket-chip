@@ -74,8 +74,6 @@ abstract class Device
   def describe(resources: ResourceBindings): Description
   /* This can be overriden to make one device relative to another */
 
-  def getOMComponents(resourceBindingsMap: ResourceBindingsMap): Seq[OMComponent] = Nil
-
   def parent: Option[Device] = None
 
   /** make sure all derived devices have an unique label */
@@ -180,12 +178,15 @@ object DiplomacyUtils {
   * @param devname      the base device named used in device name generation.
   * @param devcompat    a list of compatible devices. See device tree property "compatible".
   */
-class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
+class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
   with DeviceInterrupts
   with DeviceClocks
   with DeviceRegName
 {
   override def parent = Some(ResourceAnchors.soc) // nearly everything on-chip belongs here
+
+  var deviceNamePlusAddress: String = ""
+
   def describe(resources: ResourceBindings): Description = {
     val name = describeName(devname, resources)  // the generated device name in device tree
     val int = describeInterrupts(resources)      // interrupt description
@@ -207,6 +208,8 @@ class SimpleDevice(devname: String, devcompat: Seq[String]) extends Device
 
     val names = optDef("reg-names", named.map(x => ResourceString(DiplomacyUtils.regName(x._1).get)).toList) // names of the named address space
     val regs = optDef("reg", (named ++ bulk).flatMap(_._2.map(_.value)).toList) // address ranges of all spaces (named and bulk)
+
+    deviceNamePlusAddress = name
 
     Description(name, ListMap() ++ compat ++ int ++ clocks ++ names ++ regs)
   }
@@ -236,13 +239,14 @@ class SimpleBus(devname: String, devcompat: Seq[String], offset: BigInt = 0) ext
       "#size-cells"      -> ofInt((log2Ceil(maxSize) + 31) / 32),
       "ranges"           -> ranges)
 
+    deviceNamePlusAddress = devname
+
     val Description(_, mapping) = super.describe(resources)
     Description(s"${devname}@${minBase.toString(16)}", mapping ++ extra)
   }
 
   def ranges = Seq(Resource(this, "ranges"))
 }
-
 /** A generic memory block. */
 class MemoryDevice extends Device with DeviceRegName
 {
@@ -269,6 +273,8 @@ case class Resource(owner: Device, key: String)
 trait BindingScope
 {
   this: LazyModule =>
+
+  BindingScope.add(this)
 
   private val parentScope = BindingScope.find(parent)
   protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
@@ -379,8 +385,6 @@ trait BindingScope
 
   /** Collect resource addresses from tree. */
   def collectResourceAddresses = collect(2, Nil, 0, bindingTree)
-
-  def createOMComponents(resourceBindingsMap: ResourceBindingsMap): Option[OMComponent] = None
 }
 
 object BindingScope
@@ -390,6 +394,10 @@ object BindingScope
     case x: BindingScope => find(x.parent).orElse(Some(x))
     case x => find(x.parent)
   }
+
+  var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()
+
+  def add(bs: BindingScope) = BindingScope.bindingScopes.+=:(bs)
 }
 
 object ResourceBinding
