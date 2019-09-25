@@ -901,7 +901,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
   else {
-<<<<<<< fe6ca24f9c8ea6e4d0910eb0e28037914f8b9117
     printf("C%d: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.hartid, commitTraceMonitorBundle.timer, commitTraceMonitorBundle.valid,
          commitTraceMonitorBundle.pc,
