@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
@@ -23,7 +23,7 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
 
   override def monitor(bundle: TLBundle, edge: TLEdgeIn) {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
-    monitor.io.in := TLBundleSnoop(bundle, bundle)
+    monitor.io.in := bundle
   }
 
   override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLClientPortParameters  =

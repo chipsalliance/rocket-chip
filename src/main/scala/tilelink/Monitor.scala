@@ -2,7 +2,9 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
+import chisel3.core.Reset
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -12,11 +14,11 @@ case class TLMonitorArgs(edge: TLEdge)
 
 abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
 {
-  val io = new Bundle {
-    val in = new TLBundleSnoop(args.edge.bundle).flip
-  }
+  val io = IO(new Bundle {
+    val in = Input(new TLBundle(args.edge.bundle))
+  })
 
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool): Unit
+  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
   legalize(io.in, args.edge, reset)
 }
 
@@ -330,7 +332,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
-  def legalizeFormat(bundle: TLBundleSnoop, edge: TLEdge) = {
+  def legalizeFormat(bundle: TLBundle, edge: TLEdge) = {
     when (bundle.a.valid) { legalizeFormatA(bundle.a.bits, edge) }
     when (bundle.d.valid) { legalizeFormatD(bundle.d.bits, edge) }
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
@@ -344,7 +346,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatA(a: DecoupledSnoop[TLBundleA], edge: TLEdge) {
+  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge) {
     val a_first = edge.first(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -367,7 +369,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatB(b: DecoupledSnoop[TLBundleB], edge: TLEdge) {
+  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge) {
     val b_first = edge.first(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -390,7 +392,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatC(c: DecoupledSnoop[TLBundleC], edge: TLEdge) {
+  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
     val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -413,7 +415,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeatD(d: DecoupledSnoop[TLBundleD], edge: TLEdge) {
+  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge) {
     val d_first = edge.first(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -439,7 +441,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeMultibeat(bundle: TLBundleSnoop, edge: TLEdge) {
+  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge) {
     legalizeMultibeatA(bundle.a, edge)
     legalizeMultibeatD(bundle.d, edge)
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
@@ -448,7 +450,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalizeADSource(bundle: TLBundleSnoop, edge: TLEdge) {
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
     val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
@@ -482,7 +484,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := UInt(0) }
   }
 
-  def legalizeDESink(bundle: TLBundleSnoop, edge: TLEdge) {
+  def legalizeDESink(bundle: TLBundle, edge: TLEdge) {
     val inflight = RegInit(UInt(0, width = edge.manager.endSinkId))
 
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
@@ -505,7 +507,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     inflight := (inflight | d_set) & ~e_clr
   }
 
-  def legalizeUnique(bundle: TLBundleSnoop, edge: TLEdge) {
+  def legalizeUnique(bundle: TLBundle, edge: TLEdge) {
     val sourceBits = log2Ceil(edge.client.endSourceId)
     val tooBig = 14 // >16kB worth of flight information gets to be too much
     if (sourceBits > tooBig) {
@@ -524,7 +526,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
   }
 
-  def legalize(bundle: TLBundleSnoop, edge: TLEdge, reset: Bool) {
+  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset) {
     legalizeFormat   (bundle, edge)
     legalizeMultibeat(bundle, edge)
     legalizeUnique   (bundle, edge)
