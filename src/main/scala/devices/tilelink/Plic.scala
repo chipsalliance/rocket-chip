@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -67,6 +67,12 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 }
 
 case object PLICKey extends Field[Option[PLICParams]](None)
+
+case class PLICAttachParams(
+  slaveWhere: BaseSubsystemBusAttachment = CBUS
+)
+
+case object PLICAttachKey extends Field(PLICAttachParams())
 
 /** Platform-Level Interrupt Controller */
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
@@ -341,8 +347,9 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 /** Trait that will connect a PLIC to a subsystem */
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
-    val plic = LazyModule(new TLPLIC(params, cbus.beatBytes))
-    plic.node := cbus.coupleTo("plic") { TLFragmenter(cbus) := _ }
+    val tlbus = attach(p(PLICAttachKey).slaveWhere)
+    val plic = LazyModule(new TLPLIC(params, tlbus.beatBytes))
+    plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ }
     plic.intnode :=* ibus.toPLIC
     plic
   }
