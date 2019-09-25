@@ -4,14 +4,23 @@ package freechips.rocketchip.amba.apb
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
+
+case object APBMonitorBuilder extends Field[APBMonitorArgs => APBMonitorBase]
 
 object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
 {
   def edge(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = APBEdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: APBEdgeParameters) = APBBundle(e.bundle)
   def render(e: APBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, (e.slave.beatBytes * 8).toString)
+
+  override def monitor(bundle: APBBundle, edge: APBEdgeParameters) {
+    edge.params.lift(APBMonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(APBMonitorArgs(edge)))
+      monitor.io.in := bundle
+    }
+  }
 
   override def mixO(pd: APBMasterPortParameters, node: OutwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
