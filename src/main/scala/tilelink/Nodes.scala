@@ -38,27 +38,10 @@ trait HasFormatNode[A, B] extends BaseNode {
 
 object FormatNodeDefinition {
   def formatNode[A, B](edges: Edges[List[A], List[B]])
-                  (getClients: B => Seq[TLClientParameters])
+                  (getClientPort: B => TLClientPortParameters)
                   (getManagerPort: A => TLManagerPortParameters): String =
     edges.out.map(currEdge =>
-      getClients(currEdge).map(currClient => 
-        s"""Output Edges:
-          |Client Name = ${currClient.name}
-          |visibility = ${currClient.visibility}
-          |""".stripMargin + 
-          (if (currClient.knownToEmit == None) "\nEmits parameters are UNKNOWN\n" else {
-            s"""emitsAcquireT = ${currClient.knownToEmit.get.emitsAcquireT}
-              |emitsAcquireB = ${currClient.knownToEmit.get.emitsAcquireB}
-              |emitsArithmetic = ${currClient.knownToEmit.get.emitsArithmetic}
-              |emitsLogical = ${currClient.knownToEmit.get.emitsLogical}
-              |emitsGet = ${currClient.knownToEmit.get.emitsGet}
-              |emitsPutFull = ${currClient.knownToEmit.get.emitsPutFull}
-              |emitsPutPartial = ${currClient.knownToEmit.get.emitsPutPartial}
-              |emitsHint = ${currClient.knownToEmit.get.emitsHint}
-              |""".stripMargin
-          })
-      ).mkString
-    ).mkString +
+      getClientPort(currEdge).infoString).mkString +
     edges.in.map(currEdge =>
           s"Input Edge ManagerPort Beatbytes = ${getManagerPort(currEdge).beatBytes}\n" +
           getManagerPort(currEdge).managers.map(currManager =>
@@ -79,7 +62,7 @@ object FormatNodeDefinition {
 }
 
 trait TLFormatNode extends HasFormatNode[TLEdgeIn, TLEdgeOut] {
-  override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager)
+  override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client)(_.manager)
 }
 
 case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
@@ -111,7 +94,7 @@ abstract class TLCustomNode(implicit valName: ValName)
 // Asynchronous crossings
 
 trait TLAsyncFormatNode extends HasFormatNode[TLAsyncEdgeParameters, TLAsyncEdgeParameters] {
-  override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager.base)
+  override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base)(_.manager.base)
 }
 
 object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncBundle]
@@ -144,20 +127,20 @@ case class TLAsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) { // discard cycles in other clock domain
-      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base)(_.manager)
     }
 
 case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
   extends MixedAdapterNode(TLAsyncImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = p.base.minLatency + async.sync) },
     uFn = { p => TLAsyncManagerPortParameters(async, p) }) {
-      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client)(_.manager.base)
     }
 
 // Rationally related crossings
 
 trait TLRationalFormatNode extends HasFormatNode[TLRationalEdgeParameters, TLRationalEdgeParameters] {
-  override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager.base)
+  override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base)(_.manager.base)
 }
 
 object TLRationalImp extends SimpleNodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalBundle]
@@ -190,12 +173,12 @@ case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(
     dFn = { p => TLRationalClientPortParameters(p) },
     uFn = { p => p.base.copy(minLatency = 1) }) { // discard cycles from other clock domain
-      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base.clients)(_.manager)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.base)(_.manager)
     }
 
 case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: ValName)
   extends MixedAdapterNode(TLRationalImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = 1) },
     uFn = { p => TLRationalManagerPortParameters(direction, p) }) {
-      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client.clients)(_.manager.base)
+      override def formatNode = FormatNodeDefinition.formatNode(edges)(_.client)(_.manager.base)
     }

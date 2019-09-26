@@ -13,7 +13,7 @@ case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHB
     TLClientPortParameters(clients = masters.map { m =>
       TLClientParameters(name = m.name, nodePath = m.nodePath,
         knownToEmit = Some(TLClientEmissionSizes(
-          emitsGet = TransferSizes(1, 128),
+          emitsGet = TransferSizes(1, 128), //AHB transfer size maximum is 1024 bits, hsize is capped at 111 = 1024 bit transfer size
           emitsPutFull = TransferSizes(1, 128)
           )))
     })

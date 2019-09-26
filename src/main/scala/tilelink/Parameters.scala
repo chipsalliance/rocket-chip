@@ -123,6 +123,14 @@ case class TLManagerPortParameters(
   def mayDenyGet = managers.exists(_.mayDenyGet)
   def mayDenyPut = managers.exists(_.mayDenyPut)
 
+  val anyEmitProbe         = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsProbe.none)       .reduce(_ || _)
+  val anyEmitArithmetic    = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsArithmetic.none)  .reduce(_ || _)
+  val anyEmitLogical       = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsLogical.none)     .reduce(_ || _)
+  val anyEmitGet           = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsGet.none)         .reduce(_ || _)
+  val anyEmitPutFull       = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsPutFull.none)     .reduce(_ || _)
+  val anyEmitPutPartial    = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsPutPartial.none)  .reduce(_ || _)
+  val anyEmitHint          = if (managers.exists(_.knownToEmit == None)) true else managers.map(!_.knownToEmit.get.emitsHint.none)        .reduce(_ || _)
+
   // Operation sizes supported by all outward Managers
   val allSupportAcquireT   = managers.map(_.supportsAcquireT)  .reduce(_ intersect _)
   val allSupportAcquireB   = managers.map(_.supportsAcquireB)  .reduce(_ intersect _)
@@ -240,7 +248,19 @@ case class TLClientEmissionSizes(
   emitsPutFull:    TransferSizes   = TransferSizes.none,
   emitsPutPartial: TransferSizes   = TransferSizes.none,
   emitsHint:       TransferSizes   = TransferSizes.none
-)
+) {
+  def infoString = {
+    s"""emitsAcquireT = ${emitsAcquireT}
+       |emitsAcquireB = ${emitsAcquireB}
+       |emitsArithmetic = ${emitsArithmetic}
+       |emitsLogical = ${emitsLogical}
+       |emitsGet = ${emitsGet}
+       |emitsPutFull = ${emitsPutFull}
+       |emitsPutPartial = ${emitsPutPartial}
+       |emitsHint = ${emitsHint}
+       |""".stripMargin
+  }
+}
 
 case class TLClientParameters(
   name:                String,
@@ -288,6 +308,17 @@ case class TLClientParameters(
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
   def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
+
+  def infoString = {
+    s"""Client Name = ${name}
+       |visibility = ${visibility}
+       |""".stripMargin +
+      ( if (knownToEmit == None)
+          "Emits parameters are UNKNOWN"
+        else
+          knownToEmit.get.infoString
+      )
+  }
 }
 
 case class TLClientPortParameters(
@@ -314,14 +345,14 @@ case class TLClientPortParameters(
     }
   }
 
-  val anyEmitAcquireT: Option[Boolean]      = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireT.none)    .reduce(_ || _))
-  val anyEmitAcquireB: Option[Boolean]      = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsAcquireB.none)    .reduce(_ || _))
-  val anyEmitArithmetic: Option[Boolean]    = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsArithmetic.none)  .reduce(_ || _))
-  val anyEmitLogical: Option[Boolean]       = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsLogical.none)     .reduce(_ || _))
-  val anyEmitGet: Option[Boolean]           = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsGet.none)         .reduce(_ || _))
-  val anyEmitPutFull: Option[Boolean]       = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutFull.none)     .reduce(_ || _))
-  val anyEmitPutPartial: Option[Boolean]    = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsPutPartial.none)  .reduce(_ || _))
-  val anyEmitHint: Option[Boolean]          = if (clients.exists(_.knownToEmit == None)) None else Some(clients.map(!_.knownToEmit.get.emitsHint.none)        .reduce(_ || _))
+  val anyEmitAcquireT      = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsAcquireT.none)    .reduce(_ || _)
+  val anyEmitAcquireB      = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsAcquireB.none)    .reduce(_ || _)
+  val anyEmitArithmetic    = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsArithmetic.none)  .reduce(_ || _)
+  val anyEmitLogical       = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsLogical.none)     .reduce(_ || _)
+  val anyEmitGet           = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsGet.none)         .reduce(_ || _)
+  val anyEmitPutFull       = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsPutFull.none)     .reduce(_ || _)
+  val anyEmitPutPartial    = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsPutPartial.none)  .reduce(_ || _)
+  val anyEmitHint          = if (clients.exists(_.knownToEmit == None)) true else clients.map(!_.knownToEmit.get.emitsHint.none)        .reduce(_ || _)
 
   // Operation sizes supported by all inward Clients
   val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
@@ -416,6 +447,8 @@ case class TLClientPortParameters(
       c.copy(userBits = c.userBits ++ extra)
     })
   }
+
+  def infoString = clients.map(_.infoString).mkString
 }
 
 case class TLBundleParameters(
