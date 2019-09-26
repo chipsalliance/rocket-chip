@@ -19,6 +19,7 @@ case object MemoryBusKey extends Field[MemoryBusParams]
 case object BankedL2Key extends Field(BankedL2Params())
 
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
+case object BuildPeripheryBus extends Field[Parameters => PeripheryBus](p => new PeripheryBus(p(PeripheryBusKey))(p))
 
 /** BareSubsystem is the root class for creating a subsystem */
 abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
@@ -52,7 +53,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   // peripherals, tiles, ports, and other masters and slaves can attach themselves.
   val ibus = new InterruptBusWrapper()
   val sbus = LazyModule(p(BuildSystemBus)(p))
-  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
+  val pbus = LazyModule(p(BuildPeripheryBus)(p))
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))

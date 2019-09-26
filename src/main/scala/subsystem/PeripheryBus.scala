@@ -31,24 +31,29 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
     with CanHaveBuiltInDevices
     with CanAttachTLSlaves {
 
-  private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
-  private val node: TLNode = params.atomics.map { pa =>
+  private val (node, fixerNode) = createPbusNode(params.atomics)
+
+  def inwardNode: TLInwardNode = node
+  def outwardNode: TLOutwardNode = node
+  def busView: TLEdge = fixerNode.edges.in.head
+
+  def createPbusNode(atomics: Option[BusAtomics]): (TLNode, TLAdapterNode) = atomics.map { pa =>
     val in_xbar = LazyModule(new TLXbar)
     val out_xbar = LazyModule(new TLXbar)
+    val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
     val fixer_node =
       if (params.replicatorMask == 0) fixer.node else { fixer.node :*= RegionReplicator(params.replicatorMask) }
-    (out_xbar.node
+    ((out_xbar.node
       :*= fixer_node
       :*= TLBuffer(pa.buffer)
       :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
           TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
         } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
-      :*= in_xbar.node)
-  } .getOrElse { TLXbar() :*= fixer.node }
-
-  def inwardNode: TLInwardNode = node
-  def outwardNode: TLOutwardNode = node
-  def busView: TLEdge = fixer.node.edges.in.head
+      :*= in_xbar.node), fixer.node)
+  } .getOrElse {
+    val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
+    (TLXbar() :*= fixer.node, fixer.node)
+  }
 
   attachBuiltInDevices(params)
 
