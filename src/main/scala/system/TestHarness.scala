@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.Debug
 import freechips.rocketchip.diplomacy.LazyModule
+import freechips.rocketchip.util.AsyncResetReg
 
 class TestHarness()(implicit p: Parameters) extends Module {
   val io = new Bundle {
@@ -13,7 +14,10 @@ class TestHarness()(implicit p: Parameters) extends Module {
   }
 
   val dut = Module(LazyModule(new ExampleRocketSystem).module)
-  dut.reset := reset | dut.debug.ndreset
+
+  // Allow the debug ndreset to reset the dut, but not until the initial reset has completed
+  val debug_ndreset = AsyncResetReg(dut.debug.ndreset)
+  dut.reset := reset | debug_ndreset
 
   dut.dontTouchPorts()
   dut.tieOffInterrupts()
