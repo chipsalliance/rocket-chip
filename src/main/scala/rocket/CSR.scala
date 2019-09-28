@@ -152,6 +152,7 @@ object CSR
   val hpmWidth = 40
 
   val maxPMPs = 16
+  val maxPMAs = 16
 }
 
 class PerfCounterIO(implicit p: Parameters) extends CoreBundle
@@ -218,6 +219,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
   val pmp = Vec(nPMPs, new PMP).asOutput
+  val pma = Vec(nPMAs, new PMA).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
@@ -344,7 +346,8 @@ class CSRFile(
 
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
   val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
-  val reg_pmp = Reg(Vec(nPMPs, new PMPReg))
+  val reg_pmp = Reg(Vec(nPMPs, new PMP))
+  val reg_pma = Reg(Vec(nPMAs, new PMA))
 
   val reg_mie = Reg(UInt(width = xLen))
   val (reg_mideleg, read_mideleg) = {
@@ -417,6 +420,7 @@ class CSRFile(
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
   io.pmp := reg_pmp.map(PMP(_))
+  io.pma := reg_pma.map(PMA(_))
 
   val isaMaskString =
     (if (usingMulDiv) "M" else "") +
@@ -530,7 +534,9 @@ class CSRFile(
   }
 
   val pmpCfgPerCSR = xLen / new PMPConfig().getWidth
+  val pmaCfgPerCSR = xLen / new PMAConfig().getWidth
   def pmpCfgIndex(i: Int) = (xLen / 32) * (i / pmpCfgPerCSR)
+  def pmaCfgIndex(i: Int) = (xLen / 32) * (i / pmaCfgPerCSR)
   if (reg_pmp.nonEmpty) {
     require(reg_pmp.size <= CSR.maxPMPs)
     val read_pmp = reg_pmp.padTo(CSR.maxPMPs, 0.U.asTypeOf(new PMP))
@@ -538,6 +544,14 @@ class CSRFile(
       read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> read_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
     for ((pmp, i) <- read_pmp zipWithIndex)
       read_mapping += (CSRs.pmpaddr0 + i) -> pmp.readAddr
+  }
+  if (reg_pma.nonEmpty) {
+    require(reg_pma.size <= CSR.maxPMAs)
+    val read_pma = reg_pma.padTo(CSR.maxPMAs, 0.U.asTypeOf(new PMA))
+    for (i <- 0 until read_pma.size by pmaCfgPerCSR)
+      read_mapping += (CSRs.pmacfg0 + pmaCfgIndex(i)) -> read_pma.map(_.cfg).slice(i, i + pmaCfgPerCSR).asUInt
+    for ((pma, i) <- read_pma zipWithIndex)
+      read_mapping += (CSRs.pmaaddr0 + i) -> pma.readAddr
   }
 
   // implementation-defined CSRs
@@ -913,6 +927,19 @@ class CSRFile(
         pmp.addr := wdata
       }
     }
+    if (reg_pma.nonEmpty) for (((pma, next), i) <- (reg_pma zip (reg_pma.tail :+ reg_pma.last)) zipWithIndex) {
+      require(xLen % pma.cfg.getWidth == 0)
+      when (decoded_addr(CSRs.pmacfg0 + pmaCfgIndex(i))) {
+        val newCfg = new PMAConfig().fromBits(wdata >> ((i * pma.cfg.getWidth) % xLen))
+        pma.cfg := newCfg
+        // can't select a=NA4 with coarse-grained PMAs
+        if (pmaGranularity.log2 > PMA.lgAlign)
+          pma.cfg.a := Cat(newCfg.a(1), newCfg.a.orR)
+      }
+      when (decoded_addr(CSRs.pmaaddr0 + i)) {
+        pma.addr := wdata
+      }
+    }
     for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
       val mask = csr.mask.U(xLen.W)
       when (decoded_addr(csr.id)) {
@@ -967,6 +994,14 @@ class CSRFile(
   for (pmp <- reg_pmp) {
     pmp.cfg.res := 0
     when (reset) { pmp.reset() }
+  }
+
+  for (pma <- reg_pma) {
+    pma.cfg.res := 0
+    when (reset) {
+      pma.cfg.c := 0
+      pma.cfg.a := 0
+    }
   }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {

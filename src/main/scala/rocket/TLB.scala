@@ -64,6 +64,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     val resp = new TLBResp().asOutput
     val sfence = Valid(new SFenceReq).asInput
     val ptw = new TLBPTWIO
+    val pma = Vec(nPMAs, new PMA).asInput
     val kill = Bool(INPUT) // suppress a TLB refill, one cycle after a miss
   }
 
@@ -187,6 +188,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val mpu_priv = Mux[UInt](Bool(usingVM) && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S, Cat(io.ptw.status.debug, priv))
   val pmp = Module(new PMPChecker(lgMaxSize))
+  val pma = Module(new PMAChecker(lgMaxSize))
   pmp.io.addr := mpu_physaddr
   pmp.io.size := io.req.bits.size
   pmp.io.pmp := (io.ptw.pmp: Seq[PMP])
@@ -194,7 +196,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && edge.manager.fastProperty(mpu_physaddr, member, (b:Boolean) => Bool(b))
-  val cacheable = fastCheck(_.supportsAcquireT) && (instruction || !usingDataScratchpad)
+  pma.io.addr := mpu_physaddr
+  pma.io.size := io.req.bits.size
+  pma.io.pma := (io.pma: Seq[PMA])
+  pma.io.prv := Mux(Bool(usingVM) && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S, priv)
+  val cacheable = fastCheck(_.supportsAcquireT) && (instruction || !usingDataScratchpad) && pma.io.c
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
   val deny_access_to_debug = mpu_priv <= PRV.M && p(DebugModuleParams).address.contains(mpu_physaddr)
   val prot_r = fastCheck(_.supportsGet) && !deny_access_to_debug && pmp.io.r

@@ -206,6 +206,7 @@ class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends Co
   val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
+  val pma = Vec(nPMAs, new PMA).asInput
   val errors = new DCacheErrors
 }
 

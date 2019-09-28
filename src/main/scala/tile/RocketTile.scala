@@ -151,6 +151,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.dcache.module.io.hartid := constants.hartid
   outer.frontend.module.io.hartid := constants.hartid
   outer.frontend.module.io.reset_vector := constants.reset_vector
+  outer.dcache.module.io.pma := core.io.pma
+  outer.frontend.module.io.pma := core.io.pma
 
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem

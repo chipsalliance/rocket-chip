@@ -212,6 +212,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.req.bits.vaddr := s1_req.addr
   tlb.io.req.bits.size := s1_req.size
   tlb.io.req.bits.cmd := s1_req.cmd
+  tlb.io.pma := io.pma
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false }
   when (s1_valid && s1_cmd_uses_tlb && tlb.io.resp.miss) { s1_nack := true }
 

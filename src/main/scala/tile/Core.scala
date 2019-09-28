@@ -30,7 +30,9 @@ trait CoreParams {
   val instBits: Int
   val nLocalInterrupts: Int
   val nPMPs: Int
+  val nPMAs: Int
   val pmpGranularity: Int
+  val pmaGranularity: Int
   val nBreakpoints: Int
   val useBPWatch: Boolean
   val nPerfCounters: Int
@@ -81,7 +83,9 @@ trait HasCoreParameters extends HasTileParameters {
 
   val nBreakpoints = coreParams.nBreakpoints
   val nPMPs = coreParams.nPMPs
+  val nPMAs = coreParams.nPMAs
   val pmpGranularity = coreParams.pmpGranularity
+  val pmaGranularity = coreParams.pmaGranularity
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable
@@ -125,5 +129,6 @@ trait HasCoreIO extends HasTileParameters {
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput
+    val pma = Vec(nPMAs, new PMA).asOutput
   }
 }

@@ -68,6 +68,7 @@ class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Paramete
 class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
     with HasExternallyDrivenTileConstants {
   val cpu = new FrontendIO().flip
+  val pma = Vec(nPMAs, new PMA).asInput
   val ptw = new TLBPTWIO()
   val errors = new ICacheErrors
 }
@@ -151,6 +152,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
   tlb.io.sfence := io.cpu.sfence
   tlb.io.kill := !s2_valid
+  tlb.io.pma := io.pma
 
   icache.io.hartid := io.hartid
   icache.io.req.valid := s0_valid

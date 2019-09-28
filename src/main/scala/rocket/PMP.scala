@@ -21,7 +21,7 @@ class PMPConfig extends Bundle {
 object PMP {
   def lgAlign = 2
 
-  def apply(reg: PMPReg): PMP = {
+  def apply(reg: PMReg): PMP = {
     val pmp = Wire(new PMP()(reg.p))
     pmp := reg
     pmp.mask := pmp.computeMask
@@ -29,39 +29,25 @@ object PMP {
   }
 }
 
-class PMPReg(implicit p: Parameters) extends CoreBundle()(p) {
-  val cfg = new PMPConfig
-  val addr = UInt(width = paddrBits - PMP.lgAlign)
 
-  def reset() {
-    cfg.a := 0
-    cfg.l := 0
-  }
+abstract class PMReg(implicit p: Parameters) extends CoreBundle()(p) {
 
-  def readAddr = if (pmpGranularity.log2 == PMP.lgAlign) addr else {
-    val mask = ((BigInt(1) << (pmpGranularity.log2 - PMP.lgAlign)) - 1).U
-    Mux(napot, addr | (mask >> 1), ~(~addr | mask))
-  }
-  def napot = cfg.a(1)
-  def torNotNAPOT = cfg.a(0)
-  def tor = !napot && torNotNAPOT
-  def cfgLocked = cfg.l
-  def addrLocked(next: PMPReg) = cfgLocked || next.cfgLocked && next.tor
-}
-
-class PMP(implicit p: Parameters) extends PMPReg {
   val mask = UInt(width = paddrBits)
+  def getGranularity : Int
 
-  import PMP._
-  def computeMask = {
-    val base = Cat(addr, cfg.a(0)) | ((pmpGranularity - 1) >> lgAlign)
-    Cat(base & ~(base + 1), UInt((1 << lgAlign) - 1))
-  }
-  private def comparand = ~(~(addr << lgAlign) | (pmpGranularity - 1))
+  def getLgAlign : Int
 
-  private def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
+  def napot : Bool
+
+  def tor : Bool
+
+  def torNotNAPOT : Bool
+
+  def comparand : UInt
+
+  def pow2Match(x: UInt, lgSize: UInt, lgMaxSize: Int) = {
     def eval(a: UInt, b: UInt, m: UInt) = ((a ^ b) & ~m) === 0
-    if (lgMaxSize <= pmpGranularity.log2) {
+    if (lgMaxSize <= getGranularity.log2) {
       eval(x, comparand, mask)
     } else {
       // break up the circuit; the MSB part will be CSE'd
@@ -72,8 +58,8 @@ class PMP(implicit p: Parameters) extends PMPReg {
     }
   }
 
-  private def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) = {
-    if (lgMaxSize <= pmpGranularity.log2) {
+  def boundMatch(x: UInt, lsbMask: UInt, lgMaxSize: Int) = {
+    if (lgMaxSize <= getGranularity.log2) {
       x < comparand
     } else {
       // break up the circuit; the MSB part will be CSE'd
@@ -84,25 +70,25 @@ class PMP(implicit p: Parameters) extends PMPReg {
     }
   }
 
-  private def lowerBoundMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) =
+  def lowerBoundMatch(x: UInt, lgSize: UInt, lgMaxSize: Int) =
     !boundMatch(x, UIntToOH1(lgSize, lgMaxSize), lgMaxSize)
 
-  private def upperBoundMatch(x: UInt, lgMaxSize: Int) =
+  def upperBoundMatch(x: UInt, lgMaxSize: Int) =
     boundMatch(x, 0.U, lgMaxSize)
 
-  private def rangeMatch(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP) =
+  def rangeMatch(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMReg) =
     prev.lowerBoundMatch(x, lgSize, lgMaxSize) && upperBoundMatch(x, lgMaxSize)
 
-  private def pow2Homogeneous(x: UInt, pgLevel: UInt) = {
+  def pow2Homogeneous(x: UInt, pgLevel: UInt) = {
     val maskHomogeneous = pgLevelMap { idxBits => if (idxBits > paddrBits) false.B else mask(idxBits - 1) } (pgLevel)
-    maskHomogeneous || (pgLevelMap { idxBits => ((x ^ comparand) >> idxBits) =/= 0 } (pgLevel))
+    maskHomogeneous || pgLevelMap { idxBits => ((x ^ comparand) >> idxBits) =/= 0 } (pgLevel)
   }
 
-  private def pgLevelMap[T](f: Int => T) = (0 until pgLevels).map { i =>
+  def pgLevelMap[T](f: Int => T) = (0 until pgLevels).map { i =>
     f(pgIdxBits + (pgLevels - 1 - i) * pgLevelBits)
   }
 
-  private def rangeHomogeneous(x: UInt, pgLevel: UInt, prev: PMP) = {
+  def rangeHomogeneous(x: UInt, pgLevel: UInt, prev: PMReg) = {
     val beginsAfterLower = !(x < prev.comparand)
     val beginsAfterUpper = !(x < comparand)
 
@@ -113,12 +99,12 @@ class PMP(implicit p: Parameters) extends PMPReg {
     endsBeforeLower || beginsAfterUpper || (beginsAfterLower && endsBeforeUpper)
   }
 
-  // returns whether this PMP completely contains, or contains none of, a page
-  def homogeneous(x: UInt, pgLevel: UInt, prev: PMP): Bool =
+  // returns whether this PM completely contains, or contains none of, a page
+  def homogeneous(x: UInt, pgLevel: UInt, prev: PMReg): Bool =
     Mux(napot, pow2Homogeneous(x, pgLevel), !torNotNAPOT || rangeHomogeneous(x, pgLevel, prev))
 
-  // returns whether this matching PMP fully contains the access
-  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool = if (lgMaxSize <= pmpGranularity.log2) true.B else {
+  // returns whether this matching PM fully contains the access
+  def aligned(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMReg): Bool = if (lgMaxSize <= pmpGranularity.log2) true.B else {
     val lsbMask = UIntToOH1(lgSize, lgMaxSize)
     val straddlesLowerBound = ((x >> lgMaxSize) ^ (prev.comparand >> lgMaxSize)) === 0 && (prev.comparand(lgMaxSize-1, 0) & ~x(lgMaxSize-1, 0)) =/= 0
     val straddlesUpperBound = ((x >> lgMaxSize) ^ (comparand >> lgMaxSize)) === 0 && (comparand(lgMaxSize-1, 0) & (x(lgMaxSize-1, 0) | lsbMask)) =/= 0
@@ -127,9 +113,47 @@ class PMP(implicit p: Parameters) extends PMPReg {
     Mux(napot, pow2Aligned, rangeAligned)
   }
 
-  // returns whether this PMP matches at least one byte of the access
-  def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP): Bool =
+  // returns whether this PM matches at least one byte of the access
+  def hit(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMReg): Bool =
     Mux(napot, pow2Match(x, lgSize, lgMaxSize), torNotNAPOT && rangeMatch(x, lgSize, lgMaxSize, prev))
+}
+
+
+class PMP(implicit p: Parameters) extends PMReg{
+  val cfg = new PMPConfig
+  val addr = UInt(width = paddrBits - PMP.lgAlign)
+  val lgAlign = PMP.lgAlign
+
+  def reset() {
+    cfg.a := 0
+    cfg.l := 0
+  }
+
+  override def getGranularity = pmpGranularity
+
+  override def getLgAlign = PMP.lgAlign
+
+  def readAddr = if (pmpGranularity.log2 == PMP.lgAlign) addr else {
+    val mask = ((BigInt(1) << (pmpGranularity.log2 - PMP.lgAlign)) - 1).U
+    Mux(napot, addr | (mask >> 1), ~(~addr | mask))
+  }
+
+  override def napot = cfg.a(1)
+
+  override def torNotNAPOT = cfg.a(0)
+
+  override def tor = !napot && torNotNAPOT
+
+  def cfgLocked = cfg.l
+
+  def addrLocked(next: PMP) = cfgLocked || next.cfgLocked && next.tor
+
+  def computeMask = {
+    val base = Cat(addr, cfg.a(0)) | ((pmpGranularity - 1) >> lgAlign)
+    Cat(base & ~(base + 1), UInt((1 << lgAlign) - 1))
+  }
+
+  override def comparand = ~(~(addr << lgAlign) | (pmpGranularity - 1))
 }
 
 class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {

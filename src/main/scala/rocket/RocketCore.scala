@@ -28,6 +28,7 @@ case class RocketCoreParams(
   nBreakpoints: Int = 1,
   useBPWatch: Boolean = false,
   nPMPs: Int = 8,
+  nPMAs: Int = 8,
   nPerfCounters: Int = 0,
   haveBasicCounters: Boolean = true,
   haveCFlush: Boolean = false,
@@ -47,6 +48,7 @@ case class RocketCoreParams(
   val lgPauseCycles = 5
   val haveFSDirty = false
   val pmpGranularity: Int = 4
+  val pmaGranularity: Int = 64
   val fetchWidth: Int = if (useCompressed) 2 else 1
   //  fetchWidth doubled, but coreInstBytes halved, for RVC:
   val decodeWidth: Int = fetchWidth / (if (useCompressed) 2 else 1)
@@ -677,6 +679,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
   io.ptw.status := csr.io.status
   io.ptw.pmp := csr.io.pmp
+  io.pma := csr.io.pma
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
