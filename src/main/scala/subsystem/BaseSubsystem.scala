@@ -37,6 +37,9 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 }
 
 
+/** This trait contains the cases matched in baseAttachmentFunc below.
+  * Both can be extended to offer novel attachment locations in subclasses of BaseSubsystem.
+  */
 trait BaseSubsystemBusAttachment
 case object SBUS extends BaseSubsystemBusAttachment
 case object PBUS extends BaseSubsystemBusAttachment
@@ -57,15 +60,15 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  type PartialAttachment = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
-  protected def baseAttachment: PartialAttachment = {
+  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
+  protected def baseBusAttachmentFunc: BusAttachmentFunction = {
     case SBUS => sbus
     case PBUS => pbus
     case FBUS => fbus
     case MBUS => mbus
     case CBUS => cbus
   }
-  protected def attach(where: BaseSubsystemBusAttachment) = baseAttachment(where)
+  protected def attach(where: BaseSubsystemBusAttachment): TLBusWrapper = baseBusAttachmentFunc(where)
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
