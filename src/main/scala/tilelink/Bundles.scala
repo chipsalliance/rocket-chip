@@ -284,49 +284,6 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-final class DecoupledSnoop[+T <: Data](gen: T) extends Bundle
-{
-  val ready = Bool()
-  val valid = Bool()
-  val bits = gen.asOutput
-
-  def fire() = ready && valid
-  override def cloneType: this.type = new DecoupledSnoop(gen).asInstanceOf[this.type]
-}
-
-object DecoupledSnoop
-{
-  def apply[T <: Data](source: DecoupledIO[T], sink: DecoupledIO[T]) = {
-    val out = Wire(new DecoupledSnoop(sink.bits))
-    out.ready := sink.ready
-    out.valid := source.valid
-    out.bits  := source.bits
-    out
-  }
-}
-
-class TLBundleSnoop(params: TLBundleParameters) extends TLBundleBase(params)
-{
-  val a = new DecoupledSnoop(new TLBundleA(params))
-  val b = new DecoupledSnoop(new TLBundleB(params))
-  val c = new DecoupledSnoop(new TLBundleC(params))
-  val d = new DecoupledSnoop(new TLBundleD(params))
-  val e = new DecoupledSnoop(new TLBundleE(params))
-}
-
-object TLBundleSnoop
-{
-  def apply(source: TLBundle, sink: TLBundle) = {
-    val out = Wire(new TLBundleSnoop(sink.params))
-    out.a := DecoupledSnoop(source.a, sink.a)
-    out.b := DecoupledSnoop(sink.b, source.b)
-    out.c := DecoupledSnoop(source.c, sink.c)
-    out.d := DecoupledSnoop(sink.d, source.d)
-    out.e := DecoupledSnoop(source.e, sink.e)
-    out
-  }
-}
-
 class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParameterizedBundle(params)
 
 class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
