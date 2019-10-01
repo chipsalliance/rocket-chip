@@ -146,7 +146,7 @@ object TLAtomics
   def SWAP = UInt(3, width)
   def isLogical(x: UInt) = x <= SWAP
 
-  def ArithMsg:Seq[String] = Seq("MIN", "MAX", "MIN", "MAXU", "ADD")
+  def ArithMsg:Seq[String] = Seq("MIN", "MAX", "MINU", "MAXU", "ADD")
   def LogicMsg:Seq[String] = Seq("XOR", "OR", "AND", "SWAP")
 }
  
