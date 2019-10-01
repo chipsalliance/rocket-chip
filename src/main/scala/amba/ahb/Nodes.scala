@@ -4,8 +4,10 @@ package freechips.rocketchip.amba.ahb
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
+
+case object AHBMonitorBuilder extends Field[AHBMonitorArgs => AHBMonitorBase]
 
 // From Arbiter to Slave
 object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
@@ -13,6 +15,13 @@ object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortPa
   def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: AHBEdgeParameters) = AHBSlaveBundle(e.bundle)
   def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
+
+  override def monitor(bundle: AHBSlaveBundle, edge: AHBEdgeParameters) {
+    edge.params.lift(AHBMonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(AHBMonitorArgs(edge)))
+      monitor.io.in := bundle
+    }
+  }
 
   override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBSlaveBundle]): AHBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
