@@ -56,9 +56,9 @@ case class AHB_Lite(
   val _types: Seq[String] = Seq("AHB_Lite", "AMBA",  "OMProtocol")
 ) extends AMBA
 
-case class AHB_Full(
+case class AHB(
   specification: Option[OMSpecification],
-  val _types: Seq[String] = Seq("AHB_Full", "AMBA",  "OMProtocol")
+  val _types: Seq[String] = Seq("AHB", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class APB(
@@ -163,7 +163,7 @@ object OMPortMaker {
       case (AXI4Protocol, AXI4SubProtocol) => AXI4(specification = specVersion(protocol, version))
       case (AXI4Protocol, AXI4LiteSubProtocol) => AXI4_Lite(specification = specVersion(protocol, version))
       case (AHBProtocol, AHBLiteSubProtocol) => AHB_Lite(specification = specVersion(protocol, version))
-      case (AHBProtocol, AHBFullSubProtocol) => AHB_Full(specification = specVersion(protocol, version))
+      case (AHBProtocol, AHBFullSubProtocol) => AHB(specification = specVersion(protocol, version))
       case (APBProtocol, APBSubProtocol) => APB(specification = specVersion(protocol, version))
       case (TLProtocol, TL_UHSubProtocol) => TL_UH(specification = specVersion(protocol, version))
       case (TLProtocol, TL_ULSubProtocol) => TL_UL(specification = specVersion(protocol, version))
