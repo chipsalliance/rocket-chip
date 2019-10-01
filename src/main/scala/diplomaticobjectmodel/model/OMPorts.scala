@@ -49,8 +49,6 @@ case class AXI4_Lite(
   val _types: Seq[String] = Seq("AXI4_Lite", "AMBA",  "OMProtocol")
 ) extends AMBA
 
-trait AHB extends AMBA
-
 case class AHB_Lite(
   specification: Option[OMSpecification],
   val _types: Seq[String] = Seq("AHB_Lite", "AMBA",  "OMProtocol")
