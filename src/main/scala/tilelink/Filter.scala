@@ -77,10 +77,23 @@ object TLFilter
   def mIdentity: ManagerFilter = { m => Some(m) }
   // preserve client visibility
   def cIdentity: ClientFilter = { c => Some(c) }
+
   // make only the intersected address sets visible
   def mSelectIntersect(select: AddressSet): ManagerFilter = { m =>
     val filtered = m.address.map(_.intersect(select)).flatten
     val alignment = select.alignment /* alignment 0 means 'select' selected everything */
+    intersectionHelper(m, filtered, alignment)
+  }
+
+  // make everything except the intersecyed address sets visible
+  def mExceptIntersect(except: AddressSet): ManagerFilter = { m =>
+    val filtered = m.address.flatMap(_.subtract(except))
+    val alignment: BigInt = if (filtered.isEmpty) 0 else filtered.map(_.alignment).max
+    intersectionHelper(m, filtered, alignment)
+  }
+
+  // adjust supported transfer sizes based on filtered intersection
+  private def intersectionHelper(m: TLManagerParameters, filtered: Seq[AddressSet], alignment: BigInt): Option[TLManagerParameters] = {
     val maxTransfer = 1 << 30
     val capTransfer = if (alignment == 0 || alignment > maxTransfer) maxTransfer else alignment.toInt
     val cap = TransferSizes(1, capTransfer)
@@ -97,6 +110,7 @@ object TLFilter
         supportsHint       = m.supportsHint      .intersect(cap)))
     }
   }
+
   // hide any fully contained address sets
   def mHideContained(containedBy: AddressSet): ManagerFilter = { m =>
     val filtered = m.address.filterNot(containedBy.contains(_))
