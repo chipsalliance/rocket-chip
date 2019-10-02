@@ -851,14 +851,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
-  val coreMonitorBundle =
-    CoreMonitorBundleTest(
+  val coreSignalMonitor =
+    CoreSignalMonitor(
+      clock,
+      reset,
       xLen,
       csr.io.status.cease,
       csr.reg_mscratch,
       io.hartid)
-
-  val coreMonitorBundles = List(coreMonitorBundle)
 
   val commitTraceMonitorBundle = Wire(new CommitTraceMonitorBundle(xLen))
   commitTraceMonitorBundle.clock := clock
