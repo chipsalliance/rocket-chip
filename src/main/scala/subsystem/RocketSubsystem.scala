@@ -54,8 +54,8 @@ trait HasRocketTiles extends HasTiles
       LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
   }
 
-  def coreMonitorBundles = (rocketTiles map { t => //FIXME
-    t.module.core.rocketImpl.coreMonitorBundle
+  def coreSignalMonitors = (rocketTiles map { t =>
+    t.module.core.rocketImpl.coreSignalMonitor
   }).toList
 
   def commitTraceMonitorBundles = (rocketTiles map { t =>
