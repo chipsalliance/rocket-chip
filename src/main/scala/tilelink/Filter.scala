@@ -85,7 +85,7 @@ object TLFilter
     intersectionHelper(m, filtered, alignment)
   }
 
-  // make everything except the intersecyed address sets visible
+  // make everything except the intersected address sets visible
   def mExceptIntersect(except: AddressSet): ManagerFilter = { m =>
     val filtered = m.address.flatMap(_.subtract(except))
     val alignment: BigInt = if (filtered.isEmpty) 0 else filtered.map(_.alignment).max
