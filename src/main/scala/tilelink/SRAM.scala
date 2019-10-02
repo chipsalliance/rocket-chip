@@ -9,6 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMECC, TL_UL}
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
   val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))
@@ -163,6 +164,16 @@ class TLRAM(
     // It is safe to use uncorrected data here because of d_pause
     in.d.bits.data    := Mux(d_ram_valid, d_uncorrected, d_held_data)
     in.d.bits.corrupt := Mux(d_ram_valid, d_error, d_held_error) && (d_read || d_atomic)
+    
+    val mem_active_valid = Seq(CoverBoolean(in.d.valid, Seq("mem_active")))
+    val data_error = Seq(
+      CoverBoolean(!d_need_fix && !d_error , Seq("no_data_error")),
+      CoverBoolean(d_need_fix && !in.d.bits.corrupt, Seq("data_correctable_error")),
+      CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error")))
+
+    val error_cross_covers = new CrossProperty(Seq(mem_active_valid, data_error), Seq(), "Ecc Covers")
+    cover(error_cross_covers)
+
 
     // Formulate a response only when SRAM output is unused or correct
     val d_pause = (d_read || d_atomic) && d_ram_valid && d_need_fix
