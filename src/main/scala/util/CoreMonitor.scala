@@ -14,8 +14,18 @@ case class CoreSignalMonitor(
   val cease: Bool,
   val reg_mscratch: UInt,
   val hartid: UInt)
+  extends HasCoreSignalMonitorParameters
+
+trait HasCoreSignalMonitorParameters {
+  def clock: Clock
+  def reset: Reset
+  def xLen: Int
+  def cease: Bool
+  def reg_mscratch: UInt
+  def hartid: UInt
+}
 
 // mark a module that has cores with a CoreSignalMonitor
 trait HasCoreSignalMonitors {
-    def coreSignalMonitors: List[CoreSignalMonitor]
+  def coreSignalMonitors: List[CoreSignalMonitor]
 }
