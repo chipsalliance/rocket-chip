@@ -168,8 +168,8 @@ class TLRAM(
     val mem_active_valid = Seq(CoverBoolean(in.d.valid, Seq("mem_active")))
     val data_error = Seq(
       CoverBoolean(!d_need_fix && !d_error , Seq("no_data_error")),
-      CoverBoolean(d_need_fix && !in.d.bits.corrupt, Seq("data_correctable_error")),
-      CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error")))
+      CoverBoolean(d_need_fix && !in.d.bits.corrupt, Seq("data_correctable_error_not_reported")),
+      CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error_reported")))
 
     val error_cross_covers = new CrossProperty(Seq(mem_active_valid, data_error), Seq(), "Ecc Covers")
     cover(error_cross_covers)
