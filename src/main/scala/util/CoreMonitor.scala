@@ -15,12 +15,6 @@ case class CoreSignalMonitor(
   val reg_mscratch: UInt,
   val hartid: UInt)
 
-class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
-  val cease = Bool()
-  val reg_mscratch = UInt(width = xLen.W)
-  val hartid = UInt(width = xLen.W)
-}
-
 // mark a module that has cores with a CoreSignalMonitor
 trait HasCoreSignalMonitors {
     def coreSignalMonitors: List[CoreSignalMonitor]
