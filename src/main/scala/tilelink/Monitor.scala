@@ -451,22 +451,54 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
   }
 
   def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
-    val inflight = RegInit(0.U(edge.client.endSourceId.W))
+    val a_size_bus_size = edge.bundle.sizeBits
+    val a_opcode_bus_size = 3
+    val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
+    val log_a_size_bus_size = log2Ceil(a_size_bus_size)
+    def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
+
+    val inflight = RegInit(UInt(0, width = edge.client.endSourceId))
+    val inflight_opcodes = RegInit(UInt(0, width = edge.client.endSourceId << log_a_opcode_bus_size))
+    val inflight_sizes = RegInit(UInt(0, width = edge.client.endSourceId << log_a_size_bus_size))
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
 
-    val a_set = WireInit(0.U(edge.client.endSourceId.W))
+    val a_set = Wire(init = UInt(0, width = edge.client.endSourceId))
+    val a_opcodes_set = Wire(init = UInt(0, width = edge.client.endSourceId << log_a_opcode_bus_size))
+    val a_sizes_set = Wire(init = UInt(0, width = edge.client.endSourceId << log_a_size_bus_size))
+
+    val a_opcode_lookup = Wire(init = UInt(0, width = 1 << log_a_opcode_bus_size))
+    a_opcode_lookup := (a_opcodes_set | inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)
+
+    val a_size_lookup = Wire(init = UInt(0, width = 1 << log_a_size_bus_size))
+    a_size_lookup := (a_sizes_set | inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)
+
+    val responseMap =             Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant)
+    val responseMapSecondOption = Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant)
+
     when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
       a_set := UIntToOH(bundle.a.bits.source)
+      a_opcodes_set := bundle.a.bits.opcode << (bundle.a.bits.source << log_a_opcode_bus_size.U)
+      a_sizes_set := bundle.a.bits.size << (bundle.a.bits.source << log_a_size_bus_size.U)
       assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
-    val d_clr = WireInit(0.U(edge.client.endSourceId.W))
+    val d_clr = Wire(init = UInt(0, width = edge.client.endSourceId))
+    val d_opcodes_clr = Wire(init = UInt(0, width = edge.client.endSourceId << log_a_opcode_bus_size))
+    val d_sizes_clr = Wire(init = UInt(0, width = edge.client.endSourceId << log_a_size_bus_size))
+
     val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
     when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       d_clr := UIntToOH(bundle.d.bits.source)
+      d_opcodes_clr := size_to_numfullbits(1.U << log_a_opcode_bus_size.U) << (bundle.d.bits.source << log_a_opcode_bus_size.U)
+      d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
+    }
+    when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+      assert((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)),
+        "'D' channel contains improper opcode response" + extra)
+      assert(bundle.d.bits.size === a_size_lookup, "'D' channel contains improper response size" + extra)
     }
 
     if (edge.manager.minLatency > 0) {
@@ -474,6 +506,8 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     }
 
     inflight := (inflight | a_set) & ~d_clr
+    inflight_opcodes := (inflight_opcodes | a_opcodes_set) & ~d_opcodes_clr
+    inflight_sizes := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
 
     val watchdog = RegInit(0.U(32.W))
     val limit = PlusArg("tilelink_timeout",
