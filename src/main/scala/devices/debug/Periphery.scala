@@ -126,6 +126,8 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.clock          := sj.jtag.TCK
     dtm.io.jtag_reset  := sj.reset
     dtm.io.jtag_mfr_id := sj.mfr_id
+    dtm.io.jtag_part_number := sj.part_number
+    dtm.io.jtag_version := sj.version
     dtm.reset          := dtm.io.fsmReset
 
     outer.debug.module.io.dmi.get.dmi <> dtm.io.dmi
@@ -215,6 +217,8 @@ object Debug {
       val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
       sj.reset := r
       sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
+      sj.part_number := p(JtagDTMKey).idcodePartNum.U(16.W)
+      sj.version := p(JtagDTMKey).idcodeVersion.U(4.W)
     }
     debug.apb.foreach { apb =>
       require(false, "No support for connectDebug for an APB debug connection.")
@@ -232,6 +236,8 @@ object Debug {
       sj.jtag.TRSTn.foreach { r => r := Bool(true) }
       sj.reset := Bool(true)
       sj.mfr_id := 0.U
+      sj.part_number := 0.U
+      sj.version := 0.U
     }
 
     debug.clockeddmi.foreach { d =>
