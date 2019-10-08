@@ -497,7 +497,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       assert(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
       assert(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
-              || (bundle.a.valid && (bundle.a.bits.opcode === bundle.d.bits.opcode)),
+              || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
         "'D' channel contains improper opcode response" + extra)
       assert((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
     }
