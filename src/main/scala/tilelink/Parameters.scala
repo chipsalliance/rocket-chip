@@ -87,6 +87,20 @@ case class TLManagerParameters(
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
   def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
+
+  def infoString = {
+    s"""Manager Name = ${name}
+       |Manager Address = ${address}
+       |supportsAcquireT = ${supportsAcquireT}
+       |supportsAcquireB = ${supportsAcquireB}
+       |supportsArithmetic = ${supportsArithmetic}
+       |supportsLogical = ${supportsLogical}
+       |supportsGet = ${supportsGet}
+       |supportsPutFull = ${supportsPutFull}
+       |supportsPutPartial = ${supportsPutPartial}
+       |supportsHint = ${supportsHint}
+       |""".stripMargin
+  }
 }
 
 case class TLManagerPortParameters(
@@ -216,6 +230,8 @@ case class TLManagerPortParameters(
       m.copy(userBits = m.userBits ++ extra)
     })
   }
+
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + managers.map(_.infoString).mkString
 }
 
 case class TLClientParameters(
@@ -258,6 +274,12 @@ case class TLClientParameters(
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
   def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
+
+  def infoString = {
+    s"""Client Name = ${name}
+       |visibility = ${visibility}
+       |""".stripMargin
+  }
 }
 
 case class TLClientPortParameters(
@@ -339,6 +361,8 @@ case class TLClientPortParameters(
       c.copy(userBits = c.userBits ++ extra)
     })
   }
+
+  def infoString = clients.map(_.infoString).mkString
 }
 
 case class TLBundleParameters(
@@ -414,22 +438,25 @@ case class TLEdgeParameters(
   require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
 
   val bundle = TLBundleParameters(client, manager)
+  def infoString = client.infoString + "\n" + manager.infoString
 }
 
-case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters)
-case class TLAsyncClientPortParameters(base: TLClientPortParameters)
+case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
+case class TLAsyncClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
   val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
+  def infoString = client.infoString + "\n" + manager.infoString
 }
 
-case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters)
-case class TLRationalClientPortParameters(base: TLClientPortParameters)
+case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters) {def infoString = base.infoString}
+case class TLRationalClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
 
 case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
   val bundle = TLBundleParameters(client.base, manager.base)
+  def infoString = client.infoString + "\n" + manager.infoString
 }
 
 object ManagerUnification
