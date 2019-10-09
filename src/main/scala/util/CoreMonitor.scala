@@ -3,29 +3,26 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 
-// this class is used to expose some internal core signals
-// to verification monitors
-case class CoreSignalMonitor(
-  clock: Clock,
-  reset: Reset,
-  xLen: Int,
-  cease: Bool,
-  reg_mscratch: UInt,
-  hartid: UInt)
-  extends HasCoreSignalMonitorParameters
-
-trait HasCoreSignalMonitorParameters {
-  def clock: Clock
-  def reset: Reset
-  def xLen: Int
-  def cease: Bool
-  def reg_mscratch: UInt
-  def hartid: UInt
+// this bundle is used to expose some internal core signals
+// to verification monitors which sample instruction commits
+class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
+  val hartid = UInt(width = xLen.W)
+  val timer = UInt(width = 32.W)
+  val valid = Bool()
+  val pc = UInt(width = xLen.W)
+  val wrdst = UInt(width = 5.W)
+  val wrdata = UInt(width = xLen.W)
+  val wren = Bool()
+  val rd0src = UInt(width = 5.W)
+  val rd0val = UInt(width = xLen.W)
+  val rd1src = UInt(width = 5.W)
+  val rd1val = UInt(width = xLen.W)
+  val inst = UInt(width = 32.W)
 }
 
-// mark a module that has cores with a CoreSignalMonitor
-trait HasCoreSignalMonitors {
-  def coreSignalMonitors: List[CoreSignalMonitor]
+// mark a module that has cores with CoreMonitorBundles
+trait HasCoreMonitorBundles {
+    def coreMonitorBundles: List[CoreMonitorBundle]
 }

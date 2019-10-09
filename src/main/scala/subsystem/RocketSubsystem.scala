@@ -58,8 +58,8 @@ trait HasRocketTiles extends HasTiles
     t.module.core.rocketImpl.coreSignalMonitor
   }).toList
 
-  def commitTraceMonitorBundles = (rocketTiles map { t =>
-    t.module.core.rocketImpl.commitTraceMonitorBundle
+  def coreMonitorBundles = (rocketTiles map { t =>
+    t.module.core.rocketImpl.coreMonitorBundle
   }).toList
 }
 
