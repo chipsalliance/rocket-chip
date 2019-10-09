@@ -115,7 +115,7 @@ object TransferSizes {
 case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 {
   // Forbid misaligned base address (and empty sets)
-  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, got: ($base, $mask)")
+  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, got: ${this.toString}")
   require (base >= 0, s"AddressSet negative base is ambiguous: $base") // TL2 address widths are not fixed => negative is ambiguous
   // We do allow negative mask (=> ignore all high bits)
 
