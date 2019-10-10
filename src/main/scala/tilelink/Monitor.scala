@@ -501,7 +501,7 @@ class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
         "'D' channel contains improper opcode response" + extra)
       assert((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
     }
-    when(bundle.d.valid && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
+    when(bundle.d.valid && d_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
       assert((!bundle.d.ready) || bundle.a.ready)
     }
 
