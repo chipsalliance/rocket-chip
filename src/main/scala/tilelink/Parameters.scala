@@ -429,7 +429,7 @@ case class TLEdgeParameters(
   client:  TLClientPortParameters,
   manager: TLManagerPortParameters,
   params:  Parameters,
-  sourceInfo: SourceInfo)
+  sourceInfo: SourceInfo) extends FormatEdge
 {
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
@@ -438,25 +438,25 @@ case class TLEdgeParameters(
   require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
 
   val bundle = TLBundleParameters(client, manager)
-  def infoString = client.infoString + "\n" + manager.infoString
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
 case class TLAsyncClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
-case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
+case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
   val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
-  def infoString = client.infoString + "\n" + manager.infoString
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
 case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters) {def infoString = base.infoString}
 case class TLRationalClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
 
-case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
+case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
   val bundle = TLBundleParameters(client.base, manager.base)
-  def infoString = client.infoString + "\n" + manager.infoString
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
 object ManagerUnification

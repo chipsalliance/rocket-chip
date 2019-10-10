@@ -109,6 +109,20 @@ object BaseNode
   protected[diplomacy] var serial = 0
 }
 
+trait FormatEdge {
+  def formatEdge: String
+}
+
+trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
+  def edges: Edges[I,O]
+  override def formatNode = {
+    edges.out.map(currEdge =>
+      "On Output Edge:\n" + currEdge.formatEdge).mkString +
+    edges.in.map(currEdge =>
+      "On Input Edge:\n" + currEdge.formatEdge).mkString
+  }
+}
+
 trait NoHandle
 case object NoHandleObject extends NoHandle
 
@@ -222,7 +236,7 @@ case class StarCycleException(loop: Seq[String] = Nil) extends CycleException("s
 case class DownwardCycleException(loop: Seq[String] = Nil) extends CycleException("downward", loop)
 case class UpwardCycleException(loop: Seq[String] = Nil) extends CycleException("upward", loop)
 
-case class Edges[EI, EO](in: EI, out: EO)
+case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
   val outer: OutwardNodeImp[DO, UO, EO, BO])(
