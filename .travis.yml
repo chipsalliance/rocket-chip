@@ -75,10 +75,12 @@ jobs:
         - export CXX=g++-4.8 CC=gcc-4.8
     - &test
       stage: Test
+      name: "UnittestSuite"
       script:
         - travis_wait 100 make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
         - travis_wait 100 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
     - <<: *test
+      name: "JtagDtmSuite"
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
         - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
@@ -86,6 +88,7 @@ jobs:
         - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=DebugTest JVM_MEMORY=3G
         - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=DebugTest JVM_MEMORY=3G
     - <<: *test
+      name: "JtagDtmSuite w/ SBA"
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=JtagDtmSuite JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
         - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest64 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
@@ -95,21 +98,26 @@ jobs:
         - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest8 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
         - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest8 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
     - <<: *test
+      name: "RocketSuiteB"
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
     - <<: *test
+      name: "RocketSuiteA"
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
     - <<: *test
+      name: "RocketSuiteC"
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
         - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
     - <<: *test
+      name: "Miscellaneous"
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
     - <<: *test
+      name: "Wake Compilation"
       name: check wake compilation
       script:
         - ci-tests/wake_scala_compilation
