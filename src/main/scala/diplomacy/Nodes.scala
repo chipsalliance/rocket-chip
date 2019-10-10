@@ -94,6 +94,7 @@ abstract class BaseNode(implicit val valName: ValName)
   }
 
   def description: String
+  def formatNode: String = ""
 
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
@@ -106,6 +107,21 @@ abstract class BaseNode(implicit val valName: ValName)
 object BaseNode
 {
   protected[diplomacy] var serial = 0
+}
+
+trait FormatEdge {
+  def formatEdge: String
+}
+
+trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
+  def edges: Edges[I,O]
+  override def formatNode = {
+    edges.out.map(currEdge =>
+      "On Output Edge:\n\n" + currEdge.formatEdge).mkString +
+    "\n---------------------------------------------\n\n" +
+    edges.in.map(currEdge =>
+      "On Input Edge:\n\n" + currEdge.formatEdge).mkString
+  }
 }
 
 trait NoHandle
@@ -221,7 +237,7 @@ case class StarCycleException(loop: Seq[String] = Nil) extends CycleException("s
 case class DownwardCycleException(loop: Seq[String] = Nil) extends CycleException("downward", loop)
 case class UpwardCycleException(loop: Seq[String] = Nil) extends CycleException("upward", loop)
 
-case class Edges[EI, EO](in: EI, out: EO)
+case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
   val outer: OutwardNodeImp[DO, UO, EO, BO])(
