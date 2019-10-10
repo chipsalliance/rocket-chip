@@ -99,6 +99,7 @@ case class TLManagerParameters(
        |supportsPutFull = ${supportsPutFull}
        |supportsPutPartial = ${supportsPutPartial}
        |supportsHint = ${supportsHint}
+       |
        |""".stripMargin
   }
 }
@@ -231,7 +232,7 @@ case class TLManagerPortParameters(
     })
   }
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + managers.map(_.infoString).mkString
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
 }
 
 case class TLClientParameters(
@@ -278,6 +279,7 @@ case class TLClientParameters(
   def infoString = {
     s"""Client Name = ${name}
        |visibility = ${visibility}
+       |
        |""".stripMargin
   }
 }
