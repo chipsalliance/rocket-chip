@@ -16,8 +16,8 @@ case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCus
     val ports = ids.size
     val oStar = if (oStars == 0) 0 else (ports - oKnown) / oStars
     val iStar = if (iStars == 0) 0 else (ports - iKnown) / iStars
-    require (ports == iKnown + iStar*iStars, s"${name} must have ${ports} inputs, but has ${iKnown} + ${iStar}*${iStars}$lazyModule.line}")
-    require (ports == oKnown + oStar*oStars, s"${name} must have ${ports} outputs, but has ${iKnown} + ${iStar}*${iStars}$lazyModule.line}")
+    require (ports == iKnown + iStar*iStars, s"${name} must have ${ports} inputs, but has ${iKnown} + ${iStar}*${iStars} (at ${lazyModule.line})")
+    require (ports == oKnown + oStar*oStars, s"${name} must have ${ports} outputs, but has ${iKnown} + ${iStar}*${iStars} (at ${lazyModule.line})")
     (iStar, oStar)
   }
 
