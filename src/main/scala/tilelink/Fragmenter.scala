@@ -58,6 +58,15 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
       name        = "TLFragmenter",
       sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
       requestFifo = true,
+      // This master can only produce:
+      // emitsAcquireT = c.clients.map(_.knownToEmit.get.emitsAcquireT).reduce(_ smallestintervalcover _),
+      // emitsAcquireB = c.clients.map(_.knownToEmit.get.emitsAcquireB).reduce(_ smallestintervalcover _),
+      // emitsArithmetic = c.clients.map(_.knownToEmit.get.emitsArithmetic).reduce(_ smallestintervalcover _),
+      // emitsLogical = c.clients.map(_.knownToEmit.get.emitsLogical).reduce(_ smallestintervalcover _),
+      // emitsGet = c.clients.map(_.knownToEmit.get.emitsGet).reduce(_ smallestintervalcover _),
+      // emitsPutFull = c.clients.map(_.knownToEmit.get.emitsPutFull).reduce(_ smallestintervalcover _),
+      // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
+      // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
       userBits    = {
         require( c.clients.forall( _.userBits.length == c.clients(0).userBits.length ),
           s"Length of userBits sequences of all clients must be equal. ${c.clients.map(x => (x.name, x.userBits.length))}")
