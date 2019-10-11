@@ -17,7 +17,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
   val ids  = AddressSet.enumerateMask(mask)
   // Find the intersection of the mask with some region
   private def masked(region: Seq[AddressSet], offset: BigInt = 0): Seq[AddressSet] = {
-    region.flatMap { _.intersect(AddressSet(0 + offset, ~mask)) }
+    region.flatMap { _.intersect(AddressSet(offset, ~mask)) }
   }
 
   // forceLocal better only go one place (the low index)
@@ -26,7 +26,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
   // Address Adjustment requires many things about the downstream devices, captured here as helper functions:
 
   // Report whether a region of addresses fully contains a particular manager
-  def deviceContainedBy(region: Seq[AddressSet], m: TLManagerParameters): Boolean = {
+  def isDeviceContainedBy(region: Seq[AddressSet], m: TLManagerParameters): Boolean = {
     val any_in  = region.exists { f => m.address.exists { a => f.overlaps(a) } }
     val any_out = region.exists { f => m.address.exists { a => !f.contains(a) } }
     // Ensure device is either completely inside or outside this region
@@ -45,19 +45,18 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
   }
 
   // Confirm that everything supported by the remote PMA (which will be the final PMA) can be taken to the error device
-  def requireErrorSupport(errorDev: TLManagerParameters, managers: Seq[TLManagerParameters]): Unit = managers.map { r =>
-    require (errorDev.supportsAcquireT  .contains(r.supportsAcquireT  ), s"Error device cannot cover ${r.name}'s AcquireT")
-    require (errorDev.supportsAcquireB  .contains(r.supportsAcquireB  ), s"Error device cannot cover ${r.name}'s AcquireB")
-    require (errorDev.supportsArithmetic.contains(r.supportsArithmetic), s"Error device cannot cover ${r.name}'s Arithmetic")
-    require (errorDev.supportsLogical   .contains(r.supportsLogical   ), s"Error device cannot cover ${r.name}'s Logical")
-    require (errorDev.supportsGet       .contains(r.supportsGet       ), s"Error device cannot cover ${r.name}'s Get")
-    require (errorDev.supportsPutFull   .contains(r.supportsPutFull   ), s"Error device cannot cover ${r.name}'s PutFull")
-    require (errorDev.supportsPutPartial.contains(r.supportsPutPartial), s"Error device cannot cover ${r.name}'s PutPartial")
-    require (errorDev.supportsHint      .contains(r.supportsHint      ), s"Error device cannot cover ${r.name}'s Hint")
+  def requireErrorSupport(errorDev: TLManagerParameters, managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
+    require (errorDev.supportsAcquireT  .contains(m.supportsAcquireT  ), s"Error device cannot cover ${m.name}'s AcquireT")
+    require (errorDev.supportsAcquireB  .contains(m.supportsAcquireB  ), s"Error device cannot cover ${m.name}'s AcquireB")
+    require (errorDev.supportsArithmetic.contains(m.supportsArithmetic), s"Error device cannot cover ${m.name}'s Arithmetic")
+    require (errorDev.supportsLogical   .contains(m.supportsLogical   ), s"Error device cannot cover ${m.name}'s Logical")
+    require (errorDev.supportsGet       .contains(m.supportsGet       ), s"Error device cannot cover ${m.name}'s Get")
+    require (errorDev.supportsPutFull   .contains(m.supportsPutFull   ), s"Error device cannot cover ${m.name}'s PutFull")
+    require (errorDev.supportsPutPartial.contains(m.supportsPutPartial), s"Error device cannot cover ${m.name}'s PutPartial")
+    require (errorDev.supportsHint      .contains(m.supportsHint      ), s"Error device cannot cover ${m.name}'s Hint")
   }
 
   // Confirm that a subset of managers have homogeneous FIFO ids
-  // TODO: a bit not-DRY w.r.t. TLManagerPortParameters.requireFifo()
   def requireFifoHomogeneity(managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
     require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId,
       s"${m.name} had fifoId ${m.fifoId}, " +
@@ -65,7 +64,6 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
   }
 
   // Confirm that a particular manager r can successfully handle all operations targetting another manager l
-  // TODO: is this general enough to be a method of TLManagerParameters?
   def requireContainerSupport(l: TLManagerParameters, r: TLManagerParameters): Unit = {
     require (l.regionType >= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
     require (!l.executable || r.executable, s"Device ${l.name} cannot be executable if ${r.name} is not")
@@ -98,8 +96,8 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
 
       remotes.zip(locals).map { case (remote, local) =>
         // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
-        val adjustableLocalManagers  = local.managers.filter(m =>  deviceContainedBy(List(adjustableRegion), m))
-        val fixedLocalManagers       = local.managers.filter(m => !deviceContainedBy(List(adjustableRegion), m))
+        val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(List(adjustableRegion), m))
+        val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(List(adjustableRegion), m))
 
         val adjustableRemoteManagers = remote.managers.flatMap { m =>
           val intersection = m.address.flatMap(_.intersect(adjustableRegion))
@@ -169,7 +167,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
             mayDenyGet         = r.mayDenyGet,
             mayDenyPut         = r.mayDenyPut,
             alwaysGrantsT      = r.alwaysGrantsT,
-            fifoId             = Some(if (deviceContainedBy(forceLocal, l)) ids.size else 0))
+            fifoId             = Some(if (isDeviceContainedBy(forceLocal, l)) ids.size else 0))
         }
 
         // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
@@ -225,8 +223,8 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
       def isAdjustable(addr: UInt) = containsAddress(List(adjustableRegion), addr)
 
       def isLocal(addr: UInt): Bool =
-        ( isAdjustable(addr) && (local_address === (addr & mask.U) || containsAddress(forceLocal, addr))) ||
-        (!isAdjustable(addr) && containsAddress(localEdge.manager.managers.flatMap(_.address), addr))
+        Mux(isAdjustable(addr), (local_address === (addr & mask.U) || containsAddress(forceLocal, addr)),
+                                !containsAddress(remoteEdge.manager.managers.flatMap(_.address), addr))
 
       // Route A by address, but reroute unsupported operations
       val a_local = isLocal(parent.a.bits.address)
