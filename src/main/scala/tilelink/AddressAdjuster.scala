@@ -7,27 +7,6 @@ import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
-case class TLSplitterNode(
-  clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
-  managerFn: Seq[TLManagerPortParameters] => Seq[TLManagerPortParameters] = { s => s })(
-  implicit valName: ValName) extends TLCustomNode {
-
-  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iStars == 0, s"$context does not support :*=")
-    if (oStars > 0) {
-      require (2*iKnown >= oKnown, s"$context has $oKnown outputs and $iKnown inputs; cannot assign ${2*iKnown-oKnown} edges to resolve :=*")
-      (0, iKnown - oKnown)
-    } else {
-      require (oKnown == 2*iKnown, s"$context has $oKnown outputs and $iKnown inputs; but 2*$iKnown must be $oKnown")
-      (0, 0)
-    }
-  }
-
-  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { p.map(clientFn) ++ p.map(clientFn) }
-
-  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { managerFn(p) } // dFn will halve the size of TLManagerPortParameters
-}
-
 // mask=0 -> passthrough
 // adjustableRegion -> only devices in this regions get adjusted
 // forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in adjustableRegion
