@@ -27,8 +27,9 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
 
   // Report whether a region of addresses fully contains a particular manager
   def isDeviceContainedBy(region: Seq[AddressSet], m: TLManagerParameters): Boolean = {
-    val any_in  = region.exists { f => m.address.exists { a => f.overlaps(a) } }
-    val any_out = region.exists { f => m.address.exists { a => !f.contains(a) } }
+    val addr = masked(m.address)
+    val any_in  = region.exists { f => addr.exists { a => f.overlaps(a) } }
+    val any_out = region.exists { f => addr.exists { a => !f.contains(a) } }
     // Ensure device is either completely inside or outside this region
     require (!any_in || !any_out,
       s"Address adjuster cannot have partially contained devices, but for ${m.name}: $region vs ${m.address}")
