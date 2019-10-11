@@ -48,6 +48,7 @@ object SystemBusAccessModule
     val SBCSFieldsRegReset = Wire(init = (new SBCSFields()).fromBits(0.U))
     SBCSFieldsRegReset.sbversion   := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
     SBCSFieldsRegReset.sbbusy      := (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
+    SBCSFieldsRegReset.sbaccess    := 2.U
     SBCSFieldsRegReset.sbasize     := sb2tl.module.edge.bundle.addressBits.U
     SBCSFieldsRegReset.sbaccess128 := (cfg.maxSupportedSBAccess == 128).B
     SBCSFieldsRegReset.sbaccess64  := (cfg.maxSupportedSBAccess >=  64).B
@@ -73,7 +74,7 @@ object SystemBusAccessModule
       RegField.r(1, SBCSRdData.sbaccess32,  RegFieldDesc("sbaccess32",  "32-bit accesses supported",  reset=Some(if (cfg.maxSupportedSBAccess >=  32) 1 else 0))),
       RegField.r(1, SBCSRdData.sbaccess64,  RegFieldDesc("sbaccess64",  "64-bit accesses supported",  reset=Some(if (cfg.maxSupportedSBAccess >=  64) 1 else 0))),
       RegField.r(1, SBCSRdData.sbaccess128, RegFieldDesc("sbaccess128", "128-bit accesses supported", reset=Some(if (cfg.maxSupportedSBAccess == 128) 1 else 0))),
-      RegField.r(7, SBCSRdData.sbasize,     RegFieldDesc("sbasize",     "bits in address")),
+      RegField.r(7, SBCSRdData.sbasize,     RegFieldDesc("sbasize",     "bits in address",            reset=Some(sb2tl.module.edge.bundle.addressBits))),
       WNotifyVal(3, SBCSRdData.sberror, SBCSWrData.sberror, sberrorWrEn,
         RegFieldDesc("sberror", "system bus error", reset=Some(0), wrType=Some(RegFieldWrType.ONE_TO_CLEAR))),
       WNotifyVal(1, SBCSRdData.sbreadondata, SBCSWrData.sbreadondata, sbreadondataWrEn,
