@@ -222,21 +222,20 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
         region.foldLeft(false.B)(_ || _.contains(addr))
 
       def isAdjustable(addr: UInt) = containsAddress(List(adjustableRegion), addr)
+      def isDynamicallyLocal(addr: UInt) = (local_address === (addr & mask.U) || containsAddress(forceLocal, addr))
+      def isStaticallyLocal(addr: UInt) = containsAddress(AddressSet.unify(localEdge.manager.managers.flatMap(_.address)), addr)
 
-      def isLocal(addr: UInt): Bool =
-        Mux(isAdjustable(addr), (local_address === (addr & mask.U) || containsAddress(forceLocal, addr)),
-                                !containsAddress(remoteEdge.manager.managers.flatMap(_.address), addr))
+      def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
 
       // Route A by address, but reroute unsupported operations
-      val a_local = isLocal(parent.a.bits.address)
+      val a_local = routeLocal(parent.a.bits.address)
       parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready)
       local .a.valid := parent.a.valid &&  a_local
       remote.a.valid := parent.a.valid && !a_local
       local .a.bits  := parent.a.bits
       remote.a.bits  := parent.a.bits
 
-      val a_routable  = AddressSet.unify(localEdge.manager.managers.flatMap(_.address))
-      val a_contained = a_routable.map(_.contains(parent.a.bits.address)).reduce(_ || _)
+      val a_contained = isStaticallyLocal(parent.a.bits.address)
 
       val acquire_ok =
         Mux(parent.a.bits.param === TLPermissions.toT,
@@ -278,7 +277,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
         TLArbiter.robin(parentEdge, parent.b, local.b, remote.b)
 
         // Route C by address
-        val c_local = isLocal(parent.c.bits.address)
+        val c_local = routeLocal(parent.c.bits.address)
         parent.c.ready := Mux(c_local, local.c.ready, remote.c.ready)
         local .c.valid := parent.c.valid &&  c_local
         remote.c.valid := parent.c.valid && !c_local
