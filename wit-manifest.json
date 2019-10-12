@@ -28,5 +28,10 @@
         "commit": "d619ca850846d2ec36da64bf8a28e7d9a3d9ed1b",
         "name": "api-config-chipsalliance",
         "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
+    },
+    {
+        "commit": "93f38841eac2ee9df94dbb69a9afe1edd415ecab",
+        "name": "api-chisel3testers-sifive",
+        "source": "git@github.com:sifive/api-chisel3testers-sifive.git"
     }
 ]

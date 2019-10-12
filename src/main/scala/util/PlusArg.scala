@@ -5,6 +5,8 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.experimental._
 import chisel3.util.HasBlackBoxResource
+import chipsalliance.rocketchip.config._
+import org.scalatest.ConfigMap
 
 case class PlusArgInfo(default: BigInt, docstring: String)
 
@@ -25,7 +27,11 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
   val io = IO(new Bundle {
     val count = Input(UInt(width.W))
   })
-  val max = Module(new plusarg_reader(format, default, docstring, width)).io.out
+  val max =
+    if (PlusArg.simWithTreadle)
+      Module(new plusarg_reader(format, default, docstring, width)).io.out
+    else
+      PlusArg.configMapStringToUInt(format, default, docstring, width)
   when (max > 0.U) {
     assert (io.count < max, s"Timeout exceeded: $docstring")
   }
@@ -33,6 +39,8 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
 
 object PlusArg
 {
+  var configMap = new ConfigMap(Map.empty)
+  var simWithTreadle = false
   /** PlusArg("foo") will return 42.U if the simulation is run with +foo=42
     * Do not use this as an initial register value. The value is set in an
     * initial block and thus accessing it from another initial is racey.
@@ -41,7 +49,18 @@ object PlusArg
     */
   def apply(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32): UInt = {
     PlusArgArtefacts.append(name, default, docstring)
-    Module(new plusarg_reader(name + "=%d", default, docstring, width)).io.out
+    if (simWithTreadle) {
+      configMapStringToUInt(name, default, docstring, width)
+    } else {
+      Module(new plusarg_reader(name + "=%d", default, docstring, width)).io.out
+    }
+  }
+
+  def configMapStringToUInt(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32) = {
+    if (configMap.get(name).isDefined)
+      configMap.getRequired[String](name).toInt.asUInt(width.W)
+    else
+      default.asUInt(width.W)
   }
 
   /** PlusArg.timeout(name, default, docstring)(count) will use chisel.assert
