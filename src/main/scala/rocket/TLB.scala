@@ -218,7 +218,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.ppn := pte.ppn
     newEntry.c := cacheable
     newEntry.u := pte.u
-    newEntry.g := pte.g
+    newEntry.g := pte.g && pte.v
     newEntry.ae := io.ptw.resp.bits.ae
     newEntry.sr := pte.sr()
     newEntry.sw := pte.sw()
