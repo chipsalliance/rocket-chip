@@ -10,7 +10,7 @@ import freechips.rocketchip.diplomacy._
 // mask=0 -> passthrough
 // adjustableRegion -> only devices in this regions get adjusted
 // forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in adjustableRegion
-class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.everything, forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
+class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(AddressSet.everything), forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
   // Which ids must we route within that mask?
@@ -19,6 +19,10 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
   private def masked(region: Seq[AddressSet], offset: BigInt = 0): Seq[AddressSet] = {
     region.flatMap { _.intersect(AddressSet(offset, ~mask)) }
   }
+
+  // if mask == 0, we are going to do nothing other than merge the two downstream ports, make sure this agrees with the optionality of adjustableRegion
+  require((mask == 0 && !adjustableRegion.isDefined) || (mask !=0 && adjustableRegion.isDefined),
+    s"AddressAdjuster mask ($mask)and Adjustable region ($adjustableRegion) mismatch")
 
   // forceLocal better only go one place (the low index)
   forceLocal.foreach { as => require((as.max & mask) == 0) }
@@ -97,16 +101,16 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
 
       remotes.zip(locals).map { case (remote, local) =>
         // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
-        val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(List(adjustableRegion), m))
-        val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(List(adjustableRegion), m))
+        val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(adjustableRegion.toList, m))
+        val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(adjustableRegion.toList, m))
 
         val adjustableRemoteManagers = remote.managers.flatMap { m =>
-          val intersection = m.address.flatMap(_.intersect(adjustableRegion))
+          val intersection = m.address.flatMap(a => adjustableRegion.map(a.intersect(_))).flatten
           if (intersection.isEmpty) None else Some(m.copy(address = intersection))
         }
 
         val fixedRemoteManagers = remote.managers.flatMap { m =>
-          val subtraction = m.address.flatMap(_.subtract (adjustableRegion))
+          val subtraction = m.address.flatMap(a => adjustableRegion.map(a.subtract(_))).flatten
           if (subtraction.isEmpty) None else Some(m.copy(address = subtraction))
         }
 
@@ -221,7 +225,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: AddressSet = AddressSet.ev
       def containsAddress(region: Seq[AddressSet], addr: UInt): Bool =
         region.foldLeft(false.B)(_ || _.contains(addr))
 
-      def isAdjustable(addr: UInt) = containsAddress(List(adjustableRegion), addr)
+      def isAdjustable(addr: UInt) = containsAddress(adjustableRegion.toList, addr)
       def isDynamicallyLocal(addr: UInt) = (local_address === (addr & mask.U) || containsAddress(forceLocal, addr))
       def isStaticallyLocal(addr: UInt) = containsAddress(AddressSet.unify(localEdge.manager.managers.flatMap(_.address)), addr)
 
