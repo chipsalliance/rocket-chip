@@ -44,8 +44,8 @@ class RegionReplicator(mask: BigInt = 0, region: Option[AddressSet] = Some(Addre
 }
 
 object RegionReplicator {
-  def apply(mask: BigInt = 0)(implicit p: Parameters): TLNode = {
-    val replicator = LazyModule(new RegionReplicator(mask))
+  def apply(mask: BigInt = 0, region: Option[AddressSet] = Some(AddressSet.everything))(implicit p: Parameters): TLNode = {
+    val replicator = LazyModule(new RegionReplicator(mask, region))
     replicator.node
   }
 }
