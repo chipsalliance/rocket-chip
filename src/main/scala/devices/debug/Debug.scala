@@ -101,6 +101,7 @@ import DebugAbstractCommandType._
   *  hasImplicitEbreak: There is an additional RO program buffer word containing an ebreak
   **/
 case class DebugModuleParams (
+  hasDebugModule : Boolean = true,
   nDMIAddrSize  : Int = 7,
   nProgramBufferWords: Int = 16,
   nAbstractDataWords : Int = 4,

@@ -13,7 +13,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
   }
 
   val dut = Module(LazyModule(new ExampleRocketSystem).module)
-  dut.reset := reset | dut.debug.ndreset
+  dut.reset := reset | dut.debug.ndreset.getOrElse(false.B)
 
   dut.dontTouchPorts()
   dut.tieOffInterrupts()
