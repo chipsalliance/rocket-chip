@@ -33,7 +33,7 @@ case class TLRegisterNode(
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
+    minLatency = min(concurrency, 1)))) with TLFormatNode // the Queue adds at most one cycle
 {
   val size = 1 << log2Ceil(1 + address.map(_.max).max - address.map(_.base).min)
   require (size >= beatBytes)
