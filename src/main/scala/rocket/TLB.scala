@@ -211,39 +211,49 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val hits = Cat(!vm_enabled, real_hits)
   val ppn = Mux1H(hitsVec :+ !vm_enabled, all_entries.map(_.ppn(vpn)) :+ vpn(ppnBits-1, 0))
 
-  // permission bit arrays
-  when (do_refill && !invalidate_refill) {
-    val pte = io.ptw.resp.bits.pte
-    val newEntry = Wire(new EntryData)
-    newEntry.ppn := pte.ppn
-    newEntry.c := cacheable
-    newEntry.u := pte.u
-    newEntry.g := pte.g && pte.v
-    newEntry.ae := io.ptw.resp.bits.ae
-    newEntry.sr := pte.sr()
-    newEntry.sw := pte.sw()
-    newEntry.sx := pte.sx()
-    newEntry.pr := prot_r
-    newEntry.pw := prot_w
-    newEntry.px := prot_x
-    newEntry.pal := prot_al
-    newEntry.paa := prot_aa
-    newEntry.eff := prot_eff
-    newEntry.fragmented_superpage := io.ptw.resp.bits.fragmented_superpage
+  val sectored_plru = new PseudoLRU(sectored_entries.size)
+  val superpage_plru = new PseudoLRU(superpage_entries.size)
 
-    when (special_entry.nonEmpty && !io.ptw.resp.bits.homogeneous) {
-      special_entry.foreach(_.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry))
-    }.elsewhen (io.ptw.resp.bits.level < pgLevels-1) {
-      for ((e, i) <- superpage_entries.zipWithIndex) when (r_superpage_repl_addr === i) {
-        e.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry)
-      }
-    }.otherwise {
-      val waddr = Mux(r_sectored_hit, r_sectored_hit_addr, r_sectored_repl_addr)
-      for ((e, i) <- sectored_entries.zipWithIndex) when (waddr === i) {
-        when (!r_sectored_hit) { e.invalidate() }
-        e.insert(r_refill_tag, 0.U, newEntry)
+  // permission bit arrays
+  when (do_refill) {
+    when (!invalidate_refill) {
+      val pte = io.ptw.resp.bits.pte
+      val newEntry = Wire(new EntryData)
+      newEntry.ppn := pte.ppn
+      newEntry.c := cacheable
+      newEntry.u := pte.u
+      newEntry.g := pte.g && pte.v
+      newEntry.ae := io.ptw.resp.bits.ae
+      newEntry.sr := pte.sr()
+      newEntry.sw := pte.sw()
+      newEntry.sx := pte.sx()
+      newEntry.pr := prot_r
+      newEntry.pw := prot_w
+      newEntry.px := prot_x
+      newEntry.pal := prot_al
+      newEntry.paa := prot_aa
+      newEntry.eff := prot_eff
+      newEntry.fragmented_superpage := io.ptw.resp.bits.fragmented_superpage
+
+      when (special_entry.nonEmpty && !io.ptw.resp.bits.homogeneous) {
+        special_entry.foreach(_.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry))
+      }.elsewhen (io.ptw.resp.bits.level < pgLevels-1) {
+        for ((e, i) <- superpage_entries.zipWithIndex) when (r_superpage_repl_addr === i) {
+          e.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry)
+        }
+        superpage_plru.access(r_superpage_repl_addr)
+      }.otherwise {
+        val waddr = Mux(r_sectored_hit, r_sectored_hit_addr, r_sectored_repl_addr)
+        for ((e, i) <- sectored_entries.zipWithIndex) when (waddr === i) {
+          when (!r_sectored_hit) { e.invalidate() }
+          e.insert(r_refill_tag, 0.U, newEntry)
+        }
+        sectored_plru.access(waddr)
       }
     }
+  }.elsewhen (io.req.valid && vm_enabled) {
+    when (sector_hits.orR) { sectored_plru.access(OHToUInt(sector_hits)) }
+    when (superpage_hits.orR) { superpage_plru.access(OHToUInt(superpage_hits)) }
   }
 
   val entries = all_entries.map(_.getData(vpn))
@@ -306,13 +316,6 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   val tlb_hit = real_hits.orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit
-
-  val sectored_plru = new PseudoLRU(sectored_entries.size)
-  val superpage_plru = new PseudoLRU(superpage_entries.size)
-  when (io.req.valid && vm_enabled) {
-    when (sector_hits.orR) { sectored_plru.access(OHToUInt(sector_hits)) }
-    when (superpage_hits.orR) { superpage_plru.access(OHToUInt(superpage_hits)) }
-  }
 
   // Superpages create the possibility that two entries in the TLB may match.
   // This corresponds to a software bug, but we can't return complete garbage;
