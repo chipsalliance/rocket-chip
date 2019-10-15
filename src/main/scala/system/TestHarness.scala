@@ -16,7 +16,7 @@ class TestHarness()(implicit p: Parameters) extends Module {
   val dut = Module(LazyModule(new ExampleRocketSystem).module)
 
   // Allow the debug ndreset to reset the dut, but not until the initial reset has completed
-  val debug_ndreset = WireInit(false.B)
+  val debug_ndreset = Wire(init = false.B)
   dut.debug.ndreset.map { ndreset => debug_ndreset := AsyncResetReg(ndreset) }
   dut.reset := reset | debug_ndreset
 
