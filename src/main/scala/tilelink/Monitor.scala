@@ -9,6 +9,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
+import freechips.rocketchip.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
 
@@ -30,8 +31,27 @@ object TLMonitor {
   }
 }
 
-class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
+class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
+  val cover_prop_class = PropertyClass.Default
+  val desc_text = "Placeholder"
+
+  def assert(cond: Bool, message: String): Unit = {
+    Property(monitorDir,
+        cond,
+        message,
+        PropertyClass.Default,
+        desc_text)
+  }
+
+  def assume(cond: Bool, message: String): Unit = {
+    Property(monitorDir.flip,
+        cond,
+        message,
+        PropertyClass.Default,
+        desc_text)
+  }
+
   def extra = {
     args.edge.sourceInfo match {
       case SourceLine(filename, line, col) => s" (connected at $filename:$line:$col)"
