@@ -12,21 +12,28 @@ trait HasRegionReplicatorParams {
   val replicatorMask: BigInt
 }
 
-// Replicate all devices below this adapter to multiple addreses.
+// Replicate all devices below this adapter that are inside replicationRegion to multiple addreses based on mask.
 // If a device was at 0x4000-0x4fff and mask=0x10000, it will now be at 0x04000-0x04fff and 0x14000-0x14fff.
-class RegionReplicator(mask: BigInt = 0)(implicit p: Parameters) extends LazyModule {
+class RegionReplicator(mask: BigInt = 0, region: Option[AddressSet] = Some(AddressSet.everything))(implicit p: Parameters) extends LazyModule {
   def ids = AddressSet.enumerateMask(mask)
 
   val node = TLAdapterNode(
     clientFn  = { cp => cp },
-    managerFn = { mp => mp.copy(managers = mp.managers.map { m => m.copy(
-      address = m.address.flatMap { a => ids.map { id => 
-        AddressSet(a.base | id, a.mask) } })})})
+    managerFn = { mp => mp.copy(managers = mp.managers.map { m =>
+      m.copy(address = m.address.flatMap { a =>
+        if (region.map(_.contains(a)).getOrElse(false)) { ids.map { id => AddressSet(a.base | id, a.mask) } }
+        else { Seq(a) }
+      })
+    })}
+  )
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
-      out.a.bits.address := ~(~in.a.bits.address | mask.U)
+
+      val addr = in.a.bits.address
+      val contained = region.foldLeft(false.B)(_ || _.contains(addr))
+      out.a.bits.address := Mux(contained, ~(~addr | mask.U), addr)
 
       // We can't support probes; we don't have the required information
       edgeOut.manager.managers.foreach { m =>
@@ -37,8 +44,8 @@ class RegionReplicator(mask: BigInt = 0)(implicit p: Parameters) extends LazyMod
 }
 
 object RegionReplicator {
-  def apply(mask: BigInt = 0)(implicit p: Parameters): TLNode = {
-    val replicator = LazyModule(new RegionReplicator(mask))
+  def apply(mask: BigInt = 0, region: Option[AddressSet] = Some(AddressSet.everything))(implicit p: Parameters): TLNode = {
+    val replicator = LazyModule(new RegionReplicator(mask, region))
     replicator.node
   }
 }

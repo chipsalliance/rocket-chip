@@ -13,7 +13,7 @@ case class JtagDTMConfig (
   idcodeVersion    : Int,      // chosen by manuf.
   idcodePartNum    : Int,      // Chosen by manuf.
   idcodeManufId    : Int,      // Assigned by JEDEC
-  // Note: the actual manufId is passed in through a wire.
+  // Note: the actual fields are passed in through wires.
   // Do not forget to wire up io.jtag_mfr_id through your top-level to set the
   // mfr_id for this core.
   // If you wish to use this field in the config, you can obtain it along
@@ -66,6 +66,8 @@ class SystemJTAGIO extends Bundle {
   val jtag = new JTAGIO(hasTRSTn = false).flip
   val reset = Bool(INPUT)
   val mfr_id = UInt(INPUT, 11)
+  val part_number = UInt(INPUT, 16)
+  val version = UInt(INPUT, 4)
 }
 
 class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
@@ -76,6 +78,8 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
     val jtag_reset = Bool(INPUT)
     val jtag_mfr_id = UInt(INPUT, 11)
+    val jtag_part_number = UInt(INPUT, 16)
+    val jtag_version = UInt(INPUT, 4)
     val fsmReset = Bool(OUTPUT)
   }
 
@@ -242,8 +246,8 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // Actual JTAG TAP
   val idcode = Wire(init = new JTAGIdcodeBundle().fromBits(0.U))
   idcode.always1    := 1.U
-  idcode.version    := c.idcodeVersion.U
-  idcode.partNumber := c.idcodePartNum.U
+  idcode.version    := io.jtag_version
+  idcode.partNumber := io.jtag_part_number
   idcode.mfrId      := io.jtag_mfr_id
 
   val tapIO = JtagTapGenerator(irLength = 5,

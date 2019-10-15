@@ -56,7 +56,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_REG_INIT \
 	+define+RANDOMIZE_GARBAGE_ASSIGN \
 	+define+RANDOMIZE_INVALID_ASSIGN \
-	+define+RANDOMIZE_DELAY=2 \
+	+define+RANDOMIZE_DELAY=0.1 \
 	+define+MODEL=$(MODEL) \
 	+libext+.v \
 
