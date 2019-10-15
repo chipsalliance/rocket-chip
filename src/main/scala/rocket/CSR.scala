@@ -226,8 +226,10 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val vector = usingVector.option(new Bundle {
     val vconfig = new VConfig().asOutput
     val vstart = UInt(maxVLMax.log2.W).asOutput
+    val vxrm = UInt(2.W).asOutput
     val set_vconfig = Valid(new VConfig).flip
     val set_vstart = Valid(vstart).flip
+    val set_vxsat = Bool().asInput
   })
 }
 
@@ -388,6 +390,8 @@ class CSRFile(
   val reg_frm = Reg(UInt(width = 3))
   val reg_vconfig = usingVector.option(Reg(new VConfig))
   val reg_vstart = usingVector.option(Reg(UInt(maxVLMax.log2.W)))
+  val reg_vxsat = usingVector.option(Reg(Bool()))
+  val reg_vxrm = usingVector.option(Reg(UInt(io.vector.get.vxrm.getWidth.W)))
 
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
@@ -455,10 +459,13 @@ class CSRFile(
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
-  val fp_csrs = if (!usingFPU) LinkedHashMap() else LinkedHashMap[Int,Bits](
-    CSRs.fflags -> reg_fflags,
-    CSRs.frm -> reg_frm,
-    CSRs.fcsr -> Cat(reg_frm, reg_fflags))
+  val read_fcsr = Cat(reg_frm, reg_fflags) | (reg_vxsat.getOrElse(0.U) << 8) | (reg_vxrm.getOrElse(0.U) << 9)
+  val fp_csrs = LinkedHashMap[Int,Bits]() ++
+    usingFPU.option(CSRs.fflags -> reg_fflags) ++
+    usingFPU.option(CSRs.frm -> reg_frm) ++
+    (usingFPU || usingVector).option(CSRs.fcsr -> read_fcsr) ++
+    reg_vxsat.map(CSRs.vxsat -> _) ++
+    reg_vxrm.map(CSRs.vxrm -> _)
 
   val vector_csrs = if (!usingVector) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.vstart -> reg_vstart.get,
@@ -758,6 +765,13 @@ class CSRFile(
     set_fs_dirty := true
   }
 
+  io.vector.foreach { vio =>
+    when (vio.set_vxsat) {
+      reg_vxsat.get := true
+      set_fs_dirty := true
+    }
+  }
+
   val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
   io.csrw_counter := Mux(coreParams.haveBasicCounters && csr_wen && (io.rw.addr.inRange(CSRs.mcycle, CSRs.mcycle + CSR.nCtr) || io.rw.addr.inRange(CSRs.mcycleh, CSRs.mcycleh + CSR.nCtr)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
   when (csr_wen) {
@@ -781,7 +795,7 @@ class CSRFile(
         }
       }
 
-      if (usingVM || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
+      if (usingVM || usingFPU || usingVector) reg_mstatus.fs := formFS(new_mstatus.fs)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
     when (decoded_addr(CSRs.misa)) {
@@ -825,7 +839,15 @@ class CSRFile(
     if (usingFPU) {
       when (decoded_addr(CSRs.fflags)) { set_fs_dirty := true; reg_fflags := wdata }
       when (decoded_addr(CSRs.frm))    { set_fs_dirty := true; reg_frm := wdata }
-      when (decoded_addr(CSRs.fcsr))   { set_fs_dirty := true; reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+    }
+    if (usingFPU || usingVector) {
+      when (decoded_addr(CSRs.fcsr)) {
+        set_fs_dirty := true
+        reg_fflags := wdata
+        reg_frm := wdata >> reg_fflags.getWidth
+        reg_vxsat.foreach(_ := wdata >> 8)
+        reg_vxrm.foreach(_ := wdata >> 9)
+      }
     }
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
@@ -922,6 +944,8 @@ class CSRFile(
     }
     if (usingVector) {
       when (decoded_addr(CSRs.vstart)) { reg_vstart.get := wdata }
+      when (decoded_addr(CSRs.vxrm))   { set_fs_dirty := true; reg_vxrm.get := wdata }
+      when (decoded_addr(CSRs.vxsat))  { set_fs_dirty := true; reg_vxsat.get := wdata }
     }
   }
 
@@ -935,6 +959,7 @@ class CSRFile(
     }
     vio.vstart := reg_vstart.get
     vio.vconfig := reg_vconfig.get
+    vio.vxrm := reg_vxrm.get
 
     when (reset.toBool) {
       reg_vconfig.get.vtype := 0.U.asTypeOf(new VType)
