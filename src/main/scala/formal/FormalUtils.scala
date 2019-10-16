@@ -59,6 +59,7 @@ object Property {
 //      proposed_src = src + "_" + "%x".format(random_src.nextInt(max_rand))
 //      max_rand = max_rand * 2
 //    }
+
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
 //      assert(cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
