@@ -127,7 +127,6 @@ class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], mes
 object cover {
   private var propLib: BasePropertyLibrary = new DefaultPropertyLibrary
   def setPropLib(lib: BasePropertyLibrary): Unit = this.synchronized {
-    println("setproblib is called")
     propLib = lib
   }
   def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit = {
