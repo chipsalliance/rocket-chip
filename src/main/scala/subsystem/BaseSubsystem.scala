@@ -47,8 +47,15 @@ case object FBUS extends BaseSubsystemBusAttachment
 case object MBUS extends BaseSubsystemBusAttachment
 case object CBUS extends BaseSubsystemBusAttachment
 
+trait CanSelectToWhichTLBusToAttach {
+  type TLBusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
+  def attach(where: BaseSubsystemBusAttachment): TLBusWrapper
+}
+  
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
+    with HasLogicalTreeNode
+    with CanSelectToWhichTLBusToAttach {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   // These are wrappers around the standard buses available in all subsytems, where
@@ -60,15 +67,14 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
 
-  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
-  protected def baseBusAttachmentFunc: BusAttachmentFunction = {
+  protected def baseBusAttachmentFunc: TLBusAttachmentFunction = {
     case SBUS => sbus
     case PBUS => pbus
     case FBUS => fbus
     case MBUS => mbus
     case CBUS => cbus
   }
-  protected def attach(where: BaseSubsystemBusAttachment): TLBusWrapper = baseBusAttachmentFunc(where)
+  def attach(where: BaseSubsystemBusAttachment): TLBusWrapper = baseBusAttachmentFunc(where)
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
