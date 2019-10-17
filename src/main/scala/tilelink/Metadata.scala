@@ -126,7 +126,7 @@ class ClientMetadata extends Bundle {
       Cat(toB, Dirty)   -> (Bool(true),  TtoB, Branch),
       Cat(toB, Trunk)   -> (Bool(false), TtoB, Branch),  // Policy: Don't notify on clean downgrade
       Cat(toB, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toB, Nothing) -> (Bool(false), BtoN, Nothing),
+      Cat(toB, Nothing) -> (Bool(false), NtoN, Nothing),
       Cat(toN, Dirty)   -> (Bool(true),  TtoN, Nothing),
       Cat(toN, Trunk)   -> (Bool(false), TtoN, Nothing), // Policy: Don't notify on clean downgrade
       Cat(toN, Branch)  -> (Bool(false), BtoN, Nothing), // Policy: Don't notify on clean downgrade
