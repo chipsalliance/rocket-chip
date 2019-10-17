@@ -40,15 +40,18 @@ case object ExportDebug extends Field(DebugAttachParams())
 
 class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) with Clocked
 
-class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
+class DebugIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
   val clockeddmi = p(ExportDebug).dmi.option(new ClockedDMIIO().flip)
   val systemjtag = p(ExportDebug).jtag.option(new SystemJTAGIO)
   val apb = p(ExportDebug).apb.option(new ClockedAPBBundle(APBBundleParameters(addrBits=12, dataBits=32)).flip)
   //------------------------------
-  val ndreset    = p(DebugModuleParams).hasDebugModule.option(Bool(OUTPUT))
-  val dmactive   = p(DebugModuleParams).hasDebugModule.option(Bool(OUTPUT))
+  val ndreset    = Bool(OUTPUT)
+  val dmactive   = Bool(OUTPUT)
   val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
   val disableDebug = p(ExportDebug).externalDisable.option(Bool(INPUT))
+}
+
+class PSDIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with CanHavePSDTestModeIO {
 }
 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
@@ -85,19 +88,19 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
 trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val outer: HasPeripheryDebug
 
-  val debug = IO(new DebugIO)
+  val psd = IO(new PSDIO)
 
+  val debug = outer.debugOpt.map { outerdebug =>
+    val debug = IO(new DebugIO)
+    require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
+      "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
 
-  require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
-    "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
+    require(!(debug.clockeddmi.isDefined && debug.apb.isDefined),
+      "You cannot have both DMI and APB interface in HasPeripheryDebugModuleImp")
 
-  require(!(debug.clockeddmi.isDefined && debug.apb.isDefined),
-    "You cannot have both DMI and APB interface in HasPeripheryDebugModuleImp")
+    require(!(debug.systemjtag.isDefined && debug.apb.isDefined),
+      "You cannot have both APB and JTAG interface in HasPeripheryDebugModuleImp")
 
-  require(!(debug.systemjtag.isDefined && debug.apb.isDefined),
-    "You cannot have both APB and JTAG interface in HasPeripheryDebugModuleImp")
-
-  outer.debugOpt.map { outerdebug =>
     debug.clockeddmi.foreach { dbg => outerdebug.module.io.dmi.get <> dbg }
 
     (debug.apb
@@ -110,26 +113,27 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
         r:= io.reset
     }
 
-    debug.ndreset.foreach { ndreset => ndreset := outerdebug.module.io.ctrl.ndreset }
-    debug.dmactive.foreach { dmactive => dmactive := outerdebug.module.io.ctrl.dmactive }
+    debug.ndreset := outerdebug.module.io.ctrl.ndreset
+    debug.dmactive := outerdebug.module.io.ctrl.dmactive
     debug.extTrigger.foreach { x => outerdebug.module.io.extTrigger.foreach {y => x <> y}}
 
     // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
     outerdebug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
 
-    val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
-    outerdebug.module.io.psd <> psd
+    outerdebug.module.io.psd <> psd.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
 
-    val dtm = debug.systemjtag.map { instantiateJtagDTM(_) }
+    debug
   }
+
+  val dtm = debug.map(_.systemjtag.map { instantiateJtagDTM(_) })
 
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
     val dtm = Module(new DebugTransportModuleJTAG(p(DebugModuleParams).nDMIAddrSize, p(JtagDTMKey)))
     dtm.io.jtag <> sj.jtag
 
-    val psd = debug.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
-    debug.disableDebug.foreach { x => dtm.io.jtag.TMS := sj.jtag.TMS | x }  // force TMS high when debug is disabled
+    debug.map(_.disableDebug.foreach { x => dtm.io.jtag.TMS := sj.jtag.TMS | x })  // force TMS high when debug is disabled
+    val psdio = psd.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
 
     dtm.clock          := sj.jtag.TCK
     dtm.io.jtag_reset  := sj.reset
@@ -138,10 +142,10 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.io.jtag_version := sj.version
     dtm.reset          := dtm.io.fsmReset
 
-    outer.debugOpt.map { outerdebug =>
+    outer.debugOpt.map { outerdebug => 
       outerdebug.module.io.dmi.get.dmi <> dtm.io.dmi
       outerdebug.module.io.dmi.get.dmiClock := sj.jtag.TCK
-      outerdebug.module.io.dmi.get.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psd)
+      outerdebug.module.io.dmi.get.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psdio)
     }
     dtm
   }
@@ -210,7 +214,8 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
 
 object Debug {
   def connectDebug(
-      debug: DebugIO,
+      debugOpt: Option[DebugIO],
+      psdio: PSDIO,
       c: Clock,
       r: Bool,
       out: Bool,
@@ -218,51 +223,55 @@ object Debug {
       cmdDelay: Int = 2,
       psd: PSDTestMode = new PSDTestMode().fromBits(0.U))
       (implicit p: Parameters): Unit =  {
-    debug.clockeddmi.foreach { d =>
-      val dtm = Module(new SimDTM).connect(c, r, d, out)
+    debugOpt.map { debug =>
+      debug.clockeddmi.foreach { d =>
+        val dtm = Module(new SimDTM).connect(c, r, d, out)
+      }
+      debug.systemjtag.foreach { sj =>
+        val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
+        sj.reset := r
+        sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
+        sj.part_number := p(JtagDTMKey).idcodePartNum.U(16.W)
+        sj.version := p(JtagDTMKey).idcodeVersion.U(4.W)
+      }
+      debug.apb.foreach { apb =>
+        require(false, "No support for connectDebug for an APB debug connection.")
+      }
+      psdio.psd.foreach { _ <> psd }
+      debug.disableDebug.foreach { x => x := Bool(false) }
     }
-    debug.systemjtag.foreach { sj =>
-      val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
-      sj.reset := r
-      sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
-      sj.part_number := p(JtagDTMKey).idcodePartNum.U(16.W)
-      sj.version := p(JtagDTMKey).idcodeVersion.U(4.W)
-    }
-    debug.apb.foreach { apb =>
-      require(false, "No support for connectDebug for an APB debug connection.")
-    }
-    debug.psd.foreach { _ <> psd }
-    debug.disableDebug.foreach { x => x := Bool(false) }
   }
 
-  def tieoffDebug(debug: DebugIO): Bool = {
+  def tieoffDebug(debugOpt: Option[DebugIO], psdio: PSDIO): Bool = {
 
-    debug.systemjtag.foreach { sj =>
-      sj.jtag.TCK := Bool(true).asClock
-      sj.jtag.TMS := Bool(true)
-      sj.jtag.TDI := Bool(true)
-      sj.jtag.TRSTn.foreach { r => r := Bool(true) }
-      sj.reset := Bool(true)
-      sj.mfr_id := 0.U
-      sj.part_number := 0.U
-      sj.version := 0.U
-    }
+    psdio.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)}
+    debugOpt.map { debug =>
+      debug.systemjtag.foreach { sj =>
+        sj.jtag.TCK := Bool(true).asClock
+        sj.jtag.TMS := Bool(true)
+        sj.jtag.TDI := Bool(true)
+        sj.jtag.TRSTn.foreach { r => r := Bool(true) }
+        sj.reset := Bool(true)
+        sj.mfr_id := 0.U
+        sj.part_number := 0.U
+        sj.version := 0.U
+      }
 
-    debug.clockeddmi.foreach { d =>
-      d.dmi.req.valid := Bool(false)
-      d.dmi.resp.ready := Bool(true)
-      d.dmiClock := Bool(false).asClock
-      d.dmiReset := Bool(true)
-    }
+      debug.clockeddmi.foreach { d =>
+        d.dmi.req.valid := Bool(false)
+        d.dmi.resp.ready := Bool(true)
+        d.dmiClock := Bool(false).asClock
+        d.dmiReset := Bool(true)
+      }
 
-    debug.apb.foreach { apb =>
-      apb.tieoff()
-      apb.clock := Bool(false).asClock
-      apb.reset := Bool(true)
-    }
+      debug.apb.foreach { apb =>
+        apb.tieoff()
+        apb.clock := Bool(false).asClock
+        apb.reset := Bool(true)
+      }
 
-    debug.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)}
-    debug.disableDebug.foreach { x => x := Bool(false) }
-    debug.ndreset.getOrElse(false.B)
+      debug.disableDebug.foreach { x => x := Bool(false) }
+      debug.ndreset
+    }.getOrElse(false.B)
   }
 }
