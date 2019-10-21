@@ -56,6 +56,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
+//lazy val `chisel-iotesters` = (project in file("chisel-testers")).settings(commonSettings)
 
 def dependOnChisel(prj: Project) = {
   if (sys.props.contains("ROCKET_USE_MAVEN")) {
@@ -82,6 +83,8 @@ lazy val rocketchip = dependOnChisel(project in file("."))
   .dependsOn(`rocket-macros` % "compile-internal;test-internal")
   .settings(
       aggregate := false,
+      libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.0.5"),
+      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel-iotesters" % "1.3-050719-SNAPSHOT"),
       // Include macro classes, resources, and sources in main jar.
       mappings in (Compile, packageBin) ++= (mappings in (`api-config-chipsalliance`, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (`api-config-chipsalliance`, Compile, packageSrc)).value,
@@ -112,4 +115,3 @@ lazy val chipSettings = Seq(
     s"make -C $makeDir  -j $jobs $target".!
   }
 )
-
