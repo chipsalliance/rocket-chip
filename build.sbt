@@ -83,7 +83,7 @@ lazy val rocketchip = dependOnChisel(project in file("."))
   .dependsOn(`rocket-macros` % "compile-internal;test-internal")
   .settings(
       aggregate := false,
-      libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.0.5"),
+      libraryDependencies ++= Seq("org.scalatest"   %% "scalatest"        % "3.0.5"),
       libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel-iotesters" % "1.3-050719-SNAPSHOT"),
       // Include macro classes, resources, and sources in main jar.
       mappings in (Compile, packageBin) ++= (mappings in (`api-config-chipsalliance`, Compile, packageBin)).value,
