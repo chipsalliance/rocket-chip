@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import Chisel._
 import chisel3.util.HasBlackBoxResource
+import chisel3.experimental.RawModule
 import chisel3.core.IntParam
 
 /** This black-boxes an Async Reset
@@ -44,7 +45,25 @@ class AsyncResetReg(resetValue: Int = 0)
     val rst = Bool(INPUT)
   }
 
-  setResource("/vsrc/AsyncResetReg.v")
+  addResource("/vsrc/AsyncResetReg.v")
+}
+
+class SynchronizerPrimitiveReg(resetValue: Int = 0) extends RawModule {
+  val io = IO(new Bundle {
+    val d = Bool(INPUT)
+    val q = Bool(OUTPUT)
+    val en = Bool(INPUT)
+
+    val clk = Clock(INPUT)
+    val rst = Bool(INPUT)
+  })
+
+  val reg = Module(new AsyncResetReg(resetValue))
+  reg.io.d   := io.d
+  reg.io.en  := io.en
+  reg.io.clk := io.clk
+  reg.io.rst := io.rst
+  io.q := reg.io.q
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{
