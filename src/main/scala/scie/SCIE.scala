@@ -146,6 +146,10 @@ class SCIEPipelined(xLen: Int) extends BlackBox(Map("XLEN" -> xLen)) with HasBla
       |  reg funct3_0;
       |  reg [XLEN-1:0] result;
       |
+      |`ifndef RANDOM
+      |`define RANDOM $$random
+      |`endif
+      |
       |  always @(posedge clock)
       |  begin
       |    /* Gating using the valid signal is optional, but saves power. */

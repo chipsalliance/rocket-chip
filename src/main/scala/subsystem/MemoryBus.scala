@@ -26,7 +26,7 @@ case class BankedL2Params(
   coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode]) = { subsystem =>
     implicit val p = subsystem.p
     val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
-    val bh = LazyModule(new TLBroadcast(subsystem.mbus.blockBytes, nTrackers, bufferless))
+    val bh = LazyModule(new TLBroadcast(subsystem.sbus.blockBytes, nTrackers, bufferless))
     val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes))
     val ss = TLSourceShrinker(nTrackers)
     ww.node :*= bh.node
@@ -55,7 +55,7 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
 
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
   def inwardNode: TLInwardNode =
-    if (params.replicatorMask == 0) xbar.node else { xbar.node :*= RegionReplicator(params.replicatorMask) }
+    if (params.replicatorMask == 0) xbar.node else { xbar.node :=* RegionReplicator(params.replicatorMask) }
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
   attachBuiltInDevices(params)
@@ -64,6 +64,6 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("memory_controller" named name) { gen := TLWidthWidget(params.beatBytes) := TLBuffer(buffer) := outwardNode }
+    to("memory_controller" named name) { gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 }

@@ -48,7 +48,8 @@ object IntSourcePortSimple
 {
   def apply(num: Int = 1, ports: Int = 1, sources: Int = 1, resources: Seq[Resource] = Nil) =
     if (num == 0) Nil else
-    Seq.fill(ports)(IntSourcePortParameters(Seq.fill(sources)(IntSourceParameters(range = IntRange(0, num), resources = resources))))
+    Seq.fill(ports)(IntSourcePortParameters(
+      Seq.tabulate(sources)(idx => IntSourceParameters(range = IntRange(idx*num, idx*num+num), resources = resources))))
 }
 
 case class IntSinkPortParameters(sinks: Seq[IntSinkParameters])

@@ -32,16 +32,18 @@ object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TL
     pu.copy(managers = pu.managers.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
-case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams)
-case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams)
+trait TLFormatNode extends FormatNode[TLEdgeIn, TLEdgeOut] 
+
+case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
+case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with TLFormatNode
 
 case class TLAdapterNode(
   clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
   managerFn: TLManagerPortParameters => TLManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLImp)(clientFn, managerFn)
+  extends AdapterNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
-case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)()
+case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)() with TLFormatNode
 case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)()
 
 object TLNameNode {
@@ -54,12 +56,37 @@ case class TLNexusNode(
   clientFn:        Seq[TLClientPortParameters]  => TLClientPortParameters,
   managerFn:       Seq[TLManagerPortParameters] => TLManagerPortParameters)(
   implicit valName: ValName)
-  extends NexusNode(TLImp)(clientFn, managerFn)
+  extends NexusNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
 abstract class TLCustomNode(implicit valName: ValName)
-  extends CustomNode(TLImp)
+  extends CustomNode(TLImp) with TLFormatNode
+
+case class TLSplitterNode(
+  clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
+  managerFn: Seq[TLManagerPortParameters] => Seq[TLManagerPortParameters] = { s => s })(
+  implicit valName: ValName) extends TLCustomNode {
+
+  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iStars == 0, s"$context does not support :*=")
+    if (oStars > 0) {
+      require (oStars == 2, s"$context can only resolve an input :=* with 2 :=* outputs, but found $oStars")
+      require (oKnown == 0, s"$context can only resolve an input :=* with no := outputs, but found $oKnown")
+      (0, iKnown)
+    } else {
+      require (oKnown == 2*iKnown, s"$context has $oKnown outputs and $iKnown inputs; but 2*$iKnown must be $oKnown")
+      (0, 0)
+    }
+  }
+
+  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { p.map(clientFn) ++ p.map(clientFn) }
+
+  // managerFn should halve the size of p by pairwise merging the managers from two downstream paths
+  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { managerFn(p) }
+}
 
 // Asynchronous crossings
+
+trait TLAsyncFormatNode extends FormatNode[TLAsyncEdgeParameters, TLAsyncEdgeParameters]
 
 object TLAsyncImp extends SimpleNodeImp[TLAsyncClientPortParameters, TLAsyncManagerPortParameters, TLAsyncEdgeParameters, TLAsyncBundle]
 {
@@ -77,9 +104,9 @@ case class TLAsyncAdapterNode(
   clientFn:  TLAsyncClientPortParameters  => TLAsyncClientPortParameters  = { s => s },
   managerFn: TLAsyncManagerPortParameters => TLAsyncManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLAsyncImp)(clientFn, managerFn)
+  extends AdapterNode(TLAsyncImp)(clientFn, managerFn) with TLAsyncFormatNode
 
-case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)()
+case class TLAsyncIdentityNode()(implicit valName: ValName) extends IdentityNode(TLAsyncImp)() with TLAsyncFormatNode
 
 object TLAsyncNameNode {
   def apply(name: ValName) = TLAsyncIdentityNode()(name)
@@ -90,14 +117,15 @@ object TLAsyncNameNode {
 case class TLAsyncSourceNode(sync: Option[Int])(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLAsyncImp)(
     dFn = { p => TLAsyncClientPortParameters(p) },
-    uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) // discard cycles in other clock domain
-
+    uFn = { p => p.base.copy(minLatency = p.base.minLatency + sync.getOrElse(p.async.sync)) }) with FormatNode[TLEdgeIn, TLAsyncEdgeParameters] // discard cycles in other clock domain
 case class TLAsyncSinkNode(async: AsyncQueueParams)(implicit valName: ValName)
   extends MixedAdapterNode(TLAsyncImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = p.base.minLatency + async.sync) },
-    uFn = { p => TLAsyncManagerPortParameters(async, p) })
+    uFn = { p => TLAsyncManagerPortParameters(async, p) }) with FormatNode[TLAsyncEdgeParameters, TLEdgeOut]
 
 // Rationally related crossings
+
+trait TLRationalFormatNode extends FormatNode[TLRationalEdgeParameters, TLRationalEdgeParameters]
 
 object TLRationalImp extends SimpleNodeImp[TLRationalClientPortParameters, TLRationalManagerPortParameters, TLRationalEdgeParameters, TLRationalBundle]
 {
@@ -115,9 +143,9 @@ case class TLRationalAdapterNode(
   clientFn:  TLRationalClientPortParameters  => TLRationalClientPortParameters  = { s => s },
   managerFn: TLRationalManagerPortParameters => TLRationalManagerPortParameters = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(TLRationalImp)(clientFn, managerFn)
+  extends AdapterNode(TLRationalImp)(clientFn, managerFn) with TLRationalFormatNode
 
-case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)()
+case class TLRationalIdentityNode()(implicit valName: ValName) extends IdentityNode(TLRationalImp)() with TLRationalFormatNode
 
 object TLRationalNameNode {
   def apply(name: ValName) = TLRationalIdentityNode()(name)
@@ -128,9 +156,8 @@ object TLRationalNameNode {
 case class TLRationalSourceNode()(implicit valName: ValName)
   extends MixedAdapterNode(TLImp, TLRationalImp)(
     dFn = { p => TLRationalClientPortParameters(p) },
-    uFn = { p => p.base.copy(minLatency = 1) }) // discard cycles from other clock domain
-
+    uFn = { p => p.base.copy(minLatency = 1) }) with FormatNode[TLEdgeIn, TLRationalEdgeParameters] // discard cycles from other clock domain
 case class TLRationalSinkNode(direction: RationalDirection)(implicit valName: ValName)
   extends MixedAdapterNode(TLRationalImp, TLImp)(
     dFn = { p => p.base.copy(minLatency = 1) },
-    uFn = { p => TLRationalManagerPortParameters(direction, p) })
+    uFn = { p => TLRationalManagerPortParameters(direction, p) }) with FormatNode[TLRationalEdgeParameters, TLEdgeOut]

@@ -39,7 +39,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
-  case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
+  case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
 })
@@ -308,7 +308,7 @@ class WithDebugAPB extends Config ((site, here, up) => {
 
 
 class WithDebugSBA extends Config ((site, here, up) => {
-  case DebugModuleParams => up(DebugModuleParams, site).copy(hasBusMaster = true)
+  case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(hasBusMaster = true))
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {

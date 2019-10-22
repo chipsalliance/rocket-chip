@@ -19,15 +19,20 @@ object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParamete
    pu.copy(sinks   = pu.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
 }
 
-case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends SourceNode(IntImp)(portParams)
-case class IntSinkNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends SinkNode(IntImp)(portParams)
+trait IntFormatNode extends BaseNode
+{
+  override def formatNode() = "Interrupt Node\n"
+}
+
+case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends SourceNode(IntImp)(portParams) with IntFormatNode
+case class IntSinkNode(portParams: Seq[IntSinkPortParameters])(implicit valName: ValName) extends SinkNode(IntImp)(portParams) with IntFormatNode
 case class IntAdapterNode(
   sourceFn: IntSourcePortParameters => IntSourcePortParameters = { s => s },
   sinkFn:   IntSinkPortParameters   => IntSinkPortParameters   = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(IntImp)(sourceFn, sinkFn)
-case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)()
-case class IntEphemeralNode()(implicit valName: ValName) extends EphemeralNode(IntImp)()
+  extends AdapterNode(IntImp)(sourceFn, sinkFn) with IntFormatNode
+case class IntIdentityNode()(implicit valName: ValName) extends IdentityNode(IntImp)() with IntFormatNode
+case class IntEphemeralNode()(implicit valName: ValName) extends EphemeralNode(IntImp)() with IntFormatNode
 
 object IntNameNode {
   def apply(name: ValName) = IntIdentityNode()(name)
@@ -41,7 +46,7 @@ case class IntNexusNode(
   inputRequiresOutput: Boolean = true,
   outputRequiresInput: Boolean = true)(
   implicit valName: ValName)
-  extends NexusNode(IntImp)(sourceFn, sinkFn, inputRequiresOutput, outputRequiresInput)
+  extends NexusNode(IntImp)(sourceFn, sinkFn, inputRequiresOutput, outputRequiresInput) with IntFormatNode
 
 object IntSyncImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, SyncInterrupts]
 {
@@ -55,7 +60,7 @@ object IntSyncImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortPara
    pu.copy(sinks   = pu.sinks.map    { s => s.copy (nodePath = node +: s.nodePath) })
 }
 
-case class IntSyncIdentityNode()(implicit valName: ValName) extends IdentityNode(IntSyncImp)()
+case class IntSyncIdentityNode()(implicit valName: ValName) extends IdentityNode(IntSyncImp)() with IntFormatNode
 
 object IntSyncNameNode {
   def apply(name: ValName) = IntSyncIdentityNode()(name)
@@ -66,7 +71,7 @@ object IntSyncNameNode {
 case class IntSyncSourceNode(alreadyRegistered: Boolean)(implicit valName: ValName)
   extends MixedAdapterNode(IntImp, IntSyncImp)(
     dFn = { p => p },
-    uFn = { p => p })
+    uFn = { p => p }) with IntFormatNode
 {
   override lazy val nodedebugstring = s"alreadyRegistered:${alreadyRegistered}"
 }
@@ -74,7 +79,7 @@ case class IntSyncSourceNode(alreadyRegistered: Boolean)(implicit valName: ValNa
 case class IntSyncSinkNode(sync: Int)(implicit valName: ValName)
   extends MixedAdapterNode(IntSyncImp, IntImp)(
     dFn = { p => p },
-    uFn = { p => p })
+    uFn = { p => p }) with IntFormatNode
 {
   override lazy val nodedebugstring = s"sync:${sync}"
 }

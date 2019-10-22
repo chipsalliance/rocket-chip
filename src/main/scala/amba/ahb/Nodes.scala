@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
 
-case object AHBMonitorBuilder extends Field[AHBMonitorArgs => AHBMonitorBase]
+case object AHBSlaveMonitorBuilder extends Field[AHBSlaveMonitorArgs => AHBSlaveMonitorBase]
 
 // From Arbiter to Slave
 object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
@@ -17,8 +17,8 @@ object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortPa
   def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
 
   override def monitor(bundle: AHBSlaveBundle, edge: AHBEdgeParameters) {
-    edge.params.lift(AHBMonitorBuilder).foreach { builder =>
-      val monitor = Module(builder(AHBMonitorArgs(edge)))
+    edge.params.lift(AHBSlaveMonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(AHBSlaveMonitorArgs(edge)))
       monitor.io.in := bundle
     }
   }
@@ -29,12 +29,21 @@ object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortPa
    pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
+case object AHBMasterMonitorBuilder extends Field[AHBMasterMonitorArgs => AHBMasterMonitorBase]
+
 // From Master to Arbiter
 object AHBImpMaster extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBMasterBundle]
 {
   def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: AHBEdgeParameters) = AHBMasterBundle(e.bundle)
   def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
+
+  override def monitor(bundle: AHBMasterBundle, edge: AHBEdgeParameters) {
+    edge.params.lift(AHBMasterMonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(AHBMasterMonitorArgs(edge)))
+      monitor.io.in := bundle
+    }
+  }
 
   override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBMasterBundle]): AHBMasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })

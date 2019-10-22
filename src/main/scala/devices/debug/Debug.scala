@@ -100,6 +100,7 @@ import DebugAbstractCommandType._
   *  supportHartArray : Whether or not to implement the hart array register (if >1 hart).
   *  hasImplicitEbreak: There is an additional RO program buffer word containing an ebreak
   **/
+
 case class DebugModuleParams (
   nDMIAddrSize  : Int = 7,
   nProgramBufferWords: Int = 16,
@@ -142,8 +143,7 @@ object DefaultDebugModuleParams {
   }
 }
 
-
-case object DebugModuleParams extends Field[DebugModuleParams]
+case object DebugModuleKey extends Field[Option[DebugModuleParams]](Some(DebugModuleParams()))
 
 /** Functional parameters exposed to the design configuration.
   *
@@ -168,8 +168,8 @@ class DebugExtTriggerIn (nExtTriggers: Int) extends Bundle {
 }
 
 class DebugExtTriggerIO () (implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val out = new DebugExtTriggerOut(p(DebugModuleParams).nExtTriggers)
-  val in  = new DebugExtTriggerIn (p(DebugModuleParams).nExtTriggers)
+  val out = new DebugExtTriggerOut(p(DebugModuleKey).get.nExtTriggers)
+  val in  = new DebugExtTriggerIn (p(DebugModuleKey).get.nExtTriggers)
 }
 
 class DebugAuthenticationIO () (implicit val p: Parameters) extends ParameterizedBundle()(p) {
@@ -281,7 +281,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
   // For Shorter Register Names
   import DMI_RegAddrs._
 
-  val cfg = p(DebugModuleParams)
+  val cfg = p(DebugModuleKey).get
 
   val intnode = IntNexusNode(
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
@@ -632,8 +632,8 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val ctrl = new DebugCtrlBundle(nComponents)
       val innerCtrl = new AsyncBundle(new DebugInternalBundle(nComponents), AsyncQueueParams.singleton())
       val hgDebugInt = Vec(nComponents, Bool()).asInput
-      val hartResetReq = p(DebugModuleParams).hasHartResets.option(Output(Vec(nComponents, Bool())))
-      val dmAuthenticated = p(DebugModuleParams).hasAuthentication.option(Input(Bool()))
+      val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
+      val dmAuthenticated = p(DebugModuleKey).get.hasAuthentication.option(Input(Bool()))
     })
 
     dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
@@ -652,7 +652,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   // For Shorter Register Names
   import DMI_RegAddrs._
 
-  val cfg = p(DebugModuleParams)
+  val cfg = p(DebugModuleKey).get
   def getCfg = () => cfg
   val hartSelFuncs = p(DebugModuleHartSelKey)
 
@@ -1207,8 +1207,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       RegField.r(1, DMSTATUSRdData.allunavail,      RegFieldDesc("allunavail",      "allunavail",      reset=Some(0))),
       RegField.r(1, DMSTATUSRdData.anynonexistent,  RegFieldDesc("anynonexistent",  "anynonexistent",  reset=Some(0))),
       RegField.r(1, DMSTATUSRdData.allnonexistent,  RegFieldDesc("allnonexistent",  "allnonexistent",  reset=Some(0))),
-      RegField.r(1, DMSTATUSRdData.anyresumeack,    RegFieldDesc("anyresumeack",    "anyresumeack",    reset=Some(0))),
-      RegField.r(1, DMSTATUSRdData.allresumeack,    RegFieldDesc("allresumeack",    "allresumeack",    reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.anyresumeack,    RegFieldDesc("anyresumeack",    "anyresumeack",    reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.allresumeack,    RegFieldDesc("allresumeack",    "allresumeack",    reset=Some(1))),
       RegField.r(1, DMSTATUSRdData.anyhavereset,    RegFieldDesc("anyhavereset",    "anyhavereset",    reset=Some(0))),
       RegField.r(1, DMSTATUSRdData.allhavereset,    RegFieldDesc("allhavereset",    "allhavereset",    reset=Some(0))),
       RegField(2),
@@ -1654,9 +1654,9 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       // This comes from tlClk domain.
       val debugUnavail    = Vec(getNComponents(), Bool()).asInput
       val hgDebugInt      = Vec(getNComponents(), Bool()).asOutput
-      val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
-      val hartReset  = p(DebugModuleParams).hasHartResets.option(Input(Vec(getNComponents(), Bool())))
-      val auth = p(DebugModuleParams).hasAuthentication.option(new DebugAuthenticationIO())
+      val extTrigger = (p(DebugModuleKey).get.nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val hartReset  = p(DebugModuleKey).get.hasHartResets.option(Input(Vec(getNComponents(), Bool())))
+      val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
       val psd = new PSDTestMode().asInput
     })
 
@@ -1666,7 +1666,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
     // alive for one cycle after dmactive_synced falls to action this behavior.
     val clock_en = RegNext(dmactive_synced || reset)
     val gated_clock =
-      if (!p(DebugModuleParams).clockGate) clock
+      if (!p(DebugModuleKey).get.clockGate) clock
       else ClockGate(clock, clock_en, "debug_clock_gate")
 
     // Keep the async-crossing sink in the gated-clock domain, both to save
@@ -1715,10 +1715,10 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
       val dmi = (!p(ExportDebug).apb).option(new ClockedDMIIO().flip)
       val apb_clock = p(ExportDebug).apb.option(Clock(INPUT))
       val apb_reset = p(ExportDebug).apb.option(Bool(INPUT))
-      val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
-      val hartReset    = p(DebugModuleParams).hasHartResets.option(Input(Vec(nComponents, Bool())))
-      val hartResetReq = p(DebugModuleParams).hasHartResets.option(Output(Vec(nComponents, Bool())))
-      val auth = p(DebugModuleParams).hasAuthentication.option(new DebugAuthenticationIO())
+      val extTrigger = (p(DebugModuleKey).get.nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val hartReset    = p(DebugModuleKey).get.hasHartResets.option(Input(Vec(nComponents, Bool())))
+      val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
+      val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
       val psd = new PSDTestMode().asInput
     })
 
