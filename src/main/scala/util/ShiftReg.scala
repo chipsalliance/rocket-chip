@@ -52,6 +52,7 @@ object AbstractPipelineReg {
 }
 
 class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String = "pipe") extends AbstractPipelineReg(w) {
+
   require(depth > 0, "Depth must be greater than 0.")
 
   override def desiredName = s"AsyncResetShiftReg_w${w}_d${depth}_i${init}"
@@ -84,11 +85,41 @@ object AsyncResetShiftReg {
     apply (in, depth, init.litValue.toInt, None)
 }
 
+class SynchronizerPrimitiveShiftRegVec(depth: Int = 1, init: Int = 0) extends AbstractPipelineReg(1) {
+  require(depth > 0, "Sync must be greater than 0.")
+  override def desiredName = s"SynchronizerPrimitiveShiftRegVec_d${depth}_i${init}"
+
+  val chain = List.tabulate(depth) { i =>
+    val reg = Module (new SynchronizerPrimitiveReg(init))
+    reg.io.clk := clock
+    reg.io.rst := reset
+    reg
+  }
+
+  chain.last.io.d := io.d.asBool
+  chain.last.io.en := Bool(true)
+
+  (chain.init zip chain.tail).foreach { case (sink, source) =>
+    sink.io.d := source.io.q
+    sink.io.en := Bool(true)
+  }
+  io.q := chain.head.io.q.asUInt
+}
+
+object SynchronizerPrimitiveShiftRegVec {
+  def apply [T <: Chisel.Data](in: T, depth: Int, init: Int): T =
+    AbstractPipelineReg(new SynchronizerPrimitiveShiftRegVec(depth, init), in)
+}
+
 // Note that it is important to override "name" in order to ensure that the Chisel dedup does
 // not try to merge instances of this with instances of the superclass.
-class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) extends AsyncResetShiftReg(w, depth = sync, init, name = "sync") {
+class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) extends AbstractPipelineReg(w) {
   require(sync > 0, "Sync must be greater than 0.")
   override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
+
+  val output = Seq.tabulate(w) { i => SynchronizerPrimitiveShiftRegVec(io.d(i), depth = sync, init) }
+
+  io.q := Cat(output.reverse)
 }
 
 object AsyncResetSynchronizerShiftReg {
