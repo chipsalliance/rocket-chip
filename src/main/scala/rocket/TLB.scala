@@ -13,7 +13,7 @@ import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import freechips.rocketchip.devices.debug.DebugModuleParams
+import freechips.rocketchip.devices.debug.DebugModuleKey
 import chisel3.internal.sourceinfo.SourceInfo
 
 case object PgLevels extends Field[Int](2)
@@ -196,7 +196,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     legal_address && edge.manager.fastProperty(mpu_physaddr, member, (b:Boolean) => Bool(b))
   val cacheable = fastCheck(_.supportsAcquireT) && (instruction || !usingDataScratchpad)
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
-  val deny_access_to_debug = mpu_priv <= PRV.M && p(DebugModuleParams).address.contains(mpu_physaddr)
+  val deny_access_to_debug = mpu_priv <= PRV.M && p(DebugModuleKey).map(dmp => dmp.address.contains(mpu_physaddr)).getOrElse(false)
   val prot_r = fastCheck(_.supportsGet) && !deny_access_to_debug && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && !deny_access_to_debug && pmp.io.w
   val prot_al = fastCheck(_.supportsLogical)
@@ -218,7 +218,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.ppn := pte.ppn
     newEntry.c := cacheable
     newEntry.u := pte.u
-    newEntry.g := pte.g
+    newEntry.g := pte.g && pte.v
     newEntry.ae := io.ptw.resp.bits.ae
     newEntry.sr := pte.sr()
     newEntry.sw := pte.sw()
