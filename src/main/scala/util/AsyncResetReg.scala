@@ -3,8 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.util.HasBlackBoxResource
-import chisel3.core.IntParam
+import chisel3.{withClockAndReset, withReset, RawModule}
 
 /** This black-boxes an Async Reset
   *  (or Set)
@@ -32,19 +31,21 @@ import chisel3.core.IntParam
   *  
   */
 
-class AsyncResetReg(resetValue: Int = 0)
-  extends BlackBox(Map("RESET_VALUE" -> IntParam(resetValue))) with HasBlackBoxResource
-{
-  val io = new Bundle {
+class AsyncResetReg(resetValue: Int = 0) extends RawModule {
+  val io = IO(new Bundle {
     val d = Bool(INPUT)
     val q = Bool(OUTPUT)
     val en = Bool(INPUT)
 
     val clk = Clock(INPUT)
     val rst = Bool(INPUT)
-  }
+  })
 
-  setResource("/vsrc/AsyncResetReg.v")
+  val reg = withClockAndReset(io.clk, io.rst.asAsyncReset)(RegInit(resetValue.U(1.W)))
+  when (io.en) {
+    reg := io.d
+  }
+  io.q := reg
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{
@@ -54,26 +55,15 @@ class SimpleRegIO(val w: Int) extends Bundle{
 }
 
 class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
-  val io = new SimpleRegIO(w)
-
-  val async_regs = List.tabulate(w) { idx =>
-    val on = if (init.testBit(idx)) 1 else 0
-    Module(new AsyncResetReg(on))
-  }
-
-  val q = for ((reg, idx) <- async_regs.zipWithIndex) yield {
-    reg.io.clk := clock
-    reg.io.rst := reset
-    reg.io.d   := io.d(idx)
-    reg.io.en  := io.en
-    reg.suggestName(s"reg_$idx")
-    reg.io.q
-  }
-
-  io.q := q.asUInt
-
   override def desiredName = s"AsyncResetRegVec_w${w}_i${init}"
 
+  val io = IO(new SimpleRegIO(w))
+
+  val reg = withReset(reset.asAsyncReset)(RegInit(init.U(w.W)))
+  when (io.en) {
+    reg := io.d
+  }
+  io.q := reg
 }
 
 object AsyncResetReg {
