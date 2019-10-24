@@ -180,7 +180,7 @@ object SystemBusAccessModule
                         (SBCSFieldsReg.sbaccess === 1.U) && (SBCSFieldsReg.sbaccess16  =/= 1.U) ||
                         (SBCSFieldsReg.sbaccess === 2.U) && (SBCSFieldsReg.sbaccess32  =/= 1.U) ||
                         (SBCSFieldsReg.sbaccess === 3.U) && (SBCSFieldsReg.sbaccess64  =/= 1.U) ||
-                        (SBCSFieldsReg.sbaccess === 4.U) && (SBCSFieldsReg.sbaccess128 =/= 1.U)
+                        (SBCSFieldsReg.sbaccess === 4.U) && (SBCSFieldsReg.sbaccess128 =/= 1.U) || (SBCSFieldsReg.sbaccess > 4.U)
 
     val compareAddr = Wire(UInt(32.W)) // Need use written or latched address to detect error case depending on how transaction is initiated
     compareAddr := Mux(SBADDRESSWrEn(0),SBADDRESSWrData(0),SBADDRESSFieldsReg(0))
@@ -355,7 +355,6 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     tl.c.valid := false.B
     tl.e.valid := false.B
 
-    assert (!tl.d.valid || tl.d.ready, "Debug module not ready to accept TL response") // assert tl.d.valid |-> tl.d.ready
     assert (sbState === Idle.id.U ||
             sbState === SBReadRequest.id.U ||
             sbState === SBWriteRequest.id.U || 
