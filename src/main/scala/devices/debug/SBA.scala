@@ -36,7 +36,7 @@ object SystemBusAccessModule
     import SBErrorCode._
     import DMI_RegAddrs._
 
-    val cfg = p(DebugModuleParams)
+    val cfg = p(DebugModuleKey).get
 
     val anyAddressWrEn = Wire(init = false.B).suggestName("anyAddressWrEn")
     val anyDataRdEn    = Wire(init = false.B).suggestName("anyDataRdEn")
@@ -259,7 +259,7 @@ object SystemBusAccessModule
 
 class SBToTL(implicit p: Parameters) extends LazyModule {
 
-  val cfg = p(DebugModuleParams)
+  val cfg = p(DebugModuleKey).get
 
   val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
 
