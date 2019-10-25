@@ -253,6 +253,8 @@ object SystemBusAccessModule
     cover(SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy,  "SBCS Cover", "Access with autoincrement set")
     cover(!SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy, "SBCS Cover", "Access without autoincrement set")
 
+    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess > 4.U, "SBCS Cover", "Invalid sbaccess value")
+
     (sbcsfields, sbaddrfields, sbdatafields)
   }
 }
