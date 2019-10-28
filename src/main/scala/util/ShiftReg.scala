@@ -26,13 +26,16 @@ object ShiftRegInit {
   *  rather than buffering.
   *  
   *  The different types vary in their reset behavior:
-  *  AsyncResetShiftReg -- This is identical to the AsyncResetSynchronizerShiftReg, 
-  *      it is just named differently to distinguish its use case.
-  *      This is an async ShiftRegister meant for timing,
-  *      not for synchronization.
-  *  AsyncResetSynchronizerShiftReg -- asynchronously reset to specific value.
-  *  SyncResetSynchronizerShiftReg  -- reset to specific value.
-  *  SynchronizerShiftReg           -- no reset, pipeline only.
+  *  AsyncResetShiftReg             -- Asynchronously reset register array
+  *                                    A W(width) x D(depth) sized array is constructed from D instantiations of a
+  *                                    W-wide register vector. Functionally identical to AsyncResetSyncrhonizerShiftReg,
+  *                                    but only used for timing applications
+  *  SynchronizerShiftReg           -- Synchronously reset register array, a WxD-sized instantation is constructed
+  *                                    similarly to AsyncResetShiftReg. No reset, pipeline only
+  *  AsyncResetSynchronizerShiftReg -- Asynchronously reset register array, constructed from W instantiations of D deep
+  *                                    1-bit-wide shift registers. Functionally identical to AsyncResetShiftReg but only used for
+  *                                    reset sychronization
+  *  SyncResetSynchronizerShiftReg  -- Synchronously reset register array, constructed similarly to AsyncResetSynchronizerShiftReg
   */
 
 abstract class AbstractPipelineReg(w: Int = 1) extends Module {
@@ -166,7 +169,7 @@ class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) ex
 
   override def desiredName = s"SyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
 
-  val shiftRegs = List.tabluate(w) { i => ShiftRegInit(io.d(w), n = sync, init = init(w), name = Some(s"sync_${i}")) }
+  val shiftRegs = List.tabulate(w) { i => ShiftRegInit[UInt](io.d(w), n = sync, init = init.U, name = Some(s"sync_${i}")) }
   io.q := Cat(shiftRegs.reverse)
 
 }
