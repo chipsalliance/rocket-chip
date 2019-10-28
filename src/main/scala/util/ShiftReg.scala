@@ -52,7 +52,6 @@ object AbstractPipelineReg {
 }
 
 class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String = "pipe") extends AbstractPipelineReg(w) {
-
   require(depth > 0, "Depth must be greater than 0.")
 
   override def desiredName = s"AsyncResetShiftReg_w${w}_d${depth}_i${init}"
@@ -85,9 +84,9 @@ object AsyncResetShiftReg {
     apply (in, depth, init.litValue.toInt, None)
 }
 
-class SynchronizerPrimitiveShiftRegVec(depth: Int = 1, init: Int = 0) extends AbstractPipelineReg(1) {
+class SynchronizerPrimitiveShiftReg(depth: Int = 1, init: Int = 0) extends AbstractPipelineReg(1) {
   require(depth > 0, "Sync must be greater than 0.")
-  override def desiredName = s"SynchronizerPrimitiveShiftRegVec_d${depth}_i${init}"
+  override def desiredName = s"SynchronizerPrimitiveShiftReg_d${depth}_i${init}"
 
   val chain = List.tabulate(depth) { i =>
     val reg = Module (new SynchronizerPrimitiveReg(init))
@@ -106,9 +105,9 @@ class SynchronizerPrimitiveShiftRegVec(depth: Int = 1, init: Int = 0) extends Ab
   io.q := chain.head.io.q.asUInt
 }
 
-object SynchronizerPrimitiveShiftRegVec {
+object SynchronizerPrimitiveShiftReg {
   def apply [T <: Chisel.Data](in: T, depth: Int, init: Int): T =
-    AbstractPipelineReg(new SynchronizerPrimitiveShiftRegVec(depth, init), in)
+    AbstractPipelineReg(new SynchronizerPrimitiveShiftReg(depth, init), in)
 }
 
 // Note that it is important to override "name" in order to ensure that the Chisel dedup does
@@ -117,7 +116,7 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) e
   require(sync > 0, "Sync must be greater than 0.")
   override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
 
-  val output = Seq.tabulate(w) { i => SynchronizerPrimitiveShiftRegVec(io.d(i), depth = sync, init) }
+  val output = Seq.tabulate(w) { i => SynchronizerPrimitiveShiftReg(io.d(i), depth = sync, init) }
 
   io.q := Cat(output.reverse)
 }
@@ -167,7 +166,8 @@ class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) ex
 
   override def desiredName = s"SyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
 
-  io.q := ShiftRegInit(io.d, n = sync, init = init.U, name = Some("sync"))
+  val shiftRegs = List.tabluate(w) { i => ShiftRegInit(io.d(w), n = sync, init = init(w), name = Some(s"sync_${i}")) }
+  io.q := Cat(shiftRegs.reverse)
 
 }
 
