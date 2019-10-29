@@ -70,6 +70,7 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
   val errors = new ICacheErrors
+  val idle = Bool()
 }
 
 @chiselName
@@ -327,6 +328,12 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
   io.errors := icache.io.errors
+
+  io.idle := !(io.cpu.might_request ||
+    icache.io.keep_clock_enabled ||
+    s1_valid || s2_valid ||
+    !tlb.io.req.ready ||
+    !fq.io.mask(fq.io.mask.getWidth-1))
 
   // gate the clock
   clock_en_reg := !rocketParams.clockGate ||

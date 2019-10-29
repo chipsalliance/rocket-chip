@@ -27,6 +27,7 @@ trait TileParams {
   val beuAddr: Option[BigInt]
   val blockerCtrlAddr: Option[BigInt]
   val name: Option[String]
+  val reportWFI: Boolean
 }
 
 /** These parameters values are not computed based on diplomacy negotiation

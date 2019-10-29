@@ -18,6 +18,7 @@ class MStatus extends Bundle {
   val debug = Bool()
   val cease = Bool()
   val isa = UInt(width = 32)
+  val wfi = Bool()
 
   val dprv = UInt(width = PRV.SZ) // effective privilege for data accesses
   val prv = UInt(width = PRV.SZ) // not truly part of mstatus, but convenient
@@ -636,6 +637,7 @@ class CSRFile(
   io.status.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
   io.status.sxl := (if (usingVM) log2Ceil(xLen) - 4 else 0)
   io.status.dprv := Reg(next = Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpp, reg_mstatus.prv))
+  io.status.wfi := reg_wfi
   if (xLen == 32)
     io.status.sd_rv32 := io.status.sd
 

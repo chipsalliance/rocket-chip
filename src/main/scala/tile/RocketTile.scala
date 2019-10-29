@@ -24,6 +24,7 @@ case class RocketTileParams(
     hartId: Int = 0,
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
+    reportWFI: Boolean = false,
     boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
     ) extends TileParams {
   require(icache.isDefined)
@@ -134,7 +135,12 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     !ptw.io.dpath.clock_enabled &&
     core.io.cease))
 
-  outer.reportWFI(None) // TODO: actually report this?
+  // WFI can be used to initiate tile's low power mode
+  outer.reportWFI(outer.rocketParams.reportWFI.option(core.io.wfi &&
+    outer.frontend.module.io.idle &&
+    outer.dcache.module.io.idle &&
+    !ptw.io.dpath.clock_enabled &&
+    (if(usingRoCC) !outer.roccs.map(_.module.io.busy).asUInt.orR else true.B)))
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
 

@@ -900,6 +900,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     cached_grant_wait || uncachedInFlight.asUInt.orR ||
     lrscCount > 0 || blockProbeAfterGrantCount > 0
 
+  io.idle := !(metaArb.io.out.valid || // subsumes resetting || flushing
+    s1_probe || s2_probe ||
+    s1_valid || s2_valid ||
+    pstore1_held || pstore2_valid ||
+    release_state =/= s_ready ||
+    release_ack_wait || !release_queue_empty ||
+    !tlb.io.req.ready ||
+    cached_grant_wait || uncachedInFlight.asUInt.orR ||
+    lrscCount > 0 || blockProbeAfterGrantCount > 0)
+
   // performance events
   io.cpu.perf.acquire := edge.done(tl_out_a)
   io.cpu.perf.release := edge.done(tl_out_c)
