@@ -135,7 +135,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     !ptw.io.dpath.clock_enabled &&
     core.io.cease))
 
-  // WFI can be used to initiate tile's low power mode
+  // Report the idle state of the tile
   outer.reportWFI(outer.rocketParams.reportWFI.option(core.io.wfi &&
     outer.frontend.module.io.idle &&
     outer.dcache.module.io.idle &&
