@@ -58,10 +58,9 @@ branches:
 
 jobs:
   include:
-    - stage: wake and wit checks
+    - stage: check wit
       script:
         - ci-tests/check_submodules
-        - ci-tests/wake_scala_compilation
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
@@ -110,3 +109,7 @@ jobs:
     - <<: *test
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
+    - <<: *test
+      name: check wake compilation
+      script:
+        - ci-tests/wake_scala_compilation

@@ -3,9 +3,9 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.RawModule
 import chisel3.internal.InstanceId
 import chisel3.experimental.{annotate, ChiselAnnotation}
+import chisel3.RawModule
 import firrtl.annotations._
 
 import freechips.rocketchip.diplomacy._
