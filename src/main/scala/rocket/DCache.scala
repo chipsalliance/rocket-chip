@@ -11,9 +11,9 @@ import freechips.rocketchip.tile.LookupByHartId
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.{DontCare, WireInit, dontTouch}
+import chisel3.{DontCare, WireInit, dontTouch, withClock}
+import chisel3.experimental.chiselName
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental._
 import TLMessages._
 
 // TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
