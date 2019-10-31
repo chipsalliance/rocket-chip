@@ -410,8 +410,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       val numHAMASKSlices = ((nComponents - 1)/haWindowSize)+1
       HAWINDOWRdData.maskdata := 0.U     // default, overridden below
       for (ii <- 0 until numHAMASKSlices) {
-        val sliceMask = if (nComponents > ((ii*haWindowSize) + haWindowSize-1)) 0xFFFFFFFF  // All harts in this slice exist
-                        else (1<<(nComponents - (ii*haWindowSize))) - 1         // Partial last slice
+        val sliceMask = if (nComponents > ((ii*haWindowSize) + haWindowSize-1)) (BigInt(1) << haWindowSize) - 1  // All harts in this slice exist
+                        else (BigInt(1)<<(nComponents - (ii*haWindowSize))) - 1         // Partial last slice
         val HAMASKRst = Wire(init = (new HAWINDOWFields().fromBits(0.U)))
         val HAMASKNxt = Wire(init = (new HAWINDOWFields().fromBits(0.U)))
         val HAMASKReg = Wire(init = Vec(AsyncResetReg(updateData = HAMASKNxt.asUInt,
