@@ -109,14 +109,12 @@ class LanePositionedQueueBase[T <: Data](val gen: T, val lanes: Int, val rows: I
   assert (io.deq.ready <= lanes.U)
 
   val enq_vmask = UIntToOH1(io.enq.valid +& enq_lane, 2*lanes-1).pad(2*lanes)
-  val enq_rmask = UIntToOH1(io.enq.ready +& enq_lane, 2*lanes-1).pad(2*lanes)
-  val enq_lmask = UIntToOH1(                enq_lane,     lanes).pad(2*lanes)
-  val enq_mask  = ((enq_vmask & enq_rmask) & ~enq_lmask)
+  val enq_lmask = (if (lanes==1) 0.U else UIntToOH1( enq_lane, lanes-1)).pad(2*lanes)
+  val enq_mask  = enq_vmask & ~enq_lmask
 
-  val deq_vmask = UIntToOH1(io.deq.valid +& deq_lane, 2*lanes-1).pad(2*lanes)
   val deq_rmask = UIntToOH1(io.deq.ready +& deq_lane, 2*lanes-1).pad(2*lanes)
-  val deq_lmask = UIntToOH1(                deq_lane,     lanes).pad(2*lanes)
-  val deq_mask  = ((deq_vmask & deq_rmask) & ~deq_lmask)
+  val deq_lmask = (if (lanes==1) 0.U else UIntToOH1(deq_lane, lanes-1)).pad(2*lanes)
+  val deq_mask  = deq_rmask & ~deq_lmask
 
   val deq_bits = Wire(Vec(lanes, gen))
   io.deq.bits := deq_bits
