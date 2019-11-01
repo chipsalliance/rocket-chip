@@ -15,6 +15,51 @@ class LanePositionedDecoupledIO[T <: Data](private val gen: T, val maxValid: Int
   val ready = Input (UInt(readyBits1.W))
   val valid = Output(UInt(validBits1.W))
   val bits  = Output(Vec(lanes, gen))
+
+  def cap_ready(l: Int = lanes) = if (l == maxReady) {
+    ready
+  } else {
+    val lo = if (l==1) 0.U else ready(log2Ceil(l)-1,0)
+    Mux(ready >= l.U, l.U, lo)
+  }
+
+  def cap_valid(l: Int = lanes) = if (l == maxValid) {
+    valid
+  } else {
+    val lo = if (l==1) 0.U else valid(log2Ceil(l)-1,0)
+    Mux(valid >= l.U, l.U, lo)
+  }
+
+  def min(x: UInt, y: UInt, lanes: Int) = {
+    val xlo = if (lanes==1) 0.U else x(log2Ceil(lanes)-1, 0)
+    val ylo = if (lanes==1) 0.U else y(log2Ceil(lanes)-1, 0)
+    val xhi = x >= lanes.U
+    val yhi = y >= lanes.U
+    val xly = xlo <= ylo
+    Mux(xhi && yhi, lanes.U, Mux(Mux(xly, !xhi, yhi), xlo, ylo))
+  }
+
+  def clamp_ready(x: UInt) { ready := min(x, valid, lanes) }
+  def clamp_valid(x: UInt) { valid := min(x, ready, lanes) }
+
+  // Feed from LPQ from another
+  def driveWith(x: LanePositionedDecoupledIO[T], selfRotation: UInt = 0.U, xRotation: UInt = 0.U) {
+    val limit = lanes min x.lanes
+    val moved = min(ready, x.valid, limit)
+    valid := moved
+    x.ready := moved
+
+    if (lanes == x.lanes) {
+      bits := RotateVector.left(x.bits, selfRotation - xRotation)
+    } else {
+      val right = RotateVector.right(x.bits, xRotation)
+      val padding = Wire(Vec(lanes, gen))
+      val pad  = (right ++ padding).take(lanes)
+      val left = RotateVector.left(pad, selfRotation)
+      padding := DontCare
+      bits := left
+    }
+  }
 }
 
 class LanePositionedQueueIO[T <: Data](private val gen: T, val lanes: Int, val depth: Int) extends Bundle {
@@ -28,6 +73,9 @@ class LanePositionedQueueIO[T <: Data](private val gen: T, val lanes: Int, val d
   // The 0th element enqueued comes from enq.bits(enq_0_lane), later elements wrap
   val enq_0_lane = Output(UInt(laneBitsU.W))
   val deq_0_lane = Output(UInt(laneBitsU.W))
+
+  // Connect two LPQs
+  def driveWith(x: LanePositionedQueueIO[T]) { enq.driveWith(x.deq, enq_0_lane, x.deq_0_lane) }
 }
 
 trait LanePositionedQueueModule[T <: Data] extends Module {
