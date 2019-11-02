@@ -52,8 +52,13 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
     }
   }).toList.flatten)
 
-  memAXI4Node :*= mbus.toDRAMController(Some(portName)) {
-    AXI4UserYanker() :*= AXI4IdIndexer(idBits) :*= TLToAXI4()
+  mbus.coupleTo(s"memory_controller_port_named_$portName") {
+    (memAXI4Node
+      :*= AXI4UserYanker()
+      :*= AXI4IdIndexer(idBits)
+      :*= TLToAXI4()
+      :*= TLWidthWidget(mbus.beatBytes)
+      :*= _)
   }
 
   val mem_axi4 = InModuleBody { memAXI4Node.makeIOs() }
@@ -64,6 +69,7 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
   private val mmioPortParamsOpt = p(ExtBus)
   private val portName = "mmio_port_axi4"
   private val device = new SimpleBus(portName.kebab, Nil)
+  private val idBits = mmioPortParamsOpt.map(_.idBits).getOrElse(1)
 
   val mmioAXI4Node = AXI4SlaveNode(
     mmioPortParamsOpt.map(params =>
@@ -77,12 +83,15 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>
-    mmioAXI4Node := sbus.toFixedWidthPort(Some(portName)) {
-      (AXI4Buffer()
+    sbus.coupleTo(s"port_named_$portName") {
+      (mmioAXI4Node
+        := AXI4Buffer()
         := AXI4UserYanker()
         := AXI4Deinterleaver(sbus.blockBytes)
         := AXI4IdIndexer(params.idBits)
-        := TLToAXI4())
+        := TLToAXI4()
+        := TLWidthWidget(sbus.beatBytes)
+        := _)
     }
   }
 
@@ -103,13 +112,17 @@ trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
           id   = IdRange(0, 1 << params.idBits))))).toSeq)
 
   slavePortParamsOpt.map { params =>
-    fbus.fromPort(Some(portName), buffer = BufferParams.default) {
-      (TLWidthWidget(params.beatBytes)
+    fbus.coupleFrom(s"port_named_$portName") {
+      ( _
+        := TLBuffer(BufferParams.default)
+        := TLFIFOFixer(TLFIFOFixer.all)
+        := TLWidthWidget(params.beatBytes)
         := AXI4ToTL()
         := AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))
         := AXI4Fragmenter()
-        := AXI4IdIndexer(fifoBits))
-    } := l2FrontendAXI4Node
+        := AXI4IdIndexer(fifoBits)
+        := l2FrontendAXI4Node )
+    }
   }
 
   val l2_frontend_bus_axi4 = InModuleBody { l2FrontendAXI4Node.makeIOs() }
@@ -134,8 +147,12 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>
-    mmioTLNode := sbus.toFixedWidthPort(Some(portName)) {
-      TLBuffer() := TLSourceShrinker(1 << params.idBits)
+    sbus.coupleTo(s"port_named_$portName") {
+      (mmioTLNode
+        := TLBuffer()
+        := TLSourceShrinker(1 << params.idBits)
+        := TLWidthWidget(sbus.beatBytes)
+        := _ )
     }
   }
 
@@ -160,9 +177,12 @@ trait CanHaveSlaveTLPort { this: BaseSubsystem =>
           sourceId = IdRange(0, 1 << params.idBits))))).toSeq)
 
   slavePortParamsOpt.map { params =>
-    sbus.fromPort(Some(portName)) {
-      TLSourceShrinker(1 << params.sourceBits) := TLWidthWidget(params.beatBytes)
-    } := l2FrontendTLNode
+    sbus.coupleFrom(s"port_named_$portName") {
+      ( _
+        := TLSourceShrinker(1 << params.sourceBits)
+        := TLWidthWidget(params.beatBytes)
+        := l2FrontendTLNode )
+    }
   }
 
   val l2_frontend_bus_tl = InModuleBody { l2FrontendTLNode.makeIOs() }
