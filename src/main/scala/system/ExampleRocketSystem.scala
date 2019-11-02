@@ -23,8 +23,5 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
 class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends RocketSubsystemModuleImp(_outer)
     with HasRTCModuleImp
     with HasExtInterruptsModuleImp
-    with CanHaveMasterAXI4MemPortModuleImp
-    with CanHaveMasterAXI4MMIOPortModuleImp
-    with CanHaveSlaveAXI4PortModuleImp
     with HasPeripheryBootROMModuleImp
     with DontTouch
