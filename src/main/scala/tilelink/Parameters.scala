@@ -487,3 +487,25 @@ case class TLBufferParams(
   def copyOut(x: BufferParams) = this.copy(a = x, c = x, e = x)
   def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
 }
+
+/** Pretty printing of TL source id maps */
+class TLSourceIdMap(tl: TLClientPortParameters) {
+  private val tlDigits = String.valueOf(tl.endSourceId-1).length()
+  private val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
+  private val sorted = tl.clients.sortWith(TLToAXI4.sortByType)
+
+  val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
+    TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
+  }
+
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
+}
+
+case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean) {
+  def pretty(fmt: String): String = fmt.format(
+    tlId.start,
+    tlId.end,
+    s""""$name"""",
+    if (isCache) " [CACHE]" else "",
+    if (requestFifo) " [FIFO]" else "")
+}

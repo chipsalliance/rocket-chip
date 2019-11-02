@@ -308,6 +308,10 @@ class TLEdge(
 
     (flight, next_flight)
   }
+
+  def prettySourceMapping(context: String): String = {
+    s"TL-Source mapping for $context:\n${(new TLSourceIdMap(client)).pretty}\n"
+  }
 }
 
 class TLEdgeOut(
