@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Parameters,Field}
 import freechips.rocketchip.util.HeterogeneousBag
@@ -541,6 +542,14 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
+
+  def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
+    val bundles = this.out.map(_._1)
+    val ios = IO(Flipped(new HeterogeneousBag(bundles.map(_.cloneType))))
+    ios.suggestName(valName.toString)
+    bundles.zip(ios).foreach { case (bundle, io) => bundle <> io }
+    ios
+  }
 }
 
 // There are no Mixed SinkNodes
@@ -558,6 +567,14 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
+
+  def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
+    val bundles = this.in.map(_._1)
+    val ios = IO(new HeterogeneousBag(bundles.map(_.cloneType)))
+    ios.suggestName(valName.name)
+    bundles.zip(ios).foreach { case (bundle, io) => io <> bundle }
+    ios
+  }
 }
 
 class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[diplomacy](
