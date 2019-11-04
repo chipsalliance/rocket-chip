@@ -1696,6 +1696,16 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      val attach = Map(
+        "debug-attach"     -> (
+          (if (p(ExportDebug).apb) Seq(ResourceString("apb")) else Seq()) ++
+          (if (p(ExportDebug).jtag) Seq(ResourceString("jtag")) else Seq()) ++
+          (if (p(ExportDebug).cjtag) Seq(ResourceString("cjtag")) else Seq()) ++
+          (if (p(ExportDebug).dmi) Seq(ResourceString("dmi")) else Seq())))
+      Description(name, mapping ++ attach)
+    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
