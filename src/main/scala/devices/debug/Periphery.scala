@@ -242,9 +242,9 @@ object Debug {
     }
   }
 
-  def tieoffDebug(debugOpt: Option[DebugIO], psdio: PSDIO): Bool = {
+  def tieoffDebug(debugOpt: Option[DebugIO], psdio: Option[PSDIO] = None): Bool = {
 
-    psdio.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)}
+    psdio.foreach(_.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)})
     debugOpt.map { debug =>
       debug.systemjtag.foreach { sj =>
         sj.jtag.TCK := Bool(true).asClock
