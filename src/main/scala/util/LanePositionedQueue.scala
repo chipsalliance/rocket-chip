@@ -76,7 +76,7 @@ case class LanePositionedQueueArgs(
   require (!abort  || commit)
 }
 
-class LanePositionedQueueIO[T <: Data](private val gen: T, args: LanePositionedQueueArgs) extends Bundle {
+class LanePositionedQueueIO[T <: Data](private val gen: T, val args: LanePositionedQueueArgs) extends Bundle {
   val lanes = args.lanes
   val depth = args.rows * lanes
   val laneBitsU = log2Up(lanes)
@@ -174,23 +174,34 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
   val (deq_row,  deq_row1) = row(deq_wrap)
 
   val capBits1 = log2Ceil(capacity+1)
-  val delta = io.enq.valid.zext() - io.deq.ready.zext()
-  val nUsed = RegInit(       0.U(capBits1.W))
-  val nFree = RegInit(capacity.U(capBits1.W))
-  nUsed := (nUsed.asSInt + delta).asUInt
-  nFree := (nFree.asSInt - delta).asUInt
+  val nDeq    = RegInit(       0.U(capBits1.W))
+  val nFree   = RegInit(       0.U(capBits1.W))
+  val nEnq    = RegInit(capacity.U(capBits1.W))
+  val nCommit = RegInit(       0.U(capBits1.W))
+
+  val freed     = io.free  .map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.deq.ready)
+  val committed = io.commit.map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.enq.valid)
+  io.free  .foreach { x => x.ready := nFree   >= x.bits }
+  io.commit.foreach { x => x.ready := nCommit >= x.bits }
+
+  nDeq    := nDeq    + committed    - io.deq.ready
+  nFree   := nFree   + io.deq.ready - freed
+  nEnq    := nEnq    + freed        - io.enq.valid
+  nCommit := nCommit + io.enq.valid - committed
 
   // These variables are only used for the assertion below
   val enq_pos = enq_row * lanes.U + enq_lane
   val deq_pos = deq_row * lanes.U + deq_lane
   val diff_pos = enq_pos + Mux(enq_pos >= deq_pos, 0.U, capacity.U) - deq_pos
-  assert (nUsed === diff_pos || (diff_pos === 0.U && nUsed === capacity.U))
-  assert (nUsed + nFree === capacity.U)
+  assert (nDeq + nCommit === diff_pos || (diff_pos === 0.U && nDeq + nCommit === capacity.U))
+  assert (nDeq + nFree + nEnq + nCommit === capacity.U)
 
   io.enq_0_lane := enq_lane
   io.deq_0_lane := deq_lane
-  io.enq.ready := (if (pipe) nFree +& io.deq.ready else nFree)
-  io.deq.valid := (if (flow) nUsed +& io.enq.valid else nUsed)
+  io.enq.ready := (if (pipe) nEnq +& io.deq.ready else nEnq)
+  io.deq.valid := (if (flow) nDeq +& io.enq.valid else nDeq)
+
+  // Constraints the user must uphold
   assert (io.enq.valid <= io.enq.ready)
   assert (io.deq.ready <= io.deq.valid)
   assert (io.enq.valid <= lanes.U)
