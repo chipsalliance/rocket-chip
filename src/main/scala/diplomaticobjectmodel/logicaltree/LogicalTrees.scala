@@ -41,8 +41,14 @@ class DebugLogicalTreeNode(
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
     val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
-    val omRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val omInnerRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val omOuterRegMap: OMRegisterMap = dmOuter().dmOuter.module.omRegMap
     val cfg: DebugModuleParams = dmInner().dmInner.getCfg()
+
+    val omRegMap = OMRegisterMap(
+      registerFields = omInnerRegMap.registerFields ++ omOuterRegMap.registerFields,
+      groups = omInnerRegMap.groups ++ omOuterRegMap.groups
+    )
 
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
       .getOMMemoryRegions("Debug", resourceBindings, Some(omRegMap))

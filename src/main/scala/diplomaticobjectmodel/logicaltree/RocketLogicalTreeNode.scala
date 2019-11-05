@@ -2,11 +2,11 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.{LazyModule, ResourceBindings, ResourceBindingsMap, SimpleDevice}
+import freechips.rocketchip.diplomacy.{ResourceBindings, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.rocket.{DCacheParams, Frontend, HellaCache, ICache, ICacheParams, ScratchpadSlavePort}
-import freechips.rocketchip.tile.{RocketTileParams, TileParams, XLen}
+import freechips.rocketchip.rocket.{DCacheParams, HellaCache, ICache, ICacheParams}
+import freechips.rocketchip.tile.{RocketTile, XLen}
 
 
 /**
@@ -59,20 +59,19 @@ class ICacheLogicalTreeNode(icache: ICache, deviceOpt: Option[SimpleDevice], par
 }
 
 class RocketLogicalTreeNode(
-  device: SimpleDevice,
-  rocketParams: RocketTileParams,
-  dtim_adapter: Option[ScratchpadSlavePort],
+  tile: RocketTile,
   XLen: Int
-) extends LogicalTreeNode(() => Some(device)) {
+) extends LogicalTreeNode(() => Some(tile.cpuDevice)) {
 
   def getOMInterruptTargets(): Seq[OMInterruptTarget] = {
     Seq(OMInterruptTarget(
-      hartId = rocketParams.hartId,
-      modes = OMModes.getModes(rocketParams.core.useVM)
+      hartId = tile.rocketParams.hartId,
+      modes = OMModes.getModes(tile.rocketParams.core.useVM)
     ))
   }
 
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
+    val rocketParams = tile.rocketParams
     val coreParams = rocketParams.core
 
     // Expect that one of the components passed in is the DCache/DTIM.
@@ -80,6 +79,8 @@ class RocketLogicalTreeNode(
 
     // Expect that one of the components passed in is the ICache.
     val omICache = components.collectFirst { case x: OMICache => x }.get
+
+    val omBusError = components.collectFirst { case x: OMBusError => x }
 
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(coreParams, XLen),
@@ -96,6 +97,7 @@ class RocketLogicalTreeNode(
       branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
       dcache = Some(omDCache),
       icache = Some(omICache),
+      busErrorUnit = omBusError,
       hasClockGate = coreParams.clockGate,
       hasSCIE = coreParams.useSCIE
     ))

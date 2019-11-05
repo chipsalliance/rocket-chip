@@ -410,8 +410,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       val numHAMASKSlices = ((nComponents - 1)/haWindowSize)+1
       HAWINDOWRdData.maskdata := 0.U     // default, overridden below
       for (ii <- 0 until numHAMASKSlices) {
-        val sliceMask = if (nComponents > ((ii*haWindowSize) + haWindowSize-1)) 0xFFFFFFFF  // All harts in this slice exist
-                        else (1<<(nComponents - (ii*haWindowSize))) - 1         // Partial last slice
+        val sliceMask = if (nComponents > ((ii*haWindowSize) + haWindowSize-1)) (BigInt(1) << haWindowSize) - 1  // All harts in this slice exist
+                        else (BigInt(1)<<(nComponents - (ii*haWindowSize))) - 1         // Partial last slice
         val HAMASKRst = Wire(init = (new HAWINDOWFields().fromBits(0.U)))
         val HAMASKNxt = Wire(init = (new HAWINDOWFields().fromBits(0.U)))
         val HAMASKReg = Wire(init = Vec(AsyncResetReg(updateData = HAMASKNxt.asUInt,
@@ -1274,16 +1274,16 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_COMMAND     << 2) -> RegFieldGroup("dmi_command", Some("Abstract Command Register"),
         Seq(RWNotify(32, COMMANDRdData.asUInt(), COMMANDWrDataVal, COMMANDRdEn, COMMANDWrEnMaybe,
         Some(RegFieldDesc("dmi_command", "abstract command register", reset=Some(0), volatile=true))))),
-      (DMI_DATA0       << 2) -> RegFieldGroup("dmi_data", None, abstractDataMem.zipWithIndex.map{case (x, i) => RWNotify(8,
-        Mux(dmAuthenticated, x, 0.U), abstractDataNxt(i),
+      (DMI_DATA0       << 2) -> RegFieldGroup("dmi_data", Some("abstract command data registers"), abstractDataMem.zipWithIndex.map{case (x, i) =>
+        RWNotify(8, Mux(dmAuthenticated, x, 0.U), abstractDataNxt(i),
         dmiAbstractDataRdEn(i),
         dmiAbstractDataWrEnMaybe(i),
-        Some(RegFieldDesc(s"dmi_data_$i", s"abstract command data register $i", reset = Some(0), volatile=true)))}),
-      (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", None, programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8,
-        Mux(dmAuthenticated, x, 0.U), programBufferNxt(i),
+        Some(RegFieldDesc(s"dmi_data_$i", s"abstract command data register $i", reset = Some(0), volatile=true)))}, false),
+      (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", Some("abstract command progbuf registers"), programBufferMem.zipWithIndex.map{case (x, i) =>
+        RWNotify(8, Mux(dmAuthenticated, x, 0.U), programBufferNxt(i),
         dmiProgramBufferRdEn(i),
         dmiProgramBufferWrEnMaybe(i),
-        Some(RegFieldDesc(s"dmi_progbuf_$i", s"abstract command progbuf register $i", reset = Some(0))))}),
+        Some(RegFieldDesc(s"dmi_progbuf_$i", s"abstract command progbuf register $i", reset = Some(0))))}, false),
       (DMI_AUTHDATA   << 2) -> (if (cfg.hasAuthentication) RegFieldGroup("dmi_authdata", Some("authentication data exchange register"),
         Seq(RWNotify(32, io.auth.get.dmAuthRdata, io.auth.get.dmAuthWdata, authRdEnMaybe, authWrEnMaybe,
         Some(RegFieldDesc("authdata", "authentication data exchange", volatile=true))))) else Nil),
@@ -1696,6 +1696,16 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      val attach = Map(
+        "debug-attach"     -> (
+          (if (p(ExportDebug).apb) Seq(ResourceString("apb")) else Seq()) ++
+          (if (p(ExportDebug).jtag) Seq(ResourceString("jtag")) else Seq()) ++
+          (if (p(ExportDebug).cjtag) Seq(ResourceString("cjtag")) else Seq()) ++
+          (if (p(ExportDebug).dmi) Seq(ResourceString("dmi")) else Seq())))
+      Description(name, mapping ++ attach)
+    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
