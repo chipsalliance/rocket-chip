@@ -167,7 +167,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (usingVM.option(new SDecode)) ++:
     (usingDebug.option(new DebugDecode)) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI)) ++:
-    rocketParams.haveCFlush.option(new CFlushDecode) ++:
+    coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine)) ++:
     Seq(new IDecode)
   } flatMap(_.table)
 

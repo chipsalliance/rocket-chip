@@ -227,16 +227,26 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   }
 }
 
+/** Support overriding which HellaCache is instantiated */
+
+case object BuildHellaCache extends Field[BaseTile => Parameters => HellaCache](HellaCacheFactory.apply)
+
+object HellaCacheFactory {
+  def apply(tile: BaseTile)(p: Parameters): HellaCache = {
+    if (tile.tileParams.dcache.get.nMSHRs == 0)
+      new DCache(tile.hartId, tile.crossing)(p)
+    else
+      new NonBlockingDCache(tile.hartId)(p)
+  }
+}
+
 /** Mix-ins for constructing tiles that have a HellaCache */
 
 trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
   var nDCachePorts = 0
-  lazy val dcache: HellaCache = LazyModule(
-    if(tileParams.dcache.get.nMSHRs == 0) {
-      new DCache(hartId, crossing)
-    } else { new NonBlockingDCache(hartId) })
+  lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
   tlMasterXbar.node := dcache.node
 }
