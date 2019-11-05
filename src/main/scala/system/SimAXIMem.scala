@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.system // TODO this should really be in a testharness package
 
+import chisel3._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.diplomacy._
@@ -18,18 +19,22 @@ class SimAXIMem(edge: AXI4EdgeParameters, size: BigInt)(implicit p: Parameters) 
 }
 
 object SimAXIMem {
-  def connectMMIO(dut: CanHaveMasterAXI4MMIOPort)(implicit p: Parameters): Unit = {
-    dut.mmio_axi4.zip(dut.mmioAXI4Node.in).foreach { case (io, (_, edge)) =>
+  def connectMMIO(dut: CanHaveMasterAXI4MMIOPort)(implicit p: Parameters): Seq[SimAXIMem] = {
+    dut.mmio_axi4.zip(dut.mmioAXI4Node.in).map { case (io, (_, edge)) =>
       // test harness size capped to 4KB (ignoring p(ExtMem).get.master.size)
       val mmio_mem = LazyModule(new SimAXIMem(edge, size = 4096))
+      Module(mmio_mem.module).suggestName("mmio_mem")
       mmio_mem.io_axi4.head <> io
+      mmio_mem
     }
   }
 
-  def connectMem(dut: CanHaveMasterAXI4MemPort)(implicit p: Parameters): Unit = {
-    dut.mem_axi4.zip(dut.memAXI4Node.in).foreach { case (io, (_, edge)) =>
+  def connectMem(dut: CanHaveMasterAXI4MemPort)(implicit p: Parameters): Seq[SimAXIMem] = {
+    dut.mem_axi4.zip(dut.memAXI4Node.in).map { case (io, (_, edge)) =>
       val mem = LazyModule(new SimAXIMem(edge, size = p(ExtMem).get.master.size))
+      Module(mem.module).suggestName("mem")
       mem.io_axi4.head <> io
+      mem
     }
   }
 }
