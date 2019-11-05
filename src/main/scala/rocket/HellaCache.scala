@@ -173,8 +173,8 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
-abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule {
-  private val tileParams = p(TileKey)
+abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule
+    with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
   protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters(
@@ -196,6 +196,8 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   val module: HellaCacheModule
 
   def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.IDEMPOTENT)
+
+  def canSupportCFlushLine = !usingVM || cfg.blockBytes * cfg.nSets <= (1 << pgIdxBits)
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
 
