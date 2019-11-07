@@ -92,12 +92,12 @@ class LanePositionedQueueIO[T <: Data](private val gen: T, val args: LanePositio
   val deq_0_lane = Output(UInt(laneBitsU.W))
 
   // Free-up space for enq; ready only if free.bits would not pass deq
-  val free = if (args.free) Some(Decoupled(UInt(depthBitsU.W))) else None
+  val free = if (args.free) Some(Flipped(Valid(UInt(depthBitsU.W)))) else None
   // Rewind the deq/read pointer to the free pointer
   val rewind = if (args.rewind) Some(Input(Bool())) else None
 
   // Advance the commited space; ready only if commit.bits would not pass enq
-  val commit = if (args.commit) Some(Decoupled(UInt(depthBitsU.W))) else None
+  val commit = if (args.commit) Some(Flipped(Valid(UInt(depthBitsU.W)))) else None
   // Restore the enq/write pointer to the commit pointer
   val abort = if (args.abort) Some(Input(Bool())) else None
 
@@ -179,10 +179,10 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
   val nEnq    = RegInit(capacity.U(capBits1.W))
   val nCommit = RegInit(       0.U(capBits1.W))
 
-  val freed     = io.free  .map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.deq.ready)
-  val committed = io.commit.map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.enq.valid)
-  io.free  .foreach { x => x.ready := nFree   >= x.bits }
-  io.commit.foreach { x => x.ready := nCommit >= x.bits }
+  val freed     = io.free  .map(x => Mux(x.valid, x.bits, 0.U)).getOrElse(io.deq.ready)
+  val committed = io.commit.map(x => Mux(x.valid, x.bits, 0.U)).getOrElse(io.enq.valid)
+  io.free  .foreach { x => assert (!x.valid || nFree   + io.deq.valid >= x.bits) }
+  io.commit.foreach { x => assert (!x.valid || nCommit + io.enq.valid >= x.bits) }
 
   nDeq    := nDeq    + committed    - io.deq.ready
   nFree   := nFree   + io.deq.ready - freed
@@ -274,7 +274,7 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
 
   // Make the SRAM twice as wide, so that we can use 1RW port
   // Read accesses have priority, but we never do two back-back
-  val codeBits = ecc.width(2*lanes*gen.asUInt.getWidth)
+  val codeBits = ecc.width(2*lanes*gen.getWidth)
   val ram = SyncReadMem(rows/2, UInt(codeBits.W))
 
   val enq_buffer = Reg(Vec(4, Vec(lanes, gen)))
