@@ -18,7 +18,10 @@ class TLError(params: DevNullParams, beatBytes: Int = 4)(implicit p: Parameters)
     import TLPermissions._
 
     val (in, edge) = node.in(0)
-    val a = Queue(in.a, 1)
+    val a = if (params.minLatency > 0) {Queue(in.a, 1)} else in.a
+    require(params.minLatency  == 1 || params.minLatency == 0,
+      s"Error device can provide minLatency=1 or 0, not requested ${params.minLatency}")
+
     val da = Wire(in.d)
     val idle = RegInit(Bool(true))
 
