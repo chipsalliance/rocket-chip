@@ -9,7 +9,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implicit p: Parameters) extends LazyModule
+abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false, bufferError: Boolean = true, maxAtomic: Int = 16, maxTransfer: Int = 4096)
+  (implicit p: Parameters) extends LazyModule
 {
   protected val nodeIn = TLIdentityNode()
   protected val nodeOut = TLIdentityNode()
@@ -23,9 +24,9 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implic
     })
   }))
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
-  protected val params = DevNullParams(everything, maxAtomic=16, maxTransfer=4096, region=RegionType.TRACKED)
+  protected val params = DevNullParams(everything, maxAtomic, maxTransfer, region=RegionType.TRACKED)
   protected val error = if (deadlock) LazyModule(new TLDeadlock(params, beatBytes))
-                        else LazyModule(new TLError(params, beatBytes))
+                        else LazyModule(new TLError(params, bufferError, beatBytes))
 
   // order matters
   bar.node := nodeIn
@@ -33,7 +34,8 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implic
   nodeOut := bar.node
 }
 
-class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends TLBusBypassBase(beatBytes)
+class TLBusBypass(beatBytes: Int, bufferError: Boolean = false, maxAtomic: Int = 16, maxTransfer: Int = 4096)(implicit p: Parameters)
+    extends TLBusBypassBase(beatBytes, deadlock = false, bufferError = bufferError, maxAtomic = maxAtomic, maxTransfer = maxTransfer)
 {
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
