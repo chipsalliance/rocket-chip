@@ -69,7 +69,6 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
   private val mmioPortParamsOpt = p(ExtBus)
   private val portName = "mmio_port_axi4"
   private val device = new SimpleBus(portName.kebab, Nil)
-  private val idBits = mmioPortParamsOpt.map(_.idBits).getOrElse(1)
 
   val mmioAXI4Node = AXI4SlaveNode(
     mmioPortParamsOpt.map(params =>
