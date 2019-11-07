@@ -173,8 +173,8 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
-abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule {
-  private val tileParams = p(TileKey)
+abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule
+    with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
   protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters(
@@ -196,6 +196,8 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   val module: HellaCacheModule
 
   def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireT || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.IDEMPOTENT)
+
+  def canSupportCFlushLine = !usingVM || cfg.blockBytes * cfg.nSets <= (1 << pgIdxBits)
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
 
@@ -225,16 +227,26 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   }
 }
 
+/** Support overriding which HellaCache is instantiated */
+
+case object BuildHellaCache extends Field[BaseTile => Parameters => HellaCache](HellaCacheFactory.apply)
+
+object HellaCacheFactory {
+  def apply(tile: BaseTile)(p: Parameters): HellaCache = {
+    if (tile.tileParams.dcache.get.nMSHRs == 0)
+      new DCache(tile.hartId, tile.crossing)(p)
+    else
+      new NonBlockingDCache(tile.hartId)(p)
+  }
+}
+
 /** Mix-ins for constructing tiles that have a HellaCache */
 
 trait HasHellaCache { this: BaseTile =>
   val module: HasHellaCacheModule
   implicit val p: Parameters
   var nDCachePorts = 0
-  lazy val dcache: HellaCache = LazyModule(
-    if(tileParams.dcache.get.nMSHRs == 0) {
-      new DCache(hartId, crossing)
-    } else { new NonBlockingDCache(hartId) })
+  lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
   tlMasterXbar.node := dcache.node
 }
