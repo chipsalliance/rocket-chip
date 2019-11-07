@@ -14,7 +14,8 @@ case class DevNullParams(
   executable: Boolean = true,
   mayDenyGet: Boolean = true,
   mayDenyPut: Boolean = true,
-  hint: Boolean = true
+  hint: Boolean = true,
+  minLatency: Int = 1
 ) {
   require (maxAtomic <= maxTransfer, s"Atomic transfer size must be <= max transfer (but $maxAtomic > $maxTransfer)")
   require (maxTransfer <= 4096, s"Max transfer size must be <= 4096 (was $maxTransfer)")
@@ -52,6 +53,6 @@ abstract class DevNullDevice(params: DevNullParams, beatBytes: Int, device: Simp
       alwaysGrantsT      = params.acquire)),
     beatBytes  = beatBytes,
     endSinkId  = if (params.acquire) 1 else 0,
-    minLatency = 1))) // no bypass needed for this device
+    minLatency = params.minLatency))) // TODO: does this comment still apply? no bypass needed for this device
   val tl_xing = this.crossIn(node)
 }
