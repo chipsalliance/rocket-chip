@@ -5,25 +5,42 @@ package freechips.rocketchip.util.property
 import Chisel._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import chisel3.util.{ReadyValidIO}
+import chisel3.core.{VecInit}
 
-sealed abstract class PropertyType(name: String) {
-  override def toString: String = name
-  def flip: PropertyType
+/*def assert(cond: Bool, message: String): Unit = {
+  Property(monitorDir,
+      cond,
+      message,
+      PropertyClass.Default,
+      desc_text)
 }
 
-object PropertyType {
+def assume(cond: Bool, message: String): Unit = {
+  Property(monitorDir.flip,
+      cond,
+      message,
+      PropertyClass.Default,
+      desc_text)
+}*/
+
+sealed abstract class MonitorDirection(name: String) {
+  override def toString: String = name
+  def flip: MonitorDirection
+}
+
+object MonitorDirection {
   // Also known as master, effectively contains assumes
-  object Driver  extends PropertyType("Driver") { override def flip: PropertyType = Receiver }
+  object Driver  extends MonitorDirection("Driver") { override def flip: MonitorDirection = Receiver }
 
   // Also known as slave, effectively contains asserts
-  object Receiver extends PropertyType("Receiver") { override def flip: PropertyType = Driver }
+  object Receiver extends MonitorDirection("Receiver") { override def flip: MonitorDirection = Driver }
 
-  object Monitor extends PropertyType("Monitor") { override def flip: PropertyType = Monitor }
-  object Cover extends PropertyType("Cover") { override def flip: PropertyType = Cover }
+  object Monitor extends MonitorDirection("Monitor") { override def flip: MonitorDirection = Monitor }
+  object Cover extends MonitorDirection("Cover") { override def flip: MonitorDirection = Cover }
 }
 
 trait BasePropertyParameters {
-  val pType: PropertyType
+  val pType: MonitorDirection
   val cond: Bool
   val label: String
   val message: String
@@ -33,28 +50,28 @@ case class DriverPropertyParameters(
     cond: Bool,
     label: String = "",
     message: String = "") extends BasePropertyParameters {
-  val pType = PropertyType.Driver
+  val pType = MonitorDirection.Driver
 }
 
 case class ReceiverPropertyParameters(
     cond: Bool,
     label: String = "",
     message: String = "") extends BasePropertyParameters {
-  val pType = PropertyType.Receiver
+  val pType = MonitorDirection.Receiver
 }
 
 case class MonitorPropertyParameters(
     cond: Bool,
     label: String = "",
     message: String = "") extends BasePropertyParameters {
-  val pType = PropertyType.Monitor
+  val pType = MonitorDirection.Monitor
 }
 
 case class CoverPropertyParameters(
     cond: Bool,
     label: String = "",
     message: String = "") extends BasePropertyParameters {
-  val pType = PropertyType.Cover
+  val pType = MonitorDirection.Cover
 }
 
 abstract class BasePropertyLibrary {
@@ -75,7 +92,25 @@ abstract class BaseProperty {
 case class CoverBoolean(cond: Bool, labels: Seq[String]) {
 }
 
-object Property {
+sealed abstract class PropertyClass(name: String) {
+  override def toString: String = name
+}
+
+object PropertyClass {
+  object Default extends PropertyClass("Default")
+  // Properties which should be true by local construction of RTL (not test bench dependent)
+  object LocalRTL extends PropertyClass("LocalRTL")
+  // Properties that is expected to fail
+  object CoverDisableMonitor extends PropertyClass("CoverDisableMonitor")
+}
+
+abstract class Property extends BaseProperty{}
+
+object Property extends BaseProperty{
+  private var propLib: BasePropertyLibrary = new DefaultPropertyLibrary
+  def setPropLib(lib: BasePropertyLibrary): Unit = this.synchronized {
+    propLib = lib
+  }
   var prop_name_set = collection.mutable.Set[String]()
   def reset_prop_name: Unit = prop_name_set = collection.mutable.Set[String]()
 
@@ -97,26 +132,31 @@ object Property {
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
 //      assert(cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
+      propLib.generateProperty(MonitorPropertyParameters(!cond, prop_type.toString, message))
       when(!cond) {
         printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
       }
     } else if (dir==MonitorDirection.Receiver) {
+      propLib.generateProperty(ReceiverPropertyParameters(!cond, prop_type.toString, message))
 //      assert(cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
       when(!cond) {
         printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
       }
     } else if (dir==MonitorDirection.Driver) {
+      propLib.generateProperty(ReceiverPropertyParameters(!cond, prop_type.toString, message))
 //      assert(cond, s"Assume: ${prop_type.toString} ${message} ${src_wrap}")
       when(!cond) {
         printf(s"assume:${proposed_src}:${prop_type.toString} ${message}")
       }
     } else if (dir==MonitorDirection.Cover) {
         if (prop_type==PropertyClass.CoverDisableMonitor) {
+          propLib.generateProperty(MonitorPropertyParameters(cond, prop_type.toString, message))
 //          assert(!cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
           when(cond) { //We want to assert that the condition is never true, which is opposite of a normal assertion
             printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
           }
         } else {
+          propLib.generateProperty(CoverPropertyParameters(cond, prop_type.toString, message))
 //        chisel3.core.withReset(false.B) {
 //          assert(!cond, s"Cover: ${prop_type.toString} ${message} ${src_wrap}")
             when(cond) {
@@ -156,7 +196,7 @@ object Property {
 
 //  Each boolean expression can be associated with more than one label
 
-class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], message: String) extends BaseProperty {
+class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], message: String) extends Property {
   def listProperties(c1: CoverBoolean, c2: Seq[CoverBoolean]): Seq[CoverBoolean] = {
     if (c2.isEmpty) {
       Seq(c1)
@@ -212,18 +252,18 @@ object driver {
     propLib = lib
   }
   def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond))
+    propLib.generateProperty(DriverPropertyParameters(cond))
   }
   def apply(cond: Bool, label: String)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond, label))
+    propLib.generateProperty(DriverPropertyParameters(cond, label))
   }
   def apply(cond: Bool, label: String, message: String)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond, label, message))
+    propLib.generateProperty(DriverPropertyParameters(cond, label, message))
   }
   def apply(prop: BaseProperty)(implicit sourceInfo: SourceInfo): Unit = {
     prop.generateProperties().foreach( (pp: BasePropertyParameters) => {
-      if (pp.pType == PropertyType.Cover) {
-        propLib.generateProperty(CoverPropertyParameters(pp.cond, pp.label, pp.message))
+      if (pp.pType == MonitorDirection.Driver) {
+        propLib.generateProperty(DriverPropertyParameters(pp.cond, pp.label, pp.message))
       }
     })
   }
@@ -241,18 +281,18 @@ object receiver {
     propLib = lib
   }
   def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond))
+    propLib.generateProperty(ReceiverPropertyParameters(cond))
   }
   def apply(cond: Bool, label: String)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond, label))
+    propLib.generateProperty(ReceiverPropertyParameters(cond, label))
   }
   def apply(cond: Bool, label: String, message: String)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond, label, message))
+    propLib.generateProperty(ReceiverPropertyParameters(cond, label, message))
   }
   def apply(prop: BaseProperty)(implicit sourceInfo: SourceInfo): Unit = {
     prop.generateProperties().foreach( (pp: BasePropertyParameters) => {
-      if (pp.pType == PropertyType.Cover) {
-        propLib.generateProperty(CoverPropertyParameters(pp.cond, pp.label, pp.message))
+      if (pp.pType == MonitorDirection.Receiver) {
+        propLib.generateProperty(ReceiverPropertyParameters(pp.cond, pp.label, pp.message))
       }
     })
   }
@@ -270,18 +310,18 @@ object monitor {
     propLib = lib
   }
   def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond))
+    propLib.generateProperty(MonitorPropertyParameters(cond))
   }
   def apply(cond: Bool, label: String)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond, label))
+    propLib.generateProperty(MonitorPropertyParameters(cond, label))
   }
   def apply(cond: Bool, label: String, message: String)(implicit sourceInfo: SourceInfo): Unit = {
-    propLib.generateProperty(CoverPropertyParameters(cond, label, message))
+    propLib.generateProperty(MonitorPropertyParameters(cond, label, message))
   }
   def apply(prop: BaseProperty)(implicit sourceInfo: SourceInfo): Unit = {
     prop.generateProperties().foreach( (pp: BasePropertyParameters) => {
-      if (pp.pType == PropertyType.Cover) {
-        propLib.generateProperty(CoverPropertyParameters(pp.cond, pp.label, pp.message))
+      if (pp.pType == MonitorDirection.Monitor) {
+        propLib.generateProperty(MonitorPropertyParameters(pp.cond, pp.label, pp.message))
       }
     })
   }
@@ -311,7 +351,7 @@ object cover {
   }
   def apply(prop: BaseProperty)(implicit sourceInfo: SourceInfo): Unit = {
     prop.generateProperties().foreach( (pp: BasePropertyParameters) => {
-      if (pp.pType == PropertyType.Cover) {
+      if (pp.pType == MonitorDirection.Cover) {
         propLib.generateProperty(CoverPropertyParameters(pp.cond, pp.label, pp.message))
       }
     })

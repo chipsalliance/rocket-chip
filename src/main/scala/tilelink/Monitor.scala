@@ -9,6 +9,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
+import freechips.rocketchip.util.property._
 
 case class TLMonitorArgs(edge: TLEdge)
 
