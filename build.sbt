@@ -60,7 +60,7 @@ lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 def dependOnChisel(prj: Project) = {
   if (sys.props.contains("ROCKET_USE_MAVEN")) {
     prj.settings(
-      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-SNAPSHOT")
+      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-20191106-SNAPSHOT")
     )
   } else {
     prj.dependsOn(chisel)
