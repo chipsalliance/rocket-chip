@@ -32,7 +32,8 @@ case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHB
         nodePath      = m.nodePath,
         supportsWrite = adjust(m.supportsPutFull),
         supportsRead  = adjust(m.supportsGet))},
-    beatBytes = mp.beatBytes)
+    beatBytes = mp.beatBytes,
+    lite      = true)
   })
 
 class AHBToTL()(implicit p: Parameters) extends LazyModule
@@ -53,7 +54,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
 
       when (out.d.valid) { d_recv  := Bool(false) }
       when (out.a.ready) { d_send  := Bool(false) }
-      when (in.hresp)    { d_pause := Bool(false) }
+      when (in.hresp(0)) { d_pause := Bool(false) }
 
       val a_count  = RegInit(UInt(0, width = 4))
       val a_first  = a_count === UInt(0)

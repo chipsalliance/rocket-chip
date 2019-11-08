@@ -11,10 +11,11 @@ import freechips.rocketchip.util.DescribedSRAM
 abstract class DiplomaticSRAM(
     address: AddressSet,
     beatBytes: Int,
-    devName: Option[String])(implicit p: Parameters) extends LazyModule
+    devName: Option[String],
+    dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule
 {
   val device = devName
-    .map(new SimpleDevice(_, Seq("sifive,sram0")))
+    .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
     .getOrElse(new MemoryDevice())
 
   def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {

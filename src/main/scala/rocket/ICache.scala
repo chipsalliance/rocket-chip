@@ -134,7 +134,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val dECC = cacheParams.dataCode
 
   require(isPow2(nSets) && isPow2(nWays))
-  require(!usingVM || pgIdxBits >= untagBits)
+  require(!usingVM || pgIdxBits >= untagBits, s"I$$ set size must not exceed ${1<<(pgIdxBits-10)} KiB; got ${(outer.size/nWays)>>10} KiB")
 
   val scratchpadOn = RegInit(false.B)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
@@ -203,9 +203,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
   val accruedRefillError = Reg(Bool())
+  val refillError = tl_out.d.bits.corrupt || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
     // For AccessAckData, denied => corrupt
-    val enc_tag = tECC.encode(Cat(tl_out.d.bits.corrupt, refill_tag))
+    val enc_tag = tECC.encode(Cat(refillError, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
 
     ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
@@ -213,6 +214,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
+    accruedRefillError := refillError
     // clear bit when refill starts so hit-under-miss doesn't fetch bad data
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), refill_done && !invalidated)
   }

@@ -68,7 +68,7 @@ trait HasNonDiplomaticTileParameters {
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
   //                  Core   PTW                DTIM                    coprocessors           
-  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size
+  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + tileParams.core.useVector.toInt
 
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {
