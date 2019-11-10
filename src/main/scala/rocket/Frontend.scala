@@ -70,6 +70,7 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
   val errors = new ICacheErrors
+  val idle = Bool()
 }
 
 @chiselName
@@ -328,13 +329,18 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
   io.errors := icache.io.errors
 
-  // gate the clock
-  clock_en_reg := !rocketParams.clockGate ||
-    io.cpu.might_request || // chicken bit
+  val idle = !(io.cpu.might_request || // chicken bit
     icache.io.keep_clock_enabled || // I$ miss or ITIM access
     s1_valid || s2_valid || // some fetch in flight
     !tlb.io.req.ready || // handling TLB miss
-    !fq.io.mask(fq.io.mask.getWidth-1) // queue not full
+    !fq.io.mask(fq.io.mask.getWidth-1)) // queue not full
+
+  io.idle := idle
+
+  // gate the clock
+  clock_en_reg := !rocketParams.clockGate ||
+    io.cpu.might_request || // chicken bit
+    !idle
   } // leaving gated-clock domain
 
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))

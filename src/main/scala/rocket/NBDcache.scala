@@ -1013,4 +1013,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // no clock-gating support
   io.cpu.clock_enabled := true
+
+  io.idle := false //TODO: report the idle state of NBDcache
 }

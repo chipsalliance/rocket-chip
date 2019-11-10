@@ -29,6 +29,7 @@ module RoccBlackBox
     input [xLen-1:0] rocc_cmd_bits_rs2,
     input rocc_cmd_bits_status_debug,
     input rocc_cmd_bits_status_cease,
+    input rocc_cmd_bits_status_wfi,
     input [31:0] rocc_cmd_bits_status_isa,
     input [PRV_SZ-1:0] rocc_cmd_bits_status_dprv,
     input [PRV_SZ-1:0] rocc_cmd_bits_status_prv,

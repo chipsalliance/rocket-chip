@@ -125,5 +125,6 @@ trait HasCoreIO extends HasTileParameters {
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput
+    val wfi = Bool().asOutput
   }
 }

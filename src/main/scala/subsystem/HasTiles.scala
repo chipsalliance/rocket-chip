@@ -141,4 +141,11 @@ trait HasTilesModuleImp extends LazyModuleImp {
       (outer.meipNode.get.out(i)._1)(0) := pin
     }
   }
+
+  val wfi = Some(IO(Vec(outer.tiles.map(_.tileParams.reportWFI).count(_ == true), Bool()).asOutput))
+  wfi.foreach { m=>
+    m.zipWithIndex.map { case (out, i) =>
+      out := (outer.tileWFISinkNode.in(0)._1) (i)
+    }
+  }
 }

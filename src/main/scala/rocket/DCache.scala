@@ -886,10 +886,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
   }
 
-  // gate the clock
-  clock_en_reg := !cacheParams.clockGate ||
-    io.ptw.customCSRs.disableDCacheClockGate ||
-    io.cpu.keep_clock_enabled ||
+  val idle = !(io.cpu.keep_clock_enabled ||
     metaArb.io.out.valid || // subsumes resetting || flushing
     s1_probe || s2_probe ||
     s1_valid || s2_valid ||
@@ -898,7 +895,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     release_ack_wait || !release_queue_empty ||
     !tlb.io.req.ready ||
     cached_grant_wait || uncachedInFlight.asUInt.orR ||
-    lrscCount > 0 || blockProbeAfterGrantCount > 0
+    lrscCount > 0 || blockProbeAfterGrantCount > 0)
+
+  io.idle := idle
+
+  // gate the clock
+  clock_en_reg := !cacheParams.clockGate ||
+    io.ptw.customCSRs.disableDCacheClockGate ||
+    !idle
 
   // performance events
   io.cpu.perf.acquire := edge.done(tl_out_a)
