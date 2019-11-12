@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import chisel3.experimental.{BaseModule, RawModule, MultiIOModule, withClockAndReset}
+import chisel3.{RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap,ListMap}
@@ -80,7 +80,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""${pad}    <node id=\"${index}::${n.index}\">\n"""
       buf ++= s"""${pad}      <data key=\"e\"><y:ShapeNode><y:Shape type="Ellipse"/></y:ShapeNode></data>\n"""
-      buf ++= s"""${pad}      <data key=\"d\">${n.nodedebugstring}</data>\n"""
+      buf ++= s"""${pad}      <data key=\"d\">${n.formatNode}, \n${n.nodedebugstring}</data>\n"""
       buf ++= s"""${pad}    </node>\n"""
     }
     children.filter(!_.omitGraphML).foreach { _.nodesGraphML(buf, pad + "    ") }

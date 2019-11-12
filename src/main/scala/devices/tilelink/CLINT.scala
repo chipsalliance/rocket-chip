@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.subsystem.BaseSubsystem
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -32,6 +32,12 @@ case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 }
 
 case object CLINTKey extends Field[Option[CLINTParams]](None)
+
+case class CLINTAttachParams(
+  slaveWhere: BaseSubsystemBusAttachment = CBUS
+)
+
+case object CLINTAttachKey extends Field(CLINTAttachParams())
 
 class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
@@ -99,11 +105,10 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 /** Trait that will connect a CLINT to a subsystem */
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
+    val tlbus = attach(p(CLINTAttachKey).slaveWhere)
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    def getCLINTLogicalTreeNode = clint.logicalTreeNode
-    LogicalModuleTree.add(logicalTreeNode, getCLINTLogicalTreeNode)
-
-    clint.node := cbus.coupleTo("clint") { TLFragmenter(cbus) := _ }
+    LogicalModuleTree.add(logicalTreeNode, clint.logicalTreeNode)
+    clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
     clint
   }
 }

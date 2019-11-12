@@ -58,7 +58,7 @@ class DMIResp( ) extends Bundle {
   *  Therefore it has the 'flipped' version of this.
   */
 class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val req = new  DecoupledIO(new DMIReq(p(DebugModuleParams).nDMIAddrSize))
+  val req = new  DecoupledIO(new DMIReq(p(DebugModuleKey).get.nDMIAddrSize))
   val resp = new DecoupledIO(new DMIResp).flip()
 }
 
@@ -79,6 +79,10 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
 
+  // This master can only produce:
+  // emitsGet = TransferSizes(4, 4),
+  // emitsPutFull = TransferSizes(4, 4),
+  // emitsPutPartial = TransferSizes(4, 4)
   val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
 
   lazy val module = new LazyModuleImp(this) {

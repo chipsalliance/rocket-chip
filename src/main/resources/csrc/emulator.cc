@@ -271,39 +271,31 @@ done_processing:
 
   signal(SIGTERM, handle_sigterm);
 
-  bool dump;
-  // reset for several cycles to handle pipelined reset
-  for (int i = 0; i < 10; i++) {
-    tile->reset = 1;
-    tile->clock = 0;
-    tile->eval();
-#if VM_TRACE
-    dump = tfp && trace_count >= start;
-    if (dump)
-      tfp->dump(static_cast<vluint64_t>(trace_count * 2));
-#endif
-    tile->clock = 1;
-    tile->eval();
-#if VM_TRACE
-    if (dump)
-      tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
-#endif
-    trace_count ++;
-  }
-  tile->reset = 0;
-  done_reset = true;
+  // The initial block in AsyncResetReg is either racy or is not handled
+  // correctly by Verilator when the reset signal isn't a top-level pin.
+  // So guarantee that all the AsyncResetRegs will see a rising edge of
+  // the reset signal instead of relying on the initial block.
+  int async_reset_cycles = 2;
 
-  while (!dtm->done() && !jtag->done() &&
-         !tile->io_success && trace_count < max_cycles) {
+  // Rocket-chip requires synchronous reset to be asserted for several cycles.
+  int sync_reset_cycles = 10;
+
+  while (trace_count < max_cycles) {
+    if (done_reset && (dtm->done() || jtag->done() || tile->io_success))
+      break;
+
     tile->clock = 0;
+    tile->reset = trace_count < async_reset_cycles*2 ? trace_count % 2 :
+      trace_count < async_reset_cycles*2 + sync_reset_cycles;
+    done_reset = !tile->reset;
     tile->eval();
 #if VM_TRACE
-    dump = tfp && trace_count >= start;
+    bool dump = tfp && trace_count >= start;
     if (dump)
       tfp->dump(static_cast<vluint64_t>(trace_count * 2));
 #endif
 
-    tile->clock = 1;
+    tile->clock = trace_count >= async_reset_cycles*2;
     tile->eval();
 #if VM_TRACE
     if (dump)

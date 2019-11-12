@@ -87,6 +87,21 @@ case class TLManagerParameters(
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
   def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
+
+  def infoString = {
+    s"""Manager Name = ${name}
+       |Manager Address = ${address}
+       |supportsAcquireT = ${supportsAcquireT}
+       |supportsAcquireB = ${supportsAcquireB}
+       |supportsArithmetic = ${supportsArithmetic}
+       |supportsLogical = ${supportsLogical}
+       |supportsGet = ${supportsGet}
+       |supportsPutFull = ${supportsPutFull}
+       |supportsPutPartial = ${supportsPutPartial}
+       |supportsHint = ${supportsHint}
+       |
+       |""".stripMargin
+  }
 }
 
 case class TLManagerPortParameters(
@@ -216,6 +231,8 @@ case class TLManagerPortParameters(
       m.copy(userBits = m.userBits ++ extra)
     })
   }
+
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
 }
 
 case class TLClientParameters(
@@ -258,6 +275,13 @@ case class TLClientParameters(
   def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
   def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
   val userBitWidth = userBits.map(_.width).sum
+
+  def infoString = {
+    s"""Client Name = ${name}
+       |visibility = ${visibility}
+       |
+       |""".stripMargin
+  }
 }
 
 case class TLClientPortParameters(
@@ -339,6 +363,8 @@ case class TLClientPortParameters(
       c.copy(userBits = c.userBits ++ extra)
     })
   }
+
+  def infoString = clients.map(_.infoString).mkString
 }
 
 case class TLBundleParameters(
@@ -405,7 +431,7 @@ case class TLEdgeParameters(
   client:  TLClientPortParameters,
   manager: TLManagerPortParameters,
   params:  Parameters,
-  sourceInfo: SourceInfo)
+  sourceInfo: SourceInfo) extends FormatEdge
 {
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
@@ -414,22 +440,25 @@ case class TLEdgeParameters(
   require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
 
   val bundle = TLBundleParameters(client, manager)
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
-case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters)
-case class TLAsyncClientPortParameters(base: TLClientPortParameters)
+case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
+case class TLAsyncClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
-case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
+case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
   val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
-case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters)
-case class TLRationalClientPortParameters(base: TLClientPortParameters)
+case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters) {def infoString = base.infoString}
+case class TLRationalClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
 
-case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo)
+case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
   val bundle = TLBundleParameters(client.base, manager.base)
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
 object ManagerUnification
@@ -486,4 +515,26 @@ case class TLBufferParams(
   def copyIn(x: BufferParams) = this.copy(b = x, d = x)
   def copyOut(x: BufferParams) = this.copy(a = x, c = x, e = x)
   def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
+}
+
+/** Pretty printing of TL source id maps */
+class TLSourceIdMap(tl: TLClientPortParameters) {
+  private val tlDigits = String.valueOf(tl.endSourceId-1).length()
+  private val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
+  private val sorted = tl.clients.sortWith(TLToAXI4.sortByType)
+
+  val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
+    TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
+  }
+
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
+}
+
+case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean) {
+  def pretty(fmt: String): String = fmt.format(
+    tlId.start,
+    tlId.end,
+    s""""$name"""",
+    if (isCache) " [CACHE]" else "",
+    if (requestFifo) " [FIFO]" else "")
 }

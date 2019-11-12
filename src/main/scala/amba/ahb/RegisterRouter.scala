@@ -17,7 +17,8 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
       executable    = executable,
       supportsWrite = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)),
       supportsRead  = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)))),
-    beatBytes  = beatBytes)))
+    beatBytes  = beatBytes,
+    lite = true)))
 {
   require (address.contiguous)
 
@@ -103,4 +104,18 @@ class AHBRegisterRouter[B <: AHBRegBundleBase, M <: LazyModuleImp]
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
   lazy val module = moduleBuilder(bundleBuilder(AHBRegBundleArg()), this)
+}
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
+trait HasAHBControlRegMap { this: RegisterRouter[_] =>
+  // Externally, this node should be used to connect the register control port to a bus
+  val controlNode = AHBRegisterNode(
+    address = address.head,
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
 }

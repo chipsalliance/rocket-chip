@@ -12,7 +12,6 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
 
-
 // TODO: how specific are these to RocketTiles?
 case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
 case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
@@ -39,21 +38,16 @@ trait HasRocketTiles extends HasTiles
   // according to the specified type of clock crossing.
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
-  val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
+  val rocketTiles = rocketTileParams.sortWith(_.hartId < _.hartId).zip(crossings).map { case (tp, crossing) =>
     val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams), logicalTreeNode))
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
+    connectInterrupts(rocket, debugOpt, clintOpt, plicOpt)
 
-    def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(rocket.rocketLogicalTree.getOMInterruptTargets)
     LogicalModuleTree.add(logicalTreeNode, rocket.rocketLogicalTree)
 
     rocket
-  }
-
-  // connect interrupts based on the hart ordering
-  rocketTiles.sortWith(_.tileParams.hartId < _.tileParams.hartId).map {
-    r => connectInterrupts(r, Some(debug), clintOpt, plicOpt)
   }
 
   def coreMonitorBundles = (rocketTiles map { t =>
@@ -66,9 +60,16 @@ trait HasRocketTilesModuleImp extends HasTilesModuleImp
   val outer: HasRocketTiles
 }
 
+// Field for specifying MaskROM addition to subsystem
+case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
+
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasRocketTiles {
   val tiles = rocketTiles
+        
+  // add Mask ROM devices
+  val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
+
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 

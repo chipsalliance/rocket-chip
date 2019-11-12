@@ -71,12 +71,13 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
     val deq = RationalIO(gen)
   }
 
+  val enq_in = BlockDuringReset(io.enq)
   val deq = io.deq
   val enq = direction match {
-    case Symmetric  => ShiftQueue(io.enq, 1, flow=true)
-    case Flexible => ShiftQueue(io.enq, 2)
-    case FastToSlow => io.enq
-    case SlowToFast => ShiftQueue(io.enq, 2)
+    case Symmetric  => ShiftQueue(enq_in, 1, flow=true)
+    case Flexible => ShiftQueue(enq_in, 2)
+    case FastToSlow => enq_in
+    case SlowToFast => ShiftQueue(enq_in, 2)
   }
 
   val count = RegInit(UInt(0, width = 2))

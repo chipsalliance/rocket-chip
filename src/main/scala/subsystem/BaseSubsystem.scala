@@ -7,7 +7,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMInterrupt}
+import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util._
 
 
@@ -36,6 +36,17 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
+
+/** This trait contains the cases matched in baseAttachmentFunc below.
+  * Both can be extended to offer novel attachment locations in subclasses of BaseSubsystem.
+  */
+trait BaseSubsystemBusAttachment
+case object SBUS extends BaseSubsystemBusAttachment
+case object PBUS extends BaseSubsystemBusAttachment
+case object FBUS extends BaseSubsystemBusAttachment
+case object MBUS extends BaseSubsystemBusAttachment
+case object CBUS extends BaseSubsystemBusAttachment
+
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with HasLogicalTreeNode {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
@@ -48,6 +59,16 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+
+  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
+  protected def baseBusAttachmentFunc: BusAttachmentFunction = {
+    case SBUS => sbus
+    case PBUS => pbus
+    case FBUS => fbus
+    case MBUS => mbus
+    case CBUS => cbus
+  }
+  protected def attach(where: BaseSubsystemBusAttachment): TLBusWrapper = baseBusAttachmentFunc(where)
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
@@ -74,7 +95,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem with 
     }
   }
 
-  val logicalTreeNode = new SubSystemLogicalTreeNode()
+  lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
 }
 
 

@@ -29,7 +29,8 @@ class AHBRAM(
       executable    = executable,
       supportsRead  = TransferSizes(1, beatBytes * AHBParameters.maxTransfer),
       supportsWrite = TransferSizes(1, beatBytes * AHBParameters.maxTransfer))),
-    beatBytes  = beatBytes)))
+    beatBytes  = beatBytes,
+    lite = true)))
 
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
@@ -112,7 +113,7 @@ class AHBRAM(
 
     // Finally, the outputs
     in.hreadyout := Mux(disable_ahb_fuzzing, Bool(true), { if(fuzzHreadyout) { !d_request || LFSRNoiseMaker(1)(0) }  else { Bool(true) }} )
-    in.hresp     := Mux(d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
+    in.hresp     := Mux(!d_request || d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
 }

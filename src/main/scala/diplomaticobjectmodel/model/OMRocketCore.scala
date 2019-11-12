@@ -2,9 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.ResourceBindings
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.rocket.{BTBParams, DCacheParams, ICacheParams}
+import freechips.rocketchip.rocket.BTBParams
 
 case class OMRocketBranchPredictor(
   nBtbEntries: Int,
@@ -28,6 +26,7 @@ case class OMRocketCore(
   branchPredictor: Option[OMRocketBranchPredictor],
   dcache: Option[OMDCache],
   icache: Option[OMICache],
+  busErrorUnit: Option[OMBusError],
   hasClockGate: Boolean,
   hasSCIE: Boolean,
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
@@ -41,36 +40,4 @@ object OMBTB {
       nRasEntries = p.nRAS
     )
   }
-}
-
-object OMCaches {
-  def dcache(p: DCacheParams, resourceBindings: ResourceBindings): OMDCache = {
-    OMDCache(
-      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("DTIM", resourceBindings),
-      interrupts = Nil,
-      nSets = p.nSets,
-      nWays = p.nWays,
-      blockSizeBytes = p.blockBytes,
-      dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.fromString),
-      tagECC = p.tagECC.map(OMECC.fromString),
-      nTLBEntries = p.nTLBEntries
-    )
-  }
-
-  def icache(p: ICacheParams, resourceBindings: ResourceBindings): OMICache = {
-    OMICache(
-      memoryRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions("ITIM", resourceBindings),
-      interrupts = Nil,
-      nSets = p.nSets,
-      nWays = p.nWays,
-      blockSizeBytes = p.blockBytes,
-      dataMemorySizeBytes = p.nSets * p.nWays * p.blockBytes,
-      dataECC = p.dataECC.map(OMECC.fromString),
-      tagECC = p.tagECC.map(OMECC.fromString),
-      nTLBEntries = p.nTLBEntries,
-      maxTimSize = p.nSets * (p.nWays-1) * p.blockBytes
-    )
-  }
-
 }

@@ -6,7 +6,6 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMCaches, OMComponent, OMDCache}
 import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -39,6 +38,8 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     val io = IO(new Bundle {
       val dmem = new HellaCacheIO
     })
+
+    require(coreDataBytes * 8 == io.dmem.resp.bits.data.getWidth, "ScratchpadSlavePort is misconfigured: coreDataBytes must match D$ data width")
 
     val (tl_in, edge) = node.in(0)
 
@@ -76,6 +77,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       req.addr := a.address
       req.tag := UInt(0)
       req.phys := true
+      req.no_xcpt := true
       req
     }
 

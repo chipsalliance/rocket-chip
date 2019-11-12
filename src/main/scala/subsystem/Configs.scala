@@ -39,7 +39,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
-  case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
+  case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
 })
@@ -61,6 +61,28 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => big.copy(hartId = i))
+  }
+})
+
+class WithNMedCores(n: Int) extends Config((site, here, up) => {
+  case RocketTilesKey => {
+    val med = RocketTileParams(
+      core = RocketCoreParams(fpu = None),
+      btb = None,
+      dcache = Some(DCacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        nMSHRs = 0,
+        blockBytes = site(CacheBlockBytes))),
+      icache = Some(ICacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        blockBytes = site(CacheBlockBytes))))
+    List.tabulate(n)(i => med.copy(hartId = i))
   }
 })
 
@@ -210,6 +232,10 @@ class WithRoccExample extends Config((site, here, up) => {
     (p: Parameters) => {
         val counter = LazyModule(new CharacterCountExample(OpcodeSet.custom2)(p))
         counter
+    },
+    (p: Parameters) => {
+      val blackbox = LazyModule(new BlackBoxExample(OpcodeSet.custom3, "RoccBlackBox")(p))
+      blackbox
     })
 })
 
@@ -273,19 +299,16 @@ class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
 })
 
 class WithJtagDTM extends Config ((site, here, up) => {
-  case ExportDebugDMI => false
-  case ExportDebugJTAG => true
+  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(JTAG))
 })
 
 class WithDebugAPB extends Config ((site, here, up) => {
-  case ExportDebugDMI => false
-  case ExportDebugJTAG => false
-  case ExportDebugAPB => true
+  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(APB))
 })
 
 
 class WithDebugSBA extends Config ((site, here, up) => {
-  case DebugModuleParams => up(DebugModuleParams, site).copy(hasBusMaster = true)
+  case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(hasBusMaster = true))
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {

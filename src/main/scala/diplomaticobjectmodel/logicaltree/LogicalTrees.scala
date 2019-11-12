@@ -41,8 +41,14 @@ class DebugLogicalTreeNode(
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
     val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
-    val omRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val omInnerRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val omOuterRegMap: OMRegisterMap = dmOuter().dmOuter.module.omRegMap
     val cfg: DebugModuleParams = dmInner().dmInner.getCfg()
+
+    val omRegMap = OMRegisterMap(
+      registerFields = omInnerRegMap.registerFields ++ omOuterRegMap.registerFields,
+      groups = omInnerRegMap.groups ++ omOuterRegMap.groups
+    )
 
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
       .getOMMemoryRegions("Debug", resourceBindings, Some(omRegMap))
@@ -74,7 +80,7 @@ class DebugLogicalTreeNode(
         hasSBAccess64 = cfg.maxSupportedSBAccess >= 64,
         hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
         hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
-        authenticationType = NONE,
+        authenticationType = (if (cfg.hasAuthentication) PASSTHRU else NONE),
         nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
         hasHartInfo = true,
         hasAbstractauto = true,
@@ -82,8 +88,8 @@ class DebugLogicalTreeNode(
         nHaltSummaryRegisters = 2,
         nHaltGroups = cfg.nHaltGroups,
         nExtTriggers = cfg.nExtTriggers,
-        hasResetHaltReq = false,
-        hasHartReset = false,
+        hasResetHaltReq = true,
+        hasHartReset = cfg.hasHartResets,
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
@@ -195,13 +201,14 @@ class BusMemoryLogicalTreeNode(
   }
 }
 
-class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
+class SubsystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
   extends LogicalTreeNode(() => None) {
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
         components = components,
-        documentationName = ""
+        documentationName = "",
+        resetType = None
       )
     )
   }

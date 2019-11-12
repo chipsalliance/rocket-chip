@@ -3,7 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.experimental.RawModule
+import chisel3.RawModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -33,7 +33,7 @@ case class TLRegisterNode(
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
+    minLatency = min(concurrency, 1)))) with TLFormatNode // the Queue adds at most one cycle
 {
   val size = 1 << log2Ceil(1 + address.map(_.max).max - address.map(_.base).min)
   require (size >= beatBytes)

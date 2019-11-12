@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Parameters,Field}
 import freechips.rocketchip.util.HeterogeneousBag
@@ -94,6 +95,7 @@ abstract class BaseNode(implicit val valName: ValName)
   }
 
   def description: String
+  def formatNode: String = ""
 
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
@@ -106,6 +108,21 @@ abstract class BaseNode(implicit val valName: ValName)
 object BaseNode
 {
   protected[diplomacy] var serial = 0
+}
+
+trait FormatEdge {
+  def formatEdge: String
+}
+
+trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
+  def edges: Edges[I,O]
+  override def formatNode = {
+    edges.out.map(currEdge =>
+      "On Output Edge:\n\n" + currEdge.formatEdge).mkString +
+    "\n---------------------------------------------\n\n" +
+    edges.in.map(currEdge =>
+      "On Input Edge:\n\n" + currEdge.formatEdge).mkString
+  }
 }
 
 trait NoHandle
@@ -221,7 +238,7 @@ case class StarCycleException(loop: Seq[String] = Nil) extends CycleException("s
 case class DownwardCycleException(loop: Seq[String] = Nil) extends CycleException("downward", loop)
 case class UpwardCycleException(loop: Seq[String] = Nil) extends CycleException("upward", loop)
 
-case class Edges[EI, EO](in: EI, out: EO)
+case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
   val outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -541,6 +558,14 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
+
+  def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
+    val bundles = this.out.map(_._1)
+    val ios = IO(Flipped(new HeterogeneousBag(bundles.map(_.cloneType))))
+    ios.suggestName(valName.toString)
+    bundles.zip(ios).foreach { case (bundle, io) => bundle <> io }
+    ios
+  }
 }
 
 // There are no Mixed SinkNodes
@@ -558,6 +583,14 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
+
+  def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
+    val bundles = this.in.map(_._1)
+    val ios = IO(new HeterogeneousBag(bundles.map(_.cloneType)))
+    ios.suggestName(valName.name)
+    bundles.zip(ios).foreach { case (bundle, io) => io <> bundle }
+    ios
+  }
 }
 
 class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[diplomacy](

@@ -16,6 +16,7 @@ import scala.math.max
 case object TileId extends Field[Int]
 
 class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
+    with HasHierarchicalBusTopology
     with CanHaveMasterAXI4MemPort {
   val tileParams = p(GroundTestTilesKey)
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(c.build(i, p)) }
@@ -28,23 +29,12 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   pbus.coupleTo("TestRAM") { testram.node := TLFragmenter(pbus) := _ }
 
   // No PLIC in ground test; so just sink the interrupts to nowhere
-  IntSinkNode(IntSinkPortSimple()) := ibus.toPLIC
-
-  sbus.crossToBus(cbus, NoCrossing)
-  cbus.crossToBus(pbus, SynchronousCrossing())
-  sbus.crossFromBus(fbus, SynchronousCrossing())
-  private val BankedL2Params(nBanks, coherenceManager) = p(BankedL2Key)
-  private val (in, out, halt) = coherenceManager(this)
-  if (nBanks != 0) {
-    sbus.coupleTo("coherence_manager") { in :*= _ }
-    mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
-  }
+  IntSinkNode(IntSinkPortSimple()) :=* ibus.toPLIC
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
-class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
-    with CanHaveMasterAXI4MemPortModuleImp {
+class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
   val success = IO(Bool(OUTPUT))
 
   outer.tiles.zipWithIndex.map { case(t, i) => t.module.constants.hartid := UInt(i) }
