@@ -754,7 +754,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     !clock_en ||
     id_do_fence ||
     csr.io.csr_stall ||
-    id_reg_pause
+    id_reg_pause ||
+    io.traceStall
   ctrl_killd := !ibuf.io.inst(0).valid || ibuf.io.inst(0).bits.replay || take_pc_mem_wb || ctrl_stalld || csr.io.interrupt
 
   io.imem.req.valid := take_pc

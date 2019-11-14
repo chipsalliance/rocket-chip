@@ -174,6 +174,11 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
+  val traceAuxNode = BundleBridgeNexus[TraceAux]()
+  val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
+  val traceAuxDefaultNode = BundleBridgeSource(() => new TraceAux)
+  traceAuxSinkNode := traceAuxNode := traceAuxDefaultNode
+
   val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch(tileParams.core.retireWidth)))
   val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
   bpwatchNode := bpwatchSourceNode
@@ -244,6 +249,10 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   require(resetVectorLen <= xLen)
   require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
+
+  outer.traceAuxDefaultNode.bundle.stall := false.B
+  val (in, _) = outer.traceAuxNode.in.last   // select active source if any, or the default source
+  outer.traceAuxNode.out.foreach { case (out, _) => out := in }
 
   val constants = IO(new TileInputConstants)
 }
