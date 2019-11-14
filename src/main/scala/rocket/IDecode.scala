@@ -132,12 +132,14 @@ class FenceIDecode(flushDCache: Boolean)(implicit val p: Parameters) extends Dec
     FENCE_I->   List(Y,N,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     v,cmd,        N,N,N,N,N,N,N,CSR.N,Y,Y,N,N))
 }
 
-class CFlushDecode(implicit val p: Parameters) extends DecodeConstants
+class CFlushDecode(supportsFlushLine: Boolean)(implicit val p: Parameters) extends DecodeConstants
 {
+  private def zapRs1(x: BitPat) = if (supportsFlushLine) x else BitPat(x.value.U)
+
   val table: Array[(BitPat, List[BitPat])] = Array(
-    CFLUSH_D_L1->
+    zapRs1(CFLUSH_D_L1)->
                 List(Y,N,N,N,N,N,N,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_FLUSH_ALL,N,N,N,N,N,N,N,CSR.I,N,N,N,N),
-    CDISCARD_D_L1->
+    zapRs1(CDISCARD_D_L1)->
                 List(Y,N,N,N,N,N,N,Y,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_FLUSH_ALL,N,N,N,N,N,N,N,CSR.I,N,N,N,N))
 }
 

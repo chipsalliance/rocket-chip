@@ -51,6 +51,8 @@ class RocketTile private(
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
+  val rocketLogicalTree = new RocketLogicalTreeNode(this, p(XLen))
+
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map { s =>
     val coreParams = {
       class C(implicit val p: Parameters) extends HasCoreParameters
@@ -61,7 +63,7 @@ class RocketTile private(
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, lm.node.portParams.head.beatBytes))
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
-    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), logicalTreeNode))
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), rocketLogicalTree))
     intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
@@ -110,7 +112,6 @@ class RocketTile private(
     else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
   }
 
-  val rocketLogicalTree: RocketLogicalTreeNode = new RocketLogicalTreeNode(cpuDevice, rocketParams, dtim_adapter, p(XLen))
   val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(dcache, dtim_adapter.map(_.device), rocketParams.dcache.get)
   LogicalModuleTree.add(rocketLogicalTree, iCacheLogicalTreeNode)
   LogicalModuleTree.add(rocketLogicalTree, dCacheLogicalTreeNode)

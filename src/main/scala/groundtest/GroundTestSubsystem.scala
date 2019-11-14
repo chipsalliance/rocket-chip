@@ -34,8 +34,7 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
-class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
-    with CanHaveMasterAXI4MemPortModuleImp {
+class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
   val success = IO(Bool(OUTPUT))
 
   outer.tiles.zipWithIndex.map { case(t, i) => t.module.constants.hartid := UInt(i) }

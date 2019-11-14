@@ -26,7 +26,8 @@ class MStatus extends Bundle {
   val sxl = UInt(width = 2)
   val uxl = UInt(width = 2)
   val sd_rv32 = Bool()
-  val zero1 = UInt(width = 8)
+  val zero1 = UInt(width = 6)
+  val vs = UInt(width = 2)
   val tsr = Bool()
   val tw = Bool()
   val tvm = Bool()
@@ -226,8 +227,11 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val vector = usingVector.option(new Bundle {
     val vconfig = new VConfig().asOutput
     val vstart = UInt(maxVLMax.log2.W).asOutput
+    val vxrm = UInt(2.W).asOutput
+    val set_vs_dirty = Input(Bool())
     val set_vconfig = Valid(new VConfig).flip
     val set_vstart = Valid(vstart).flip
+    val set_vxsat = Bool().asInput
   })
 }
 
@@ -388,6 +392,8 @@ class CSRFile(
   val reg_frm = Reg(UInt(width = 3))
   val reg_vconfig = usingVector.option(Reg(new VConfig))
   val reg_vstart = usingVector.option(Reg(UInt(maxVLMax.log2.W)))
+  val reg_vxsat = usingVector.option(Reg(Bool()))
+  val reg_vxrm = usingVector.option(Reg(UInt(io.vector.get.vxrm.getWidth.W)))
 
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
@@ -423,6 +429,7 @@ class CSRFile(
     (if (usingAtomics) "A" else "") +
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +
+    (if (usingVector) "V" else "") +
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
@@ -455,10 +462,13 @@ class CSRFile(
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
-  val fp_csrs = if (!usingFPU) LinkedHashMap() else LinkedHashMap[Int,Bits](
-    CSRs.fflags -> reg_fflags,
-    CSRs.frm -> reg_frm,
-    CSRs.fcsr -> Cat(reg_frm, reg_fflags))
+  val read_fcsr = Cat(reg_frm, reg_fflags) | (reg_vxsat.getOrElse(0.U) << 8) | (reg_vxrm.getOrElse(0.U) << 9)
+  val fp_csrs = LinkedHashMap[Int,Bits]() ++
+    usingFPU.option(CSRs.fflags -> reg_fflags) ++
+    usingFPU.option(CSRs.frm -> reg_frm) ++
+    (usingFPU || usingVector).option(CSRs.fcsr -> read_fcsr) ++
+    reg_vxsat.map(CSRs.vxsat -> _) ++
+    reg_vxrm.map(CSRs.vxrm -> _)
 
   val vector_csrs = if (!usingVector) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.vstart -> reg_vstart.get,
@@ -511,6 +521,7 @@ class CSRFile(
     read_sstatus.sum := io.status.sum
     read_sstatus.xs := io.status.xs
     read_sstatus.fs := io.status.fs
+    read_sstatus.vs := io.status.vs
     read_sstatus.spp := io.status.spp
     read_sstatus.spie := io.status.spie
     read_sstatus.sie := io.status.sie
@@ -583,7 +594,7 @@ class CSRFile(
     val allow_counter = (reg_mstatus.prv > PRV.S || read_mcounteren(counter_addr)) &&
       (!usingVM || reg_mstatus.prv >= PRV.S || read_scounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
-    io_dec.vector_illegal := false.B // TODO: mstatus.VS field not yet defined
+    io_dec.vector_illegal := io.status.vs === 0 || !reg_misa('v'-'a')
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
     io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
     io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
@@ -630,7 +641,7 @@ class CSRFile(
   io.eret := insn_call || insn_break || insn_ret
   io.singleStep := reg_dcsr.step && !reg_debug
   io.status := reg_mstatus
-  io.status.sd := io.status.fs.andR || io.status.xs.andR
+  io.status.sd := io.status.fs.andR || io.status.xs.andR || io.status.vs.andR
   io.status.debug := reg_debug
   io.status.isa := reg_misa
   io.status.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
@@ -744,6 +755,14 @@ class CSRFile(
     }
   }})
 
+  val set_vs_dirty = Wire(init = io.vector.map(_.set_vs_dirty).getOrElse(false.B))
+  io.vector.foreach { vio =>
+    when (set_vs_dirty) {
+      assert(reg_mstatus.vs > 0)
+      reg_mstatus.vs := 3
+    }
+  }
+
   val set_fs_dirty = Wire(init = io.set_fs_dirty.getOrElse(false.B))
   if (coreParams.haveFSDirty) {
     when (set_fs_dirty) {
@@ -756,6 +775,13 @@ class CSRFile(
   when (io.fcsr_flags.valid) {
     reg_fflags := reg_fflags | io.fcsr_flags.bits
     set_fs_dirty := true
+  }
+
+  io.vector.foreach { vio =>
+    when (vio.set_vxsat) {
+      reg_vxsat.get := true
+      set_fs_dirty := true
+    }
   }
 
   val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
@@ -781,7 +807,8 @@ class CSRFile(
         }
       }
 
-      if (usingVM || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
+      if (usingVM || usingFPU || usingVector) reg_mstatus.fs := formFS(new_mstatus.fs)
+      reg_mstatus.vs := formVS(new_mstatus.vs)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
     when (decoded_addr(CSRs.misa)) {
@@ -825,7 +852,15 @@ class CSRFile(
     if (usingFPU) {
       when (decoded_addr(CSRs.fflags)) { set_fs_dirty := true; reg_fflags := wdata }
       when (decoded_addr(CSRs.frm))    { set_fs_dirty := true; reg_frm := wdata }
-      when (decoded_addr(CSRs.fcsr))   { set_fs_dirty := true; reg_fflags := wdata; reg_frm := wdata >> reg_fflags.getWidth }
+    }
+    if (usingFPU || usingVector) {
+      when (decoded_addr(CSRs.fcsr)) {
+        set_fs_dirty := true
+        reg_fflags := wdata
+        reg_frm := wdata >> reg_fflags.getWidth
+        reg_vxsat.foreach(_ := wdata >> 8)
+        reg_vxrm.foreach(_ := wdata >> 9)
+      }
     }
     if (usingDebug) {
       when (decoded_addr(CSRs.dcsr)) {
@@ -848,6 +883,7 @@ class CSRFile(
         reg_mstatus.mxr := new_sstatus.mxr
         reg_mstatus.sum := new_sstatus.sum
         reg_mstatus.fs := formFS(new_sstatus.fs)
+        reg_mstatus.vs := formVS(new_sstatus.vs)
         if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
@@ -921,20 +957,25 @@ class CSRFile(
       }
     }
     if (usingVector) {
-      when (decoded_addr(CSRs.vstart)) { reg_vstart.get := wdata }
+      when (decoded_addr(CSRs.vstart)) { set_vs_dirty := true; reg_vstart.get := wdata }
+      when (decoded_addr(CSRs.vxrm))   { set_fs_dirty := true; reg_vxrm.get := wdata }
+      when (decoded_addr(CSRs.vxsat))  { set_fs_dirty := true; reg_vxsat.get := wdata }
     }
   }
 
   io.vector.map { vio =>
     when (vio.set_vconfig.valid) {
+      // user of CSRFile is responsible for set_vs_dirty in this case
       assert(vio.set_vconfig.bits.vl <= vio.set_vconfig.bits.vtype.vlMax)
       reg_vconfig.get := vio.set_vconfig.bits
     }
     when (vio.set_vstart.valid) {
+      set_vs_dirty := true
       reg_vstart.get := vio.set_vstart.bits
     }
     vio.vstart := reg_vstart.get
     vio.vconfig := reg_vconfig.get
+    vio.vxrm := reg_vxrm.get
 
     when (reset.toBool) {
       reg_vconfig.get.vtype := 0.U.asTypeOf(new VType)
@@ -1020,4 +1061,5 @@ class CSRFile(
   def formTVec(x: UInt) = x andNot Mux(x(0), ((((BigInt(1) << mtvecInterruptAlign) - 1) << mtvecBaseAlign) | 2).U, 2)
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
   def formFS(fs: UInt) = if (coreParams.haveFSDirty) fs else Fill(2, fs.orR)
+  def formVS(vs: UInt) = if (usingVector) vs else 0.U
 }
