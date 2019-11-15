@@ -104,9 +104,7 @@ object PropertyClass {
   object CoverDisableMonitor extends PropertyClass("CoverDisableMonitor")
 }
 
-abstract class Property extends BaseProperty{}
-
-object Property extends BaseProperty{
+object Property extends PropertyClass{
   private var propLib: BasePropertyLibrary = new DefaultPropertyLibrary
   def setPropLib(lib: BasePropertyLibrary): Unit = this.synchronized {
     propLib = lib
@@ -196,7 +194,7 @@ object Property extends BaseProperty{
 
 //  Each boolean expression can be associated with more than one label
 
-class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], message: String) extends Property {
+class BooleanCross(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], message: String){
   def listProperties(c1: CoverBoolean, c2: Seq[CoverBoolean]): Seq[CoverBoolean] = {
     if (c2.isEmpty) {
       Seq(c1)
@@ -235,14 +233,14 @@ class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], mes
     }
   }
 
-  def generateProperties(): Seq[CoverPropertyParameters] = {
+/*  def generateProperties(): Seq[CoverPropertyParameters] = {
     crossProperties(cond).filter(c => !SeqsinSequence(c.labels, exclude)).map( (c: CoverBoolean) => {
       new CoverPropertyParameters(
         cond = c.cond,
         label = c.labels.reduce( (s1: String, s2: String) => {s1 + "_" + s2} ),
         message = message + " " + c.labels.map("<" + _ + ">").reduce ( (s1: String, s2: String) => { s1 + " X " + s2 }))
     })
-  }
+  }*/
 
 }
 
