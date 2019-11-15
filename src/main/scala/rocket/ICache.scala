@@ -12,7 +12,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.dontTouch
+import chisel3.dontTouch
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -134,7 +134,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val dECC = cacheParams.dataCode
 
   require(isPow2(nSets) && isPow2(nWays))
-  require(!usingVM || pgIdxBits >= untagBits, s"I$$ set size must not exceed ${1<<(pgIdxBits-10)} KiB; got ${(outer.size/nWays)>>10} KiB")
+  require(!usingVM || outer.icacheParams.itimAddr.isEmpty || pgIdxBits >= untagBits,
+    s"When VM and ITIM are enabled, I$$ set size must not exceed ${1<<(pgIdxBits-10)} KiB; got ${(outer.size/nWays)>>10} KiB")
 
   val scratchpadOn = RegInit(false.B)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
@@ -152,7 +153,11 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s2_slaveValid = RegNext(s1_slaveValid, false.B)
   val s3_slaveValid = RegNext(false.B)
 
+  val s0_valid = io.req.fire()
+  val s0_vaddr = io.req.bits.addr
+
   val s1_valid = Reg(init=Bool(false))
+  val s1_vaddr = RegEnable(s0_vaddr, s0_valid)
   val s1_tag_hit = Wire(Vec(nWays, Bool()))
   val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
   dontTouch(s1_hit)
@@ -167,14 +172,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s2_miss = s2_valid && !s2_hit && !io.s2_kill
   val s1_can_request_refill = !(s2_miss || refill_valid)
   val s2_request_refill = s2_miss && RegNext(s1_can_request_refill)
-  val refill_addr = RegEnable(io.s1_paddr, s1_valid && s1_can_request_refill)
-  val refill_tag = refill_addr(tagBits+untagBits-1,untagBits)
-  val refill_idx = refill_addr(untagBits-1,blockOffBits)
+  val refill_paddr = RegEnable(io.s1_paddr, s1_valid && s1_can_request_refill)
+  val refill_vaddr = RegEnable(s1_vaddr, s1_valid && s1_can_request_refill)
+  val refill_tag = refill_paddr >> pgUntagBits
+  val refill_idx = index(refill_vaddr, refill_paddr)
   val refill_one_beat = tl_out.d.fire() && edge_out.hasData(tl_out.d.bits)
 
   io.req.ready := !(refill_one_beat || s0_slaveValid || s3_slaveValid)
-  val s0_valid = io.req.fire()
-  val s0_vaddr = io.req.bits.addr
   s1_valid := s0_valid
 
   val (_, _, d_done, refill_cnt) = edge_out.count(tl_out.d)
@@ -234,8 +238,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s1s3_slaveData = Reg(UInt(width = wordBits))
 
   for (i <- 0 until nWays) {
-    val s1_idx = io.s1_paddr(untagBits-1,blockOffBits)
-    val s1_tag = io.s1_paddr(tagBits+untagBits-1,untagBits)
+    val s1_idx = index(s1_vaddr, io.s1_paddr)
+    val s1_tag = io.s1_paddr >> pgUntagBits
     val scratchpadHit = scratchpadWayValid(i) &&
       Mux(s1_slaveValid,
         lineInScratchpad(scratchpadLine(s1s3_slaveAddr)) && scratchpadWay(s1s3_slaveAddr) === i,
@@ -399,10 +403,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   tl_out.a.valid := s2_request_refill
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
-                    toAddress = (refill_addr >> blockOffBits) << blockOffBits,
+                    toAddress = (refill_paddr >> blockOffBits) << blockOffBits,
                     lgSize = lgCacheBlockBytes)._2
   if (cacheParams.prefetch) {
-    val (crosses_page, next_block) = Split(refill_addr(pgIdxBits-1, blockOffBits) +& 1, pgIdxBits-blockOffBits)
+    val (crosses_page, next_block) = Split(refill_paddr(pgIdxBits-1, blockOffBits) +& 1, pgIdxBits-blockOffBits)
     when (tl_out.a.fire()) {
       send_hint := !hint_outstanding && io.s2_prefetch && !crosses_page
       when (send_hint) {
@@ -421,7 +425,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       tl_out.a.valid := true
       tl_out.a.bits := edge_out.Hint(
                         fromSource = UInt(1),
-                        toAddress = Cat(refill_addr >> pgIdxBits, next_block) << blockOffBits,
+                        toAddress = Cat(refill_paddr >> pgIdxBits, next_block) << blockOffBits,
                         lgSize = lgCacheBlockBytes,
                         param = TLHints.PREFETCH_READ)._2
     }
@@ -444,6 +448,12 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   io.keep_clock_enabled :=
     tl_in.map(tl => tl.a.valid || tl.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid).getOrElse(false.B) || // ITIM
     s1_valid || s2_valid || refill_valid || send_hint || hint_outstanding // I$
+
+  def index(vaddr: UInt, paddr: UInt) = {
+    val lsbs = paddr(pgUntagBits-1, blockOffBits)
+    val msbs = (idxBits+blockOffBits > pgUntagBits).option(vaddr(idxBits+blockOffBits-1, pgUntagBits))
+    msbs ## lsbs
+  }
 
   ccover(!send_hint && (tl_out.a.valid && !tl_out.a.ready), "MISS_A_STALL", "I$ miss blocked by A-channel")
   ccover(invalidate && refill_valid, "FLUSH_DURING_MISS", "I$ flushed during miss")

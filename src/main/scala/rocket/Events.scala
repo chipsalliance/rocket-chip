@@ -37,7 +37,10 @@ class EventSets(val eventSets: Seq[EventSet]) {
 
   def evaluate(eventSel: UInt): Bool = {
     val (set, mask) = decode(eventSel)
-    val sets = eventSets map (_ check mask)
+    val sets = for (e <- eventSets) yield {
+      require(e.hits.getWidth <= mask.getWidth, s"too many events ${e.hits.getWidth} wider than mask ${mask.getWidth}")
+      e check mask
+    }
     sets(set)
   }
 

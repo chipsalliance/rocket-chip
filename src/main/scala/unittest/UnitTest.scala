@@ -3,7 +3,7 @@
 package freechips.rocketchip.unittest
 
 import Chisel._
-import chisel3.experimental.MultiIOModule
+import chisel3.MultiIOModule
 import freechips.rocketchip.config._
 import freechips.rocketchip.util._
 

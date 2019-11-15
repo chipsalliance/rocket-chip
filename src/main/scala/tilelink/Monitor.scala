@@ -23,6 +23,14 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
   legalize(io.in, args.edge, reset)
 }
 
+object TLMonitor {
+  def apply(enable: Boolean, node: TLNode)(implicit p: Parameters): TLNode = {
+    if (enable) {
+      EnableMonitors { implicit p => node := TLEphemeralNode()(ValName("monitor")) }
+    } else { node }
+  }
+}
+
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
   val cover_prop_class = PropertyClass.Default

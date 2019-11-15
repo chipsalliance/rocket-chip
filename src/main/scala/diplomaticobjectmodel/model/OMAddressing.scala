@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import chisel3.experimental.RawModule
 import freechips.rocketchip.regmapper._
 
 trait OMRange extends OMCompoundType {

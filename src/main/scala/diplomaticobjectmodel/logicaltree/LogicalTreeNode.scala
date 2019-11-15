@@ -25,6 +25,8 @@ object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
 
   def add(parent: LogicalTreeNode, child: => LogicalTreeNode): Unit = {
+    require(parent != null, "Cannot add null parent to the LogicalModuleTree")
+    require(child != null, "Cannot add null child to the LogicalModuleTree")
     val treeOpt = tree.get(parent)
     val treeNode = treeOpt.map{
       children => child +: children

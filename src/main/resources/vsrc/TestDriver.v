@@ -99,6 +99,12 @@ module TestDriver;
     end
 
 `endif
+
+    if (dump_start == 0)
+    begin
+      // Start dumping before first clock edge to capture reset sequence in waveform
+      `VCDPLUSON
+    end
   end
 
 `ifdef TESTBENCH_IN_UVM
@@ -118,12 +124,14 @@ module TestDriver;
       $fdisplay(stderr, "C: %10d", trace_count);
     end
 `endif
+
+    trace_count = trace_count + 1;
+
     if (trace_count == dump_start)
     begin
       `VCDPLUSON
     end
 
-    trace_count = trace_count + 1;
     if (!reset)
     begin
       if (max_cycles > 0 && trace_count > max_cycles)

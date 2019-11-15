@@ -3,7 +3,7 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import chisel3.experimental.dontTouch
+import chisel3.dontTouch
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.TLDebugModule
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, CLINTConsts, TLPLIC, PLICKey}
