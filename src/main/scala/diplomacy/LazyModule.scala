@@ -35,12 +35,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     this
   }
 
-  private def findClassName(c: Class[_]): String = {
-    val n = c.getName.split('.').last
-    if (n.contains('$')) findClassName(c.getSuperclass) else n
-  }
-
-  lazy val className = findClassName(getClass)
+  lazy val className = getClass.getSimpleName
   lazy val suggestedName = suggestedNameVar.getOrElse(className)
   lazy val desiredName = className // + hashcode?
 
