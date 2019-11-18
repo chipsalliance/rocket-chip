@@ -477,7 +477,8 @@ class CSRFile(
   val vector_csrs = if (!usingVector) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.vstart -> reg_vstart.get,
     CSRs.vtype -> reg_vconfig.get.vtype.asUInt,
-    CSRs.vl -> reg_vconfig.get.vl)
+    CSRs.vl -> reg_vconfig.get.vl,
+    CSRs.vlenb -> (vLen / 8).U)
 
   read_mapping ++= debug_csrs
   read_mapping ++= fp_csrs
