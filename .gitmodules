@@ -5,6 +5,7 @@
 [submodule "torture"]
 	path = torture
 	url = https://github.com/ucb-bar/riscv-torture.git
+	branch = master
 [submodule "chisel3"]
 	path = chisel3
 	url = https://github.com/ucb-bar/chisel3.git
@@ -16,3 +17,4 @@
 [submodule "api-config-chipsalliance"]
 	path = api-config-chipsalliance
 	url = https://github.com/chipsalliance/api-config-chipsalliance.git
+	branch = master
