@@ -14,7 +14,19 @@ object ClockImp extends SimpleNodeImp[ClockSourceParameters, ClockSinkParameters
 }
 
 case class ClockSourceNode(val portParams: Seq[ClockSourceParameters])(implicit valName: ValName) extends SourceNode(ClockImp)(portParams)
+{
+  def fixedClockResources(name: String, prefix: String = "soc/"): Seq[Option[FixedClockResource]] = portParams.map { p =>
+    p.give.map(g => new FixedClockResource(name, g.freqMHz, prefix))
+  }
+}
+
 case class ClockSinkNode(val portParams: Seq[ClockSinkParameters])(implicit valName: ValName) extends SinkNode(ClockImp)(portParams)
+{
+  def fixedClockResources(name: String, prefix: String = "soc/"): Seq[Option[FixedClockResource]] = portParams.map { p =>
+    p.take.map(t => new FixedClockResource(name, t.freqMHz, prefix))
+  }
+}
+
 case class ClockAdapterNode(
   sourceFn: ClockSourceParameters => ClockSourceParameters = { m => m },
   sinkFn:   ClockSinkParameters   => ClockSinkParameters   = { s => s })(
