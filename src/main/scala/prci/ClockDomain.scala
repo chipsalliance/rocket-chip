@@ -1,4 +1,4 @@
-package freechips.rocketchip.clocks
+package freechips.rocketchip.prci
 
 import chisel3._
 import freechips.rocketchip.config.Parameters
