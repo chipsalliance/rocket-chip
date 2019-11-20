@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.experimental._
+import chisel3.{DontCare, WireInit, withClock}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -719,22 +719,28 @@ class CSRFile(
   }
 
   when (insn_ret) {
+    val ret_prv = WireInit(UInt(), DontCare)
     when (Bool(usingVM) && !io.rw.addr(9)) {
       reg_mstatus.sie := reg_mstatus.spie
       reg_mstatus.spie := true
       reg_mstatus.spp := PRV.U
-      new_prv := reg_mstatus.spp
+      ret_prv := reg_mstatus.spp
       io.evec := readEPC(reg_sepc)
     }.elsewhen (Bool(usingDebug) && io.rw.addr(10)) {
-      new_prv := reg_dcsr.prv
+      ret_prv := reg_dcsr.prv
       reg_debug := false
       io.evec := readEPC(reg_dpc)
     }.otherwise {
       reg_mstatus.mie := reg_mstatus.mpie
       reg_mstatus.mpie := true
       reg_mstatus.mpp := legalizePrivilege(PRV.U)
-      new_prv := reg_mstatus.mpp
+      ret_prv := reg_mstatus.mpp
       io.evec := readEPC(reg_mepc)
+    }
+
+    new_prv := ret_prv
+    when (usingUser && ret_prv < PRV.M) {
+      reg_mstatus.mprv := false
     }
   }
 
