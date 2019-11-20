@@ -258,8 +258,8 @@ object VType {
 
   def fromUInt(that: UInt)(implicit p: Parameters): VType = fromUInt(that, false)
 
-  def computeVL(avl: UInt, vtype: UInt, currentVL: UInt, useCurrentVL: Bool, useZero: Bool)(implicit p: Parameters): UInt =
-    VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useZero)
+  def computeVL(avl: UInt, vtype: UInt, currentVL: UInt, useCurrentVL: Bool, useMax: Bool, useZero: Bool)(implicit p: Parameters): UInt =
+    VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useMax, useZero)
 }
 
 class VType(implicit p: Parameters) extends CoreBundle {
@@ -274,8 +274,8 @@ class VType(implicit p: Parameters) extends CoreBundle {
   def vlMax: UInt = (maxVLMax >> (this.vsew +& ~this.vlmul)).andNot(minVLMax-1)
   def vlMaxInBytes: UInt = maxVLMax >> ~this.vlmul
 
-  def vl(avl: UInt, currentVL: UInt, useCurrentVL: Bool, useZero: Bool): UInt = {
-    val atLeastMaxVLMax = Mux(useCurrentVL, currentVL >= maxVLMax, avl >= maxVLMax)
+  def vl(avl: UInt, currentVL: UInt, useCurrentVL: Bool, useMax: Bool, useZero: Bool): UInt = {
+    val atLeastMaxVLMax = useMax || Mux(useCurrentVL, currentVL >= maxVLMax, avl >= maxVLMax)
     val avl_lsbs = Mux(useCurrentVL, currentVL, avl)(maxVLMax.log2 - 1, 0)
 
     val atLeastVLMax = atLeastMaxVLMax || (avl_lsbs & (-maxVLMax.S >> (this.vsew +& ~this.vlmul)).asUInt.andNot(minVLMax-1)).orR
