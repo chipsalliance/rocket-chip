@@ -546,7 +546,7 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
     val bundles = this.out.map(_._1)
     val ios = IO(Flipped(new HeterogeneousBag(bundles.map(_.cloneType))))
-    ios.suggestName(valName.toString)
+    ios.suggestName(valName.name)
     bundles.zip(ios).foreach { case (bundle, io) => bundle <> io }
     ios
   }
