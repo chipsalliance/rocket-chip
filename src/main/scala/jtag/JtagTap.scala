@@ -4,13 +4,8 @@ package freechips.rocketchip.jtag
 
 import scala.collection.SortedMap
 
-// !!! See Issue #1160.
-// import chisel3._
-import Chisel._
-import chisel3.core.{Input, Output}
+import chisel3._
 import chisel3.util._
-import chisel3.experimental.withReset
-
 import freechips.rocketchip.config.Parameters
 
 /** JTAG signals, viewed from the master side
@@ -119,8 +114,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     nextActiveInstruction := irChain.io.update.bits
     updateInstruction := true.B
   } .otherwise {
-    //!!! Needed when using chisel3._ (See #1160)
-    // nextActiveInstruction := DontCare
+    // Needed when using chisel3._ (See #1160)
+    nextActiveInstruction := DontCare
     updateInstruction := false.B
   }
   io.output.instruction := activeInstruction
@@ -145,8 +140,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     tdo := irChain.io.chainOut.data
     tdo_driven := true.B
   } .otherwise {
-    //!!! Needed when using chisel3._ (See #1160)
-    //tdo := DontCare
+    // Needed when using chisel3._ (See #1160)
+    tdo := DontCare
     tdo_driven := false.B
   }
 }
@@ -232,6 +227,8 @@ object JtagTapGenerator {
       }
     }
 
+    controllerInternal.io.dataChainIn := bypassChain.io.chainOut  // default
+
     def foldOutSelect(res: WhenContext, x: (Chain, Bool)): WhenContext = {
       val (chain, select) = x
       // Continue the WhenContext with if this chain is selected
@@ -256,7 +253,7 @@ object JtagTapGenerator {
 
     chainToSelect.map(mapInSelect)
 
-    controllerInternal.io.jtag <> internalIo.jtag
+    internalIo.jtag <> controllerInternal.io.jtag
     internalIo.control <> controllerInternal.io.control
     internalIo.output <> controllerInternal.io.output
 

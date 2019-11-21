@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.debug
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
@@ -35,17 +36,17 @@ object dtmJTAGAddrs {
 }
 
 class DMIAccessUpdate(addrBits: Int) extends Bundle {
-  val addr = UInt(width = addrBits)
-  val data = UInt(width = DMIConsts.dmiDataSize)
-  val op = UInt(width = DMIConsts.dmiOpSize)
+  val addr = UInt(addrBits.W)
+  val data = UInt(DMIConsts.dmiDataSize.W)
+  val op = UInt(DMIConsts.dmiOpSize.W)
 
   override def cloneType = new DMIAccessUpdate(addrBits).asInstanceOf[this.type]
 }
 
 class DMIAccessCapture(addrBits: Int) extends Bundle {
-  val addr = UInt(width = addrBits)
-  val data = UInt(width = DMIConsts.dmiDataSize)
-  val resp = UInt(width = DMIConsts.dmiRespSize)
+  val addr = UInt(addrBits.W)
+  val data = UInt(DMIConsts.dmiDataSize.W)
+  val resp = UInt(DMIConsts.dmiRespSize.W)
 
   override def cloneType = new DMIAccessCapture(addrBits).asInstanceOf[this.type]
 
@@ -63,63 +64,62 @@ class DTMInfo extends Bundle {
 
 /** A wrapper around JTAG providing a reset signal and manufacturer id. */
 class SystemJTAGIO extends Bundle {
-  val jtag = new JTAGIO(hasTRSTn = false).flip
-  val reset = Bool(INPUT)
-  val mfr_id = UInt(INPUT, 11)
-  val part_number = UInt(INPUT, 16)
-  val version = UInt(INPUT, 4)
+  val jtag = Flipped(new JTAGIO(hasTRSTn = false))
+  val reset = Input(Bool())
+  val mfr_id = Input(UInt(11.W))
+  val part_number = Input(UInt(16.W))
+  val version = Input(UInt(4.W))
 }
 
 class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   (implicit val p: Parameters) extends Module  {
 
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
-    val jtag_reset = Bool(INPUT)
-    val jtag_mfr_id = UInt(INPUT, 11)
-    val jtag_part_number = UInt(INPUT, 16)
-    val jtag_version = UInt(INPUT, 4)
-    val fsmReset = Bool(OUTPUT)
-  }
+    val jtag_reset = Input(Bool())
+    val jtag_mfr_id = Input(UInt(11.W))
+    val jtag_part_number = Input(UInt(16.W))
+    val jtag_version = Input(UInt(4.W))
+    val fsmReset = Output(Bool())
+  })
 
   //--------------------------------------------------------
   // Reg and Wire Declarations
 
   val dtmInfo = Wire(new DTMInfo)
 
-  val busyReg = RegInit(Bool(false))
-  val stickyBusyReg = RegInit(Bool(false))
-  val stickyNonzeroRespReg = RegInit(Bool(false))
+  val busyReg = RegInit(false.B)
+  val stickyBusyReg = RegInit(false.B)
+  val stickyNonzeroRespReg = RegInit(false.B)
 
-  val downgradeOpReg = Reg(init = Bool(false)) // downgrade op because prev. failed.
+  val downgradeOpReg = RegInit(false.B) // downgrade op because prev. failed.
 
   val busy = Wire(Bool())
   val nonzeroResp = Wire(Bool())
 
   val busyResp    = Wire(new DMIAccessCapture(debugAddrBits))
-  val nonbusyResp = Wire(new DMIAccessCapture(debugAddrBits))
   val dmiResp     = Wire(new DMIAccessCapture(debugAddrBits))
   val nopResp     = Wire(new DMIAccessCapture(debugAddrBits))
 
 
   val dmiReqReg  = Reg(new DMIReq(debugAddrBits))
-  val dmiReqValidReg = Reg(init = Bool(false));
+  val dmiReqValidReg = RegInit(false.B)
 
-  val dmiStatus = Wire(UInt(width = 2))
+  val dmiStatus = Wire(UInt(2.W))
 
   //--------------------------------------------------------
   // DTM Info Chain Declaration
 
   dmiStatus := Cat(stickyNonzeroRespReg, stickyNonzeroRespReg | stickyBusyReg)
 
-  dtmInfo.debugVersion   := 1.U // This implements version 1 of the spec.
-  dtmInfo.debugAddrBits  := UInt(debugAddrBits)
+  dtmInfo.debugVersion  := 1.U // This implements version 1 of the spec.
+  dtmInfo.debugAddrBits := debugAddrBits.U
   dtmInfo.dmiStatus     := dmiStatus
-  dtmInfo.dmiIdleCycles := UInt(c.debugIdleCycles)
-  dtmInfo.reserved0      := 0.U
+  dtmInfo.dmiIdleCycles := c.debugIdleCycles.U
+  dtmInfo.reserved0     := 0.U
   dtmInfo.dmireset      := false.B // This is write-only
-  dtmInfo.reserved1      := 0.U
+  dtmInfo.reserved1     := 0.U
 
   val dtmInfoChain = Module (CaptureUpdateChain(gen = new DTMInfo()))
   dtmInfoChain.io.capture.bits := dtmInfo
@@ -137,10 +137,10 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // We stop being busy when we accept a response.
 
   when (io.dmi.req.valid) {
-    busyReg := Bool(true)
+    busyReg := true.B
   }
   when (io.dmi.resp.fire()) {
-    busyReg := Bool(false)
+    busyReg := false.B
   }
 
   // We are busy during a given CAPTURE
@@ -154,7 +154,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // during every CAPTURE_DR, and use the result in UPDATE_DR.
   // The sticky versions are reset by write to dmiReset in DTM_INFO.
   when (dmiAccessChain.io.update.valid) {
-    downgradeOpReg := Bool(false)
+    downgradeOpReg := false.B
   }
   when (dmiAccessChain.io.capture.capture) {
     downgradeOpReg := (!busy & nonzeroResp)
@@ -163,8 +163,8 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   }
   when (dtmInfoChain.io.update.valid) {
     when (dtmInfoChain.io.update.bits.dmireset) {
-      stickyNonzeroRespReg := Bool(false)
-      stickyBusyReg := Bool(false)
+      stickyNonzeroRespReg := false.B
+      stickyBusyReg := false.B
     }
   }
 
@@ -174,21 +174,21 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // But there is actually no case in the current design where you SHOULD get an error,
   // as we haven't implemented Bus Masters or Serial Ports, which are the only cases errors
   // can occur.
-  nonzeroResp := stickyNonzeroRespReg | (io.dmi.resp.valid & (io.dmi.resp.bits.resp =/= UInt(0)))
+  nonzeroResp := stickyNonzeroRespReg | (io.dmi.resp.valid & (io.dmi.resp.bits.resp =/= 0.U))
   assert(!nonzeroResp, "There is no reason to get a non zero response in the current system.");
   assert(!stickyNonzeroRespReg, "There is no reason to have a sticky non zero response in the current system.");
 
-  busyResp.addr  := UInt(0)
-  busyResp.resp  := Fill(DMIConsts.dmiRespSize, 1.U) // Generalizing busy to 'all-F'
-  busyResp.data  := UInt(0)
+  busyResp.addr  := 0.U
+  busyResp.resp  := ~(0.U(DMIConsts.dmiRespSize.W)) // Generalizing busy to 'all-F'
+  busyResp.data  := 0.U
 
   dmiResp.addr := dmiReqReg.addr
   dmiResp.resp := io.dmi.resp.bits.resp
   dmiResp.data := io.dmi.resp.bits.data
 
-  nopResp.addr := UInt(0)
-  nopResp.resp := UInt(0)
-  nopResp.data := UInt(0)
+  nopResp.addr := 0.U
+  nopResp.resp := 0.U
+  nopResp.data := 0.U
 
   //--------------------------------------------------------
   // Debug Access Chain Implementation
@@ -198,7 +198,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   //--------------------------------------------------------
   // Drive Ready Valid Interface
 
-  val dmiReqValidCheck = Wire(init = Bool(false))
+  val dmiReqValidCheck = WireInit(false.B)
   assert(!(dmiReqValidCheck && io.dmi.req.fire()), "Conflicting updates for dmiReqValidReg, should not happen.");
 
   when (dmiAccessChain.io.update.valid) {
@@ -206,18 +206,18 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
       // Do Nothing
     }.elsewhen (downgradeOpReg || (dmiAccessChain.io.update.bits.op === DMIConsts.dmi_OP_NONE)) {
       //Do Nothing
-      dmiReqReg.addr := UInt(0)
-      dmiReqReg.data := UInt(0)
-      dmiReqReg.op   := UInt(0)
+      dmiReqReg.addr := 0.U
+      dmiReqReg.data := 0.U
+      dmiReqReg.op   := 0.U
     }.otherwise {
       dmiReqReg := dmiAccessChain.io.update.bits
-      dmiReqValidReg := Bool(true)
-      dmiReqValidCheck := Bool(true)
+      dmiReqValidReg := true.B
+      dmiReqValidCheck := true.B
     }
   }
 
   when (io.dmi.req.fire()) {
-    dmiReqValidReg := Bool(false)
+    dmiReqValidReg := false.B
   }
 
   io.dmi.resp.ready := Mux(
@@ -244,7 +244,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
   //--------------------------------------------------------
   // Actual JTAG TAP
-  val idcode = Wire(init = new JTAGIdcodeBundle().fromBits(0.U))
+  val idcode = WireInit(0.U.asTypeOf(new JTAGIdcodeBundle()))
   idcode.always1    := 1.U
   idcode.version    := io.jtag_version
   idcode.partNumber := io.jtag_part_number

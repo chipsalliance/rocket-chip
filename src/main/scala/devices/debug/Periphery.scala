@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.devices.debug
 
-import Chisel._
-import chisel3.core.{IntParam, Input, Output}
+import chisel3._
+import chisel3.core.IntParam
+import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
@@ -41,14 +42,14 @@ case object ExportDebug extends Field(DebugAttachParams())
 class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) with Clocked
 
 class DebugIO(implicit val p: Parameters) extends Bundle {
-  val clockeddmi = p(ExportDebug).dmi.option(new ClockedDMIIO().flip)
+  val clockeddmi = p(ExportDebug).dmi.option(Flipped(new ClockedDMIIO()))
   val systemjtag = p(ExportDebug).jtag.option(new SystemJTAGIO)
-  val apb = p(ExportDebug).apb.option(new ClockedAPBBundle(APBBundleParameters(addrBits=12, dataBits=32)).flip)
+  val apb = p(ExportDebug).apb.option(Flipped(new ClockedAPBBundle(APBBundleParameters(addrBits=12, dataBits=32))))
   //------------------------------
-  val ndreset    = Bool(OUTPUT)
-  val dmactive   = Bool(OUTPUT)
+  val ndreset    = Output(Bool())
+  val dmactive   = Output(Bool())
   val extTrigger = (p(DebugModuleKey).get.nExtTriggers > 0).option(new DebugExtTriggerIO())
-  val disableDebug = p(ExportDebug).externalDisable.option(Bool(INPUT))
+  val disableDebug = p(ExportDebug).externalDisable.option(Input(Bool()))
 }
 
 class PSDIO(implicit val p: Parameters) extends Bundle with CanHavePSDTestModeIO {
@@ -118,9 +119,9 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     debug.extTrigger.foreach { x => outerdebug.module.io.extTrigger.foreach {y => x <> y}}
 
     // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
-    outerdebug.module.io.ctrl.debugUnavail.foreach { _ := Bool(false) }
+    outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
 
-    outerdebug.module.io.psd <> psd.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
+    outerdebug.module.io.psd <> psd.psd.getOrElse(WireInit(0.U.asTypeOf(new PSDTestMode)))
 
     debug
   }
@@ -133,7 +134,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.io.jtag <> sj.jtag
 
     debug.map(_.disableDebug.foreach { x => dtm.io.jtag.TMS := sj.jtag.TMS | x })  // force TMS high when debug is disabled
-    val psdio = psd.psd.getOrElse(Wire(new PSDTestMode).fromBits(0.U))
+    val psdio = psd.psd.getOrElse(WireInit(0.U.asTypeOf(new PSDTestMode)))
 
     dtm.clock          := sj.jtag.TCK
     dtm.io.jtag_reset  := sj.reset
@@ -152,12 +153,12 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
 }
 
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
-  val io = new Bundle {
-    val clk = Clock(INPUT)
-    val reset = Bool(INPUT)
+  val io = IO(new Bundle {
+    val clk = Input(Clock())
+    val reset = Input(Bool())
     val debug = new DMIIO
-    val exit = UInt(OUTPUT, 32)
-  }
+    val exit = Output(UInt(32.W))
+  })
 
   def connect(tbclk: Clock, tbreset: Bool, dutio: ClockedDMIIO, tbsuccess: Bool) = {
     io.clk := tbclk
@@ -166,9 +167,9 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
     dutio.dmiClock := tbclk
     dutio.dmiReset := tbreset
 
-    tbsuccess := io.exit === UInt(1)
-    when (io.exit >= UInt(2)) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
+    tbsuccess := io.exit === 1.U
+    when (io.exit >= 2.U) {
+      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
       stop(1)
     }
   }
@@ -179,14 +180,14 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
 
 class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
   with HasBlackBoxResource {
-  val io = new Bundle {
-    val clock = Clock(INPUT)
-    val reset = Bool(INPUT)
+  val io = IO(new Bundle {
+    val clock = Input(Clock())
+    val reset = Input(Bool())
     val jtag = new JTAGIO(hasTRSTn = true)
-    val enable = Bool(INPUT)
-    val init_done = Bool(INPUT)
-    val exit = UInt(OUTPUT, 32)
-  }
+    val enable = Input(Bool())
+    val init_done = Input(Bool())
+    val exit = Output(UInt())
+  })
 
   def connect(dutio: JTAGIO, tbclock: Clock, tbreset: Bool, init_done: Bool, tbsuccess: Bool) = {
     dutio <> io.jtag
@@ -199,9 +200,9 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
 
     // Success is determined by the gdbserver
     // which is controlling this simulation.
-    tbsuccess := io.exit === UInt(1)
-    when (io.exit >= UInt(2)) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> UInt(1))
+    tbsuccess := io.exit === 1.U
+    when (io.exit >= 2.U) {
+      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
       stop(1)
     }
   }
@@ -221,7 +222,7 @@ object Debug {
       out: Bool,
       tckHalfPeriod: Int = 2,
       cmdDelay: Int = 2,
-      psd: PSDTestMode = new PSDTestMode().fromBits(0.U))
+      psd: PSDTestMode = 0.U.asTypeOf(new PSDTestMode()))
       (implicit p: Parameters): Unit =  {
     debugOpt.map { debug =>
       debug.clockeddmi.foreach { d =>
@@ -238,39 +239,39 @@ object Debug {
         require(false, "No support for connectDebug for an APB debug connection.")
       }
       psdio.psd.foreach { _ <> psd }
-      debug.disableDebug.foreach { x => x := Bool(false) }
+      debug.disableDebug.foreach { x => x := false.B }
     }
   }
 
   def tieoffDebug(debugOpt: Option[DebugIO], psdio: Option[PSDIO] = None): Bool = {
 
-    psdio.foreach(_.psd.foreach { _ <> new PSDTestMode().fromBits(0.U)})
+    psdio.foreach(_.psd.foreach { _ <> 0.U.asTypeOf(new PSDTestMode()) } )
     debugOpt.map { debug =>
       debug.systemjtag.foreach { sj =>
-        sj.jtag.TCK := Bool(true).asClock
-        sj.jtag.TMS := Bool(true)
-        sj.jtag.TDI := Bool(true)
-        sj.jtag.TRSTn.foreach { r => r := Bool(true) }
-        sj.reset := Bool(true)
+        sj.jtag.TCK := true.B.asClock
+        sj.jtag.TMS := true.B
+        sj.jtag.TDI := true.B
+        sj.jtag.TRSTn.foreach { r => r := true.B }
+        sj.reset := true.B
         sj.mfr_id := 0.U
         sj.part_number := 0.U
         sj.version := 0.U
       }
 
       debug.clockeddmi.foreach { d =>
-        d.dmi.req.valid := Bool(false)
-        d.dmi.resp.ready := Bool(true)
-        d.dmiClock := Bool(false).asClock
-        d.dmiReset := Bool(true)
+        d.dmi.req.valid := false.B
+        d.dmi.resp.ready := true.B
+        d.dmiClock := false.B.asClock
+        d.dmiReset := true.B
       }
 
       debug.apb.foreach { apb =>
         apb.tieoff()
-        apb.clock := Bool(false).asClock
-        apb.reset := Bool(true)
+        apb.clock := false.B.asClock
+        apb.reset := true.B
       }
 
-      debug.disableDebug.foreach { x => x := Bool(false) }
+      debug.disableDebug.foreach { x => x := false.B }
       debug.ndreset
     }.getOrElse(false.B)
   }
