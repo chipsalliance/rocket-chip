@@ -193,7 +193,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     dutio.TCK := io.jtag.TCK
     dutio.TMS := io.jtag.TMS
     dutio.TDI := io.jtag.TDI
-    io.jtag.TDO := dutio.TCK
+    io.jtag.TDO := dutio.TDO
 
     io.clock := tbclock
     io.reset := tbreset
