@@ -190,7 +190,10 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
   })
 
   def connect(dutio: JTAGIO, tbclock: Clock, tbreset: Bool, init_done: Bool, tbsuccess: Bool) = {
-    dutio <> io.jtag
+    dutio.TCK := io.jtag.TCK
+    dutio.TMS := io.jtag.TMS
+    dutio.TDI := io.jtag.TDI
+    io.jtag.TDO := dutio.TCK
 
     io.clock := tbclock
     io.reset := tbreset
