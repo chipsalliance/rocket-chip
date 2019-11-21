@@ -172,6 +172,10 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle with Clocked 
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
+class TraceAux extends Bundle {
+  val stall = Bool()
+}
+
 class CSRDecodeIO extends Bundle {
   val csr = UInt(INPUT, CSR.ADDRSZ)
   val fp_illegal = Bool(OUTPUT)
