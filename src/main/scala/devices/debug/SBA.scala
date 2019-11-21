@@ -101,7 +101,7 @@ object SystemBusAccessModule
     val hasSBAddr3 = (sb2tl.module.edge.bundle.addressBits >= 97)
     val hasAddr    = Seq(true, hasSBAddr1, hasSBAddr2, hasSBAddr3)
 
-    val SBADDRESSFieldsReg = RegInit(VecInit(Seq.fill(4) {0.U(32.W)} ))
+    val SBADDRESSFieldsReg = Reg(Vec(4, UInt(32.W)))
     SBADDRESSFieldsReg.zipWithIndex.foreach { case(a,i) => a.suggestName("SBADDRESS"+i+"FieldsReg")}
     val SBADDRESSWrData    = WireInit(VecInit(Seq.fill(4) {0.U(32.W)} ))
     val SBADDRESSRdEn      = WireInit(VecInit(Seq.fill(4) {false.B} ))
@@ -123,6 +123,7 @@ object SystemBusAccessModule
         RegFieldGroup("dmi_sbaddr"+i, Some("SBA Address Register"), Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
           Some(RegFieldDesc("dmi_sbaddr"+i, "SBA address register", reset=Some(0), volatile=true)))))
       } else {
+        a := DontCare
         Seq.empty[RegField]
       }
     }
@@ -139,7 +140,7 @@ object SystemBusAccessModule
     val hasSBData2And3 = (cfg.maxSupportedSBAccess == 128)
     val hasData        = Seq(true, hasSBData1, hasSBData2And3, hasSBData2And3)
 
-    val SBDATAFieldsReg = RegInit(VecInit(Seq.fill(4) {VecInit(Seq.fill(4) {0.U(8.W)} )} ))
+    val SBDATAFieldsReg = Reg(Vec(4, Vec(4, UInt(8.W))))
     SBDATAFieldsReg.zipWithIndex.foreach { case(d,i) => d.zipWithIndex.foreach { case(d,j) => d.suggestName("SBDATA"+i+"BYTE"+j) }}
     val SBDATARdData    = WireInit(VecInit(Seq.fill(4) {0.U(32.W)} ))
     SBDATARdData.zipWithIndex.foreach { case(d,i) => d.suggestName("SBDATARdData"+i) }
@@ -166,6 +167,7 @@ object SystemBusAccessModule
         RegFieldGroup("dmi_sbdata"+i, Some("SBA Data Register"), Seq(RWNotify(32, SBDATARdData(i), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
           Some(RegFieldDesc("dmi_sbdata"+i, "SBA data register", reset=Some(0), volatile=true)))))
       } else {
+        for (j <- 0 to 3) { d(j) := DontCare }
         Seq.empty[RegField]
       }
     }

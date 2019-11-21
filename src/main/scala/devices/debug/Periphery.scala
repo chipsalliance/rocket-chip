@@ -186,7 +186,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     val jtag = new JTAGIO(hasTRSTn = true)
     val enable = Input(Bool())
     val init_done = Input(Bool())
-    val exit = Output(UInt())
+    val exit = Output(UInt(32.W))
   })
 
   def connect(dutio: JTAGIO, tbclock: Clock, tbreset: Bool, init_done: Bool, tbsuccess: Bool) = {
