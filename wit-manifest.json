@@ -10,12 +10,12 @@
         "source": "git@github.com:sifive/api-chisel3-sifive.git"
     },
     {
-        "commit": "c890e4f5e504fc79164bc17aa150b236f10cf921",
+        "commit": "e7ce9de294156a1e9045dc4da3ce3332933a6f02",
         "name": "chisel3",
         "source": "git@github.com:freechipsproject/chisel3.git"
     },
     {
-        "commit": "f7504d795454a38237a98c27d584c67f20985bdd",
+        "commit": "5e1df63bf1d02285e7a0df53ce02a537ab909620",
         "name": "firrtl",
         "source": "git@github.com:freechipsproject/firrtl.git"
     },
