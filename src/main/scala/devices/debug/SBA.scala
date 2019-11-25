@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.debug.systembusaccess
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -38,14 +39,14 @@ object SystemBusAccessModule
 
     val cfg = p(DebugModuleKey).get
 
-    val anyAddressWrEn = Wire(init = false.B).suggestName("anyAddressWrEn")
-    val anyDataRdEn    = Wire(init = false.B).suggestName("anyDataRdEn")
-    val anyDataWrEn    = Wire(init = false.B).suggestName("anyDataWrEn")
+    val anyAddressWrEn = WireInit(false.B).suggestName("anyAddressWrEn")
+    val anyDataRdEn    = WireInit(false.B).suggestName("anyDataRdEn")
+    val anyDataWrEn    = WireInit(false.B).suggestName("anyDataWrEn")
 
     // --- SBCS Status Register ---
     val SBCSFieldsReg = Reg(new SBCSFields()).suggestName("SBCSFieldsReg")
 
-    val SBCSFieldsRegReset = Wire(init = (new SBCSFields()).fromBits(0.U))
+    val SBCSFieldsRegReset = WireInit(0.U.asTypeOf(new SBCSFields()))
     SBCSFieldsRegReset.sbversion   := 1.U(1.W) // This code implements a version of the spec after January 1, 2018
     SBCSFieldsRegReset.sbbusy      := (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
     SBCSFieldsRegReset.sbaccess    := 2.U
@@ -56,17 +57,17 @@ object SystemBusAccessModule
     SBCSFieldsRegReset.sbaccess16  := (cfg.maxSupportedSBAccess >=  16).B
     SBCSFieldsRegReset.sbaccess8   := (cfg.maxSupportedSBAccess >=   8).B
 
-    val SBCSRdData         = Wire(init = new SBCSFields().fromBits(0.U)).suggestName("SBCSRdData")
+    val SBCSRdData         = WireInit(0.U.asTypeOf(new SBCSFields())).suggestName("SBCSRdData")
 
-    val SBCSWrDataVal      = Wire(init = 0.U(32.W))
-    val SBCSWrData         = Wire(init = new SBCSFields().fromBits(SBCSWrDataVal))
+    val SBCSWrDataVal      = WireInit(0.U(32.W))
+    val SBCSWrData         = WireInit(SBCSWrDataVal.asTypeOf(new SBCSFields()))
     
-    val sberrorWrEn        = Wire(init = false.B)
-    val sbreadondataWrEn   = Wire(init = false.B)
-    val sbautoincrementWrEn= Wire(init = false.B)
-    val sbaccessWrEn       = Wire(init = false.B)
-    val sbreadonaddrWrEn   = Wire(init = false.B)
-    val sbbusyerrorWrEn    = Wire(init = false.B)
+    val sberrorWrEn        = WireInit(false.B)
+    val sbreadondataWrEn   = WireInit(false.B)
+    val sbautoincrementWrEn= WireInit(false.B)
+    val sbaccessWrEn       = WireInit(false.B)
+    val sbreadonaddrWrEn   = WireInit(false.B)
+    val sbbusyerrorWrEn    = WireInit(false.B)
 
     val sbcsfields = RegFieldGroup("sbcs", Some("system bus access control and status"), Seq(
       RegField.r(1, SBCSRdData.sbaccess8,   RegFieldDesc("sbaccess8",   "8-bit accesses supported",   reset=Some(if (cfg.maxSupportedSBAccess >=   8) 1 else 0))),
@@ -100,13 +101,13 @@ object SystemBusAccessModule
     val hasSBAddr3 = (sb2tl.module.edge.bundle.addressBits >= 97)
     val hasAddr    = Seq(true, hasSBAddr1, hasSBAddr2, hasSBAddr3)
 
-    val SBADDRESSFieldsReg = Seq.fill(4)(Reg (UInt(32.W)))
+    val SBADDRESSFieldsReg = Reg(Vec(4, UInt(32.W)))
     SBADDRESSFieldsReg.zipWithIndex.foreach { case(a,i) => a.suggestName("SBADDRESS"+i+"FieldsReg")}
-    val SBADDRESSWrData    = Seq.fill(4)(Wire(UInt(32.W)))
-    val SBADDRESSRdEn      = Seq.fill(4)(Wire(Bool()))
-    val SBADDRESSWrEn      = Seq.fill(4)(Wire(Bool()))
+    val SBADDRESSWrData    = WireInit(VecInit(Seq.fill(4) {0.U(32.W)} ))
+    val SBADDRESSRdEn      = WireInit(VecInit(Seq.fill(4) {false.B} ))
+    val SBADDRESSWrEn      = WireInit(VecInit(Seq.fill(4) {false.B} ))
 
-    val autoIncrementedAddr = Wire(init = 0.U(128.W))
+    val autoIncrementedAddr = WireInit(0.U(128.W))
     autoIncrementedAddr := Cat(SBADDRESSFieldsReg.reverse) + (1.U << SBCSFieldsReg.sbaccess)
     autoIncrementedAddr.suggestName("autoIncrementedAddr")
 
@@ -122,6 +123,7 @@ object SystemBusAccessModule
         RegFieldGroup("dmi_sbaddr"+i, Some("SBA Address Register"), Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
           Some(RegFieldDesc("dmi_sbaddr"+i, "SBA address register", reset=Some(0), volatile=true)))))
       } else {
+        a := DontCare
         Seq.empty[RegField]
       }
     }
@@ -138,14 +140,14 @@ object SystemBusAccessModule
     val hasSBData2And3 = (cfg.maxSupportedSBAccess == 128)
     val hasData        = Seq(true, hasSBData1, hasSBData2And3, hasSBData2And3)
 
-    val SBDATAFieldsReg = Seq.fill(4)(Seq.fill(4)(Reg (UInt(8.W))))
+    val SBDATAFieldsReg = Reg(Vec(4, Vec(4, UInt(8.W))))
     SBDATAFieldsReg.zipWithIndex.foreach { case(d,i) => d.zipWithIndex.foreach { case(d,j) => d.suggestName("SBDATA"+i+"BYTE"+j) }}
-    val SBDATARdData    = Seq.fill(4)(Wire(UInt(32.W)))
+    val SBDATARdData    = WireInit(VecInit(Seq.fill(4) {0.U(32.W)} ))
     SBDATARdData.zipWithIndex.foreach { case(d,i) => d.suggestName("SBDATARdData"+i) }
-    val SBDATAWrData    = Seq.fill(4)(Wire(UInt(32.W)))
+    val SBDATAWrData    = WireInit(VecInit(Seq.fill(4) {0.U(32.W)} ))
     SBDATAWrData.zipWithIndex.foreach { case(d,i) => d.suggestName("SBDATAWrData"+i) }
-    val SBDATARdEn      = Seq.fill(4)(Wire(Bool()))
-    val SBDATAWrEn      = Seq.fill(4)(Wire(Bool()))
+    val SBDATARdEn      = WireInit(VecInit(Seq.fill(4) {false.B} ))
+    val SBDATAWrEn      = WireInit(VecInit(Seq.fill(4) {false.B} ))
     SBDATAWrEn.zipWithIndex.foreach { case(d,i) => d.suggestName("SBDATAWrEn"+i) }
 
     val sbdatafields: Seq[Seq[RegField]] = SBDATAFieldsReg.zipWithIndex.map { case(d,i) =>
@@ -165,6 +167,7 @@ object SystemBusAccessModule
         RegFieldGroup("dmi_sbdata"+i, Some("SBA Data Register"), Seq(RWNotify(32, SBDATARdData(i), SBDATAWrData(i), SBDATARdEn(i), SBDATAWrEn(i),
           Some(RegFieldDesc("dmi_sbdata"+i, "SBA data register", reset=Some(0), volatile=true)))))
       } else {
+        for (j <- 0 to 3) { d(j) := DontCare }
         Seq.empty[RegField]
       }
     }
@@ -180,7 +183,7 @@ object SystemBusAccessModule
                         (SBCSFieldsReg.sbaccess === 1.U) && (SBCSFieldsReg.sbaccess16  =/= 1.U) ||
                         (SBCSFieldsReg.sbaccess === 2.U) && (SBCSFieldsReg.sbaccess32  =/= 1.U) ||
                         (SBCSFieldsReg.sbaccess === 3.U) && (SBCSFieldsReg.sbaccess64  =/= 1.U) ||
-                        (SBCSFieldsReg.sbaccess === 4.U) && (SBCSFieldsReg.sbaccess128 =/= 1.U)
+                        (SBCSFieldsReg.sbaccess === 4.U) && (SBCSFieldsReg.sbaccess128 =/= 1.U) || (SBCSFieldsReg.sbaccess > 4.U)
 
     val compareAddr = Wire(UInt(32.W)) // Need use written or latched address to detect error case depending on how transaction is initiated
     compareAddr := Mux(SBADDRESSWrEn(0),SBADDRESSWrData(0),SBADDRESSFieldsReg(0))
@@ -253,6 +256,8 @@ object SystemBusAccessModule
     cover(SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy,  "SBCS Cover", "Access with autoincrement set")
     cover(!SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy, "SBCS Cover", "Access without autoincrement set")
 
+    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess > 4.U, "SBCS Cover", "Invalid sbaccess value")
+
     (sbcsfields, sbaddrfields, sbdatafields)
   }
 }
@@ -265,41 +270,41 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val rdEn         = Bool(INPUT)
-      val wrEn         = Bool(INPUT)
-      val addrIn       = UInt(INPUT, 128) // TODO: Parameterize these widths
-      val dataIn       = UInt(INPUT, 128)
-      val sizeIn       = UInt(INPUT, 3)
-      val dmactive     = Bool(INPUT)
-      val rdLegal      = Bool(OUTPUT)
-      val wrLegal      = Bool(OUTPUT)
-      val rdDone       = Bool(OUTPUT)
-      val wrDone       = Bool(OUTPUT)
-      val respError    = Bool(OUTPUT)
-      val dataOut      = UInt(OUTPUT, 8)
-      val rdLoad       = Vec(cfg.maxSupportedSBAccess/8, Bool()).asOutput
-      val sbStateOut   = UInt(OUTPUT, log2Ceil(SystemBusAccessState.maxId))
+      val rdEn         = Input(Bool())
+      val wrEn         = Input(Bool())
+      val addrIn       = Input(UInt(128.W)) // TODO: Parameterize these widths
+      val dataIn       = Input(UInt(128.W))
+      val sizeIn       = Input(UInt(3.W))
+      val dmactive     = Input(Bool())
+      val rdLegal      = Output(Bool())
+      val wrLegal      = Output(Bool())
+      val rdDone       = Output(Bool())
+      val wrDone       = Output(Bool())
+      val respError    = Output(Bool())
+      val dataOut      = Output(UInt(8.W))
+      val rdLoad       = Output(Vec(cfg.maxSupportedSBAccess/8, Bool()))
+      val sbStateOut   = Output(UInt(log2Ceil(SystemBusAccessState.maxId).W))
     })
 
     import SystemBusAccessState._
  
     val (tl, edge) = node.out(0)
 
-    val sbState = Reg(init = 0.U)
+    val sbState = RegInit(0.U)
 
     // --- Drive payloads on bus to TileLink ---
     val d = Queue(tl.d, 2) // Add a small buffer since response could arrive on same cycle as request
     d.ready := (sbState === SBReadResponse.id.U) || (sbState === SBWriteResponse.id.U)
 
-    val muxedData = Wire(init = 0.U(8.W))
+    val muxedData = WireInit(0.U(8.W))
     val requestValid = tl.a.valid
     val requestReady = tl.a.ready
     val responseValid = d.valid
     val responseReady = d.ready
 
-    val counter = Reg(init = 0.U((log2Ceil(cfg.maxSupportedSBAccess/8)+1).W))
+    val counter = RegInit(0.U((log2Ceil(cfg.maxSupportedSBAccess/8)+1).W))
     val vecData   = Wire(Vec(cfg.maxSupportedSBAccess/8, UInt(8.W)))
-    vecData := Vec.tabulate(16) { i => io.dataIn(8*i+7,8*i) }
+    vecData.zipWithIndex.map { case (vd, i) => vd := io.dataIn(8*i+7,8*i) }
     muxedData := vecData(counter)
 
     // Need an additional check to determine if address is safe for Get/Put
@@ -355,7 +360,6 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     tl.c.valid := false.B
     tl.e.valid := false.B
 
-    assert (!tl.d.valid || tl.d.ready, "Debug module not ready to accept TL response") // assert tl.d.valid |-> tl.d.ready
     assert (sbState === Idle.id.U ||
             sbState === SBReadRequest.id.U ||
             sbState === SBWriteRequest.id.U || 

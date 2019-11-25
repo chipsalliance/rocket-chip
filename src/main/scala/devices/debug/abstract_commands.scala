@@ -1,6 +1,6 @@
 package freechips.rocketchip.devices.debug
 
-import Chisel._
+import chisel3._
 
 // This file was auto-generated from the repository at https://github.com/riscv/riscv-debug-spec.git,
 // 'make chisel'

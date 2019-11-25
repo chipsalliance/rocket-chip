@@ -4,13 +4,8 @@ package freechips.rocketchip.jtag
 
 import scala.collection.SortedMap
 
-// !!! See Issue #1160.
-// import chisel3._
-import Chisel._
-import chisel3.core.{Input, Output}
+import chisel3._
 import chisel3.util._
-import chisel3.experimental.withReset
-
 import freechips.rocketchip.config.Parameters
 
 /** JTAG signals, viewed from the master side
@@ -73,8 +68,6 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
 
   val tdo = Wire(Bool())  // 4.4.1c TDI should appear here uninverted after shifting
   val tdo_driven = Wire(Bool())
-  io.jtag.TDO.data := NegEdgeReg(clock, tdo, name = Some("tdoReg"))  // 4.5.1a TDO changes on falling edge of TCK, 6.1.2.1d driver active on first TCK falling edge in ShiftIR and ShiftDR states
-  io.jtag.TDO.driven := NegEdgeReg(clock, tdo_driven, name = Some("tdoeReg"))
 
   //
   // JTAG state machine
@@ -92,6 +85,9 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     stateMachine.io.tms := io.jtag.TMS
     currState := stateMachine.io.currState
     io.output.state := stateMachine.io.currState
+     // 4.5.1a TDO changes on falling edge of TCK, 6.1.2.1d driver active on first TCK falling edge in ShiftIR and ShiftDR states
+    io.jtag.TDO.data := NegEdgeAsyncResetReg(clock, tdo, name = Some("tdoReg"))
+    io.jtag.TDO.driven := NegEdgeAsyncResetReg(clock, tdo_driven, name = Some("tdoeReg"))
   }
 
   //
@@ -111,17 +107,15 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   val updateInstruction = Wire(Bool())
 
   val nextActiveInstruction = Wire(UInt(irLength.W))
-  val activeInstruction = NegEdgeReg(clock, nextActiveInstruction, updateInstruction, name = Some("irReg"))   // 7.2.1d active instruction output latches on TCK falling edge
+  val activeInstruction = NegEdgeReg(clock, nextActiveInstruction, initialInstruction.U, updateInstruction, name = Some("irReg"))
+   // 7.2.1d active instruction output latches on TCK falling edge
 
-  when (reset.asBool) {
-    nextActiveInstruction := initialInstruction.U(irLength.W)
-    updateInstruction := true.B
-  } .elsewhen (currState === JtagState.UpdateIR.U) {
+  when (currState === JtagState.UpdateIR.U) {
     nextActiveInstruction := irChain.io.update.bits
     updateInstruction := true.B
   } .otherwise {
-    //!!! Needed when using chisel3._ (See #1160)
-    // nextActiveInstruction := DontCare
+    // Needed when using chisel3._ (See #1160)
+    nextActiveInstruction := DontCare
     updateInstruction := false.B
   }
   io.output.instruction := activeInstruction
@@ -146,8 +140,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     tdo := irChain.io.chainOut.data
     tdo_driven := true.B
   } .otherwise {
-    //!!! Needed when using chisel3._ (See #1160)
-    //tdo := DontCare
+    // Needed when using chisel3._ (See #1160)
+    tdo := DontCare
     tdo_driven := false.B
   }
 }
@@ -233,6 +227,8 @@ object JtagTapGenerator {
       }
     }
 
+    controllerInternal.io.dataChainIn := bypassChain.io.chainOut  // default
+
     def foldOutSelect(res: WhenContext, x: (Chain, Bool)): WhenContext = {
       val (chain, select) = x
       // Continue the WhenContext with if this chain is selected
@@ -257,7 +253,7 @@ object JtagTapGenerator {
 
     chainToSelect.map(mapInSelect)
 
-    controllerInternal.io.jtag <> internalIo.jtag
+    internalIo.jtag <> controllerInternal.io.jtag
     internalIo.control <> controllerInternal.io.control
     internalIo.output <> controllerInternal.io.output
 

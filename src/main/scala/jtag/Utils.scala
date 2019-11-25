@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.jtag
 
-import Chisel._
-import chisel3.core.{Input, Output}
-import chisel3.experimental.withClock
+import chisel3._
+import chisel3.util._
+import freechips.rocketchip.util.AsyncResetReg
 
 /** Bundle representing a tristate pin.
   */
@@ -17,11 +17,27 @@ class Tristate extends Bundle {
   */
 object NegEdgeReg {
   def apply[T <: Data](clock: Clock, next: T, enable: Bool=true.B, name: Option[String] = None): T = {
-    // TODO pass in initial value as well
     withClock((!clock.asUInt).asClock) {
       val reg = RegEnable(next = next, enable = enable)
       name.foreach{reg.suggestName(_)}
       reg
+    }
+  }
+  def apply[T <: Data](clock: Clock, next: T, init: T, enable: Bool, name: Option[String]): T = {
+    withClock((!clock.asUInt).asClock) {
+      val reg = RegEnable(next = next, init = init, enable = enable)
+      name.foreach{reg.suggestName(_)}
+      reg
+    }
+  }
+}
+
+object NegEdgeAsyncResetReg {
+  def apply[T <: Data](clock: Clock, next: T, init: BigInt=0, enable: Bool=true.B, name: Option[String] = None): T = {
+    withClock((!clock.asUInt).asClock) {
+      val reg = AsyncResetReg(updateData = next.asUInt, resetData = init, enable = enable)
+      name.foreach{reg.suggestName(_)}
+      reg.asTypeOf(next)
     }
   }
 }
