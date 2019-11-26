@@ -9,7 +9,6 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
-import freechips.rocketchip.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
 
@@ -31,27 +30,8 @@ object TLMonitor {
   }
 }
 
-class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
+class TLMonitor(args: TLMonitorArgs) extends TLMonitorBase(args)
 {
-  val cover_prop_class = PropertyClass.Default
-  val desc_text = "Placeholder"
-
-  def assert(cond: Bool, message: String): Unit = {
-    Property(monitorDir,
-        cond,
-        message,
-        PropertyClass.Default,
-        desc_text)
-  }
-
-  def assume(cond: Bool, message: String): Unit = {
-    Property(monitorDir.flip,
-        cond,
-        message,
-        PropertyClass.Default,
-        desc_text)
-  }
-
   def extra = {
     args.edge.sourceInfo match {
       case SourceLine(filename, line, col) => s" (connected at $filename:$line:$col)"
@@ -295,7 +275,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeFormatD(bundle: TLBundleD, edge: TLEdge) {
-    assume (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
+    assert (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
     val sink_ok = bundle.sink < edge.manager.endSinkId.U
@@ -303,55 +283,55 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val deny_get_ok = edge.manager.mayDenyGet.B
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
-      assume (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
-      assume (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'D' channel ReleaseAck smaller than a beat" + extra)
-      assume (bundle.param === 0.U, "'D' channel ReleaseeAck carries invalid param" + extra)
-      assume (!bundle.corrupt, "'D' channel ReleaseAck is corrupt" + extra)
-      assume (!bundle.denied, "'D' channel ReleaseAck is denied" + extra)
+      assert (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
+      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'D' channel ReleaseAck smaller than a beat" + extra)
+      assert (bundle.param === 0.U, "'D' channel ReleaseeAck carries invalid param" + extra)
+      assert (!bundle.corrupt, "'D' channel ReleaseAck is corrupt" + extra)
+      assert (!bundle.denied, "'D' channel ReleaseAck is denied" + extra)
     }
 
     when (bundle.opcode === TLMessages.Grant) {
-      assume (source_ok, "'D' channel Grant carries invalid source ID" + extra)
-      assume (sink_ok, "'D' channel Grant carries invalid sink ID" + extra)
-      assume (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'D' channel Grant smaller than a beat" + extra)
-      assume (TLPermissions.isCap(bundle.param), "'D' channel Grant carries invalid cap param" + extra)
-      assume (bundle.param =/= TLPermissions.toN, "'D' channel Grant carries toN param" + extra)
-      assume (!bundle.corrupt, "'D' channel Grant is corrupt" + extra)
-      assume (deny_put_ok || !bundle.denied, "'D' channel Grant is denied" + extra)
+      assert (source_ok, "'D' channel Grant carries invalid source ID" + extra)
+      assert (sink_ok, "'D' channel Grant carries invalid sink ID" + extra)
+      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'D' channel Grant smaller than a beat" + extra)
+      assert (TLPermissions.isCap(bundle.param), "'D' channel Grant carries invalid cap param" + extra)
+      assert (bundle.param =/= TLPermissions.toN, "'D' channel Grant carries toN param" + extra)
+      assert (!bundle.corrupt, "'D' channel Grant is corrupt" + extra)
+      assert (deny_put_ok || !bundle.denied, "'D' channel Grant is denied" + extra)
     }
 
     when (bundle.opcode === TLMessages.GrantData) {
-      assume (source_ok, "'D' channel GrantData carries invalid source ID" + extra)
-      assume (sink_ok, "'D' channel GrantData carries invalid sink ID" + extra)
-      assume (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'D' channel GrantData smaller than a beat" + extra)
-      assume (TLPermissions.isCap(bundle.param), "'D' channel GrantData carries invalid cap param" + extra)
-      assume (bundle.param =/= TLPermissions.toN, "'D' channel GrantData carries toN param" + extra)
-      assume (!bundle.denied || bundle.corrupt, "'D' channel GrantData is denied but not corrupt" + extra)
-      assume (deny_get_ok || !bundle.denied, "'D' channel GrantData is denied" + extra)
+      assert (source_ok, "'D' channel GrantData carries invalid source ID" + extra)
+      assert (sink_ok, "'D' channel GrantData carries invalid sink ID" + extra)
+      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'D' channel GrantData smaller than a beat" + extra)
+      assert (TLPermissions.isCap(bundle.param), "'D' channel GrantData carries invalid cap param" + extra)
+      assert (bundle.param =/= TLPermissions.toN, "'D' channel GrantData carries toN param" + extra)
+      assert (!bundle.denied || bundle.corrupt, "'D' channel GrantData is denied but not corrupt" + extra)
+      assert (deny_get_ok || !bundle.denied, "'D' channel GrantData is denied" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
-      assume (source_ok, "'D' channel AccessAck carries invalid source ID" + extra)
+      assert (source_ok, "'D' channel AccessAck carries invalid source ID" + extra)
       // size is ignored
-      assume (bundle.param === 0.U, "'D' channel AccessAck carries invalid param" + extra)
-      assume (!bundle.corrupt, "'D' channel AccessAck is corrupt" + extra)
-      assume (deny_put_ok || !bundle.denied, "'D' channel AccessAck is denied" + extra)
+      assert (bundle.param === 0.U, "'D' channel AccessAck carries invalid param" + extra)
+      assert (!bundle.corrupt, "'D' channel AccessAck is corrupt" + extra)
+      assert (deny_put_ok || !bundle.denied, "'D' channel AccessAck is denied" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAckData) {
-      assume (source_ok, "'D' channel AccessAckData carries invalid source ID" + extra)
+      assert (source_ok, "'D' channel AccessAckData carries invalid source ID" + extra)
       // size is ignored
-      assume (bundle.param === 0.U, "'D' channel AccessAckData carries invalid param" + extra)
-      assume (!bundle.denied || bundle.corrupt, "'D' channel AccessAckData is denied but not corrupt" + extra)
-      assume (deny_get_ok || !bundle.denied, "'D' channel AccessAckData is denied" + extra)
+      assert (bundle.param === 0.U, "'D' channel AccessAckData carries invalid param" + extra)
+      assert (!bundle.denied || bundle.corrupt, "'D' channel AccessAckData is denied but not corrupt" + extra)
+      assert (deny_get_ok || !bundle.denied, "'D' channel AccessAckData is denied" + extra)
     }
 
     when (bundle.opcode === TLMessages.HintAck) {
-      assume (source_ok, "'D' channel HintAck carries invalid source ID" + extra)
+      assert (source_ok, "'D' channel HintAck carries invalid source ID" + extra)
       // size is ignored
-      assume (bundle.param === 0.U, "'D' channel HintAck carries invalid param" + extra)
-      assume (!bundle.corrupt, "'D' channel HintAck is corrupt" + extra)
-      assume (deny_put_ok || !bundle.denied, "'D' channel HintAck is denied" + extra)
+      assert (bundle.param === 0.U, "'D' channel HintAck carries invalid param" + extra)
+      assert (!bundle.corrupt, "'D' channel HintAck is corrupt" + extra)
+      assert (deny_put_ok || !bundle.denied, "'D' channel HintAck is denied" + extra)
     }
   }
 
@@ -452,12 +432,12 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val sink    = Reg(UInt())
     val denied  = Reg(Bool())
     when (d.valid && !d_first) {
-      assume (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
-      assume (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
-      assume (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
-      assume (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
-      assume (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
-      assume (d.bits.denied === denied, "'D' channel denied changed with multibeat operation" + extra)
+      assert (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
+      assert (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
+      assert (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
+      assert (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
+      assert (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
+      assert (d.bits.denied === denied, "'D' channel denied changed with multibeat operation" + extra)
     }
     when (d.fire() && d_first) {
       opcode  := d.bits.opcode
@@ -494,11 +474,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
     when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       d_clr := UIntToOH(bundle.d.bits.source)
-      assume((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+      assert((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
     }
 
     if (edge.manager.minLatency > 0) {
-      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assert(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
@@ -521,7 +501,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val d_set = WireInit(0.U(edge.manager.endSinkId.W))
     when (bundle.d.fire() && d_first && edge.isRequest(bundle.d.bits)) {
       d_set := UIntToOH(bundle.d.bits.sink)
-      assume(!inflight(bundle.d.bits.sink), "'D' channel re-used a sink ID" + extra)
+      assert(!inflight(bundle.d.bits.sink), "'D' channel re-used a sink ID" + extra)
     }
 
     val e_clr = WireInit(0.U(edge.manager.endSinkId.W))
