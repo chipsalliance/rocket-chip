@@ -41,35 +41,11 @@ class AsyncResetReg(resetValue: Int = 0) extends RawModule {
     val rst = Bool(INPUT)
   })
 
-<<<<<<< 2b0488405298c34418239142d9a3e39e9e4b4f46
   val reg = withClockAndReset(io.clk, io.rst.asAsyncReset)(RegInit(resetValue.U(1.W)))
   when (io.en) {
     reg := io.d
   }
   io.q := reg
-||||||| merged common ancestors
-  setResource("/vsrc/AsyncResetReg.v")
-=======
-  addResource("/vsrc/AsyncResetReg.v")
-}
-
-class SynchronizerPrimitiveReg(resetValue: Int = 0) extends RawModule {
-  val io = IO(new Bundle {
-    val d = Bool(INPUT)
-    val q = Bool(OUTPUT)
-    val en = Bool(INPUT)
-
-    val clk = Clock(INPUT)
-    val rst = Bool(INPUT)
-  })
-
-  val reg = Module(new AsyncResetReg(resetValue))
-  reg.io.d   := io.d
-  reg.io.en  := io.en
-  reg.io.clk := io.clk
-  reg.io.rst := io.rst
-  io.q := reg.io.q
->>>>>>> Build AsyncResetSynchronizerShiftReg from new SynchronizerPrimitive
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{
