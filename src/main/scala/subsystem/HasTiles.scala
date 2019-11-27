@@ -76,7 +76,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
     // 1. Debug interrupt is definitely asynchronous in all cases.
     tile.intInwardNode :=
       debugOpt
-        .map { tile { IntSyncCrossingSink(3) } := _.intnode }
+        .map { tile { IntSyncAsyncCrossingSink(3) } := _.intnode }
         .getOrElse { NullIntSource() }
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
