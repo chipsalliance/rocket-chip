@@ -93,14 +93,18 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
   }
 
   io.async.safe.foreach { sio =>
-    val source_valid = Module(new AsyncValidSync(params.sync+1, "source_valid"))
-    val sink_extend  = Module(new AsyncValidSync(1, "sink_extend"))
-    val sink_valid   = Module(new AsyncValidSync(params.sync, "sink_valid"))
-    source_valid.reset := reset.asBool || !sio.sink_reset_n
-    sink_extend .reset := reset.asBool || !sio.sink_reset_n
+    val source_valid_0 = Module(new AsyncValidSync(params.sync, "source_valid_0"))
+    val source_valid_1 = Module(new AsyncValidSync(params.sync, "source_valid_1"))
 
-    source_valid.io.in := true.B
-    sio.widx_valid := source_valid.io.out
+    val sink_extend  = Module(new AsyncValidSync(params.sync, "sink_extend"))
+    val sink_valid   = Module(new AsyncValidSync(params.sync, "sink_valid"))
+    source_valid_0.reset := reset.asBool || !sio.sink_reset_n
+    source_valid_1.reset := reset.asBool || !sio.sink_reset_n
+    sink_extend   .reset := reset.asBool || !sio.sink_reset_n
+
+    source_valid_0.io.in := true.B
+    source_valid_1.io.in := source_valid_0.io.out
+    sio.widx_valid := source_valid_1.io.out
     sink_extend.io.in := sio.ridx_valid
     sink_valid.io.in := sink_extend.io.out
     sink_ready := sink_valid.io.out
@@ -141,8 +145,8 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
   // be considered unless the asynchronously reset deq valid register is set.
   // It is possible that bits latches when the source domain is reset / has power cut
   // This is safe, because isolation gates brought mem low before the zeroed widx reached us
-  val deq_bits_nxt = Mux(valid, io.async.mem(if (params.narrow) 0.U else index), io.deq.bits)
-  io.deq.bits := SynchronizerShiftReg(deq_bits_nxt, sync = 1, name = Some("deq_bits_reg"))
+  val deq_bits_nxt = io.async.mem(if (params.narrow) 0.U else index)
+  io.deq.bits := ClockCrossingReg(deq_bits_nxt, en = valid, doInit = false, name = Some("deq_bits_reg"))
 
   val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
   io.deq.valid := valid_reg && source_ready
@@ -151,14 +155,18 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
   io.async.ridx := ridx_reg
 
   io.async.safe.foreach { sio =>
-    val sink_valid    = Module(new AsyncValidSync(params.sync+1, "sink_valid"))
-    val source_extend = Module(new AsyncValidSync(1, "source_extend"))
+    val sink_valid_0    = Module(new AsyncValidSync(params.sync, "sink_valid_0"))
+    val sink_valid_1    = Module(new AsyncValidSync(params.sync, "sink_valid_1"))
+
+    val source_extend = Module(new AsyncValidSync(params.sync, "source_extend"))
     val source_valid  = Module(new AsyncValidSync(params.sync, "source_valid"))
-    sink_valid   .reset := reset.asBool || !sio.source_reset_n
+    sink_valid_0 .reset := reset.asBool || !sio.source_reset_n
+    sink_valid_1 .reset := reset.asBool || !sio.source_reset_n
     source_extend.reset := reset.asBool || !sio.source_reset_n
 
-    sink_valid.io.in := true.B
-    sio.ridx_valid := sink_valid.io.out
+    sink_valid_0.io.in := true.B
+    sink_valid_1.io.in := sink_valid_0.io.out
+    sio.ridx_valid := sink_valid_1.io.out
     source_extend.io.in := sio.widx_valid
     source_valid.io.in := source_extend.io.out
     source_ready := source_valid.io.out
