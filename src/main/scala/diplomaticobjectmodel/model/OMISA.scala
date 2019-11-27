@@ -52,7 +52,7 @@ object OMISA {
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
       case 32 => if (coreParams.useRVE) RV32E else RV32I
-      case 64 => RV64I
+      case 64 => if (coreParams.useRVE) RV64E else RV64I
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
     }
 
