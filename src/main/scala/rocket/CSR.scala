@@ -172,6 +172,10 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle with Clocked 
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
+class TraceAux extends Bundle {
+  val stall = Bool()
+}
+
 class CSRDecodeIO extends Bundle {
   val csr = UInt(INPUT, CSR.ADDRSZ)
   val fp_illegal = Bool(OUTPUT)
@@ -254,8 +258,8 @@ object VType {
 
   def fromUInt(that: UInt)(implicit p: Parameters): VType = fromUInt(that, false)
 
-  def computeVL(avl: UInt, vtype: UInt, currentVL: UInt, useCurrentVL: Bool, useZero: Bool)(implicit p: Parameters): UInt =
-    VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useZero)
+  def computeVL(avl: UInt, vtype: UInt, currentVL: UInt, useCurrentVL: Bool, useMax: Bool, useZero: Bool)(implicit p: Parameters): UInt =
+    VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useMax, useZero)
 }
 
 class VType(implicit p: Parameters) extends CoreBundle {
@@ -270,8 +274,8 @@ class VType(implicit p: Parameters) extends CoreBundle {
   def vlMax: UInt = (maxVLMax >> (this.vsew +& ~this.vlmul)).andNot(minVLMax-1)
   def vlMaxInBytes: UInt = maxVLMax >> ~this.vlmul
 
-  def vl(avl: UInt, currentVL: UInt, useCurrentVL: Bool, useZero: Bool): UInt = {
-    val atLeastMaxVLMax = Mux(useCurrentVL, currentVL >= maxVLMax, avl >= maxVLMax)
+  def vl(avl: UInt, currentVL: UInt, useCurrentVL: Bool, useMax: Bool, useZero: Bool): UInt = {
+    val atLeastMaxVLMax = useMax || Mux(useCurrentVL, currentVL >= maxVLMax, avl >= maxVLMax)
     val avl_lsbs = Mux(useCurrentVL, currentVL, avl)(maxVLMax.log2 - 1, 0)
 
     val atLeastVLMax = atLeastMaxVLMax || (avl_lsbs & (-maxVLMax.S >> (this.vsew +& ~this.vlmul)).asUInt.andNot(minVLMax-1)).orR
@@ -473,7 +477,8 @@ class CSRFile(
   val vector_csrs = if (!usingVector) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.vstart -> reg_vstart.get,
     CSRs.vtype -> reg_vconfig.get.vtype.asUInt,
-    CSRs.vl -> reg_vconfig.get.vl)
+    CSRs.vl -> reg_vconfig.get.vl,
+    CSRs.vlenb -> (vLen / 8).U)
 
   read_mapping ++= debug_csrs
   read_mapping ++= fp_csrs
