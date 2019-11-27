@@ -63,7 +63,7 @@ object OMISA {
     val baseISAVersion = baseInstructionSet match {
       case RV32E => "1.9"
       case RV32I => "2.0"
-      case RV64E => "2.0"
+      case RV64E => "1.9"
       case RV64I => "2.0"
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
     }
