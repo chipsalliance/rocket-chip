@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import chisel3.util.Cat
+import chisel3.util.{RegEnable, Cat}
 
 /**  These wrap behavioral
   *  shift and next registers into specific modules to allow for
@@ -81,10 +81,8 @@ object AsyncResetSynchronizerShiftReg {
 class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
   require(sync > 1, "Sync must be greater than 1.")
   override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
-  withReset(false.B){
     val output = Seq.tabulate(w) { i => SynchronizerPrimitiveShiftReg(io.d(i), sync, SynchronizerResetType.NonSync) }
     io.q := Cat(output.reverse)
-  }
 }
 
 object SynchronizerShiftReg {
@@ -98,10 +96,8 @@ object SynchronizerShiftReg {
 class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
   require(sync > 1, "Sync must be greater than 1.")
   override def desiredName = s"SyncResetSynchronizerShiftReg_w${w}_d${sync}_i0"
-  withReset (reset.asBool){
-    val output = Seq.tabulate(w) { i => SynchronizerPrimitiveShiftReg(io.d(i), sync, SynchronizerResetType.Sync) }
-    io.q := Cat(output.reverse)
-  }
+  val output = Seq.tabulate(w) { i => SynchronizerPrimitiveShiftReg(io.d(i), sync, SynchronizerResetType.Sync) }
+  io.q := Cat(output.reverse)
 }
 
 object SyncResetSynchronizerShiftReg {
@@ -110,4 +106,29 @@ object SyncResetSynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int): T =
     apply (in, sync, None)
+}
+
+class ClockCrossingReg(w: Int = 1, doInit: Boolean) extends Module {
+
+  override def desiredName = s"ClockCrossingReg_w${w}"
+
+  val io = IO(new Bundle{
+    val d = Input(UInt(w.W))
+    val q = Output(UInt(w.W))
+    val en = Input(Bool())
+  })
+
+  val cdc_reg = if (doInit) RegEnable(next=io.d, init=0.U(w.W), enable=io.en) else RegEnable(next=io.d, enable=io.en)
+  io.q := cdc_reg
+}
+
+
+object ClockCrossingReg {
+  def apply [T <: Chisel.Data](in: T, en: Bool, doInit: Boolean, name: Option[String] = None): T = {
+    val cdc_reg = Module(new ClockCrossingReg(in.getWidth, doInit))
+    name.foreach{ cdc_reg.suggestName(_) }
+    cdc_reg.io.d := in.asUInt
+    cdc_reg.io.en := en
+    cdc_reg.io.q.asTypeOf(in)
+  }
 }
