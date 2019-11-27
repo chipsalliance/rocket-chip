@@ -27,22 +27,24 @@ lazy val commonSettings = Seq(
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
   pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
-  <licenses>
-    <license>
-      <name>Apache 2</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-      <distribution>repo</distribution>
-    </license>
-    <license>
-      <name>BSD-style</name>
-        <url>http://www.opensource.org/licenses/bsd-license.php</url>
+    <licenses>
+      <license>
+        <name>Apache 2</name>
+        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
         <distribution>repo</distribution>
       </license>
+      <license>
+        <name>BSD-style</name>
+          <url>http://www.opensource.org/licenses/bsd-license.php</url>
+          <distribution>repo</distribution>
+      </license>
     </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/rocketchip.git</url>
-      <connection>scm:git:github.com/freechipsproject/rocketchip.git</connection>
-    </scm>,
+    <developers>
+      <developer>
+        <organization>SiFive</organization>
+        <organizationUrl>https://www.sifive.com/</organizationUrl>
+      </developer>
+    </developers>,
   publishTo := {
     val v = version.value
     val nexus = "https://oss.sonatype.org/"
@@ -55,12 +57,19 @@ lazy val commonSettings = Seq(
   }
 )
 
+// Current release tooling will look for and modify the versions in this map.
+// Please don't delete it or alter the initial "val defaultVersions = Map" string.
+// Feel free to add additional entries as needed and move each to a separate line.
+val defaultVersions = Map("chisel3" -> "3.3-SNAPSHOT")
+
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 
 def dependOnChisel(prj: Project) = {
   if (sys.props.contains("ROCKET_USE_MAVEN")) {
     prj.settings(
-      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.3-SNAPSHOT")
+      libraryDependencies ++= Seq("chisel3").map { dep: String =>
+        "edu.berkeley.cs" %% dep % defaultVersions(dep)
+      }
     )
   } else {
     prj.dependsOn(chisel)

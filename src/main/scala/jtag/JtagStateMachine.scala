@@ -2,10 +2,8 @@
 
 package freechips.rocketchip.jtag
 
-import Chisel._
-import chisel3.{Input, Output}
-import chisel3.experimental.withReset
-
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.util.{AsyncResetRegVec}
 import freechips.rocketchip.util.property._
@@ -78,7 +76,7 @@ class JtagStateMachine(implicit val p: Parameters) extends Module() {
   }
   val io = IO(new StateMachineIO)
 
-  val nextState = Wire(JtagState.State.chiselType())
+  val nextState = WireInit(JtagState.TestLogicReset.U)
   val currStateReg = Module (new AsyncResetRegVec(w = JtagState.State.width,
     init = JtagState.State.toInt(JtagState.TestLogicReset)))
   currStateReg.io.en := true.B
