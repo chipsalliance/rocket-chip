@@ -10,17 +10,17 @@ import freechips.rocketchip.util._
 import scala.math.min
 
 /** Adds a /dev/null slave that generates TL error response messages */
-class TLError(params: DevNullParams, beatBytes: Int = 4)(implicit p: Parameters)
-    extends DevNullDevice(params, beatBytes, new SimpleDevice("error-device", Seq("sifive,error0")))
+class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters)
+    extends DevNullDevice(params,
+      minLatency = if (buffer) 1 else 0,
+      beatBytes, new SimpleDevice("error-device", Seq("sifive,error0")))
 {
   lazy val module = new LazyModuleImp(this) {
     import TLMessages._
     import TLPermissions._
 
     val (in, edge) = node.in(0)
-    val a = if (params.minLatency > 0) {Queue(in.a, 1)} else in.a
-    require(params.minLatency  == 1 || params.minLatency == 0,
-      s"Error device can provide minLatency=1 or 0, not requested ${params.minLatency}")
+    val a = if (buffer) {Queue(in.a, 1)} else in.a
 
     val da = Wire(in.d)
     val idle = RegInit(Bool(true))
