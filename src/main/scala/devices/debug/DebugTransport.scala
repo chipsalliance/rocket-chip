@@ -171,12 +171,9 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // Especially for the first request, we must consider dtmResp.valid,
   // so that we don't consider junk in the FIFO to be an error response.
   // The current specification says that any non-zero response is an error.
-  // But there is actually no case in the current design where you SHOULD get an error,
-  // as we haven't implemented Bus Masters or Serial Ports, which are the only cases errors
-  // can occur.
   nonzeroResp := stickyNonzeroRespReg | (io.dmi.resp.valid & (io.dmi.resp.bits.resp =/= 0.U))
-  assert(!nonzeroResp, "There is no reason to get a non zero response in the current system.");
-  assert(!stickyNonzeroRespReg, "There is no reason to have a sticky non zero response in the current system.");
+  cover(!nonzeroResp, "Should see a non-zero response (e.g. when accessing most DM registers when dmactive=0)")
+  cover(!stickyNonzeroRespReg, "Should see a sticky non-zero response (e.g. when accessing most DM registers when dmactive=0)")
 
   busyResp.addr  := 0.U
   busyResp.resp  := ~(0.U(DMIConsts.dmiRespSize.W)) // Generalizing busy to 'all-F'
