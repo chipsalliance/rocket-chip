@@ -170,6 +170,11 @@ object SynchronizerShiftReg {
 
   def apply [T <: Chisel.Data](in: T, sync: Int): T =
     apply (in, sync, None)
+
+  def apply [T <: Chisel.Data](in: T): T =
+    apply (in, 3, None)
+
+
 }
 
 class ClockCrossingReg(w: Int = 1, doInit: Boolean) extends Module {
