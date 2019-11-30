@@ -45,6 +45,17 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 }
 
 
+object IntSyncCrossingSink
+{
+  @deprecated("IntSyncCrossingSink which used the `sync` parameter to determine crossing type is deprecated. Use IntSyncAsyncCrossingSink, IntSyncRationalCrossingSink, or IntSyncSyncCrossingSink instead for > 1, 1, and 0 sync values respectively", "rocket-chip 1.2")
+  def apply(sync: Int = 3)(implicit p: Parameters) =
+  {
+    val intsink = LazyModule(new IntSyncAsyncCrossingSink(sync))
+    intsink.node
+  }
+}
+
+
 class IntSyncAsyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val node = IntSyncSinkNode(sync)
