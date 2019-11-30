@@ -39,6 +39,28 @@ class AXI4LiteFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: P
   io.finished := dut.io.finished
 }
 
+class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
+{
+  val fuzz  = LazyModule(new TLFuzzer(txns))
+  val model = LazyModule(new TLRAMModel("AXI4LiteFuzzRAM"))
+  val xbar  = LazyModule(new TLXbar)
+  val gpio  = LazyModule(new RRTest1(0x400))
+  val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
+
+  xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node
+  ram.node  := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(true ) := TLUserUser(FunkyBits1(5,3.14), {case x => "h1f".U}) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
+  gpio.node := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(false) := TLUserUser(FunkyBits1(3,2.11), {case x => "h3".U }) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
+
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class AXI4LiteUserBitsFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new AXI4LiteUserBitsFuzzRAM(txns)).module)
+  io.finished := dut.io.finished
+}
+
 class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(txns))
