@@ -314,7 +314,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     })
 
     val dmAuthenticated = io.dmAuthenticated.map( dma =>
-      AsyncResetSynchronizerShiftReg(dma, 3, Some("dmAuthenticated_sync"))).getOrElse(true.B)
+      AsyncResetSynchronizerShiftReg(dma, 3, false.B, Some("dmAuthenticated_sync"))).getOrElse(true.B)
 
     //----DMCONTROL (The whole point of 'Outer' is to maintain this register on dmiClock (e.g. TCK) domain, so that it
     //               can be written even if 'Inner' is not being clocked or is in reset. This allows halting
