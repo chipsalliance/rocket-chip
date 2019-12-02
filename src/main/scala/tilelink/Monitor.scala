@@ -36,15 +36,20 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   val cover_prop_class = PropertyClass.Default
   val desc_text = "Placeholder"
 
-  def assert(cond: Bool, message: String): Unit = {
+  /*def assert(cond: Bool, message: String): Unit = {
     Property(monitorDir,
         cond,
         message,
         PropertyClass.Default,
         desc_text)
-  }
+  }*/
 
-  def assume(cond: Bool, message: String): Unit = {
+  def assume(cond: Bool, message: String): Unit = if (MonitorDirection == MonitorDirection.Monitor)
+  {
+    assert(cond, message)
+  }
+  else
+  {
     Property(monitorDir.flip,
         cond,
         message,
