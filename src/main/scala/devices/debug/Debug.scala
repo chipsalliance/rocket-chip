@@ -11,6 +11,7 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -595,6 +596,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
 class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends LazyModule {
 
+  val cfg = p(DebugModuleKey).get
+
   val dmiXbar = LazyModule (new TLXbar())
 
   val dmi2tlOpt = (!p(ExportDebug).apb).option({
@@ -606,14 +609,18 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val apbNodeOpt = p(ExportDebug).apb.option({
     val apb2tl = LazyModule(new APBToTL())
     val apb2tlBuffer = LazyModule(new TLBuffer(BufferParams.pipe))
-    val apbXbar = LazyModule(new APBFanout())
-    val apbRegs = LazyModule(new APBDebugRegisters())
+    val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
+    val tlErrorParams = DevNullParams(AddressSet.misaligned(dmTopAddr, APBDebugConsts.apbDebugRegBase-dmTopAddr),
+      maxAtomic=0, maxTransfer=4)
+    val tlError  = LazyModule(new TLError(tlErrorParams))
+    val apbXbar  = LazyModule(new APBFanout())
+    val apbRegs  = LazyModule(new APBDebugRegisters())
 
     apbRegs.node := apbXbar.node
     apb2tl.node  := apbXbar.node
     apb2tlBuffer.node := apb2tl.node
     dmiXbar.node := apb2tlBuffer.node
-
+    tlError.node := dmiXbar.node
     apbXbar.node
   })
 
@@ -647,6 +654,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     dmOuter.module.io.hgDebugInt := io.hgDebugInt
     io.hartResetReq.foreach { x => dmOuter.module.io.hartResetReq.foreach {y => x := y}}
     io.dmAuthenticated.foreach { x => dmOuter.module.io.dmAuthenticated.foreach { y => y := x}}
+
   }
 }
 
@@ -659,11 +667,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   val cfg = p(DebugModuleKey).get
   def getCfg = () => cfg
 
+  val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
+
   val dmiNode = TLRegisterNode(
        // Address is range 0 to 0x1FF except DMCONTROL, HAWINDOWSEL, HAWINDOW which are handled by Outer
     address = AddressSet.misaligned(0, DMI_DMCONTROL << 2) ++
               AddressSet.misaligned((DMI_DMCONTROL + 1) << 2, ((DMI_HAWINDOWSEL << 2) - ((DMI_DMCONTROL + 1) << 2))) ++
-              AddressSet.misaligned((DMI_HAWINDOW + 1) << 2, (0x200 - ((DMI_HAWINDOW + 1) << 2))),
+              AddressSet.misaligned((DMI_HAWINDOW + 1) << 2, (dmTopAddr - ((DMI_HAWINDOW + 1) << 2))),
     device = device,
     beatBytes = 4,
     executable = false
