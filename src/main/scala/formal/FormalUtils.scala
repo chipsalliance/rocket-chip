@@ -2,7 +2,7 @@
 package freechips.rocketchip.formal
 
 import Chisel._
-import chisel3.core.{VecInit}
+import chisel3.{VecInit}
 import chisel3.util.Cat
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 
@@ -59,7 +59,6 @@ object Property {
 //      proposed_src = src + "_" + "%x".format(random_src.nextInt(max_rand))
 //      max_rand = max_rand * 2
 //    }
-
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
 //      assert(cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
@@ -83,7 +82,7 @@ object Property {
             printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
           }
         } else {
-//        chisel3.core.withReset(false.B) {
+//        chisel3.withReset(false.B) {
 //          assert(!cond, s"Cover: ${prop_type.toString} ${message} ${src_wrap}")
             when(cond) {
               printf(s"cover:${proposed_src}:${prop_type.toString} ${message}")
@@ -189,7 +188,7 @@ object OneHotProp {
 
 object OneHotPriorityEncoder {
   def apply(in: Vec[Bool]): Vec[Bool] = {
-    VecInit(apply(in.asUInt).toBools)
+    VecInit(apply(in.asUInt).asBools)
   }
 
   def apply(in: Bits): Bits = {
