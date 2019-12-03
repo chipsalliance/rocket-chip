@@ -53,41 +53,28 @@ object Property {
     }
     val proposed_src = prop_type.toString + "_" + line_info
 
-//    var max_rand = 15
-//    val random_src = scala.util.Random
-//    while (!prop_name_set.add(proposed_src)) {
-//      proposed_src = src + "_" + "%x".format(random_src.nextInt(max_rand))
-//      max_rand = max_rand * 2
-//    }
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
-//      assert(cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
       when(!cond) {
         printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
       }
     } else if (dir==MonitorDirection.Receiver) {
-//      assert(cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
       when(!cond) {
         printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
       }
     } else if (dir==MonitorDirection.Driver) {
-//      assert(cond, s"Assume: ${prop_type.toString} ${message} ${src_wrap}")
       when(!cond) {
         printf(s"assume:${proposed_src}:${prop_type.toString} ${message}")
       }
     } else if (dir==MonitorDirection.Cover) {
         if (prop_type==PropertyClass.CoverDisableMonitor) {
-//          assert(!cond, s"Assert: ${prop_type.toString} ${message} ${src_wrap}")
           when(cond) { //We want to assert that the condition is never true, which is opposite of a normal assertion
             printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
           }
         } else {
-//        chisel3.withReset(false.B) {
-//          assert(!cond, s"Cover: ${prop_type.toString} ${message} ${src_wrap}")
             when(cond) {
               printf(s"cover:${proposed_src}:${prop_type.toString} ${message}")
             }
-//        }
         }
     }
   }
