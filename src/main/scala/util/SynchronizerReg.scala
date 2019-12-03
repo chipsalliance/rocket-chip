@@ -42,7 +42,7 @@ private class SynchronizerPrimitiveShiftReg(
   val initInt = if (init) 1 else 0
   val initPostfix = resetType match {
     case SynchronizerResetType.NonSync => ""
-    case _ => "_i$initInt}"
+    case _ => s"_i${initInt}"
   }
   override def desiredName = s"${resetType.toString}ResetSynchronizerPrimitiveShiftReg_d${sync}${initPostfix}"
 
