@@ -44,7 +44,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
         desc_text)
   }*/
 
-  def assume(cond: Bool, message: String): Unit = if (MonitorDirection == MonitorDirection.Monitor)
+  def assume(cond: Bool, message: String): Unit = if (monitorDir == MonitorDirection.Monitor)
   {
     assert(cond, message)
   }
