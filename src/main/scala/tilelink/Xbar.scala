@@ -64,15 +64,15 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       println (s"!!! WARNING !!!")
     }
 
-    crossbar(node.in, node.out)
+    TLXbar.circuit(policy, node.in, node.out)
   }
 }
 
 object TLXbar
 {
-  def crossbar(in: Seq[(TLBundle, TLEdge)], out: Seq[(TLBundle, TLEdge)]) {
-    val (io_in, edgesIn) = in.unzip
-    val (io_out, edgesOut) = out.unzip
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]) {
+    val (io_in, edgesIn) = seqIn.unzip
+    val (io_out, edgesOut) = seqOut.unzip
 
     // Not every master need connect to every slave on every channel; determine which connections are necessary
     val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
@@ -226,7 +226,7 @@ object TLXbar
 
     // Print the ID mapping
     if (false) {
-      println(s"XBar ${name} mapping:")
+      println(s"XBar mapping:")
       (edgesIn zip inputIdRanges).zipWithIndex.foreach { case ((edge, id), i) =>
         println(s"\t$i assigned ${id} for ${edge.client.clients.map(_.name).mkString(", ")}")
       }
@@ -313,7 +313,6 @@ object TLXbar
     input.ready := Mux1H(select, filtered.map(_.ready))
     filtered
   }
-
 }
 
 /** Synthesizeable unit tests */
