@@ -64,8 +64,15 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       println (s"!!! WARNING !!!")
     }
 
-    val (io_in, edgesIn) = node.in.unzip
-    val (io_out, edgesOut) = node.out.unzip
+    crossbar(node.in, node.out)
+  }
+}
+
+object TLXbar
+{
+  def crossbar(in: Seq[(TLBundle, TLEdge)], out: Seq[(TLBundle, TLEdge)]) {
+    val (io_in, edgesIn) = in.unzip
+    val (io_out, edgesOut) = out.unzip
 
     // Not every master need connect to every slave on every channel; determine which connections are necessary
     val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
@@ -261,10 +268,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       TLArbiter(policy)(in(i).d, filter(beatsDO zip portsDIO(i), connectDIO(i)):_*)
     }
   }
-}
 
-object TLXbar
-{
   def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode =
   {
     val xbar = LazyModule(new TLXbar(policy))
@@ -309,6 +313,7 @@ object TLXbar
     input.ready := Mux1H(select, filtered.map(_.ready))
     filtered
   }
+
 }
 
 /** Synthesizeable unit tests */
