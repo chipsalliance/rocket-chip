@@ -69,29 +69,6 @@ case class TLNexusNode(
 abstract class TLCustomNode(implicit valName: ValName)
   extends CustomNode(TLImp) with TLFormatNode
 
-case class TLSplitterNode(
-  clientFn:  TLClientPortParameters  => TLClientPortParameters  = { s => s },
-  managerFn: Seq[TLManagerPortParameters] => Seq[TLManagerPortParameters] = { s => s })(
-  implicit valName: ValName) extends TLCustomNode {
-
-  def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iStars == 0, s"$context does not support :*=")
-    if (oStars > 0) {
-      require (oStars == 2, s"$context can only resolve an input :=* with 2 :=* outputs, but found $oStars")
-      require (oKnown == 0, s"$context can only resolve an input :=* with no := outputs, but found $oKnown")
-      (0, iKnown)
-    } else {
-      require (oKnown == 2*iKnown, s"$context has $oKnown outputs and $iKnown inputs; but 2*$iKnown must be $oKnown")
-      (0, 0)
-    }
-  }
-
-  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { p.map(clientFn) ++ p.map(clientFn) }
-
-  // managerFn should halve the size of p by pairwise merging the managers from two downstream paths
-  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { managerFn(p) }
-}
-
 // Asynchronous crossings
 
 trait TLAsyncFormatNode extends FormatNode[TLAsyncEdgeParameters, TLAsyncEdgeParameters]
