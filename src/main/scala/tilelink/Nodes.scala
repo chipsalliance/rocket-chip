@@ -43,6 +43,14 @@ case class TLAdapterNode(
   implicit valName: ValName)
   extends AdapterNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
+case class TLJunctionNode(
+  clientRatio:  Int,
+  managerRatio: Int,
+  clientFn:     Seq[TLClientPortParameters]  => Seq[TLClientPortParameters],
+  managerFn:    Seq[TLManagerPortParameters] => Seq[TLManagerPortParameters])(
+  implicit valName: ValName)
+  extends JunctionNode(TLImp)(clientRatio, managerRatio, clientFn, managerFn) with TLFormatNode
+
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)() with TLFormatNode
 case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)()
 
