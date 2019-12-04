@@ -36,13 +36,18 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   val cover_prop_class = PropertyClass.Default
   val desc_text = "Placeholder"
 
-  /*def assert(cond: Bool, message: String): Unit = {
+  def monAssert(cond: Bool, message: String): Unit = if (monitorDir == MonitorDirection.Monitor)
+  {
+    assert(cond, message)
+  }
+  else
+  {
     Property(monitorDir,
         cond,
         message,
         PropertyClass.Default,
         desc_text)
-  }*/
+  }
 
   def assume(cond: Bool, message: String): Unit = if (monitorDir == MonitorDirection.Monitor)
   {
@@ -71,92 +76,92 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }.reduce(_ && _)
 
   def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
-    assert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
+    monAssert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
 
-    assert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
+    monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
     when (bundle.opcode === TLMessages.AcquireBlock) {
-      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
-      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
-      assert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + extra)
-      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquireBlock smaller than a beat" + extra)
-      assert (is_aligned, "'A' channel AcquireBlock address not aligned to size" + extra)
-      assert (TLPermissions.isGrow(bundle.param), "'A' channel AcquireBlock carries invalid grow param" + extra)
-      assert (~bundle.mask === 0.U, "'A' channel AcquireBlock contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'A' channel AcquireBlock is corrupt" + extra)
+      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
+      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
+      monAssert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + extra)
+      monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquireBlock smaller than a beat" + extra)
+      monAssert (is_aligned, "'A' channel AcquireBlock address not aligned to size" + extra)
+      monAssert (TLPermissions.isGrow(bundle.param), "'A' channel AcquireBlock carries invalid grow param" + extra)
+      monAssert (~bundle.mask === 0.U, "'A' channel AcquireBlock contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'A' channel AcquireBlock is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.AcquirePerm) {
-      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type unsupported by manager" + extra)
-      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + extra)
-      assert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + extra)
-      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquirePerm smaller than a beat" + extra)
-      assert (is_aligned, "'A' channel AcquirePerm address not aligned to size" + extra)
-      assert (TLPermissions.isGrow(bundle.param), "'A' channel AcquirePerm carries invalid grow param" + extra)
-      assert (bundle.param =/= TLPermissions.NtoB, "'A' channel AcquirePerm requests NtoB" + extra)
-      assert (~bundle.mask === 0.U, "'A' channel AcquirePerm contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'A' channel AcquirePerm is corrupt" + extra)
+      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type unsupported by manager" + extra)
+      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + extra)
+      monAssert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + extra)
+      monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquirePerm smaller than a beat" + extra)
+      monAssert (is_aligned, "'A' channel AcquirePerm address not aligned to size" + extra)
+      monAssert (TLPermissions.isGrow(bundle.param), "'A' channel AcquirePerm carries invalid grow param" + extra)
+      monAssert (bundle.param =/= TLPermissions.NtoB, "'A' channel AcquirePerm requests NtoB" + extra)
+      monAssert (~bundle.mask === 0.U, "'A' channel AcquirePerm contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'A' channel AcquirePerm is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      assert (edge.manager.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
-      assert (source_ok, "'A' channel Get carries invalid source ID" + extra)
-      assert (is_aligned, "'A' channel Get address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'A' channel Get carries invalid param" + extra)
-      assert (bundle.mask === mask, "'A' channel Get contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'A' channel Get is corrupt" + extra)
+      monAssert (edge.manager.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
+      monAssert (source_ok, "'A' channel Get carries invalid source ID" + extra)
+      monAssert (is_aligned, "'A' channel Get address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'A' channel Get carries invalid param" + extra)
+      monAssert (bundle.mask === mask, "'A' channel Get contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'A' channel Get is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      assert (edge.manager.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
-      assert (source_ok, "'A' channel PutFull carries invalid source ID" + extra)
-      assert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'A' channel PutFull carries invalid param" + extra)
-      assert (bundle.mask === mask, "'A' channel PutFull contains invalid mask" + extra)
+      monAssert (edge.manager.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
+      monAssert (source_ok, "'A' channel PutFull carries invalid source ID" + extra)
+      monAssert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'A' channel PutFull carries invalid param" + extra)
+      monAssert (bundle.mask === mask, "'A' channel PutFull contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      assert (edge.manager.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
-      assert (source_ok, "'A' channel PutPartial carries invalid source ID" + extra)
-      assert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'A' channel PutPartial carries invalid param" + extra)
-      assert ((bundle.mask & ~mask) === 0.U, "'A' channel PutPartial contains invalid mask" + extra)
+      monAssert (edge.manager.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
+      monAssert (source_ok, "'A' channel PutPartial carries invalid source ID" + extra)
+      monAssert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'A' channel PutPartial carries invalid param" + extra)
+      monAssert ((bundle.mask & ~mask) === 0.U, "'A' channel PutPartial contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      assert (edge.manager.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
-      assert (source_ok, "'A' channel Arithmetic carries invalid source ID" + extra)
-      assert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
-      assert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
-      assert (bundle.mask === mask, "'A' channel Arithmetic contains invalid mask" + extra)
+      monAssert (edge.manager.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
+      monAssert (source_ok, "'A' channel Arithmetic carries invalid source ID" + extra)
+      monAssert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
+      monAssert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
+      monAssert (bundle.mask === mask, "'A' channel Arithmetic contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      assert (edge.manager.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
-      assert (source_ok, "'A' channel Logical carries invalid source ID" + extra)
-      assert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
-      assert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
-      assert (bundle.mask === mask, "'A' channel Logical contains invalid mask" + extra)
+      monAssert (edge.manager.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
+      monAssert (source_ok, "'A' channel Logical carries invalid source ID" + extra)
+      monAssert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
+      monAssert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
+      monAssert (bundle.mask === mask, "'A' channel Logical contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
-      assert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
-      assert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
-      assert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'A' channel Hint is corrupt" + extra)
+      monAssert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
+      monAssert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
+      monAssert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
+      monAssert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'A' channel Hint is corrupt" + extra)
     }
   }
 
   def legalizeFormatB(bundle: TLBundleB, edge: TLEdge) {
-    assert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
+    monAssert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
-    assert (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
+    monAssert (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
 
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
@@ -165,137 +170,137 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
 
     when (bundle.opcode === TLMessages.Probe) {
-      assert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
-      assert (address_ok, "'B' channel Probe carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel Probe carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
-      assert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      assert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'B' channel Probe is corrupt" + extra)
+      monAssert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel Probe carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel Probe carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
+      monAssert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
+      monAssert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'B' channel Probe is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      assert (edge.client.supportsGet(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
-      assert (address_ok, "'B' channel Get carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel Get carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel Get address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'B' channel Get carries invalid param" + extra)
-      assert (bundle.mask === mask, "'B' channel Get contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'B' channel Get is corrupt" + extra)
+      monAssert (edge.client.supportsGet(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel Get carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel Get carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel Get address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'B' channel Get carries invalid param" + extra)
+      monAssert (bundle.mask === mask, "'B' channel Get contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'B' channel Get is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      assert (edge.client.supportsPutFull(bundle.source, bundle.size), "'B' channel carries PutFull type unsupported by client" + extra)
-      assert (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'B' channel PutFull carries invalid param" + extra)
-      assert (bundle.mask === mask, "'B' channel PutFull contains invalid mask" + extra)
+      monAssert (edge.client.supportsPutFull(bundle.source, bundle.size), "'B' channel carries PutFull type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'B' channel PutFull carries invalid param" + extra)
+      monAssert (bundle.mask === mask, "'B' channel PutFull contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      assert (edge.client.supportsPutPartial(bundle.source, bundle.size), "'B' channel carries PutPartial type unsupported by client" + extra)
-      assert (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'B' channel PutPartial carries invalid param" + extra)
-      assert ((bundle.mask & ~mask) === 0.U, "'B' channel PutPartial contains invalid mask" + extra)
+      monAssert (edge.client.supportsPutPartial(bundle.source, bundle.size), "'B' channel carries PutPartial type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'B' channel PutPartial carries invalid param" + extra)
+      monAssert ((bundle.mask & ~mask) === 0.U, "'B' channel PutPartial contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      assert (edge.client.supportsArithmetic(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by client" + extra)
-      assert (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
-      assert (TLAtomics.isArithmetic(bundle.param), "'B' channel Arithmetic carries invalid opcode param" + extra)
-      assert (bundle.mask === mask, "'B' channel Arithmetic contains invalid mask" + extra)
+      monAssert (edge.client.supportsArithmetic(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
+      monAssert (TLAtomics.isArithmetic(bundle.param), "'B' channel Arithmetic carries invalid opcode param" + extra)
+      monAssert (bundle.mask === mask, "'B' channel Arithmetic contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      assert (edge.client.supportsLogical(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
-      assert (address_ok, "'B' channel Logical carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel Logical carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel Logical address not aligned to size" + extra)
-      assert (TLAtomics.isLogical(bundle.param), "'B' channel Logical carries invalid opcode param" + extra)
-      assert (bundle.mask === mask, "'B' channel Logical contains invalid mask" + extra)
+      monAssert (edge.client.supportsLogical(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel Logical carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel Logical carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel Logical address not aligned to size" + extra)
+      monAssert (TLAtomics.isLogical(bundle.param), "'B' channel Logical carries invalid opcode param" + extra)
+      monAssert (bundle.mask === mask, "'B' channel Logical contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      assert (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
-      assert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
-      assert (legal_source, "'B' channel Hint carries source that is not first source" + extra)
-      assert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
-      assert (bundle.mask === mask, "'B' channel Hint contains invalid mask" + extra)
-      assert (!bundle.corrupt, "'B' channel Hint is corrupt" + extra)
+      monAssert (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
+      monAssert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
+      monAssert (legal_source, "'B' channel Hint carries source that is not first source" + extra)
+      monAssert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
+      monAssert (bundle.mask === mask, "'B' channel Hint contains invalid mask" + extra)
+      monAssert (!bundle.corrupt, "'B' channel Hint is corrupt" + extra)
     }
   }
 
   def legalizeFormatC(bundle: TLBundleC, edge: TLEdge) {
-    assert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
+    monAssert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
 
-    assert (visible(edge.address(bundle), bundle.source, edge), "'C' channel carries an address illegal for the specified bank visibility")
+    monAssert (visible(edge.address(bundle), bundle.source, edge), "'C' channel carries an address illegal for the specified bank visibility")
 
     when (bundle.opcode === TLMessages.ProbeAck) {
-      assert (address_ok, "'C' channel ProbeAck carries unmanaged address" + extra)
-      assert (source_ok, "'C' channel ProbeAck carries invalid source ID" + extra)
-      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ProbeAck smaller than a beat" + extra)
-      assert (is_aligned, "'C' channel ProbeAck address not aligned to size" + extra)
-      assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAck carries invalid report param" + extra)
-      assert (!bundle.corrupt, "'C' channel ProbeAck is corrupt" + extra)
+      monAssert (address_ok, "'C' channel ProbeAck carries unmanaged address" + extra)
+      monAssert (source_ok, "'C' channel ProbeAck carries invalid source ID" + extra)
+      monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ProbeAck smaller than a beat" + extra)
+      monAssert (is_aligned, "'C' channel ProbeAck address not aligned to size" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAck carries invalid report param" + extra)
+      monAssert (!bundle.corrupt, "'C' channel ProbeAck is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.ProbeAckData) {
-      assert (address_ok, "'C' channel ProbeAckData carries unmanaged address" + extra)
-      assert (source_ok, "'C' channel ProbeAckData carries invalid source ID" + extra)
-      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ProbeAckData smaller than a beat" + extra)
-      assert (is_aligned, "'C' channel ProbeAckData address not aligned to size" + extra)
-      assert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAckData carries invalid report param" + extra)
+      monAssert (address_ok, "'C' channel ProbeAckData carries unmanaged address" + extra)
+      monAssert (source_ok, "'C' channel ProbeAckData carries invalid source ID" + extra)
+      monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ProbeAckData smaller than a beat" + extra)
+      monAssert (is_aligned, "'C' channel ProbeAckData address not aligned to size" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAckData carries invalid report param" + extra)
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
-      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
-      assert (source_ok, "'C' channel Release carries invalid source ID" + extra)
-      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
-      assert (is_aligned, "'C' channel Release address not aligned to size" + extra)
-      assert (TLPermissions.isShrink(bundle.param), "'C' channel Release carries invalid shrink param" + extra)
-      assert (!bundle.corrupt, "'C' channel Release is corrupt" + extra)
+      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
+      monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
+      monAssert (is_aligned, "'C' channel Release address not aligned to size" + extra)
+      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel Release carries invalid shrink param" + extra)
+      monAssert (!bundle.corrupt, "'C' channel Release is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      assert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
-      assert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
-      assert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
-      assert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
-      assert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
-      assert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param" + extra)
+      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
+      monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
+      monAssert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
+      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
-      assert (address_ok, "'C' channel AccessAck carries unmanaged address" + extra)
-      assert (source_ok, "'C' channel AccessAck carries invalid source ID" + extra)
-      assert (is_aligned, "'C' channel AccessAck address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'C' channel AccessAck carries invalid param" + extra)
-      assert (!bundle.corrupt, "'C' channel AccessAck is corrupt" + extra)
+      monAssert (address_ok, "'C' channel AccessAck carries unmanaged address" + extra)
+      monAssert (source_ok, "'C' channel AccessAck carries invalid source ID" + extra)
+      monAssert (is_aligned, "'C' channel AccessAck address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'C' channel AccessAck carries invalid param" + extra)
+      monAssert (!bundle.corrupt, "'C' channel AccessAck is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAckData) {
-      assert (address_ok, "'C' channel AccessAckData carries unmanaged address" + extra)
-      assert (source_ok, "'C' channel AccessAckData carries invalid source ID" + extra)
-      assert (is_aligned, "'C' channel AccessAckData address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'C' channel AccessAckData carries invalid param" + extra)
+      monAssert (address_ok, "'C' channel AccessAckData carries unmanaged address" + extra)
+      monAssert (source_ok, "'C' channel AccessAckData carries invalid source ID" + extra)
+      monAssert (is_aligned, "'C' channel AccessAckData address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'C' channel AccessAckData carries invalid param" + extra)
     }
 
     when (bundle.opcode === TLMessages.HintAck) {
-      assert (address_ok, "'C' channel HintAck carries unmanaged address" + extra)
-      assert (source_ok, "'C' channel HintAck carries invalid source ID" + extra)
-      assert (is_aligned, "'C' channel HintAck address not aligned to size" + extra)
-      assert (bundle.param === 0.U, "'C' channel HintAck carries invalid param" + extra)
-      assert (!bundle.corrupt, "'C' channel HintAck is corrupt" + extra)
+      monAssert (address_ok, "'C' channel HintAck carries unmanaged address" + extra)
+      monAssert (source_ok, "'C' channel HintAck carries invalid source ID" + extra)
+      monAssert (is_aligned, "'C' channel HintAck address not aligned to size" + extra)
+      monAssert (bundle.param === 0.U, "'C' channel HintAck carries invalid param" + extra)
+      monAssert (!bundle.corrupt, "'C' channel HintAck is corrupt" + extra)
     }
   }
 
@@ -362,7 +367,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   def legalizeFormatE(bundle: TLBundleE, edge: TLEdge) {
     val sink_ok = bundle.sink < edge.manager.endSinkId.U
-    assert (sink_ok, "'E' channels carries invalid sink ID" + extra)
+    monAssert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
 
   def legalizeFormat(bundle: TLBundle, edge: TLEdge) = {
@@ -373,9 +378,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       when (bundle.c.valid) { legalizeFormatC(bundle.c.bits, edge) }
       when (bundle.e.valid) { legalizeFormatE(bundle.e.bits, edge) }
     } else {
-      assert (!bundle.b.valid, "'B' channel valid and not TL-C" + extra)
-      assert (!bundle.c.valid, "'C' channel valid and not TL-C" + extra)
-      assert (!bundle.e.valid, "'E' channel valid and not TL-C" + extra)
+      monAssert (!bundle.b.valid, "'B' channel valid and not TL-C" + extra)
+      monAssert (!bundle.c.valid, "'C' channel valid and not TL-C" + extra)
+      monAssert (!bundle.e.valid, "'E' channel valid and not TL-C" + extra)
     }
   }
 
@@ -387,11 +392,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val source  = Reg(UInt())
     val address = Reg(UInt())
     when (a.valid && !a_first) {
-      assert (a.bits.opcode === opcode, "'A' channel opcode changed within multibeat operation" + extra)
-      assert (a.bits.param  === param,  "'A' channel param changed within multibeat operation" + extra)
-      assert (a.bits.size   === size,   "'A' channel size changed within multibeat operation" + extra)
-      assert (a.bits.source === source, "'A' channel source changed within multibeat operation" + extra)
-      assert (a.bits.address=== address,"'A' channel address changed with multibeat operation" + extra)
+      monAssert (a.bits.opcode === opcode, "'A' channel opcode changed within multibeat operation" + extra)
+      monAssert (a.bits.param  === param,  "'A' channel param changed within multibeat operation" + extra)
+      monAssert (a.bits.size   === size,   "'A' channel size changed within multibeat operation" + extra)
+      monAssert (a.bits.source === source, "'A' channel source changed within multibeat operation" + extra)
+      monAssert (a.bits.address=== address,"'A' channel address changed with multibeat operation" + extra)
     }
     when (a.fire() && a_first) {
       opcode  := a.bits.opcode
@@ -410,11 +415,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val source  = Reg(UInt())
     val address = Reg(UInt())
     when (b.valid && !b_first) {
-      assert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
-      assert (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
-      assert (b.bits.size   === size,   "'B' channel size changed within multibeat operation" + extra)
-      assert (b.bits.source === source, "'B' channel source changed within multibeat operation" + extra)
-      assert (b.bits.address=== address,"'B' channel addresss changed with multibeat operation" + extra)
+      monAssert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
+      monAssert (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
+      monAssert (b.bits.size   === size,   "'B' channel size changed within multibeat operation" + extra)
+      monAssert (b.bits.source === source, "'B' channel source changed within multibeat operation" + extra)
+      monAssert (b.bits.address=== address,"'B' channel addresss changed with multibeat operation" + extra)
     }
     when (b.fire() && b_first) {
       opcode  := b.bits.opcode
@@ -433,11 +438,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val source  = Reg(UInt())
     val address = Reg(UInt())
     when (c.valid && !c_first) {
-      assert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
-      assert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
-      assert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
-      assert (c.bits.source === source, "'C' channel source changed within multibeat operation" + extra)
-      assert (c.bits.address=== address,"'C' channel address changed with multibeat operation" + extra)
+      monAssert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
+      monAssert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
+      monAssert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
+      monAssert (c.bits.source === source, "'C' channel source changed within multibeat operation" + extra)
+      monAssert (c.bits.address=== address,"'C' channel address changed with multibeat operation" + extra)
     }
     when (c.fire() && c_first) {
       opcode  := c.bits.opcode
@@ -492,7 +497,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val a_set = WireInit(0.U(edge.client.endSourceId.W))
     when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
       a_set := UIntToOH(bundle.a.bits.source)
-      assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+      monAssert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = WireInit(0.U(edge.client.endSourceId.W))
@@ -511,7 +516,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val watchdog = RegInit(0.U(32.W))
     val limit = PlusArg("tilelink_timeout",
       docstring="Kill emulation after INT waiting TileLink cycles. Off if 0.")
-    assert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
+    monAssert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
 
     watchdog := watchdog + 1.U
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
@@ -532,7 +537,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val e_clr = WireInit(0.U(edge.manager.endSinkId.W))
     when (bundle.e.fire() && e_first && edge.isResponse(bundle.e.bits)) {
       e_clr := UIntToOH(bundle.e.bits.sink)
-      assert((d_set | inflight)(bundle.e.bits.sink), "'E' channel acknowledged for nothing inflight" + extra)
+      monAssert((d_set | inflight)(bundle.e.bits.sink), "'E' channel acknowledged for nothing inflight" + extra)
     }
 
     // edge.client.minLatency applies to BC, not DE
