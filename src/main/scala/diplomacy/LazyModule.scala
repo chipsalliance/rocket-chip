@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
