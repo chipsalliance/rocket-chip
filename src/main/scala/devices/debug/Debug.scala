@@ -811,7 +811,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     for (component <- 0 until nComponents) {
       hartResets(component) := (if (cfg.hasHartResets) SynchronizerShiftReg(io.hartReset.get(component), 3, Some(s"debug_hartReset_$component"))
-        else reset)
+        else reset.asBool)
     }
 
     when (~io.dmactive || ~dmAuthenticated) {
