@@ -9,9 +9,9 @@ import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.util.AsyncResetReg
 
 class TestHarness()(implicit p: Parameters) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val success = Output(Bool())
-  }
+  })
 
   val ldut = LazyModule(new ExampleRocketSystem)
   val dut = Module(ldut.module)
