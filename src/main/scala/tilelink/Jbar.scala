@@ -36,7 +36,6 @@ class TLJbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     })
 
   lazy val module = new LazyModuleImp(this) {
-    println(s"JBar info: ${node.in.size}/${clientRatio} vs ${node.out.size}/${managerRatio}")
     node.inoutGrouped.foreach { case (in, out) => TLXbar.circuit(policy, in, out) }
   }
 }
