@@ -13,6 +13,12 @@ case class BundleField(key: BundleKeyBase, data: Data)
     key.setDefault(out)
     out
   }
+  def isOutput = DataMirror.specifiedDirectionOf(data) match {
+    case SpecifiedDirection.Unspecified => true
+    case SpecifiedDirection.Output      => true
+    case SpecifiedDirection.Input       => false
+    case SpecifiedDirection.Flip        => false
+  }
 }
 
 sealed trait BundleKeyBase {
@@ -38,7 +44,26 @@ class BundleMap(val fields: Seq[BundleField]) extends Record {
   require(fields.map(_.key.name).distinct.size == fields.size)
   override def cloneType: this.type = (new BundleMap(fields)).asInstanceOf[this.type]
   val elements = ListMap(fields.map { bf => bf.key.name -> chisel3.experimental.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
-  def apply[T <: Data](key: BundleKey[T]) = elements(key.name).asInstanceOf[T]
+
+  def apply[T <: Data](key: BundleKey[T]): T         = elements(key.name).asInstanceOf[T]
+  def lift [T <: Data](key: BundleKey[T]): Option[T] = elements.lift(key.name).map(_.asInstanceOf[T])
+
+  def apply(key: BundleKeyBase): Data         = elements(key.name)
+  def lift (key: BundleKeyBase): Option[Data] = elements.lift(key.name)
+
+  // For every key where this.output or that.input
+  def assignL(that: BundleMap): Seq[BundleKeyBase] = {
+    val a = this.fields.filter( _.isOutput).map(_.key)
+    val b = that.fields.filter(!_.isOutput).map(_.key)
+    (a ++ b).toList.distinct
+  }
+
+  // For every key where this.input or that.output
+  def assignR(that: BundleMap): Seq[BundleKeyBase] = {
+    val a = this.fields.filter(!_.isOutput).map(_.key)
+    val b = that.fields.filter( _.isOutput).map(_.key)
+    (a ++ b).toList.distinct
+  }
 }
 
 // Implement :<= :=> and :<>
