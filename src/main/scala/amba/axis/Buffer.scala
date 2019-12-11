@@ -14,7 +14,7 @@ class AXISBuffer(val params: BufferParams)(implicit p: Parameters) extends LazyM
   val node = AXISAdapterNode()
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out :<> params(in)
+      out :<> params.irrevocable(in)
     }
   }
 }

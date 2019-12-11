@@ -95,15 +95,12 @@ object AXISXbar
     } else {
       // The number of beats which remain to be sent
       val idle = RegInit(true.B)
-      when (sink.fire()) { idle := sink.bits.last }
-
-      // Winner (if any) claims sink
-      val latch = idle && sink.ready
+      when (sink.valid) { idle := sink.bits.last && sink.ready }
 
       // Who wants access to the sink?
       val valids = sources.map(_.valid)
       // Arbitrate amongst the requests
-      val readys = VecInit(policy(valids.size, Cat(valids.reverse), latch).asBools)
+      val readys = VecInit(policy(valids.size, Cat(valids.reverse), idle).asBools)
       // Which request wins arbitration?
       val winner = VecInit((readys zip valids) map { case (r,v) => r&&v })
 
