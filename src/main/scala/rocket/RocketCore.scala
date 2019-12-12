@@ -436,6 +436,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     when (id_ctrl.mem_cmd.isOneOf(M_SFENCE, M_FLUSH_ALL)) {
       ex_reg_mem_size := Cat(id_raddr2 =/= UInt(0), id_raddr1 =/= UInt(0))
     }
+    if (tile.dcache.flushOnFenceI) {
+      when (id_ctrl.fence_i) {
+        ex_reg_mem_size := 0
+      }
+    }
 
     for (i <- 0 until id_raddr.size) {
       val do_bypass = id_bypass_src(i).reduce(_||_)
