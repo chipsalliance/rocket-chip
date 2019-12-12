@@ -111,7 +111,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   def pipelineIDToWB[T <: Data](x: T): T =
     RegEnable(RegEnable(RegEnable(x, !ctrl_killd), ex_pc_valid), mem_pc_valid)
   val perfEvents = new EventSets(Seq(
-    new EventSet((mask, hits) => Mux(mask(0), wb_xcpt, wb_valid && pipelineIDToWB((mask & hits).orR)), Seq(
+    new EventSet((mask, hits) => Mux(wb_xcpt, mask(0), wb_valid && pipelineIDToWB((mask & hits).orR)), Seq(
       ("exception", () => false.B),
       ("load", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XRD && !id_ctrl.fp),
       ("store", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XWR && !id_ctrl.fp),
