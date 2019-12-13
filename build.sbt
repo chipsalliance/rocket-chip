@@ -25,7 +25,7 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
+  pomExtra := <url>https://github.com/chipsalliance/rocket-chip</url>
   <licenses>
     <license>
       <name>Apache 2</name>
@@ -39,8 +39,8 @@ lazy val commonSettings = Seq(
       </license>
     </licenses>
     <scm>
-      <url>https://github.com/freechipsproject/rocketchip.git</url>
-      <connection>scm:git:github.com/freechipsproject/rocketchip.git</connection>
+      <url>https://github.com/chipsalliance/rocketchip.git</url>
+      <connection>scm:git:github.com/chipsalliance/rocketchip.git</connection>
     </scm>,
   publishTo := {
     val v = version.value
