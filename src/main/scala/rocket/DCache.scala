@@ -360,7 +360,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // tag updates on hit
   metaArb.io.in(2).valid := s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta
-  metaArb.io.in(2).bits.write := !s2_data_error && !io.cpu.s2_kill
+  metaArb.io.in(2).bits.write := !io.cpu.s2_kill
   metaArb.io.in(2).bits.way_en := s2_victim_way
   metaArb.io.in(2).bits.idx := s2_vaddr(idxMSB, idxLSB)
   metaArb.io.in(2).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_vaddr(idxMSB, 0))
