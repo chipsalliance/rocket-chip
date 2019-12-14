@@ -7,14 +7,20 @@ import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
-// mask=0 -> passthrough
-// adjustableRegion -> only devices in this regions get adjusted
-// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in adjustableRegion
-class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(AddressSet.everything), forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
+class AddressAdjuster(
+    mask: BigInt, // 0 -> passthrough
+    adjustableRegion: Option[AddressSet] = Some(AddressSet.everything), // only devices in this region get adjusted
+    forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reacheable at id=0 even if also asjusted
+    defaultId: Option[Int] = None) // default base address to use for reporting manager address metadata
+    (implicit p: Parameters) extends LazyModule
+{
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
   // Which ids must we route within that mask?
   val ids  = AddressSet.enumerateMask(mask)
+  defaultId.foreach(id => require(id < ids.size,
+    s"AddressAdjuster: default region id ($id) out of bounds (${ids.size})"))
+
   // Find the intersection of the mask with some region
   private def masked(region: Seq[AddressSet], offset: BigInt = 0): Seq[AddressSet] = {
     region.flatMap { _.intersect(AddressSet(offset, ~mask)) }
@@ -153,12 +159,13 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
           val r = container.get
           requireContainerSupport(l, r)
 
-          // The address can be dynamically adjusted to anywhere in the adjustable region, but we take the 0 setting as default for DTS output
-          // Any address space holes in the local adjustable region will be plugged with the error device.
-          // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
-          // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
+          // The local address can be dynamically adjusted to any masked location in the adjustable region.
+          // We can report a particular defaultId for DTS output, otherwise we report the 0th id location.
+          // Any address space holes in the local region will be plugged with the error device.
+          // All device PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
+          // Capabilities supported by the remote but not the local device will result in dynamic re-rerouting to the error device.
           l.copy(
-            address            = AddressSet.unify(masked(l.address) ++ (if (l == errorDev) holes else Nil)),
+            address            = AddressSet.unify(masked(l.address ++ (if (l == errorDev) holes else Nil), offset = ids(defaultId.getOrElse(0)))),
             regionType         = r.regionType,
             executable         = r.executable,
             supportsAcquireT   = r.supportsAcquireT,
@@ -176,11 +183,13 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
         }
 
         // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
-        val newRemotes = ids.tail.zipWithIndex.flatMap { case (id, i) => adjustableRemoteManagers.map { r =>
-          r.copy(
-            address = AddressSet.unify(masked(r.address, offset = id)),
-            fifoId = Some(i+1))
-        } }
+        val newRemotes = ids.zipWithIndex.collect { case (id, i) if i != defaultId.getOrElse(0) =>
+          adjustableRemoteManagers.map { r =>
+            r.copy(
+              address = AddressSet.unify(masked(r.address, offset = id)),
+              fifoId = Some(i+1))
+          }
+        }.flatten
 
         // Relable the FIFO domains for certain manager subsets
         val fifoIdFactory = TLXbar.relabeler()
