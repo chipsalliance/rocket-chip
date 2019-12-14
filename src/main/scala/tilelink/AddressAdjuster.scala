@@ -11,7 +11,7 @@ class AddressAdjuster(
     mask: BigInt, // 0 -> passthrough
     adjustableRegion: Option[AddressSet] = Some(AddressSet.everything), // only devices in this region get adjusted
     forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reacheable at id=0 even if also asjusted
-    defaultId: Option[Int] = None) // default base address to use for reporting manager address metadata
+    defaultId: Option[Int] = None) // default local region id used for reporting manager address metadata
     (implicit p: Parameters) extends LazyModule
 {
   // Which bits are in the mask?
