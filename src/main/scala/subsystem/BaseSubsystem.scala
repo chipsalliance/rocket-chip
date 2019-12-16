@@ -8,6 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.tilelink.TLBusWrapper
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
 
@@ -36,7 +37,6 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
-
 trait HasBusAttachmentFunction {
   type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
   def attach: BusAttachmentFunction
@@ -54,7 +54,8 @@ case object CBUS extends BaseSubsystemBusAttachment
 
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
-  with HasLogicalTreeNode with HasBusAttachmentFunction {
+    with HasLogicalTreeNode with HasBusAttachmentFunction {
+  val clockGroupNode = ClockGroupBroadcast()
 
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
