@@ -34,6 +34,14 @@ case class ClockAdapterNode(
   extends AdapterNode(ClockImp)(sourceFn, sinkFn)
 case class ClockIdentityNode()(implicit valName: ValName) extends IdentityNode(ClockImp)()
 
+case class FixedClockBroadcastNode(fixedClockOpt: Option[ClockParameters])(implicit valName: ValName)
+  extends NexusNode(ClockImp)(
+    dFn = { seq => fixedClockOpt.map(_ => ClockSourceParameters(give = fixedClockOpt)).orElse(seq.headOption).getOrElse(ClockSourceParameters()) },
+    uFn = { seq => fixedClockOpt.map(_ =>   ClockSinkParameters(take = fixedClockOpt)).orElse(seq.headOption).getOrElse(ClockSinkParameters()) },
+    inputRequiresOutput = false) {
+  def fixedClockResources(name: String, prefix: String = "soc/"): Seq[Option[FixedClockResource]] = Seq(fixedClockOpt.map(t => new FixedClockResource(name, t.freqMHz, prefix)))
+}
+
 object ClockSinkNode
 {
   def apply(
