@@ -97,15 +97,26 @@ case class TransferSizes(min: Int, max: Int)
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
   
-  def smallestintervalcover(x: TransferSizes) = TransferSizes(if (min == 0 || x.min == 0) scala.math.max(min, x.min) else scala.math.min(min, x.min), scala.math.max(max, x.max))
+  // Not a union, because the result may contain sizes contained by neither term
+  def cover(x: TransferSizes) = {
+    if (none) {
+      x
+    } else if (x.none) {
+      this
+    } else {
+      TransferSizes(scala.math.min(min, x.min), scala.math.max(max, x.max))
+    }
+  }
 
   override def toString() = "TransferSizes[%d, %d]".format(min, max)
-
 }
 
 object TransferSizes {
   def apply(x: Int) = new TransferSizes(x)
   val none = new TransferSizes(0)
+
+  def cover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ cover _)
+  def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
   implicit def asBool(x: TransferSizes) = !x.none
 }
