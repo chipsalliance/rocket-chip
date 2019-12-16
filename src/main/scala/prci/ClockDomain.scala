@@ -4,28 +4,28 @@ import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-class ClockSinkDomain(take: Option[ClockParameters] = None)(implicit p: Parameters) extends LazyModule
-    with LazyScope
-    with HasClockDomainCrossing {
-
-  val clockNode = ClockSinkNode(Seq(ClockSinkParameters(take = take)))
+abstract class ClockDomain(implicit p: Parameters) extends LazyModule
+  with LazyScope
+  with HasClockDomainCrossing
+{
+  def clockBundle: ClockBundle
 
   lazy val module = new LazyRawModuleImp(this) {
-    val (bundle, _) = clockNode.in.head
-    childClock := bundle.clock
-    childReset := bundle.reset
+    childClock := clockBundle.clock
+    childReset := clockBundle.reset
+    val clock = clockBundle.clock
+    val reset = clockBundle.reset
   }
 }
 
-class ClockSourceDomain(give: Option[ClockParameters] = None)(implicit p: Parameters) extends LazyModule
-    with LazyScope
-    with HasClockDomainCrossing {
+class ClockSinkDomain(take: Option[ClockParameters] = None)(implicit p: Parameters) extends ClockDomain
+{
+  val clockNode = ClockSinkNode(Seq(ClockSinkParameters(take = take)))
+  def clockBundle = clockNode.in.head._1
+}
 
+class ClockSourceDomain(give: Option[ClockParameters] = None)(implicit p: Parameters) extends ClockDomain
+{
   val clockNode = ClockSourceNode(Seq(ClockSourceParameters(give = give)))
-
-  lazy val module = new LazyRawModuleImp(this) {
-    val (bundle, _) = clockNode.out.head
-    childClock := bundle.clock
-    childReset := bundle.reset
-  }
+  def clockBundle = clockNode.out.head._1
 }
