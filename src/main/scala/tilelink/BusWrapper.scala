@@ -5,6 +5,7 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
 /** Specifies widths of various attachement points in the SoC */
@@ -18,6 +19,7 @@ trait HasTLBusParams {
   def blockOffset: Int = log2Up(blockBytes)
 
   def dtsFrequency: Option[BigInt]
+  def fixedClockOpt = dtsFrequency.map(f => ClockParameters(freqMHz = f.toDouble / 1000000.0))
 
   require (isPow2(beatBytes))
   require (isPow2(blockBytes))
@@ -30,6 +32,8 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
+  def dtsFrequency = params.dtsFrequency
+  val dtsClk = dtsFrequency.map { freq => new FixedClockResource(s"${busName}_clock", (freq.toDouble)/1000000) } // TODO merge with fixedClockOpt
 
   /* If you violate this requirement, you will have a rough time.
    * The codebase is riddled with the assumption that this is true.
@@ -68,9 +72,6 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
   }
-
-  def dtsFrequency = params.dtsFrequency
-  val dtsClk = dtsFrequency.map { freq => new FixedClockResource(s"${busName}_clock", (freq.toDouble)/1000000) }
 }
 
 trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
