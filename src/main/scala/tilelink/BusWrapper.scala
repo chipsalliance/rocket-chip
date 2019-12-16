@@ -26,9 +26,12 @@ trait HasTLBusParams {
 }
 
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
-    extends SimpleLazyModule
-    with HasClockDomainCrossing
-    with HasTLBusParams {
+    extends ClockDomain with HasTLBusParams {
+
+  val clockGroupNode = ClockGroupNode(busName)
+  val clockNode = FixedClockBroadcastNode(fixedClockOpt)
+  clockNode := clockGroupNode // first member of group is always domain's own clock
+  def clockBundle = clockNode.in.head._1
 
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
