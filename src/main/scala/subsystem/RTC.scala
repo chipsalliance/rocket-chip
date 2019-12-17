@@ -8,7 +8,7 @@ import freechips.rocketchip.devices.tilelink.CanHavePeripheryCLINT
 
 trait HasRTCModuleImp extends LazyModuleImp {
   val outer: BaseSubsystem with CanHavePeripheryCLINT
-  private val pbusFreq = outer.p(PeripheryBusKey).frequency.get
+  private val pbusFreq = outer.p(PeripheryBusKey).dtsFrequency.get
   private val rtcFreq = outer.p(DTSTimebase)
   private val internalPeriod: BigInt = pbusFreq / rtcFreq
 
