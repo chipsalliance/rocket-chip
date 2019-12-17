@@ -10,6 +10,7 @@ import freechips.rocketchip.tilelink._
 case class FrontBusParams(
     beatBytes: Int,
     blockBytes: Int,
+    frequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None)
   extends HasTLBusParams with HasBuiltInDeviceParams

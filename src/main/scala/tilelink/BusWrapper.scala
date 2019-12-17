@@ -17,6 +17,8 @@ trait HasTLBusParams {
   def blockBeats: Int = blockBytes / beatBytes
   def blockOffset: Int = log2Up(blockBytes)
 
+  def frequency: Option[BigInt]
+
   require (isPow2(beatBytes))
   require (isPow2(blockBytes))
 }
@@ -66,6 +68,9 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
   }
+
+  def frequency = params.frequency
+  val dtsClk = frequency.map { freq => new FixedClockResource(s"${busName}_clock", (freq.toDouble)/1000000) }
 }
 
 trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>

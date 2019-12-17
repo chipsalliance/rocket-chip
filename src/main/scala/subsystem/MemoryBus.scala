@@ -40,6 +40,7 @@ case class BankedL2Params(
 case class MemoryBusParams(
   beatBytes: Int,
   blockBytes: Int,
+  frequency: Option[BigInt] = None,
   zeroDevice: Option[AddressSet] = None,
   errorDevice: Option[DevNullParams] = None,
   replicatorMask: BigInt = 0)
