@@ -16,6 +16,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
+import freechips.rocketchip.devices.tilelink.TLBusBypass
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.amba.apb.{APBToTL, APBFanout}
@@ -610,7 +611,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     val apb2tlBuffer = LazyModule(new TLBuffer(BufferParams.pipe))
     val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
     val tlErrorParams = DevNullParams(AddressSet.misaligned(dmTopAddr, APBDebugConsts.apbDebugRegBase-dmTopAddr),
-      maxAtomic=0, maxTransfer=4)
+      buffer = false, maxAtomic=0, maxTransfer=4)
     val tlError  = LazyModule(new TLError(tlErrorParams))
     val apbXbar  = LazyModule(new APBFanout())
     val apbRegs  = LazyModule(new APBDebugRegisters())
@@ -626,7 +627,8 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
   val intnode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
-  val dmiInnerNode = TLAsyncCrossingSource() := dmiXbar.node
+  val dmiBypass = LazyModule(new TLBusBypass(beatBytes=4, bufferError=false, maxAtomic=0, maxTransfer=4))
+  val dmiInnerNode = TLAsyncCrossingSource() := dmiBypass.node := dmiXbar.node
   dmOuter.dmiNode := dmiXbar.node
   
   lazy val module = new LazyModuleImp(this) {
@@ -644,6 +646,8 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     })
 
     dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
+
+    dmiBypass.module.io.bypass := ~io.ctrl.dmactive
 
     io.ctrl <> dmOuter.module.io.ctrl
     io.innerCtrl <> ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
