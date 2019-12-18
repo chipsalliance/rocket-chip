@@ -9,7 +9,7 @@ enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  version      := "1.2.1",
+  version      := "1.2.2",
   scalaVersion := "2.12.4",
   crossScalaVersions := Seq("2.12.4"),
   parallelExecution in Global := false,
@@ -60,7 +60,7 @@ lazy val commonSettings = Seq(
 // Current release tooling will look for and modify the versions in this map.
 // Please don't delete it or alter the initial "val defaultVersions = Map" string.
 // Feel free to add additional entries as needed and move each to a separate line.
-val defaultVersions = Map("chisel3" -> "3.2.1")
+val defaultVersions = Map("chisel3" -> "3.2.2")
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 
