@@ -26,17 +26,17 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
-    <licenses>
-      <license>
-        <name>Apache 2</name>
-        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+  pomExtra := <url>https://github.com/chipsalliance/rocket-chip</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>BSD-style</name>
+        <url>http://www.opensource.org/licenses/bsd-license.php</url>
         <distribution>repo</distribution>
-      </license>
-      <license>
-        <name>BSD-style</name>
-          <url>http://www.opensource.org/licenses/bsd-license.php</url>
-          <distribution>repo</distribution>
       </license>
     </licenses>
     <developers>

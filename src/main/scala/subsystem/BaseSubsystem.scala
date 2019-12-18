@@ -37,8 +37,13 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 }
 
 
-/** This trait contains the cases matched in baseAttachmentFunc below.
-  * Both can be extended to offer novel attachment locations in subclasses of BaseSubsystem.
+trait HasBusAttachmentFunction {
+  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
+  def attach: BusAttachmentFunction
+}
+
+/** This trait contains the cases matched in baseBusAttachmentFunc below.
+  * Extend/override them to offer novel attachment locations in subclasses of BaseSubsystem.
   */
 trait BaseSubsystemBusAttachment
 case object SBUS extends BaseSubsystemBusAttachment
@@ -46,24 +51,6 @@ case object PBUS extends BaseSubsystemBusAttachment
 case object FBUS extends BaseSubsystemBusAttachment
 case object MBUS extends BaseSubsystemBusAttachment
 case object CBUS extends BaseSubsystemBusAttachment
-
-trait HasBusAttachmentFunction {
-  val sbus: SystemBus
-  val pbus: PeripheryBus
-  val fbus: FrontBus
-  val mbus: MemoryBus
-  val cbus: PeripheryBus
-
-  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
-  def baseBusAttachmentFunc: BusAttachmentFunction = {
-    case SBUS => sbus
-    case PBUS => pbus
-    case FBUS => fbus
-    case MBUS => mbus
-    case CBUS => cbus
-  }
-  def attach(where: BaseSubsystemBusAttachment): TLBusWrapper = baseBusAttachmentFunc(where)
-}
 
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
@@ -79,6 +66,14 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+
+  def attach: BusAttachmentFunction = {
+    case SBUS => sbus
+    case PBUS => pbus
+    case FBUS => fbus
+    case MBUS => mbus
+    case CBUS => cbus
+  }
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers
