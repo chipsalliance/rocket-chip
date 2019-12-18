@@ -18,7 +18,7 @@ case class PeripheryBusParams(
     beatBytes: Int,
     blockBytes: Int,
     atomics: Option[BusAtomics] = Some(BusAtomics()),
-    frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
+    dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None,
     replicatorMask: BigInt = 0)
@@ -26,8 +26,8 @@ case class PeripheryBusParams(
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
 
-class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
-    extends TLBusWrapper(params, "periphery_bus")
+class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Parameters)
+    extends TLBusWrapper(params, name)
     with CanHaveBuiltInDevices
     with CanAttachTLSlaves {
 
