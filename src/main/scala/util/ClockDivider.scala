@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 import chisel3.withClock
 import chisel3.util.HasBlackBoxResource
 
@@ -16,28 +16,28 @@ import chisel3.util.HasBlackBoxResource
   * to create a deterministic divided clock.
   */
 class ClockDivider2 extends BlackBox with HasBlackBoxResource {
-  val io = new Bundle {
-    val clk_out = Clock(OUTPUT)
-    val clk_in  = Clock(INPUT)
-  }
+  val io = IO(new Bundle {
+    val clk_out = Output(Clock())
+    val clk_in  = Input(Clock())
+  })
 
-  setResource("/vsrc/ClockDivider2.v")
+  addResource("/vsrc/ClockDivider2.v")
 }
 class ClockDivider3 extends BlackBox with HasBlackBoxResource {
-  val io = new Bundle {
-    val clk_out = Clock(OUTPUT)
-    val clk_in  = Clock(INPUT)
-  }
+  val io = IO(new Bundle {
+    val clk_out = Output(Clock())
+    val clk_in  = Input(Clock())
+  })
 
-  setResource("/vsrc/ClockDivider3.v")
+  addResource("/vsrc/ClockDivider3.v")
 }
 
 /** Divide the clock by power of 2 times.
  *  @param pow2 divides the clock 2 ^ pow2 times */
 class Pow2ClockDivider(pow2: Int) extends Module {
-  val io = new Bundle {
-    val clock_out = Clock(OUTPUT)
-  }
+  val io = IO(new Bundle {
+    val clock_out = Output(Clock())
+  })
 
   if (pow2 == 0) {
     io.clock_out := clock
