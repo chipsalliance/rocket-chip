@@ -36,7 +36,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
   def dtsFrequency = params.dtsFrequency
-  val dtsClk = dtsFrequency.map { freq => new FixedClockResource(s"${busName}_clock", (freq.toDouble)/1000000) } // TODO merge with fixedClockOpt
+  val dtsClk = clockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
 
   /* If you violate this requirement, you will have a rough time.
    * The codebase is riddled with the assumption that this is true.
