@@ -24,6 +24,7 @@ case object Sv48 extends OMAddressTranslationMode
 trait OMBaseInstructionSet extends OMEnum
 case object RV32E extends OMBaseInstructionSet
 case object RV32I extends OMBaseInstructionSet
+case object RV64E extends OMBaseInstructionSet
 case object RV64I extends OMBaseInstructionSet
 case object RV128I extends OMBaseInstructionSet
 
@@ -50,8 +51,8 @@ object OMISA {
 
   def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
-      case 32 => RV32I
-      case 64 => RV64I
+      case 32 => if (coreParams.useRVE) RV32E else RV32I
+      case 64 => if (coreParams.useRVE) RV64E else RV64I
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
     }
 
@@ -62,6 +63,7 @@ object OMISA {
     val baseISAVersion = baseInstructionSet match {
       case RV32E => "1.9"
       case RV32I => "2.0"
+      case RV64E => "1.9"
       case RV64I => "2.0"
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid baseISAVersion: $baseInstructionSet")
     }

@@ -10,8 +10,8 @@ enablePlugins(PackPlugin)
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2.2",
-  scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.12.4"),
+  scalaVersion := "2.12.10",
+  crossScalaVersions := Seq("2.12.10"),
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
@@ -26,17 +26,17 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
-    <licenses>
-      <license>
-        <name>Apache 2</name>
-        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+  pomExtra := <url>https://github.com/chipsalliance/rocket-chip</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>BSD-style</name>
+        <url>http://www.opensource.org/licenses/bsd-license.php</url>
         <distribution>repo</distribution>
-      </license>
-      <license>
-        <name>BSD-style</name>
-          <url>http://www.opensource.org/licenses/bsd-license.php</url>
-          <distribution>repo</distribution>
       </license>
     </licenses>
     <developers>
@@ -44,7 +44,11 @@ lazy val commonSettings = Seq(
         <organization>SiFive</organization>
         <organizationUrl>https://www.sifive.com/</organizationUrl>
       </developer>
-    </developers>,
+    </developers>
+    <scm>
+      <url>https://github.com/chipsalliance/rocketchip.git</url>
+      <connection>scm:git:github.com/chipsalliance/rocketchip.git</connection>
+    </scm>,
   publishTo := {
     val v = version.value
     val nexus = "https://oss.sonatype.org/"
@@ -80,7 +84,6 @@ lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance
   .settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.12.4"))
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)

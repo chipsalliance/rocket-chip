@@ -105,7 +105,7 @@ trait DeviceInterrupts
   def describeInterrupts(resources: ResourceBindings): Map[String, Seq[ResourceValue]] = {
     val int = resources("int")
 
-    int.foreach { b => require (b.device.isDefined, "Device ${devname} property 'int' is missing user device") }
+    int.foreach { b => require (b.device.isDefined, s"Device ${this} property 'int' is missing user device") }
     val parents = int.map(_.device.get).distinct
     val simple = parents.size == 1 && !alwaysExtended
 

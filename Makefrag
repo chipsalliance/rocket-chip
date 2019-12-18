@@ -37,8 +37,10 @@ src_path := src/main/scala
 resources := $(base_dir)/src/main/resources
 csrc := $(resources)/csrc
 vsrc := $(resources)/vsrc
-default_submodules := . hardfloat chisel3 api-config-sifive/design/craft
-chisel_srcs := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(shell find $(base_dir)/$(submodule)/$(src_path) -name "*.scala"))
+default_submodules := . hardfloat chisel3
+default_submodule_src_paths := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(base_dir)/$(submodule)/$(src_path))
+other_src_paths := $(base_dir)/api-config-chipsalliance/design/craft/src
+chisel_srcs := $(foreach path,$(default_submodule_src_paths) $(other_src_paths),$(shell find $(path) -name "*.scala"))
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm 2> /dev/null)

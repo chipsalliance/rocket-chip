@@ -64,8 +64,15 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       println (s"!!! WARNING !!!")
     }
 
-    val (io_in, edgesIn) = node.in.unzip
-    val (io_out, edgesOut) = node.out.unzip
+    TLXbar.circuit(policy, node.in, node.out)
+  }
+}
+
+object TLXbar
+{
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]) {
+    val (io_in, edgesIn) = seqIn.unzip
+    val (io_out, edgesOut) = seqOut.unzip
 
     // Not every master need connect to every slave on every channel; determine which connections are necessary
     val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
@@ -219,7 +226,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 
     // Print the ID mapping
     if (false) {
-      println(s"XBar ${name} mapping:")
+      println(s"XBar mapping:")
       (edgesIn zip inputIdRanges).zipWithIndex.foreach { case ((edge, id), i) =>
         println(s"\t$i assigned ${id} for ${edge.client.clients.map(_.name).mkString(", ")}")
       }
@@ -261,10 +268,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       TLArbiter(policy)(in(i).d, filter(beatsDO zip portsDIO(i), connectDIO(i)):_*)
     }
   }
-}
 
-object TLXbar
-{
   def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode =
   {
     val xbar = LazyModule(new TLXbar(policy))

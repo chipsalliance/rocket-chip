@@ -13,6 +13,7 @@ case class SystemBusParams(
     beatBytes: Int,
     blockBytes: Int,
     policy: TLArbiter.Policy = TLArbiter.roundRobin,
+    dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None)
   extends HasTLBusParams with HasBuiltInDeviceParams
