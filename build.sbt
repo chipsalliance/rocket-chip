@@ -44,11 +44,7 @@ lazy val commonSettings = Seq(
         <organization>SiFive</organization>
         <organizationUrl>https://www.sifive.com/</organizationUrl>
       </developer>
-    </developers>
-    <scm>
-      <url>https://github.com/chipsalliance/rocketchip.git</url>
-      <connection>scm:git:github.com/chipsalliance/rocketchip.git</connection>
-    </scm>,
+    </developers>,
   publishTo := {
     val v = version.value
     val nexus = "https://oss.sonatype.org/"
