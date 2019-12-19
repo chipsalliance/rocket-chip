@@ -314,6 +314,23 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
   val codeBits = ecc.width(2*lanes*gen.getWidth)
   val ram = SyncReadMem(rows/2, UInt(codeBits.W))
 
+  // Refill FSM schedule
+  val refill = RegInit(0.U(3.W))
+  val refill_idle  = refill === 0.U
+  val refill_wait0 = refill === 1.U
+  val refill_ren0  = refill === 2.U
+  val refill_flop0 = refill === 3.U
+  val refill_ren1  = refill === 4.U
+  val refill_flop1 = refill === 5.U
+
+  // Advance refill FSM on rewind until complete
+  io.rewind.foreach { r => when (r || !refill_idle) {
+    refill := Mux(refill_flop1, 0.U, refill + 1.U)
+  } }
+
+  // Block deq while refilling afte rewing
+  when (!refill_idle) { io.deq.valid := 0.U }
+
   val enq_buffer = Reg(Vec(4, Vec(lanes, gen)))
   val deq_buffer = Reg(Vec(4, Vec(lanes, gen)))
 
@@ -334,11 +351,11 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
   val gap1 = RegNext(pre_gap1)
   val gap2 = RegNext(pre_gap2)
 
-  val ren = deq_push && !gap2
+  val ren = (deq_push && !pre_gap2) || refill_ren0 || refill_ren1
   val wen = RegInit(false.B)
 
-  when (!ren)              { wen := false.B }
-  when (enq_push && !gap1) { wen := true.B }
+  when (!ren)                            { wen := false.B }
+  when (enq_push && (rewind.B || !gap1)) { wen := true.B }
 
   val write_row = RegEnable(enq_row, enq_push)
   val ram_i = Mux(write_row(1),
@@ -346,21 +363,25 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
     VecInit(enq_buffer(0) ++ enq_buffer(1)))
   val deq_row_half = deq_row >> 1
   val read_row =
+    Mux(refill_ren0, deq_row_half,
+    Mux(refill_ren1, deq_row_half + 1.U, // requires isPow2(rows)
     Mux(!isPow2(rows).B && deq_row_half === (rows/2-1).U, 1.U,
     Mux(!isPow2(rows).B && deq_row_half === (rows/2-2).U, 0.U,
-    deq_row_half + 2.U))
+    deq_row_half + 2.U))))
   val ram_o = ecc.decode(ram.read(read_row, ren)).corrected.asTypeOf(Vec(2*lanes, gen))
   when (wen && !ren) { ram.write(write_row >> 1, ecc.encode(ram_i.asUInt)) }
 
-  val deq_fill = RegNext(deq_push)
+  val bypass = RegNext((deq_push &&  pre_gap2)   || (refill_ren1 &&  pre_gap1)   || (refill_ren0 &&  pre_gap0))
+  val latch0 = RegNext((deq_push && !deq_row(1)) || (refill_ren1 &&  deq_row(1)) || (refill_ren0 && !deq_row(1)))
+  val latch1 = RegNext((deq_push &&  deq_row(1)) || (refill_ren1 && !deq_row(1)) || (refill_ren0 &&  deq_row(1)))
   for (l <- 0 until lanes) {
-    when (deq_fill && deq_row(1)) {
-      deq_buffer(0)(l) := Mux(gap2, enq_buffer(0)(l), ram_o(l))
-      deq_buffer(1)(l) := Mux(gap2, enq_buffer(1)(l), ram_o(l+lanes))
+    when (latch0) {
+      deq_buffer(0)(l) := Mux(bypass, enq_buffer(0)(l), ram_o(l))
+      deq_buffer(1)(l) := Mux(bypass, enq_buffer(1)(l), ram_o(l+lanes))
     }
-    when (deq_fill && !deq_row(1)) {
-      deq_buffer(2)(l) := Mux(gap2, enq_buffer(2)(l), ram_o(l))
-      deq_buffer(3)(l) := Mux(gap2, enq_buffer(3)(l), ram_o(l+lanes))
+    when (latch1) {
+      deq_buffer(2)(l) := Mux(bypass, enq_buffer(2)(l), ram_o(l))
+      deq_buffer(3)(l) := Mux(bypass, enq_buffer(3)(l), ram_o(l+lanes))
     }
     for (r <- 0 until 4) {
       val rn = (r+3) % 4
