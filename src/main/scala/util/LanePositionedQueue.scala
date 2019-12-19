@@ -92,13 +92,19 @@ class LanePositionedQueueIO[T <: Data](private val gen: T, val args: LanePositio
   val deq_0_lane = Output(UInt(laneBitsU.W))
 
   // Free-up space for enq; ready only if free.bits would not pass deq
-  val free = if (args.free) Some(Flipped(Valid(UInt(depthBitsU.W)))) else None
+  // free.ready includes same-cycle space from deq.ready
+  val free = if (args.free) Some(Flipped(Decoupled(UInt(depthBitsU.W)))) else None
   // Rewind the deq/read pointer to the free pointer
+  // Same-cycle free is included in the 'rewound' pointer state
+  // deq.valid may go to 0 for a few cycles after rewind
   val rewind = if (args.rewind) Some(Input(Bool())) else None
 
   // Advance the commited space; ready only if commit.bits would not pass enq
-  val commit = if (args.commit) Some(Flipped(Valid(UInt(depthBitsU.W)))) else None
+  // commit.ready includes same-cycle space from enq.valid
+  val commit = if (args.commit) Some(Flipped(Decoupled(UInt(depthBitsU.W)))) else None
   // Restore the enq/write pointer to the commit pointer
+  // Same-cycle commit is included into the 'aborted' pointer state
+  // enq.ready may go to 0 for a few cycles after abort
   val abort = if (args.abort) Some(Input(Bool())) else None
 
   // Connect two LPQs (enq <= deq)
@@ -179,15 +185,46 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
   val nEnq    = RegInit(capacity.U(capBits1.W))
   val nCommit = RegInit(       0.U(capBits1.W))
 
-  val freed     = io.free  .map(x => Mux(x.valid, x.bits, 0.U)).getOrElse(io.deq.ready)
-  val committed = io.commit.map(x => Mux(x.valid, x.bits, 0.U)).getOrElse(io.enq.valid)
-  io.free  .foreach { x => assert (!x.valid || nFree   + io.deq.valid >= x.bits) }
-  io.commit.foreach { x => assert (!x.valid || nCommit + io.enq.valid >= x.bits) }
+  val freed     = io.free  .map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.deq.ready)
+  val committed = io.commit.map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.enq.valid)
+  io.free.foreach   { x => x.ready := x.bits <= nFree   + io.deq.ready }
+  io.commit.foreach { x => x.ready := x.bits <= nCommit + io.enq.valid }
 
-  nDeq    := nDeq    + committed    - io.deq.ready
-  nFree   := nFree   + io.deq.ready - freed
-  nEnq    := nEnq    + freed        - io.enq.valid
-  nCommit := nCommit + io.enq.valid - committed
+  // Note: can be negative (abort coincides with commit of all remaining enq)
+  val abortSize    = nCommit - committed
+  val rewindSize   = nFree   - freed
+
+  val nDeq_next    = nDeq    + committed    - io.deq.ready
+  val nFree_next   = rewindSize             + io.deq.ready
+  val nEnq_next    = nEnq    + freed        - io.enq.valid
+  val nCommit_next = abortSize              + io.enq.valid
+
+  nDeq    := nDeq_next
+  nFree   := nFree_next
+  nEnq    := nEnq_next
+  nCommit := nCommit_next
+
+  val doAbort  = io.abort .getOrElse(false.B)
+  val doRewind = io.rewind.getOrElse(false.B)
+
+  // Updating the indexing for non-power of two is too hard for now.
+  require (!abort  || (isPow2(lanes) && isPow2(rows)))
+  val enq_set = (if (lanes == 1) enq_row else Cat(enq_row, enq_lane)) - abortSize
+  when (doAbort) {
+    if (lanes > 1) enq_lane := enq_set(laneBits-1, 0)
+    if (rows  > 1) enq_row  := enq_set >> laneBits
+    nEnq    := nEnq_next + nCommit_next
+    nCommit := 0.U
+  }
+
+  require (!rewind || (isPow2(lanes) && isPow2(rows)))
+  val deq_set = (if (lanes == 1) deq_row else Cat(deq_row, deq_lane)) - rewindSize
+  when (doRewind) {
+    if (lanes > 1) deq_lane := deq_set(laneBits-1, 0)
+    if (rows  > 1) deq_row  := deq_set >> laneBits
+    nDeq  := nDeq_next + nFree_next
+    nFree := 0.U
+  }
 
   // These variables are only used for the assertion below
   val enq_pos = enq_row * lanes.U + enq_lane
