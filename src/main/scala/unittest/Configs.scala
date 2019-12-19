@@ -24,16 +24,17 @@ class WithAMBAUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new AHBBridgeTest(true, txns=8*txns, timeout=timeout)),
-      Module(new AHBNativeTest(true, txns=6*txns, timeout=timeout)),
-      Module(new AHBNativeTest(false,txns=6*txns, timeout=timeout)),
-      Module(new APBBridgeTest(true, txns=6*txns, timeout=timeout)),
-      Module(new APBBridgeTest(false,txns=6*txns, timeout=timeout)),
-      Module(new AXI4LiteFuzzRAMTest(txns=6*txns, timeout=timeout)),
-      Module(new AXI4FullFuzzRAMTest(txns=3*txns, timeout=timeout)),
-      Module(new AXI4BridgeTest(     txns=3*txns, timeout=timeout)),
-      Module(new AXI4XbarTest(       txns=1*txns, timeout=timeout)),
-      Module(new AXI4RAMAsyncCrossingTest(txns=3*txns, timeout=timeout))) }
+      Module(new AHBBridgeTest(true,         txns=8*txns, timeout=timeout)),
+      Module(new AHBNativeTest(true,         txns=6*txns, timeout=timeout)),
+      Module(new AHBNativeTest(false,        txns=6*txns, timeout=timeout)),
+      Module(new APBBridgeTest(true,         txns=6*txns, timeout=timeout)),
+      Module(new APBBridgeTest(false,        txns=6*txns, timeout=timeout)),
+      Module(new AXI4LiteFuzzRAMTest(        txns=6*txns, timeout=timeout)),
+      Module(new AXI4LiteUserBitsFuzzRAMTest(txns=6*txns, timeout=timeout)),
+      Module(new AXI4FullFuzzRAMTest(        txns=3*txns, timeout=timeout)),
+      Module(new AXI4BridgeTest(             txns=3*txns, timeout=timeout)),
+      Module(new AXI4XbarTest(               txns=1*txns, timeout=timeout)),
+      Module(new AXI4RAMAsyncCrossingTest(   txns=3*txns, timeout=timeout))) }
 })
 
 class WithTLSimpleUnitTests extends Config((site, here, up) => {
@@ -79,6 +80,7 @@ class WithTLXbarUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
+      Module(new TLJbarTest(3, 2,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(1,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(2,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(8,           txns=5*txns, timeout=timeout)),
