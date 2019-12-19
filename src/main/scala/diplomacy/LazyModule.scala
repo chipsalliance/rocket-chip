@@ -17,6 +17,9 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
 
+  // Wrapper function used for with(Clock|Reset) scoping, see LazyModule.withClock
+  private[diplomacy] var wrap: LazyModuleImpLike => LazyModuleImpLike = identity
+
   // code snippets from 'InModuleBody' injection
   protected[diplomacy] var inModuleBody = List[() => Unit]()
 
@@ -137,6 +140,28 @@ object LazyModule
     if (!bc.suggestedNameVar.isDefined) bc.suggestName(valName.name)
     bc
   }
+
+  import chisel3.{Clock, Reset}
+
+  def withClock[T <: LazyModule](clock: => Clock)(bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
+    val res = apply(bc)
+    res.wrap = (x: LazyModuleImpLike) => chisel3.withClock(clock)(x)
+    res
+  }
+
+  def withReset[T <: LazyModule](reset: => Reset)(bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
+    val res = apply(bc)
+    res.wrap = (x: LazyModuleImpLike) => chisel3.withReset(reset)(x)
+    res
+  }
+
+  def withAndClock[T <: LazyModule](clock: => Clock, reset: => Reset)
+                                   (bc: T)
+                                   (implicit valName: ValName, sourceInfo: SourceInfo): T = {
+    val res = apply(bc)
+    res.wrap = (x: LazyModuleImpLike) => chisel3.withClockAndReset(clock, reset)(x)
+    res
+  }
 }
 
 sealed trait LazyModuleImpLike extends RawModule
@@ -156,7 +181,7 @@ sealed trait LazyModuleImpLike extends RawModule
   protected[diplomacy] def instantiate() = {
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo = c.info
-      val mod = Module(c.module)
+      val mod = c.wrap(Module(c.module))
       mod.finishInstantiate()
       mod.dangles
     }
