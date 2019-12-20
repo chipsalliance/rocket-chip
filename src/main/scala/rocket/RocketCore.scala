@@ -76,7 +76,8 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
     val mask = BigInt(
       tileParams.dcache.get.clockGate.toInt << 0 |
       rocketParams.clockGate.toInt << 1 |
-      rocketParams.clockGate.toInt << 2
+      rocketParams.clockGate.toInt << 2 |
+      1 << 3 // disableSpeculativeICacheRefill
     )
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
   }
