@@ -14,8 +14,10 @@ lazy val commonSettings = Seq(
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
-  libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
-  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
+  libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+  libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.6.1",
+  libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % "test",
+  libraryDependencies += "edu.berkeley.cs" %% "chisel-iotesters" % "1.3.2" % "test",
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
