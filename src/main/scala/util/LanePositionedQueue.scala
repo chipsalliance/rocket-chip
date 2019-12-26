@@ -180,10 +180,10 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
   val (deq_row,  deq_row1) = row(deq_wrap)
 
   val capBits1 = log2Ceil(capacity+1)
-  val nDeq    = RegInit(       0.U(capBits1.W))
-  val nFree   = RegInit(       0.U(capBits1.W))
-  val nEnq    = RegInit(capacity.U(capBits1.W))
-  val nCommit = RegInit(       0.U(capBits1.W))
+  val nDeq    = RegInit(       0.U(capBits1.W)) // deq.valid
+  val nFree   = RegInit(       0.U(capBits1.W)) // free.ready
+  val nEnq    = RegInit(capacity.U(capBits1.W)) // enq.ready
+  val nCommit = RegInit(       0.U(capBits1.W)) // commit.ready
 
   val freed     = io.free  .map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.deq.ready)
   val committed = io.commit.map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.enq.valid)
@@ -235,8 +235,8 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
 
   io.enq_0_lane := enq_lane
   io.deq_0_lane := deq_lane
-  io.enq.ready := (if (pipe) nEnq +& io.deq.ready else nEnq)
-  io.deq.valid := (if (flow) nDeq +& io.enq.valid else nDeq)
+  io.enq.ready := (if (pipe) nEnq +& freed     else nEnq)
+  io.deq.valid := (if (flow) nDeq +& committed else nDeq)
 
   // Constraints the user must uphold
   assert (io.enq.valid <= io.enq.ready)
@@ -255,10 +255,11 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
   val deq_bits = Wire(Vec(lanes, gen))
   io.deq.bits := deq_bits
 
-  // Bypass data when empty
+  // Bypass data when enq/deq rows overlap
   if (flow) {
     val maybe_empty = RegInit(true.B)
     when (deq_wrap =/= enq_wrap) { maybe_empty := deq_wrap }
+    // ^^^ broken
 
     val row0 = deq_row  === enq_row && maybe_empty
     val row1 = deq_row1 === enq_row
@@ -328,7 +329,7 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
     refill := Mux(refill_flop1, 0.U, refill + 1.U)
   } }
 
-  // Block deq while refilling afte rewing
+  // Block deq while refilling after rewinding
   when (!refill_idle) { io.deq.valid := 0.U }
 
   val enq_buffer = Reg(Vec(4, Vec(lanes, gen)))
@@ -337,9 +338,23 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
   val deq_push = deq_wrap && deq_row(0)
   val enq_push = enq_wrap && enq_row(0)
 
-  val maybe_empty = RegInit(true.B)
-  val next_maybe_empty = Mux(deq_push === enq_push, maybe_empty, deq_push)
-  maybe_empty := next_maybe_empty
+  val logL = log2Floor((rows-2)*lanes) - 1 // rows >= 8
+  val L    = BigInt(1) << logL // 2*lanes <= L <= (rows-2)*lanes/2
+  require (2*lanes <= L && L <= (rows-2)*lanes/2)
+  val next_maybe_empty = (free.B && (nFree_next>>logL).orR) || (nEnq_next>>logL).orR // nFree >= L || nEnq >= L
+
+  // free <= deq <= commit <= enq <= free + rows*lanes
+  //     nFree  nDeq    nCommit  nEnq
+  // next_maybe_empty
+  //   =>  nFree >= L || nEnq >= L
+  //   =>  deq+capacity - enq >= nFree+nEnq >= L >= 2*lanes
+  //   =>  (deq+capacity)/(2*lanes) != enq/(2*lanes)
+  //   =>  not full
+  // !next_maybe_empty
+  //   =>  nFree < L && nEnq < L
+  //   =>  enq-deq = nCommit+nDeq = rows*lanes - nFree - nEnq >= rows*lanes - 2L >= 2*lanes
+  //   =>  enq/(2*lanes) != deq/(2*lanes)
+  //   =>  not empty
 
   val pre_enq_row = Mux(enq_wrap, enq_row1, enq_row)
   val pre_deq_row = Mux(deq_wrap, deq_row1, deq_row)
@@ -371,7 +386,7 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
   val ram_o = ecc.decode(ram.read(read_row, ren)).corrected.asTypeOf(Vec(2*lanes, gen))
   when (wen && !ren) { ram.write(write_row >> 1, ecc.encode(ram_i.asUInt)) }
 
-  val bypass = RegNext((deq_push &&  pre_gap2)   || (refill_ren1 &&  pre_gap1)   || (refill_ren0 &&  pre_gap0))
+  val bypass = RegNext((deq_push &&  pre_gap2)   || (refill_ren1 &&  pre_gap2)   || (refill_ren0 &&  pre_gap1))
   val latch0 = RegNext((deq_push && !deq_row(1)) || (refill_ren1 &&  deq_row(1)) || (refill_ren0 && !deq_row(1)))
   val latch1 = RegNext((deq_push &&  deq_row(1)) || (refill_ren1 && !deq_row(1)) || (refill_ren0 &&  deq_row(1)))
   for (l <- 0 until lanes) {
@@ -414,14 +429,16 @@ case class OnePortLanePositionedQueue(ecc: Code) extends LanePositionedQueue {
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink.LFSR64
 
-class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: Int, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
+class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: Int, rewind: Boolean, abort: Boolean, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(queueFactory(UInt(bits.W), lanes, rows, true, false))
+  val q = Module(queueFactory(UInt(bits.W), lanes, rows, false, false, rewind, abort, rewind, abort))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
+  val com = RegInit(0.U(bits.W))
+  val abt = RegInit(0.U(bits.W))
   val done = RegInit(false.B)
 
   def cap(x: UInt) = Mux(x > lanes.U, lanes.U, x) +& 1.U
@@ -430,6 +447,34 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
 
   enq := enq + q.io.enq.valid
   deq := deq + q.io.deq.ready
+
+  q.io.commit.foreach { c =>
+    val legal = enq + q.io.enq.valid - com
+    assert (c.ready || c.bits > legal)
+    c.valid := LFSR64()(0)
+    c.bits  := ((legal + 1.U) * LFSR64()) >> 63 // 50% likely to be legal
+    when (c.fire()) { com := com + c.bits }
+  }
+
+  q.io.free.foreach { f =>
+    val legal = deq + q.io.deq.ready - abt
+    assert (f.ready || f.bits > legal)
+    f.valid := LFSR64()(0)
+    f.bits  := ((legal + 1.U) * LFSR64()) >> 63
+    when (f.fire()) { abt := abt + f.bits }
+  }
+
+  q.io.rewind.foreach { r =>
+    val f = q.io.free.get
+    r := (LFSR64() & 0xf.U) === 0.U
+    when (r) { deq := Mux(f.fire(), abt + f.bits, abt) }
+  }
+
+  q.io.abort .foreach { a =>
+    val c = q.io.commit.get
+    a := (LFSR64() & 0xf.U) === 0.U
+    when (a) { enq := Mux(c.fire(), com + c.bits, com) }
+  }
 
   when (enq >= (cycles*lanes).U) { done := true.B }
   io.finished := done
