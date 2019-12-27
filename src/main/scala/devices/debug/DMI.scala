@@ -71,7 +71,7 @@ class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
 class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
   val dmi      = new DMIIO()(p)
   val dmiClock = Output(Clock())
-  val dmiReset = Output(Bool())
+  val dmiReset = Output(Reset())
 }
 
 /** Convert DMI to TL. Avoids using special DMI synchronizers and register accesses
