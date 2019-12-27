@@ -127,7 +127,8 @@ class DebugLogicalTreeNode(
         hasCustom = needCustom,
         hasAbstractPostIncrement = false,
         hasAbstractPostExec = true,
-        hasClockGate = cfg.clockGate
+        hasClockGate = cfg.clockGate,
+        crossingHasSafeReset = cfg.crossingHasSafeReset
     )
     )
   }
