@@ -24,5 +24,5 @@ class TestHarness()(implicit p: Parameters) extends Module {
   SimAXIMem.connectMem(ldut)
   SimAXIMem.connectMMIO(ldut)
   ldut.l2_frontend_bus_axi4.foreach(_.tieoff)
-  Debug.connectDebug(dut.debug, dut.psd, clock, reset.asBool, io.success)
+  Debug.connectDebug(dut.debug, dut.resetctrl, dut.psd, clock, reset.asBool, io.success)
 }

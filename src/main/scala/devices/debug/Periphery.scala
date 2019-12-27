@@ -39,20 +39,31 @@ case class DebugAttachParams(
 
 case object ExportDebug extends Field(DebugAttachParams())
 
-class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) with Clocked
+class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) {
+  val clock = Clock()
+  val reset = Reset()
+}
 
 class DebugIO(implicit val p: Parameters) extends Bundle {
+  val clock = Input(Clock())
+  val reset = Input(Reset())
   val clockeddmi = p(ExportDebug).dmi.option(Flipped(new ClockedDMIIO()))
   val systemjtag = p(ExportDebug).jtag.option(new SystemJTAGIO)
   val apb = p(ExportDebug).apb.option(Flipped(new ClockedAPBBundle(APBBundleParameters(addrBits=12, dataBits=32))))
   //------------------------------
   val ndreset    = Output(Bool())
   val dmactive   = Output(Bool())
+  val dmactiveAck = Input(Bool())
   val extTrigger = (p(DebugModuleKey).get.nExtTriggers > 0).option(new DebugExtTriggerIO())
   val disableDebug = p(ExportDebug).externalDisable.option(Input(Bool()))
 }
 
 class PSDIO(implicit val p: Parameters) extends Bundle with CanHavePSDTestModeIO {
+}
+
+class ResetCtrlIO(val nComponents: Int)(implicit val p: Parameters) extends Bundle {
+  val hartResetReq = (p(DebugModuleKey).exists(x=>x.hasHartResets)).option(Output(Vec(nComponents, Bool())))
+  val hartIsInReset = Input(Vec(nComponents, Bool()))
 }
 
 /** Either adds a JTAG DTM to system, and exports a JTAG interface,
@@ -91,8 +102,16 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
 
   val psd = IO(new PSDIO)
 
+  val resetctrl = outer.debugOpt.map { outerdebug =>
+    val resetctrl = IO(new ResetCtrlIO(outerdebug.dmOuter.dmOuter.intnode.edges.out.size))
+    outerdebug.module.io.hartIsInReset := resetctrl.hartIsInReset
+    resetctrl.hartResetReq.foreach { rcio => outerdebug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
+    resetctrl
+  }
+
   val debug = outer.debugOpt.map { outerdebug =>
     val debug = IO(new DebugIO)
+
     require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
       "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
 
@@ -114,14 +133,16 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
         r:= io.reset
     }
 
+    outerdebug.module.io.debug_reset := debug.reset
+    outerdebug.module.io.debug_clock := debug.clock
+
     debug.ndreset := outerdebug.module.io.ctrl.ndreset
     debug.dmactive := outerdebug.module.io.ctrl.dmactive
+    outerdebug.module.io.ctrl.dmactiveAck := debug.dmactiveAck
     debug.extTrigger.foreach { x => outerdebug.module.io.extTrigger.foreach {y => x <> y}}
 
     // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
     outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
-
-    outerdebug.module.io.psd <> psd.psd.getOrElse(WireInit(0.U.asTypeOf(new PSDTestMode)))
 
     debug
   }
@@ -219,6 +240,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
 object Debug {
   def connectDebug(
       debugOpt: Option[DebugIO],
+      resetctrlOpt: Option[ResetCtrlIO],
       psdio: PSDIO,
       c: Clock,
       r: Bool,
@@ -227,6 +249,8 @@ object Debug {
       cmdDelay: Int = 2,
       psd: PSDTestMode = 0.U.asTypeOf(new PSDTestMode()))
       (implicit p: Parameters): Unit =  {
+    connectDebugClockAndReset(debugOpt, c, r)
+    resetctrlOpt.map { rcio => rcio.hartIsInReset.map { _ := r }}
     debugOpt.map { debug =>
       debug.clockeddmi.foreach { d =>
         val dtm = Module(new SimDTM).connect(c, r, d, out)
@@ -246,10 +270,35 @@ object Debug {
     }
   }
 
-  def tieoffDebug(debugOpt: Option[DebugIO], psdio: Option[PSDIO] = None): Bool = {
+  def connectDebugClockAndReset(debugOpt: Option[DebugIO], c: Clock, r: Reset)(implicit p: Parameters): Unit = {
+    debugOpt.foreach { debug =>
+      val debug_reset = Wire(Bool())
+      withClockAndReset(c, ~debug.dmactive) {
+        debug_reset := ~AsyncResetSynchronizerShiftReg(in=true.B, sync=3, name=Some("debug_reset_sync"))
+      }
+      // Need to clock DM during reset because of synchronous reset.  The unit
+      // should also be reset when debug_reset is high, so keep the clock
+      // alive for one cycle after debug_reset asserts to action this behavior.
+      withClockAndReset(c, r.asAsyncReset) {
+        val clock_en = RegNext(next = ~debug_reset, init=true.B)
+        val gated_clock =
+          if (!p(DebugModuleKey).get.clockGate) c
+          else ClockGate(c, clock_en, "debug_clock_gate")
+        debug.clock := gated_clock
+        debug.reset := debug_reset
+        debug.dmactiveAck := ~debug_reset
+      }
+    }
+  }
+
+  def tieoffDebug(debugOpt: Option[DebugIO], resetctrlOpt: Option[ResetCtrlIO], psdio: Option[PSDIO] = None): Bool = {
 
     psdio.foreach(_.psd.foreach { _ <> 0.U.asTypeOf(new PSDTestMode()) } )
+    resetctrlOpt.map { rcio => rcio.hartIsInReset.map { _ := false.B }}
     debugOpt.map { debug =>
+      debug.clock := true.B.asClock
+      debug.reset := true.B
+
       debug.systemjtag.foreach { sj =>
         sj.jtag.TCK := true.B.asClock
         sj.jtag.TMS := true.B
@@ -271,7 +320,7 @@ object Debug {
       debug.apb.foreach { apb =>
         apb.tieoff()
         apb.clock := false.B.asClock
-        apb.reset := true.B
+        apb.reset := true.B    // FIXME: Use .asAsyncReset when FIRRTL supports it
       }
 
       debug.disableDebug.foreach { x => x := false.B }
