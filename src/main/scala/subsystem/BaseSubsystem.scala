@@ -62,10 +62,10 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   // peripherals, tiles, ports, and other masters and slaves can attach themselves.
   val ibus = new InterruptBusWrapper()
   val sbus = LazyModule(p(BuildSystemBus)(p))
-  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
+  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey), "subsystem_pbus"))
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
-  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey), "subsystem_cbus"))
 
   def attach: BusAttachmentFunction = {
     case SBUS => sbus
