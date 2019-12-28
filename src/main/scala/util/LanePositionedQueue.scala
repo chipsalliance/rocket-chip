@@ -257,9 +257,15 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
 
   // Bypass data when enq/deq rows overlap
   if (flow) {
-    val maybe_empty = RegInit(true.B)
-    when (deq_wrap =/= enq_wrap) { maybe_empty := deq_wrap }
-    // ^^^ broken
+    val logL = log2Floor((rows-1)*lanes) - 1
+    val L = BigInt(1) << logL
+    val maybe_empty = if (lanes <= L && L <= (rows-1)*lanes/2) {
+      (free.B && (nFree>>logL).orR) || (nEnq>>logL).orR // nFree >= L || nEnq >= L
+    } else if (free) {
+      nFree + nEnq >= lanes.U
+    } else {
+      nEnq >= lanes.U
+    }
 
     val row0 = deq_row  === enq_row && maybe_empty
     val row1 = deq_row1 === enq_row
@@ -339,22 +345,26 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
   val enq_push = enq_wrap && enq_row(0)
 
   val logL = log2Floor((rows-2)*lanes) - 1 // rows >= 8
-  val L    = BigInt(1) << logL // 2*lanes <= L <= (rows-2)*lanes/2
-  require (2*lanes <= L && L <= (rows-2)*lanes/2)
-  val next_maybe_empty = (free.B && (nFree_next>>logL).orR) || (nEnq_next>>logL).orR // nFree >= L || nEnq >= L
-
-  // free <= deq <= commit <= enq <= free + rows*lanes
-  //     nFree  nDeq    nCommit  nEnq
-  // next_maybe_empty
-  //   =>  nFree >= L || nEnq >= L
-  //   =>  deq+capacity - enq >= nFree+nEnq >= L >= 2*lanes
-  //   =>  (deq+capacity)/(2*lanes) != enq/(2*lanes)
-  //   =>  not full
-  // !next_maybe_empty
-  //   =>  nFree < L && nEnq < L
-  //   =>  enq-deq = nCommit+nDeq = rows*lanes - nFree - nEnq >= rows*lanes - 2L >= 2*lanes
-  //   =>  enq/(2*lanes) != deq/(2*lanes)
-  //   =>  not empty
+  val L = BigInt(1) << logL
+  val next_maybe_empty = if (2*lanes <= L && L <= (rows-2)*lanes/2) {
+    (free.B && (nFree_next>>logL).orR) || (nEnq_next>>logL).orR // nFree >= L || nEnq >= L
+    // free <= deq <= commit <= enq <= free + rows*lanes
+    //     nFree  nDeq    nCommit  nEnq
+    // next_maybe_empty
+    //   =>  nFree >= L || nEnq >= L
+    //   =>  deq+capacity - enq >= nFree+nEnq >= L >= 2*lanes
+    //   =>  (deq+capacity)/(2*lanes) != enq/(2*lanes)
+    //   =>  not full
+    // !next_maybe_empty
+    //   =>  nFree < L && nEnq < L
+    //   =>  enq-deq = nCommit+nDeq = rows*lanes - nFree - nEnq >= rows*lanes - 2L >= 2*lanes
+    //   =>  enq/(2*lanes) != deq/(2*lanes)
+    //   =>  not empty
+  } else if (free) {
+    nEnq_next + nFree_next >= (2*lanes).U
+  } else {
+    nEnq_next >= (2*lanes).U
+  }
 
   val pre_enq_row = Mux(enq_wrap, enq_row1, enq_row)
   val pre_deq_row = Mux(deq_wrap, deq_row1, deq_row)
@@ -433,7 +443,7 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
   val ids = (cycles+1) * lanes
   val bits = log2Ceil(ids+1)
 
-  val q = Module(queueFactory(UInt(bits.W), lanes, rows, false, false, rewind, abort, rewind, abort))
+  val q = Module(queueFactory(UInt(bits.W), lanes, rows, true, false, rewind, abort, rewind, abort))
 
   val enq = RegInit(0.U(bits.W))
   val deq = RegInit(0.U(bits.W))
