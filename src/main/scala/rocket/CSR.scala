@@ -161,7 +161,7 @@ class PerfCounterIO(implicit p: Parameters) extends CoreBundle
   val inc = UInt(INPUT, log2Ceil(1+retireWidth))
 }
 
-class TracedInstruction(implicit p: Parameters) extends CoreBundle with Clocked {
+class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val valid = Bool()
   val iaddr = UInt(width = coreMaxAddrBits)
   val insn = UInt(width = iLen)
@@ -1017,8 +1017,6 @@ class CSRFile(
   }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
-    t.clock := io.ungated_clock
-    t.reset := reset
     t.exception := io.retire >= i && exception
     t.valid := io.retire > i || t.exception
     t.insn := insn
