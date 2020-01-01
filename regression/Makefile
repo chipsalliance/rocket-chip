@@ -156,7 +156,7 @@ stamps/rocket-tools_checkout.stamp:
 	git -C $(RISCV_TOOLS) checkout $(TOOLS_HASH)
 	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim riscv-tests riscv-pk riscv-openocd
 	git -C $(RISCV_TOOLS) submodule update --init riscv-gnu-toolchain
-	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils riscv-gcc riscv-newlib
+	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils riscv-gcc riscv-gdb riscv-glibc riscv-newlib
 	rm -f $(RISCV_TOOLS)/.travis.yml
 	mkdir -p $(dir $@)
 	date > $@
