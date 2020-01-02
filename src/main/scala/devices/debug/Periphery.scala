@@ -249,7 +249,7 @@ object Debug {
       cmdDelay: Int = 2,
       psd: PSDTestMode = 0.U.asTypeOf(new PSDTestMode()))
       (implicit p: Parameters): Unit =  {
-    connectDebugClockAndReset(debugOpt, c, r)
+    connectDebugClockAndReset(debugOpt, c)
     resetctrlOpt.map { rcio => rcio.hartIsInReset.map { _ := r }}
     debugOpt.map { debug =>
       debug.clockeddmi.foreach { d =>
@@ -270,23 +270,27 @@ object Debug {
     }
   }
 
-  def connectDebugClockAndReset(debugOpt: Option[DebugIO], c: Clock, r: Reset)(implicit p: Parameters): Unit = {
+  def connectDebugClockAndReset(debugOpt: Option[DebugIO], c: Clock)(implicit p: Parameters): Unit = {
     debugOpt.foreach { debug =>
+      val dmi_reset = debug.clockeddmi.map(_.dmiReset.asBool).getOrElse(false.B) |
+        debug.systemjtag.map(_.reset.asBool).getOrElse(false.B) |
+        debug.apb.map(_.reset.asBool).getOrElse(false.B)
       val debug_reset = Wire(Bool())
-      withClockAndReset(c, ~debug.dmactive) {
+      withClockAndReset(c, dmi_reset) {
         debug_reset := ~AsyncResetSynchronizerShiftReg(in=true.B, sync=3, name=Some("debug_reset_sync"))
       }
-      // Need to clock DM during reset because of synchronous reset.  The unit
-      // should also be reset when debug_reset is high, so keep the clock
-      // alive for one cycle after debug_reset asserts to action this behavior.
-      withClockAndReset(c, r.asAsyncReset) {
-        val clock_en = RegNext(next = ~debug_reset, init=true.B)
+      // Need to clock DM during debug_reset because of synchronous reset, so keep
+      // the clock alive for one cycle after debug_reset asserts to action this behavior.
+      // The unit should also be clocked when dmactive is high.
+      withClockAndReset(c, debug_reset.asAsyncReset) {
+        val dmactiveAck = ResetSynchronizerShiftReg(in=debug.dmactive, sync=3, name=Some("dmactiveAck"))
+        val clock_en = RegNext(next=dmactiveAck, init=true.B)
         val gated_clock =
           if (!p(DebugModuleKey).get.clockGate) c
           else ClockGate(c, clock_en, "debug_clock_gate")
         debug.clock := gated_clock
-        debug.reset := debug_reset
-        debug.dmactiveAck := ~debug_reset
+        debug.reset := debug_reset   //TODO: Cast to desired reset type
+        debug.dmactiveAck := dmactiveAck
       }
     }
   }
@@ -297,14 +301,14 @@ object Debug {
     resetctrlOpt.map { rcio => rcio.hartIsInReset.map { _ := false.B }}
     debugOpt.map { debug =>
       debug.clock := true.B.asClock
-      debug.reset := true.B
+      debug.reset := true.B   //FIXME: Cast to desired reset type
 
       debug.systemjtag.foreach { sj =>
         sj.jtag.TCK := true.B.asClock
         sj.jtag.TMS := true.B
         sj.jtag.TDI := true.B
         sj.jtag.TRSTn.foreach { r => r := true.B }
-        sj.reset := true.B
+        sj.reset := true.B   //FIXME: Cast to desired reset type
         sj.mfr_id := 0.U
         sj.part_number := 0.U
         sj.version := 0.U
@@ -314,7 +318,7 @@ object Debug {
         d.dmi.req.valid := false.B
         d.dmi.resp.ready := true.B
         d.dmiClock := false.B.asClock
-        d.dmiReset := true.B
+        d.dmiReset := true.B   //FIXME: Cast to desired reset type
       }
 
       debug.apb.foreach { apb =>
