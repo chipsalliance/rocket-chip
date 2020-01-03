@@ -23,7 +23,7 @@ class AXISBundleBits(val params: AXISBundleParameters) extends BundleMap(AXISBun
   def data = if (params.hasData) apply(AXISData) else 0.U(params.dataBits.W)
 }
 
-class AXISBundle(val params: AXISBundleParameters) extends DecoupledIO(new AXISBundleBits(params)) {
+class AXISBundle(val params: AXISBundleParameters) extends IrrevocableIO(new AXISBundleBits(params)) {
   override def cloneType: this.type = (new AXISBundle(params)).asInstanceOf[this.type]
 }
 
