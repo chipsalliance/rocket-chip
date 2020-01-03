@@ -5,6 +5,7 @@ package freechips.rocketchip.amba.axis
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config._
+import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
@@ -42,9 +43,12 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
     for (i <- 0 until in.size) {
       io_in(i).ready := in(i).ready
       in(i).valid    := io_in(i).valid
-      in(i).bits     := io_in(i).bits
-      if (in(i).params.hasId) {
-        in(i).bits.id  := io_in(i).bits.id | inputIdRanges(i).start.U
+
+      (in(i).bits assignL io_in(i).bits) foreach {
+        // Assign the potentially widened AXI-ID
+        case AXISId => if (in(i).bits.params.hasId) { in(i).bits.id := io_in(i).bits.id | inputIdRanges(i).start.U }
+        // All other fields should remain the same
+        case key => in(i).bits(key) :<= io_in(i).bits(key)
       }
     }
 
@@ -53,9 +57,11 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
     for (o <- 0 until out.size) {
       out(o).ready        := io_out(o).ready
       io_out(o).valid     := out(o).valid
-      io_out(o).bits      := out(o).bits
-      if (io_out(o).params.hasDest) {
-        io_out(o).bits.dest := trim(out(o).bits.dest, outputIdRanges(o).size)
+      (io_out(o).bits assignL out(o).bits) foreach {
+        // Simplify the potentially narrowed AXI-Dest
+        case AXISDest => if (io_out(o).params.hasDest) { io_out(o).bits.dest := trim(out(o).bits.dest, outputIdRanges(o).size) }
+        // All other fields should remain the same
+        case key => io_out(o).bits(key) :<= out(o).bits(key)
       }
     }
 
@@ -89,15 +95,12 @@ object AXISXbar
     } else {
       // The number of beats which remain to be sent
       val idle = RegInit(true.B)
-      when (sink.fire()) { idle := sink.bits.last }
-
-      // Winner (if any) claims sink
-      val latch = idle && sink.ready
+      when (sink.valid) { idle := sink.bits.last && sink.ready }
 
       // Who wants access to the sink?
       val valids = sources.map(_.valid)
       // Arbitrate amongst the requests
-      val readys = VecInit(policy(valids.size, Cat(valids.reverse), latch).asBools)
+      val readys = VecInit(policy(valids.size, Cat(valids.reverse), idle).asBools)
       // Which request wins arbitration?
       val winner = VecInit((readys zip valids) map { case (r,v) => r&&v })
 
