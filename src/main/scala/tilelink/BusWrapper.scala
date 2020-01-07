@@ -28,15 +28,20 @@ trait HasTLBusParams {
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
     extends ClockDomain with HasTLBusParams {
 
-  val clockGroupNode = ClockGroupNode(busName)
-  val clockNode = FixedClockBroadcastNode(fixedClockOpt)
-  clockNode := clockGroupNode // first member of group is always domain's own clock
-  def clockBundle = clockNode.in.head._1
+  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName))
+  private val clockGroup = LazyModule(new ClockGroup(busName))
+  val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
+  val clockNode = clockGroup.node
+  val fixedClockNode = FixedClockBroadcastNode(fixedClockOpt) // device clocks attach here
 
+  clockGroup.node := clockGroupAggregator.node
+  fixedClockNode := clockGroup.node // first member of group is always domain's own clock
+
+  def clockBundle = fixedClockNode.in.head._1
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
   def dtsFrequency = params.dtsFrequency
-  val dtsClk = clockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
+  def dtsClk = fixedClockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
 
   /* If you violate this requirement, you will have a rough time.
    * The codebase is riddled with the assumption that this is true.
