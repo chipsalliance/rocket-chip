@@ -28,15 +28,7 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 
 object ClockGroup
 {
-  def apply()(implicit p: Parameters, valName: ValName) =
-    LazyModule(new ClockGroup(valName.name)).node
-
-  def pickGroupFromCrossingType(sync: ClockGroupNode, async: ClockGroupNode)(xType: ClockCrossingType) = {
-    xType match {
-      case _: AsynchronousCrossing => async
-      case _ => sync
-    }
-  }
+  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroup(valName.name)).node
 }
 
 case class ClockGroupBroadcastNode(groupName: String)(implicit valName: ValName)
@@ -70,13 +62,5 @@ class ClockGroupBroadcast(groupName: String)(implicit p: Parameters) extends Laz
 
 object ClockGroupBroadcast
 {
-  def apply()(implicit p: Parameters, valName: ValName) =
-    LazyModule(new ClockGroupBroadcast(valName.name)).node
-
-  def pickGroupFromCrossingType(sync: ClockGroupBroadcastNode, async: ClockGroupBroadcastNode)(xType: ClockCrossingType) = {
-    xType match {
-      case _: AsynchronousCrossing => async
-      case _ => sync
-    }
-  }
+  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroupBroadcast(valName.name)).node
 }
