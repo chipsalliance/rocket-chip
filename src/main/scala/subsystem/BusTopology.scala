@@ -7,6 +7,7 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink._
 
 trait HasHierarchicalBusTopology { this: BaseSubsystem =>
+  sbus.clockGroupNode := clockGroupNode
 
   // The sbus masters the cbus; here we convert TL-UH -> TL-UL
   sbus.crossToBus(cbus, NoCrossing)
@@ -26,14 +27,5 @@ trait HasHierarchicalBusTopology { this: BaseSubsystem =>
     sbus.coupleTo("coherence_manager") { in :*= _ }
     mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
   }
-
-  // Put all tilelink interconnect subnets on the same clock domain,
-  // in accordance with the hard-coded crossing types used above
-  val tlClockGroupNode = ClockGroupBroadcast()
-  tlClockGroupNode := clockGroupNode
-  sbus.clockGroupNode := tlClockGroupNode
-  cbus.clockGroupNode := tlClockGroupNode
-  fbus.clockGroupNode := tlClockGroupNode
-  pbus.clockGroupNode := tlClockGroupNode
-  mbus.clockGroupNode := tlClockGroupNode
+  mbus.clockGroupNode := sbus.clockGroupNode
 }
