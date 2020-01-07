@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem._
+import freechips.rocketchip.prci.SimpleClockGroupSource
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util.DontTouch
 
@@ -17,6 +18,10 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     with CanHaveMasterAXI4MMIOPort
     with CanHaveSlaveAXI4Port
     with HasPeripheryBootROM {
+
+  val dummyClockGroupSourceNode = SimpleClockGroupSource()
+  clockGroupNode :*= dummyClockGroupSourceNode
+
   override lazy val module = new ExampleRocketSystemModuleImp(this)
 }
 
