@@ -13,8 +13,13 @@ abstract class ClockDomain(implicit p: Parameters) extends LazyModule
   lazy val module = new LazyRawModuleImp(this) {
     childClock := clockBundle.clock
     childReset := clockBundle.reset
-    val clock = clockBundle.clock
-    val reset = clockBundle.reset
+
+    // these are just for backwards compatibility with external devices
+    // that were manually wiring themselves to the domain's clock/reset input:
+    val clock = IO(Output(chiselTypeOf(clockBundle.clock)))
+    val reset = IO(Output(chiselTypeOf(clockBundle.reset)))
+    clock := clockBundle.clock
+    reset := clockBundle.reset
   }
 }
 
