@@ -55,7 +55,7 @@ case object CBUS extends BaseSubsystemBusAttachment
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
     with HasLogicalTreeNode with HasBusAttachmentFunction {
-  val clockGroupNode = ClockGroupBroadcast()
+  implicit val clockGroupNode = ClockGroupIdentityNode()
 
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
