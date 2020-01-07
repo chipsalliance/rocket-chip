@@ -15,7 +15,7 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 {
   val node = ClockGroupNode(groupName)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
     val (in, _) = node.in(0)
     val (out, _) = node.out.unzip
 
@@ -41,18 +41,14 @@ class ClockGroupBroadcast(groupName: String)(implicit p: Parameters) extends Laz
 {
   val node = ClockGroupBroadcastNode(groupName)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
     val (in, _) = node.in.unzip
     val (out, _) = node.out.unzip
     val outputs = out.flatMap(_.member)
 
     require (node.in.size <= 1)
     if (node.in.size == 0) {
-      println(s"Diplomacy found the following clocks:\n${node.out.unzip._2.mkString("\n")}")
-      outputs.foreach { o =>
-        o.clock := clock
-        o.reset := reset
-      }
+      println(s"Diplomacy found the following clocks for group $groupName:\n${node.out.unzip._2.mkString("\n")}")
     } else {
       require (in.head.member.size == outputs.size)
       in.head.member.zip(outputs).foreach { case (i, o) => o := i }
