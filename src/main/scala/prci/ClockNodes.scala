@@ -82,6 +82,9 @@ object ClockGroupImp extends SimpleNodeImp[ClockGroupSourceParameters, ClockGrou
   def render(e: ClockGroupEdgeParameters) = RenderedEdge(colour = "#00cc00" /* green */)
 }
 
+case class ClockGroupSourceNode(params: Seq[ClockGroupSourceParameters])(implicit valName: ValName) extends SourceNode(ClockGroupImp)(params)
+case class ClockGroupSinkNode(params: Seq[ClockGroupSinkParameters])(implicit valName: ValName) extends SinkNode(ClockGroupImp)(params)
+
 case class ClockGroupAdapterNode(
   sourceFn: ClockGroupSourceParameters => ClockGroupSourceParameters = { m => m },
   sinkFn:   ClockGroupSinkParameters   => ClockGroupSinkParameters   = { s => s })(
