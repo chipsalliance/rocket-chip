@@ -47,8 +47,8 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
     sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
         crossing.master.cork
           .map { u => TLCacheCork(unsafe = u) }
-          .map { _ :=* tile.crossMasterPort() }
-          .getOrElse { tile.crossMasterPort() }
+          .map { _ :=* TLFIFOFixer() :=* tile.crossMasterPort() }
+          .getOrElse { TLFIFOFixer() :=* tile.crossMasterPort() }
     }
   }
 
