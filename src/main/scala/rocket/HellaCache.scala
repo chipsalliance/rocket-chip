@@ -12,7 +12,6 @@ import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-
 import scala.collection.mutable.ListBuffer
 
 case class DCacheParams(
