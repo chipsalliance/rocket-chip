@@ -154,7 +154,7 @@ stamps/rocket-tools_checkout.stamp:
 	mkdir -p $(dir $@)
 	git -C $(abspath $(TOP)) clone -n https://github.com/freechipsproject/rocket-tools.git
 	git -C $(RISCV_TOOLS) checkout $(TOOLS_HASH)
-	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim riscv-tests riscv-pk riscv-openocd
+	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim riscv-fesvr riscv-tests riscv-pk riscv-openocd
 	git -C $(RISCV_TOOLS) submodule update --init riscv-gnu-toolchain
 	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils-gdb riscv-gcc riscv-newlib
 	rm -f $(RISCV_TOOLS)/.travis.yml
