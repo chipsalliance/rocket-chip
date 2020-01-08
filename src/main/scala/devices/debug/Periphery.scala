@@ -275,40 +275,44 @@ object Debug {
       val dmi_reset = debug.clockeddmi.map(_.dmiReset.asBool).getOrElse(false.B) |
         debug.systemjtag.map(_.reset.asBool).getOrElse(false.B) |
         debug.apb.map(_.reset.asBool).getOrElse(false.B)
-      val debug_reset = Wire(Bool())
-      withClockAndReset(c, dmi_reset) {
-        debug_reset := ~AsyncResetSynchronizerShiftReg(in=true.B, sync=3, name=Some("debug_reset_sync"))
-      }
-      // Need to clock DM during debug_reset because of synchronous reset, so keep
-      // the clock alive for one cycle after debug_reset asserts to action this behavior.
-      // The unit should also be clocked when dmactive is high.
-      withClockAndReset(c, debug_reset.asAsyncReset) {
-        val dmactiveAck = ResetSynchronizerShiftReg(in=debug.dmactive, sync=3, name=Some("dmactiveAck"))
-        val clock_en = RegNext(next=dmactiveAck, init=true.B)
-        val gated_clock =
-          if (!p(DebugModuleKey).get.clockGate) c
-          else ClockGate(c, clock_en, "debug_clock_gate")
-        debug.clock := gated_clock
-        debug.reset := debug_reset   //TODO: Cast to desired reset type
-        debug.dmactiveAck := dmactiveAck
-      }
+      connectDebugClockHelper(debug, dmi_reset, c)
     }
   }
 
-  def tieoffDebug(debugOpt: Option[DebugIO], resetctrlOpt: Option[ResetCtrlIO], psdio: Option[PSDIO] = None): Bool = {
+  def connectDebugClockHelper(debug: DebugIO, dmi_reset: Reset, c: Clock)(implicit p: Parameters): Unit = {
+    val debug_reset = Wire(Bool())
+    withClockAndReset(c, dmi_reset) {
+      debug_reset := ~AsyncResetSynchronizerShiftReg(in=true.B, sync=3, name=Some("debug_reset_sync"))
+    }
+    // Need to clock DM during debug_reset because of synchronous reset, so keep
+    // the clock alive for one cycle after debug_reset asserts to action this behavior.
+    // The unit should also be clocked when dmactive is high.
+    withClockAndReset(c, debug_reset.asAsyncReset) {
+      val dmactiveAck = ResetSynchronizerShiftReg(in=debug.dmactive, sync=3, name=Some("dmactiveAck"))
+      val clock_en = RegNext(next=dmactiveAck, init=true.B)
+      val gated_clock =
+        if (!p(DebugModuleKey).get.clockGate) c
+        else ClockGate(c, clock_en, "debug_clock_gate")
+      debug.clock := gated_clock
+      debug.reset := (if (p(SubsystemResetSchemeKey)==ResetSynchronous) debug_reset else debug_reset.asAsyncReset)
+      debug.dmactiveAck := dmactiveAck
+    }
+  }
+
+  def tieoffDebug(debugOpt: Option[DebugIO], resetctrlOpt: Option[ResetCtrlIO], psdio: Option[PSDIO] = None)(implicit p: Parameters): Bool = {
 
     psdio.foreach(_.psd.foreach { _ <> 0.U.asTypeOf(new PSDTestMode()) } )
     resetctrlOpt.map { rcio => rcio.hartIsInReset.map { _ := false.B }}
     debugOpt.map { debug =>
       debug.clock := true.B.asClock
-      debug.reset := true.B   //FIXME: Cast to desired reset type
+      debug.reset := (if (p(SubsystemResetSchemeKey)==ResetSynchronous) true.B else true.B.asAsyncReset)
 
       debug.systemjtag.foreach { sj =>
         sj.jtag.TCK := true.B.asClock
         sj.jtag.TMS := true.B
         sj.jtag.TDI := true.B
         sj.jtag.TRSTn.foreach { r => r := true.B }
-        sj.reset := true.B   //FIXME: Cast to desired reset type
+        sj.reset := true.B    // TODO: .asAsyncReset (JTAG does not support abstract reset yet)
         sj.mfr_id := 0.U
         sj.part_number := 0.U
         sj.version := 0.U
@@ -318,13 +322,13 @@ object Debug {
         d.dmi.req.valid := false.B
         d.dmi.resp.ready := true.B
         d.dmiClock := false.B.asClock
-        d.dmiReset := true.B   //FIXME: Cast to desired reset type
+        d.dmiReset := true.B.asAsyncReset
       }
 
       debug.apb.foreach { apb =>
         apb.tieoff()
         apb.clock := false.B.asClock
-        apb.reset := true.B    // FIXME: Use .asAsyncReset when FIRRTL supports it
+        apb.reset := true.B.asAsyncReset
       }
 
       debug.disableDebug.foreach { x => x := false.B }

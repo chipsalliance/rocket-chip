@@ -68,6 +68,13 @@ case object FBUS extends TLBusWrapperLocation("subsystem_fbus")
 case object MBUS extends TLBusWrapperLocation("subsystem_mbus")
 case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
 
+trait SubsystemResetScheme
+case object ResetSynchronous extends SubsystemResetScheme
+case object ResetAsynchronous extends SubsystemResetScheme
+case object ResetAsynchronousFull extends SubsystemResetScheme
+
+case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSynchronous)
+
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
     with Attachable {

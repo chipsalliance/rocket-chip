@@ -3,6 +3,7 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
+import chisel3.experimental.withReset
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -74,7 +75,7 @@ class TLBusBypassBar(dFn: TLManagerPortParameters => TLManagerPortParameters)(im
       s"BusBypass slave device widths mismatch (${edgeOut0.manager.managers.map(_.name)} has ${edgeOut0.manager.beatBytes}B vs ${edgeOut1.manager.managers.map(_.name)} has ${edgeOut1.manager.beatBytes}B)")
 
     // We need to be locked to the given bypass direction until all transactions stop
-    val bypass = RegInit(io.bypass) // synchronous reset required
+    val bypass = withReset(reset.asBool)(RegInit(io.bypass)) // synchronous reset required (in code below)
     val (flight, next_flight) = edgeIn.inFlight(in)
 
     io.pending := (flight > 0.U)
