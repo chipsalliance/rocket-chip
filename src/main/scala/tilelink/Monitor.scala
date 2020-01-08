@@ -1,6 +1,8 @@
+
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.tilelink
+// package sifive.enterprise.formal
 
 import chisel3._
 import chisel3.util._
@@ -10,6 +12,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
 import freechips.rocketchip.formal._
+// import sifive.enterprise.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
 
@@ -148,6 +151,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       assert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
       assert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
       assert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
+      assert (TLHints.isHints(bundle.param), "'A' channel Hint carries invalid opcode param" + extra)
       assert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
       assert (!bundle.corrupt, "'A' channel Hint is corrupt" + extra)
     }
@@ -425,6 +429,49 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
+  def legalizeResponseD(a: DecoupledIO[TLBundleA], d: DecoupledIO[TLBundleD], edge: TLEdge) {
+    val sym_source = Wire(UInt(5.W))
+    // TODO: Connect sym_source to a fixed value for simulation and to
+    // FormalNoiseMaker for formal setup
+    sym_source := 0.U
+    // sym_source := FormalNoiseMaker(sym_source.cloneType, true.B)
+
+    val resp_pend = RegInit(false.B)
+    val a_first   = edge.first(a.bits, a.fire())
+    val opcode    = Reg(UInt())
+    val size      = Reg(UInt())
+
+    val d_first = edge.first(d.bits, d.fire())
+
+    // TODO: Qualify *_resp_pend with opcode as well for TL-C config
+    val clr_resp_pend = (d.fire() && d_first && (d.bits.source === sym_source))
+    val set_resp_pend = (a.fire() && a_first && (a.bits.source === sym_source) && !clr_resp_pend)
+    // TODO: Do we need a.fire() below as a_first implies a.fire(), right?
+    when (set_resp_pend) {
+      resp_pend := true.B
+      opcode    := a.bits.opcode
+      size      := a.bits.size
+    } .elsewhen (clr_resp_pend) {
+      resp_pend := false.B
+    }
+
+    val resp_size   = Mux(set_resp_pend, a.bits.size, size)
+    val resp_opcode = Mux(set_resp_pend, a.bits.opcode, opcode)
+
+    val resp_opcode_legal = Wire(Bool())
+    when ((resp_opcode === TLMessages.Get) || (resp_opcode === TLMessages.ArithmeticData) || (resp_opcode === TLMessages.LogicalData)) {
+      resp_opcode_legal := (d.bits.opcode === TLMessages.AccessAckData)
+    } .elsewhen ((resp_opcode === TLMessages.PutFullData) || (resp_opcode === TLMessages.PutPartialData)) {
+      resp_opcode_legal := (d.bits.opcode === TLMessages.AccessAck)
+    } .otherwise {
+      resp_opcode_legal := (d.bits.opcode === TLMessages.HintAck)
+    }
+
+    assume (IfThen(clr_resp_pend, (set_resp_pend || resp_pend)), "'D' channel response arrived without any request" + extra)
+    assume (IfThen(clr_resp_pend, (d.bits.size === resp_size)),  "'D' channel response size does not match request size" + extra)
+    assume (IfThen(clr_resp_pend, resp_opcode_legal),            "'D' channel response does not correspond with request" + extra)
+  }
+
   def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
     val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
@@ -560,8 +607,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset) {
-    legalizeFormat   (bundle, edge)
-    legalizeMultibeat(bundle, edge)
-    legalizeUnique   (bundle, edge)
+    legalizeFormat    (bundle, edge)
+    legalizeMultibeat (bundle, edge)
+    legalizeUnique    (bundle, edge)
+    legalizeResponseD (bundle.a, bundle.d, edge)
   }
 }
