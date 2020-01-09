@@ -20,6 +20,7 @@ class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
       executable = true,
       mayDenyGet = false,
       mayDenyPut = false),
+    minLatency = 1,
     beatBytes = beatBytes,
     device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))) {
   lazy val module = new LazyModuleImp(this) {

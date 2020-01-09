@@ -3,13 +3,15 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
+import chisel3.experimental.withReset
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
-abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implicit p: Parameters) extends LazyModule
+abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false, bufferError: Boolean = true, maxAtomic: Int = 16, maxTransfer: Int = 4096)
+  (implicit p: Parameters) extends LazyModule
 {
   protected val nodeIn = TLIdentityNode()
   protected val nodeOut = TLIdentityNode()
@@ -23,9 +25,9 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implic
     })
   }))
   protected val everything = Seq(AddressSet(0, BigInt("ffffffffffffffffffffffffffffffff", 16))) // 128-bit
-  protected val params = DevNullParams(everything, maxAtomic=16, maxTransfer=4096, region=RegionType.TRACKED)
+  protected val params = DevNullParams(everything, maxAtomic, maxTransfer, region=RegionType.TRACKED)
   protected val error = if (deadlock) LazyModule(new TLDeadlock(params, beatBytes))
-                        else LazyModule(new TLError(params, beatBytes))
+                        else LazyModule(new TLError(params, bufferError, beatBytes))
 
   // order matters
   bar.node := nodeIn
@@ -33,7 +35,8 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false)(implic
   nodeOut := bar.node
 }
 
-class TLBusBypass(beatBytes: Int)(implicit p: Parameters) extends TLBusBypassBase(beatBytes)
+class TLBusBypass(beatBytes: Int, bufferError: Boolean = false, maxAtomic: Int = 16, maxTransfer: Int = 4096)(implicit p: Parameters)
+    extends TLBusBypassBase(beatBytes, deadlock = false, bufferError = bufferError, maxAtomic = maxAtomic, maxTransfer = maxTransfer)
 {
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -72,7 +75,7 @@ class TLBusBypassBar(dFn: TLManagerPortParameters => TLManagerPortParameters)(im
       s"BusBypass slave device widths mismatch (${edgeOut0.manager.managers.map(_.name)} has ${edgeOut0.manager.beatBytes}B vs ${edgeOut1.manager.managers.map(_.name)} has ${edgeOut1.manager.beatBytes}B)")
 
     // We need to be locked to the given bypass direction until all transactions stop
-    val bypass = RegInit(io.bypass) // synchronous reset required
+    val bypass = withReset(reset.asBool)(RegInit(io.bypass)) // synchronous reset required (in code below)
     val (flight, next_flight) = edgeIn.inFlight(in)
 
     io.pending := (flight > 0.U)

@@ -52,6 +52,13 @@ case object FBUS extends BaseSubsystemBusAttachment
 case object MBUS extends BaseSubsystemBusAttachment
 case object CBUS extends BaseSubsystemBusAttachment
 
+trait SubsystemResetScheme
+case object ResetSynchronous extends SubsystemResetScheme
+case object ResetAsynchronous extends SubsystemResetScheme
+case object ResetAsynchronousFull extends SubsystemResetScheme
+
+case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSynchronous)
+
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
   with HasLogicalTreeNode with HasBusAttachmentFunction {
