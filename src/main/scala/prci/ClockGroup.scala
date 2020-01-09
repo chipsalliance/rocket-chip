@@ -56,9 +56,9 @@ object ClockGroupAggregator
   def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroupAggregator(valName.name)).node
 }
 
-class SimpleClockGroupSource()(implicit p: Parameters) extends LazyModule
+class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extends LazyModule
 {
-  val node = ClockGroupSourceNode(List(ClockGroupSourceParameters()))
+  val node = ClockGroupSourceNode(List.fill(numSources) { ClockGroupSourceParameters() })
 
   lazy val module = new LazyModuleImp(this) {
     val (out, _) = node.out.unzip
@@ -69,5 +69,5 @@ class SimpleClockGroupSource()(implicit p: Parameters) extends LazyModule
 
 object SimpleClockGroupSource
 {
-  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new SimpleClockGroupSource()).node
+  def apply(num: Int = 1)(implicit p: Parameters, valName: ValName) = LazyModule(new SimpleClockGroupSource(num)).node
 }
