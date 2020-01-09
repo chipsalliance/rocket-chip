@@ -9,9 +9,9 @@ enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  version      := "1.3-20191218-SNAPSHOT",
-  scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.12.4"),
+  version      := "1.3.0-RC1",
+  scalaVersion := "2.12.10",
+  crossScalaVersions := Seq("2.12.10"),
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
@@ -26,17 +26,17 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
-    <licenses>
-      <license>
-        <name>Apache 2</name>
-        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+  pomExtra := <url>https://github.com/chipsalliance/rocket-chip</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>BSD-style</name>
+        <url>http://www.opensource.org/licenses/bsd-license.php</url>
         <distribution>repo</distribution>
-      </license>
-      <license>
-        <name>BSD-style</name>
-          <url>http://www.opensource.org/licenses/bsd-license.php</url>
-          <distribution>repo</distribution>
       </license>
     </licenses>
     <developers>
@@ -60,7 +60,7 @@ lazy val commonSettings = Seq(
 // Current release tooling will look for and modify the versions in this map.
 // Please don't delete it or alter the initial "val defaultVersions = Map" string.
 // Feel free to add additional entries as needed and move each to a separate line.
-val defaultVersions = Map("chisel3" -> "3.3-20191218-SNAPSHOT")
+val defaultVersions = Map("chisel3" -> "3.3.0-RC1")
 
 lazy val chisel = (project in file("chisel3")).settings(commonSettings)
 
@@ -80,7 +80,6 @@ lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance
   .settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.12.4"))
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
