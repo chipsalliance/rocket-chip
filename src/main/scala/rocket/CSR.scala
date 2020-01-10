@@ -1016,7 +1016,7 @@ class CSRFile(
   }
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
-    t.clock := clock
+    t.clock := io.ungated_clock
     t.reset := reset
     t.exception := io.retire >= i && exception
     t.valid := io.retire > i || t.exception
