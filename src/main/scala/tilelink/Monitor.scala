@@ -438,8 +438,13 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val sym_source = Wire(UInt(edge.client.endSourceId.W))
     // TODO: Connect sym_source to a fixed value for simulation and to
     // FormalNoiseMaker for formal setup
-    sym_source := 0.U
+    // sym_source := 0.U
+    sym_source := DontCare
     // sym_source := FormalNoiseMaker(sym_source.cloneType, true.B, 0)
+
+    // Type casting Int to UInt
+    val maxSourceId = Wire(UInt(edge.client.endSourceId.W))
+    maxSourceId := edge.client.endSourceId.U
 
     // Delayed verison of sym_source
     val sym_source_d = Reg(UInt(edge.client.endSourceId.W))
@@ -448,12 +453,12 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     // These will be constraints for FV setup
     Property(
         MonitorDirection.Monitor,
-        (sym_source == sym_source_d),
+        (sym_source === sym_source_d),
         "sym_source should remain stable",
         PropertyClass.Default)
     Property(
         MonitorDirection.Monitor,
-        (sym_source <= edge.client.endSourceId),
+        (sym_source <= maxSourceId),
         "sym_source should take legal value",
         PropertyClass.Default)
 
