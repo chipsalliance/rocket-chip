@@ -115,8 +115,8 @@ case class TLManagerPortParameters(
   require (endSinkId >= 0, "Sink ids cannot be negative")
   require (minLatency >= 0, "Minimum required latency cannot be negative")
 
-  def requireFifo(policy: TLFIFOFixer.Policy = TLFIFOFixer.allFIFO) = managers.foreach { m =>
-    require(policy(m) && m.fifoId == managers.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
+  def requireFifo(policy: TLFIFOFixer.Policy = TLFIFOFixer.allFIFO) = managers.filter(m => policy(m)).foreach { m =>
+    require(m.fifoId == managers.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
   }
 
   // Bounds on required sizes
