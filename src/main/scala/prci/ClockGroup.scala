@@ -71,3 +71,28 @@ object SimpleClockGroupSource
 {
   def apply(num: Int = 1)(implicit p: Parameters, valName: ValName) = LazyModule(new SimpleClockGroupSource(num)).node
 }
+
+case class FixedClockBroadcastNode(fixedClockOpt: Option[ClockParameters])(implicit valName: ValName)
+  extends NexusNode(ClockImp)(
+    dFn = { seq => fixedClockOpt.map(_ => ClockSourceParameters(give = fixedClockOpt)).orElse(seq.headOption).getOrElse(ClockSourceParameters()) },
+    uFn = { seq => fixedClockOpt.map(_ =>   ClockSinkParameters(take = fixedClockOpt)).orElse(seq.headOption).getOrElse(ClockSinkParameters()) },
+    inputRequiresOutput = false) {
+  def fixedClockResources(name: String, prefix: String = "soc/"): Seq[Option[FixedClockResource]] = Seq(fixedClockOpt.map(t => new FixedClockResource(name, t.freqMHz, prefix)))
+}
+
+class FixedClockBroadcast(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters) extends LazyModule
+{
+  val node = FixedClockBroadcastNode(fixedClockOpt)
+
+  lazy val module = new LazyRawModuleImp(this) {
+    val (in, _) = node.in(0)
+    val (out, _) = node.out.unzip
+    require (node.in.size == 1)
+    out.foreach { _ := in }
+  }
+}
+
+object FixedClockBroadcast
+{
+  def apply(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters, valName: ValName) = LazyModule(new FixedClockBroadcast(fixedClockOpt)).node
+}

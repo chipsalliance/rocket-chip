@@ -32,16 +32,18 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   private val clockGroup = LazyModule(new ClockGroup(busName))
   val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
   val clockNode = clockGroup.node
-  val fixedClockNode = FixedClockBroadcastNode(fixedClockOpt) // device clocks attach here
+  val fixedClockNode = FixedClockBroadcast(fixedClockOpt) // device clocks attach here
+  private val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
 
   clockGroup.node := clockGroupAggregator.node
   fixedClockNode := clockGroup.node // first member of group is always domain's own clock
+  clockSinkNode := fixedClockNode
 
-  def clockBundle = fixedClockNode.in.head._1
+  def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
   def dtsFrequency = params.dtsFrequency
-  def dtsClk = fixedClockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
+  val dtsClk = fixedClockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
 
   /* If you violate this requirement, you will have a rough time.
    * The codebase is riddled with the assumption that this is true.
