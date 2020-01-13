@@ -93,6 +93,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
   val mmioOffset = outer.firstMMIO
+  edge.manager.requireFifo(TLFIFOFixer.allVolatile)  // TileLink pipelining MMIO requests
 
   val clock_en_reg = Reg(Bool())
   io.cpu.clock_enabled := clock_en_reg
