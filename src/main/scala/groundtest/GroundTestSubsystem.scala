@@ -32,9 +32,6 @@ class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) :=* ibus.toPLIC
 
-  val dummyClockGroupSourceNode = SimpleClockGroupSource()
-  clockGroupNode :*= dummyClockGroupSourceNode
-
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 

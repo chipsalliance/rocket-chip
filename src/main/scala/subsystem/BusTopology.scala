@@ -3,11 +3,10 @@
 package freechips.rocketchip.subsystem
 
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink._
 
 trait HasHierarchicalBusTopology { this: BaseSubsystem =>
-  sbus.clockGroupNode := clockGroupNode
+  sbus.clockGroupNode := asyncClockGroupsNode
 
   // The sbus masters the cbus; here we convert TL-UH -> TL-UL
   sbus.crossToBus(cbus, NoCrossing)

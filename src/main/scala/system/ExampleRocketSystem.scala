@@ -18,10 +18,6 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     with CanHaveMasterAXI4MMIOPort
     with CanHaveSlaveAXI4Port
     with HasPeripheryBootROM {
-
-  val dummyClockGroupSourceNode = SimpleClockGroupSource()
-  clockGroupNode :*= dummyClockGroupSourceNode
-
   override lazy val module = new ExampleRocketSystemModuleImp(this)
 }
 
