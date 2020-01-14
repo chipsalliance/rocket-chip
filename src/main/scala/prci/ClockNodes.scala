@@ -32,7 +32,10 @@ case class ClockAdapterNode(
   sinkFn:   ClockSinkParameters   => ClockSinkParameters   = { s => s })(
   implicit valName: ValName)
   extends AdapterNode(ClockImp)(sourceFn, sinkFn)
+
 case class ClockIdentityNode()(implicit valName: ValName) extends IdentityNode(ClockImp)()
+
+case class ClockEphemeralNode()(implicit valName: ValName) extends EphemeralNode(ClockImp)()
 
 object ClockSinkNode
 {
@@ -82,4 +85,7 @@ case class ClockGroupAdapterNode(
   sinkFn:   ClockGroupSinkParameters   => ClockGroupSinkParameters   = { s => s })(
   implicit valName: ValName)
   extends AdapterNode(ClockGroupImp)(sourceFn, sinkFn)
+
 case class ClockGroupIdentityNode()(implicit valName: ValName) extends IdentityNode(ClockGroupImp)()
+
+case class ClockGroupEphemeralNode()(implicit valName: ValName) extends EphemeralNode(ClockGroupImp)()
