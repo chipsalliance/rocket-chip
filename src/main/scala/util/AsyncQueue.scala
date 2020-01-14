@@ -100,7 +100,7 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
     val sink_valid   = Module(new AsyncValidSync(params.sync, "sink_valid"))
     source_valid_0.reset := reset.asBool || !sio.sink_reset_n
     source_valid_1.reset := reset.asBool || !sio.sink_reset_n
-    sink_extend   .reset := reset.asBool || !sio.sink_reset_n
+    sink_extend   .reset := reset.asBool
 
     source_valid_0.io.in := true.B
     source_valid_1.io.in := source_valid_0.io.out
