@@ -180,7 +180,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
         t.in_a.valid := in.a.valid && select && (!a_first || !probe_busy)
         t.in_a.bits := in.a.bits
         t.in_a_first := a_first
-        t.probe := (if (caches.size == 0) UInt(0) else Mux(a_cache.orR(), UInt(caches.size-1), UInt(caches.size)))
+        t.probe := UInt(caches.size)
       }
 
       val acq_perms = MuxLookup(in.a.bits.param, Wire(UInt(width = 2)), Array(
@@ -189,7 +189,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
         TLPermissions.BtoT -> TLPermissions.toN))
 
       when (in.a.fire() && a_first) {
-        probe_todo  := ~a_cache // probe all but the cache who poked us
+        probe_todo  := Vec.fill(caches.size)(Bool(true)).asUInt // probe all the cache
         probe_line  := in.a.bits.address >> lineShift
         probe_perms := MuxLookup(in.a.bits.opcode, Wire(UInt(width = 2)), Array(
           TLMessages.PutFullData    -> TLPermissions.toN,

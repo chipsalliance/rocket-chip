@@ -60,6 +60,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
   def beatOffBits = log2Up(beatBytes)
   def idxMSB = untagBits-1
   def idxLSB = blockOffBits
+  def sliceMSB = untagBits-1
+  def sliceLSB = untagBits-sliceBits
   def offsetmsb = idxLSB-1
   def offsetlsb = wordOffBits
   def rowWords = rowBits/wordBits
