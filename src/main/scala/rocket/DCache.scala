@@ -759,7 +759,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
                                     data = 0.U)._2
       newCoh := voluntaryNewCoh
       releaseWay := s2_victim_way
-      releaseSlice := Mux(release_state === s_probe_write_meta, s2_probe_slice, UIntToOH(probe_vaddr(sliceMSB, sliceLSB).asUInt))
+      releaseSlice := (nSlices>1).option(Mux(release_state === s_probe_write_meta, s2_probe_slice, UIntToOH(probe_vaddr(sliceMSB, sliceLSB).asUInt))).getOrElse(true.B)
       when (releaseDone) { release_state := s_voluntary_write_meta }
       when (tl_out_c.fire() && c_first) {
         release_ack_wait := true
