@@ -128,7 +128,7 @@ object OMPortMaker {
     AHBProtocol -> "AMBA 3 AHB-Lite Protocol",
     AXI4Protocol -> "AMBA 3 AXI4-Lite Protocol",
     APBProtocol -> "AMBA 3 APB Protocol",
-    TLProtocol -> "Tile Link specification"
+    TLProtocol -> "TileLink specification"
   )
 
   val protocolSpecificationVersions = Map[ProtocolType, String](
