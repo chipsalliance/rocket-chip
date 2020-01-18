@@ -643,6 +643,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
       val dmAuthenticated = p(DebugModuleKey).get.hasAuthentication.option(Input(Bool()))
     })
+    val rf_reset = IO(Input(Reset()))
 
     dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
 
@@ -720,6 +721,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     sb2tlOpt.map { sb =>
       sb.module.clock := io.tlClock
       sb.module.reset := io.tlReset
+      sb.module.rf_reset := io.tlReset
     }
 
     //--------------------------------------------------------------
@@ -1698,6 +1700,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       val hartIsInReset = Input(Vec(getNComponents(), Bool()))
       val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
     })
+    val rf_reset = IO(Input(Reset()))
 
     val dmactive_synced = AsyncResetSynchronizerShiftReg(in=io.dmactive, sync=3, name=Some("dmactiveSync"))
 
@@ -1769,15 +1772,18 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
       dmOuterDMI <> io.dmi.get.dmi
       dmOuter.module.reset := io.dmi.get.dmiReset
       dmOuter.module.clock := io.dmi.get.dmiClock
+      dmOuter.module.rf_reset := io.dmi.get.dmiReset
     }
 
     (io.apb_clock zip io.apb_reset)  foreach { case (c, r) =>
       dmOuter.module.reset := r
       dmOuter.module.clock := c
+      dmOuter.module.rf_reset := r
     }
 
     dmInner.module.clock := io.debug_clock
     dmInner.module.reset := io.debug_reset
+    dmInner.module.rf_reset := io.debug_reset
     dmInner.module.io.tlClock := clock
     dmInner.module.io.tlReset := reset
     dmInner.module.io.innerCtrl    <> dmOuter.module.io.innerCtrl
