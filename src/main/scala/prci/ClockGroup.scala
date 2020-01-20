@@ -96,3 +96,9 @@ object FixedClockBroadcast
 {
   def apply(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters, valName: ValName) = LazyModule(new FixedClockBroadcast(fixedClockOpt)).node
 }
+
+case class PRCIClockGroupNode()(implicit valName: ValName)
+  extends NexusNode(ClockGroupImp)(
+    dFn = { _ => ClockGroupSourceParameters() },
+    uFn = { _ => ClockGroupSinkParameters("prci", Nil) },
+    outputRequiresInput = false)
