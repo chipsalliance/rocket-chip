@@ -16,7 +16,10 @@ class RocketChipStage extends Stage with PreservesAll[Phase] {
     Seq(
       new freechips.rocketchip.stage.phases.Checks,
       new freechips.rocketchip.stage.phases.PreElaboration,
-      new chisel3.stage.ChiselStage
+      new chisel3.stage.ChiselStage,
+      new freechips.rocketchip.stage.phases.AddTestSuites,
+      new freechips.rocketchip.stage.phases.GenerateROMs,
+      new freechips.rocketchip.stage.phases.GenerateArtefacts
     ).foldLeft(annotations){ case (a, p) => p.transform(a) }
 
 }

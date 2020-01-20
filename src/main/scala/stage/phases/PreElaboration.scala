@@ -36,10 +36,7 @@ class PreElaboration extends Phase {
           case a: LazyModule => LazyModule(a).module
         }
 
-    ChiselGeneratorAnnotation(gen) +: annotations.filter{
-      case _: TopModuleAnnotation | _: ConfigAnnotation => false
-      case _                                            => true
-    }
+    ChiselGeneratorAnnotation(gen) +: annotations
   }
 
 }

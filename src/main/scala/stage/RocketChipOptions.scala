@@ -18,4 +18,9 @@ class RocketChipOptions private[stage] (
 
   }
 
+  lazy val longName: Option[String] = (config, topModule) match {
+    case (Some(a), Some(b)) => Some(s"${a.getName}:${b.getName}")
+    case _                  => None
+  }
+
 }
