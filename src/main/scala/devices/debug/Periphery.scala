@@ -329,8 +329,14 @@ object Debug {
         apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
+        apb.psel := false.B
+        apb.penable := false.B
       }
 
+      debug.extTrigger.foreach { t =>
+        t.in.req := false.B
+        t.out.ack := t.out.req
+      }
       debug.disableDebug.foreach { x => x := false.B }
       debug.ndreset
     }.getOrElse(false.B)
