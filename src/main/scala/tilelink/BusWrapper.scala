@@ -28,7 +28,7 @@ trait HasTLBusParams {
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
     extends ClockDomain with HasTLBusParams {
 
-  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName))
+  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName)).suggestName(busName + "_clock_groups")
   private val clockGroup = LazyModule(new ClockGroup(busName))
   val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
   val clockNode = clockGroup.node
