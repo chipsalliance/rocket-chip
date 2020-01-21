@@ -11,7 +11,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
 import freechips.rocketchip.formal._
-// import sifive.enterprise.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
 
@@ -35,6 +34,15 @@ object TLMonitor {
 
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
+
+  // TODO: Debug property
+  Property(
+    MonitorDirection.Monitor,
+    (io.in.a.valid === 1.U),
+    "placeholder",
+    PropertyClass.Default
+  )
+
   val cover_prop_class = PropertyClass.Default
   val desc_text = "Placeholder"
 
@@ -437,9 +445,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     // Symbolic variable
     val sym_source = Wire(UInt(edge.client.endSourceId.W))
     // TODO: Connect sym_source to a fixed value for simulation and to
-    // FormalNoiseMaker for formal setup
-    // sym_source := 0.U
-    sym_source := DontCare
+    sym_source := 0.U
     // sym_source := FormalNoiseMaker(sym_source.cloneType, true.B, 0)
 
     // Type casting Int to UInt
@@ -500,6 +506,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
 
+    // TODO: These properties need to be fixed - Request need not be accepted for response to be sent
     assume (IfThen(clr_resp_pend, (set_resp_pend || resp_pend)),
             "Response message should be sent with a source ID only if a request message with the" +
             "same source ID has been accepted or is being accepted in the current cycle" + extra)
