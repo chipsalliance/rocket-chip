@@ -199,7 +199,6 @@ object SystemBusAccessModule
     sb2tl.module.io.wrEn     := dmAuthenticated && tryWrEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
     sb2tl.module.io.rdEn     := dmAuthenticated && tryRdEn && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror && !SBCSRdData.sberror && !sbAccessError && !sbAlignmentError
     sb2tl.module.io.sizeIn   := SBCSFieldsReg.sbaccess
-    sb2tl.module.io.dmactive := dmactive
 
     val sbBusy = (sb2tl.module.io.sbStateOut =/= SystemBusAccessState.Idle.id.U)
 
@@ -275,7 +274,6 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
       val addrIn       = Input(UInt(128.W)) // TODO: Parameterize these widths
       val dataIn       = Input(UInt(128.W))
       val sizeIn       = Input(UInt(3.W))
-      val dmactive     = Input(Bool())
       val rdLegal      = Output(Bool())
       val wrLegal      = Output(Bool())
       val rdDone       = Output(Bool())
@@ -335,9 +333,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     }
 
     // --- State Machine to interface with TileLink ---
-    when(~io.dmactive){
-      sbState := Idle.id.U
-    }.elsewhen (sbState === Idle.id.U){
+    when (sbState === Idle.id.U){
       sbState := Mux(io.rdEn && io.rdLegal, SBReadRequest.id.U,
                  Mux(io.wrEn && io.wrLegal, SBWriteRequest.id.U, sbState))
     }.elsewhen (sbState === SBReadRequest.id.U){
