@@ -172,7 +172,7 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 // !!! eliminate third trait
 
 /** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
-trait HasTLControlRegMap { this: RegisterRouter[_] =>
+trait HasTLControlRegMap { this: RegisterRouter =>
   protected val controlNode = TLRegisterNode(
     address = address,
     device = device,

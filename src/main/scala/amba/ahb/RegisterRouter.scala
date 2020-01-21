@@ -107,7 +107,7 @@ class AHBRegisterRouter[B <: AHBRegBundleBase, M <: LazyModuleImp]
 }
 
 /** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
-trait HasAHBControlRegMap { this: RegisterRouter[_] =>
+trait HasAHBControlRegMap { this: RegisterRouter =>
   // Externally, this node should be used to connect the register control port to a bus
   val controlNode = AHBRegisterNode(
     address = address.head,
