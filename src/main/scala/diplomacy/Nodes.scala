@@ -12,6 +12,7 @@ import scala.util.matching._
 
 case object MonitorsEnabled extends Field[Boolean](true)
 case object RenderFlipped extends Field[Boolean](false)
+case object MonitorPrintPrefix extends Field[Option[String]](None)
 
 case class RenderedEdge(
   colour:  String,

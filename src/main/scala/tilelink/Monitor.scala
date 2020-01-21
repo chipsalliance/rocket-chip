@@ -20,7 +20,10 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
   })
 
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
+  def print_bundle(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
+
   legalize(io.in, args.edge, reset)
+  print_bundle(io.in, args.edge, reset)
 }
 
 object TLMonitor {
@@ -563,5 +566,17 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     legalizeFormat   (bundle, edge)
     legalizeMultibeat(bundle, edge)
     legalizeUnique   (bundle, edge)
+  }
+
+  def print_bundle(bundle: TLBundle, edge: TLEdge, reset: Reset){ 
+    edge.params(MonitorPrintPrefix).foreach { prefix => 
+       when (bundle.a.valid && bundle.a.ready) { printf(p"$prefix " + p"${bundle.a}")}
+    }
+    // when (bundle.d.valid) { print(bundle.b) }
+    // if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+    //  when (bundle.b.valid) { print(c) }
+    //  when (bundle.c.valid) { print(d) }
+    //  when (bundle.e.valid) { print(e) }
+    //}
   }
 }
