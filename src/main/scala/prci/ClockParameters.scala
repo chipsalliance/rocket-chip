@@ -75,3 +75,11 @@ case class ClockGroupEdgeParameters(
 
   val bundle = ClockGroupBundleParameters(members.map(_.bundle))
 }
+
+// Used to create simple clock group drivers that just use the Chisel implicit clock
+case class ClockGroupDriverParameters(num: Int = 1) {
+  def driveFromImplicitClock(groups: ClockGroupEphemeralNode)(implicit p: Parameters): Unit = {
+    val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
+    groups :*= dummyClockGroupSourceNode
+  }
+}

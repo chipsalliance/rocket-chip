@@ -21,6 +21,9 @@ case object BankedL2Key extends Field(BankedL2Params())
 
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
 
+case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
+case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("async_clock_groups")))
+
 /** BareSubsystem is the root class for creating a subsystem */
 abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
   lazy val dts = DTS(bindingTree)
@@ -49,16 +52,6 @@ trait Attachable extends LazyScope
   implicit val asyncClockGroupsNode: ClockGroupEphemeralNode
   val ibus: InterruptBusWrapper
 }
-
-case class ClockGroupDriverParams(num: Int = 1) {
-  def driveFromImplicitClock(groups: ClockGroupEphemeralNode)(implicit p: Parameters): Unit = {
-    val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
-    groups :*= dummyClockGroupSourceNode
-  }
-}
-
-case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParams]](Some(ClockGroupDriverParams(1)))
-case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("async_clock_groups")))
 
 trait HasBusAttachmentFunction {
   type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
