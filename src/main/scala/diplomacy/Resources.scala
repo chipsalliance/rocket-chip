@@ -201,7 +201,6 @@ class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
     named.foreach {
       case (k, Seq(Binding(_, value: ResourceAddress))) =>
         val ranges = AddressRange.fromSets(value.address)
-        require (ranges.size == 1, s"DTS device $name has $k = $ranges, must be a single range!")
       case (k, seq) =>
         require (false, s"DTS device $name has $k = $seq, must be a single ResourceAddress!")
     }
