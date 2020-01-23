@@ -152,8 +152,10 @@ class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
   implicit val p = arg.p
 }
 
+@deprecated("Use HasTLControlRegMap trait in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.4")
 class TLRegBundle[P](val params: P, val arg: TLRegBundleArg) extends TLRegBundleBase(arg)
 
+@deprecated("Use HasTLControlRegMap trait in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.4")
 class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
@@ -163,6 +165,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
+@deprecated("Use HasTLControlRegMap trait in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.4")
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
      val base:        BigInt,
      val devname:     String,
