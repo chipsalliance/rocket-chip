@@ -35,14 +35,6 @@ object TLMonitor {
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
 
-  // TODO: Debug property
-  Property(
-    MonitorDirection.Monitor,
-    (io.in.a.valid === 1.U),
-    "placeholder",
-    PropertyClass.Default
-  )
-
   val cover_prop_class = PropertyClass.Default
   val desc_text = "Placeholder"
 
@@ -444,9 +436,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   def legalizeADSourceFormal(bundle: TLBundle, edge: TLEdge) {
     // Symbolic variable
     val sym_source = Wire(UInt(edge.client.endSourceId.W))
-    // TODO: Connect sym_source to a fixed value for simulation and to
+    // TODO: Connect sym_source to a fixed value for simulation and to a
+    //       free wire in formal
     sym_source := 0.U
-    // sym_source := FormalNoiseMaker(sym_source.cloneType, true.B, 0)
 
     // Type casting Int to UInt
     val maxSourceId = Wire(UInt(edge.client.endSourceId.W))
@@ -468,52 +460,57 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
         "sym_source should take legal value",
         PropertyClass.Default)
 
-    val resp_pend = RegInit(false.B)
-    val a_first   = edge.first(bundle.a.bits, bundle.a.fire())
-    val opcode    = Reg(UInt())
-    val size      = Reg(UInt())
+    val my_resp_pend = RegInit(false.B)
+    val my_opcode    = Reg(UInt())
+    val my_size      = Reg(UInt())
 
-    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+    val a_first = bundle.a.valid && edge.first(bundle.a.bits, bundle.a.fire())
+    val d_first = bundle.d.valid && edge.first(bundle.d.bits, bundle.d.fire())
 
-    // TODO: Qualify *_resp_pend with opcode as well for TL-C config
-    val clr_resp_pend = (bundle.d.fire() && d_first && (bundle.d.bits.source === sym_source))
-    val set_resp_pend = (bundle.a.fire() && a_first && (bundle.a.bits.source === sym_source) &&
-                         !clr_resp_pend)
-    // TODO: Do we need bundle.a.fire() below as a_first implies bundle.a.fire(), right?
-    when (set_resp_pend) {
-      resp_pend := true.B
-      opcode    := bundle.a.bits.opcode
-      size      := bundle.a.bits.size
-    } .elsewhen (clr_resp_pend) {
-      resp_pend := false.B
+    val my_a_first_beat = a_first && (bundle.a.bits.source === sym_source)
+    val my_d_first_beat = d_first && (bundle.d.bits.source === sym_source)
+
+    val my_clr_resp_pend = (bundle.d.fire() && my_d_first_beat)
+    val my_set_resp_pend = (bundle.a.fire() && my_a_first_beat && !my_clr_resp_pend)
+    when (my_set_resp_pend) {
+      my_resp_pend := true.B
+    } .elsewhen (my_clr_resp_pend) {
+      my_resp_pend := false.B
     }
 
-    val resp_size   = Mux(set_resp_pend, bundle.a.bits.size, size)
-    val resp_opcode = Mux(set_resp_pend, bundle.a.bits.opcode, opcode)
+    when (my_a_first_beat) {
+      my_opcode := bundle.a.bits.opcode
+      my_size   := bundle.a.bits.size
+    }
 
-    val resp_opcode_legal = Wire(Bool())
-    when ((resp_opcode === TLMessages.Get) || (resp_opcode === TLMessages.ArithmeticData) ||
-          (resp_opcode === TLMessages.LogicalData)) {
-      resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.AccessAckData)
-    } .elsewhen ((resp_opcode === TLMessages.PutFullData) || (resp_opcode === TLMessages.PutPartialData)) {
-      resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.AccessAck)
+    val my_resp_size   = Mux(my_a_first_beat, bundle.a.bits.size, my_size)
+    val my_resp_opcode = Mux(my_a_first_beat, bundle.a.bits.opcode, my_opcode)
+
+    val my_resp_opcode_legal = Wire(Bool())
+    when ((my_resp_opcode === TLMessages.Get) || (my_resp_opcode === TLMessages.ArithmeticData) ||
+          (my_resp_opcode === TLMessages.LogicalData)) {
+      my_resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.AccessAckData)
+    } .elsewhen ((my_resp_opcode === TLMessages.PutFullData) || (my_resp_opcode === TLMessages.PutPartialData)) {
+      my_resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.AccessAck)
     } .otherwise {
-      resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.HintAck)
+      my_resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.HintAck)
     }
 
-    monAssert (IfThen(resp_pend, !set_resp_pend),
+    monAssert (IfThen(my_resp_pend, !my_a_first_beat),
                "Request message should not be sent with a source ID, for which a response message" +
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
 
-    // TODO: These properties need to be fixed - Request need not be accepted for response to be sent
-    assume (IfThen(clr_resp_pend, (set_resp_pend || resp_pend)),
-            "Response message should be sent with a source ID only if a request message with the" +
+    assume (IfThen(my_clr_resp_pend, (my_set_resp_pend || my_resp_pend)),
+            "Response message should be accepted with a source ID only if a request message with the" +
             "same source ID has been accepted or is being accepted in the current cycle" + extra)
-    assume (IfThen(clr_resp_pend, (bundle.d.bits.size === resp_size)),
+    assume (IfThen(my_d_first_beat, (my_a_first_beat || my_resp_pend)),
+            "Response message should be sent with a source ID only if a request message with the" +
+            "same source ID has been accepted or is being sent in the current cycle" + extra)
+    assume (IfThen(my_d_first_beat, (bundle.d.bits.size === my_resp_size)),
             "If d_valid is 1, then d_size should be same as a_size of the corresponding request" +
             "message" + extra)
-    assume (IfThen(clr_resp_pend, resp_opcode_legal),
+    assume (IfThen(my_d_first_beat, my_resp_opcode_legal),
             "If d_valid is 1, then d_opcode should correspond with a_opcode of the corresponding" +
             "request message" + extra)
   }
@@ -622,7 +619,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       assert(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
-      // TODO: dhruvg - not enough arguments for method apply: (n: Int, gen: T)(implicit sourceInfo: chisel3.internal.sourceinfo.SourceInfo,
+      // TODO: Commenting out due to error - not enough arguments for method apply: (n: Int, gen: T)(implicit sourceInfo: chisel3.internal.sourceinfo.SourceInfo,
       //       implicit compileOptions: chisel3.CompileOptions)chisel3.Vec[T] in trait VecFactory
       // assert(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
       //         || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
