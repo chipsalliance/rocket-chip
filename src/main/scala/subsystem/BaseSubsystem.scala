@@ -8,6 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.tilelink.TLBusWrapper
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
 
@@ -19,6 +20,9 @@ case object MemoryBusKey extends Field[MemoryBusParams]
 case object BankedL2Key extends Field(BankedL2Params())
 
 case object BuildSystemBus extends Field[Parameters => SystemBus](p => new SystemBus(p(SystemBusKey))(p))
+
+case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
+case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("async_clock_groups")))
 
 /** BareSubsystem is the root class for creating a subsystem */
 abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
@@ -36,9 +40,26 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   println(outer.dts)
 }
 
+/** These traits are intended to make it possible to configure to which
+  * buses optional devices are attached, even after a subsystem has been instantiated.
+  * Consider them experimental for now.
+  */
 
-/** This trait contains the cases matched in baseAttachmentFunc below.
-  * Both can be extended to offer novel attachment locations in subclasses of BaseSubsystem.
+trait Attachable extends LazyScope
+    with HasLogicalTreeNode
+    with HasBusAttachmentFunction { this: LazyModule =>
+  implicit val p: Parameters
+  implicit val asyncClockGroupsNode: ClockGroupEphemeralNode
+  val ibus: InterruptBusWrapper
+}
+
+trait HasBusAttachmentFunction {
+  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
+  def attach: BusAttachmentFunction
+}
+
+/** This trait contains the cases matched in baseBusAttachmentFunc below.
+  * Extend/override them to offer novel attachment locations in subclasses of BaseSubsystem.
   */
 trait BaseSubsystemBusAttachment
 case object SBUS extends BaseSubsystemBusAttachment
@@ -47,27 +68,9 @@ case object FBUS extends BaseSubsystemBusAttachment
 case object MBUS extends BaseSubsystemBusAttachment
 case object CBUS extends BaseSubsystemBusAttachment
 
-trait HasBusAttachmentFunction {
-  val sbus: SystemBus
-  val pbus: PeripheryBus
-  val fbus: FrontBus
-  val mbus: MemoryBus
-  val cbus: PeripheryBus
-
-  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
-  def baseBusAttachmentFunc: BusAttachmentFunction = {
-    case SBUS => sbus
-    case PBUS => pbus
-    case FBUS => fbus
-    case MBUS => mbus
-    case CBUS => cbus
-  }
-  def attach(where: BaseSubsystemBusAttachment): TLBusWrapper = baseBusAttachmentFunc(where)
-}
-
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
-  with HasLogicalTreeNode with HasBusAttachmentFunction {
+    with Attachable {
 
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
@@ -75,10 +78,21 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   // peripherals, tiles, ports, and other masters and slaves can attach themselves.
   val ibus = new InterruptBusWrapper()
   val sbus = LazyModule(p(BuildSystemBus)(p))
-  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey)))
+  val pbus = LazyModule(new PeripheryBus(p(PeripheryBusKey), "subsystem_pbus"))
   val fbus = LazyModule(new FrontBus(p(FrontBusKey)))
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
-  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey)))
+  val cbus = LazyModule(new PeripheryBus(p(ControlBusKey), "subsystem_cbus"))
+
+  def attach: BusAttachmentFunction = {
+    case SBUS => sbus
+    case PBUS => pbus
+    case FBUS => fbus
+    case MBUS => mbus
+    case CBUS => cbus
+  }
+
+  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)
+  p(SubsystemDriveAsyncClockGroupsKey).foreach(_.driveFromImplicitClock(asyncClockGroupsNode))
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers

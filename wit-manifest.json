@@ -5,17 +5,17 @@
         "source": "git@github.com:ucb-bar/berkeley-hardfloat.git"
     },
     {
-        "commit": "258e0bd41ddc8811725d51192a8fffb133b6f1c8",
+        "commit": "bddefa8c7eb36bdbd62ecaa13cf5c5bbff73c53f",
         "name": "api-chisel3-sifive",
         "source": "git@github.com:sifive/api-chisel3-sifive.git"
     },
     {
-        "commit": "d1a61262630b5ea77ebe21a453df9645cb7e4185",
+        "commit": "060b421ecec69c40ccc102b43f52980b6750a29a",
         "name": "chisel3",
         "source": "git@github.com:freechipsproject/chisel3.git"
     },
     {
-        "commit": "f738fbe8667ed6b76ec00a15960b9c3a42b8654a",
+        "commit": "52a1ee81fccdc05c80b662fb2daf236cc5c4560b",
         "name": "firrtl",
         "source": "git@github.com:freechipsproject/firrtl.git"
     },

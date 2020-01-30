@@ -54,7 +54,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       val d_fail  = RegInit(Bool(false))
       val d_write = RegInit(Bool(false))
       val d_addr  = Reg(in.haddr)
-      val d_size  = Reg(in.hsize)
+      val d_size  = Reg(out.a.bits.size)
 
       when (out.d.valid) { d_recv  := Bool(false) }
       when (out.a.ready) { d_send  := Bool(false) }

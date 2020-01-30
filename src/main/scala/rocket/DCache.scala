@@ -93,6 +93,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
   val mmioOffset = outer.firstMMIO
+  edge.manager.requireFifo(TLFIFOFixer.allVolatile)  // TileLink pipelining MMIO requests
 
   val clock_en_reg = Reg(Bool())
   io.cpu.clock_enabled := clock_en_reg
@@ -985,9 +986,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         Seq(CoverBoolean(true.B, Seq("never_flush")))
       }
     val tag_error_cover = Seq(
-      CoverBoolean( !metaArb.io.in(1).valid, Seq("no_tag_error")),
-      CoverBoolean( metaArb.io.in(1).valid && !s2_meta_error_uncorrectable, Seq("tag_correctable_error")),
-      CoverBoolean( metaArb.io.in(1).valid && s2_meta_error_uncorrectable, Seq("tag_uncorrectable_error")))
+      CoverBoolean( !s2_meta_error, Seq("no_tag_error")),
+      CoverBoolean( s2_meta_error && !s2_meta_error_uncorrectable, Seq("tag_correctable_error")),
+      CoverBoolean( s2_meta_error && s2_meta_error_uncorrectable, Seq("tag_uncorrectable_error")))
     cover(new CrossProperty(
       Seq(data_error_type, data_error_dirty, request_source, tag_error_cover),
       Seq(),
