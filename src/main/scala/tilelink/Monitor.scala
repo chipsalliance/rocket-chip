@@ -20,6 +20,69 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
     val in = Input(new TLBundle(args.edge.bundle))
   })
 
+  // TODO: Pass symbolic variables as inputs to TLMonitor
+  // Symbolic variables - tracked_source, tracked_addr
+  val tracked_source = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
+  tracked_source := 0.U
+
+  // val tracked_sink = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
+  // tracked_sink := 0.U
+  val tracked_sink = 0.U
+
+  val tracked_addr = Wire(UInt(args.edge.bundle.addressBits.W))
+  tracked_addr := 0.U
+
+  // TODO: Un-comment this code and move it outside TLMonitor
+  // // Connect symbolic variables to a fixed value for simulation and to a
+  // // free wire in formal
+  // if (monitorDir == MonitorDirection.Monitor) {
+  //   tracked_source := 0.U
+  //   tracked_sink := 0.U
+  //   tracked_addr := 0.U
+  // } else {
+  //   // Type casting Int to UInt
+  //   val maxSourceId = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
+  //   maxSourceId := args.edge.client.endSourceId.U
+  //   val maxSinkId = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
+  //   maxSinkId := args.edge.manager.endSinkId.U
+
+  //   // Delayed verison of tracked_source
+  //   val tracked_source_d = Reg(UInt(args.edge.client.endSourceId.W))
+  //   tracked_source_d := tracked_source
+  //   val tracked_sink_d = Reg(UInt(args.edge.manager.endSinkId.W))
+  //   tracked_sink_d := tracked_sink
+
+  //   val tracked_addr_d = Reg(UInt(args.edge.bundle.addressBits.W))
+  //   tracked_addr_d := tracked_addr
+
+  //   // These will be constraints for FV setup
+  //   Property(
+  //       MonitorDirection.Driver,
+  //       (tracked_source === tracked_source_d),
+  //       "tracked_source should remain stable",
+  //       PropertyClass.Default)
+  //   Property(
+  //       MonitorDirection.Driver,
+  //       (tracked_source <= maxSourceId),
+  //       "tracked_source should take legal value",
+  //       PropertyClass.Default)
+  //   Property(
+  //       MonitorDirection.Driver,
+  //       (tracked_sink === tracked_sink_d),
+  //       "tracked_sink should remain stable",
+  //       PropertyClass.Default)
+  //   Property(
+  //       MonitorDirection.Driver,
+  //       (tracked_sink <= maxSinkId),
+  //       "tracked_sink should take legal value",
+  //       PropertyClass.Default)
+  //   Property(
+  //       MonitorDirection.Driver,
+  //       (tracked_addr === tracked_addr_d),
+  //       "tracked_addr should remain stable",
+  //       PropertyClass.Default)
+  // }
+
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
   legalize(io.in, args.edge, reset)
 }
@@ -433,86 +496,248 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeADSourceFormal(bundle: TLBundle, edge: TLEdge) {
-    // Symbolic variable
-    val sym_source = Wire(UInt(edge.client.endSourceId.W))
-    // TODO: Connect sym_source to a fixed value for simulation and to a
-    //       free wire in formal
-    sym_source := 0.U
-
-    // Type casting Int to UInt
-    val maxSourceId = Wire(UInt(edge.client.endSourceId.W))
-    maxSourceId := edge.client.endSourceId.U
-
-    // Delayed verison of sym_source
-    val sym_source_d = Reg(UInt(edge.client.endSourceId.W))
-    sym_source_d := sym_source
-
-    // These will be constraints for FV setup
-    Property(
-        MonitorDirection.Monitor,
-        (sym_source === sym_source_d),
-        "sym_source should remain stable",
-        PropertyClass.Default)
-    Property(
-        MonitorDirection.Monitor,
-        (sym_source <= maxSourceId),
-        "sym_source should take legal value",
-        PropertyClass.Default)
-
-    val my_resp_pend = RegInit(false.B)
-    val my_opcode    = Reg(UInt())
-    val my_size      = Reg(UInt())
-
+  def legalizeADFormal(bundle: TLBundle, edge: TLEdge) {
     val a_first = bundle.a.valid && edge.first(bundle.a.bits, bundle.a.fire())
     val d_first = bundle.d.valid && edge.first(bundle.d.bits, bundle.d.fire())
 
-    val my_a_first_beat = a_first && (bundle.a.bits.source === sym_source)
-    val my_d_first_beat = d_first && (bundle.d.bits.source === sym_source)
+    val my_a_first_beat = a_first && (bundle.a.bits.source === tracked_source)
+    val my_d_first_beat = d_first && (bundle.d.bits.source === tracked_source)
 
-    val my_clr_resp_pend = (bundle.d.fire() && my_d_first_beat)
-    val my_set_resp_pend = (bundle.a.fire() && my_a_first_beat && !my_clr_resp_pend)
-    when (my_set_resp_pend) {
-      my_resp_pend := true.B
-    } .elsewhen (my_clr_resp_pend) {
-      my_resp_pend := false.B
+    val a_opcode = bundle.a.bits.opcode
+    val d_opcode = bundle.d.bits.opcode
+    val a_size = bundle.a.bits.size
+    val d_size = bundle.d.bits.size
+
+    val d_opcode_release_ack = (d_opcode === TLMessages.ReleaseAck)
+
+    // Response is pending for A-channel request
+    val my_a_resp_pend = RegInit(false.B)
+    val my_clr_a_resp_pend = (bundle.d.fire() && my_d_first_beat && !d_opcode_release_ack)
+    val my_set_a_resp_pend = (bundle.a.fire() && my_a_first_beat && !my_clr_a_resp_pend)
+    when (my_set_a_resp_pend) {
+      my_a_resp_pend := true.B
+    } .elsewhen (my_clr_a_resp_pend) {
+      my_a_resp_pend := false.B
     }
 
+    val my_a_opcode    = Reg(UInt())
+    val my_a_size      = Reg(UInt())
     when (my_a_first_beat) {
-      my_opcode := bundle.a.bits.opcode
-      my_size   := bundle.a.bits.size
+      my_a_opcode := a_opcode
+      my_a_size   := a_size
     }
 
-    val my_resp_size   = Mux(my_a_first_beat, bundle.a.bits.size, my_size)
-    val my_resp_opcode = Mux(my_a_first_beat, bundle.a.bits.opcode, my_opcode)
+    val my_a_resp_size   = Mux(my_a_first_beat, a_size, my_a_size)
+    val my_a_resp_opcode = Mux(my_a_first_beat, a_opcode, my_a_opcode)
 
-    val my_resp_opcode_legal = Wire(Bool())
-    when ((my_resp_opcode === TLMessages.Get) || (my_resp_opcode === TLMessages.ArithmeticData) ||
-          (my_resp_opcode === TLMessages.LogicalData)) {
-      my_resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.AccessAckData)
-    } .elsewhen ((my_resp_opcode === TLMessages.PutFullData) || (my_resp_opcode === TLMessages.PutPartialData)) {
-      my_resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.AccessAck)
+    // D-channel response for corresponding A-channel request
+    val my_a_resp_opcode_legal = Wire(Bool())
+    when ((my_a_resp_opcode === TLMessages.Get) ||
+          (my_a_resp_opcode === TLMessages.ArithmeticData) ||
+          (my_a_resp_opcode === TLMessages.LogicalData)) {
+      my_a_resp_opcode_legal := (d_opcode === TLMessages.AccessAckData)
+    } .elsewhen ((my_a_resp_opcode === TLMessages.PutFullData) ||
+                 (my_a_resp_opcode === TLMessages.PutPartialData)) {
+      my_a_resp_opcode_legal := (d_opcode === TLMessages.AccessAck)
+    } .elsewhen (my_a_resp_opcode === TLMessages.Hint) {
+      my_a_resp_opcode_legal := (d_opcode === TLMessages.HintAck)
+    } .elsewhen (my_a_resp_opcode === TLMessages.AcquireBlock) {
+      my_a_resp_opcode_legal := ((d_opcode === TLMessages.Grant) || (d_opcode === TLMessages.GrantData))
     } .otherwise {
-      my_resp_opcode_legal := (bundle.d.bits.opcode === TLMessages.HintAck)
-    }
+      my_a_resp_opcode_legal := (d_opcode === TLMessages.Grant)
+    } 
 
-    monAssert (IfThen(my_resp_pend, !my_a_first_beat),
+    monAssert (IfThen(my_a_resp_pend, !my_a_first_beat),
                "Request message should not be sent with a source ID, for which a response message" +
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
+    // TODO: Not sure if this is a checker for master or slave
+    monAssert (IfThen(my_clr_a_resp_pend, (my_set_a_resp_pend || my_a_resp_pend)),
+              "Response message should be accepted with a source ID only if a request message with the" +
+              "same source ID has been accepted or is being accepted in the current cycle" + extra)
 
-    assume (IfThen(my_clr_resp_pend, (my_set_resp_pend || my_resp_pend)),
-            "Response message should be accepted with a source ID only if a request message with the" +
-            "same source ID has been accepted or is being accepted in the current cycle" + extra)
-    assume (IfThen(my_d_first_beat, (my_a_first_beat || my_resp_pend)),
+    assume (IfThen((my_d_first_beat && !d_opcode_release_ack), (my_a_first_beat || my_a_resp_pend)),
             "Response message should be sent with a source ID only if a request message with the" +
             "same source ID has been accepted or is being sent in the current cycle" + extra)
-    assume (IfThen(my_d_first_beat, (bundle.d.bits.size === my_resp_size)),
+    assume (IfThen((my_d_first_beat && !d_opcode_release_ack), (d_size === my_a_resp_size)),
             "If d_valid is 1, then d_size should be same as a_size of the corresponding request" +
             "message" + extra)
-    assume (IfThen(my_d_first_beat, my_resp_opcode_legal),
+    assume (IfThen((my_d_first_beat && !d_opcode_release_ack), my_a_resp_opcode_legal),
             "If d_valid is 1, then d_opcode should correspond with a_opcode of the corresponding" +
             "request message" + extra)
+  }
+
+  def legalizeBCFormal(bundle: TLBundle, edge: TLEdge) {
+    val b_first = bundle.b.valid && edge.first(bundle.b.bits, bundle.b.fire())
+    val c_first = bundle.c.valid && edge.first(bundle.c.bits, bundle.c.fire())
+
+    // TODO: Pass cacheBlockBytes as parameter
+    val cacheBlockBytes = 64
+
+    val byte_offset_mask = Wire(UInt(args.edge.bundle.addressBits.W))
+    byte_offset_mask := (cacheBlockBytes - 1).asUInt
+
+    val my_b_first_beat =
+      b_first && (bundle.b.bits.source === tracked_source) &&
+     ((bundle.b.bits.address & (~byte_offset_mask)) === (tracked_addr & (~byte_offset_mask)))
+    val my_c_first_beat =
+      c_first && (bundle.c.bits.source === tracked_source) &&
+     ((bundle.c.bits.address & (~byte_offset_mask)) === (tracked_addr & (~byte_offset_mask)))
+
+    val b_opcode = bundle.b.bits.opcode
+    val c_opcode = bundle.c.bits.opcode
+    val b_size = bundle.b.bits.size
+    val c_size = bundle.c.bits.size
+
+    val c_opcode_release = (c_opcode === TLMessages.Release) || (c_opcode === TLMessages.ReleaseData)
+
+    // Response is pending for B-channel request
+    val my_b_resp_pend = RegInit(false.B)
+    val my_clr_b_resp_pend = (bundle.c.fire() && my_c_first_beat && !c_opcode_release)
+    val my_set_b_resp_pend = (bundle.b.fire() && my_b_first_beat && !my_clr_b_resp_pend)
+    when (my_set_b_resp_pend) {
+      my_b_resp_pend := true.B
+    } .elsewhen (my_clr_b_resp_pend) {
+      my_b_resp_pend := false.B
+    }
+
+    val my_b_opcode    = Reg(UInt())
+    val my_b_size      = Reg(UInt())
+    when (my_b_first_beat) {
+      my_b_opcode := b_opcode
+      my_b_size   := b_size
+    }
+
+    val my_b_resp_size   = Mux(my_b_first_beat, b_size, my_b_size)
+    val my_b_resp_opcode = Mux(my_b_first_beat, b_opcode, my_b_opcode)
+
+    // C-channel response for corresponding B-channel request
+    val my_b_resp_opcode_legal = Wire(Bool())
+    when ((my_b_resp_opcode === TLMessages.Get) ||
+          (my_b_resp_opcode === TLMessages.ArithmeticData) ||
+          (my_b_resp_opcode === TLMessages.LogicalData)) {
+      my_b_resp_opcode_legal := (c_opcode === TLMessages.AccessAckData)
+    } .elsewhen ((my_b_resp_opcode === TLMessages.PutFullData) ||
+                 (my_b_resp_opcode === TLMessages.PutPartialData)) {
+      my_b_resp_opcode_legal := (c_opcode === TLMessages.AccessAck)
+    } .elsewhen (my_b_resp_opcode === TLMessages.Hint) {
+      my_b_resp_opcode_legal := (c_opcode === TLMessages.HintAck)
+    } .otherwise {
+      my_b_resp_opcode_legal :=
+        ((c_opcode === TLMessages.ProbeAck) || (c_opcode === TLMessages.ProbeAckData))
+    }
+
+    assume (IfThen(my_b_resp_pend, !my_b_first_beat),
+               "Request message should not be sent with a source ID, for which a response message" +
+               "is already pending (not received until current cycle) for a prior request message" +
+               "with the same source ID" + extra)
+    // TODO: Not sure if this is a checker for master or slave
+    assume (IfThen(my_clr_b_resp_pend, (my_set_b_resp_pend || my_b_resp_pend)),
+            "Response message should be accepted with a source ID only if a request message with the" +
+            "same source ID has been accepted or is being accepted in the current cycle" + extra)
+
+    monAssert (IfThen((my_c_first_beat && !c_opcode_release), (my_b_first_beat || my_b_resp_pend)),
+              "Response message should be sent with a source ID only if a request message with the" +
+              "same source ID has been accepted or is being sent in the current cycle" + extra)
+    monAssert (IfThen((my_c_first_beat && !c_opcode_release), (c_size === my_b_resp_size)),
+              "If c_valid is 1, then c_size should be same as b_size of the corresponding request" +
+              "message" + extra)
+    monAssert (IfThen((my_c_first_beat && !c_opcode_release), my_b_resp_opcode_legal),
+              "If c_valid is 1, then c_opcode should correspond with b_opcode of the corresponding" +
+              "request message" + extra)
+  }
+
+  def legalizeCDFormal(bundle: TLBundle, edge: TLEdge) {
+    val c_first = bundle.c.valid && edge.first(bundle.c.bits, bundle.c.fire())
+    val d_first = bundle.d.valid && edge.first(bundle.d.bits, bundle.d.fire())
+
+    val my_c_first_beat =
+      c_first && (bundle.c.bits.source === tracked_source)
+    val my_d_first_beat =
+      d_first && (bundle.d.bits.source === tracked_source)
+
+    val c_opcode = bundle.b.bits.opcode
+    val d_opcode = bundle.c.bits.opcode
+    val c_size = bundle.b.bits.size
+    val d_size = bundle.c.bits.size
+
+    val c_opcode_release = (c_opcode === TLMessages.Release) || (c_opcode === TLMessages.ReleaseData)
+    val d_opcode_release_ack = (d_opcode === TLMessages.ReleaseAck)
+
+    // Response is pending for B-channel request
+    val my_c_resp_pend = RegInit(false.B)
+    val my_clr_c_resp_pend =
+      (bundle.d.fire() && my_d_first_beat && d_opcode_release_ack)
+    val my_set_c_resp_pend =
+     (bundle.c.fire() && my_c_first_beat && c_opcode_release && !my_clr_c_resp_pend)
+    when (my_set_c_resp_pend) {
+      my_c_resp_pend := true.B
+    } .elsewhen (my_clr_c_resp_pend) {
+      my_c_resp_pend := false.B
+    }
+
+    val my_c_size = Reg(UInt())
+    when (my_c_first_beat && c_opcode_release) {
+      my_c_size := c_size
+    }
+
+    val my_c_resp_size = Mux((my_c_first_beat && c_opcode_release), c_size, my_c_size)
+
+    monAssert (IfThen(my_c_resp_pend, !(my_c_first_beat && c_opcode_release)),
+               "Request message should not be sent with a source ID, for which a response message" +
+               "is already pending (not received until current cycle) for a prior request message" +
+               "with the same source ID" + extra)
+    // TODO: Not sure if this is a checker for master or slave
+    monAssert (IfThen(my_clr_c_resp_pend, (my_set_c_resp_pend || my_c_resp_pend)),
+              "Response message should be accepted with a source ID only if a request message with the" +
+              "same source ID has been accepted or is being accepted in the current cycle" + extra)
+
+    assume (IfThen((my_d_first_beat && d_opcode_release_ack),
+            ((my_c_first_beat && c_opcode_release) || my_c_resp_pend)),
+            "Response message should be sent with a source ID only if a request message with the" +
+            "same source ID has been accepted or is being sent in the current cycle" + extra)
+    assume (IfThen((my_d_first_beat && d_opcode_release_ack), (d_size === my_c_resp_size)),
+            "If d_valid is 1, then d_size should be same as b_size of the corresponding request" +
+            "message" + extra)
+  }
+
+  def legalizeDEFormal(bundle: TLBundle, edge: TLEdge) {
+    val d_first = bundle.d.valid && edge.first(bundle.d.bits, bundle.d.fire())
+    val e_first = bundle.e.valid && edge.first(bundle.e.bits, bundle.e.fire())
+
+    val my_d_first_beat =
+      d_first && (bundle.d.bits.sink === tracked_sink)
+    val my_e_first_beat =
+      e_first && (bundle.e.bits.sink === tracked_sink)
+
+    val d_opcode = bundle.b.bits.opcode
+
+    val d_opcode_release_ack = (d_opcode === TLMessages.ReleaseAck)
+
+    // Response is pending for D-channel request
+    val my_d_resp_pend = RegInit(false.B)
+    val my_clr_d_resp_pend = (bundle.e.fire() && my_e_first_beat)
+    val my_set_d_resp_pend =
+     (bundle.d.fire() && my_d_first_beat && !d_opcode_release_ack && !my_clr_d_resp_pend)
+    when (my_set_d_resp_pend) {
+      my_d_resp_pend := true.B
+    } .elsewhen (my_clr_d_resp_pend) {
+      my_d_resp_pend := false.B
+    }
+
+    monAssert (IfThen(my_d_resp_pend, !(my_d_first_beat && !d_opcode_release_ack)),
+               "Request message should not be sent with a source ID, for which a response message" +
+               "is already pending (not received until current cycle) for a prior request message" +
+               "with the same source ID" + extra)
+    // TODO: Not sure if this is a checker for master or slave
+    monAssert (IfThen(my_clr_d_resp_pend, (my_set_d_resp_pend || my_d_resp_pend)),
+              "Response message should be accepted with a source ID only if a request message with the" +
+              "same source ID has been accepted or is being accepted in the current cycle" + extra)
+
+    assume (IfThen(my_e_first_beat,
+            ((my_d_first_beat && !d_opcode_release_ack) || my_d_resp_pend)),
+            "Response message should be sent with a source ID only if a request message with the" +
+            "same source ID has been accepted or is being sent in the current cycle" + extra)
   }
 
   def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
@@ -618,16 +843,16 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
     }
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
-      assert(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
+      assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
       // TODO: Commenting out due to error - not enough arguments for method apply: (n: Int, gen: T)(implicit sourceInfo: chisel3.internal.sourceinfo.SourceInfo,
       //       implicit compileOptions: chisel3.CompileOptions)chisel3.Vec[T] in trait VecFactory
-      // assert(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
+      // assume(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
       //         || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
       //   "'D' channel contains improper opcode response" + extra)
-      assert((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
+      assume((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
     }
     when(bundle.d.valid && d_first && a_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
-      assert((!bundle.d.ready) || bundle.a.ready)
+      monAssert((!bundle.d.ready) || bundle.a.ready, "'D' channel response accepted while request not accepted")
     }
 
     if (edge.manager.minLatency > 0) {
@@ -671,24 +896,28 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeUnique(bundle: TLBundle, edge: TLEdge) {
-    val sourceBits = log2Ceil(edge.client.endSourceId)
-    val tooBig = 14 // >16kB worth of flight information gets to be too much
-    if (sourceBits > tooBig) {
-      println(s"WARNING: TLMonitor instantiated on a bus with source bits (${sourceBits}) > ${tooBig}; A=>D transaction flight will not be checked")
+    if (monitorDir != MonitorDirection.Monitor) {
+      legalizeADFormal(bundle, edge)
+      legalizeBCFormal(bundle, edge)
+      legalizeCDFormal(bundle, edge)
+      legalizeDEFormal(bundle, edge)
     } else {
-      if (monitorDir == MonitorDirection.Monitor) {
+      val sourceBits = log2Ceil(edge.client.endSourceId)
+      val tooBig = 14 // >16kB worth of flight information gets to be too much
+      if (sourceBits > tooBig) {
+        println(s"WARNING: TLMonitor instantiated on a bus with source bits (${sourceBits}) > ${tooBig}; A=>D transaction flight will not be checked")
+      } else {
         legalizeADSource(bundle, edge)
-      } else {
-        legalizeADSourceFormal(bundle, edge)
       }
-    }
-    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
-      // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
-      val sinkBits = log2Ceil(edge.manager.endSinkId)
-      if (sinkBits > tooBig) {
-        println(s"WARNING: TLMonitor instantiated on a bus with sink bits (${sinkBits}) > ${tooBig}; D=>E transaction flight will not be checked")
-      } else {
-        legalizeDESink(bundle, edge)
+
+      if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+        // legalizeBCSourceAddress(bundle, edge) // too much state needed to synthesize...
+        val sinkBits = log2Ceil(edge.manager.endSinkId)
+        if (sinkBits > tooBig) {
+          println(s"WARNING: TLMonitor instantiated on a bus with sink bits (${sinkBits}) > ${tooBig}; D=>E transaction flight will not be checked")
+        } else {
+          legalizeDESink(bundle, edge)
+        }
       }
     }
   }
