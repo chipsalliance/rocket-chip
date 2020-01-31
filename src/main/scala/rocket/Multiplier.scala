@@ -205,6 +205,8 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Modu
   val prod = lhs * rhs
   val muxed = Mux(cmdHi, prod(2*width-1, width), Mux(cmdHalf, prod(width/2-1, 0).sextTo(width), prod(width-1, 0)))
 
-  io.resp := Pipe(in, latency-1)
+  val resp = Pipe(in, latency-1)
+  io.resp.valid := resp.valid
+  io.resp.bits.tag := resp.bits.tag
   io.resp.bits.data := Pipe(in.valid, muxed, latency-1).bits
 }
