@@ -8,9 +8,8 @@ import firrtl.AnnotationSeq
 import firrtl.options.{Phase, PreservesAll}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
-import freechips.rocketchip.util.HasGeneratorUtilities
 
-class GenerateROMs extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils with HasGeneratorUtilities {
+class GenerateROMs extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Elaborate])
 

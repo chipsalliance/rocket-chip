@@ -8,9 +8,8 @@ import firrtl.options.{Phase, PreservesAll}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.system.TestGeneration
-import freechips.rocketchip.util.HasGeneratorUtilities
 
-class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils with HasGeneratorUtilities {
+class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Elaborate])
 
@@ -19,7 +18,7 @@ class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with Has
     val targetDir = entOpts.targetDir.get
     val fileName = s"${getLongName(annotations)}.d"
 
-    addTestSuites
+    addTestSuites(annotations)
     writeOutputFile(targetDir, fileName, TestGeneration.generateMakefrag)
 
     annotations

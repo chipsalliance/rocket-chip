@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.stage
 
-import firrtl.AnnotationSeq
-import firrtl.options.{Phase, PreservesAll, Shell, Stage, StageMain}
+import firrtl.options.{Phase, PreservesAll, Shell, StageMain}
 import firrtl.stage.FirrtlCli
 import chisel3.stage.{ChiselCli, ChiselStage}
 import firrtl.options.PhaseManager.PhaseDependency

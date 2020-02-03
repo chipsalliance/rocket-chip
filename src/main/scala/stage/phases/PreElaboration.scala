@@ -8,9 +8,8 @@ import firrtl.AnnotationSeq
 import firrtl.options.{Phase, PreservesAll}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.HasGeneratorUtilities
 
-class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils with HasGeneratorUtilities {
+class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks])
 
