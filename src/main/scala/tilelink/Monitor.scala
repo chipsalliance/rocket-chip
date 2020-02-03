@@ -599,8 +599,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val a_size_lookup = WireInit(0.U((1 << log_a_size_bus_size).W))
     a_size_lookup := ((inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)) - 1.U
 
-    val responseMap =             Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant)
-    val responseMapSecondOption = Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant)
+    val responseMap =             VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant))
+    val responseMapSecondOption = VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant))
 
     when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
       a_set := UIntToOH(bundle.a.bits.source)
@@ -621,8 +621,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && (bundle.a.bits.size === bundle.d.bits.size) && a_first), "'D' channel acknowledged for nothing inflight" + extra)
-      assume(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
-              || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
+      assume(((bundle.d.bits.opcode === responseMap(a_opcode_lookup)) || (bundle.d.bits.opcode === responseMapSecondOption(a_opcode_lookup)))
+              || (bundle.a.valid && ((bundle.d.bits.opcode === responseMap(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === responseMapSecondOption(bundle.a.bits.opcode)))),
         "'D' channel contains improper opcode response" + extra)
       assume((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
     }
