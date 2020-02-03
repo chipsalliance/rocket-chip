@@ -46,12 +46,13 @@ object Property {
 
   def apply(dir: MonitorDirection, cond: Bool, message: String,
             prop_type: PropertyClass=PropertyClass.Default,
-            idx: String = "")(implicit sourceInfo: SourceInfo): Unit = {
+            idx: String = "",
+            custom_name: String = "")(implicit sourceInfo: SourceInfo): Unit = {
     val line_info = sourceInfo match {
       case SourceLine(filename, line, col) => s"${filename}_L${line}_C${col}_I${idx}".replace('.', '_')
       case _ => ""
     }
-    val proposed_src = prop_type.toString + "_" + line_info
+    val proposed_src = if (custom_name == "") prop_type.toString + "_" + line_info else custom_name
 
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
