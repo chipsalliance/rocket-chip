@@ -1,6 +1,6 @@
 [
     {
-        "commit": "1863c81af749fbd9f1da5217eeaffbf3119001a0",
+        "commit": "f36127349c5303e32dcc97ccdd3b491f51ec60e9",
         "name": "hardfloat",
         "source": "git@github.com:ucb-bar/berkeley-hardfloat.git"
     },
