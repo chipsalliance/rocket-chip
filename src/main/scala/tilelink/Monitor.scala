@@ -225,9 +225,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeFormatB(bundle: TLBundleB, edge: TLEdge) {
-    monAssert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
+    assume (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
-    monAssert (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
+    assume (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
 
     // Reuse these subexpressions to save some firrtl lines
     val address_ok = edge.manager.containsSafe(edge.address(bundle))
@@ -236,68 +236,68 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
 
     when (bundle.opcode === TLMessages.Probe) {
-      monAssert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel Probe carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel Probe carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
-      monAssert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      monAssert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
-      monAssert (!bundle.corrupt, "'B' channel Probe is corrupt" + extra)
+      assume (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
+      assume (address_ok, "'B' channel Probe carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel Probe carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel Probe address not aligned to size" + extra)
+      assume (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
+      assume (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
+      assume (!bundle.corrupt, "'B' channel Probe is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.client.supportsGet(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel Get carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel Get carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel Get address not aligned to size" + extra)
-      monAssert (bundle.param === 0.U, "'B' channel Get carries invalid param" + extra)
-      monAssert (bundle.mask === mask, "'B' channel Get contains invalid mask" + extra)
-      monAssert (!bundle.corrupt, "'B' channel Get is corrupt" + extra)
+      assume (edge.client.supportsGet(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
+      assume (address_ok, "'B' channel Get carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel Get carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel Get address not aligned to size" + extra)
+      assume (bundle.param === 0.U, "'B' channel Get carries invalid param" + extra)
+      assume (bundle.mask === mask, "'B' channel Get contains invalid mask" + extra)
+      assume (!bundle.corrupt, "'B' channel Get is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.client.supportsPutFull(bundle.source, bundle.size), "'B' channel carries PutFull type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
-      monAssert (bundle.param === 0.U, "'B' channel PutFull carries invalid param" + extra)
-      monAssert (bundle.mask === mask, "'B' channel PutFull contains invalid mask" + extra)
+      assume (edge.client.supportsPutFull(bundle.source, bundle.size), "'B' channel carries PutFull type unsupported by client" + extra)
+      assume (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
+      assume (bundle.param === 0.U, "'B' channel PutFull carries invalid param" + extra)
+      assume (bundle.mask === mask, "'B' channel PutFull contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.client.supportsPutPartial(bundle.source, bundle.size), "'B' channel carries PutPartial type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
-      monAssert (bundle.param === 0.U, "'B' channel PutPartial carries invalid param" + extra)
-      monAssert ((bundle.mask & ~mask) === 0.U, "'B' channel PutPartial contains invalid mask" + extra)
+      assume (edge.client.supportsPutPartial(bundle.source, bundle.size), "'B' channel carries PutPartial type unsupported by client" + extra)
+      assume (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
+      assume (bundle.param === 0.U, "'B' channel PutPartial carries invalid param" + extra)
+      assume ((bundle.mask & ~mask) === 0.U, "'B' channel PutPartial contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.client.supportsArithmetic(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
-      monAssert (TLAtomics.isArithmetic(bundle.param), "'B' channel Arithmetic carries invalid opcode param" + extra)
-      monAssert (bundle.mask === mask, "'B' channel Arithmetic contains invalid mask" + extra)
+      assume (edge.client.supportsArithmetic(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by client" + extra)
+      assume (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
+      assume (TLAtomics.isArithmetic(bundle.param), "'B' channel Arithmetic carries invalid opcode param" + extra)
+      assume (bundle.mask === mask, "'B' channel Arithmetic contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.client.supportsLogical(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel Logical carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel Logical carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel Logical address not aligned to size" + extra)
-      monAssert (TLAtomics.isLogical(bundle.param), "'B' channel Logical carries invalid opcode param" + extra)
-      monAssert (bundle.mask === mask, "'B' channel Logical contains invalid mask" + extra)
+      assume (edge.client.supportsLogical(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
+      assume (address_ok, "'B' channel Logical carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel Logical carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel Logical address not aligned to size" + extra)
+      assume (TLAtomics.isLogical(bundle.param), "'B' channel Logical carries invalid opcode param" + extra)
+      assume (bundle.mask === mask, "'B' channel Logical contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel Hint carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
-      monAssert (bundle.mask === mask, "'B' channel Hint contains invalid mask" + extra)
-      monAssert (!bundle.corrupt, "'B' channel Hint is corrupt" + extra)
+      assume (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
+      assume (address_ok, "'B' channel Hint carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel Hint carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel Hint address not aligned to size" + extra)
+      assume (bundle.mask === mask, "'B' channel Hint contains invalid mask" + extra)
+      assume (!bundle.corrupt, "'B' channel Hint is corrupt" + extra)
     }
   }
 
@@ -481,11 +481,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val source  = Reg(UInt())
     val address = Reg(UInt())
     when (b.valid && !b_first) {
-      monAssert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
-      monAssert (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
-      monAssert (b.bits.size   === size,   "'B' channel size changed within multibeat operation" + extra)
-      monAssert (b.bits.source === source, "'B' channel source changed within multibeat operation" + extra)
-      monAssert (b.bits.address=== address,"'B' channel addresss changed with multibeat operation" + extra)
+      assume (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
+      assume (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
+      assume (b.bits.size   === size,   "'B' channel size changed within multibeat operation" + extra)
+      assume (b.bits.source === source, "'B' channel source changed within multibeat operation" + extra)
+      assume (b.bits.address=== address,"'B' channel addresss changed with multibeat operation" + extra)
     }
     when (b.fire() && b_first) {
       opcode  := b.bits.opcode
@@ -494,6 +494,161 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       source  := b.bits.source
       address := b.bits.address
     }
+  }
+
+  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
+    val c_first = edge.first(c.bits, c.fire())
+    val opcode  = Reg(UInt())
+    val param   = Reg(UInt())
+    val size    = Reg(UInt())
+    val source  = Reg(UInt())
+    val address = Reg(UInt())
+    when (c.valid && !c_first) {
+      monAssert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
+      monAssert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
+      monAssert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
+      monAssert (c.bits.source === source, "'C' channel source changed within multibeat operation" + extra)
+      monAssert (c.bits.address=== address,"'C' channel address changed with multibeat operation" + extra)
+    }
+    when (c.fire() && c_first) {
+      opcode  := c.bits.opcode
+      param   := c.bits.param
+      size    := c.bits.size
+      source  := c.bits.source
+      address := c.bits.address
+    }
+  }
+
+  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge) {
+    val d_first = edge.first(d.bits, d.fire())
+    val opcode  = Reg(UInt())
+    val param   = Reg(UInt())
+    val size    = Reg(UInt())
+    val source  = Reg(UInt())
+    val sink    = Reg(UInt())
+    val denied  = Reg(Bool())
+    when (d.valid && !d_first) {
+      assume (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
+      assume (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
+      assume (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
+      assume (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
+      assume (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
+      assume (d.bits.denied === denied, "'D' channel denied changed with multibeat operation" + extra)
+    }
+    when (d.fire() && d_first) {
+      opcode  := d.bits.opcode
+      param   := d.bits.param
+      size    := d.bits.size
+      source  := d.bits.source
+      sink    := d.bits.sink
+      denied  := d.bits.denied
+    }
+  }
+
+  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge) {
+    legalizeMultibeatA(bundle.a, edge)
+    legalizeMultibeatD(bundle.d, edge)
+    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+      legalizeMultibeatB(bundle.b, edge)
+      legalizeMultibeatC(bundle.c, edge)
+    }
+  }
+
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
+    val a_size_bus_size = edge.bundle.sizeBits
+    val a_opcode_bus_size = 3
+    val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
+    val log_a_size_bus_size = log2Ceil(a_size_bus_size)
+    def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
+
+    val inflight = RegInit(0.U(edge.client.endSourceId.W))
+    val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
+    val inflight_sizes = RegInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+
+    val a_first = edge.first(bundle.a.bits, bundle.a.fire())
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+
+    val a_set = WireInit(0.U(edge.client.endSourceId.W))
+    val a_opcodes_set = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
+    val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+
+    val a_opcode_lookup = WireInit(0.U((1 << log_a_opcode_bus_size).W))
+    a_opcode_lookup := (inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)
+
+    val a_size_lookup = WireInit(0.U((1 << log_a_size_bus_size).W))
+    a_size_lookup := (inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)
+
+    val responseMap =             Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant)
+    val responseMapSecondOption = Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant)
+
+    when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
+      a_set := UIntToOH(bundle.a.bits.source)
+      a_opcodes_set := bundle.a.bits.opcode << (bundle.a.bits.source << log_a_opcode_bus_size.U)
+      a_sizes_set := bundle.a.bits.size << (bundle.a.bits.source << log_a_size_bus_size.U)
+      monAssert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+    }
+
+    val d_clr = WireInit(0.U(edge.client.endSourceId.W))
+    val d_opcodes_clr = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
+    val d_sizes_clr = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+
+    val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
+    when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      d_clr := UIntToOH(bundle.d.bits.source)
+      d_opcodes_clr := size_to_numfullbits(1.U << log_a_opcode_bus_size.U) << (bundle.d.bits.source << log_a_opcode_bus_size.U)
+      d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
+    }
+    when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
+      // TODO: Commenting out due to error - not enough arguments for method apply: (n: Int, gen: T)(implicit sourceInfo: chisel3.internal.sourceinfo.SourceInfo,
+      //       implicit compileOptions: chisel3.CompileOptions)chisel3.Vec[T] in trait VecFactory
+      // assume(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
+      //         || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
+      //   "'D' channel contains improper opcode response" + extra)
+      assume((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
+    }
+    when(bundle.d.valid && d_first && a_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
+      monAssert((!bundle.d.ready) || bundle.a.ready, "'D' channel response accepted while request not accepted")
+    }
+
+    if (edge.manager.minLatency > 0) {
+      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+    }
+
+    inflight := (inflight | a_set) & ~d_clr
+    inflight_opcodes := (inflight_opcodes | a_opcodes_set) & ~d_opcodes_clr
+    inflight_sizes := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
+
+    val watchdog = RegInit(0.U(32.W))
+    val limit = PlusArg("tilelink_timeout",
+      docstring="Kill emulation after INT waiting TileLink cycles. Off if 0.")
+    monAssert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
+
+    watchdog := watchdog + 1.U
+    when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
+  }
+
+  def legalizeDESink(bundle: TLBundle, edge: TLEdge) {
+    val inflight = RegInit(0.U(edge.manager.endSinkId.W))
+
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+    val e_first = true.B
+
+    val d_set = WireInit(0.U(edge.manager.endSinkId.W))
+    when (bundle.d.fire() && d_first && edge.isRequest(bundle.d.bits)) {
+      d_set := UIntToOH(bundle.d.bits.sink)
+      assume(!inflight(bundle.d.bits.sink), "'D' channel re-used a sink ID" + extra)
+    }
+
+    val e_clr = WireInit(0.U(edge.manager.endSinkId.W))
+    when (bundle.e.fire() && e_first && edge.isResponse(bundle.e.bits)) {
+      e_clr := UIntToOH(bundle.e.bits.sink)
+      monAssert((d_set | inflight)(bundle.e.bits.sink), "'E' channel acknowledged for nothing inflight" + extra)
+    }
+
+    // edge.client.minLatency applies to BC, not DE
+
+    inflight := (inflight | d_set) & ~e_clr
   }
 
   def legalizeADFormal(bundle: TLBundle, edge: TLEdge) {
@@ -738,161 +893,6 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
             ((my_d_first_beat && !d_opcode_release_ack) || my_d_resp_pend)),
             "Response message should be sent with a source ID only if a request message with the" +
             "same source ID has been accepted or is being sent in the current cycle" + extra)
-  }
-
-  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
-    val c_first = edge.first(c.bits, c.fire())
-    val opcode  = Reg(UInt())
-    val param   = Reg(UInt())
-    val size    = Reg(UInt())
-    val source  = Reg(UInt())
-    val address = Reg(UInt())
-    when (c.valid && !c_first) {
-      monAssert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
-      monAssert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
-      monAssert (c.bits.size   === size,   "'C' channel size changed within multibeat operation" + extra)
-      monAssert (c.bits.source === source, "'C' channel source changed within multibeat operation" + extra)
-      monAssert (c.bits.address=== address,"'C' channel address changed with multibeat operation" + extra)
-    }
-    when (c.fire() && c_first) {
-      opcode  := c.bits.opcode
-      param   := c.bits.param
-      size    := c.bits.size
-      source  := c.bits.source
-      address := c.bits.address
-    }
-  }
-
-  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge) {
-    val d_first = edge.first(d.bits, d.fire())
-    val opcode  = Reg(UInt())
-    val param   = Reg(UInt())
-    val size    = Reg(UInt())
-    val source  = Reg(UInt())
-    val sink    = Reg(UInt())
-    val denied  = Reg(Bool())
-    when (d.valid && !d_first) {
-      assume (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
-      assume (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
-      assume (d.bits.size   === size,   "'D' channel size changed within multibeat operation" + extra)
-      assume (d.bits.source === source, "'D' channel source changed within multibeat operation" + extra)
-      assume (d.bits.sink   === sink,   "'D' channel sink changed with multibeat operation" + extra)
-      assume (d.bits.denied === denied, "'D' channel denied changed with multibeat operation" + extra)
-    }
-    when (d.fire() && d_first) {
-      opcode  := d.bits.opcode
-      param   := d.bits.param
-      size    := d.bits.size
-      source  := d.bits.source
-      sink    := d.bits.sink
-      denied  := d.bits.denied
-    }
-  }
-
-  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge) {
-    legalizeMultibeatA(bundle.a, edge)
-    legalizeMultibeatD(bundle.d, edge)
-    if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
-      legalizeMultibeatB(bundle.b, edge)
-      legalizeMultibeatC(bundle.c, edge)
-    }
-  }
-
-  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
-    val a_size_bus_size = edge.bundle.sizeBits
-    val a_opcode_bus_size = 3
-    val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
-    val log_a_size_bus_size = log2Ceil(a_size_bus_size)
-    def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
-
-    val inflight = RegInit(0.U(edge.client.endSourceId.W))
-    val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
-    val inflight_sizes = RegInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
-
-    val a_first = edge.first(bundle.a.bits, bundle.a.fire())
-    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
-
-    val a_set = WireInit(0.U(edge.client.endSourceId.W))
-    val a_opcodes_set = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
-    val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
-
-    val a_opcode_lookup = WireInit(0.U((1 << log_a_opcode_bus_size).W))
-    a_opcode_lookup := (inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)
-
-    val a_size_lookup = WireInit(0.U((1 << log_a_size_bus_size).W))
-    a_size_lookup := (inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)
-
-    val responseMap =             Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant)
-    val responseMapSecondOption = Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant)
-
-    when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
-      a_set := UIntToOH(bundle.a.bits.source)
-      a_opcodes_set := bundle.a.bits.opcode << (bundle.a.bits.source << log_a_opcode_bus_size.U)
-      a_sizes_set := bundle.a.bits.size << (bundle.a.bits.source << log_a_size_bus_size.U)
-      monAssert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
-    }
-
-    val d_clr = WireInit(0.U(edge.client.endSourceId.W))
-    val d_opcodes_clr = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
-    val d_sizes_clr = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
-
-    val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
-    when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
-      d_clr := UIntToOH(bundle.d.bits.source)
-      d_opcodes_clr := size_to_numfullbits(1.U << log_a_opcode_bus_size.U) << (bundle.d.bits.source << log_a_opcode_bus_size.U)
-      d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
-    }
-    when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
-      assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
-      // TODO: Commenting out due to error - not enough arguments for method apply: (n: Int, gen: T)(implicit sourceInfo: chisel3.internal.sourceinfo.SourceInfo,
-      //       implicit compileOptions: chisel3.CompileOptions)chisel3.Vec[T] in trait VecFactory
-      // assume(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
-      //         || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
-      //   "'D' channel contains improper opcode response" + extra)
-      assume((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
-    }
-    when(bundle.d.valid && d_first && a_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
-      monAssert((!bundle.d.ready) || bundle.a.ready, "'D' channel response accepted while request not accepted")
-    }
-
-    if (edge.manager.minLatency > 0) {
-      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
-    }
-
-    inflight := (inflight | a_set) & ~d_clr
-    inflight_opcodes := (inflight_opcodes | a_opcodes_set) & ~d_opcodes_clr
-    inflight_sizes := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
-
-    val watchdog = RegInit(0.U(32.W))
-    val limit = PlusArg("tilelink_timeout",
-      docstring="Kill emulation after INT waiting TileLink cycles. Off if 0.")
-    monAssert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
-
-    watchdog := watchdog + 1.U
-    when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
-  }
-
-  def legalizeDESink(bundle: TLBundle, edge: TLEdge) {
-    val inflight = RegInit(0.U(edge.manager.endSinkId.W))
-
-    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
-    val e_first = true.B
-
-    val d_set = WireInit(0.U(edge.manager.endSinkId.W))
-    when (bundle.d.fire() && d_first && edge.isRequest(bundle.d.bits)) {
-      d_set := UIntToOH(bundle.d.bits.sink)
-      assume(!inflight(bundle.d.bits.sink), "'D' channel re-used a sink ID" + extra)
-    }
-
-    val e_clr = WireInit(0.U(edge.manager.endSinkId.W))
-    when (bundle.e.fire() && e_first && edge.isResponse(bundle.e.bits)) {
-      e_clr := UIntToOH(bundle.e.bits.sink)
-      monAssert((d_set | inflight)(bundle.e.bits.sink), "'E' channel acknowledged for nothing inflight" + extra)
-    }
-
-    // edge.client.minLatency applies to BC, not DE
-
-    inflight := (inflight | d_set) & ~e_clr
   }
 
   def legalizeUnique(bundle: TLBundle, edge: TLEdge) {
