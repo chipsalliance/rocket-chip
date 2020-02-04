@@ -34,11 +34,11 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
 
   def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
   def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
-  def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), true.B)
-  def disableICacheClockGate = getOrElse(chickenCSR, _.value(1), true.B)
-  def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), true.B)
-  def disableSpeculativeICacheRefill = getOrElse(chickenCSR, _.value(3), true.B)
-  def suppressCorruptOnGrantData = getOrElse(chickenCSR, _.value(9), true.B)
+  def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), false.B)
+  def disableICacheClockGate = getOrElse(chickenCSR, _.value(1), false.B)
+  def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), false.B)
+  def disableSpeculativeICacheRefill = getOrElse(chickenCSR, _.value(3), false.B)
+  def suppressCorruptOnGrantData = getOrElse(chickenCSR, _.value(9), false.B)
 
   protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
     val idx = decls.indexWhere(_.id == id)
