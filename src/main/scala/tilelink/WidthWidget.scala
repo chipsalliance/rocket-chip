@@ -188,7 +188,9 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
         splice(edgeOut, out.b, edgeIn,  in.b,  sourceMap)
         splice(edgeIn,  in.c,  edgeOut, out.c, sourceMap)
-        out.e <> in.e
+        out.e.valid := in.e.valid
+        out.e.bits := in.e.bits
+        in.e.ready := out.e.ready
       } else {
         in.b.valid := false.B
         in.c.ready := true.B
