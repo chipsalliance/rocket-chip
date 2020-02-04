@@ -536,7 +536,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       (whole_opc, whole_opc.isOneOf(uncachedGrantOpcodes), whole_opc.isOneOf(uncachedGrantOpcodesWithData))
     }
   }
-  tl_d_data_encoded := encodeData(tl_out.d.bits.data, tl_out.d.bits.corrupt && !grantIsUncached)
+  tl_d_data_encoded := encodeData(tl_out.d.bits.data, tl_out.d.bits.corrupt && !io.ptw.customCSRs.suppressCorruptOnGrantData && !grantIsUncached)
   val grantIsCached = d_opc.isOneOf(Grant, GrantData)
   val grantIsVoluntary = d_opc === ReleaseAck // Clears a different pending bit
   val grantIsRefill = d_opc === GrantData     // Writes the data array
