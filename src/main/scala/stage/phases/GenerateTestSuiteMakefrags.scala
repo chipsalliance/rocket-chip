@@ -11,7 +11,7 @@ import freechips.rocketchip.system.TestGeneration
 
 class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(classOf[Elaborate])
+  override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val entOpts = view[RocketChipOptions](annotations)

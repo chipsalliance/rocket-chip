@@ -7,6 +7,7 @@ import java.io.{File, FileWriter}
 import Chisel.throwException
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import chisel3.internal.firrtl.Circuit
+import chisel3.stage.ChiselCircuitAnnotation
 import firrtl.options.Viewer.view
 import firrtl.AnnotationSeq
 import freechips.rocketchip.stage.RocketChipOptions
@@ -20,14 +21,14 @@ import scala.collection.mutable.LinkedHashSet
 trait HasRocketChipStageUtils {
 
   def getFullTopModuleClass(annotations: AnnotationSeq): String = {
-    val entOpts = view[RocketChipOptions](annotations)
-    s"${entOpts.topModulePackage.get}.${entOpts.topModuleClass.get}"
+    val rOpts = view[RocketChipOptions](annotations)
+    s"${rOpts.topModulePackage.get}.${rOpts.topModuleClass.get}"
   }
 
   def getFullConfigClasses(annotations: AnnotationSeq): Seq[String] = {
-    val entOpts = view[RocketChipOptions](annotations)
-    val configClasses = entOpts.configs.get.split("_")
-    configClasses.map( configClass => s"${entOpts.configsPackage.get}.${configClass}")
+    val rOpts = view[RocketChipOptions](annotations)
+    val configClasses = rOpts.configs.get.split("_")
+    configClasses.map( configClass => s"${rOpts.configsPackage.get}.${configClass}")
   }
 
   def getConfig(fullConfigClassNames: Seq[String]): Config = {
@@ -48,8 +49,8 @@ trait HasRocketChipStageUtils {
   }
 
   def getLongName(annotations: AnnotationSeq): String = {
-    val entOpts = view[RocketChipOptions](annotations)
-    entOpts.outputBaseName.getOrElse(s"${entOpts.topModulePackage.get}.${entOpts.configs.get}")
+    val rOpts = view[RocketChipOptions](annotations)
+    rOpts.outputBaseName.getOrElse(s"${rOpts.topModulePackage.get}.${rOpts.configs.get}")
   }
 
   def enumerateROMs(circuit: Circuit): String = {
@@ -74,6 +75,12 @@ trait HasRocketChipStageUtils {
     fw.close
     f
   }
+
+  def hasCktAnno(annotations: AnnotationSeq): Boolean = annotations.exists {
+    case _: ChiselCircuitAnnotation => true
+    case _ => false
+  }
+
 
   /** Output software test Makefrags, which provide targets for integration testing. */
   def addTestSuites(annotations: AnnotationSeq) {

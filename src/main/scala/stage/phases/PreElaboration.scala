@@ -12,6 +12,7 @@ import freechips.rocketchip.diplomacy._
 class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks])
+  override val dependents = Seq(classOf[chisel3.stage.phases.Elaborate])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
 

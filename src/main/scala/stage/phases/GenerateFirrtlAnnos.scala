@@ -14,7 +14,7 @@ import freechips.rocketchip.stage.RocketChipOptions
 
 class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(classOf[Elaborate])
+  override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val rOpts = view[RocketChipOptions](annotations)

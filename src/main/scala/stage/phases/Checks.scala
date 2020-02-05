@@ -21,7 +21,7 @@ class Checks extends Phase with PreservesAll[Phase] {
       case a: ConfigPackageAnnotation   => a +=: configsPackage
       case a: ConfigAnnotation          => a +=: configs
       case a: OutputBaseNameAnnotation  => a +=: outputBaseName
-      case _ => // do nothing
+      case _ =>
     }
 
     def required(annoList: mutable.ListBuffer[Annotation], option: String): Unit = {
