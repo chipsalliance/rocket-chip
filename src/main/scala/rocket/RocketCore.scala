@@ -72,12 +72,15 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
     rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(1), Some(BigInt(0))))
   }
 
+  private def haveDCache = tileParams.dcache.get.scratch.isEmpty
+
   override def chickenCSR = {
     val mask = BigInt(
       tileParams.dcache.get.clockGate.toInt << 0 |
       rocketParams.clockGate.toInt << 1 |
       rocketParams.clockGate.toInt << 2 |
       1 << 3 | // disableSpeculativeICacheRefill
+      haveDCache.toInt << 9 | // suppressCorruptOnGrantData
       tileParams.icache.get.prefetch.toInt << 17
     )
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
