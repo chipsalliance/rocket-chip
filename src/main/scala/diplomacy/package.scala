@@ -61,9 +61,11 @@ package object diplomacy
     case RenderFlipped => !p(RenderFlipped)
   })
 
-  def EnableMonitorPrint[T](prefix: String, body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case MonitorPrintPrefix => Some(prefix)
-  })
+  def EnableMonitorPrint[T](prefix: String)
+    (body: Parameters => T)
+    (implicit p: Parameters) = body(p.alterPartial {
+      case MonitorPrintPrefix => Some(prefix)
+    })
 
   implicit def moduleValue[T](value: ModuleValue[T]): T = value.getWrappedValue
 

@@ -350,7 +350,7 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
     val tlbus = attach(p(PLICAttachKey).slaveWhere)
     val plic = LazyModule(new TLPLIC(params, tlbus.beatBytes))
     val tmp = tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ }
-    EnableMonitorPrint("PLIC_TL_IFC", implicit p => plic.node := tmp)
+    EnableMonitorPrint("PLIC_TL_IFC")(implicit p => plic.node := tmp)
     plic.intnode :=* ibus.toPLIC
     plic
   }
