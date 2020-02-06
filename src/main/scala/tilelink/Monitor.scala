@@ -20,7 +20,10 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
   })
 
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
+  def print_bundle(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
+
   legalize(io.in, args.edge, reset)
+  print_bundle(io.in, args.edge, reset)
 }
 
 object TLMonitor {
@@ -563,5 +566,23 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     legalizeFormat   (bundle, edge)
     legalizeMultibeat(bundle, edge)
     legalizeUnique   (bundle, edge)
+  }
+
+  def print_bundle(bundle: TLBundle, edge: TLEdge, reset: Reset) {
+    edge.params(MonitorPrintPrefix).foreach { prefix =>
+      val print_this_prefix = PlusArg(s"verbose_${prefix}", docstring=s"Enable printing for ${prefix} Monitor}",
+        width=1).asBool
+      val print_all_prefix = PlusArg("verbose_all", docstring=s"Enable printing for all Monitors", width=1).asBool
+      when (print_this_prefix || print_all_prefix) {
+        val a = bundle.a.bits
+        when (bundle.a.fire()) { printf(p"$prefix $a")}
+        when (bundle.d.fire()) { printf(p"$prefix ${bundle.d.bits}")}
+         if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+           when (bundle.b.fire()) { printf(p"$prefix ${bundle.b.bits}")}
+           when (bundle.c.fire()) { printf(p"$prefix ${bundle.c.bits}")}
+           when (bundle.e.fire()) { printf(p"$prefix ${bundle.e.bits}")}
+         }
+      }
+    }
   }
 }

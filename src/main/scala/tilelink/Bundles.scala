@@ -3,6 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.{Printable, PrintableHelper, string2Printable}
 import chisel3.util.{ReadyValidIO}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -173,31 +174,58 @@ final class TLBundleA(params: TLBundleParameters)
 {
   val channelName = "'A' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(width = 3)
-  val param   = UInt(width = List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max) // amo_opcode || grow perms || hint
-  val size    = UInt(width = params.sizeBits)
-  val source  = UInt(width = params.sourceBits) // from
-  val address = UInt(width = params.addressBits) // to
-  val user    = if (params.aUserBits > 0) Some(UInt(width = params.aUserBits)) else None
+  val opcode  = UInt(3.W)
+  val param   = UInt((List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max).W) // amo_opcode || grow perms || hint
+  val size    = UInt((params.sizeBits).W)
+  val source  = UInt((params.sourceBits).W) // from
+  val address = UInt((params.addressBits).W) // to
+  val user    = if (params.aUserBits > 0) Some(UInt((params.aUserBits).W)) else None
   // variable fields during multibeat:
-  val mask    = UInt(width = params.dataBits/8)
-  val data    = UInt(width = params.dataBits)
+  val mask    = UInt((params.dataBits/8).W)
+  val data    = UInt((params.dataBits).W)
   val corrupt = Bool() // only applies to *Data messages
+
+  override def toPrintable: Printable = {
+    val userString = (if (params.aUserBits > 0) p"user[$user]\n" else p"\n")
+    p"A: " +
+    p"opcode[$opcode]\t" +
+    p"source[$source]\t" +
+    p"address[$address]\t" +
+    p"size[$size]\t" +
+    p"data[$data]\t" +
+    p"mask[$mask]\t" +
+    p"param[$param]\t" +
+    p"corrupt[$corrupt]\t" +
+    userString
+  }
 }
+
 final class TLBundleB(params: TLBundleParameters)
   extends TLBundleBase(params) with TLAddrChannel
 {
   val channelName = "'B' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(width = 3)
-  val param   = UInt(width = TLPermissions.bdWidth) // cap perms
-  val size    = UInt(width = params.sizeBits)
-  val source  = UInt(width = params.sourceBits) // to
-  val address = UInt(width = params.addressBits) // from
+  val opcode  = UInt(3.W)
+  val param   = UInt((TLPermissions.bdWidth).W) // cap perms
+  val size    = UInt((params.sizeBits).W)
+  val source  = UInt((params.sourceBits).W) // to
+  val address = UInt((params.addressBits).W) // from
   // variable fields during multibeat:
-  val mask    = UInt(width = params.dataBits/8)
-  val data    = UInt(width = params.dataBits)
+  val mask    = UInt((params.dataBits/8).W)
+  val data    = UInt((params.dataBits).W)
   val corrupt = Bool() // only applies to *Data messages
+
+   override def toPrintable: Printable = {
+    p"B: " +
+    p"opcode[$opcode]\t" +
+    p"source[$source]\t" +
+    p"address[$address]\t" +
+    p"size[$size]\t" +
+    p"data[$data]\t" +
+    p"mask[$mask]\t" +
+    p"param[$param]\t" +
+    p"corrupt[$corrupt]\n"
+  }
 }
 
 final class TLBundleC(params: TLBundleParameters)
@@ -213,6 +241,17 @@ final class TLBundleC(params: TLBundleParameters)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
+
+   override def toPrintable: Printable = {
+    p"C: \t" +
+    p"opcode[$opcode]\t" +
+    p"source[$source]\t" +
+    p"address[$address]\t" +
+    p"size[$size]\t" +
+    p"data[$data]\t" +
+    p"param[$param]\t" +
+    p"corrupt[$corrupt]\n"
+   }
 }
 
 final class TLBundleD(params: TLBundleParameters)
@@ -230,13 +269,32 @@ final class TLBundleD(params: TLBundleParameters)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
+
+  override def toPrintable: Printable = {
+    val userString = (if (params.dUserBits > 0) p"user[$user]\n" else p"\n")
+    p"D: " +
+    p"opcode[$opcode]\t" +
+    p"source[$source]\t" +
+    p"sink[$sink]\t" +
+    p"size[$size]\t" +
+    p"data[$data]\t" +
+    p"param[$param]\t" +
+    p"corrupt[$corrupt]\t" +
+    p"denied[$denied]\t" +
+    userString
+  }
 }
 
 final class TLBundleE(params: TLBundleParameters)
   extends TLBundleBase(params) with TLChannel
 {
   val channelName = "'E' channel"
-  val sink = UInt(width = params.sinkBits) // to  
+  val sink = UInt(width = params.sinkBits) // to
+
+  override def toPrintable: Printable = {
+    p"E: " +
+    p"sink[$sink]\n"
+  }
 }
 
 class TLBundle(val params: TLBundleParameters) extends Record
