@@ -568,15 +568,20 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     legalizeUnique   (bundle, edge)
   }
 
-  def print_bundle(bundle: TLBundle, edge: TLEdge, reset: Reset){ 
-    edge.params(MonitorPrintPrefix).foreach { prefix => 
-       when (bundle.a.valid && bundle.a.ready) { printf(p"$prefix " + p"${bundle.a}")}
+  def print_bundle(bundle: TLBundle, edge: TLEdge, reset: Reset) {
+    edge.params(MonitorPrintPrefix).foreach { prefix =>
+      val print_this_prefix = PlusArg(s"verbose_${prefix}", docstring=s"Enable printing for ${prefix} Monitor}",
+        width=1).asBool
+      val print_all_prefix = PlusArg("verbose_all", docstring=s"Enable printing for all Monitors", width=1).asBool
+      when (print_this_prefix || print_all_prefix) {
+        when (bundle.a.fire()) { printf(p"$prefix " + p"${bundle.a}")}
+        when (bundle.d.fire()) { printf(p"$prefix " + p"${bundle.b}")}
+         if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+           when (bundle.b.fire()) { printf(p"$prefix " + p"${bundle.b}")}
+           when (bundle.c.fire()) { printf(p"$prefix " + p"${bundle.c}")}
+           when (bundle.e.fire()) { printf(p"$prefix " + p"${bundle.e}")}
+         }
+      }
     }
-    // when (bundle.d.valid) { print(bundle.b) }
-    // if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
-    //  when (bundle.b.valid) { print(c) }
-    //  when (bundle.c.valid) { print(d) }
-    //  when (bundle.e.valid) { print(e) }
-    //}
   }
 }
