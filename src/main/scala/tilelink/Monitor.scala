@@ -574,12 +574,12 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
         width=1).asBool
       val print_all_prefix = PlusArg("verbose_all", docstring=s"Enable printing for all Monitors", width=1).asBool
       when (print_this_prefix || print_all_prefix) {
-        when (bundle.a.fire()) { printf(p"$prefix " + p"${bundle.a}")}
-        when (bundle.d.fire()) { printf(p"$prefix " + p"${bundle.b}")}
+        when (bundle.a.fire()) { printf(s"$prefix " + p"${bundle.a}")}
+        when (bundle.d.fire()) { printf(s"$prefix " + p"${bundle.b}")}
          if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
-           when (bundle.b.fire()) { printf(p"$prefix " + p"${bundle.b}")}
-           when (bundle.c.fire()) { printf(p"$prefix " + p"${bundle.c}")}
-           when (bundle.e.fire()) { printf(p"$prefix " + p"${bundle.e}")}
+           when (bundle.b.fire()) { printf(s"$prefix " + p"${bundle.b}")}
+           when (bundle.c.fire()) { printf(s"$prefix " + p"${bundle.c}")}
+           when (bundle.e.fire()) { printf(s"$prefix " + p"${bundle.e}")}
          }
       }
     }
