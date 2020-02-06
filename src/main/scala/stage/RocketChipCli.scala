@@ -8,7 +8,6 @@ trait RocketChipCli { this: Shell =>
 
   parser.note("Rocket Chip Compiler Options")
   Seq(
-    TargetDirectoryAnnotation,
     TopPackageAnnotation,
     TopClassAnnotation,
     ConfigPackageAnnotation,

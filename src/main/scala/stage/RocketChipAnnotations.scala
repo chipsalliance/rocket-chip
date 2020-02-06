@@ -9,18 +9,6 @@ sealed trait RocketChipOption extends Unserializable { this: Annotation => }
 
 /* required options */
 
-case class TargetDirectoryAnnotation(targetDir: String) extends NoTargetAnnotation with RocketChipOption
-private[stage] object TargetDirectoryAnnotation extends HasShellOptions {
-  override val options = Seq(
-    new ShellOption[String](
-      longOption = "target",
-      toAnnotationSeq = a => Seq(TargetDirectoryAnnotation(a)),
-      helpText = "<target directory>",
-      shortOption = Some("d")
-    )
-  )
-}
-
 case class TopPackageAnnotation(topModulePackage: String) extends NoTargetAnnotation with RocketChipOption
 private[stage] object TopPackageAnnotation extends HasShellOptions {
   override val options = Seq(

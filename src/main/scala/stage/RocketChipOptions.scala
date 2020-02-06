@@ -7,7 +7,6 @@ import chisel3.experimental.BaseModule
 import freechips.rocketchip.config.Config
 
 class RocketChipOptions private[stage] (
-                                         val targetDir:         Option[String] = None,
                                          val topModulePackage:  Option[String] = None,
                                          val topModuleClass:    Option[String] = None,
                                          val configsPackage:    Option[String] = None,
@@ -15,7 +14,6 @@ class RocketChipOptions private[stage] (
                                          val outputBaseName:    Option[String] = None) {
 
   private[stage] def copy(
-                           targetDir:         Option[String] = targetDir,
                            topModulePackage:  Option[String] = topModulePackage,
                            topModuleClass:    Option[String] = topModuleClass,
                            configsPackage:    Option[String] = configsPackage,
@@ -24,7 +22,6 @@ class RocketChipOptions private[stage] (
                          ): RocketChipOptions = {
 
     new RocketChipOptions(
-      targetDir=targetDir,
       topModulePackage=topModulePackage,
       topModuleClass=topModuleClass,
       configsPackage=configsPackage,

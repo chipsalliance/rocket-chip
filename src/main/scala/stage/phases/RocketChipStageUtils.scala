@@ -7,7 +7,6 @@ import java.io.{File, FileWriter}
 import Chisel.throwException
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import chisel3.internal.firrtl.Circuit
-import chisel3.stage.ChiselCircuitAnnotation
 import firrtl.options.Viewer.view
 import firrtl.AnnotationSeq
 import freechips.rocketchip.stage.RocketChipOptions
@@ -75,12 +74,6 @@ trait HasRocketChipStageUtils {
     fw.close
     f
   }
-
-  def hasCktAnno(annotations: AnnotationSeq): Boolean = annotations.exists {
-    case _: ChiselCircuitAnnotation => true
-    case _ => false
-  }
-
 
   /** Output software test Makefrags, which provide targets for integration testing. */
   def addTestSuites(annotations: AnnotationSeq) {

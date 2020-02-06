@@ -4,7 +4,7 @@ package freechips.rocketchip.stage.phases
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.Annotation
-import firrtl.options.{OptionsException, Phase, PreservesAll}
+import firrtl.options.{OptionsException, Phase, PreservesAll, TargetDirAnnotation}
 import freechips.rocketchip.stage._
 
 import scala.collection.mutable
@@ -15,7 +15,7 @@ class Checks extends Phase with PreservesAll[Phase] {
     val targetDir, topModulePackage, topModuleClass, configsPackage, configs, outputBaseName = mutable.ListBuffer[Annotation]()
 
     annotations.foreach {
-      case a: TargetDirectoryAnnotation => a +=: targetDir
+      case a: TargetDirAnnotation       => a +=: targetDir
       case a: TopPackageAnnotation      => a +=: topModulePackage
       case a: TopClassAnnotation        => a +=: topModuleClass
       case a: ConfigPackageAnnotation   => a +=: configsPackage

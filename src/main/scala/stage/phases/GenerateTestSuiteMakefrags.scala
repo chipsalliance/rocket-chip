@@ -4,9 +4,8 @@ package freechips.rocketchip.stage.phases
 
 import chisel3.stage.phases.Elaborate
 import firrtl.AnnotationSeq
-import firrtl.options.{Phase, PreservesAll}
+import firrtl.options.{Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
-import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.system.TestGeneration
 
 class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
@@ -14,8 +13,7 @@ class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with Has
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    val entOpts = view[RocketChipOptions](annotations)
-    val targetDir = entOpts.targetDir.get
+    val targetDir = view[StageOptions](annotations).targetDir
     val fileName = s"${getLongName(annotations)}.d"
 
     addTestSuites(annotations)

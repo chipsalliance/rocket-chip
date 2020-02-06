@@ -13,7 +13,6 @@ package object stage {
       .collect { case a: RocketChipOption => a }
       .foldLeft(new RocketChipOptions()){ (c, x) =>
         x match {
-          case TargetDirectoryAnnotation(a)   => c.copy(targetDir = Some(a))
           case TopPackageAnnotation(a)        => c.copy(topModulePackage = Some(a))
           case TopClassAnnotation(a)          => c.copy(topModuleClass = Some(a))
           case ConfigPackageAnnotation(a)     => c.copy(configsPackage = Some(a))
