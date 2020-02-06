@@ -82,25 +82,26 @@ object Property {
 
   def apply(dir: MonitorDirection, cond: Seq[Seq[Bool]], crosscond: Bool, message: String,
             prop_type: PropertyClass,
-            idx: String)(implicit sourceInfo: SourceInfo): Unit = {
+            idx: String,
+            custom_name: String)(implicit sourceInfo: SourceInfo): Unit = {
     if (cond.isEmpty) {
-      Property(dir, crosscond, message, prop_type, idx)
+      Property(dir, crosscond, message, prop_type, idx, custom_name)
     } else {
       cond.head.zipWithIndex.foreach( {case (crossval, cnt) =>
-        Property(dir, cond.tail, crossval && crosscond, message, prop_type, idx + "_" + cnt)
+        Property(dir, cond.tail, crossval && crosscond, message, prop_type, idx + "_" + cnt, if (custom_name == "") "" else custom_name + "_" + cnt)
       })
     }
   }
   def apply(dir: MonitorDirection, cond: Seq[Seq[Bool]], crosscond: Bool,
             message: String)(implicit sourceInfo: SourceInfo): Unit = {
-    Property(dir, cond, crosscond, message, PropertyClass.Default, "")
+    Property(dir, cond, crosscond, message, PropertyClass.Default, "", "")
   }
   def apply(dir: MonitorDirection, cond: Seq[Seq[Bool]], crosscond: Bool, message: String,
             prop_type: PropertyClass)(implicit sourceInfo: SourceInfo): Unit = {
-    Property(dir, cond, crosscond, message, prop_type, "")
+    Property(dir, cond, crosscond, message, prop_type, "", "")
   }
   def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit ={
-    Property(MonitorDirection.Monitor, cond, "Sanity Property", PropertyClass.LocalRTL, "")
+    Property(MonitorDirection.Monitor, cond, "Sanity Property", PropertyClass.LocalRTL, "", "")
   }
 }
 
