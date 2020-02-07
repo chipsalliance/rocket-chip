@@ -299,7 +299,7 @@ object Debug {
     }
   }
 
-  def tieoffDebug(debugOpt: Option[DebugIO], resetctrlOpt: Option[ResetCtrlIO], psdio: Option[PSDIO] = None)(implicit p: Parameters): Bool = {
+  def tieoffDebug(debugOpt: Option[DebugIO], resetctrlOpt: Option[ResetCtrlIO] = None, psdio: Option[PSDIO] = None)(implicit p: Parameters): Bool = {
 
     psdio.foreach(_.psd.foreach { _ <> 0.U.asTypeOf(new PSDTestMode()) } )
     resetctrlOpt.map { rcio => rcio.hartIsInReset.map { _ := false.B }}
