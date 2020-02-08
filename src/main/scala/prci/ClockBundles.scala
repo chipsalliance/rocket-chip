@@ -7,7 +7,7 @@ import freechips.rocketchip.util.HeterogeneousBag
 class ClockBundle(val params: ClockBundleParameters) extends Bundle
 {
   val clock = Clock()
-  val reset = Bool()
+  val reset = Reset()
 }
 
 class ClockGroupBundle(val params: ClockGroupBundleParameters) extends Bundle
