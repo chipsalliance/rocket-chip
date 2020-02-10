@@ -21,8 +21,7 @@ class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipSt
     val rOpts = view[RocketChipOptions](annotations)
     val topMod = rOpts.topModule.get
 
-    val configNameSeq = rOpts.configNames.get.split(",")
-    val config = getConfig(configNameSeq)
+    val config = getConfig(rOpts.configNames.get)
 
     val gen = () =>
       topMod

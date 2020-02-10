@@ -2,11 +2,9 @@
 
 package freechips.rocketchip.stage
 
-import chipsalliance.rocketchip.config.Config
 import chisel3.experimental.BaseModule
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{HasShellOptions, ShellOption, Unserializable}
-import freechips.rocketchip.stage.phases.HasRocketChipStageUtils
 
 sealed trait RocketChipOption extends Unserializable { this: Annotation => }
 
@@ -24,10 +22,10 @@ private[stage] object TopModuleAnnotation extends HasShellOptions {
   )
 }
 
-case class ConfigsAnnotation(configNames: String) extends NoTargetAnnotation with RocketChipOption
+case class ConfigsAnnotation(configNames: Seq[String]) extends NoTargetAnnotation with RocketChipOption
 private[stage] object ConfigsAnnotation extends HasShellOptions {
   override val options = Seq(
-    new ShellOption[String](
+    new ShellOption[Seq[String]](
       longOption = "configs",
       toAnnotationSeq = a => Seq(ConfigsAnnotation(a)),
       helpText = "<comma-delimited configs>",

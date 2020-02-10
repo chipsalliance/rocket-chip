@@ -4,12 +4,12 @@ package freechips.rocketchip.stage
 
 class RocketChipOptions private[stage] (
                                          val topModule:         Option[Class[_ <: Any]] = None,
-                                         val configNames:       Option[String] = None,
+                                         val configNames:       Option[Seq[String]] = None,
                                          val outputBaseName:    Option[String] = None) {
 
   private[stage] def copy(
                            topModule:         Option[Class[_ <: Any]] = topModule,
-                           configNames:       Option[String] = configNames,
+                           configNames:       Option[Seq[String]] = configNames,
                            outputBaseName:    Option[String] = outputBaseName,
                          ): RocketChipOptions = {
 
@@ -26,7 +26,9 @@ class RocketChipOptions private[stage] (
   }
 
   lazy val configClass: Option[String] = configNames match {
-    case Some(a) => Some(a.split('.').last.replace(',', '_'))
+    case Some(names) =>
+      val classNames = names.map{ n => n.split('.').last }
+      Some(classNames.mkString("_"))
     case _ => None
   }
 

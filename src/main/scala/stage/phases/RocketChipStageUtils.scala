@@ -58,7 +58,7 @@ trait HasRocketChipStageUtils {
   def addTestSuites(annotations: AnnotationSeq) {
     import DefaultTestSuites._
     val rOpts = view[RocketChipOptions](annotations)
-    val params = getConfig(rOpts.configNames.get.split(",")).toInstance
+    val params = getConfig(rOpts.configNames.get).toInstance
     val xlen = params(XLen)
 
     val regressionTests = LinkedHashSet(
