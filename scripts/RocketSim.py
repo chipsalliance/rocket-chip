@@ -16,6 +16,6 @@ class RocketSim(targets.Target):
     openocd_config_path = "RocketSim.cfg"
 
     def create(self):
-        print "STARTING A SIMULATION"
-        print self.sim_cmd
+        printf("STARTING A SIMULATION")
+        printf(self.sim_cmd)
         return testlib.VcsSim(sim_cmd=self.sim_cmd, debug=False)
