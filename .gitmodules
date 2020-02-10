@@ -9,7 +9,7 @@
 	url = https://github.com/ucb-bar/chisel3.git
 [submodule "firrtl"]
 	path = firrtl
-	url = https://github.com/ucb-bar/firrtl.git
+	url = git@github.com:freechipsproject/firrtl.git
 [submodule "api-config-chipsalliance"]
 	path = api-config-chipsalliance
 	url = https://github.com/chipsalliance/api-config-chipsalliance.git
