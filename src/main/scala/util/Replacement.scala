@@ -42,6 +42,10 @@ class PseudoLRU(n: Int)
   def access(way: UInt) {
     state_reg := get_next_state(state_reg,way)
   }
+  def access(ways: Seq[ValidIO[UInt]]) {
+    state_reg := ways.fold(state_reg) { case (prev: UInt, way: ValidIO[UInt]) =>
+      Mux(way.valid, get_next_state(prev, way.bits), prev) }
+  }
   def get_next_state(state: UInt, way: UInt) = {
     var next_state = state << 1
     var idx = UInt(1,1)

@@ -2,21 +2,22 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3._
+import chisel3.util.{Cat}
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.{CoreModule, CoreBundle}
+import freechips.rocketchip.tile.{CoreModule, CoreBundle, HasCoreParameters}
 import freechips.rocketchip.util._
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
-  val ttype = UInt(width = 4)
+  val ttype = UInt(4.W)
   val dmode = Bool()
-  val maskmax = UInt(width = 6)
-  val reserved = UInt(width = xLen - (if (coreParams.useBPWatch) 26 else 24))
-  val action = UInt(width = (if (coreParams.useBPWatch) 3 else 1))
+  val maskmax = UInt(6.W)
+  val reserved = UInt((xLen - (if (coreParams.useBPWatch) 26 else 24)).W)
+  val action = UInt((if (coreParams.useBPWatch) 3 else 1).W)
   val chain = Bool()
-  val zero = UInt(width = 2)
-  val tmatch = UInt(width = 2)
+  val zero = UInt(2.W)
+  val tmatch = UInt(2.W)
   val m = Bool()
   val h = Bool()
   val s = Bool()
@@ -32,7 +33,7 @@ class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
 
 class BP(implicit p: Parameters) extends CoreBundle()(p) {
   val control = new BPControl
-  val address = UInt(width = vaddrBits)
+  val address = UInt(vaddrBits.W)
 
   def mask(dummy: Int = 0) =
     (0 until control.maskMax-1).scanLeft(control.tmatch(0))((m, i) => m && address(i)).asUInt
@@ -51,23 +52,23 @@ class BPWatch (val n: Int) extends Bundle() {
   val valid = Vec(n, Bool())
   val dvalid = Vec(n, Bool())
   val ivalid = Vec(n, Bool())
-  val action = UInt(width = 3)
+  val action = UInt(3.W)
 }
 
-class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val status = new MStatus().asInput
-    val bp = Vec(n, new BP).asInput
-    val pc = UInt(INPUT, vaddrBits)
-    val ea = UInt(INPUT, vaddrBits)
-    val xcpt_if = Bool(OUTPUT)
-    val xcpt_ld = Bool(OUTPUT)
-    val xcpt_st = Bool(OUTPUT)
-    val debug_if = Bool(OUTPUT)
-    val debug_ld = Bool(OUTPUT)
-    val debug_st = Bool(OUTPUT)
-    val bpwatch = Vec(n, new BPWatch(1)).asOutput
-  }
+class BreakpointUnit(n: Int)(implicit val p: Parameters) extends Module with HasCoreParameters {
+  val io = IO(new Bundle {
+    val status = Input(new MStatus())
+    val bp = Input(Vec(n, new BP))
+    val pc = Input(UInt(vaddrBits.W))
+    val ea = Input(UInt(vaddrBits.W))
+    val xcpt_if  = Output(Bool())
+    val xcpt_ld  = Output(Bool())
+    val xcpt_st  = Output(Bool())
+    val debug_if = Output(Bool())
+    val debug_ld = Output(Bool())
+    val debug_st = Output(Bool())
+    val bpwatch  = Output(Vec(n, new BPWatch(1)))
+  })
 
   io.xcpt_if := false
   io.xcpt_ld := false
@@ -76,7 +77,7 @@ class BreakpointUnit(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   io.debug_ld := false
   io.debug_st := false
 
-  (io.bpwatch zip io.bp).foldLeft((Bool(true), Bool(true), Bool(true))) { case ((ri, wi, xi), (bpw, bp)) =>
+  (io.bpwatch zip io.bp).foldLeft((true.B, true.B, true.B)) { case ((ri, wi, xi), (bpw, bp)) =>
     val en = bp.control.enabled(io.status)
     val r = en && bp.control.r && bp.addressMatch(io.ea)
     val w = en && bp.control.w && bp.addressMatch(io.ea)

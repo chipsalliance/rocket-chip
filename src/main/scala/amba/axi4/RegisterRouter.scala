@@ -117,7 +117,7 @@ class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
 }
 
 /** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
-trait HasAXI4ControlRegMap { this: RegisterRouter[_] =>
+trait HasAXI4ControlRegMap { this: RegisterRouter =>
   protected val controlNode = AXI4RegisterNode(
     address = address.head,
     concurrency = concurrency,

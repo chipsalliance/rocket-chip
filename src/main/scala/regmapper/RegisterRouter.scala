@@ -18,7 +18,7 @@ case class RegisterRouterParams(
   undefZero: Boolean = true,
   executable: Boolean = false)
 
-abstract class RegisterRouter[T <: Data](devParams: RegisterRouterParams)(implicit p: Parameters)
+abstract class RegisterRouter(devParams: RegisterRouterParams)(implicit p: Parameters)
     extends LazyModule
     with HasClockDomainCrossing {
 
