@@ -6,6 +6,8 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
 trait HasHierarchicalBusTopology { this: BaseSubsystem =>
+  sbus.clockGroupNode := asyncClockGroupsNode
+
   // The sbus masters the cbus; here we convert TL-UH -> TL-UL
   sbus.crossToBus(cbus, NoCrossing)
 
@@ -24,4 +26,5 @@ trait HasHierarchicalBusTopology { this: BaseSubsystem =>
     sbus.coupleTo("coherence_manager") { in :*= _ }
     mbus.coupleFrom("coherence_manager") { _ :=* BankBinder(mbus.blockBytes * (nBanks-1)) :*= out }
   }
+  mbus.clockGroupNode := sbus.clockGroupNode
 }
