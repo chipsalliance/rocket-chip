@@ -10,6 +10,7 @@ import firrtl.AnnotationSeq
 import firrtl.annotations.JsonProtocol
 import firrtl.options.Viewer.view
 import firrtl.options.{Phase, PreservesAll, StageOptions}
+import freechips.rocketchip.stage.RocketChipOptions
 
 class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
@@ -17,7 +18,7 @@ class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketC
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val file = new File(targetDir, s"${getLongName(annotations)}.anno.json")
+    val file = new File(targetDir, s"${view[RocketChipOptions](annotations).longName}.anno.json")
 
     annotations.flatMap {
       case a: ChiselCircuitAnnotation =>

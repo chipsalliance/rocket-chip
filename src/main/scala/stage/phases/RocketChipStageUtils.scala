@@ -19,17 +19,6 @@ import scala.collection.mutable.LinkedHashSet
 
 trait HasRocketChipStageUtils {
 
-  def getFullTopModuleClass(annotations: AnnotationSeq): String = {
-    val rOpts = view[RocketChipOptions](annotations)
-    s"${rOpts.topModulePackage.get}.${rOpts.topModuleClass.get}"
-  }
-
-  def getFullConfigClasses(annotations: AnnotationSeq): Seq[String] = {
-    val rOpts = view[RocketChipOptions](annotations)
-    val configClasses = rOpts.configs.get.split("_")
-    configClasses.map( configClass => s"${rOpts.configsPackage.get}.${configClass}")
-  }
-
   def getConfig(fullConfigClassNames: Seq[String]): Config = {
     new Config(fullConfigClassNames.foldRight(Parameters.empty) { case (currentName, config) =>
       val currentConfig = try {
@@ -40,16 +29,6 @@ trait HasRocketChipStageUtils {
       }
       currentConfig ++ config
     })
-  }
-
-  def getShortName(annotations: AnnotationSeq): String = {
-    val rOpts = view[RocketChipOptions](annotations)
-    rOpts.outputBaseName.getOrElse(s"${rOpts.configs.get}")
-  }
-
-  def getLongName(annotations: AnnotationSeq): String = {
-    val rOpts = view[RocketChipOptions](annotations)
-    rOpts.outputBaseName.getOrElse(s"${rOpts.topModulePackage.get}.${rOpts.configs.get}")
   }
 
   def enumerateROMs(circuit: Circuit): String = {
@@ -78,7 +57,8 @@ trait HasRocketChipStageUtils {
   /** Output software test Makefrags, which provide targets for integration testing. */
   def addTestSuites(annotations: AnnotationSeq) {
     import DefaultTestSuites._
-    val params = getConfig(getFullConfigClasses(annotations)).toInstance
+    val rOpts = view[RocketChipOptions](annotations)
+    val params = getConfig(rOpts.configNames.get.split(",")).toInstance
     val xlen = params(XLen)
 
     val regressionTests = LinkedHashSet(

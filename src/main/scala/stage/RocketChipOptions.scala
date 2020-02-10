@@ -2,34 +2,34 @@
 
 package freechips.rocketchip.stage
 
-import chisel3.experimental.BaseModule
-
-import freechips.rocketchip.config.Config
-
 class RocketChipOptions private[stage] (
-                                         val topModulePackage:  Option[String] = None,
-                                         val topModuleClass:    Option[String] = None,
-                                         val configsPackage:    Option[String] = None,
-                                         val configs:           Option[String] = None,
+                                         val topModule:         Option[Class[_ <: Any]] = None,
+                                         val configNames:       Option[String] = None,
                                          val outputBaseName:    Option[String] = None) {
 
   private[stage] def copy(
-                           topModulePackage:  Option[String] = topModulePackage,
-                           topModuleClass:    Option[String] = topModuleClass,
-                           configsPackage:    Option[String] = configsPackage,
-                           configs:           Option[String] = configs,
+                           topModule:         Option[Class[_ <: Any]] = topModule,
+                           configNames:       Option[String] = configNames,
                            outputBaseName:    Option[String] = outputBaseName,
                          ): RocketChipOptions = {
 
     new RocketChipOptions(
-      topModulePackage=topModulePackage,
-      topModuleClass=topModuleClass,
-      configsPackage=configsPackage,
-      configs=configs,
+      topModule=topModule,
+      configNames=configNames,
       outputBaseName=outputBaseName,
     )
-
   }
 
+  lazy val topPackage: Option[String] = topModule match {
+    case Some(a) => Some(a.getPackage.getName)
+    case _ => None
+  }
+
+  lazy val configClass: Option[String] = configNames match {
+    case Some(a) => Some(a.split('.').last.replace(',', '_'))
+    case _ => None
+  }
+
+  lazy val longName: String = outputBaseName.getOrElse(s"${topPackage.get}.${configClass.get}")
 }
 

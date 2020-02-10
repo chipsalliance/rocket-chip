@@ -2,57 +2,36 @@
 
 package freechips.rocketchip.stage
 
+import chipsalliance.rocketchip.config.Config
+import chisel3.experimental.BaseModule
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{HasShellOptions, ShellOption, Unserializable}
+import freechips.rocketchip.stage.phases.HasRocketChipStageUtils
 
 sealed trait RocketChipOption extends Unserializable { this: Annotation => }
 
 /* required options */
 
-case class TopPackageAnnotation(topModulePackage: String) extends NoTargetAnnotation with RocketChipOption
-private[stage] object TopPackageAnnotation extends HasShellOptions {
+case class TopModuleAnnotation(clazz: Class[_ <: Any]) extends NoTargetAnnotation with RocketChipOption
+private[stage] object TopModuleAnnotation extends HasShellOptions {
   override val options = Seq(
     new ShellOption[String](
-      longOption = "top-package",
-      toAnnotationSeq = a => Seq(TopPackageAnnotation(a)),
-      helpText = "<top module package>",
+      longOption = "top-module",
+      toAnnotationSeq = a => Seq(TopModuleAnnotation(Class.forName(a).asInstanceOf[Class[_ <: BaseModule]])),
+      helpText = "<top module>",
       shortOption = Some("T")
     )
   )
 }
 
-case class TopClassAnnotation(topModuleClass: String) extends NoTargetAnnotation with RocketChipOption
-private[stage] object TopClassAnnotation extends HasShellOptions {
-  override val options = Seq(
-    new ShellOption[String](
-      longOption = "top-class",
-      toAnnotationSeq = a => Seq(TopClassAnnotation(a)),
-      helpText = "<top module class name>",
-      shortOption = Some("t")
-    )
-  )
-}
-
-case class ConfigPackageAnnotation(configsPackage: String) extends NoTargetAnnotation with RocketChipOption
-private[stage] object ConfigPackageAnnotation extends HasShellOptions {
-  override val options = Seq(
-    new ShellOption[String](
-      longOption = "configs-package",
-      toAnnotationSeq = a => Seq(ConfigPackageAnnotation(a)),
-      helpText = "<config classes' package>",
-      shortOption = Some("C")
-    )
-  )
-}
-
-case class ConfigAnnotation(configs: String) extends NoTargetAnnotation with RocketChipOption
-private[stage] object ConfigAnnotation extends HasShellOptions {
+case class ConfigsAnnotation(configNames: String) extends NoTargetAnnotation with RocketChipOption
+private[stage] object ConfigsAnnotation extends HasShellOptions {
   override val options = Seq(
     new ShellOption[String](
       longOption = "configs",
-      toAnnotationSeq = a => Seq(ConfigAnnotation(a)),
-      helpText = "<'_'-delimited config class names>",
-      shortOption = Some("c")
+      toAnnotationSeq = a => Seq(ConfigsAnnotation(a)),
+      helpText = "<comma-delimited configs>",
+      shortOption = Some("C")
     )
   )
 }

@@ -10,6 +10,7 @@ import chisel3.stage.phases.Elaborate
 import firrtl.AnnotationSeq
 import firrtl.options.{Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
+import freechips.rocketchip.stage.RocketChipOptions
 
 class GenerateFirrtl extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
@@ -17,7 +18,7 @@ class GenerateFirrtl extends Phase with PreservesAll[Phase] with HasRocketChipSt
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val file = new File(targetDir, s"${getLongName(annotations)}.fir")
+    val file = new File(targetDir, s"${view[RocketChipOptions](annotations).longName}.fir")
 
     annotations.flatMap {
       case a: ChiselCircuitAnnotation =>

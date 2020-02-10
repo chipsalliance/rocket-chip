@@ -5,9 +5,11 @@ package freechips.rocketchip.stage.phases
 import chisel3.RawModule
 import chisel3.stage.ChiselGeneratorAnnotation
 import firrtl.AnnotationSeq
+import firrtl.options.Viewer.view
 import firrtl.options.{Phase, PreservesAll}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.stage.RocketChipOptions
 
 class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
@@ -16,14 +18,14 @@ class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipSt
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
 
-    val top = Class.forName(s"${getFullTopModuleClass(annotations)}")
-    logger.info(s"$top")
+    val rOpts = view[RocketChipOptions](annotations)
+    val topMod = rOpts.topModule.get
 
-    val config = getConfig(getFullConfigClasses(annotations))
-    logger.info(s"$config")
+    val configNameSeq = rOpts.configNames.get.split(",")
+    val config = getConfig(configNameSeq)
 
     val gen = () =>
-      top
+      topMod
         .getConstructor(classOf[Parameters])
         .newInstance(config) match {
           case a: RawModule => a

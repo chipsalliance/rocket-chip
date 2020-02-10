@@ -12,15 +12,13 @@ import scala.collection.mutable
 class Checks extends Phase with PreservesAll[Phase] {
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    val targetDir, topModulePackage, topModuleClass, configsPackage, configs, outputBaseName = mutable.ListBuffer[Annotation]()
+    val targetDir, topModule, configNames, outputBaseName = mutable.ListBuffer[Annotation]()
 
     annotations.foreach {
-      case a: TargetDirAnnotation       => a +=: targetDir
-      case a: TopPackageAnnotation      => a +=: topModulePackage
-      case a: TopClassAnnotation        => a +=: topModuleClass
-      case a: ConfigPackageAnnotation   => a +=: configsPackage
-      case a: ConfigAnnotation          => a +=: configs
-      case a: OutputBaseNameAnnotation  => a +=: outputBaseName
+      case a: TargetDirAnnotation      => a +=: targetDir
+      case a: TopModuleAnnotation      => a +=: topModule
+      case a: ConfigsAnnotation        => a +=: configNames
+      case a: OutputBaseNameAnnotation => a +=: outputBaseName
       case _ =>
     }
 
@@ -37,10 +35,8 @@ class Checks extends Phase with PreservesAll[Phase] {
     }
 
     required(targetDir, "target directory")
-    required(topModulePackage, "top module")
-    required(topModuleClass, "top class")
-    required(configsPackage, "configs package")
-    required(configs, "configs string ('_'-delimited)")
+    required(topModule, "top module")
+    required(configNames, "configs string (','-delimited)")
 
     optional(outputBaseName, "output base name")
 
