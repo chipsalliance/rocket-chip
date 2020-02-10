@@ -7,7 +7,7 @@ import firrtl.AnnotationSeq
 import firrtl.options.{Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
-import freechips.rocketchip.util.ElaborationArtefacts
+import freechips.rocketchip.util.{ElaborationArtefacts, HasRocketChipStageUtils}
 
 class GenerateArtefacts extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 

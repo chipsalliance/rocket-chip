@@ -2,36 +2,22 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
-import chisel3.RawModule
-import chisel3.internal.firrtl.Circuit
-// TODO: better job of Makefrag generation for non-RocketChip testing platforms
 import java.io.{File, FileWriter}
 
-import firrtl.annotations.JsonProtocol
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
+import Chisel.throwException
+import chipsalliance.rocketchip.config.{Config, Parameters}
+import chisel3.internal.firrtl.Circuit
+import firrtl.options.Viewer.view
+import firrtl.AnnotationSeq
+import freechips.rocketchip.stage.RocketChipOptions
+import freechips.rocketchip.subsystem.RocketTilesKey
+import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, TestGeneration}
+import freechips.rocketchip.tile.XLen
 
-/** Representation of the information this Generator needs to collect from external sources. */
-case class ParsedInputNames(
-    targetDir: String,
-    topModuleProject: String,
-    topModuleClass: String,
-    configProject: String,
-    configs: String,
-    outputBaseName: Option[String]) {
-  val configClasses: Seq[String] = configs.split('_')
-  def prepend(prefix: String, suffix: String) =
-    if (prefix == "" || prefix == "_root_") suffix else (prefix + "." + suffix)
-  val fullConfigClasses: Seq[String] = configClasses.map(x => prepend(configProject, x))
-  val fullTopModuleClass: String = prepend(topModuleProject, topModuleClass)
-}
+import scala.collection.mutable.LinkedHashSet
 
-/** Common utilities we supply to all Generators. In particular, supplies the
-  * canonical ways of building various JVM elaboration-time structures.
-  */
-trait HasGeneratorUtilities {
+trait HasRocketChipStageUtils {
+
   def getConfig(fullConfigClassNames: Seq[String]): Config = {
     new Config(fullConfigClassNames.foldRight(Parameters.empty) { case (currentName, config) =>
       val currentConfig = try {
@@ -42,22 +28,6 @@ trait HasGeneratorUtilities {
       }
       currentConfig ++ config
     })
-  }
-
-  def getParameters(names: Seq[String]): Parameters = getParameters(getConfig(names))
-
-  def getParameters(config: Config): Parameters = config.toInstance
-
-  def elaborate(fullTopModuleClassName: String, params: Parameters): Circuit = {
-    val top = () =>
-      Class.forName(fullTopModuleClassName)
-          .getConstructor(classOf[Parameters])
-          .newInstance(params) match {
-        case m: RawModule => m
-        case l: LazyModule => LazyModule(l).module
-      }
-
-    Driver.elaborate(top)
   }
 
   def enumerateROMs(circuit: Circuit): String = {
@@ -74,73 +44,6 @@ trait HasGeneratorUtilities {
     }
     res.toString
   }
-}
-
-/** Standardized command line interface for Scala entry point */
-trait GeneratorApp extends App with HasGeneratorUtilities {
-  lazy val names: ParsedInputNames = {
-    require(args.size == 5 || args.size == 6, "Usage: sbt> " +
-      "run TargetDir TopModuleProjectName TopModuleName " +
-      "ConfigProjectName ConfigNameString [OutputFilesBaseName]")
-    val base =
-      ParsedInputNames(
-        targetDir = args(0),
-        topModuleProject = args(1),
-        topModuleClass = args(2),
-        configProject = args(3),
-        configs = args(4),
-        outputBaseName = None)
-
-    if (args.size == 6) {
-      base.copy(outputBaseName = Some(args(5)))
-    } else {
-      base
-    }
-  }
-
-  // Canonical ways of building various JVM elaboration-time structures
-  lazy val td: String = names.targetDir
-  lazy val config: Config = getConfig(names.fullConfigClasses)
-  lazy val params: Parameters = config.toInstance
-  lazy val circuit: Circuit = elaborate(names.fullTopModuleClass, params)
-
-  // Exhaustive name used to interface with external build tool targets
-  lazy val longName: String = names.outputBaseName.getOrElse(names.configProject + "." + names.configs)
-
-  /** Output FIRRTL, which an external compiler can turn into Verilog. */
-  def generateFirrtl {
-    Driver.dumpFirrtl(circuit, Some(new File(td, s"$longName.fir"))) // FIRRTL
-  }
-
-  def generateAnno {
-    val annotationFile = new File(td, s"$longName.anno.json")
-    val af = new FileWriter(annotationFile)
-    af.write(JsonProtocol.serialize(circuit.annotations.map(_.toFirrtl)))
-    af.close()
-  }
-
-  /** Output software test Makefrags, which provide targets for integration testing. */
-  def generateTestSuiteMakefrags {
-    addTestSuites
-    writeOutputFile(td, s"$longName.d", TestGeneration.generateMakefrag) // Subsystem-specific test suites
-  }
-
-  def addTestSuites {
-    TestGeneration.addSuite(DefaultTestSuites.groundtest64("p"))
-    TestGeneration.addSuite(DefaultTestSuites.emptyBmarks)
-    TestGeneration.addSuite(DefaultTestSuites.singleRegression)
-  }
-
-  def generateROMs {
-    writeOutputFile(td, s"$longName.rom.conf", enumerateROMs(circuit))
-  }
-
-  /** Output files created as a side-effect of elaboration */
-  def generateArtefacts {
-    ElaborationArtefacts.files.foreach { case (extension, contents) =>
-      writeOutputFile(td, s"$longName.$extension", contents ())
-    }
-  }
 
   def writeOutputFile(targetDir: String, fname: String, contents: String): File = {
     val f = new File(targetDir, fname)
@@ -148,6 +51,101 @@ trait GeneratorApp extends App with HasGeneratorUtilities {
     fw.write(contents)
     fw.close
     f
+  }
+
+  /** Output software test Makefrags, which provide targets for integration testing. */
+  def addTestSuites(annotations: AnnotationSeq) {
+    import DefaultTestSuites._
+    val rOpts = view[RocketChipOptions](annotations)
+    val params = getConfig(rOpts.configNames.get).toInstance
+    val xlen = params(XLen)
+
+    val regressionTests = LinkedHashSet(
+      "rv64ud-v-fcvt",
+      "rv64ud-p-fdiv",
+      "rv64ud-v-fadd",
+      "rv64uf-v-fadd",
+      "rv64um-v-mul",
+      "rv64mi-p-breakpoint",
+      "rv64uc-v-rvc",
+      "rv64ud-v-structural",
+      "rv64si-p-wfi",
+      "rv64um-v-divw",
+      "rv64ua-v-lrsc",
+      "rv64ui-v-fence_i",
+      "rv64ud-v-fcvt_w",
+      "rv64uf-v-fmin",
+      "rv64ui-v-sb",
+      "rv64ua-v-amomax_d",
+      "rv64ud-v-move",
+      "rv64ud-v-fclass",
+      "rv64ua-v-amoand_d",
+      "rv64ua-v-amoxor_d",
+      "rv64si-p-sbreak",
+      "rv64ud-v-fmadd",
+      "rv64uf-v-ldst",
+      "rv64um-v-mulh",
+      "rv64si-p-dirty",
+      "rv32mi-p-ma_addr",
+      "rv32mi-p-csr",
+      "rv32ui-p-sh",
+      "rv32ui-p-lh",
+      "rv32uc-p-rvc",
+      "rv32mi-p-sbreak",
+      "rv32ui-p-sll")
+
+    // TODO: for now only generate tests for the first core in the first subsystem
+    params(RocketTilesKey).headOption.map { tileParams =>
+      val coreParams = tileParams.core
+      val vm = coreParams.useVM
+      val env = if (vm) List("p","v") else List("p")
+      coreParams.fpu foreach { case cfg =>
+        if (xlen == 32) {
+          TestGeneration.addSuites(env.map(rv32uf))
+          if (cfg.fLen >= 64)
+            TestGeneration.addSuites(env.map(rv32ud))
+        } else {
+          TestGeneration.addSuite(rv32udBenchmarks)
+          TestGeneration.addSuites(env.map(rv64uf))
+          if (cfg.fLen >= 64)
+            TestGeneration.addSuites(env.map(rv64ud))
+        }
+      }
+      if (coreParams.useAtomics) {
+        if (tileParams.dcache.flatMap(_.scratch).isEmpty)
+          TestGeneration.addSuites(env.map(if (xlen == 64) rv64ua else rv32ua))
+        else
+          TestGeneration.addSuites(env.map(if (xlen == 64) rv64uaSansLRSC else rv32uaSansLRSC))
+      }
+      if (coreParams.useCompressed) TestGeneration.addSuites(env.map(if (xlen == 64) rv64uc else rv32uc))
+      val (rvi, rvu) =
+        if (xlen == 64) ((if (vm) rv64i else rv64pi), rv64u)
+        else            ((if (vm) rv32i else rv32pi), rv32u)
+
+      TestGeneration.addSuites(rvi.map(_("p")))
+      TestGeneration.addSuites((if (vm) List("v") else List()).flatMap(env => rvu.map(_(env))))
+      TestGeneration.addSuite(benchmarks)
+
+      /* Filter the regression tests based on what the Rocket Chip configuration supports */
+      val extensions = {
+        val fd = coreParams.fpu.map {
+          case cfg if cfg.fLen >= 64 => "fd"
+          case _                     => "f"
+        }
+        val m = coreParams.mulDiv.map{ case _ => "m" }
+        fd ++ m ++ Seq( if (coreParams.useRVE)        Some("e") else Some("i"),
+          if (coreParams.useAtomics)    Some("a") else None,
+          if (coreParams.useCompressed) Some("c") else None )
+          .flatten
+          .mkString("")
+      }
+      val re = s"""^rv$xlen[usm][$extensions].+""".r
+      regressionTests.retain{
+        case re() => true
+        case _    => false
+      }
+      TestGeneration.addSuite(new RegressionTestSuite(regressionTests))
+    }
   }
 }
 

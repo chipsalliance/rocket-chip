@@ -2,11 +2,7 @@
 
 package freechips.rocketchip.groundtest
 
-import freechips.rocketchip.util.GeneratorApp
+import firrtl.options.StageMain
+import freechips.rocketchip.stage.RocketChipStage
 
-object Generator extends GeneratorApp {
-  generateFirrtl
-  generateAnno
-  generateTestSuiteMakefrags // TODO: Needed only for legacy make targets
-  generateArtefacts
-}
+object Generator extends StageMain(new RocketChipStage)

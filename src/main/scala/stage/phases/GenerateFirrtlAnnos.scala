@@ -11,6 +11,7 @@ import firrtl.annotations.JsonProtocol
 import firrtl.options.Viewer.view
 import firrtl.options.{Phase, PreservesAll, StageOptions}
 import freechips.rocketchip.stage.RocketChipOptions
+import freechips.rocketchip.util.HasRocketChipStageUtils
 
 class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 

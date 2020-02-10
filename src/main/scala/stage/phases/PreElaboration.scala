@@ -10,6 +10,7 @@ import firrtl.options.{Phase, PreservesAll}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.stage.RocketChipOptions
+import freechips.rocketchip.util.HasRocketChipStageUtils
 
 class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 

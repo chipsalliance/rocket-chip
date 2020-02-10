@@ -8,6 +8,7 @@ import firrtl.options.{Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.system.TestGeneration
+import freechips.rocketchip.util.HasRocketChipStageUtils
 
 class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
