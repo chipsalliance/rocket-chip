@@ -33,10 +33,11 @@ environment variable to your rocket-tools installation directory.
 
 The rocket-tools repository known to work with rocket-chip is noted
 in the file riscv-tools.hash. However, any recent rocket-tools should work.
-You can build rocket-tools as follows:
+You can build the appropriate version of rocket-tools as follows:
 
     $ git clone https://github.com/freechipsproject/rocket-tools
     $ cd rocket-tools
+    $ git checkout < the hash found in riscv-tools.hash >
     $ git submodule update --init --recursive
     $ export RISCV=/path/to/install/riscv/toolchain
     $ export MAKEFLAGS="$MAKEFLAGS -jN" # Assuming you have N cores on your host system
