@@ -73,7 +73,11 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)
       val r_addr = Mux(r_ok, in.ar.bits.addr, UInt(error) | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
       val r_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
-      val r_id = Cat(in.ar.bits.id, r_count(in.ar.bits.id)(logFlight-1,0), UInt(0, width=1))
+      val r_id = if (maxFlight == 1) {
+        Cat(in.ar.bits.id, UInt(0, width=1))
+      } else {
+        Cat(in.ar.bits.id, r_count(in.ar.bits.id)(logFlight-1,0), UInt(0, width=1))
+      }
 
       assert (!in.ar.valid || r_size1 === UIntToOH1(r_size, beatCountBits)) // because aligned
       in.ar.ready := r_out.ready
@@ -91,7 +95,11 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       val w_ok = edgeOut.manager.supportsPutPartialSafe(in.aw.bits.addr, w_size)
       val w_addr = Mux(w_ok, in.aw.bits.addr, UInt(error) | in.aw.bits.addr(log2Up(beatBytes)-1, 0))
       val w_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
-      val w_id = Cat(in.aw.bits.id, w_count(in.aw.bits.id)(logFlight-1,0), UInt(1, width=1))
+      val w_id = if (maxFlight == 1) {
+        Cat(in.aw.bits.id, UInt(1, width=1))
+      } else {
+        Cat(in.aw.bits.id, w_count(in.aw.bits.id)(logFlight-1,0), UInt(1, width=1))
+      }
 
       assert (!in.aw.valid || w_size1 === UIntToOH1(w_size, beatCountBits)) // because aligned
       assert (!in.aw.valid || in.aw.bits.len === UInt(0) || in.aw.bits.size === UInt(log2Ceil(beatBytes))) // because aligned
