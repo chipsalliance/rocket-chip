@@ -235,7 +235,7 @@ case class TLManagerPortParameters(
     })
   }
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + "Manager Port MinLatency = " + minLatency + "\n\n" + managers.map(_.infoString).mkString
 }
 
 case class TLClientParameters(
