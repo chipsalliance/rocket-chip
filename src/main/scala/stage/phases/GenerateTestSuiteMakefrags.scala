@@ -7,8 +7,10 @@ import firrtl.AnnotationSeq
 import firrtl.options.{Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
-import freechips.rocketchip.system.TestGeneration
+import freechips.rocketchip.system.{RocketTestSuite, TestGeneration}
 import freechips.rocketchip.util.HasRocketChipStageUtils
+
+case class RocketTestSuiteAnnotation(suite: RocketTestSuite)
 
 class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
@@ -18,8 +20,15 @@ class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with Has
     val targetDir = view[StageOptions](annotations).targetDir
     val fileName = s"${view[RocketChipOptions](annotations).longName}.d"
 
-    addTestSuites(annotations)
-    writeOutputFile(targetDir, fileName, TestGeneration.generateMakefrag)
+    //addTestSuites(annotations)
+    //writeOutputFile(targetDir, fileName, TestGeneration.generateMakefrag)
+    val makefrag =
+      annotations
+        .collect{ case a: RocketTestSuiteAnnotation => a.suite }
+        .groupBy(_.kind)
+        .map { case (kind, s) => TestGeneration.gen(kind, s) }
+        .mkString("\n")
+    writeOutputFile(targetDir, fileName, makefrag)
 
     annotations
   }
