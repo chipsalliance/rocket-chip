@@ -575,7 +575,7 @@ class TLSlavePortParameters private(
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + "Manager Port MinLatency = " + minLatency + "\n\n" + managers.map(_.infoString).mkString
 
   def v1copy(
     managers:   Seq[TLSlaveParameters] = slaves,
@@ -629,6 +629,7 @@ object TLSlavePortParameters {
       responseFields = responseFields,
       requestKeys    = requestKeys)
   }
+
 }
 
 object TLManagerPortParameters {
