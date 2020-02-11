@@ -20,8 +20,6 @@ class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with Has
     val targetDir = view[StageOptions](annotations).targetDir
     val fileName = s"${view[RocketChipOptions](annotations).longName}.d"
 
-    //addTestSuites(annotations)
-    //writeOutputFile(targetDir, fileName, TestGeneration.generateMakefrag)
     val makefrag =
       annotations
         .collect{ case a: RocketTestSuiteAnnotation => a.suite }

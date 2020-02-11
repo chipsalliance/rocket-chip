@@ -10,7 +10,7 @@ verilog = \
 
 $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain freechips.rocketchip.stage.RocketChipMain -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CFG_PROJECT).$(CONFIG)"
+	cd $(base_dir) && $(SBT) "runMain freechips.rocketchip.stage.RocketChipMain -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG)"
 
 %.v %.conf: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
