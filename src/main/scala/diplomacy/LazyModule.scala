@@ -192,13 +192,9 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   // It is recommended to drive these even if you manually shove most of your children
   // Otherwise, anonymous children (Monitors for example) will not be clocked
   val childClock = Wire(Clock())
-  // If we use a Chisel.Wire, then this gets WireDefault assigned to a Bool, which
-  // we can't override later to an AsyncReset. Explicitly define this as a chisel3.Wire.
-  // Also, do NOT drive it with a default value here. This will result in a Chisel elab
-  // error if someone does not actually drive it, vs waiting to see a failing sim.
-  val childReset = chisel3.Wire(Reset())
+  val childReset = Wire(Reset())
   childClock := Bool(false).asClock
-  //childReset := Bool(true)
+  childReset := chisel3.DontCare
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
   }

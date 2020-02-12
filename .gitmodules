@@ -10,6 +10,7 @@
 [submodule "firrtl"]
 	path = firrtl
 	url = git@github.com:freechipsproject/firrtl.git
+  url = https://github.com/freechipsproject/firrtl.git
 [submodule "api-config-chipsalliance"]
 	path = api-config-chipsalliance
 	url = https://github.com/chipsalliance/api-config-chipsalliance.git
