@@ -57,24 +57,24 @@ object Property {
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
       when(!cond) {
-        printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
+        printf(s"assert:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
       }
     } else if (dir==MonitorDirection.Receiver) {
       when(!cond) {
-        printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
+        printf(s"assert:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
       }
     } else if (dir==MonitorDirection.Driver) {
       when(!cond) {
-        printf(s"assume:${proposed_src}:${prop_type.toString} ${message}")
+        printf(s"assume:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
       }
     } else if (dir==MonitorDirection.Cover) {
         if (prop_type==PropertyClass.CoverDisableMonitor) {
           when(cond) { //We want to assert that the condition is never true, which is opposite of a normal assertion
-            printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
+            printf(s"assert:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
           }
         } else {
             when(cond) {
-              printf(s"cover:${proposed_src}:${prop_type.toString} ${message}")
+              printf(s"cover:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
             }
         }
     }
