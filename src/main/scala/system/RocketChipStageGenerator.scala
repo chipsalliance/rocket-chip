@@ -1,11 +1,12 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.stage
+package freechips.rocketchip.system
 
-import firrtl.options.{Phase, PreservesAll, Shell, StageMain}
-import firrtl.stage.FirrtlCli
 import chisel3.stage.{ChiselCli, ChiselStage}
 import firrtl.options.PhaseManager.PhaseDependency
+import firrtl.options.{Phase, PreservesAll, Shell, StageMain}
+import firrtl.stage.FirrtlCli
+import freechips.rocketchip.stage.RocketChipCli
 
 class RocketChipStage extends ChiselStage with PreservesAll[Phase] {
 
@@ -26,4 +27,4 @@ class RocketChipStage extends ChiselStage with PreservesAll[Phase] {
   // TODO: need a RunPhaseAnnotation to inject phases into ChiselStage
 }
 
-object RocketChipMain extends StageMain(new RocketChipStage)
+object Generator extends StageMain(new RocketChipStage)
