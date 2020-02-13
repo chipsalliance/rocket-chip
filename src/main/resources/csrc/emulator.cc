@@ -331,9 +331,11 @@ done_processing:
     fprintf(stderr, "*** PASSED *** Completed after %ld cycles\n", trace_count);
   }
 
+#if 0 // Work around undiagnosed invalid free() that only seems to occur in travis-ci
   if (dtm) delete dtm;
   if (jtag) delete jtag;
   if (tile) delete tile;
   if (htif_argv) free(htif_argv);
+#endif
   return ret;
 }
