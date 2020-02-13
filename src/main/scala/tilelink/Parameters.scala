@@ -10,6 +10,18 @@ import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByInt
 import scala.math.max
 import scala.reflect.ClassTag
 
+case class TLSupportedSizes(
+  acquireT:   TransferSizes = TransferSizes.none,
+  acquireB:   TransferSizes = TransferSizes.none,
+  arithmetic: TransferSizes = TransferSizes.none,
+  logical:    TransferSizes = TransferSizes.none,
+  get:        TransferSizes = TransferSizes.none,
+  putFull:    TransferSizes = TransferSizes.none,
+  putPartial: TransferSizes = TransferSizes.none,
+  hint:       TransferSizes = TransferSizes.none,
+  probe:      TransferSizes = TransferSizes.none
+)
+
 class TLManagerParameters private(
   address2:            Seq[AddressSet],
   resources2:          Seq[Resource] = Seq(),
@@ -17,14 +29,8 @@ class TLManagerParameters private(
   executable2:         Boolean       = false, // processor can execute from this memory
   nodePath2:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
-  supportsAcquireT2:   TransferSizes = TransferSizes.none,
-  supportsAcquireB2:   TransferSizes = TransferSizes.none,
-  supportsArithmetic2: TransferSizes = TransferSizes.none,
-  supportsLogical2:    TransferSizes = TransferSizes.none,
-  supportsGet2:        TransferSizes = TransferSizes.none,
-  supportsPutFull2:    TransferSizes = TransferSizes.none,
-  supportsPutPartial2: TransferSizes = TransferSizes.none,
-  supportsHint2:       TransferSizes = TransferSizes.none,
+  supportedSizes:      TLSupportedSizes = TLSupportedSizes(),
+  emissionSizes:       TLSupportedSizes = TLSupportedSizes(),
   userBits2:           Seq[UserBits] = Nil,
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
   mayDenyGet2:         Boolean = false, // applies to: AccessAckData, GrantData
@@ -42,14 +48,14 @@ class TLManagerParameters private(
   def executable:         Boolean       = this.executable2 // processor can execute from this memory
   def nodePath:           Seq[BaseNode] = this.nodePath2
     // Supports both Acquire+Release+Finish of these sizes
-  def supportsAcquireT:   TransferSizes = this.supportsAcquireT2
-  def supportsAcquireB:   TransferSizes = this.supportsAcquireB2
-  def supportsArithmetic: TransferSizes = this.supportsArithmetic2
-  def supportsLogical:    TransferSizes = this.supportsLogical2
-  def supportsGet:        TransferSizes = this.supportsGet2
-  def supportsPutFull:    TransferSizes = this.supportsPutFull2
-  def supportsPutPartial: TransferSizes = this.supportsPutPartial2
-  def supportsHint:       TransferSizes = this.supportsHint2
+  def supportsAcquireT:   TransferSizes = this.supportedSizes.acquireT
+  def supportsAcquireB:   TransferSizes = this.supportedSizes.acquireB
+  def supportsArithmetic: TransferSizes = this.supportedSizes.arithmetic
+  def supportsLogical:    TransferSizes = this.supportedSizes.logical
+  def supportsGet:        TransferSizes = this.supportedSizes.get
+  def supportsPutFull:    TransferSizes = this.supportedSizes.putFull
+  def supportsPutPartial: TransferSizes = this.supportedSizes.putPartial
+  def supportsHint:       TransferSizes = this.supportedSizes.hint
   def userBits:           Seq[UserBits] = this.userBits2
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
   def mayDenyGet:         Boolean = this.mayDenyGet2 // applies to: AccessAckData, GrantData
@@ -135,14 +141,14 @@ class TLManagerParameters private(
     executable:         Boolean       = this.executable2, // processor can execute from this memory
     nodePath:           Seq[BaseNode] = this.nodePath2,
     // Supports both Acquire+Release+Finish of these sizes
-    supportsAcquireT:   TransferSizes = this.supportsAcquireT2,
-    supportsAcquireB:   TransferSizes = this.supportsAcquireB2,
-    supportsArithmetic: TransferSizes = this.supportsArithmetic2,
-    supportsLogical:    TransferSizes = this.supportsLogical2,
-    supportsGet:        TransferSizes = this.supportsGet2,
-    supportsPutFull:    TransferSizes = this.supportsPutFull2,
-    supportsPutPartial: TransferSizes = this.supportsPutPartial2,
-    supportsHint:       TransferSizes = this.supportsHint2,
+    supportsAcquireT:   TransferSizes = this.supportedSizes.acquireT,
+    supportsAcquireB:   TransferSizes = this.supportedSizes.acquireB,
+    supportsArithmetic: TransferSizes = this.supportedSizes.arithmetic,
+    supportsLogical:    TransferSizes = this.supportedSizes.logical,
+    supportsGet:        TransferSizes = this.supportedSizes.get,
+    supportsPutFull:    TransferSizes = this.supportedSizes.putFull,
+    supportsPutPartial: TransferSizes = this.supportedSizes.putPartial,
+    supportsHint:       TransferSizes = this.supportedSizes.hint,
     userBits:           Seq[UserBits] = this.userBits2,
     // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
     mayDenyGet:         Boolean = this.mayDenyGet2, // applies to: AccessAckData, GrantData
@@ -161,14 +167,17 @@ class TLManagerParameters private(
       executable2 = executable, // processor can execute from this memory
       nodePath2 = nodePath,
       // Supports both Acquire+Release+Finish of these sizes
-      supportsAcquireT2 = supportsAcquireT,
-      supportsAcquireB2 = supportsAcquireB,
-      supportsArithmetic2 = supportsArithmetic,
-      supportsLogical2 = supportsLogical,
-      supportsGet2 = supportsGet,
-      supportsPutFull2 = supportsPutFull,
-      supportsPutPartial2 = supportsPutPartial,
-      supportsHint2 = supportsHint,
+      supportedSizes = TLSupportedSizes(
+        supportsAcquireT,
+        supportsAcquireB,
+        supportsArithmetic,
+        supportsLogical,
+        supportsGet,
+        supportsPutFull,
+        supportsPutPartial,
+        supportsHint
+      ),
+      emissionSizes = TLSupportedSizes(),
       userBits2 = userBits,
       // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
       mayDenyGet2 = mayDenyGet, // applies to: AccessAckData, GrantData
@@ -188,14 +197,14 @@ class TLManagerParameters private(
     executable:         Boolean       = this.executable2, // processor can execute from this memory
     nodePath:           Seq[BaseNode] = this.nodePath2,
     // Supports both Acquire+Release+Finish of these sizes
-    supportsAcquireT:   TransferSizes = this.supportsAcquireT2,
-    supportsAcquireB:   TransferSizes = this.supportsAcquireB2,
-    supportsArithmetic: TransferSizes = this.supportsArithmetic2,
-    supportsLogical:    TransferSizes = this.supportsLogical2,
-    supportsGet:        TransferSizes = this.supportsGet2,
-    supportsPutFull:    TransferSizes = this.supportsPutFull2,
-    supportsPutPartial: TransferSizes = this.supportsPutPartial2,
-    supportsHint:       TransferSizes = this.supportsHint2,
+    supportsAcquireT:   TransferSizes = this.supportedSizes.acquireT,
+    supportsAcquireB:   TransferSizes = this.supportedSizes.acquireB,
+    supportsArithmetic: TransferSizes = this.supportedSizes.arithmetic,
+    supportsLogical:    TransferSizes = this.supportedSizes.logical,
+    supportsGet:        TransferSizes = this.supportedSizes.get,
+    supportsPutFull:    TransferSizes = this.supportedSizes.putFull,
+    supportsPutPartial: TransferSizes = this.supportedSizes.putPartial,
+    supportsHint:       TransferSizes = this.supportedSizes.hint,
     userBits:           Seq[UserBits] = this.userBits2,
     // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
     mayDenyGet:         Boolean = this.mayDenyGet2, // applies to: AccessAckData, GrantData
@@ -268,14 +277,17 @@ object TLManagerParameters {
       executable2 = executable, // processor can execute from this memory
       nodePath2 = nodePath,
       // Supports both Acquire+Release+Finish of these sizes
-      supportsAcquireT2 = supportsAcquireT,
-      supportsAcquireB2 = supportsAcquireB,
-      supportsArithmetic2 = supportsArithmetic,
-      supportsLogical2 = supportsLogical,
-      supportsGet2 = supportsGet,
-      supportsPutFull2 = supportsPutFull,
-      supportsPutPartial2 = supportsPutPartial,
-      supportsHint2 = supportsHint,
+      supportedSizes = TLSupportedSizes(
+        supportsAcquireT,
+        supportsAcquireB,
+        supportsArithmetic,
+        supportsLogical,
+        supportsGet,
+        supportsPutFull,
+        supportsPutPartial,
+        supportsHint
+      ),
+      emissionSizes = TLSupportedSizes(),
       userBits2 = userBits,
       // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
       mayDenyGet2 = mayDenyGet, // applies to: AccessAckData, GrantData
