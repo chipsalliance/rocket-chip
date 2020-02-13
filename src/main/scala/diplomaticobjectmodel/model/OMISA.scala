@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 
 import freechips.rocketchip.rocket.RocketCoreParams
-import freechips.rocketchip.tile.CoreParams
+import freechips.rocketchip.tile.{CoreParams, RocketTile}
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 trait OMExtensionType extends OMEnum
@@ -55,15 +55,17 @@ case class OMVectorExtension(
 )
 
 object OMISA {
-  def customExtensions(coreParams: RocketCoreParams): List[OMCustomExtensionSpecification] = {
-    if (coreParams.haveCFlush) List (Xsifivecflushdlone()) else Nil
-  }
+  def rocketISA(tile: RocketTile, xLen: Int): OMISA = {
+    val coreParams = tile.rocketParams.core
 
-  def rocketISA(coreParams: RocketCoreParams, xLen: Int): OMISA = {
     val baseInstructionSet = xLen match {
       case 32 => if (coreParams.useRVE) RV32E else RV32I
       case 64 => if (coreParams.useRVE) RV64E else RV64I
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
+    }
+
+    val customExtensions = {
+      if (coreParams.haveCFlush) List (Xsifivecflushdlone(full = true, line = tile.dcache.canSupportCFlushLine)) else Nil
     }
 
     val isaExtSpec = ISAExtensions.specVersion _
@@ -96,7 +98,7 @@ object OMISA {
       u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
       addressTranslationModes = Seq(addressTranslationModes),
-      customExtensions = customExtensions(coreParams)
+      customExtensions = customExtensions
     )
   }
 }
