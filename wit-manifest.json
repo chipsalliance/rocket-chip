@@ -15,7 +15,7 @@
         "source": "git@github.com:freechipsproject/chisel3.git"
     },
     {
-        "commit": "52a1ee81fccdc05c80b662fb2daf236cc5c4560b",
+        "commit": "61bf6373bc752d1194f5fdc97db10297f82a0bb4",
         "name": "firrtl",
         "source": "git@github.com:freechipsproject/firrtl.git"
     },
