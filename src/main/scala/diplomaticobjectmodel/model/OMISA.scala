@@ -37,12 +37,22 @@ case class OMISA(
   f: Option[OMSpecification],
   d: Option[OMSpecification],
   c: Option[OMSpecification],
+  v: Option[OMVectorExtension] = None,
   u: Option[OMSpecification],
   s: Option[OMSpecification],
   addressTranslationModes: Seq[OMAddressTranslationMode],
   customExtensions: Seq[OMCustomExtensionSpecification],
   _types: Seq[String] = Seq("OMISA", "OMCompoundType")
 ) extends OMCompoundType
+
+case class OMVectorExtension(
+  version: String,
+  vLen: Int,
+  sLen: Int,
+  eLen: Int,
+  name: String = "V Standard Extension for Vector Operations",
+  _types: Seq[String] = Seq("OMVectorExtension")
+)
 
 object OMISA {
   def customExtensions(coreParams: RocketCoreParams): List[OMCustomExtensionSpecification] = {
