@@ -17,7 +17,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
   },
   uFn = { case AHBSlavePortParameters(slaves, beatBytes, lite) =>
     val managers = slaves.map { case s =>
-      TLManagerParameters.v1(
+      TLManagerParameters(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
