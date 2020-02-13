@@ -20,69 +20,6 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
     val in = Input(new TLBundle(args.edge.bundle))
   })
 
-  // TODO: Pass symbolic variables as inputs to TLMonitor
-  // Symbolic variables - tracked_source, tracked_addr
-  val tracked_source = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
-  tracked_source := 0.U
-
-  // val tracked_sink = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
-  // tracked_sink := 0.U
-  val tracked_sink = 0.U
-
-  val tracked_addr = Wire(UInt(args.edge.bundle.addressBits.W))
-  tracked_addr := 0.U
-
-  // TODO: Un-comment this code and move it outside TLMonitor
-  // // Connect symbolic variables to a fixed value for simulation and to a
-  // // free wire in formal
-  // if (monitorDir == MonitorDirection.Monitor) {
-  //   tracked_source := 0.U
-  //   tracked_sink := 0.U
-  //   tracked_addr := 0.U
-  // } else {
-  //   // Type casting Int to UInt
-  //   val maxSourceId = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
-  //   maxSourceId := args.edge.client.endSourceId.U
-  //   val maxSinkId = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
-  //   maxSinkId := args.edge.manager.endSinkId.U
-
-  //   // Delayed verison of tracked_source
-  //   val tracked_source_d = Reg(UInt(args.edge.client.endSourceId.W))
-  //   tracked_source_d := tracked_source
-  //   val tracked_sink_d = Reg(UInt(args.edge.manager.endSinkId.W))
-  //   tracked_sink_d := tracked_sink
-
-  //   val tracked_addr_d = Reg(UInt(args.edge.bundle.addressBits.W))
-  //   tracked_addr_d := tracked_addr
-
-  //   // These will be constraints for FV setup
-  //   Property(
-  //       MonitorDirection.Driver,
-  //       (tracked_source === tracked_source_d),
-  //       "tracked_source should remain stable",
-  //       PropertyClass.Default)
-  //   Property(
-  //       MonitorDirection.Driver,
-  //       (tracked_source <= maxSourceId),
-  //       "tracked_source should take legal value",
-  //       PropertyClass.Default)
-  //   Property(
-  //       MonitorDirection.Driver,
-  //       (tracked_sink === tracked_sink_d),
-  //       "tracked_sink should remain stable",
-  //       PropertyClass.Default)
-  //   Property(
-  //       MonitorDirection.Driver,
-  //       (tracked_sink <= maxSinkId),
-  //       "tracked_sink should take legal value",
-  //       PropertyClass.Default)
-  //   Property(
-  //       MonitorDirection.Driver,
-  //       (tracked_addr === tracked_addr_d),
-  //       "tracked_addr should remain stable",
-  //       PropertyClass.Default)
-  // }
-
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
   legalize(io.in, args.edge, reset)
 }
@@ -133,6 +70,18 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       case _ => ""
     }
   }
+
+  // TODO: Create new NoiseMaker for RocketChip
+  // Symbolic variables - tracked_source, tracked_addr, tracked_sink
+  val tracked_source = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
+  tracked_source := 0.U
+
+  val tracked_addr = Wire(UInt(args.edge.bundle.addressBits.W))
+  tracked_addr := 0.U
+
+  // val tracked_sink = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
+  // tracked_sink := 0.U
+  val tracked_sink = 0.U
 
   def visible(address: UInt, source: UInt, edge: TLEdge) =
     edge.client.clients.map { c =>
@@ -706,11 +655,10 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
                "Request message should not be sent with a source ID, for which a response message" +
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
-    // TODO: Not sure if this is a checker for master or slave
-    monAssert (IfThen(my_clr_a_resp_pend, (my_set_a_resp_pend || my_a_resp_pend)),
+
+    assume (IfThen(my_clr_a_resp_pend && my_a_first_beat, bundle.a.ready),
               "Response message should be accepted with a source ID only if a request message with the" +
               "same source ID has been accepted or is being accepted in the current cycle" + extra)
-
     assume (IfThen((my_d_first_beat && !d_opcode_release_ack), (my_a_first_beat || my_a_resp_pend)),
             "Response message should be sent with a source ID only if a request message with the" +
             "same source ID has been accepted or is being sent in the current cycle" + extra)
@@ -726,7 +674,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val b_first = bundle.b.valid && edge.first(bundle.b.bits, bundle.b.fire())
     val c_first = bundle.c.valid && edge.first(bundle.c.bits, bundle.c.fire())
 
-    // TODO: Pass cacheBlockBytes as parameter
+    // TODO: Remove cacheBlockBytes as parameter
     val cacheBlockBytes = 64
 
     val byte_offset_mask = Wire(UInt(args.edge.bundle.addressBits.W))
@@ -786,11 +734,10 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
                "Request message should not be sent with a source ID, for which a response message" +
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
-    // TODO: Not sure if this is a checker for master or slave
-    assume (IfThen(my_clr_b_resp_pend, (my_set_b_resp_pend || my_b_resp_pend)),
-            "Response message should be accepted with a source ID only if a request message with the" +
-            "same source ID has been accepted or is being accepted in the current cycle" + extra)
 
+    monAssert (IfThen(my_clr_b_resp_pend && my_b_first_beat, bundle.b.ready),
+              "Response message should be accepted with a source ID only if a request message with the" +
+              "same source ID has been accepted or is being accepted in the current cycle" + extra)
     monAssert (IfThen((my_c_first_beat && !c_opcode_release), (my_b_first_beat || my_b_resp_pend)),
               "Response message should be sent with a source ID only if a request message with the" +
               "same source ID has been accepted or is being sent in the current cycle" + extra)
@@ -842,11 +789,10 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
                "Request message should not be sent with a source ID, for which a response message" +
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
-    // TODO: Not sure if this is a checker for master or slave
-    monAssert (IfThen(my_clr_c_resp_pend, (my_set_c_resp_pend || my_c_resp_pend)),
-              "Response message should be accepted with a source ID only if a request message with the" +
-              "same source ID has been accepted or is being accepted in the current cycle" + extra)
 
+    assume (IfThen(my_clr_c_resp_pend && my_c_first_beat && c_opcode_release, bundle.c.ready),
+            "Response message should be accepted with a source ID only if a request message with the" +
+            "same source ID has been accepted or is being accepted in the current cycle" + extra)
     assume (IfThen((my_d_first_beat && d_opcode_release_ack),
             ((my_c_first_beat && c_opcode_release) || my_c_resp_pend)),
             "Response message should be sent with a source ID only if a request message with the" +
@@ -884,8 +830,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
                "Request message should not be sent with a source ID, for which a response message" +
                "is already pending (not received until current cycle) for a prior request message" +
                "with the same source ID" + extra)
-    // TODO: Not sure if this is a checker for master or slave
-    monAssert (IfThen(my_clr_d_resp_pend, (my_set_d_resp_pend || my_d_resp_pend)),
+    monAssert (IfThen(my_clr_d_resp_pend && my_d_first_beat && !d_opcode_release_ack, bundle.d.ready),
               "Response message should be accepted with a source ID only if a request message with the" +
               "same source ID has been accepted or is being accepted in the current cycle" + extra)
 
@@ -896,6 +841,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeUnique(bundle: TLBundle, edge: TLEdge) {
+    // TODO: Use a different parameter to distinguish formal run
     if (monitorDir != MonitorDirection.Monitor) {
       legalizeADFormal(bundle, edge)
       legalizeBCFormal(bundle, edge)
