@@ -11,6 +11,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
 import freechips.rocketchip.formal._
+import chisel3.experimental.chiselName
 
 case class TLMonitorArgs(edge: TLEdge)
 
@@ -19,6 +20,16 @@ abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
   val io = IO(new Bundle {
     val in = Input(new TLBundle(args.edge.bundle))
   })
+
+  // TODO: Create new NoiseMaker for RocketChip
+  // Symbolic variables - tracked_source, tracked_addr, tracked_sink
+  val tracked_source = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
+  val tracked_addr = Wire(UInt(args.edge.bundle.addressBits.W))
+  // val tracked_sink = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
+
+  tracked_source := 0.U
+  tracked_addr := 0.U
+  val tracked_sink = 0.U
 
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
   legalize(io.in, args.edge, reset)
@@ -32,6 +43,7 @@ object TLMonitor {
   }
 }
 
+@chiselName
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
 
@@ -70,18 +82,6 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       case _ => ""
     }
   }
-
-  // TODO: Create new NoiseMaker for RocketChip
-  // Symbolic variables - tracked_source, tracked_addr, tracked_sink
-  val tracked_source = Wire(UInt(log2Ceil(args.edge.client.endSourceId).W))
-  tracked_source := 0.U
-
-  val tracked_addr = Wire(UInt(args.edge.bundle.addressBits.W))
-  tracked_addr := 0.U
-
-  // val tracked_sink = Wire(UInt(log2Ceil(args.edge.manager.endSinkId).W))
-  // tracked_sink := 0.U
-  val tracked_sink = 0.U
 
   def visible(address: UInt, source: UInt, edge: TLEdge) =
     edge.client.clients.map { c =>
@@ -504,42 +504,62 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
-    val a_size_bus_size = edge.bundle.sizeBits
-    val a_opcode_bus_size = 3
+    val a_size_bus_size = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
+    val a_opcode_bus_size = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
     val log_a_size_bus_size = log2Ceil(a_size_bus_size)
     def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
 
     val inflight = RegInit(0.U(edge.client.endSourceId.W))
+    inflight.suggestName("inflight")
     val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
+    inflight_opcodes.suggestName("inflight_opcodes")
     val inflight_sizes = RegInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+    inflight_sizes.suggestName("inflight_sizes")
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
+    a_first.suggestName("a_first")
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+    d_first.suggestName("d_first")
 
     val a_set = WireInit(0.U(edge.client.endSourceId.W))
+    a_set.suggestName("a_set")
     val a_opcodes_set = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
+    a_opcodes_set.suggestName("a_opcodes_set")
     val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+    a_sizes_set.suggestName("a_sizes_set")
 
     val a_opcode_lookup = WireInit(0.U((1 << log_a_opcode_bus_size).W))
-    a_opcode_lookup := (inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)
+    a_opcode_lookup.suggestName("a_opcode_lookup")
+    a_opcode_lookup := ((inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)) >> 1.U
 
     val a_size_lookup = WireInit(0.U((1 << log_a_size_bus_size).W))
-    a_size_lookup := (inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)
+    a_size_lookup.suggestName("a_size_lookup")
+    a_size_lookup := ((inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)) >> 1.U
 
-    val responseMap =             Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant)
-    val responseMapSecondOption = Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant)
+    val responseMap =             VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant))
+    val responseMapSecondOption = VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant))
+
+    val a_opcodes_set_interm = WireInit(0.U(a_opcode_bus_size.W))
+    a_opcodes_set_interm.suggestName("a_opcodes_set_interm")
+    val a_sizes_set_interm = WireInit(0.U(a_size_bus_size.W))
+    a_sizes_set_interm.suggestName("a_sizes_set_interm")
 
     when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
       a_set := UIntToOH(bundle.a.bits.source)
-      a_opcodes_set := bundle.a.bits.opcode << (bundle.a.bits.source << log_a_opcode_bus_size.U)
-      a_sizes_set := bundle.a.bits.size << (bundle.a.bits.source << log_a_size_bus_size.U)
+      a_opcodes_set_interm := (bundle.a.bits.opcode << 1.U) | 1.U
+      a_sizes_set_interm := (bundle.a.bits.size << 1.U) | 1.U
+      a_opcodes_set := (a_opcodes_set_interm) << (bundle.a.bits.source << log_a_opcode_bus_size.U)
+      a_sizes_set := (a_sizes_set_interm) << (bundle.a.bits.source << log_a_size_bus_size.U)
       monAssert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = WireInit(0.U(edge.client.endSourceId.W))
+    d_clr.suggestName("d_clr")
     val d_opcodes_clr = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
+    d_opcodes_clr.suggestName("d_opcodes_clr")
     val d_sizes_clr = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+    d_sizes_clr.suggestName("d_sizes_clr")
 
     val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
     when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
@@ -548,16 +568,14 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
     }
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
-      assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source)), "'D' channel acknowledged for nothing inflight" + extra)
-      // TODO: Commenting out due to error - not enough arguments for method apply: (n: Int, gen: T)(implicit sourceInfo: chisel3.internal.sourceinfo.SourceInfo,
-      //       implicit compileOptions: chisel3.CompileOptions)chisel3.Vec[T] in trait VecFactory
-      // assume(((bundle.d.bits.opcode === Vec(responseMap)(a_opcode_lookup)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(a_opcode_lookup)))
-      //         || (bundle.a.valid && ((bundle.d.bits.opcode === Vec(responseMap)(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === Vec(responseMapSecondOption)(bundle.a.bits.opcode)))),
-      //   "'D' channel contains improper opcode response" + extra)
+      assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && (bundle.a.bits.size === bundle.d.bits.size) && a_first), "'D' channel acknowledged for nothing inflight" + extra)
+      assume(((bundle.d.bits.opcode === responseMap(a_opcode_lookup)) || (bundle.d.bits.opcode === responseMapSecondOption(a_opcode_lookup)))
+              || (bundle.a.valid && ((bundle.d.bits.opcode === responseMap(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === responseMapSecondOption(bundle.a.bits.opcode)))),
+        "'D' channel contains improper opcode response" + extra)
       assume((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
     }
     when(bundle.d.valid && d_first && a_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
-      monAssert((!bundle.d.ready) || bundle.a.ready, "'D' channel response accepted while request not accepted")
+      assume((!bundle.d.ready) || bundle.a.ready, "ready check")
     }
 
     if (edge.manager.minLatency > 0) {
