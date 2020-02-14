@@ -42,7 +42,7 @@ class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)
     da.bits.corrupt := edge.hasData(da.bits)
 
     if (params.acquire) {
-      val c = Queue(in.c, 1)
+      val c = if (buffer) {Queue(in.c, 1)} else in.c
       val dc = Wire(in.d)
 
       val c_last = edge.last(c)
