@@ -157,6 +157,7 @@ object TLHints
 
   def PREFETCH_READ  = UInt(0, width)
   def PREFETCH_WRITE = UInt(1, width)
+  def isHints(x: UInt) = x <= PREFETCH_WRITE
 
   def HintsMsg:Seq[String] = Seq("PrefetchRead", "PrefetchWrite")
 }
