@@ -78,7 +78,8 @@ trait HasNonDiplomaticTileParameters {
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
-    s"rv${p(XLen)}$ie$m$a$f$d$c"
+    val v = if (tileParams.core.useVector) "v" else ""
+    s"rv${p(XLen)}$ie$m$a$f$d$c$v"
   }
 
   def tileProperties: PropertyMap = {
