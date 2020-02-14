@@ -32,7 +32,7 @@ object ShiftRegInit {
   *                                    but only used for timing applications
   */
 
-abstract class AbstractPipelineReg(w: Int = 1) extends Module {
+abstract class AbstractPipelineReg(w: Int = 1) extends Module with DontTouch{
   val io = IO(new Bundle {
     val d = Input(UInt(w.W))
     val q = Output(UInt(w.W))
@@ -41,8 +41,10 @@ abstract class AbstractPipelineReg(w: Int = 1) extends Module {
 }
 
 object AbstractPipelineReg {
-  def apply [T <: Chisel.Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
+  def apply [T <: Chisel.Data](gen: => AbstractPipelineReg, in: T,
+    name: Option[String] = None, dontTouch: Boolean =false): T = {
     val chain = Module(gen)
+    if (dontTouch) { chain.dontTouchPorts()}
     name.foreach{ chain.suggestName(_) }
     chain.io.d := in.asUInt
     chain.io.q.asTypeOf(in)
