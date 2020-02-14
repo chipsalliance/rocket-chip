@@ -19,6 +19,7 @@ class RocketChipStage extends ChiselStage with PreservesAll[Phase] {
     classOf[chisel3.stage.phases.MaybeAspectPhase],
     classOf[freechips.rocketchip.stage.phases.GenerateFirrtl],
     classOf[freechips.rocketchip.stage.phases.GenerateFirrtlAnnos],
+    classOf[freechips.rocketchip.stage.phases.AddDefaultTests],
     classOf[freechips.rocketchip.stage.phases.GenerateTestSuiteMakefrags],
     classOf[freechips.rocketchip.stage.phases.GenerateROMs],
     classOf[freechips.rocketchip.stage.phases.GenerateArtefacts],
