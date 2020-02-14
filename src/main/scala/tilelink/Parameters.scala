@@ -46,9 +46,8 @@ class TLManagerParameters private(
   def address:            Seq[AddressSet] = this.addressP
   def resources:          Seq[Resource] = this.resourcesP
   def regionType:         RegionType.T  = this.regionTypeP
-  def executable:         Boolean       = this.executableP // processor can execute from this memory
+  def executable:         Boolean       = this.executableP
   def nodePath:           Seq[BaseNode] = this.nodePathP
-    // Supports both Acquire+Release+Finish of these sizes
   def supportsAcquireT:   TransferSizes = this.supportedSizesP.acquireT
   def supportsAcquireB:   TransferSizes = this.supportedSizesP.acquireB
   def supportsArithmetic: TransferSizes = this.supportedSizesP.arithmetic
@@ -58,13 +57,9 @@ class TLManagerParameters private(
   def supportsPutPartial: TransferSizes = this.supportedSizesP.putPartial
   def supportsHint:       TransferSizes = this.supportedSizesP.hint
   def userBits:           Seq[UserBits] = this.userBitsP
-  // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-  def mayDenyGet:         Boolean = this.mayDenyGetP // applies to: AccessAckData, GrantData
-  def mayDenyPut:         Boolean = this.mayDenyPutP // applies to: AccessAck,     Grant,    HintAck
-                                         // ReleaseAck may NEVER be denied
-  def alwaysGrantsT:      Boolean = this.alwaysGrantsTP // typically only true for CacheCork'd read-write devices
-  // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+  def mayDenyGet:         Boolean = this.mayDenyGetP
+  def mayDenyPut:         Boolean = this.mayDenyPutP
+  def alwaysGrantsT:      Boolean = this.alwaysGrantsTP
   def fifoId:             Option[Int] = this.fifoIdP
   def device: Option[Device] = this.deviceP
 
@@ -139,9 +134,8 @@ class TLManagerParameters private(
     address:            Seq[AddressSet] = this.addressP,
     resources:          Seq[Resource] = this.resourcesP,
     regionType:         RegionType.T  = this.regionTypeP,
-    executable:         Boolean       = this.executableP, // processor can execute from this memory
+    executable:         Boolean       = this.executableP,
     nodePath:           Seq[BaseNode] = this.nodePathP,
-    // Supports both Acquire+Release+Finish of these sizes
     supportsAcquireT:   TransferSizes = this.supportedSizesP.acquireT,
     supportsAcquireB:   TransferSizes = this.supportedSizesP.acquireB,
     supportsArithmetic: TransferSizes = this.supportedSizesP.arithmetic,
@@ -151,13 +145,9 @@ class TLManagerParameters private(
     supportsPutPartial: TransferSizes = this.supportedSizesP.putPartial,
     supportsHint:       TransferSizes = this.supportedSizesP.hint,
     userBits:           Seq[UserBits] = this.userBitsP,
-    // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-    mayDenyGet:         Boolean = this.mayDenyGetP, // applies to: AccessAckData, GrantData
-    mayDenyPut:         Boolean = this.mayDenyPutP, // applies to: AccessAck,     Grant,    HintAck
-                                         // ReleaseAck may NEVER be denied
-    alwaysGrantsT:      Boolean = this.alwaysGrantsTP, // typically only true for CacheCork'd read-write devices
-    // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-    // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+    mayDenyGet:         Boolean = this.mayDenyGetP,
+    mayDenyPut:         Boolean = this.mayDenyPutP,
+    alwaysGrantsT:      Boolean = this.alwaysGrantsTP,
     fifoId:             Option[Int] = this.fifoIdP,
     device: Option[Device] = this.deviceP) = 
   {
@@ -165,9 +155,8 @@ class TLManagerParameters private(
       addressP = address,
       resourcesP = resources,
       regionTypeP = regionType,
-      executableP = executable, // processor can execute from this memory
+      executableP = executable,
       nodePathP = nodePath,
-      // Supports both Acquire+Release+Finish of these sizes
       supportedSizesP = TLSupportedSizes(
         supportsAcquireT,
         supportsAcquireB,
@@ -180,13 +169,9 @@ class TLManagerParameters private(
       ),
       emissionSizesP = TLSupportedSizes(),
       userBitsP = userBits,
-      // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-      mayDenyGetP = mayDenyGet, // applies to: AccessAckData, GrantData
-      mayDenyPutP = mayDenyPut, // applies to: AccessAck,     Grant,    HintAck
-                                           // ReleaseAck may NEVER be denied
-      alwaysGrantsTP = alwaysGrantsT, // typically only true for CacheCork'd read-write devices
-      // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-      // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+      mayDenyGetP = mayDenyGet,
+      mayDenyPutP = mayDenyPut,
+      alwaysGrantsTP = alwaysGrantsT,
       fifoIdP = fifoId,
       deviceP = device)
   }
@@ -195,9 +180,8 @@ class TLManagerParameters private(
     address:            Seq[AddressSet] = this.addressP,
     resources:          Seq[Resource] = this.resourcesP,
     regionType:         RegionType.T  = this.regionTypeP,
-    executable:         Boolean       = this.executableP, // processor can execute from this memory
+    executable:         Boolean       = this.executableP,
     nodePath:           Seq[BaseNode] = this.nodePathP,
-    // Supports both Acquire+Release+Finish of these sizes
     supportsAcquireT:   TransferSizes = this.supportedSizesP.acquireT,
     supportsAcquireB:   TransferSizes = this.supportedSizesP.acquireB,
     supportsArithmetic: TransferSizes = this.supportedSizesP.arithmetic,
@@ -207,22 +191,17 @@ class TLManagerParameters private(
     supportsPutPartial: TransferSizes = this.supportedSizesP.putPartial,
     supportsHint:       TransferSizes = this.supportedSizesP.hint,
     userBits:           Seq[UserBits] = this.userBitsP,
-    // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-    mayDenyGet:         Boolean = this.mayDenyGetP, // applies to: AccessAckData, GrantData
-    mayDenyPut:         Boolean = this.mayDenyPutP, // applies to: AccessAck,     Grant,    HintAck
-                                         // ReleaseAck may NEVER be denied
-    alwaysGrantsT:      Boolean = this.alwaysGrantsTP, // typically only true for CacheCork'd read-write devices
-    // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-    // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+    mayDenyGet:         Boolean = this.mayDenyGetP,
+    mayDenyPut:         Boolean = this.mayDenyPutP,
+    alwaysGrantsT:      Boolean = this.alwaysGrantsTP,
     fifoId:             Option[Int] = this.fifoIdP,
     device: Option[Device] = this.deviceP) =
     v1copy(
       address,
       resources,
       regionType,
-      executable, // processor can execute from this memory
+      executable,
       nodePath,
-      // Supports both Acquire+Release+Finish of these sizes
       supportsAcquireT,
       supportsAcquireB,
       supportsArithmetic,
@@ -232,13 +211,9 @@ class TLManagerParameters private(
       supportsPutPartial,
       supportsHint,
       userBits,
-      // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-      mayDenyGet, // applies to: AccessAckData, GrantData
-      mayDenyPut, // applies to: AccessAck,     Grant,    HintAck
-                                           // ReleaseAck may NEVER be denied
-      alwaysGrantsT, // typically only true for CacheCork'd read-write devices
-      // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-      // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+      mayDenyGet,
+      mayDenyPut,
+      alwaysGrantsT,
       fifoId,
       device
     )
@@ -249,9 +224,8 @@ object TLManagerParameters {
     address:            Seq[AddressSet],
     resources:          Seq[Resource] = Seq(),
     regionType:         RegionType.T  = RegionType.GET_EFFECTS,
-    executable:         Boolean       = false, // processor can execute from this memory
+    executable:         Boolean       = false,
     nodePath:           Seq[BaseNode] = Seq(),
-    // Supports both Acquire+Release+Finish of these sizes
     supportsAcquireT:   TransferSizes = TransferSizes.none,
     supportsAcquireB:   TransferSizes = TransferSizes.none,
     supportsArithmetic: TransferSizes = TransferSizes.none,
@@ -261,13 +235,9 @@ object TLManagerParameters {
     supportsPutPartial: TransferSizes = TransferSizes.none,
     supportsHint:       TransferSizes = TransferSizes.none,
     userBits:           Seq[UserBits] = Nil,
-    // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-    mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
-    mayDenyPut:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
-                                         // ReleaseAck may NEVER be denied
-    alwaysGrantsT:      Boolean = false, // typically only true for CacheCork'd read-write devices
-    // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-    // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+    mayDenyGet:         Boolean = false,
+    mayDenyPut:         Boolean = false,
+    alwaysGrantsT:      Boolean = false,
     fifoId:             Option[Int] = None,
     device: Option[Device] = None) = 
   {
@@ -275,9 +245,8 @@ object TLManagerParameters {
       addressP = address,
       resourcesP = resources,
       regionTypeP = regionType,
-      executableP = executable, // processor can execute from this memory
+      executableP = executable,
       nodePathP = nodePath,
-      // Supports both Acquire+Release+Finish of these sizes
       supportedSizesP = TLSupportedSizes(
         supportsAcquireT,
         supportsAcquireB,
@@ -290,13 +259,9 @@ object TLManagerParameters {
       ),
       emissionSizesP = TLSupportedSizes(),
       userBitsP = userBits,
-      // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-      mayDenyGetP = mayDenyGet, // applies to: AccessAckData, GrantData
-      mayDenyPutP = mayDenyPut, // applies to: AccessAck,     Grant,    HintAck
-                                           // ReleaseAck may NEVER be denied
-      alwaysGrantsTP = alwaysGrantsT, // typically only true for CacheCork'd read-write devices
-      // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-      // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+      mayDenyGetP = mayDenyGet,
+      mayDenyPutP = mayDenyPut,
+      alwaysGrantsTP = alwaysGrantsT,
       fifoIdP = fifoId,
       deviceP = device)
   }
@@ -304,9 +269,8 @@ object TLManagerParameters {
     address:            Seq[AddressSet],
     resources:          Seq[Resource] = Seq(),
     regionType:         RegionType.T  = RegionType.GET_EFFECTS,
-    executable:         Boolean       = false, // processor can execute from this memory
+    executable:         Boolean       = false,
     nodePath:           Seq[BaseNode] = Seq(),
-    // Supports both Acquire+Release+Finish of these sizes
     supportsAcquireT:   TransferSizes = TransferSizes.none,
     supportsAcquireB:   TransferSizes = TransferSizes.none,
     supportsArithmetic: TransferSizes = TransferSizes.none,
@@ -316,22 +280,17 @@ object TLManagerParameters {
     supportsPutPartial: TransferSizes = TransferSizes.none,
     supportsHint:       TransferSizes = TransferSizes.none,
     userBits:           Seq[UserBits] = Nil,
-    // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-    mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
-    mayDenyPut:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
-                                         // ReleaseAck may NEVER be denied
-    alwaysGrantsT:      Boolean = false, // typically only true for CacheCork'd read-write devices
-    // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-    // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+    mayDenyGet:         Boolean = false,
+    mayDenyPut:         Boolean = false,
+    alwaysGrantsT:      Boolean = false,
     fifoId:             Option[Int] = None,
     device: Option[Device] = None) =
     v1(
       address,
       resources,
       regionType,
-      executable, // processor can execute from this memory
+      executable,
       nodePath,
-      // Supports both Acquire+Release+Finish of these sizes
       supportsAcquireT,
       supportsAcquireB,
       supportsArithmetic,
@@ -341,13 +300,9 @@ object TLManagerParameters {
       supportsPutPartial,
       supportsHint,
       userBits,
-      // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-      mayDenyGet, // applies to: AccessAckData, GrantData
-      mayDenyPut, // applies to: AccessAck,     Grant,    HintAck
-                                           // ReleaseAck may NEVER be denied
-      alwaysGrantsT, // typically only true for CacheCork'd read-write devices
-      // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-      // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+      mayDenyGet,
+      mayDenyPut,
+      alwaysGrantsT,
       fifoId,
       device
     )
