@@ -33,7 +33,7 @@ addons:
       - texinfo
       - device-tree-compiler
       - libusb-1.0-0-dev
-      - python-pexpect
+      - python3-pexpect
       - libre2-dev
 
 
