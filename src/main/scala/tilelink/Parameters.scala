@@ -149,7 +149,7 @@ class TLManagerParameters private(
     mayDenyPut:         Boolean = this.mayDenyPutP,
     alwaysGrantsT:      Boolean = this.alwaysGrantsTP,
     fifoId:             Option[Int] = this.fifoIdP,
-    device: Option[Device] = this.deviceP) = 
+    device: Option[Device] = this.deviceP) =
   {
     new TLManagerParameters(
       addressP = address,
@@ -442,22 +442,31 @@ case class TLManagerPortParameters(
   def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
 }
 
-case class TLClientParameters(
-  name:                String,
-  sourceId:            IdRange         = IdRange(0,1),
-  nodePath:            Seq[BaseNode]   = Seq(),
-  requestFifo:         Boolean         = false, // only a request, not a requirement. applies to A, not C.
-  visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
+class TLClientParameters private(
+  nameP:                String,
+  sourceIdP:            IdRange         = IdRange(0,1),
+  nodePathP:            Seq[BaseNode]   = Seq(),
+  requestFifoP:         Boolean         = false, // only a request, not a requirement. applies to A, not C.
+  visibilityP:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
   // Supports both Probe+Grant of these sizes
-  supportsProbe:       TransferSizes   = TransferSizes.none,
-  supportsArithmetic:  TransferSizes   = TransferSizes.none,
-  supportsLogical:     TransferSizes   = TransferSizes.none,
-  supportsGet:         TransferSizes   = TransferSizes.none,
-  supportsPutFull:     TransferSizes   = TransferSizes.none,
-  supportsPutPartial:  TransferSizes   = TransferSizes.none,
-  supportsHint:        TransferSizes   = TransferSizes.none,
-  userBits:            Seq[UserBits]   = Nil)
+  supportedSizesP:      TLSupportedSizes = TLSupportedSizes(),
+  emissionSizesP:       TLSupportedSizes = TLSupportedSizes(),
+  userBitsP:            Seq[UserBits]   = Nil)
 {
+  def name:                String          = this.nameP
+  def sourceId:            IdRange         = this.sourceIdP
+  def nodePath:            Seq[BaseNode]   = this.nodePathP
+  def requestFifo:         Boolean         = this.requestFifoP
+  def visibility:          Seq[AddressSet] = this.visibilityP
+  def supportsProbe:       TransferSizes   = this.supportedSizesP.probe
+  def supportsArithmetic:  TransferSizes   = this.supportedSizesP.arithmetic
+  def supportsLogical:     TransferSizes   = this.supportedSizesP.logical
+  def supportsGet:         TransferSizes   = this.supportedSizesP.get
+  def supportsPutFull:     TransferSizes   = this.supportedSizesP.putFull
+  def supportsPutPartial:  TransferSizes   = this.supportedSizesP.putPartial
+  def supportsHint:        TransferSizes   = this.supportedSizesP.hint
+  def userBits:            Seq[UserBits]   = this.userBitsP
+
   require (!sourceId.isEmpty)
   require (!visibility.isEmpty)
   require (supportsPutFull.contains(supportsPutPartial))
@@ -489,6 +498,138 @@ case class TLClientParameters(
        |
        |""".stripMargin
   }
+
+  def v1copy(
+    name:                String          = this.nameP,
+    sourceId:            IdRange         = this.sourceIdP,
+    nodePath:            Seq[BaseNode]   = this.nodePathP,
+    requestFifo:         Boolean         = this.requestFifoP,
+    visibility:          Seq[AddressSet] = this.visibilityP,
+    supportsProbe:       TransferSizes   = this.supportedSizesP.probe,
+    supportsArithmetic:  TransferSizes   = this.supportedSizesP.arithmetic,
+    supportsLogical:     TransferSizes   = this.supportedSizesP.logical,
+    supportsGet:         TransferSizes   = this.supportedSizesP.get,
+    supportsPutFull:     TransferSizes   = this.supportedSizesP.putFull,
+    supportsPutPartial:  TransferSizes   = this.supportedSizesP.putPartial,
+    supportsHint:        TransferSizes   = this.supportedSizesP.hint,
+    userBits:            Seq[UserBits]   = this.userBitsP) =
+  {
+    new TLClientParameters(
+      nameP = name,
+      sourceIdP = sourceId,
+      nodePathP = nodePath,
+      requestFifoP = requestFifo,
+      supportedSizesP = TLSupportedSizes(
+        acquireT = TransferSizes.none,
+        acquireB = TransferSizes.none,
+        supportsArithmetic,
+        supportsLogical,
+        supportsGet,
+        supportsPutFull,
+        supportsPutPartial,
+        supportsHint,
+        supportsProbe
+      ),
+      emissionSizesP = TLSupportedSizes(),
+      userBitsP = userBits)
+  }
+
+  def copy(
+    name:                String          = this.nameP,
+    sourceId:            IdRange         = this.sourceIdP,
+    nodePath:            Seq[BaseNode]   = this.nodePathP,
+    requestFifo:         Boolean         = this.requestFifoP,
+    visibility:          Seq[AddressSet] = this.visibilityP,
+    supportsProbe:       TransferSizes   = this.supportedSizesP.probe,
+    supportsArithmetic:  TransferSizes   = this.supportedSizesP.arithmetic,
+    supportsLogical:     TransferSizes   = this.supportedSizesP.logical,
+    supportsGet:         TransferSizes   = this.supportedSizesP.get,
+    supportsPutFull:     TransferSizes   = this.supportedSizesP.putFull,
+    supportsPutPartial:  TransferSizes   = this.supportedSizesP.putPartial,
+    supportsHint:        TransferSizes   = this.supportedSizesP.hint,
+    userBits:            Seq[UserBits]   = this.userBitsP) =
+  {
+    v1copy(
+      name,
+      sourceId,
+      nodePath,
+      requestFifo,
+      visibility,
+      supportsProbe,
+      supportsArithmetic,
+      supportsLogical,
+      supportsGet,
+      supportsPutFull,
+      supportsPutPartial,
+      supportsHint,
+      userBits)
+  }
+}
+
+object TLClientParameters {
+  def v1(
+    name:                String,
+    sourceId:            IdRange         = IdRange(0,1),
+    nodePath:            Seq[BaseNode]   = Seq(),
+    requestFifo:         Boolean         = false,
+    visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)),
+    supportsProbe:       TransferSizes   = TransferSizes.none,
+    supportsArithmetic:  TransferSizes   = TransferSizes.none,
+    supportsLogical:     TransferSizes   = TransferSizes.none,
+    supportsGet:         TransferSizes   = TransferSizes.none,
+    supportsPutFull:     TransferSizes   = TransferSizes.none,
+    supportsPutPartial:  TransferSizes   = TransferSizes.none,
+    supportsHint:        TransferSizes   = TransferSizes.none,
+    userBits:            Seq[UserBits]   = Nil) =
+    {
+      new TLClientParameters(
+        nameP = name,
+        sourceIdP = sourceId,
+        nodePathP = nodePath,
+        requestFifoP = requestFifo,
+        visibilityP = visibility,
+        supportedSizesP = TLSupportedSizes(
+          acquireT = TransferSizes.none,
+          acquireB = TransferSizes.none,
+          supportsArithmetic,
+          supportsLogical,
+          supportsGet,
+          supportsPutFull,
+          supportsPutPartial,
+          supportsHint,
+          supportsProbe),
+        emissionSizesP = TLSupportedSizes(),
+        userBitsP = userBits)
+    }
+  
+  def apply(
+    name:                String,
+    sourceId:            IdRange         = IdRange(0,1),
+    nodePath:            Seq[BaseNode]   = Seq(),
+    requestFifo:         Boolean         = false,
+    visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)),
+    supportsProbe:       TransferSizes   = TransferSizes.none,
+    supportsArithmetic:  TransferSizes   = TransferSizes.none,
+    supportsLogical:     TransferSizes   = TransferSizes.none,
+    supportsGet:         TransferSizes   = TransferSizes.none,
+    supportsPutFull:     TransferSizes   = TransferSizes.none,
+    supportsPutPartial:  TransferSizes   = TransferSizes.none,
+    supportsHint:        TransferSizes   = TransferSizes.none,
+    userBits:            Seq[UserBits]   = Nil) =
+    v1(
+      name,
+      sourceId,
+      nodePath,
+      requestFifo,
+      visibility,
+      supportsProbe,
+      supportsArithmetic,
+      supportsLogical,
+      supportsGet,
+      supportsPutFull,
+      supportsPutPartial,
+      supportsHint,
+      userBits)
 }
 
 case class TLClientPortParameters(
