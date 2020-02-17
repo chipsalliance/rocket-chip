@@ -79,9 +79,10 @@ tuple RocketChipGeneratorOptions =
   global ConfigNames:   List String
   global ExtraSources:  List Path
   global BaseFileName:  Option String
+  global JavaOpts:      List String
 
 global def makeRocketChipGeneratorOptions jars targetDir topModule configs =
-  RocketChipGeneratorOptions jars targetDir topModule configs Nil None
+  RocketChipGeneratorOptions jars targetDir topModule configs Nil None Nil
 
 tuple RocketChipGeneratorOutputs =
   DTS_:            Path
@@ -157,12 +158,14 @@ global def rocketChipBuildTarget =
   | dependsOn "configs" (jNestedArrayMap jString)
   | dependsOnOptionFn "visibleFiles" (jNestedArrayMap _)
   | dependsOnOption "baseFilename" jString
+  | dependsOnOption "javaOptions" (jNestedArrayMap jString)
   | definedAs (
     \jars
     \topModule
     \configs
     \visibleFiles
     \baseFilename
+    \javaOpts
     \buildInput
 
     match buildInput.getBuildTargetInputsOutputDir
@@ -172,6 +175,7 @@ global def rocketChipBuildTarget =
           makeRocketChipGeneratorOptions jars targetDir.mkdir topModule configs
           | setRocketChipGeneratorOptionsExtraSources (visibleFiles | getOrElse Nil)
           | setRocketChipGeneratorOptionsBaseFileName baseFilename
+          | setRocketChipGeneratorOptionsJavaOpts (javaOpts | getOrElse Nil)
           | runRocketChipGenerator
         outputs
         | getRocketChipGeneratorOutputsAllOutputs
