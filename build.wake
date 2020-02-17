@@ -146,3 +146,48 @@ global def runRocketChipGenerator options =
   def omFile      = getFileOpt `.*\.objectModel\.json`
 
   RocketChipGeneratorOutputs dtsFile firrtlFile annoFile romConfFile allOutputs options omFile
+
+
+publish buildTargets = rocketChipBuildTarget, Nil
+
+global def rocketChipBuildTarget =
+  baseBuildTargetPlan "rocket-chip"
+  | dependsOnFn "classpath" jNestedArrayMap
+  | dependsOn "topModule" jString
+  | dependsOn "configs" (jNestedArrayMap jString)
+  | dependsOnOptionFn "visibleFiles" (jNestedArrayMap _)
+  | dependsOnOption "baseFilename" jString
+  | definedAs (
+    \jars
+    \topModule
+    \configs
+    \visibleFiles
+    \baseFilename
+    \buildInput
+
+    match buildInput.getBuildTargetInputsOutputDir
+      None = Fail "no target directory specified".makeError
+      Some targetDir =
+        def outputs =
+          makeRocketChipGeneratorOptions jars targetDir.mkdir topModule configs
+          | setRocketChipGeneratorOptionsExtraSources (visibleFiles | getOrElse Nil)
+          | setRocketChipGeneratorOptionsBaseFileName baseFilename
+          | runRocketChipGenerator
+        outputs
+        | getRocketChipGeneratorOutputsAllOutputs
+        | findFailFn getPathResult
+        | rmap (\_ outputs)
+  )
+  | exports (\outputs bObject (
+    "dts" → bPath outputs.getRocketChipGeneratorOutputsDTS,
+    "firrtlFile" → bPath outputs.getRocketChipGeneratorOutputsFirrtlFile,
+    "firrtlAnnoFile" → bPath outputs.getRocketChipGeneratorOutputsFirrtlAnnoFile,
+    "romConf" → bPath outputs.getRocketChipGeneratorOutputsRomConf,
+    "allOutputs" → bArray (map bPath outputs.getRocketChipGeneratorOutputsAllOutputs),
+    outputs
+    | getRocketChipGeneratorOutputsObjectModelFile
+    | omap ("omFile" → bPath _, Nil)
+    | getOrElse Nil
+
+  ))
+  | makeBuildTarget

@@ -28,5 +28,10 @@
         "commit": "d619ca850846d2ec36da64bf8a28e7d9a3d9ed1b",
         "name": "api-config-chipsalliance",
         "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
+    },
+    {
+        "commit": "dfe627942787af4a52f82cd0e99d5c640f5b0d72",
+        "name": "api-buildtarget-sifive",
+        "source": "git@github.com:sifive/api-buildtarget-sifive.git"
     }
 ]
