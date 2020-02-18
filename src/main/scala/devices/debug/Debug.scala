@@ -1251,14 +1251,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     ))
 
     val abstractcsRegFields = RegFieldGroup("dmi_abstractcs", Some("abstract command control/status"), Seq(
-      RegField.r(4, ABSTRACTCSRdData.datacount, RegFieldDesc("datacount", "number of DATA regsiters", reset=Some(cfg.nAbstractDataWords))),
+      RegField.r(4, ABSTRACTCSRdData.datacount, RegFieldDesc("datacount", "number of DATA registers", reset=Some(cfg.nAbstractDataWords))),
       RegField(4),
       WNotifyVal(3, ABSTRACTCSRdData.cmderr, ABSTRACTCSWrData.cmderr, ABSTRACTCSWrEnMaybe,
         RegFieldDesc("cmderr", "command error", reset=Some(0), wrType=Some(RegFieldWrType.ONE_TO_CLEAR))),
       RegField(1),
       RegField.r(1, ABSTRACTCSRdData.busy, RegFieldDesc("busy", "busy", reset=Some(0))),
       RegField(11),
-      RegField.r(5, ABSTRACTCSRdData.progbufsize, RegFieldDesc("progbufsize", "number of PROGBUF regsiters", reset=Some(cfg.nProgramBufferWords)))
+      RegField.r(5, ABSTRACTCSRdData.progbufsize, RegFieldDesc("progbufsize", "number of PROGBUF registers", reset=Some(cfg.nProgramBufferWords)))
     ))
 
     val (sbcsFields, sbAddrFields, sbDataFields):
