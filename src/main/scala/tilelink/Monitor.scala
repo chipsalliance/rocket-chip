@@ -575,7 +575,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge) = if (TLMonitorStrictMode == true) {
     val a_size_bus_size = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
     val a_opcode_bus_size = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)

@@ -5,6 +5,7 @@ import Chisel._
 import chisel3.{VecInit}
 import chisel3.util.Cat
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import freechips.rocketchip.config._
 
 sealed abstract class MonitorDirection(name: String) {
   override def toString: String = name
@@ -21,6 +22,10 @@ object MonitorDirection {
 
   object Cover extends MonitorDirection("Cover") { override def flip: MonitorDirection = Cover }
 }
+
+case class TLMonitorStrict(on: Boolean = true)
+
+case object TLMonitorStrictMode extends Field[TLMonitorStrict](TLMonitorStrict(true))
 
 sealed abstract class PropertyClass(name: String) {
   override def toString: String = name
