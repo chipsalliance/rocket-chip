@@ -400,6 +400,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       }
   }
 
+  assert (!(io.s2_kill && tl_out.a.ready && tl_out.a.valid))
   tl_out.a.valid := s2_request_refill
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
