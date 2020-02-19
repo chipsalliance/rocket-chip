@@ -7,13 +7,14 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3.stage.phases.Elaborate
 import firrtl.AnnotationSeq
 import firrtl.annotations.NoTargetAnnotation
-import firrtl.options.{Phase, PreservesAll, StageOptions}
+import firrtl.options.{Phase, PreservesAll}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.subsystem.RocketTilesKey
-import freechips.rocketchip.system.{RegressionTestSuite, RocketTestSuite, TestGeneration}
+import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, RocketTestSuite, TestGeneration}
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.util.HasRocketChipStageUtils
+import freechips.rocketchip.system.DefaultTestSuites._
 
 import scala.collection.mutable
 
@@ -24,12 +25,14 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])
   override val dependents = Seq(classOf[GenerateTestSuiteMakefrags])
 
-  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    import freechips.rocketchip.system.DefaultTestSuites._
+  def GenerateDefaultTestSuites(): List[RocketTestSuite] = {
+    List(DefaultTestSuites.groundtest64("p"), DefaultTestSuites.emptyBmarks, DefaultTestSuites.singleRegression)
+  }
+
+  def GenerateSystemTestSuites(annotations: AnnotationSeq): scala.collection.mutable.Buffer[RocketTestSuite] = {
     val params: Parameters = getConfig(view[RocketChipOptions](annotations).configNames.get).toInstance
     val xlen = params(XLen)
-
-    val tests = scala.collection.mutable.Buffer[RocketTestSuite]() // FIXME not growable
+    val tests = scala.collection.mutable.Buffer[RocketTestSuite]()
 
     val regressionTests = mutable.LinkedHashSet(
       "rv64ud-v-fcvt",
@@ -117,6 +120,16 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
       }
       tests += new RegressionTestSuite(regressionTests)
     }
+    tests
+  }
+
+  override def transform(annotations: AnnotationSeq): AnnotationSeq = {
+    val ropts = view[RocketChipOptions](annotations)
+    val tests = ropts.topPackage.get match {
+      case "freechips.rocketchip.system" => GenerateSystemTestSuites(annotations)
+      case _ => GenerateDefaultTestSuites()
+    }
+
     RocketTestSuiteAnnotation(tests) +: annotations
   }
 
