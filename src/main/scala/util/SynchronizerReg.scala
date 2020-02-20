@@ -48,7 +48,8 @@ private class SynchronizerPrimitiveShiftReg(
   }
   override def desiredName = s"${resetType.toString}ResetSynchronizerPrimitiveShiftReg_d${sync}${initPostfix}"
 
-  val local_reset = resetType match {
+  // this is private to workaround https://github.com/freechipsproject/chisel3/issues/1352
+  private val local_reset = resetType match {
     case SynchronizerResetType.NonSync => reset // unused because a RegInit is not used
     case SynchronizerResetType.Inferred => reset
     case SynchronizerResetType.Sync => reset.asBool
