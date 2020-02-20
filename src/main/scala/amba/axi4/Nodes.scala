@@ -16,7 +16,7 @@ object AXI4Imp extends SimpleNodeImp[AXI4MasterPortParameters, AXI4SlavePortPara
   def bundle(e: AXI4EdgeParameters) = AXI4Bundle(e.bundle)
   def render(e: AXI4EdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label  = (e.slave.beatBytes * 8).toString)
 
-  override def monitor(bundle: AXI4Bundle, edge: AXI4EdgeParameters) {
+  override def monitor(bundle: AXI4Bundle, edge: AXI4EdgeParameters, p: Parameters = Parameters.empty) {
     edge.params.lift(AXI4MonitorBuilder).foreach { builder =>
       val monitor = Module(builder(AXI4MonitorArgs(edge)))
       monitor.io.in := bundle

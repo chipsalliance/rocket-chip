@@ -23,9 +23,7 @@ object MonitorDirection {
   object Cover extends MonitorDirection("Cover") { override def flip: MonitorDirection = Cover }
 }
 
-case class TLMonitorStrict(on: Boolean = true)
-
-case object TLMonitorStrictMode extends Field[TLMonitorStrict](TLMonitorStrict(true))
+case object TLMonitorStrictMode extends Field[Boolean](true)
 
 sealed abstract class PropertyClass(name: String) {
   override def toString: String = name

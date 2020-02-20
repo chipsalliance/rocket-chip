@@ -15,7 +15,7 @@ object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParamet
   def bundle(e: APBEdgeParameters) = APBBundle(e.bundle)
   def render(e: APBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, (e.slave.beatBytes * 8).toString)
 
-  override def monitor(bundle: APBBundle, edge: APBEdgeParameters) {
+  override def monitor(bundle: APBBundle, edge: APBEdgeParameters, p: Parameters = Parameters.empty) {
     edge.params.lift(APBMonitorBuilder).foreach { builder =>
       val monitor = Module(builder(APBMonitorArgs(edge)))
       monitor.io.in := bundle

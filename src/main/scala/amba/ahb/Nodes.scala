@@ -16,7 +16,7 @@ object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortPa
   def bundle(e: AHBEdgeParameters) = AHBSlaveBundle(e.bundle)
   def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
 
-  override def monitor(bundle: AHBSlaveBundle, edge: AHBEdgeParameters) {
+  override def monitor(bundle: AHBSlaveBundle, edge: AHBEdgeParameters, p: Parameters = Parameters.empty) {
     edge.params.lift(AHBSlaveMonitorBuilder).foreach { builder =>
       val monitor = Module(builder(AHBSlaveMonitorArgs(edge)))
       monitor.io.in := bundle
@@ -38,7 +38,7 @@ object AHBImpMaster extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortP
   def bundle(e: AHBEdgeParameters) = AHBMasterBundle(e.bundle)
   def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
 
-  override def monitor(bundle: AHBMasterBundle, edge: AHBEdgeParameters) {
+  override def monitor(bundle: AHBMasterBundle, edge: AHBEdgeParameters, p: Parameters = Parameters.empty) {
     edge.params.lift(AHBMasterMonitorBuilder).foreach { builder =>
       val monitor = Module(builder(AHBMasterMonitorArgs(edge)))
       monitor.io.in := bundle
