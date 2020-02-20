@@ -10,6 +10,7 @@ sealed trait RocketChipOption extends Unserializable { this: Annotation => }
 
 /* required options */
 
+/** Path to top module class */
 case class TopModuleAnnotation(clazz: Class[_ <: Any]) extends NoTargetAnnotation with RocketChipOption
 private[stage] object TopModuleAnnotation extends HasShellOptions {
   override val options = Seq(
@@ -22,6 +23,7 @@ private[stage] object TopModuleAnnotation extends HasShellOptions {
   )
 }
 
+/** Paths to config classes */
 case class ConfigsAnnotation(configNames: Seq[String]) extends NoTargetAnnotation with RocketChipOption
 private[stage] object ConfigsAnnotation extends HasShellOptions {
   override val options = Seq(
@@ -36,6 +38,7 @@ private[stage] object ConfigsAnnotation extends HasShellOptions {
 
 /* optional options */
 
+/** Optional base name for generated files' filenames */
 case class OutputBaseNameAnnotation(outputBaseName: String) extends NoTargetAnnotation with RocketChipOption
 private[stage] object OutputBaseNameAnnotation extends HasShellOptions {
   override val options = Seq(
