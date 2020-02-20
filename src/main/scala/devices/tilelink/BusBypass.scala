@@ -77,7 +77,9 @@ class TLBusBypassBar(dFn: TLManagerPortParameters => TLManagerPortParameters)(im
       s"BusBypass slave device widths mismatch (${edgeOut0.manager.managers.map(_.name)} has ${edgeOut0.manager.beatBytes}B vs ${edgeOut1.manager.managers.map(_.name)} has ${edgeOut1.manager.beatBytes}B)")
 
     // We need to be locked to the given bypass direction until all transactions stop
-    val bypass = withReset(reset.asBool)(RegInit(io.bypass)) // synchronous reset required (in code below)
+    val was_in_reset = RegNext(false.B, init = true.B)
+    val bypass_reg = RegNext(io.bypass)
+    val bypass = Mux(was_in_reset, io.bypass, bypass_reg)
     val (flight, next_flight) = edgeIn.inFlight(in)
 
     io.pending := (flight > 0.U)
