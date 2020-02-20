@@ -13,6 +13,7 @@ import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
 
+/** Dumps circuit as FIRRTL string into a file */
 class GenerateFirrtl extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])

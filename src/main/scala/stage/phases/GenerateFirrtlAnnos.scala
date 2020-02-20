@@ -13,6 +13,7 @@ import firrtl.options.{Phase, PreservesAll, StageOptions}
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
 
+/** Writes FIRRTL annotations into a file */
 class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])

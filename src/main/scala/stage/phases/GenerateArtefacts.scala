@@ -9,6 +9,7 @@ import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.{ElaborationArtefacts, HasRocketChipStageUtils}
 
+/** Writes Artefact information into files */
 class GenerateArtefacts extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])

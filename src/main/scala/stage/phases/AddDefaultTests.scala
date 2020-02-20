@@ -18,8 +18,12 @@ import freechips.rocketchip.system.DefaultTestSuites._
 
 import scala.collection.mutable
 
+/** Annotation that contains a list of [[RocketTestSuite]]s to run */
 case class RocketTestSuiteAnnotation(tests: Seq[RocketTestSuite]) extends NoTargetAnnotation
 
+/** Generates [[RocketTestSuiteAnnotation]] depending on whether the top-module project is part of
+ *  [[freechips.rocketchip.system]] or not (e.g. for unit tests).
+ */
 class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])

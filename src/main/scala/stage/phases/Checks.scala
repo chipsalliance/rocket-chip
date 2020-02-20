@@ -9,6 +9,7 @@ import freechips.rocketchip.stage._
 
 import scala.collection.mutable
 
+/** Checks for the correct type and number of command line arguments */
 class Checks extends Phase with PreservesAll[Phase] {
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
