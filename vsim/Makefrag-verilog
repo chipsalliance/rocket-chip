@@ -14,7 +14,14 @@ $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(boot
 
 $(generated_dir)/%.v $(generated_dir)/%.conf: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
-	$(FIRRTL) -i $< -o $(generated_dir)/$*.v -X verilog --infer-rw $(MODEL) --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$*.conf -faf $(generated_dir)/$*.anno.json -td $(generated_dir)/$(long_name)/
+	$(FIRRTL) -i $< \
+    -o $(generated_dir)/$*.v \
+    -X verilog \
+    --infer-rw $(MODEL) \
+    --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$*.conf \
+    -faf $(generated_dir)/$*.anno.json \
+    -td $(generated_dir)/$(long_name)/ \
+    -fct $(subst $(SPACE),$(COMMA),$(FIRRTL_TRANSFORMS)) \
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
 	cd $(generated_dir) && \

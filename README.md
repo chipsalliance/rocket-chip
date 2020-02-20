@@ -166,7 +166,7 @@ clock-crossers and converters from TileLink to external bus protocols (e.g. AXI 
 This RTL package contains implementations for peripheral devices, including the Debug module and various TL slaves.
 * **diplomacy**
 This utility package extends Chisel by allowing for two-phase hardware elaboration, in which certain parameters
-are dynamically negotiated between modules. For more information about diplomacy, see [this paper](https://carrv.github.io/papers/cook-diplomacy-carrv2017.pdf).
+are dynamically negotiated between modules. For more information about diplomacy, see [this paper](https://carrv.github.io/2017/papers/cook-diplomacy-carrv2017.pdf).
 * **groundtest**
 This RTL package generates synthesizable hardware testers that emit randomized
 memory access streams in order to stress-tests the uncore memory hierarchy.

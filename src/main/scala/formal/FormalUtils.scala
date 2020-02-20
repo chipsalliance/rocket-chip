@@ -46,34 +46,35 @@ object Property {
 
   def apply(dir: MonitorDirection, cond: Bool, message: String,
             prop_type: PropertyClass=PropertyClass.Default,
-            idx: String = "")(implicit sourceInfo: SourceInfo): Unit = {
+            idx: String = "",
+            custom_name: String = "")(implicit sourceInfo: SourceInfo): Unit = {
     val line_info = sourceInfo match {
       case SourceLine(filename, line, col) => s"${filename}_L${line}_C${col}_I${idx}".replace('.', '_')
       case _ => ""
     }
-    val proposed_src = prop_type.toString + "_" + line_info
+    val proposed_src = if (custom_name == "") prop_type.toString + "_" + line_info else custom_name
 
     val src_wrap = s"@[${proposed_src}]"
     if (dir==MonitorDirection.Monitor) {
       when(!cond) {
-        printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
+        printf(s"assert:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
       }
     } else if (dir==MonitorDirection.Receiver) {
       when(!cond) {
-        printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
+        printf(s"assert:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
       }
     } else if (dir==MonitorDirection.Driver) {
       when(!cond) {
-        printf(s"assume:${proposed_src}:${prop_type.toString} ${message}")
+        printf(s"assume:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
       }
     } else if (dir==MonitorDirection.Cover) {
         if (prop_type==PropertyClass.CoverDisableMonitor) {
           when(cond) { //We want to assert that the condition is never true, which is opposite of a normal assertion
-            printf(s"assert:${proposed_src}:${prop_type.toString} ${message}")
+            printf(s"assert:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
           }
         } else {
             when(cond) {
-              printf(s"cover:${proposed_src}:${prop_type.toString} ${message}")
+              printf(s"cover:${proposed_src}:${prop_type.toString} ${message + "_" + line_info}")
             }
         }
     }
@@ -81,25 +82,26 @@ object Property {
 
   def apply(dir: MonitorDirection, cond: Seq[Seq[Bool]], crosscond: Bool, message: String,
             prop_type: PropertyClass,
-            idx: String)(implicit sourceInfo: SourceInfo): Unit = {
+            idx: String,
+            custom_name: String)(implicit sourceInfo: SourceInfo): Unit = {
     if (cond.isEmpty) {
-      Property(dir, crosscond, message, prop_type, idx)
+      Property(dir, crosscond, message, prop_type, idx, custom_name)
     } else {
       cond.head.zipWithIndex.foreach( {case (crossval, cnt) =>
-        Property(dir, cond.tail, crossval && crosscond, message, prop_type, idx + "_" + cnt)
+        Property(dir, cond.tail, crossval && crosscond, message, prop_type, idx + "_" + cnt, if (custom_name == "") "" else custom_name + "_" + cnt)
       })
     }
   }
   def apply(dir: MonitorDirection, cond: Seq[Seq[Bool]], crosscond: Bool,
             message: String)(implicit sourceInfo: SourceInfo): Unit = {
-    Property(dir, cond, crosscond, message, PropertyClass.Default, "")
+    Property(dir, cond, crosscond, message, PropertyClass.Default, "", "")
   }
   def apply(dir: MonitorDirection, cond: Seq[Seq[Bool]], crosscond: Bool, message: String,
             prop_type: PropertyClass)(implicit sourceInfo: SourceInfo): Unit = {
-    Property(dir, cond, crosscond, message, prop_type, "")
+    Property(dir, cond, crosscond, message, prop_type, "", "")
   }
   def apply(cond: Bool)(implicit sourceInfo: SourceInfo): Unit ={
-    Property(MonitorDirection.Monitor, cond, "Sanity Property", PropertyClass.LocalRTL, "")
+    Property(MonitorDirection.Monitor, cond, "Sanity Property", PropertyClass.LocalRTL, "", "")
   }
 }
 

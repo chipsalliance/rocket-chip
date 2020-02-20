@@ -8,7 +8,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.rocket.{DCache, NonBlockingDCache, RocketCoreParams}
+import freechips.rocketchip.rocket.{DCache, ICacheParams, NonBlockingDCache, RocketCoreParams}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import scala.collection.mutable.ListBuffer
@@ -20,7 +20,7 @@ trait GroundTestTileParams extends TileParams {
 
   def build(i: Int, p: Parameters): GroundTestTile
   
-  val icache = None
+  val icache = Some(ICacheParams())
   val btb = None
   val rocc = Nil
   val core = RocketCoreParams(nPMPs = 0) //TODO remove this

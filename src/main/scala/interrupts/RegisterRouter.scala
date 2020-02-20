@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 
 /** Mix this trait into a RegisterRouter to be able to attach its interrupt sources to an interrupt bus */
-trait HasInterruptSources { this: RegisterRouter[_] =>
+trait HasInterruptSources { this: RegisterRouter =>
   def nInterrupts: Int
   protected val intnode = IntSourceNode(IntSourcePortSimple(num = nInterrupts, resources = Seq(Resource(device, "int"))))
 
