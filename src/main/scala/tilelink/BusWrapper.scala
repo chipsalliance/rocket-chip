@@ -5,6 +5,7 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
 /** Specifies widths of various attachement points in the SoC */
@@ -18,18 +19,31 @@ trait HasTLBusParams {
   def blockOffset: Int = log2Up(blockBytes)
 
   def dtsFrequency: Option[BigInt]
+  def fixedClockOpt = dtsFrequency.map(f => ClockParameters(freqMHz = f.toDouble / 1000000.0))
 
   require (isPow2(beatBytes))
   require (isPow2(blockBytes))
 }
 
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
-    extends SimpleLazyModule
-    with HasClockDomainCrossing
-    with HasTLBusParams {
+    extends ClockDomain with HasTLBusParams {
 
+  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName)).suggestName(busName + "_clock_groups")
+  private val clockGroup = LazyModule(new ClockGroup(busName))
+  val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
+  val clockNode = clockGroup.node
+  val fixedClockNode = FixedClockBroadcast(fixedClockOpt) // device clocks attach here
+  private val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
+
+  clockGroup.node := clockGroupAggregator.node
+  fixedClockNode := clockGroup.node // first member of group is always domain's own clock
+  clockSinkNode := fixedClockNode
+
+  def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
+  def dtsFrequency = params.dtsFrequency
+  val dtsClk = fixedClockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
 
   /* If you violate this requirement, you will have a rough time.
    * The codebase is riddled with the assumption that this is true.
@@ -57,20 +71,19 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
     from(name) { gen(inwardNode) }
 
-  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType): NoHandle = {
+  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
+    bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
     coupleTo(s"bus_named_${bus.busName}") {
       bus.crossInHelper(xType) :*= TLWidthWidget(beatBytes) :*= _
     }
   }
 
-  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType): NoHandle = {
+  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
+    bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
     coupleFrom(s"bus_named_${bus.busName}") {
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
   }
-
-  def dtsFrequency = params.dtsFrequency
-  val dtsClk = dtsFrequency.map { freq => new FixedClockResource(s"${busName}_clock", (freq.toDouble)/1000000) }
 }
 
 trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>

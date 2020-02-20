@@ -233,4 +233,18 @@ package object util {
     }
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
+
+  implicit class EnhancedChisel3Assign(val x: Data) extends AnyVal {
+    // Assign all output fields of x from y; note that the actual direction of x is irrelevant
+    def :<= (y: Data): Unit = FixChisel3.assignL(x, y)
+    // Assign all input fields of y from x; note that the actual direction of y is irrelevant
+    def :=> (y: Data): Unit = FixChisel3.assignR(x, y)
+    // Wire-friendly bulk connect
+    def :<> (y: Data): Unit = {
+      x :<= y
+      x :=> y
+    }
+    // x <> y   is an 'actual-direction'-inferred 'x :<> y' or 'y :<> x'
+    // x := y   is equivalent to 'x :<= y' + 'y :=> x'
+  }
 }

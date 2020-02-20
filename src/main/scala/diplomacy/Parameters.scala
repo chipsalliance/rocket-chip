@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.util.{IrrevocableIO,ReadyValidIO}
 import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
 import scala.reflect.ClassTag
 
@@ -265,6 +266,10 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
 
   def apply[T <: Data](x: DecoupledIO[T]) =
     if (isDefined) Queue(x, depth, flow=flow, pipe=pipe)
+    else x
+
+  def irrevocable[T <: Data](x: ReadyValidIO[T]) =
+    if (isDefined) Queue.irrevocable(x, depth, flow=flow, pipe=pipe)
     else x
 
   def sq[T <: Data](x: DecoupledIO[T]) =

@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem._
+import freechips.rocketchip.prci.SimpleClockGroupSource
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util.DontTouch
 
