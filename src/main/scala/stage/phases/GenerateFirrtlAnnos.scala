@@ -20,7 +20,7 @@ class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketC
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val file = new File(targetDir, s"${view[RocketChipOptions](annotations).longName}.anno.json")
+    val file = new File(targetDir, s"${view[RocketChipOptions](annotations).longName.get}.anno.json")
 
     annotations.flatMap {
       case a: ChiselCircuitAnnotation =>

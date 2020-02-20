@@ -17,7 +17,7 @@ class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with Has
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val fileName = s"${view[RocketChipOptions](annotations).longName}.d"
+    val fileName = s"${view[RocketChipOptions](annotations).longName.get}.d"
 
     annotations.flatMap {
       case a: RocketTestSuiteAnnotation =>

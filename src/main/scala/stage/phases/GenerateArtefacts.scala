@@ -18,7 +18,7 @@ class GenerateArtefacts extends Phase with PreservesAll[Phase] with HasRocketChi
     val targetDir = view[StageOptions](annotations).targetDir
 
     ElaborationArtefacts.files.foreach { case (extension, contents) =>
-      writeOutputFile(targetDir, s"${view[RocketChipOptions](annotations).longName}.${extension}", contents ())
+      writeOutputFile(targetDir, s"${view[RocketChipOptions](annotations).longName.get}.${extension}", contents ())
     }
 
     annotations

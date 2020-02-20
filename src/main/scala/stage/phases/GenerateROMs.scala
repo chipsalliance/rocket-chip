@@ -17,7 +17,7 @@ class GenerateROMs extends Phase with PreservesAll[Phase] with HasRocketChipStag
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val fileName = s"${view[RocketChipOptions](annotations).longName}.rom.conf"
+    val fileName = s"${view[RocketChipOptions](annotations).longName.get}.rom.conf"
 
     annotations.flatMap {
       case a: ChiselCircuitAnnotation =>

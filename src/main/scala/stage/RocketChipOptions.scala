@@ -32,6 +32,11 @@ class RocketChipOptions private[stage] (
     case _ => None
   }
 
-  lazy val longName: String = outputBaseName.getOrElse(s"${topPackage.get}.${configClass.get}")
+  //lazy val longName: String = outputBaseName.getOrElse(s"${topPackage.get}.${configClass.get}")
+  lazy val longName: Option[String] = outputBaseName match {
+    case Some(name) => Some(name)
+    case _ =>
+      if (!topPackage.isEmpty && !configClass.isEmpty) Some(s"${topPackage.get}.${configClass.get}") else None
+  }
 }
 

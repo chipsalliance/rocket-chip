@@ -20,7 +20,7 @@ class GenerateFirrtl extends Phase with PreservesAll[Phase] with HasRocketChipSt
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val file = new File(targetDir, s"${view[RocketChipOptions](annotations).longName}.fir")
+    val file = new File(targetDir, s"${view[RocketChipOptions](annotations).longName.get}.fir")
 
     annotations.flatMap {
       case a: ChiselCircuitAnnotation =>
