@@ -28,7 +28,7 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
   def bundleI(ei: EI): BI
 
   // Edge functions
-  def monitor(bundle: BI, edge: EI, p: Parameters = Parameters.empty) {}
+  def monitor(bundle: BI, edge: EI) {}
   def render(e: EI): RenderedEdge
 
   // optional methods to track node graph
@@ -403,7 +403,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     bundlesSafeNow = true
     if (!identity) {
       (iPorts zip in) foreach {
-        case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e, p)
+        case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
     } }
     danglesOut ++ danglesIn
   }
