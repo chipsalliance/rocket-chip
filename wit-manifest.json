@@ -12,10 +12,10 @@
     {
         "commit": "4ce4b7ffff31a64c766bfd443fc1af2c4d953da6",
         "name": "chisel3",
-        "source": "git@github.com:sifive/chisel3.git"
+        "source": "git@github.com:freechipsproject/chisel3.git"
     },
     {
-        "commit": "cf1b29bf63476de5c42f53dbd85f2b358d9b0bad", 
+        "commit": "cf1b29bf63476de5c42f53dbd85f2b358d9b0bad",
         "name": "firrtl",
         "source": "git@github.com:freechipsproject/firrtl.git"
     },
