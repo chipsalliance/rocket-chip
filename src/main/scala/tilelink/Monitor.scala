@@ -36,7 +36,7 @@ object TLMonitor {
 @chiselName
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
-  println("TLMonitorStrictMode Is "+ args.edge.params(TLMonitorStrictMode))
+  require (args.edge.params(TLMonitorStrictMode) || (! args.edge.params(TestplanTestType).formal))
 
   val cover_prop_class = PropertyClass.Default
   val desc_text = "Placeholder"
@@ -576,7 +576,41 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeADSource(bundle: TLBundle, edge: TLEdge) = if (args.edge.params(TLMonitorStrictMode)) {
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
+    val inflight = RegInit(0.U(edge.client.endSourceId.W))
+
+    val a_first = edge.first(bundle.a.bits, bundle.a.fire())
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+
+    val a_set = WireInit(0.U(edge.client.endSourceId.W))
+    when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
+      a_set := UIntToOH(bundle.a.bits.source)
+      assert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+    }
+
+    val d_clr = WireInit(0.U(edge.client.endSourceId.W))
+    val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
+    when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      d_clr := UIntToOH(bundle.d.bits.source)
+      assume((a_set | inflight)(bundle.d.bits.source), "'D' channel acknowledged for nothing inflight" + extra)
+    }
+
+    if (edge.manager.minLatency > 0) {
+      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+    }
+
+    inflight := (inflight | a_set) & ~d_clr
+
+    val watchdog = RegInit(0.U(32.W))
+    val limit = PlusArg("tilelink_timeout",
+      docstring="Kill emulation after INT waiting TileLink cycles. Off if 0.")
+    assert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
+
+    watchdog := watchdog + 1.U
+    when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
+  }
+
+  def legalizeADSourceStrict(bundle: TLBundle, edge: TLEdge) {
     val a_size_bus_size = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
     val a_opcode_bus_size = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
@@ -697,9 +731,14 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     if (sourceBits > tooBig) {
       println(s"WARNING: TLMonitor instantiated on a bus with source bits (${sourceBits}) > ${tooBig}; A=>D transaction flight will not be checked")
     } else {
-      if (monitorDir == MonitorDirection.Monitor) {
-        legalizeADSource(bundle, edge)
-      } else {
+      if (args.edge.params(TestplanTestType).simulation) {
+        if (args.edge.params(TLMonitorStrictMode)) {
+          legalizeADSourceStrict(bundle, edge)
+        } else {
+          legalizeADSource(bundle, edge)
+        }
+      }
+      if (args.edge.params(TestplanTestType).formal) {
         legalizeADSourceFormal(bundle, edge)
       }
     }

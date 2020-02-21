@@ -25,6 +25,15 @@ object MonitorDirection {
 
 case object TLMonitorStrictMode extends Field[Boolean](true)
 
+case class TestImplType(
+  simulation: Boolean = true,
+  formal: Boolean = false,
+  fpga: Boolean = false
+)
+
+// Determine if test should be generated for formal and/or simulation
+case object TestplanTestType extends Field[TestImplType]
+
 sealed abstract class PropertyClass(name: String) {
   override def toString: String = name
 }
