@@ -8,6 +8,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInf
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap,ListMap}
 import scala.util.matching._
+import scala.collection.mutable
 
 abstract class LazyModule()(implicit val p: Parameters)
 {
@@ -15,6 +16,10 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var nodes = List[BaseNode]()
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
+
+
+  var childrenAop = ()=>children
+  var nodesAop = ()=>nodes
 
   // code snippets from 'InModuleBody' injection
   protected[diplomacy] var inModuleBody = List[() => Unit]()
@@ -117,11 +122,14 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.foreach( _.nodeIterator(iterfunc) )
   }
 
-  def getChildren = children
+  def getChildren() = children
+//  def getNodes() = nodes
+
 }
 
 object LazyModule
 {
+  val impToLazyModuleMap = new mutable.HashMap[String, (LazyModuleImp, LazyModule)]
   protected[diplomacy] var scope: Option[LazyModule] = None
   private var index = 0
 
@@ -184,6 +192,11 @@ sealed trait LazyModuleImpLike extends RawModule
 
 class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
   val (auto, dangles) = instantiate()
+
+  if(! s"${this.getClass.getName}".contains("anon")){      
+    LazyModule.impToLazyModuleMap(s"${this.name}") = (this, wrapper)
+  }
+  (auto, dangles)
 }
 
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
