@@ -1,0 +1,10 @@
+module load synopsys/vcs/P-2019.06-SP2
+module load synopsys/verdi/P-2019.06-SP2
+module load cadence/xcelium/18.09.004
+module load clang/9.0.0
+module load verilator/4.014
+module load xilinx/vivado/2017.1
+module load cadence/jasper/2017.12p001
+module load synopsys/vc_static/P-2019.06-SP2
+module load breker/treksoc/4.3.21
+module load breker/coherencyTrekApp/1.0.22
