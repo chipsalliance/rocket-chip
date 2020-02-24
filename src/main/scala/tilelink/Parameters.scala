@@ -31,7 +31,16 @@ class TLManagerParameters private(
   val nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
   val supports:      TLSupportedSizes = TLSupportedSizes(),
-  val emits:       TLSupportedSizes = TLSupportedSizes(),
+  val emits:       TLSupportedSizes = TLSupportedSizes(
+    acquireT = TransferSizes(1, 4096),
+    acquireB = TransferSizes(1, 4096),
+    arithmetic = TransferSizes(1, 4096),
+    logical = TransferSizes(1, 4096),
+    get = TransferSizes(1, 4096),
+    putFull = TransferSizes(1, 4096),
+    putPartial = TransferSizes(1, 4096),
+    hint = TransferSizes(1, 4096),
+    probe = TransferSizes(1, 4096)),
   val userBits:           Seq[UserBits] = Nil,
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
   val mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
@@ -156,7 +165,16 @@ class TLManagerParameters private(
         supportsPutPartial,
         supportsHint
       ),
-      emits = TLSupportedSizes(),
+      emits = TLSupportedSizes(
+        acquireT = TransferSizes(1, 4096),
+        acquireB = TransferSizes(1, 4096),
+        arithmetic = TransferSizes(1, 4096),
+        logical = TransferSizes(1, 4096),
+        get = TransferSizes(1, 4096),
+        putFull = TransferSizes(1, 4096),
+        putPartial = TransferSizes(1, 4096),
+        hint = TransferSizes(1, 4096),
+        probe = TransferSizes(1, 4096)),
       userBits,
       mayDenyGet,
       mayDenyPut,
@@ -247,7 +265,16 @@ object TLManagerParameters {
         supportsPutPartial,
         supportsHint
       ),
-      emits = TLSupportedSizes(),
+      emits = TLSupportedSizes(
+        acquireT = TransferSizes(1, 4096),
+        acquireB = TransferSizes(1, 4096),
+        arithmetic = TransferSizes(1, 4096),
+        logical = TransferSizes(1, 4096),
+        get = TransferSizes(1, 4096),
+        putFull = TransferSizes(1, 4096),
+        putPartial = TransferSizes(1, 4096),
+        hint = TransferSizes(1, 4096),
+        probe = TransferSizes(1, 4096)),
       userBits,
       mayDenyGet,
       mayDenyPut,
@@ -442,7 +469,16 @@ class TLClientParameters private(
   val visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
   // Supports both Probe+Grant of these sizes
   val supports:      TLSupportedSizes = TLSupportedSizes(),
-  val emits:       TLSupportedSizes = TLSupportedSizes(),
+  val emits:       TLSupportedSizes = TLSupportedSizes(
+    acquireT = TransferSizes(1, 4096),
+    acquireB = TransferSizes(1, 4096),
+    arithmetic = TransferSizes(1, 4096),
+    logical = TransferSizes(1, 4096),
+    get = TransferSizes(1, 4096),
+    putFull = TransferSizes(1, 4096),
+    putPartial = TransferSizes(1, 4096),
+    hint = TransferSizes(1, 4096),
+    probe = TransferSizes(1, 4096)),
   val userBits:            Seq[UserBits]   = Nil)
 {
   def supportsProbe:       TransferSizes   = this.supports.probe
@@ -516,7 +552,16 @@ class TLClientParameters private(
         supportsHint,
         supportsProbe
       ),
-      emits = TLSupportedSizes(),
+      emits = TLSupportedSizes(
+        acquireT = TransferSizes(1, 4096),
+        acquireB = TransferSizes(1, 4096),
+        arithmetic = TransferSizes(1, 4096),
+        logical = TransferSizes(1, 4096),
+        get = TransferSizes(1, 4096),
+        putFull = TransferSizes(1, 4096),
+        putPartial = TransferSizes(1, 4096),
+        hint = TransferSizes(1, 4096),
+        probe = TransferSizes(1, 4096)),
       userBits = userBits)
   }
 
@@ -585,7 +630,16 @@ object TLClientParameters {
           supportsPutPartial,
           supportsHint,
           supportsProbe),
-        emits = TLSupportedSizes(),
+        emits = TLSupportedSizes(
+          acquireT = TransferSizes(1, 4096),
+          acquireB = TransferSizes(1, 4096),
+          arithmetic = TransferSizes(1, 4096),
+          logical = TransferSizes(1, 4096),
+          get = TransferSizes(1, 4096),
+          putFull = TransferSizes(1, 4096),
+          putPartial = TransferSizes(1, 4096),
+          hint = TransferSizes(1, 4096),
+          probe = TransferSizes(1, 4096)),
         userBits)
     }
   
