@@ -6,7 +6,7 @@
 	url = https://github.com/ucb-bar/riscv-torture.git
 [submodule "chisel3"]
 	path = chisel3
-	url = git@github.com:freechipsproject/chisel3.git
+	url = git@github.com:sifive/chisel3.git
 [submodule "firrtl"]
 	path = firrtl
 	url = git@github.com:freechipsproject/firrtl.git
