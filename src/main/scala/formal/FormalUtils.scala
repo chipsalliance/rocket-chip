@@ -32,7 +32,7 @@ case class TestImplType(
 )
 
 // Determine if test should be generated for formal and/or simulation
-case object TestplanTestType extends Field[TestImplType]
+case object TestplanTestType extends Field[TestImplType](TestImplType())
 
 sealed abstract class PropertyClass(name: String) {
   override def toString: String = name
