@@ -24,44 +24,33 @@ case class TLSupportedSizes(
 
 class TLManagerParameters private(
   // The data have a P (for private) suffix to differentiate them from the functions
-  addressP:            Seq[AddressSet],
-  resourcesP:          Seq[Resource] = Seq(),
-  regionTypeP:         RegionType.T  = RegionType.GET_EFFECTS,
-  executableP:         Boolean       = false, // processor can execute from this memory
-  nodePathP:           Seq[BaseNode] = Seq(),
+  val address:            Seq[AddressSet],
+  val resources:          Seq[Resource] = Seq(),
+  val regionType:         RegionType.T  = RegionType.GET_EFFECTS,
+  val executable:         Boolean       = false, // processor can execute from this memory
+  val nodePath:           Seq[BaseNode] = Seq(),
   // Supports both Acquire+Release+Finish of these sizes
-  supportedSizesP:      TLSupportedSizes = TLSupportedSizes(),
-  emissionSizesP:       TLSupportedSizes = TLSupportedSizes(),
-  userBitsP:           Seq[UserBits] = Nil,
+  val supports:      TLSupportedSizes = TLSupportedSizes(),
+  val emits:       TLSupportedSizes = TLSupportedSizes(),
+  val userBits:           Seq[UserBits] = Nil,
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
-  mayDenyGetP:         Boolean = false, // applies to: AccessAckData, GrantData
-  mayDenyPutP:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
+  val mayDenyGet:         Boolean = false, // applies to: AccessAckData, GrantData
+  val mayDenyPut:         Boolean = false, // applies to: AccessAck,     Grant,    HintAck
                                        // ReleaseAck may NEVER be denied
-  alwaysGrantsTP:      Boolean = false, // typically only true for CacheCork'd read-write devices
+  val alwaysGrantsT:      Boolean = false, // typically only true for CacheCork'd read-write devices
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
-  fifoIdP:             Option[Int] = None,
-  deviceP: Option[Device] = None)
+  val fifoId:             Option[Int] = None,
+  val device: Option[Device] = None)
 {
-  def address:            Seq[AddressSet] = this.addressP
-  def resources:          Seq[Resource] = this.resourcesP
-  def regionType:         RegionType.T  = this.regionTypeP
-  def executable:         Boolean       = this.executableP
-  def nodePath:           Seq[BaseNode] = this.nodePathP
-  def supportsAcquireT:   TransferSizes = this.supportedSizesP.acquireT
-  def supportsAcquireB:   TransferSizes = this.supportedSizesP.acquireB
-  def supportsArithmetic: TransferSizes = this.supportedSizesP.arithmetic
-  def supportsLogical:    TransferSizes = this.supportedSizesP.logical
-  def supportsGet:        TransferSizes = this.supportedSizesP.get
-  def supportsPutFull:    TransferSizes = this.supportedSizesP.putFull
-  def supportsPutPartial: TransferSizes = this.supportedSizesP.putPartial
-  def supportsHint:       TransferSizes = this.supportedSizesP.hint
-  def userBits:           Seq[UserBits] = this.userBitsP
-  def mayDenyGet:         Boolean = this.mayDenyGetP
-  def mayDenyPut:         Boolean = this.mayDenyPutP
-  def alwaysGrantsT:      Boolean = this.alwaysGrantsTP
-  def fifoId:             Option[Int] = this.fifoIdP
-  def device: Option[Device] = this.deviceP
+  def supportsAcquireT:   TransferSizes = this.supports.acquireT
+  def supportsAcquireB:   TransferSizes = this.supports.acquireB
+  def supportsArithmetic: TransferSizes = this.supports.arithmetic
+  def supportsLogical:    TransferSizes = this.supports.logical
+  def supportsGet:        TransferSizes = this.supports.get
+  def supportsPutFull:    TransferSizes = this.supports.putFull
+  def supportsPutPartial: TransferSizes = this.supports.putPartial
+  def supportsHint:       TransferSizes = this.supports.hint
 
   require (!address.isEmpty, "Address cannot be empty")
   address.foreach { a => require (a.finite, "Address must be finite") }
@@ -131,33 +120,33 @@ class TLManagerParameters private(
   }
 
   def v1copy(
-    address:            Seq[AddressSet] = this.addressP,
-    resources:          Seq[Resource] = this.resourcesP,
-    regionType:         RegionType.T  = this.regionTypeP,
-    executable:         Boolean       = this.executableP,
-    nodePath:           Seq[BaseNode] = this.nodePathP,
-    supportsAcquireT:   TransferSizes = this.supportedSizesP.acquireT,
-    supportsAcquireB:   TransferSizes = this.supportedSizesP.acquireB,
-    supportsArithmetic: TransferSizes = this.supportedSizesP.arithmetic,
-    supportsLogical:    TransferSizes = this.supportedSizesP.logical,
-    supportsGet:        TransferSizes = this.supportedSizesP.get,
-    supportsPutFull:    TransferSizes = this.supportedSizesP.putFull,
-    supportsPutPartial: TransferSizes = this.supportedSizesP.putPartial,
-    supportsHint:       TransferSizes = this.supportedSizesP.hint,
-    userBits:           Seq[UserBits] = this.userBitsP,
-    mayDenyGet:         Boolean = this.mayDenyGetP,
-    mayDenyPut:         Boolean = this.mayDenyPutP,
-    alwaysGrantsT:      Boolean = this.alwaysGrantsTP,
-    fifoId:             Option[Int] = this.fifoIdP,
-    device: Option[Device] = this.deviceP) =
+    address:            Seq[AddressSet] = this.address,
+    resources:          Seq[Resource] = this.resources,
+    regionType:         RegionType.T  = this.regionType,
+    executable:         Boolean       = this.executable,
+    nodePath:           Seq[BaseNode] = this.nodePath,
+    supportsAcquireT:   TransferSizes = this.supports.acquireT,
+    supportsAcquireB:   TransferSizes = this.supports.acquireB,
+    supportsArithmetic: TransferSizes = this.supports.arithmetic,
+    supportsLogical:    TransferSizes = this.supports.logical,
+    supportsGet:        TransferSizes = this.supports.get,
+    supportsPutFull:    TransferSizes = this.supports.putFull,
+    supportsPutPartial: TransferSizes = this.supports.putPartial,
+    supportsHint:       TransferSizes = this.supports.hint,
+    userBits:           Seq[UserBits] = this.userBits,
+    mayDenyGet:         Boolean = this.mayDenyGet,
+    mayDenyPut:         Boolean = this.mayDenyPut,
+    alwaysGrantsT:      Boolean = this.alwaysGrantsT,
+    fifoId:             Option[Int] = this.fifoId,
+    device: Option[Device] = this.device) =
   {
     new TLManagerParameters(
-      addressP = address,
-      resourcesP = resources,
-      regionTypeP = regionType,
-      executableP = executable,
-      nodePathP = nodePath,
-      supportedSizesP = TLSupportedSizes(
+      address,
+      resources,
+      regionType,
+      executable,
+      nodePath,
+      supports = TLSupportedSizes(
         supportsAcquireT,
         supportsAcquireB,
         supportsArithmetic,
@@ -167,35 +156,36 @@ class TLManagerParameters private(
         supportsPutPartial,
         supportsHint
       ),
-      emissionSizesP = TLSupportedSizes(),
-      userBitsP = userBits,
-      mayDenyGetP = mayDenyGet,
-      mayDenyPutP = mayDenyPut,
-      alwaysGrantsTP = alwaysGrantsT,
-      fifoIdP = fifoId,
-      deviceP = device)
+      emits = TLSupportedSizes(),
+      userBits,
+      mayDenyGet,
+      mayDenyPut,
+      alwaysGrantsT,
+      fifoId,
+      device)
   }
 
+  @deprecated("Use v1copy","")
   def copy(
-    address:            Seq[AddressSet] = this.addressP,
-    resources:          Seq[Resource] = this.resourcesP,
-    regionType:         RegionType.T  = this.regionTypeP,
-    executable:         Boolean       = this.executableP,
-    nodePath:           Seq[BaseNode] = this.nodePathP,
-    supportsAcquireT:   TransferSizes = this.supportedSizesP.acquireT,
-    supportsAcquireB:   TransferSizes = this.supportedSizesP.acquireB,
-    supportsArithmetic: TransferSizes = this.supportedSizesP.arithmetic,
-    supportsLogical:    TransferSizes = this.supportedSizesP.logical,
-    supportsGet:        TransferSizes = this.supportedSizesP.get,
-    supportsPutFull:    TransferSizes = this.supportedSizesP.putFull,
-    supportsPutPartial: TransferSizes = this.supportedSizesP.putPartial,
-    supportsHint:       TransferSizes = this.supportedSizesP.hint,
-    userBits:           Seq[UserBits] = this.userBitsP,
-    mayDenyGet:         Boolean = this.mayDenyGetP,
-    mayDenyPut:         Boolean = this.mayDenyPutP,
-    alwaysGrantsT:      Boolean = this.alwaysGrantsTP,
-    fifoId:             Option[Int] = this.fifoIdP,
-    device: Option[Device] = this.deviceP) =
+    address:            Seq[AddressSet] = this.address,
+    resources:          Seq[Resource] = this.resources,
+    regionType:         RegionType.T  = this.regionType,
+    executable:         Boolean       = this.executable,
+    nodePath:           Seq[BaseNode] = this.nodePath,
+    supportsAcquireT:   TransferSizes = this.supports.acquireT,
+    supportsAcquireB:   TransferSizes = this.supports.acquireB,
+    supportsArithmetic: TransferSizes = this.supports.arithmetic,
+    supportsLogical:    TransferSizes = this.supports.logical,
+    supportsGet:        TransferSizes = this.supports.get,
+    supportsPutFull:    TransferSizes = this.supports.putFull,
+    supportsPutPartial: TransferSizes = this.supports.putPartial,
+    supportsHint:       TransferSizes = this.supports.hint,
+    userBits:           Seq[UserBits] = this.userBits,
+    mayDenyGet:         Boolean = this.mayDenyGet,
+    mayDenyPut:         Boolean = this.mayDenyPut,
+    alwaysGrantsT:      Boolean = this.alwaysGrantsT,
+    fifoId:             Option[Int] = this.fifoId,
+    device: Option[Device] = this.device) =
     v1copy(
       address,
       resources,
@@ -242,12 +232,12 @@ object TLManagerParameters {
     device: Option[Device] = None) = 
   {
     new TLManagerParameters(
-      addressP = address,
-      resourcesP = resources,
-      regionTypeP = regionType,
-      executableP = executable,
-      nodePathP = nodePath,
-      supportedSizesP = TLSupportedSizes(
+      address,
+      resources,
+      regionType,
+      executable,
+      nodePath,
+      supports = TLSupportedSizes(
         supportsAcquireT,
         supportsAcquireB,
         supportsArithmetic,
@@ -257,14 +247,16 @@ object TLManagerParameters {
         supportsPutPartial,
         supportsHint
       ),
-      emissionSizesP = TLSupportedSizes(),
-      userBitsP = userBits,
-      mayDenyGetP = mayDenyGet,
-      mayDenyPutP = mayDenyPut,
-      alwaysGrantsTP = alwaysGrantsT,
-      fifoIdP = fifoId,
-      deviceP = device)
+      emits = TLSupportedSizes(),
+      userBits,
+      mayDenyGet,
+      mayDenyPut,
+      alwaysGrantsT,
+      fifoId,
+      device)
   }
+
+  @deprecated("Use .v1 instead of apply","")
   def apply(
     address:            Seq[AddressSet],
     resources:          Seq[Resource] = Seq(),
@@ -443,29 +435,23 @@ case class TLManagerPortParameters(
 }
 
 class TLClientParameters private(
-  nameP:                String,
-  sourceIdP:            IdRange         = IdRange(0,1),
-  nodePathP:            Seq[BaseNode]   = Seq(),
-  requestFifoP:         Boolean         = false, // only a request, not a requirement. applies to A, not C.
-  visibilityP:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
+  val name:                String,
+  val sourceId:            IdRange         = IdRange(0,1),
+  val nodePath:            Seq[BaseNode]   = Seq(),
+  val requestFifo:         Boolean         = false, // only a request, not a requirement. applies to A, not C.
+  val visibility:          Seq[AddressSet] = Seq(AddressSet(0, ~0)), // everything
   // Supports both Probe+Grant of these sizes
-  supportedSizesP:      TLSupportedSizes = TLSupportedSizes(),
-  emissionSizesP:       TLSupportedSizes = TLSupportedSizes(),
-  userBitsP:            Seq[UserBits]   = Nil)
+  val supports:      TLSupportedSizes = TLSupportedSizes(),
+  val emits:       TLSupportedSizes = TLSupportedSizes(),
+  val userBits:            Seq[UserBits]   = Nil)
 {
-  def name:                String          = this.nameP
-  def sourceId:            IdRange         = this.sourceIdP
-  def nodePath:            Seq[BaseNode]   = this.nodePathP
-  def requestFifo:         Boolean         = this.requestFifoP
-  def visibility:          Seq[AddressSet] = this.visibilityP
-  def supportsProbe:       TransferSizes   = this.supportedSizesP.probe
-  def supportsArithmetic:  TransferSizes   = this.supportedSizesP.arithmetic
-  def supportsLogical:     TransferSizes   = this.supportedSizesP.logical
-  def supportsGet:         TransferSizes   = this.supportedSizesP.get
-  def supportsPutFull:     TransferSizes   = this.supportedSizesP.putFull
-  def supportsPutPartial:  TransferSizes   = this.supportedSizesP.putPartial
-  def supportsHint:        TransferSizes   = this.supportedSizesP.hint
-  def userBits:            Seq[UserBits]   = this.userBitsP
+  def supportsProbe:       TransferSizes   = this.supports.probe
+  def supportsArithmetic:  TransferSizes   = this.supports.arithmetic
+  def supportsLogical:     TransferSizes   = this.supports.logical
+  def supportsGet:         TransferSizes   = this.supports.get
+  def supportsPutFull:     TransferSizes   = this.supports.putFull
+  def supportsPutPartial:  TransferSizes   = this.supports.putPartial
+  def supportsHint:        TransferSizes   = this.supports.hint
 
   require (!sourceId.isEmpty)
   require (!visibility.isEmpty)
@@ -500,26 +486,26 @@ class TLClientParameters private(
   }
 
   def v1copy(
-    name:                String          = this.nameP,
-    sourceId:            IdRange         = this.sourceIdP,
-    nodePath:            Seq[BaseNode]   = this.nodePathP,
-    requestFifo:         Boolean         = this.requestFifoP,
-    visibility:          Seq[AddressSet] = this.visibilityP,
-    supportsProbe:       TransferSizes   = this.supportedSizesP.probe,
-    supportsArithmetic:  TransferSizes   = this.supportedSizesP.arithmetic,
-    supportsLogical:     TransferSizes   = this.supportedSizesP.logical,
-    supportsGet:         TransferSizes   = this.supportedSizesP.get,
-    supportsPutFull:     TransferSizes   = this.supportedSizesP.putFull,
-    supportsPutPartial:  TransferSizes   = this.supportedSizesP.putPartial,
-    supportsHint:        TransferSizes   = this.supportedSizesP.hint,
-    userBits:            Seq[UserBits]   = this.userBitsP) =
+    name:                String          = this.name,
+    sourceId:            IdRange         = this.sourceId,
+    nodePath:            Seq[BaseNode]   = this.nodePath,
+    requestFifo:         Boolean         = this.requestFifo,
+    visibility:          Seq[AddressSet] = this.visibility,
+    supportsProbe:       TransferSizes   = this.supports.probe,
+    supportsArithmetic:  TransferSizes   = this.supports.arithmetic,
+    supportsLogical:     TransferSizes   = this.supports.logical,
+    supportsGet:         TransferSizes   = this.supports.get,
+    supportsPutFull:     TransferSizes   = this.supports.putFull,
+    supportsPutPartial:  TransferSizes   = this.supports.putPartial,
+    supportsHint:        TransferSizes   = this.supports.hint,
+    userBits:            Seq[UserBits]   = this.userBits) =
   {
     new TLClientParameters(
-      nameP = name,
-      sourceIdP = sourceId,
-      nodePathP = nodePath,
-      requestFifoP = requestFifo,
-      supportedSizesP = TLSupportedSizes(
+      name,
+      sourceId,
+      nodePath,
+      requestFifo,
+      supports = TLSupportedSizes(
         acquireT = TransferSizes.none,
         acquireB = TransferSizes.none,
         supportsArithmetic,
@@ -530,24 +516,25 @@ class TLClientParameters private(
         supportsHint,
         supportsProbe
       ),
-      emissionSizesP = TLSupportedSizes(),
-      userBitsP = userBits)
+      emits = TLSupportedSizes(),
+      userBits = userBits)
   }
 
+  @deprecated("Use v1copy instead of copy","")
   def copy(
-    name:                String          = this.nameP,
-    sourceId:            IdRange         = this.sourceIdP,
-    nodePath:            Seq[BaseNode]   = this.nodePathP,
-    requestFifo:         Boolean         = this.requestFifoP,
-    visibility:          Seq[AddressSet] = this.visibilityP,
-    supportsProbe:       TransferSizes   = this.supportedSizesP.probe,
-    supportsArithmetic:  TransferSizes   = this.supportedSizesP.arithmetic,
-    supportsLogical:     TransferSizes   = this.supportedSizesP.logical,
-    supportsGet:         TransferSizes   = this.supportedSizesP.get,
-    supportsPutFull:     TransferSizes   = this.supportedSizesP.putFull,
-    supportsPutPartial:  TransferSizes   = this.supportedSizesP.putPartial,
-    supportsHint:        TransferSizes   = this.supportedSizesP.hint,
-    userBits:            Seq[UserBits]   = this.userBitsP) =
+    name:                String          = this.name,
+    sourceId:            IdRange         = this.sourceId,
+    nodePath:            Seq[BaseNode]   = this.nodePath,
+    requestFifo:         Boolean         = this.requestFifo,
+    visibility:          Seq[AddressSet] = this.visibility,
+    supportsProbe:       TransferSizes   = this.supports.probe,
+    supportsArithmetic:  TransferSizes   = this.supports.arithmetic,
+    supportsLogical:     TransferSizes   = this.supports.logical,
+    supportsGet:         TransferSizes   = this.supports.get,
+    supportsPutFull:     TransferSizes   = this.supports.putFull,
+    supportsPutPartial:  TransferSizes   = this.supports.putPartial,
+    supportsHint:        TransferSizes   = this.supports.hint,
+    userBits:            Seq[UserBits]   = this.userBits) =
   {
     v1copy(
       name,
@@ -583,12 +570,12 @@ object TLClientParameters {
     userBits:            Seq[UserBits]   = Nil) =
     {
       new TLClientParameters(
-        nameP = name,
-        sourceIdP = sourceId,
-        nodePathP = nodePath,
-        requestFifoP = requestFifo,
-        visibilityP = visibility,
-        supportedSizesP = TLSupportedSizes(
+        name,
+        sourceId,
+        nodePath,
+        requestFifo,
+        visibility,
+        supports = TLSupportedSizes(
           acquireT = TransferSizes.none,
           acquireB = TransferSizes.none,
           supportsArithmetic,
@@ -598,10 +585,11 @@ object TLClientParameters {
           supportsPutPartial,
           supportsHint,
           supportsProbe),
-        emissionSizesP = TLSupportedSizes(),
-        userBitsP = userBits)
+        emits = TLSupportedSizes(),
+        userBits)
     }
   
+  @deprecated("Use .v1 instead of apply","")
   def apply(
     name:                String,
     sourceId:            IdRange         = IdRange(0,1),
