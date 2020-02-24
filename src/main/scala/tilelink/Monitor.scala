@@ -41,6 +41,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   val cover_prop_class = PropertyClass.Default
   val desc_text = "TLMonitor Assertion"
 
+  //Like assert but can flip to being an assumption for formal verification
   def monAssert(cond: Bool, message: String): Unit =
   if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
