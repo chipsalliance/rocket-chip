@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util.{UIntToOH, OHToUInt, log2Up, MuxLookup, Decoupled, ValidIO, Cat}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -11,24 +12,24 @@ class IDMapGenerator(numIds: Int) extends Module {
   require (numIds > 0)
 
   val w = log2Up(numIds)
-  val io = new Bundle {
-    val free = Decoupled(UInt(width = w)).flip
-    val alloc = Decoupled(UInt(width = w))
-  }
+  val io = IO(new Bundle {
+    val free = Flipped(Decoupled(UInt(w.W)))
+    val alloc = Decoupled(UInt(w.W))
+  })
 
-  io.free.ready := Bool(true)
+  io.free.ready := true.B
 
   // True indicates that the id is available
-  val bitmap = RegInit(UInt((BigInt(1) << numIds) -  1, width = numIds))
+  val bitmap = RegInit(((BigInt(1) << numIds) -  1).U(numIds.W))
 
   val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
   io.alloc.valid := bitmap.orR()
 
-  val clr = Wire(init = UInt(0, width = numIds))
+  val clr = WireInit(0.U(numIds.W))
   when (io.alloc.fire()) { clr := UIntToOH(io.alloc.bits) }
 
-  val set = Wire(init = UInt(0, width = numIds))
+  val set = WireInit(0.U(numIds.W))
   when (io.free.fire()) { set := UIntToOH(io.free.bits) }
 
   bitmap := (bitmap & ~clr) | set
@@ -37,34 +38,31 @@ class IDMapGenerator(numIds: Int) extends Module {
 
 object LFSR64
 { 
-  def apply(increment: Bool = Bool(true)): UInt =
+  def apply(increment: Bool = true.B): UInt =
   { 
     val wide = 64
-    val lfsr = Reg(UInt(width = wide)) // random initial value based on simulation seed
+    val lfsr = Reg(UInt(wide.W)) // random initial value based on simulation seed
     val xor = lfsr(0) ^ lfsr(1) ^ lfsr(3) ^ lfsr(4)
     when (increment) {
-      lfsr := Mux(lfsr === UInt(0), UInt(1), Cat(xor, lfsr(wide-1,1)))
+      lfsr := Mux(lfsr === 0.U, 1.U, Cat(xor, lfsr(wide-1,1)))
     }
     lfsr
   }
 }
 
-trait HasNoiseMakerIO
-{
-  val io = new Bundle {
-    val inc = Bool(INPUT)
-    val random = UInt(OUTPUT)
-  }
-}
+class LFSRNoiseMaker(wide: Int) extends Module {
 
-class LFSRNoiseMaker(wide: Int) extends Module with HasNoiseMakerIO
-{
+  val io = IO(new Bundle {
+    val inc = Input(Bool())
+    val random = Output(UInt())
+  })
+
   val lfsrs = Seq.fill((wide+63)/64) { LFSR64(io.inc) }
   io.random := Cat(lfsrs)(wide-1,0)
 }
 
 object LFSRNoiseMaker {
-  def apply(wide: Int, increment: Bool = Bool(true)): UInt = {
+  def apply(wide: Int, increment: Bool = true.B): UInt = {
     val nm = Module(new LFSRNoiseMaker(wide))
     nm.io.inc := increment
     nm.io.random
@@ -110,7 +108,7 @@ class TLFuzzer(
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val finished = Bool(OUTPUT)
+      val finished = Output(Bool())
     })
 
     val (out, edge) = node.out(0)
@@ -124,12 +122,12 @@ class TLFuzzer(
     val dataBits     = edge.bundle.dataBits
 
     // Progress through operations
-    val num_reqs = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
-    val num_resps = Reg(init = UInt(nOperations, log2Up(nOperations+1)))
+    val num_reqs = RegInit(nOperations.U(log2Up(nOperations+1).W))
+    val num_resps = RegInit(nOperations.U(log2Up(nOperations+1).W))
     if (nOperations>0) {
-      io.finished := num_resps === UInt(0)
+      io.finished := num_resps === 0.U
     } else {
-      io.finished := Bool(false)
+      io.finished := false.B
     }
 
     // Progress within each operation
@@ -146,9 +144,9 @@ class TLFuzzer(
     val inc = Wire(Bool())
     val inc_beat = Wire(Bool())
     val arth_op_3 = noiseMaker(3, inc, 0)
-    val arth_op   = Mux(arth_op_3 > UInt(4), UInt(4), arth_op_3)
+    val arth_op   = Mux(arth_op_3 > 4.U, 4.U, arth_op_3)
     val log_op    = noiseMaker(2, inc, 0)
-    val amo_size  = UInt(2) + noiseMaker(1, inc, 0) // word or dword
+    val amo_size  = 2.U + noiseMaker(1, inc, 0) // word or dword
     val size      = noiseMaker(sizeBits, inc, 0)
     val rawAddr   = noiseMaker(addressBits, inc, 2)
     val addr      = overrideAddress.map(_.legalize(rawAddr)).getOrElse(rawAddr) & ~UIntToOH1(size, addressBits)
@@ -170,7 +168,7 @@ class TLFuzzer(
                              edge.Logical(src, addr, size, data, log_op)
                             } else { (glegal, gbits) }
     val (hlegal,  hbits)  = if(edge.manager.anySupportHint) {
-                              edge.Hint(src, addr, size, UInt(0))
+                              edge.Hint(src, addr, size, 0.U)
                             } else { (glegal, gbits) }
 
     val legal_dest = edge.manager.containsSafe(addr)
@@ -179,33 +177,33 @@ class TLFuzzer(
     val a_type_sel  = noiseMaker(3, inc, 0)
 
     val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
-      UInt("b000") -> glegal,
-      UInt("b001") -> (pflegal && !Bool(noModify)),
-      UInt("b010") -> (pplegal && !Bool(noModify)),
-      UInt("b011") -> (alegal && !Bool(noModify)),
-      UInt("b100") -> (llegal && !Bool(noModify)),
-      UInt("b101") -> hlegal))
+      "b000".U -> glegal,
+      "b001".U -> (pflegal && !noModify.B),
+      "b010".U -> (pplegal && !noModify.B),
+      "b011".U -> (alegal &&  !noModify.B),
+      "b100".U -> (llegal &&  !noModify.B),
+      "b101".U -> hlegal))
 
     val bits = MuxLookup(a_type_sel, gbits, Seq(
-      UInt("b000") -> gbits,
-      UInt("b001") -> pfbits,
-      UInt("b010") -> ppbits,
-      UInt("b011") -> abits,
-      UInt("b100") -> lbits,
-      UInt("b101") -> hbits))
+      "b000".U -> gbits,
+      "b001".U -> pfbits,
+      "b010".U -> ppbits,
+      "b011".U -> abits,
+      "b100".U -> lbits,
+      "b101".U -> hbits))
 
     // Wire up Fuzzer flow control
-    val a_gen = if (nOperations>0) num_reqs =/= UInt(0) else Bool(true)
-    out.a.valid := !reset && a_gen && legal && (!a_first || idMap.io.alloc.valid)
+    val a_gen = if (nOperations>0) num_reqs =/= 0.U else true.B
+    out.a.valid := !reset.asBool && a_gen && legal && (!a_first || idMap.io.alloc.valid)
     idMap.io.alloc.ready := a_gen && legal && a_first && out.a.ready
     idMap.io.free.valid := d_first && out.d.fire()
     idMap.io.free.bits := out.d.bits.source
 
     out.a.bits  := bits
-    out.b.ready := Bool(true)
-    out.c.valid := Bool(false)
-    out.d.ready := Bool(true)
-    out.e.valid := Bool(false)
+    out.b.ready := true.B
+    out.c.valid := false.B
+    out.d.ready := true.B
+    out.e.valid := false.B
 
     // Increment the various progress-tracking states
     inc := !legal || req_done
@@ -213,11 +211,11 @@ class TLFuzzer(
 
     if (nOperations>0) {
       when (out.a.fire() && a_last) {
-        num_reqs := num_reqs - UInt(1)
+        num_reqs := num_reqs - 1.U
       }
 
       when (out.d.fire() && d_last) {
-        num_resps := num_resps - UInt(1)
+        num_resps := num_resps - 1.U
       }
     }
   }
