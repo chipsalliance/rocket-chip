@@ -39,32 +39,20 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   require (args.edge.params(TLMonitorStrictMode) || (! args.edge.params(TestplanTestType).formal))
 
   val cover_prop_class = PropertyClass.Default
-  val desc_text = "Placeholder"
+  val desc_text = "TLMonitor Assertion"
 
-  def monAssert(cond: Bool, message: String): Unit = if (monitorDir == MonitorDirection.Monitor)
-  {
+  def monAssert(cond: Bool, message: String): Unit =
+  if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
-  }
-  else
-  {
-    Property(monitorDir,
-        cond,
-        message,
-        PropertyClass.Default,
-        desc_text)
+  } else {
+    Property(monitorDir, cond, message, PropertyClass.Default, desc_text)
   }
 
-  def assume(cond: Bool, message: String): Unit = if (monitorDir == MonitorDirection.Monitor)
-  {
+  def assume(cond: Bool, message: String): Unit =
+  if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
-  }
-  else
-  {
-    Property(monitorDir.flip,
-        cond,
-        message,
-        PropertyClass.Default,
-        desc_text)
+  } else {
+    Property(monitorDir.flip, cond, message, PropertyClass.Default, desc_text)
   }
 
   def extra = {
