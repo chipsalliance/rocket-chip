@@ -73,7 +73,91 @@ import scala.util.matching._
   *   E: Edge contains necessary of nearby nodes connection information.
   *   B: Bundle is [[chisel3.Data]], which you can attach chisel data type to it.
   *
-  * */
+  * Concepts, metaphors, and mnemonics to help with understanding Diplomacy code.
+  *
+  *
+  * # Abstract types
+  *
+  * Diplomacy is a set of abstractions for describing directed, acyclic graphs
+  * where parameters may be negotiated between nodes. These abstractions are
+  * expressed in the form of abstract classes, traits, and type parameters, which
+  * comprise nearly all of the types defined in this file.
+  *
+  * The NodeImp ("node implementation") is the main abstract type that determines
+  * the type parameters of all other abstract types. Defining a concrete
+  * implementation of NodeImp will therefore determine concrete types for all
+  * type parameters. For example, passing in a concrete instance of NodeImp to a
+  * SourceNode will fully determine concrete types for all of a SourceNode's type
+  * parameters.
+  *
+  * Specific applications of Diplomacy are expected to either extend these types
+  * or to specify concrete types for the type parameters. This allows for
+  * creating application-specific node, edge, parameter, and bundle types.
+  *
+  * Is an "edge" and a binding the same thing?
+  *
+  *
+  * # Inward/Outward vs. Upward/Downward
+  *
+  * Diplomacy defines two dimensions: inward/outward and upward/downward.
+  *
+  * Inward/outward refer to the direction of the directed graph itself. For a
+  * given node:
+  * - Inward refers to edges that point into a node.
+  * - Outward refers to edges that point out of a node.
+  *
+  * A useful mnemonic for distinguishing between inward and outward is to always
+  * view it from the perspective of a particular node. Because Diplomacy
+  * describes directed, acyclic graphs, this direction will always be consistent
+  * across the entire graph.
+  *
+  * Upward/downward refer to the direction of the parameter negotiation, where
+  * the direction is relative to the inward/outward direction. For a given edge:
+  * - Upward refers to a flow of parameters in the outward direction.
+  * - Downward refers to a flow of parameters in the inward direction.
+  *
+  * A useful mnemonic for distinguishing between inward and outward is to imagine
+  * the diplomatic graph as a literal network of rivers where upward refers to
+  * parameters that move in the upstream direction while downward refers to
+  * parameters that move in the downstream direction.
+  *
+  *
+  * # Handles
+  *
+  * Two Diplomatic nodes can be bound together using the := operator or one of
+  * its sibling operators. Binding is asymmetric, and the binding operation will
+  * connect the outer side of one node to the inner side of the other.
+  *
+  * For example, the expression a := b will connect the outer side of b to the
+  * inner side of a.
+  *
+  * We would like the := operator to have additional properties which make it
+  * intuitive to use:
+  *
+  * 1. It should be chainable, so that a := b := c will have the intuitive effect
+  *    of binding c to b and b to a. This requires that return type of := be the
+  *    same as its arguments, because the result of one := operation must be
+  *    valid as an argument to other := operation.
+  *
+  * 2. It should be associative, so that (a := b) := c is equivalent to a := (b
+  *    := c). This means that the order in which the bind operations execute does
+  *    not matter, even if split across multiple files.
+  *
+  * 3. a := b should only be allowed if and only if b allows outward edges and a
+  *    allows inward edges. This should be preserved even when chaining
+  *    operations, and it should ideally be enforced at compile-time.
+  *
+  * Handles are a way of satisfying all of these properties. A Handle represents
+  * the aggregation of a chain of Nodes, and it preserves information about
+  * whether connectability of the innermost and the outermost sides of the chain.
+  *
+  * If b supports inward edges, then a := b returns a Handle that supports inward
+  * edges that go into b. If a supports outward edges, then a := b returns a
+  * Handle that supports outward edges coming out of a.
+  */
+
+
+
 
 /** enable [[InwardNodeImp.monitor]],
   * which is used by [[freechips.rocketchip.tilelink.TLMonitorBase]] to generate Monitor Module.
@@ -82,7 +166,6 @@ case object MonitorsEnabled extends Field[Boolean](true)
 
 /** flip edge illustrated in the GraphML. */
 case object RenderFlipped extends Field[Boolean](false)
-
 /** [[RenderedEdge]] can set the color and label of the generated DAG graph. */
 case class RenderedEdge(
   colour:  String,
@@ -183,7 +266,11 @@ trait OutwardNodeImp[DO, UO, EO, BO <: Data]
   * @tparam EO Edge Parameters describing a connection on the outer side of the node
   * @tparam EI Edge Parameters describing a connection on the inner side of the node
   * @tparam B Bundle type used when connecting the node
-  * */
+  *
+  * This class has no members and is solely used for holding type information.
+  * Applications of Diplomacy should extend NodeImp with a case object that sets
+  * concrete type arguments.
+  */
 abstract class NodeImp[D, U, EO, EI, B <: Data]
   extends Object with InwardNodeImp[D, U, EI, B] with OutwardNodeImp[D, U, EO, B]
 
@@ -197,7 +284,10 @@ abstract class NodeImp[D, U, EO, EI, B <: Data]
   * @tparam U Upwards flowing Parameters of the node
   * @tparam E Edge Parameters describing a connection on the both side of the node
   * @tparam B Bundle type used when connecting the node
-  **/
+  * A NodeImp where the inward and outward edges are of the same type.
+  *
+  * If your edges have the same direction, using this saves you some typing.
+  */
 abstract class SimpleNodeImp[D, U, E, B <: Data]
   extends NodeImp[D, U, E, E, B]
 {
@@ -313,9 +403,37 @@ trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
   }
 }
 
+/**
+ * A Handle with no explicitly defined binding functionality.
+ *
+ * A NoHandle is at the top of the Handle type hierarchy, but it does not define
+ * any binding operators, so by itself a NoHandle cannot be used on either side
+ * of a bind operator.
+ *
+ * The other Handle types extend this type and bestow actual binding semantics.
+ * They can always be used in whenever a NoHandle is expected because a NoHandle
+ * doesn't provide any guaranteed behavior.
+ *
+ * Handle algebra:
+ *
+ * x---x = NoHandle
+ * x---< = InwardNodeHandle
+ * <---x = OutwardNodeHandle
+ * <---< = (Full) NodeHandle
+ *
+ * < = can be bound to (arrow points in the direction of binding)
+ * x = cannot be bound to
+ *
+ * left side is outer, right side is inner
+ *
+ * Two Handles can be bound if their adjacent ends are both <.
+ */
 trait NoHandle
 case object NoHandleObject extends NoHandle
 
+/**
+ * A Handle that can be on both sides of a bind operator.
+ */
 trait NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   extends InwardNodeHandle[DI, UI, EI, BI] with OutwardNodeHandle[DO, UO, EO, BO]
 {
@@ -323,6 +441,8 @@ trait NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
     * @param h master node also with slave handle
     * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
     * */
+  // connecting two full nodes handles => full node handle
+  // <---< := <---<  == <---<
   override def :=  [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_ONCE);  NodeHandle(h, this) }
   /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
     * @param h master node also with slave handle
@@ -343,6 +463,8 @@ trait NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
     * @param h master node also without slave handle
     * @return a [[OutwardNodeHandle]] with this node as outwardNode
     * */
+  // connecting a full node with an output => an output
+  // <---< := <---x  ==  <---x
   override def :=  [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_ONCE);  this }
   /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
     * @param h master node also without slave handle
@@ -371,7 +493,11 @@ object NodeHandle
   def apply[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](i: InwardNodeHandle[DI, UI, EI, BI], o: OutwardNodeHandle[DO, UO, EO, BO]) = new NodeHandlePair(i, o)
 }
 
-/** [[NodeHandle]] with inward and outward handle*/
+/** [[NodeHandle]] with inward and outward handle
+  *
+  * A data structure that preserves information about the innermost and outermost
+  * Nodes in a NodeHandle.
+  */
 class NodeHandlePair[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   (inwardHandle: InwardNodeHandle[DI, UI, EI, BI], outwardHandle: OutwardNodeHandle[DO, UO, EO, BO])
   extends NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO]
@@ -385,7 +511,10 @@ class NodeHandlePair[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   def outer = outwardHandle.outer
 }
 
-/** [[NodeHandle]] with inward handle*/
+/** [[NodeHandle]] with inward handle
+  * A Handle for an InwardNode, which may appear on the left side of a bind
+  * operator.
+  */
 trait InwardNodeHandle[DI, UI, EI, BI <: Data] extends NoHandle
 {
   /** @return [[InwardNode]] of inwardHandle. */
@@ -400,6 +529,8 @@ trait InwardNodeHandle[DI, UI, EI, BI <: Data] extends NoHandle
     * @param h master node also with slave handle
     * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
     * */
+  // connecting an input node with a full nodes => an input node
+  // x---< := <---<  == x---<
   def :=  [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_ONCE);  h }
   /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
     * @param h master node also with slave handle
@@ -420,6 +551,8 @@ trait InwardNodeHandle[DI, UI, EI, BI <: Data] extends NoHandle
     * @param h master node also without slave handle.
     * @return [[NoHandle]] since both side cannot bind other node.
     * */
+  // connecting input node with output node => no node
+  // x---< := <---x  == x---x
   def :=  [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_ONCE);  NoHandleObject }
   /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
     * @param h master node also without slave handle.
@@ -454,6 +587,10 @@ case object BIND_STAR  extends NodeBinding
   * */
 case object BIND_FLEX  extends NodeBinding
 
+/**
+ * A Node that defines inward behavior, meaning that it can have edges coming
+ * into it.
+ */
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 {
   /** when binding this node to another nodes,
@@ -493,12 +630,20 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
   protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit
 }
 
+/**
+ * A Handle for OutwardNodes, which may appear on the right side of a bind
+ * operator.
+ */
 trait OutwardNodeHandle[DO, UO, EO, BO <: Data] extends NoHandle
 {
   def outward: OutwardNode[DO, UO, BO]
   def outer: OutwardNodeImp[DO, UO, EO, BO]
 }
 
+/**
+ * A Node that defines outward behavior, meaning that it can have edges coming
+ * out of it.
+ */
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 {
   /** when connecting this node to other nodes,
@@ -523,7 +668,19 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 
   /** It's the final result of [[accPO]].
     * after calling this, [[oPush]] will reject to add more nodes.
-    * */
+    *
+    * The frozen list of outward bindings on this Node.
+    *
+    * Evaluating this lazy val will mark the outward bindings as frozen,
+    * preventing subsequent bindings from being created.
+    *
+    * The bindings are each a tuple of:
+    * - numeric index of this binding
+    * - InwardNode on the other end of this binding
+    * - NodeBinding describing the type of binding
+    * - a Parameters instance
+    * - SourceInfo for source-level error reporting
+    */
   protected[diplomacy] lazy val oBindings = { oRealized = true; accPO.result() }
 
   /** resolved STAR binding of outward nodes. */
@@ -566,6 +723,9 @@ case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
   *            It is usually a brunch of transfers specified for a master according to protocol
   * @tparam BO Bundle type used when connecting to the outer side of the node
   *            It is a hardware interface of this master interface
+  *
+  *
+  * A Node that may be a mix of different NodeImps between inward and outward directions.
   */
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
@@ -583,7 +743,13 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     * @param iStar number of master nodes need to query
     * @param oStar number of slave nodes need to query
     * @return
-    * */
+    *
+    * Given counts of known inward and outward binding and inward and outward
+    * star bindings, return the resolved inward stars and outward stars.
+    *
+    * This method will also validate the arguments and throw a runtime error if
+    * the values are unsuitable for this type of node.
+    */
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
   /** function to generate [[doParams]] from [[oPorts]] and [[diParams]]
     * @todo since only one usage of this, maybe can refactor?
@@ -830,6 +996,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
 /** If designer wanna do the funky jobs, just extend the Node.
   * It's the external wrapper of the [[CustomNode]]
+  *
+  * A MixedNode that may be extended with custom behavior.
   */
 abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
@@ -843,7 +1011,12 @@ abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 }
 
-/** [[MixedCustomNode]] has a same [[NodeImp]] of inward and outward. */
+/** [[MixedCustomNode]] has a same [[NodeImp]] of inward and outward.
+ *
+ * A Node that may be extended with custom behavior.
+ *
+ * Different from a MixedNode in that the inner and outer NodeImps are the same.
+ */
 abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
   extends MixedCustomNode(imp, imp)
@@ -922,6 +1095,14 @@ class JunctionNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
     extends MixedJunctionNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
 
+/** [[MixedAdapterNode]] is used to Transform between different Node Protocol, and also the Async part of the Specific Node Implementation.
+  * For example, an [[MixedAdapterNode]] is needed for a TL to AXI bridge (interface).
+  * {{{
+  *   case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)
+  * }}}
+  * @param dFn convert downward parameter from input to output
+  * @param uFn convert upward parameter from output to input
+  */
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -967,6 +1148,8 @@ class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
 /** The [[AdapterNode.inner]] and [[AdapterNode.outer]] of [[IdentityNode]] are same,
   * and directly pass the between input and output.
   * it automatically connect their inputs to outputs.
+  *
+  * IdentityNodes automatically connect their inputs to outputs
   */
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
