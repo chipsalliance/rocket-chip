@@ -72,15 +72,21 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
     rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(1), Some(BigInt(0))))
   }
 
+  private def haveDCache = tileParams.dcache.get.scratch.isEmpty
+
   override def chickenCSR = {
     val mask = BigInt(
       tileParams.dcache.get.clockGate.toInt << 0 |
       rocketParams.clockGate.toInt << 1 |
       rocketParams.clockGate.toInt << 2 |
-      1 << 3 // disableSpeculativeICacheRefill
+      1 << 3 | // disableSpeculativeICacheRefill
+      haveDCache.toInt << 9 | // suppressCorruptOnGrantData
+      tileParams.icache.get.prefetch.toInt << 17
     )
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
   }
+
+  def disableICachePrefetch = getOrElse(chickenCSR, _.value(17), true.B)
 
   def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
 
@@ -827,7 +833,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
   io.dmem.s2_kill := false
   // don't let D$ go to sleep if we're probably going to use it soon
-  io.dmem.keep_clock_enabled := ibuf.io.inst(0).valid && id_ctrl.mem
+  io.dmem.keep_clock_enabled := ibuf.io.inst(0).valid && id_ctrl.mem && !csr.io.csr_stall
 
   io.rocc.cmd.valid := wb_reg_valid && wb_ctrl.rocc && !replay_wb_common
   io.rocc.exception := wb_xcpt && csr.io.status.xs.orR

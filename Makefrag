@@ -16,8 +16,15 @@ CXX ?= g++
 CXXFLAGS := -O1
 JVM_MEMORY ?= 2G
 
+EMPTY :=
+SPACE := $(EMPTY) $(EMPTY)
+COMMA := ,
+
 SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
+
+FIRRTL_TRANSFORMS := \
+	firrtl.passes.InlineInstances \
 
 ROCKET_CLASSES ?= "$(base_dir)/target/scala-2.12/classes:$(base_dir)/chisel3/target/scala-2.12/*"
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
