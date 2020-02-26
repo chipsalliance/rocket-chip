@@ -39,21 +39,20 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   require (args.edge.params(TLMonitorStrictMode) || (! args.edge.params(TestplanTestType).formal))
 
   val cover_prop_class = PropertyClass.Default
-  val desc_text = "TLMonitor Assertion"
 
   //Like assert but can flip to being an assumption for formal verification
   def monAssert(cond: Bool, message: String): Unit =
   if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
   } else {
-    Property(monitorDir, cond, message, PropertyClass.Default, desc_text)
+    Property(monitorDir, cond, message, PropertyClass.Default)
   }
 
   def assume(cond: Bool, message: String): Unit =
   if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
   } else {
-    Property(monitorDir.flip, cond, message, PropertyClass.Default, desc_text)
+    Property(monitorDir.flip, cond, message, PropertyClass.Default)
   }
 
   def extra = {
@@ -565,7 +564,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
+  //This is left in for almond which doesn't adhere to the tilelink protocol
+  @deprecated("Use legalizeADSource instead if possible","")
+  def legalizeADSourceOld(bundle: TLBundle, edge: TLEdge) {
     val inflight = RegInit(0.U(edge.client.endSourceId.W))
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
@@ -599,7 +600,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
-  def legalizeADSourceStrict(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
     val a_size_bus_size = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
     val a_opcode_bus_size = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
@@ -722,9 +723,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     } else {
       if (args.edge.params(TestplanTestType).simulation) {
         if (args.edge.params(TLMonitorStrictMode)) {
-          legalizeADSourceStrict(bundle, edge)
-        } else {
           legalizeADSource(bundle, edge)
+        } else {
+          legalizeADSourceOld(bundle, edge)
         }
       }
       if (args.edge.params(TestplanTestType).formal) {
