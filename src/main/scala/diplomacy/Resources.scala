@@ -150,7 +150,7 @@ trait DeviceRegName
       devname
     } else {
       val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
-      val mainreg = reg.find(x => DiplomacyUtils.regName(x._1) == "control").getOrElse(reg.head)._2
+      val mainreg = reg.find(x => DiplomacyUtils.regName(x._1).contains("control")).getOrElse(reg.head)._2
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
         case x: ResourceAddress => s"${devname}@${x.address.head.base.toString(16)}"
