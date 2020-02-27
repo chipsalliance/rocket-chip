@@ -744,8 +744,8 @@ case class TLMasterPortParameters(
   val supportsHint       = safety_helper(_.supportsHint)       _
 
   // add some user bits to the same highest offset for every client
-  val userBitWidth = masters.map(_.userBitWidth).max
-  def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
+  //val userBitWidth = masters.map(_.userBitWidth).max
+  /*def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
     this.copy(masters = masters.map { c =>
       val extra = if (c.userBitWidth == userBitWidth) {
         Seq(userBits)
@@ -754,7 +754,7 @@ case class TLMasterPortParameters(
       }
       c.copy(userBits = c.userBits ++ extra)
     })
-  }
+  }*/
 
   def infoString = masters.map(_.infoString).mkString
 }
@@ -765,8 +765,8 @@ case class TLBundleParameters(
   sourceBits:  Int,
   sinkBits:    Int,
   sizeBits:    Int,
-  aUserBits:   Int,
-  dUserBits:   Int,
+//  aUserBits:   Int,
+//  dUserBits:   Int,
   hasBCE:      Boolean)
 {
   // Chisel has issues with 0-width wires
@@ -775,8 +775,8 @@ case class TLBundleParameters(
   require (sourceBits  >= 1)
   require (sinkBits    >= 1)
   require (sizeBits    >= 1)
-  require (aUserBits   >= 0)
-  require (dUserBits   >= 0)
+//  require (aUserBits   >= 0)
+//  require (dUserBits   >= 0)
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
@@ -788,8 +788,8 @@ case class TLBundleParameters(
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
       max(sizeBits,    x.sizeBits),
-      max(aUserBits,   x.aUserBits),
-      max(dUserBits,   x.dUserBits),
+//      max(aUserBits,   x.aUserBits),
+//      max(dUserBits,   x.dUserBits),
       hasBCE ||        x.hasBCE)
 }
 
@@ -801,8 +801,8 @@ object TLBundleParameters
     sourceBits  = 1,
     sinkBits    = 1,
     sizeBits    = 1,
-    aUserBits   = 0,
-    dUserBits   = 0,
+//   aUserBits   = 0,
+//    dUserBits   = 0,
     hasBCE      = false)
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
@@ -814,8 +814,8 @@ object TLBundleParameters
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),
       sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
-      aUserBits   = client .userBitWidth,
-      dUserBits   = manager.userBitWidth,
+//      aUserBits   = client .userBitWidth,
+//      dUserBits   = manager.userBitWidth,
       hasBCE      = client.anySupportProbe && manager.anySupportAcquireB)
 }
 
