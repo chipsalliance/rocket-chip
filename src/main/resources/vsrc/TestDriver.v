@@ -75,6 +75,7 @@ module TestDriver;
     begin
       $dumpfile(vcdfile);
       $dumpvars(0, testHarness);
+      $dumpoff;
     end
 
 `ifdef FSDB
