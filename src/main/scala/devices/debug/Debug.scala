@@ -233,11 +233,11 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
   *  DebugModule is responsible for control registers and RAM, and
   *  Debug ROM. It runs partially off of the dmiClk (e.g. TCK) and
   *  the TL clock. Therefore, it is divided into "Outer" portion (running
-  *  of off dmiClock and dmiReset) and "Inner" (running off tlClock and tlReset).
+  *  of off dmiClock and dmiReset) and "Inner" (running off tl_clock and tl_reset).
   *  This allows DMCONTROL.haltreq, hartsel, hasel, hawindowsel, hawindow, dmactive,
   *  and ndreset to be modified even while the Core is in reset or not being clocked.
   *  Not all reads from the Debugger to the Debug Module will actually complete
-  *  in these scenarios either, they will just block until tlClock and tlReset
+  *  in these scenarios either, they will just block until tl_clock and tl_reset
   *  allow them to complete. This is not strictly necessary for 
   *  proper debugger functionality.
   */
@@ -712,15 +712,15 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val hgDebugInt = Output(Vec(nComponents, Bool()))
       val extTrigger = (nExtTriggers > 0).option(new DebugExtTriggerIO())
       val hartIsInReset = Input(Vec(nComponents, Bool()))
-      val tlClock = Input(Clock())
-      val tlReset = Input(Reset())
+      val tl_clock = Input(Clock())
+      val tl_reset = Input(Reset())
       val auth = cfg.hasAuthentication.option(new DebugAuthenticationIO())
     })
 
     sb2tlOpt.map { sb =>
-      sb.module.clock := io.tlClock
-      sb.module.reset := io.tlReset
-      sb.module.rf_reset := io.tlReset
+      sb.module.clock := io.tl_clock
+      sb.module.reset := io.tl_reset
+      sb.module.rf_reset := io.tl_reset
     }
 
     //--------------------------------------------------------------
@@ -1680,15 +1680,17 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
   // raising dmactive (hence enabling the clock) during these transactions.
   require(dmInner.tlNode.concurrency == 0)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
 
     // Clock/reset domains:
-    //   clock / reset = Debug inner domain (External: debug_clock / debug_reset)
-    //   tlClock / tlReset = tilelink domain (External: clock / reset)
+    //   debug_clock / debug_reset = Debug inner domain
+    //   tl_clock / tl_reset = tilelink domain (External: clock / reset)
     //
     val io = IO(new Bundle {
-      val tlClock = Input(Clock())
-      val tlReset = Input(Reset())
+      val debug_clock = Input(Clock())
+      val debug_reset = Input(Reset())
+      val tl_clock = Input(Clock())
+      val tl_reset = Input(Reset())
       // These are all asynchronous and come from Outer
       val dmactive = Input(Bool())
       val innerCtrl = Flipped(new AsyncBundle(new DebugInternalBundle(getNComponents()), AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset)))
@@ -1701,23 +1703,30 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
     })
     val rf_reset = IO(Input(Reset()))
 
-    val dmactive_synced = AsyncResetSynchronizerShiftReg(in=io.dmactive, sync=3, name=Some("dmactiveSync"))
+    childClock := io.debug_clock
+    childReset := io.debug_reset
 
-    dmInner.module.io.tlClock := io.tlClock
-    dmInner.module.io.tlReset := io.tlReset
-    dmInner.module.io.dmactive := dmactive_synced
-    dmInner.module.io.innerCtrl <> FromAsyncBundle(io.innerCtrl)
-    dmInner.module.io.debugUnavail := io.debugUnavail
-    io.hgDebugInt := dmInner.module.io.hgDebugInt
-    io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
-    dmInner.module.io.hartIsInReset := io.hartIsInReset
-    io.auth.foreach { x => dmInner.module.io.auth.foreach {y => x <> y}}
+    val dmactive_synced = withClockAndReset(childClock, childReset) {
+      val dmactive_synced = AsyncResetSynchronizerShiftReg(in=io.dmactive, sync=3, name=Some("dmactiveSync"))
+      dmInner.module.clock := io.debug_clock
+      dmInner.module.reset := io.debug_reset
+      dmInner.module.io.tl_clock := io.tl_clock
+      dmInner.module.io.tl_reset := io.tl_reset
+      dmInner.module.io.dmactive := dmactive_synced
+      dmInner.module.io.innerCtrl <> FromAsyncBundle(io.innerCtrl)
+      dmInner.module.io.debugUnavail := io.debugUnavail
+      io.hgDebugInt := dmInner.module.io.hgDebugInt
+      io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+      dmInner.module.io.hartIsInReset := io.hartIsInReset
+      io.auth.foreach { x => dmInner.module.io.auth.foreach {y => x <> y}}
+      dmactive_synced
+    }
   }
 }
 
 /** Create a version of the TLDebugModule which includes a synchronization interface
   * internally for the DMI. This is no longer optional outside of this module
-  *  because the Clock must run when tlClock isn't running or tlReset is asserted.
+  *  because the Clock must run when tl_clock isn't running or tl_reset is asserted.
   */
 
 class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
@@ -1745,18 +1754,21 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   dmInner.dmiNode := dmOuter.dmiInnerNode
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
     val nComponents = dmOuter.dmOuter.intnode.edges.out.size
 
     // Clock/reset domains:
-    //  clock / reset = tilelink domain (also called tlClock / tlReset)
-    //  debug_clock / debug_reset = Inner debug (synchronous to clock)
+    //  tl_clock / tl_reset = tilelink domain
+    //  debug_clock / debug_reset = Inner debug (synchronous to tl_clock)
     //  apb_clock / apb_reset = Outer debug with APB
     //  dmiClock / dmiReset = Outer debug without APB
     //
     val io = IO(new Bundle {
       val debug_clock = Input(Clock())
       val debug_reset = Input(Reset())
+      val tl_clock = Input(Clock())
+      val tl_reset = Input(Reset())
+
       val ctrl = new DebugCtrlBundle(nComponents)
       val dmi = (!p(ExportDebug).apb).option(Flipped(new ClockedDMIIO()))
       val apb_clock = p(ExportDebug).apb.option(Input(Clock()))
@@ -1766,6 +1778,9 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
       val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
       val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
     })
+
+    childClock := io.tl_clock
+    childReset := io.tl_reset
 
     dmOuter.module.io.dmi.foreach { dmOuterDMI =>
       dmOuterDMI <> io.dmi.get.dmi
@@ -1780,11 +1795,11 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
       dmOuter.module.rf_reset := r
     }
 
-    dmInner.module.clock := io.debug_clock
-    dmInner.module.reset := io.debug_reset
     dmInner.module.rf_reset := io.debug_reset
-    dmInner.module.io.tlClock := clock
-    dmInner.module.io.tlReset := reset
+    dmInner.module.io.debug_clock := io.debug_clock
+    dmInner.module.io.debug_reset := io.debug_reset
+    dmInner.module.io.tl_clock := io.tl_clock
+    dmInner.module.io.tl_reset := io.tl_reset
     dmInner.module.io.innerCtrl    <> dmOuter.module.io.innerCtrl
     dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
     dmInner.module.io.debugUnavail := io.ctrl.debugUnavail
