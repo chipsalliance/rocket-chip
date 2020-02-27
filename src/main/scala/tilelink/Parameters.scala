@@ -19,27 +19,26 @@ case class TLMasterToSlaveTransferSizes(
   get:        TransferSizes = TransferSizes.none,
   putFull:    TransferSizes = TransferSizes.none,
   putPartial: TransferSizes = TransferSizes.none,
-  hint:       TransferSizes = TransferSizes.none
-) extends TLCommonTransferSizes {
+  hint:       TransferSizes = TransferSizes.none)
+  extends TLCommonTransferSizes {
   def intersect(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
     acquireT   = acquireT.intersect(rhs.acquireT),
     acquireB   = acquireB.intersect(rhs.acquireB),
-    arithmetic = aritmetic.intersect(rhs.arithmetic),
+    arithmetic = arithmetic.intersect(rhs.arithmetic),
     logical    = logical.intersect(rhs.logical),
     get        = get.intersect(rhs.get),
     putFull    = putFull.intersect(rhs.putFull),
     putPartial = putPartial.intersect(rhs.putPartial),
-    hint       = hint.intersect(rhs.hint),
-  )
+    hint       = hint.intersect(rhs.hint))
   def cover(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
     acquireT   = acquireT.cover(rhs.acquireT),
     acquireB   = acquireB.cover(rhs.acquireB),
-    arithmetic = aritmetic.cover(rhs.arithmetic),
+    arithmetic = arithmetic.cover(rhs.arithmetic),
     logical    = logical.cover(rhs.logical),
     get        = get.cover(rhs.get),
     putFull    = putFull.cover(rhs.putFull),
     putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint.cover(rhs.hint)
+    hint       = hint.cover(rhs.hint))
 }
 
 object TLMasterToSlaveTransferSizes {
@@ -56,7 +55,7 @@ object TLMasterToSlaveTransferSizes {
 }
 
 case class TLSlaveToMasterTransferSizes(
-  probe:      TransferSizes = TransferSizes.none
+  probe:      TransferSizes = TransferSizes.none,
   arithmetic: TransferSizes = TransferSizes.none,
   logical:    TransferSizes = TransferSizes.none,
   get:        TransferSizes = TransferSizes.none,
@@ -66,7 +65,7 @@ case class TLSlaveToMasterTransferSizes(
 ) extends TLCommonTransferSizes {
   def intersect(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
     probe      = probe.intersect(rhs.probe),
-    arithmetic = aritmetic.intersect(rhs.arithmetic),
+    arithmetic = arithmetic.intersect(rhs.arithmetic),
     logical    = logical.intersect(rhs.logical),
     get        = get.intersect(rhs.get),
     putFull    = putFull.intersect(rhs.putFull),
@@ -75,7 +74,7 @@ case class TLSlaveToMasterTransferSizes(
   )
   def cover(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
     probe      = probe.cover(rhs.probe),
-    arithmetic = aritmetic.cover(rhs.arithmetic),
+    arithmetic = arithmetic.cover(rhs.arithmetic),
     logical    = logical.cover(rhs.logical),
     get        = get.cover(rhs.get),
     putFull    = putFull.cover(rhs.putFull),
@@ -96,7 +95,6 @@ object TLSlaveToMasterTransferSizes {
   def unknownSupports = TLSlaveToMasterTransferSizes()
 }
 
-case class TLSlaveToMasterTransferSizes(
 trait TLCommonTransferSizes {
   def arithmetic: TransferSizes
   def logical:    TransferSizes
@@ -113,7 +111,7 @@ class TLSlaveParameters private(
   val address:            Seq[AddressSet], // visibility
   val regionType:         RegionType.T, // targetTypes
   val executable:         Boolean, // executesOnly
-  val fifoId:             Option[Int]) // requestFifo
+  val fifoId:             Option[Int], // requestFifo
   val supports:           TLMasterToSlaveTransferSizes,
   val emits:              TLSlaveToMasterTransferSizes,
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
@@ -121,7 +119,7 @@ class TLSlaveParameters private(
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
-  val mayDenyPut:         Boolean, // applies to: AccessAck,     Grant,    HintAck
+  val mayDenyPut:         Boolean) // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
 {
   def supportsAcquireT:   TransferSizes = supports.acquireT
@@ -150,7 +148,7 @@ class TLSlaveParameters private(
   require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
   require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
-  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+//  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = List( // Largest supported transfer of all types
     supportsAcquireT.max,
     supportsAcquireB.max,
@@ -222,7 +220,7 @@ class TLSlaveParameters private(
       regionType = regionType,
       executable = executable,
       nodePath = nodePath,
-      supports = TLMasterToSlaveSizes(
+      supports = TLMasterToSlaveTransferSizes(
         acquireT = supportsAcquireT,
         acquireB = supportsAcquireB,
         arithmetic = supportsArithmetic,
@@ -358,7 +356,6 @@ object TLManagerParameters {
       supportsPutFull,
       supportsPutPartial,
       supportsHint,
-      userBits,
       mayDenyGet,
       mayDenyPut,
       alwaysGrantsT,
@@ -502,7 +499,7 @@ class TLMasterParameters private(
   val requestFifo:       Boolean, // only a request, not a requirement. applies to A, not C.
   val supports:          TLSlaveToMasterTransferSizes,
   val emits:             TLMasterToSlaveTransferSizes,
-  val neverReleasesData: Boolean
+  val neverReleasesData: Boolean,
   val sourceId:          IdRange)
 {
   def supportsProbe:       TransferSizes   = supports.probe
@@ -557,8 +554,8 @@ class TLMasterParameters private(
   {
     new TLMasterParameters(
       nodePath          = nodePath,
-      resources         = this.resources
-      name              = name
+      resources         = this.resources,
+      name              = name,
       visibility        = visibility,
       unusedRegionTypes = this.unusedRegionTypes,
       executesOnly      = this.executesOnly,
@@ -747,9 +744,9 @@ case class TLMasterPortParameters(
   val supportsHint       = safety_helper(_.supportsHint)       _
 
   // add some user bits to the same highest offset for every client
-  val userBitWidth = clients.map(_.userBitWidth).max
+  val userBitWidth = masters.map(_.userBitWidth).max
   def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
-    this.copy(clients = clients.map { c =>
+    this.copy(masters = masters.map { c =>
       val extra = if (c.userBitWidth == userBitWidth) {
         Seq(userBits)
       } else {
@@ -759,7 +756,7 @@ case class TLMasterPortParameters(
     })
   }
 
-  def infoString = clients.map(_.infoString).mkString
+  def infoString = masters.map(_.infoString).mkString
 }
 
 case class TLBundleParameters(
@@ -933,6 +930,10 @@ case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, req
     if (isCache) " [CACHE]" else "",
     if (requestFifo) " [FIFO]" else "")
 }
+
+// TODO what is all this stuff?
+// TODO what is this??
+/*
     logical    = 
     get        = 
     putFull    = 
@@ -1854,4 +1855,4 @@ case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, req
     s""""$name"""",
     if (isCache) " [CACHE]" else "",
     if (requestFifo) " [FIFO]" else "")
-}
+}*/
