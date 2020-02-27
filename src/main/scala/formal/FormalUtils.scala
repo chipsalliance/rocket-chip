@@ -5,6 +5,7 @@ import Chisel._
 import chisel3.{VecInit}
 import chisel3.util.Cat
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import freechips.rocketchip.config.Field
 
 sealed abstract class MonitorDirection(name: String) {
   override def toString: String = name
@@ -21,6 +22,17 @@ object MonitorDirection {
 
   object Cover extends MonitorDirection("Cover") { override def flip: MonitorDirection = Cover }
 }
+
+case object TLMonitorStrictMode extends Field[Boolean](true)
+
+case class TestImplType(
+  simulation: Boolean = true,
+  formal: Boolean = false,
+  fpga: Boolean = false
+)
+
+// Determine if test should be generated for formal and/or simulation
+case object TestplanTestType extends Field[TestImplType](TestImplType())
 
 sealed abstract class PropertyClass(name: String) {
   override def toString: String = name
