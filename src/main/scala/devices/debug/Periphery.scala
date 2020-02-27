@@ -103,6 +103,8 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val psd = IO(new PSDIO)
 
   val resetctrl = outer.debugOpt.map { outerdebug =>
+    outerdebug.module.io.tl_reset := reset
+    outerdebug.module.io.tl_clock := clock
     val resetctrl = IO(new ResetCtrlIO(outerdebug.dmOuter.dmOuter.intnode.edges.out.size))
     outerdebug.module.io.hartIsInReset := resetctrl.hartIsInReset
     resetctrl.hartResetReq.foreach { rcio => outerdebug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
