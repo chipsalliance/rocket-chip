@@ -10,73 +10,247 @@ import freechips.rocketchip.util.HeterogeneousBag
 import scala.collection.mutable.ListBuffer
 import scala.util.matching._
 
+/** Nodes system is the abstraction of the bus interconnect,
+  * Since all blocks(CPUs, caches, peripheries) are connected to bus,
+  * It has a very complex data flow illustrated graph below:
+  *                                                  ┌────────────────────────────────────────────────────────────────────────────┐
+  *                                                  ↓                                                                            │
+  *                                       [[MixedNode.uoParams]]──────→[[MixedNode.mapParamsU]]───────────┐                       │
+  *      [[InwardNode.accPI]]                                                     ↑                       │                       │
+  *                  │                                                            │                       │                       │
+  *                  ↓                                                            │                       ↓                       │
+  *      [[InwardNode.iBindings]]──┐     [[MixedNode.iDirectPorts]]───→[[MixedNode.iPorts]]    [[MixedNode.uiParams]]             │
+  *                  │             │                ↑                             │                       │                       │
+  *                  │             │                │                             └────────┬──────────────┤                       │
+  *                  │             │                │                                      │              ↓                       │
+  *                  │             └────[[MixedNode.oPortMapping]]    [[MixedNode.oStar]]  │   [[MixedNode.edgesIn]]───┐          │
+  *                  │                              ↑                            ↑         │              │            ↓          │
+  *                  │                              │                            │         │              │ [[MixedNode.in]]      │
+  *                  │                              │                            │         │              ↓            ↑          │
+  *                  │                              │                            │         │   [[MixedNode.bundleIn]]──┘          │
+  *                  ├─→ [[MixedNode.resolveStar]]──┼────────────────────────────┤         └────────────────────────────────────┐ │
+  *                  │                              │                            │             [[MixedNode.bundleOut]]─┐        │ │
+  *                  │                              │                            │                        ↑            ↓        │ │
+  *                  │                              │                            │                        │ [[MixedNode.out]]   │ │
+  *                  │                              ↓                            ↓                        │            ↑        │ │
+  *                  │            ┌──────[[MixedNode.iPortMapping]]   [[MixedNode.iStar]]      [[MixedNode.edgesOut]]──┘        │ │
+  *                  │            │                 │                                                     ↑                     │ │
+  *                  │            │                 │                             ┌───────────────────────┤                     │ │
+  *                  │            │                 ↓                             │                       │                     │ │
+  *     [[OutwardNode.oBindings]]─┘      [[MixedNode.oDirectPorts]]───→[[MixedNode.oPorts]]    [[MixedNode.doParams]]           │ │
+  *                  ↑                                                            │                       │                     │ │
+  *                  │               ┌────────────────────────────────────────────┤                       │                     │ │
+  *     [[OutwardNode.accPO]]        │                                            ↓                       │                     │ │
+  *                                  │    [[MixedNode.diParams]]──────→[[MixedNode.mapParamsD]]───────────┘                     │ │
+  *                                  │               ↑                                                                          │ │
+  *                                  │               └──────────────────────────────────────────────────────────────────────────┘ │
+  *                                  └────────────────────────────────────────────────────────────────────────────────────────────┘
+  * It contains such phases:
+  *   1. Node binding(non-lazy)
+  *     `nodeB := nodeA` is a typical node binding in diplomacy.
+  *     It means `nodeA` as master [[OutwardNode]], `nodeB` as slave [[InwardNode]] will be connected together.
+  *     when executing `nodeB := nodeA`, `nodeB` will invoke [[InwardNode.bind]], which is implemented with [[MixedNode.bind]]:
+  *       `nodeA` will call `nodeA.oPush(index, node, binding)`, in [[OutwardNode.oPush]]:
+  *         `index` is current `nodeA` [[OutwardNode.accPO]] size, which represents the how many [[InwardNode]] has connected to `nodeA`
+  *         `node` is [[NodeHandle]] of `NodeB`,
+  *         `binding` is binding type, which is used for deciding port mapping behavior.
+  *       similarly, `nodeB`, will call [[InwardNode.iPush]] after `nodeA` finish its binding.
+  *   2. Port mapping(lazy)
+  *     Port mapping converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]]
+  *     it is implemented with [[MixedNode.resolveStar]], which solves the size of each connection.
+  *   3. Parameter negotiation(lazy)
+  *     After finishing port mapping,
+  *     [[MixedNode.doParams]] and [[MixedNode.uiParams]] are result of parameter negotiation,
+  *   4. Bundle building.(lazy)
+  *     After finishing parameter propagation,
+  *     [[MixedNode.edges]] can be generated by zipping ports and parameters together.
+  *
+  * Diplomacy has some implicit acronym described below:
+  *   Parameters System:
+  *   D[IO], U[IO], E[IO], B[IO] is parameters will be propagated.
+  *   D: Downwards (master -> slave)
+  *   U: Upwards (slave -> master)
+  *   E: Edge contains necessary of nearby nodes connection information.
+  *   B: Bundle is [[chisel3.Data]], which you can attach chisel data type to it.
+  *
+  * */
+
+/** enable [[InwardNodeImp.monitor]],
+  * which is used by [[freechips.rocketchip.tilelink.TLMonitorBase]] to generate Monitor Module.
+  * */
 case object MonitorsEnabled extends Field[Boolean](true)
+
+/** flip edge illustrated in the GraphML. */
 case object RenderFlipped extends Field[Boolean](false)
 
+/** [[RenderedEdge]] can set the color and label of the generated DAG graph. */
 case class RenderedEdge(
   colour:  String,
   label:   String  = "",
   flipped: Boolean = false) // prefer to draw the arrow pointing the opposite direction of other edges
 
-// DI = Downwards flowing Parameters received on the inner side of the node
-// UI = Upwards   flowing Parameters generated by the inner side of the node
-// EI = Edge Parameters describing a connection on the inner side of the node
-// BI = Bundle type used when connecting to the inner side of the node
+/** [[InwardNodeImp]] is the Slave Interface implementation
+  *
+  * @tparam DI Downwards Parameters received on the inner side of the node
+  *            It is usually a brunch of parameters describing the protocol parameters from a master. For an InwardNode, it is determined by the connected OutwardNode
+  *            Since it can be connected to multiple masters, this parameter is always a Seq of master port parameters.
+  * @tparam UI Upwards flowing Parameters generated by the inner side of the node
+  *            It is usually a brunch of parameters describing the protocol parameters of a slave. For an InwardNode, it is determined itself
+  * @tparam EI Edge Parameters describing a connection on the inner side of the node
+  *            It is usually a brunch of transfers specified for a slave according to protocol
+  * @tparam BI Bundle type used when connecting to the inner side of the node
+  *            It is a hardware interface of this slave interface
+  * */
 trait InwardNodeImp[DI, UI, EI, BI <: Data]
 {
+  /** @param pd client port parameters
+    * @param pu manager port parameters
+    * @param p Parameter of module
+    * @param sourceInfo [[SourceInfo]] of this edge.
+    * @return inward edge of this node.
+    * */
   def edgeI(pd: DI, pu: UI, p: Parameters, sourceInfo: SourceInfo): EI
+
+  /**
+    * @param ei inward Edge of this node.
+    * @return inward Bundle of this node
+    */
   def bundleI(ei: EI): BI
 
-  // Edge functions
+  /** function to generate monitor of this node input.
+    * @param bundle input bundle of this node
+    * @param edge edge of this node
+    * */
   def monitor(bundle: BI, edge: EI) {}
+  /** used to render this edge in graphML
+    * @param e inward edge of this node.
+    * @return [[RenderedEdge]] for graphML generation
+    * */
   def render(e: EI): RenderedEdge
 
-  // optional methods to track node graph
-  def mixI(pu: UI, node: InwardNode[DI, UI, BI]): UI = pu // insert node into parameters
+  /** In parameter negotiation, it will be used to alter name to track this node.
+    * @param pu manager port parameters
+    * @param node this node, required to be this.(@todo need refactor?)
+    * @return altered version of this node.
+    * */
+  def mixI(pu: UI, node: InwardNode[DI, UI, BI]): UI = pu
 }
 
-// DO = Downwards flowing Parameters generated by the outer side of the node
-// UO = Upwards   flowing Parameters received on the outer side of the node
-// EO = Edge Parameters describing a connection on the outer side of the node
-// BO = Bundle type used when connecting to the outer side of the node
+/** [[OutwardNodeImp]] is the Master Interface implementation
+ *
+ * @tparam DO Downwards flowing Parameters generated on the outer side of the node
+ *            It is usually a brunch of parameters describing the protocol parameters of a master. For an OutwardNode, it is determined itself
+ * @tparam UO Upwards flowing Parameters received by the outer side of the node
+ *            It is usually a brunch of parameters describing the protocol parameters from a slave. For an OutwardNode, it is determined by the connected InwardNode
+ *            Since it can be connected to multiple slaves, this parameter is always a Seq of slave port parameters.
+ * @tparam EO Edge Parameters describing a connection on the outer side of the node
+ *            It is usually a brunch of transfers specified for a master according to protocol
+ * @tparam BO Bundle type used when connecting to the outer side of the node
+ *            It is a hardware interface of this master interface
+ * */
 trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 {
+  /** @param pd client port parameters
+    * @param pu manager port parameters
+    * @param p Parameter of module
+    * @param sourceInfo [[SourceInfo]] of this edge.
+    * @return outward edge of this node.
+    * */
   def edgeO(pd: DO, pu: UO, p: Parameters, sourceInfo: SourceInfo): EO
+  /**
+    * @param eo outward Edge of this node.
+    * @return outward Bundle of this node
+    */
   def bundleO(eo: EO): BO
 
-  // optional methods to track node graph
-  def mixO(pd: DO, node: OutwardNode[DO, UO, BO]): DO = pd // insert node into parameters
+  /** In parameter negotiation, it will be used to alter name to track this node.
+    * @param pd client port parameters
+    * @param node this node, required to be this.(@todo need refactor?)
+    * @return altered version of this node.
+    * */
+  def mixO(pd: DO, node: OutwardNode[DO, UO, BO]): DO = pd
+  /** Nerver used, @todo need refactor?
+    * @param pd client port parameters
+    * */
   def getI(pd: DO): Option[BaseNode] = None // most-inward common node
 }
 
+/** [[NodeImp]] contains Master and Slave Interface implementation,
+  * it describes protocol properties of a kind of Node, which is always directly derived from interconnection protocol.
+  *
+  * @tparam D Downwards flowing Parameters of the node
+  * @tparam U Upwards flowing Parameters of the node
+  * @tparam EO Edge Parameters describing a connection on the outer side of the node
+  * @tparam EI Edge Parameters describing a connection on the inner side of the node
+  * @tparam B Bundle type used when connecting the node
+  * */
 abstract class NodeImp[D, U, EO, EI, B <: Data]
   extends Object with InwardNodeImp[D, U, EI, B] with OutwardNodeImp[D, U, EO, B]
 
-// If your edges have the same direction, using this saves you some typing
+/** [[SimpleNodeImp]] has a simple master and slave interface implementation, edge and bundle of which are same.
+  * If only one direction of transaction is permitted, we can always use the [[SimpleNodeImp]]
+  *
+  * For example, [[freechips.rocketchip.interrupts.IntImp]] is an interrupt transfer protocol,
+  * in which all signals shall flow from a master to a slave.
+  *
+  * @tparam D Downwards flowing Parameters of the node
+  * @tparam U Upwards flowing Parameters of the node
+  * @tparam E Edge Parameters describing a connection on the both side of the node
+  * @tparam B Bundle type used when connecting the node
+  **/
 abstract class SimpleNodeImp[D, U, E, B <: Data]
   extends NodeImp[D, U, E, E, B]
 {
+
+  /** Define this edge implementation, will be applied to [[edgeO]] and [[edgeI]]
+    * @param pd client port parameters
+    * @param pu manager port parameters
+    * @param p Parameter of module
+    * @param sourceInfo [[SourceInfo]] of this edge.
+    * @return outward edge of this node.
+    * */
   def edge(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo): E
   def edgeO(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo) = edge(pd, pu, p, sourceInfo)
   def edgeI(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo) = edge(pd, pu, p, sourceInfo)
+
+  /** Define Bundle generation method of this node. will be apply to [[bundleI]] and [[bundleO]]
+    * @param e Edge of this node.
+    * @return Bundle of this node
+    */
   def bundle(e: E): B
   def bundleO(e: E) = bundle(e)
   def bundleI(e: E) = bundle(e)
 }
 
+/** [[BaseNode]] is the base abstraction class of diplomacy node system. */
 abstract class BaseNode(implicit val valName: ValName)
 {
+  /** extract [[LazyModule]] scope from upside. */
   val scope = LazyModule.scope
+  /** node [[index]] for a [[LazyModule]]*/
   val index = scope.map(_.nodes.size).getOrElse(0)
+  /** @return the [[LazyModule]] which initiate this [[BaseNode]]*/
   def lazyModule = scope.get
+  /** append this node to [[LazyModule.scope]]. */
   scope.foreach { lm => lm.nodes = this :: lm.nodes }
 
+  /** access singleton [[BaseNode]] serial to set its own serial, and update [[BaseNode.serial]] */
   val serial = BaseNode.serial
   BaseNode.serial = BaseNode.serial + 1
+
+  /** @return a sequence of [[Dangle]] of this node,
+    * [[LazyModuleImpLike.instantiate]] will use which to generate IO.
+    * */
   protected[diplomacy] def instantiate(): Seq[Dangle]
+
+  /** A callback to finish the node generation,
+   * This will be executed in [[LazyModuleImpLike.instantiate]].
+   * */
   protected[diplomacy] def finishInstantiate(): Unit
 
+  /** @return name of this node*/
   def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
+  /** accessed by LazyModule in generating Graph, if true, graph generation will be omitted this node*/
   def omitGraphML: Boolean = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
 
@@ -86,7 +260,10 @@ abstract class BaseNode(implicit val valName: ValName)
     */
   def circuitIdentity: Boolean = false
 
+  /** @return a sequence of [[LazyModule]] till Top*/
   def parents: Seq[LazyModule] = scope.map(lm => lm +: lm.parents).getOrElse(Nil)
+
+  /** @return the description string for debug.*/
   def context: String = {
     s"""$description $name node:
        |parents: ${parents.map(_.name).mkString("/")}
@@ -105,10 +282,14 @@ abstract class BaseNode(implicit val valName: ValName)
     if (name.isEmpty) "" else name + "_"
   }
 
+  /** @return Node description, which should defined by user*/
   def description: String
   def formatNode: String = ""
 
+  /** @return metedata to print input graph. */
   def inputs:  Seq[(BaseNode, RenderedEdge)]
+
+  /** @return metedata to print output graph. */
   def outputs: Seq[(BaseNode, RenderedEdge)]
 
   protected[diplomacy] def flexibleArityDirection: Boolean = false
@@ -118,6 +299,7 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] val flexOffset: Int
 }
 
+/** singleton for [[BaseNode]], which is only used as the global serial number.*/
 object BaseNode
 {
   protected[diplomacy] var serial = 0
@@ -127,8 +309,10 @@ trait FormatEdge {
   def formatEdge: String
 }
 
+/** Define GraphML metadata. */
 trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
   def edges: Edges[I,O]
+  /** used in [[LazyModule.nodesGraphML]]. */
   override def formatNode = if (circuitIdentity) "" else {
     edges.out.map(currEdge =>
       "On Output Edge:\n\n" + currEdge.formatEdge).mkString +
@@ -144,74 +328,168 @@ case object NoHandleObject extends NoHandle
 trait NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   extends InwardNodeHandle[DI, UI, EI, BI] with OutwardNodeHandle[DO, UO, EO, BO]
 {
-  // connecting two full nodes => full node
+  /** [[BIND_ONCE]] this node as slave, [[BIND_ONCE]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   override def :=  [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_ONCE);  NodeHandle(h, this) }
+  /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   override def :*= [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_STAR);  NodeHandle(h, this) }
+  /** [[BIND_QUERY]] this node as slave, [[BIND_STAR]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   override def :=* [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_QUERY); NodeHandle(h, this) }
+  /** [[BIND_FLEX]] this node as slave, [[BIND_FLEX]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   override def :*=*[DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NodeHandle[DX, UX, EX, BX, DO, UO, EO, BO] = { bind(h, BIND_FLEX);  NodeHandle(h, this) }
-  // connecting a full node with an output => an output
+  /** [[BIND_ONCE]] this node as slave, [[BIND_ONCE]] that node as master.
+    * @param h master node also without slave handle
+    * @return a [[OutwardNodeHandle]] with this node as outwardNode
+    * */
   override def :=  [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_ONCE);  this }
+  /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
+    * @param h master node also without slave handle
+    * @return a [[OutwardNodeHandle]] with this node as outwardNode
+    * */
   override def :*= [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_STAR);  this }
+  /** [[BIND_QUERY]] this node as slave, [[BIND_STAR]] that node as master.
+    * @param h master node also without slave handle
+    * @return a [[OutwardNodeHandle]] with this node as outwardNode
+    * */
   override def :=* [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_QUERY); this }
+  /** [[BIND_FLEX]] this node as slave, [[BIND_FLEX]] that node as master.
+    * @param h master node also without slave handle
+    * @return a [[OutwardNodeHandle]] with this node as outwardNode
+    * */
   override def :*=*[EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): OutwardNodeHandle[DO, UO, EO, BO] = { bind(h, BIND_FLEX);  this }
 }
 
 object NodeHandle
 {
+  /** generate a [[NodeHandlePair]]
+    * @param i master node
+    * @param o slave node
+    * @return [[NodeHandle]] with inwardNode of i, outwardNode of o.
+    * */
   def apply[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](i: InwardNodeHandle[DI, UI, EI, BI], o: OutwardNodeHandle[DO, UO, EO, BO]) = new NodeHandlePair(i, o)
 }
 
+/** [[NodeHandle]] with inward and outward handle*/
 class NodeHandlePair[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   (inwardHandle: InwardNodeHandle[DI, UI, EI, BI], outwardHandle: OutwardNodeHandle[DO, UO, EO, BO])
   extends NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO]
 {
   val inward = inwardHandle.inward
   val outward = outwardHandle.outward
+  /** @return [[NodeImp]] of [[inwardHandle]]. */
   def inner = inwardHandle.inner
+  /** @return [[NodeImp]] of [[outwardHandle]]. */
   def outer = outwardHandle.outer
 }
 
+/** [[NodeHandle]] with inward handle*/
 trait InwardNodeHandle[DI, UI, EI, BI <: Data] extends NoHandle
 {
+  /** @return [[InwardNode]] of inwardHandle. */
   def inward: InwardNode[DI, UI, BI]
+  /** @return [[NodeImp]] of inwardHandle. */
   def inner: InwardNodeImp[DI, UI, EI, BI]
 
+  /** bind this node to a outword node. */
   protected def bind[EY](h: OutwardNodeHandle[DI, UI, EY, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = inward.bind(h.outward, binding)
 
-  // connecting an input node with a full nodes => an input node
+  /** [[BIND_ONCE]] this node as slave, [[BIND_ONCE]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   def :=  [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_ONCE);  h }
+  /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   def :*= [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_STAR);  h }
+  /** [[BIND_QUERY]] this node as slave, [[BIND_STAR]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   def :=* [DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_QUERY); h }
+  /** [[BIND_FLEX]] this node as slave, [[BIND_FLEX]] that node as master.
+    * @param h master node also with slave handle
+    * @return a [[NodeHandle]] with that node as inwardNode, this node as outwardNode
+    * */
   def :*=*[DX, UX, EX, BX <: Data, EY](h: NodeHandle[DX, UX, EX, BX, DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): InwardNodeHandle[DX, UX, EX, BX] = { bind(h, BIND_FLEX);  h }
-  // connecting input node with output node => no node
+  /** [[BIND_ONCE]] this node as slave, [[BIND_ONCE]] that node as master.
+    * @param h master node also without slave handle.
+    * @return [[NoHandle]] since both side cannot bind other node.
+    * */
   def :=  [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_ONCE);  NoHandleObject }
+  /** [[BIND_STAR]] this node as slave, [[BIND_QUERY]] that node as master.
+    * @param h master node also without slave handle.
+    * @return [[NoHandle]] since both side cannot bind other node.
+    * */
   def :*= [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_STAR);  NoHandleObject }
+  /** [[BIND_QUERY]] this node as slave, [[BIND_STAR]] that node as master.
+    * @param h master node also without slave handle.
+    * @return [[NoHandle]] since both side cannot bind other node.
+    * */
   def :=* [EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_QUERY); NoHandleObject }
+  /** [[BIND_FLEX]] this node as slave, [[BIND_FLEX]] that node as master.
+    * @param h master node also without slave handle.
+    * @return [[NoHandle]] since both side cannot bind other node.
+    * */
   def :*=*[EY](h: OutwardNodeHandle[DI, UI, EY, BI])(implicit p: Parameters, sourceInfo: SourceInfo): NoHandle = { bind(h, BIND_FLEX);  NoHandleObject }
 }
 
 sealed trait NodeBinding
+/** only bind one connection. */
 case object BIND_ONCE  extends NodeBinding {
   override def toString: String = "once"
 }
+/** it will bind N (N >= 0) connections,
+  * query another node which N should be applied.
+  * */
 case object BIND_QUERY extends NodeBinding {
   override def toString: String = "query"
 }
+/** it will bind N (N >= 0) connections,
+  * greedy bind available nodes on this node.
+  * */
 case object BIND_STAR  extends NodeBinding {
   override def toString: String = "star"
 }
+/** it will bind N (N >= 0) connections,
+  * not sure to query which side.
+  * */
 case object BIND_FLEX  extends NodeBinding {
   override def toString: String = "flex"
 }
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 {
+  /** when binding this node to another nodes,
+    * [[accPI]] will append another node
+    * */
   private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding, Parameters, SourceInfo)]()
+
+  /** mark [[iBindings]] has been implemented.*/
   private var iRealized = false
 
   def iBindingInfo: String = s"""${iBindings.size} inward nodes bound: [${iBindings.map(n => s"${n._3}-${n._2.name}").mkString(",")}]"""
 
+  /** current size of [[accPI]]. [[InwardNode.bind]] will find it useful in indexing.*/
   protected[diplomacy] def iPushed = accPI.size
+
+  /** call by [[InwardNode.bind]] to bind this node to that
+    * @param index index of current.
+    * @param node node to bind now.
+    * @param binding Binding type.
+    * */
   protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!iRealized,
@@ -223,8 +501,12 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
     accPI += ((index, node, binding, p, sourceInfo))
   }
 
+  /** It's the final result of [[accPI]].
+    * after calling this, [[iPush]] will reject to add more nodes.
+    * */
   protected[diplomacy] lazy val iBindings = { iRealized = true; accPI.result() }
 
+  /** resolved STAR binding of inward nodes. */
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] def iForward(x: Int): Option[(Int, InwardNode[DI, UI, BI])] = None
@@ -242,12 +524,22 @@ trait OutwardNodeHandle[DO, UO, EO, BO <: Data] extends NoHandle
 
 trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
 {
+  /** when connecting this node to other nodes,
+    * [[accPO]] will append other nodes's information.
+    * */
   private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding, Parameters, SourceInfo)]()
   private var oRealized = false
 
   def oBindingInfo: String = s"""${oBindings.size} outward nodes bound: [${oBindings.map(n => s"${n._3}-${n._2.name}").mkString(",")}]"""
 
+  /** current size of [[accPO]]. */
   protected[diplomacy] def oPushed = accPO.size
+
+  /** call by [[InwardNode.bind]] to bind this node to it
+    * @param index index of current.
+    * @param node node to bind now.
+    * @param binding Binding type.
+    * */
   protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!oRealized,
@@ -259,8 +551,12 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
     accPO += ((index, node, binding, p, sourceInfo))
   }
 
+  /** It's the final result of [[accPO]].
+    * after calling this, [[oPush]] will reject to add more nodes.
+    * */
   protected[diplomacy] lazy val oBindings = { oRealized = true; accPO.result() }
 
+  /** resolved STAR binding of outward nodes. */
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
   protected[diplomacy] def oForward(x: Int): Option[(Int, OutwardNode[DO, UO, BO])] = None
@@ -273,46 +569,77 @@ case class StarCycleException(loop: Seq[String] = Nil) extends CycleException("s
 case class DownwardCycleException(loop: Seq[String] = Nil) extends CycleException("downward", loop)
 case class UpwardCycleException(loop: Seq[String] = Nil) extends CycleException("upward", loop)
 
+/** [[Edges]] is a collection of functions describing the functionality and connection for an interface,
+  * which is often derived from interconnection protocol.
+  * */
 case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
+
+/** The sealed Node in the package, all node are derived from it.
+  * @param inner slave interface implementation
+  * @param outer master interface implementation
+  * @param valName val name of this node
+  * @tparam DI Downwards Parameters received on the inner side of the node
+  *            It is usually a brunch of parameters describing the protocol parameters from a master. For an InwardNode, it is determined by the connected OutwardNode
+  *            Since it can be connected to multiple masters, this parameter is always a Seq of master port parameters.
+  * @tparam UI Upwards flowing Parameters generated by the inner side of the node
+  *            It is usually a brunch of parameters describing the protocol parameters of a slave. For an InwardNode, it is determined itself
+  * @tparam EI Edge Parameters describing a connection on the inner side of the node
+  *            It is usually a brunch of transfers specified for a slave according to protocol
+  * @tparam BI Bundle type used when connecting to the inner side of the node
+  *            It is a hardware interface of this slave interface
+  * @tparam DO Downwards flowing Parameters generated on the outer side of the node
+  *            It is usually a brunch of parameters describing the protocol parameters of a master. For an OutwardNode, it is determined itself
+  * @tparam UO Upwards flowing Parameters received by the outer side of the node
+  *            It is usually a brunch of parameters describing the protocol parameters from a slave. For an OutwardNode, it is determined by the connected InwardNode
+  *            Since it can be connected to multiple slaves, this parameter is always a Seq of slave port parameters.
+  * @tparam EO Edge Parameters describing a connection on the outer side of the node
+  *            It is usually a brunch of transfers specified for a master according to protocol
+  * @tparam BO Bundle type used when connecting to the outer side of the node
+  *            It is a hardware interface of this master interface
+  */
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
   val outer: OutwardNodeImp[DO, UO, EO, BO])(
   implicit valName: ValName)
   extends BaseNode with NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO] with InwardNode[DI, UI, BI] with OutwardNode[DO, UO, BO]
 {
+  /** generate a [[NodeHandle]] with inward and outward node are both this node. */
   val inward = this
   val outward = this
 
-  /** debug info of nodes binding. */
-  def bindingInfo: String =
-    s"""$iBindingInfo
-       |$oBindingInfo
-       |""".stripMargin
-
-  /** debug info of ports connecting. */
-  def connectedPortsInfo: String =
-    s"""${oPorts.size} outward ports connected: [${oPorts.map(_._2.name).mkString(",")}]
-       |${iPorts.size} inward ports connected: [${iPorts.map(_._2.name).mkString(",")}]
-       |""".stripMargin
-
-  /** debug info of parameters propagations. */
-  def parametersInfo: String =
-    s"""${doParams.size} downstream outward parameters: [${doParams.mkString(",")}]
-       |${uoParams.size} upstream outward parameters: [${uoParams.mkString(",")}]
-       |${diParams.size} downstream inward parameters: [${diParams.mkString(",")}]
-       |${uiParams.size} upstream inward parameters: [${uiParams.mkString(",")}]
-       |""".stripMargin
-
-
+ /** converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]].
+    * @param iKnown number of master nodes no need to query
+    * @param oKnown number of slave nodes no need to query
+    * @param iStar number of master nodes need to query
+    * @param oStar number of slave nodes need to query
+    * @return
+    * */
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
+  /** function to generate [[doParams]] from [[oPorts]] and [[diParams]]
+    * @todo since only one usage of this, maybe can refactor?
+    * @param n size of [[oPorts]].
+    * @param p [[diParams]] of this node.
+    * @return [[doParams]]
+    * */
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
+  /** function to generate [[uiParams]] from [[iPorts]] and [[uoParams]]
+    * @todo since only one usage of this, maybe can refactor?
+    * @param n size of [[iPorts]]
+    * @param p [[uoParams]] of this node.
+    * @return [[uiParams]]
+    * */
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
-
+  /** number of query from down to top near this node. */
   protected[diplomacy] lazy val sinkCard   = oBindings.count(_._3 == BIND_QUERY) + iBindings.count(_._3 == BIND_STAR)
+  /** number of query from top to down near this node. */
   protected[diplomacy] lazy val sourceCard = iBindings.count(_._3 == BIND_QUERY) + oBindings.count(_._3 == BIND_STAR)
+  /** number of flex near this node. */
   protected[diplomacy] lazy val flexes     = oBindings.filter(_._3 == BIND_FLEX).map(_._2) ++
                                              iBindings.filter(_._3 == BIND_FLEX).map(_._2)
-  protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
+  /** positive = sink cardinality; define 0 to be sink (both should work)
+    * @todo maybe use Boolean is better here since this index only used with:
+    * */
+  protected[diplomacy] lazy val flexOffset = {
     def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
       if (visited.contains(v.serial) || !v.flexibleArityDirection) {
         visited
@@ -320,9 +647,21 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         v.flexes.foldLeft(visited + (v.serial -> v))((sum, n) => DFS(n, sum))
       }
     }
+    /** a partial flex set connect to this node, for example
+      * {{{
+      *   a :*=* b :*=* c
+      *   d :*=* b
+      *   e :*=* f
+      * }}}
+      * `flexSet` of `a`, `b`, `c`, `d` will be `Set(a, b, c, d)`
+      * `flexSet` of `e`, `f` will be `Set(e,f)`
+      * */
     val flexSet = DFS(this, Map()).values
+    /** total size of query from down to top in this flex chain */
     val allSink   = flexSet.map(_.sinkCard).sum
+    /** total size of query from top to down in this flex chain */
     val allSource = flexSet.map(_.sourceCard).sum
+    /* require the flexSet containing this node query in one direction. */
     require (allSink == 0 || allSource == 0,
       s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have ${allSink} :*= operators and ${allSource} :=* operators connected to them, making it impossible to determine cardinality inference direction.")
     allSink - allSource
@@ -344,29 +683,38 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     try {
       if (starCycleGuard) throw StarCycleException()
       starCycleGuard = true
+      /** number of [[BIND_STAR]] in [[OutwardNode]]s connected to this node. */
       val oStars = oBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) < 0) }
+      /** number of [[BIND_STAR]] in [[InwardNode]]s connected to this node. */
       val iStars = iBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) > 0) }
+      /** number of known node in [[OutwardNode]]s connected to this node. */
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, 0, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
+      /** number of known node in [[InwardNode]]s connected to this node.
+        * @todo why oStar
+        * */
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, n.oStar, 0)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
+      /** cumulative list of resolved outward nodes number. */
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, oStar, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
+      /** cumulative list of resolved inward nodes number. */
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, n.oStar, iStar)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
+      /** @todo [[oTotal]] and [[iTotal]] is not used. */
       val oTotal = oSum.lastOption.getOrElse(0)
       val iTotal = iSum.lastOption.getOrElse(0)
       (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
@@ -474,7 +822,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   private var bundlesSafeNow = false
-  // Accessors to the result of negotiation to be used in LazyModuleImp:
+  /** Accessors to the result of negotiation to be used in [[LazyModuleImp]]. */
   def out: Seq[(BO, EO)] = {
     require(bundlesSafeNow, s"$name.out should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
     bundleOut zip edgesOut
@@ -484,6 +832,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     bundleIn zip edgesIn
   }
 
+  // Used by LazyModules.module.instantiate
+  protected val identity = false
   protected[diplomacy] def instantiate() = {
     bundlesSafeNow = true
     if (!circuitIdentity) {
@@ -520,6 +870,9 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   def outputs = oPorts map { case (i, n, _, _) => (n, n.inputs(i)._2) }
 }
 
+/** If designer wanna do the funky jobs, just extend the Node.
+  * It's the external wrapper of the [[CustomNode]]
+  */
 abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -532,6 +885,7 @@ abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
 }
 
+/** [[MixedCustomNode]] has a same [[NodeImp]] of inward and outward. */
 abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
   extends MixedCustomNode(imp, imp)
@@ -596,6 +950,19 @@ class MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 }
 
+/**
+  * Junction nodes are a bit esoteric.
+  * You need them when you need, for example, a 2:1 arbiter, but several times.
+  * Suppose you had N banks of L2 and wanted to connect those to two different driver crossbars.
+  * In that case you can do this:
+  * {{{
+  *   l2banks.node :*= jbar.node
+  *   jbar.node :*= xbar1.node
+  *   jbar.node :*= xbar2.node
+  * }}}
+  * If the L2 has 4 banks, now there are 4 egress ports on both xbar1 and xbar2 and they are arbitrated by the jbar.
+  * @todo not understand.
+  * */
 class JunctionNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: Seq[D] => Seq[D],
   uFn: Seq[U] => Seq[U])(
@@ -667,14 +1034,20 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     p.map(uFn)
   }
 }
-
+/** The [[MixedAdapterNode.inner]] and [[MixedAdapterNode.outer]] of [[AdapterNode]] are same,
+  * but it has to provide the [[uFn]] and [[dFn]] to alter the [[Parameters]] transform protocol
+  * When the [[U]] and [[D]] parameters are different, an adapter node is used.
+  */
 class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: D => D,
   uFn: U => U)(
   implicit valName: ValName)
     extends MixedAdapterNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
 
-// IdentityNodes automatically connect their inputs to outputs
+/** The [[AdapterNode.inner]] and [[AdapterNode.outer]] of [[IdentityNode]] are same,
+  * and directly pass the between input and output.
+  * it automatically connect their inputs to outputs.
+  */
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
@@ -682,12 +1055,12 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   override final def circuitIdentity = true
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
-    (out zip in) map { case ((o, _), (i, _)) => o <> i }
+    (out zip in) foreach { case ((o, _), (i, _)) => o <> i }
     dangles
   } 
 }
 
-// EphemeralNodes disappear from the final node graph
+/** EphemeralNodes disappear from the final node graph. */
 class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
@@ -699,6 +1072,14 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
   override protected[diplomacy] def instantiate() = Nil
 }
 
+/** [[MixedNexusNode]] is used to handle the case which not sure the number of nodes connect to.
+  * [[NodeImp]] is different between [[inner]] and [[outer]],
+  *
+  * @param dFn merge [[Parameters]] from multi master sources connected to this node into a single parameter
+  * @param uFn merge [[Parameters]] from multi slave sources connected to this node into a single parameter
+  * @param inputRequiresOutput @todo
+  * @param outputRequiresInput @todo
+  */
 class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -737,6 +1118,7 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = { if (n > 0) { val a = uFn(p); Seq.fill(n)(a) } else Nil }
 }
 
+/** [[NexusNode]] is a [[MixedNexusNode]], which `inner` and `outer` has same [[NodeImp]]. */
 class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: Seq[D] => D,
   uFn: Seq[U] => U,
@@ -745,7 +1127,12 @@ class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
     extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, inputRequiresOutput, outputRequiresInput)
 
-// There are no Mixed SourceNodes
+/** [[SourceNode]] will ignore the [[MixedNode.iPorts]].
+  * [[SourceNode]] is to model a master node in the graph which only has outwards arcs but no inwards arcs.
+  * For example, a processor would be a [[SourceNode]].
+  * cannot appear left of a `:=`， `:*=`, `:*=*`
+  * There are no Mixed SourceNodes.
+  * */
 class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
   extends MixedNode(imp, imp)
 {
@@ -804,7 +1191,11 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   }
 }
 
-// There are no Mixed SinkNodes
+/** [[SinkNode]] will ignore the [[MixedNode.oPorts]].
+  * [[SinkNode]] is a slave node in the graph which has only inwards arcs but no outwards arcs,
+  * For example, a RAM block (sink) in regarding to the LLC.
+  * cannot appear right of a `:=`， `:*=`, `:*=*`
+  * */
 class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U])(implicit valName: ValName)
   extends MixedNode(imp, imp)
 {
