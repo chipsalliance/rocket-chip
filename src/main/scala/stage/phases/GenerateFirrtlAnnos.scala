@@ -2,38 +2,39 @@
 
 package freechips.rocketchip.stage.phases
 
-import java.io.{File, FileWriter}
-
-import chisel3.stage.phases.{Elaborate, MaybeAspectPhase}
+import chisel3.stage.phases.{Convert, Elaborate, MaybeAspectPhase}
 import firrtl.AnnotationSeq
-import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
+import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
 import firrtl.options.Viewer.view
-import firrtl.options.{Phase, PreservesAll, StageOptions, Unserializable}
+import firrtl.options.{Phase, PreservesAll, StageOptions, TargetDirAnnotation, Unserializable}
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
 
 /** Writes FIRRTL annotations into a file */
 class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(classOf[Checks], classOf[Elaborate], classOf[MaybeAspectPhase])
+  override val prerequisites = Seq(classOf[Checks], classOf[Elaborate], classOf[Convert], classOf[MaybeAspectPhase])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
     val fileName = s"${view[RocketChipOptions](annotations).longName.get}.anno.json"
 
-    val f = new File(targetDir, fileName)
-    val fw = new FileWriter(f)
+    val annos = scala.collection.mutable.Buffer[Annotation]()
     annotations.flatMap {
       case a: Unserializable =>
+        Some(a)
+      case a: TargetDirAnnotation =>
+        /** Don't serialize, in case of downstream FIRRTL call */
         Some(a)
       case a @ DeletedAnnotation(_, _: Unserializable) =>
         /** [[DeletedAnnotation]]s of unserializable annotations cannot be serialized */
         Some(a)
       case a =>
-        fw.write(JsonProtocol.serialize(Seq(a)))
+        annos += a
         Some(a)
     }
-    fw.close
+
+    writeOutputFile(targetDir, fileName, JsonProtocol.serialize(annos))
 
     annotations
   }
